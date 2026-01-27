@@ -1,0 +1,97 @@
+project_id = "luobvdmetrfutavmbaha"
+
+[functions.security-regression-checks]
+verify_jwt = false
+
+[functions.security-smoke-tests]
+verify_jwt = false
+
+[functions.create-tap-payment]
+verify_jwt = true
+
+[functions.verify-payment]
+verify_jwt = true
+
+[functions.tap-webhook]
+verify_jwt = false
+
+[functions.sync-airtable]
+verify_jwt = true
+
+[functions.create-airtable-client]
+verify_jwt = true
+
+[functions.submit-onboarding]
+verify_jwt = true
+
+[functions.send-signup-confirmation]
+verify_jwt = true
+
+[functions.send-testimonial-request]
+verify_jwt = true
+
+[functions.send-truecoach-notification]
+verify_jwt = true
+
+[functions.send-coach-invitation]
+verify_jwt = true
+
+[functions.send-payment-reminder]
+verify_jwt = true
+
+[functions.check-payment-deadlines]
+verify_jwt = false
+
+[functions.cancel-subscription]
+verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.manage-discord-roles]
+verify_jwt = true
+
+[functions.create-coach-account]
+verify_jwt = true
+
+[functions.create-manual-client]
+verify_jwt = true
+
+[functions.send-welcome-email]
+verify_jwt = true
+
+[functions.send-client-approval-notification]
+verify_jwt = true
+
+[functions.notify-zapier]
+verify_jwt = false
+
+[functions.book-session]
+verify_jwt = false
+
+[functions.cancel-session]
+verify_jwt = false
+
+[functions.notify-coach-contact]
+verify_jwt = true
+
+[functions.process-billing-reminders]
+verify_jwt = false
+
+[functions.process-care-team-discharges]
+verify_jwt = false
+
+[functions.bootstrap-admin-role]
+verify_jwt = false
+
+[functions.get-video-signed-url]
+verify_jwt = false
+
+[functions.apply-discount-code]
+verify_jwt = false
+
+[functions.validate-discount-code]
+verify_jwt = false
+
+[functions.security-hardening-checklist]
+verify_jwt = false
