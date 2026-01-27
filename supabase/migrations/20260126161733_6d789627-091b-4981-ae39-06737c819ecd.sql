@@ -1,5 +1,5 @@
--- Enable pgcrypto if not already enabled
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+-- Enable pgcrypto if not already enabled (Supabase puts it in extensions schema)
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
 -- Function to hash discount codes using pgcrypto (normalize: trim, uppercase)
 CREATE OR REPLACE FUNCTION public.discount_code_hash(p_code text)
@@ -8,7 +8,7 @@ LANGUAGE sql
 IMMUTABLE
 PARALLEL SAFE
 AS $$
-  SELECT encode(digest(upper(trim(p_code)), 'sha256'), 'hex')
+  SELECT encode(extensions.digest(upper(trim(p_code)), 'sha256'), 'hex')
 $$;
 
 -- Add comment for documentation

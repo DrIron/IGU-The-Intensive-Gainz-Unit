@@ -1,73 +1,152 @@
-# Welcome to your Lovable project
+# Intensive Gainz Unit (IGU)
 
-## Project info
+Evidence-based online coaching platform with team programs and performance tracking for serious lifters.
 
-**URL**: https://lovable.dev/projects/7353ed04-bf23-4738-9379-8cae957efa1c
+## Tech Stack
 
-## How can I edit this code?
+- **Frontend**: React 19 + TypeScript + Vite
+- **UI**: shadcn-ui + Tailwind CSS
+- **Backend**: Supabase (PostgreSQL + Auth + Edge Functions)
+- **State**: TanStack Query (React Query)
+- **Forms**: React Hook Form + Zod
 
-There are several ways of editing your application.
+## Getting Started
 
-**Use Lovable**
+### Prerequisites
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/7353ed04-bf23-4738-9379-8cae957efa1c) and start prompting.
+- Node.js 18+ (recommended: use [nvm](https://github.com/nvm-sh/nvm))
+- npm or yarn
+- A Supabase project
 
-Changes made via Lovable will be committed automatically to this repo.
+### 1. Clone the Repository
 
-**Use your preferred IDE**
+```bash
+git clone https://github.com/DrIron/IGU-The-Intensive-Gainz-Unit.git
+cd IGU-The-Intensive-Gainz-Unit
+```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 2. Install Dependencies
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+```bash
+npm install
+```
 
-Follow these steps:
+### 3. Configure Environment Variables
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+Copy the example environment file and fill in your values:
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+```bash
+cp .env.example .env.local
+```
 
-# Step 3: Install the necessary dependencies.
-npm i
+Then edit `.env.local` with your Supabase credentials:
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
+```env
+VITE_SUPABASE_PROJECT_ID="your-project-ref"
+VITE_SUPABASE_PUBLISHABLE_KEY="your-anon-key"
+VITE_SUPABASE_URL="https://your-project-ref.supabase.co"
+```
+
+**Where to find these values:**
+1. Go to [Supabase Dashboard](https://supabase.com/dashboard)
+2. Select your project
+3. Go to **Settings** → **API**
+4. Copy:
+   - **Project URL** → `VITE_SUPABASE_URL`
+   - **anon public** key → `VITE_SUPABASE_PUBLISHABLE_KEY`
+   - **Reference ID** (from URL or Settings → General) → `VITE_SUPABASE_PROJECT_ID`
+
+### 4. Start Development Server
+
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+The app will be available at `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## Environment Variables Reference
 
-**Use GitHub Codespaces**
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `VITE_SUPABASE_URL` | ✅ | Your Supabase project URL |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | ✅ | Your Supabase anon/public key |
+| `VITE_SUPABASE_PROJECT_ID` | ✅ | Your Supabase project reference ID |
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+> **Note**: All frontend env vars must be prefixed with `VITE_` for Vite to expose them.
 
-## What technologies are used for this project?
+## Project Structure
 
-This project is built with:
+```
+├── src/
+│   ├── components/       # React components
+│   │   ├── admin/       # Admin dashboard components
+│   │   ├── client/      # Client-facing components
+│   │   ├── coach/       # Coach dashboard components
+│   │   └── ui/          # shadcn-ui base components
+│   ├── pages/           # Route pages
+│   ├── hooks/           # Custom React hooks
+│   ├── lib/             # Utilities and configs
+│   └── integrations/    # External service integrations
+├── supabase/
+│   ├── functions/       # Edge Functions (Deno)
+│   ├── migrations/      # Database migrations
+│   └── config.toml      # Supabase CLI config
+└── public/              # Static assets
+```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+## Available Scripts
 
-## How can I deploy this project?
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development server |
+| `npm run build` | Build for production |
+| `npm run preview` | Preview production build |
+| `npm run lint` | Run ESLint |
 
-Simply open [Lovable](https://lovable.dev/projects/7353ed04-bf23-4738-9379-8cae957efa1c) and click on Share -> Publish.
+## Supabase CLI Setup (Optional)
 
-## Can I connect a custom domain to my Lovable project?
+For database migrations and edge functions:
 
-Yes, you can!
+```bash
+# Install Supabase CLI
+brew install supabase/tap/supabase
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+# Login to Supabase
+supabase login
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+# Link to your project
+supabase link --project-ref your-project-ref
+
+# Pull current schema
+supabase db pull
+
+# Deploy edge functions
+supabase functions deploy
+```
+
+## Deployment
+
+### Vercel (Recommended)
+
+1. Push to GitHub
+2. Import project in [Vercel](https://vercel.com)
+3. Add environment variables in Vercel dashboard
+4. Deploy
+
+### Other Platforms
+
+Any static hosting that supports SPA routing:
+- Netlify
+- Cloudflare Pages
+- AWS S3 + CloudFront
+
+## Security Notes
+
+- `.env.local` is gitignored - never commit secrets
+- Only the anon/public key is used in frontend (safe to expose)
+- Service role keys are only used in Supabase Edge Functions
+- Row Level Security (RLS) enforces data access at database level
+
+## License
+
+Private - All rights reserved.

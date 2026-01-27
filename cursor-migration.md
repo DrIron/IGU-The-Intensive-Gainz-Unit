@@ -142,7 +142,7 @@ VITE_SUPABASE_PROJECT_ID=your_project_id
 
 #### 4.1 Using Existing Supabase Project
 
-If you're continuing with the existing Supabase project (`luobvdmetrfutavmbaha`):
+If you're continuing with an existing Supabase project:
 
 1. Ensure you have access to the Supabase project dashboard
 2. Verify the credentials in `.env` match your project

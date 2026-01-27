@@ -42,7 +42,9 @@ import WorkoutBuilderQA from "./pages/admin/WorkoutBuilderQA";
 import RolesDebug from "./pages/admin/RolesDebug";
 import SecurityHardeningChecklist from "./pages/admin/SecurityHardeningChecklist";
 import SiteMapDiagnostics from "./pages/admin/SiteMapDiagnostics";
+import DiagnosticsIndex from "./pages/admin/DiagnosticsIndex";
 import Unauthorized from "./pages/Unauthorized";
+import { RoutesDebugPanel } from "./components/admin/RoutesDebugPanel";
 import WorkoutSession from "./pages/client/WorkoutSession";
 import WorkoutCalendar from "./pages/client/WorkoutCalendar";
 import ExerciseHistory from "./pages/client/ExerciseHistory";
@@ -58,6 +60,8 @@ const App = () => {
           <Sonner />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <TestEnvironmentBanner />
+            {/* Routes Debug Panel - only shows in non-production */}
+            <RoutesDebugPanel show={!window.location.hostname.includes('theigu.com')} />
             <div className="min-h-screen">
               <Routes>
                 <Route path="/" element={<Index />} />
@@ -110,6 +114,7 @@ const App = () => {
                 <Route path="/admin/workout-qa" element={<RoleProtectedRoute requiredRole="admin"><WorkoutBuilderQA /></RoleProtectedRoute>} />
                 <Route path="/admin/debug/roles" element={<RoleProtectedRoute requiredRole="admin"><RolesDebug /></RoleProtectedRoute>} />
                 <Route path="/admin/security-checklist" element={<RoleProtectedRoute requiredRole="admin"><SecurityHardeningChecklist /></RoleProtectedRoute>} />
+                <Route path="/admin/diagnostics" element={<RoleProtectedRoute requiredRole="admin"><DiagnosticsIndex /></RoleProtectedRoute>} />
                 <Route path="/admin/diagnostics/site-map" element={<RoleProtectedRoute requiredRole="admin"><SiteMapDiagnostics /></RoleProtectedRoute>} />
                 <Route path="/access-debug" element={<ProtectedRoute><AccessDebug /></ProtectedRoute>} />
                 <Route path="/unauthorized" element={<Unauthorized />} />

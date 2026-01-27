@@ -18,6 +18,10 @@ dist-ssr
 .env.*.local
 supabase/.env
 
+# Supabase CLI local data (contains access tokens)
+.supabase/
+supabase/.temp/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
