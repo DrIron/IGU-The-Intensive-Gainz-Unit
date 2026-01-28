@@ -95,15 +95,15 @@ const App = () => {
                 
                 {/* Client routes - requires complete onboarding */}
                 <Route path="/client" element={<AuthGuard><OnboardingGuard><Dashboard /></OnboardingGuard></AuthGuard>} />
-                <Route path="/client/dashboard" element={<AuthGuard><Dashboard /></AuthGuard>} />
-                <Route path="/client/workout/session/:moduleId" element={<AuthGuard><WorkoutSession /></AuthGuard>} />
-                <Route path="/client/workout/calendar" element={<AuthGuard><WorkoutCalendar /></AuthGuard>} />
-                <Route path="/client/workout/history" element={<AuthGuard><ExerciseHistory /></AuthGuard>} />
+                <Route path="/client/dashboard" element={<AuthGuard><OnboardingGuard><Dashboard /></OnboardingGuard></AuthGuard>} />
+                <Route path="/client/workout/session/:moduleId" element={<AuthGuard><OnboardingGuard><WorkoutSession /></OnboardingGuard></AuthGuard>} />
+                <Route path="/client/workout/calendar" element={<AuthGuard><OnboardingGuard><WorkoutCalendar /></OnboardingGuard></AuthGuard>} />
+                <Route path="/client/workout/history" element={<AuthGuard><OnboardingGuard><ExerciseHistory /></OnboardingGuard></AuthGuard>} />
                 
                 <Route path="/account" element={<AuthGuard><AccountManagement /></AuthGuard>} />
                 <Route path="/reset-password" element={<PublicLayout minimal><ResetPassword /></PublicLayout>} />
                 <Route path="/calorie-calculator" element={<PublicLayout><CalorieCalculator /></PublicLayout>} />
-                <Route path="/workout-library" element={<AuthGuard><WorkoutLibrary /></AuthGuard>} />
+                <Route path="/workout-library" element={<AuthGuard><OnboardingGuard><WorkoutLibrary /></OnboardingGuard></AuthGuard>} />
                 <Route path="/testimonial" element={<PublicLayout><Testimonial /></PublicLayout>} />
                 <Route path="/client-submission/:userId" element={<ClientSubmission />} />
                 <Route path="/meet-our-team" element={<PublicLayout><MeetOurTeam /></PublicLayout>} />
@@ -111,16 +111,16 @@ const App = () => {
                 <Route path="/coach-password-setup" element={<CoachPasswordSetup />} />
                 <Route path="/coach-password-set" element={<CoachPasswordSetup />} />
                 <Route path="/testimonials-management" element={<RoleProtectedRoute requiredRole="admin"><TestimonialsManagement /></RoleProtectedRoute>} />
-                <Route path="/nutrition" element={<AuthGuard><Nutrition /></AuthGuard>} />
-                <Route path="/nutrition-team" element={<AuthGuard><TeamNutrition /></AuthGuard>} />
-                <Route path="/nutrition-client" element={<AuthGuard><ClientNutrition /></AuthGuard>} />
+                <Route path="/nutrition" element={<AuthGuard><OnboardingGuard><Nutrition /></OnboardingGuard></AuthGuard>} />
+                <Route path="/nutrition-team" element={<AuthGuard><OnboardingGuard><TeamNutrition /></OnboardingGuard></AuthGuard>} />
+                <Route path="/nutrition-client" element={<AuthGuard><OnboardingGuard><ClientNutrition /></OnboardingGuard></AuthGuard>} />
                 <Route path="/coach-client-nutrition" element={<AuthGuard><CoachClientNutrition /></AuthGuard>} />
                 <Route path="/payment-status" element={<AuthGuard><PaymentStatus /></AuthGuard>} />
                 <Route path="/payment-return" element={<AuthGuard><PaymentReturn /></AuthGuard>} />
                 <Route path="/billing/pay" element={<AuthGuard><BillingPayment /></AuthGuard>} />
-                <Route path="/educational-videos" element={<AuthGuard><EducationalVideos /></AuthGuard>} />
+                <Route path="/educational-videos" element={<AuthGuard><OnboardingGuard><EducationalVideos /></OnboardingGuard></AuthGuard>} />
                 <Route path="/coach/pending-clients" element={<RoleProtectedRoute requiredRole="coach"><PendingClientsPage /></RoleProtectedRoute>} />
-                <Route path="/sessions" element={<AuthGuard><ClientSessions /></AuthGuard>} />
+                <Route path="/sessions" element={<AuthGuard><OnboardingGuard><ClientSessions /></OnboardingGuard></AuthGuard>} />
                 <Route path="/admin/client-diagnostics" element={<RoleProtectedRoute requiredRole="admin"><ClientDiagnostics /></RoleProtectedRoute>} />
                 <Route path="/admin/email-log" element={<RoleProtectedRoute requiredRole="admin"><EmailLog /></RoleProtectedRoute>} />
                 <Route path="/admin/launch-checklist" element={<RoleProtectedRoute requiredRole="admin"><LaunchTestChecklist /></RoleProtectedRoute>} />

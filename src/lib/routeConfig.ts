@@ -69,7 +69,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "coach-signup", path: "/coach-signup", label: "Coach Signup", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
   { id: "coach-password-setup", path: "/coach-password-setup", label: "Coach Password Setup", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
   { id: "coach-password-set", path: "/coach-password-set", label: "Coach Password Set", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
-  { id: "testimonials-management", path: "/testimonials-management", label: "Testimonials", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
+  { id: "testimonials-management", path: "/testimonials-management", label: "Testimonials", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: null, showInNav: false },
   { id: "unauthorized", path: "/unauthorized", label: "Unauthorized", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
   { id: "not-found", path: "*", label: "Not Found", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
 

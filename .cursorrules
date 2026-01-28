@@ -1,0 +1,110 @@
+# IGU Project Rules for Cursor AI
+
+## Project Context
+This is a fitness coaching platform (IGU - The Intensive Gainz Unit) built with React/TypeScript + Supabase.
+Production: https://theigu.com
+
+## Tech Stack
+- Frontend: React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui
+- Backend: Supabase (PostgreSQL, Auth, Edge Functions)
+- Payments: Tap Payments
+- Email: Resend
+- Monitoring: Sentry
+
+## Key Architecture Decisions
+
+### Roles
+Three roles: `admin`, `coach`, `client`
+Canonical definitions in `src/auth/roles.ts`
+
+### Route Protection
+- `AuthGuard` - requires login
+- `RoleProtectedRoute` - requires specific roles  
+- `OnboardingGuard` - enforces client onboarding completion
+
+### Data Security
+- PHI (medical data): encrypted, restricted access
+- PII (personal data): separate `profiles_private` table
+- All tables have RLS enabled
+
+## Coding Conventions
+
+### Imports
+Use `@/` alias for src directory:
+```typescript
+import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
+```
+
+### Components
+- Functional components with hooks
+- Use shadcn/ui components from `@/components/ui/`
+- Styling with Tailwind, use `cn()` for conditionals
+
+### Forms
+React Hook Form + Zod:
+```typescript
+const form = useForm<FormData>({
+  resolver: zodResolver(schema),
+});
+```
+
+### Data Fetching
+TanStack Query (React Query):
+```typescript
+const { data, isLoading } = useQuery({
+  queryKey: ['key'],
+  queryFn: async () => { ... }
+});
+```
+
+### Error Handling
+```typescript
+import { captureException } from '@/lib/errorLogging';
+try { ... } catch (e) { captureException(e, { context: 'description' }); }
+```
+
+### Toasts
+```typescript
+import { toast } from 'sonner';
+toast.success('Done');
+toast.error('Failed');
+```
+
+## File Locations
+
+| Purpose | Location |
+|---------|----------|
+| Role/permission logic | `src/auth/roles.ts` |
+| Route definitions | `src/lib/routeConfig.ts` |
+| Onboarding state machine | `src/auth/onboarding.ts` |
+| Supabase client | `src/integrations/supabase/client.ts` |
+| Edge Functions | `supabase/functions/` |
+| DB Migrations | `supabase/migrations/` |
+| UI Components | `src/components/ui/` |
+
+## Do NOT
+
+- Put secrets in frontend code
+- Skip RLS on new tables
+- Use `any` type without good reason
+- Create new components when shadcn/ui has one
+- Modify `src/auth/roles.ts` without understanding the full RBAC system
+
+## Do
+
+- Check `CLAUDE.md` for detailed project documentation
+- Run `npm run lint` before committing
+- Use existing patterns from similar files
+- Log errors with `captureException`
+- Consider mobile responsiveness (mobile-first)
+
+## Common Commands
+```bash
+npm run dev         # Local dev server
+npm run build       # Production build
+npm run lint        # ESLint
+npm test            # Tests
+supabase db push    # Apply migrations
+supabase functions deploy  # Deploy edge functions
+```
