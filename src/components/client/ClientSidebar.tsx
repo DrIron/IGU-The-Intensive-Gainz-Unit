@@ -1,15 +1,3 @@
-import { 
-  LayoutDashboard, 
-  CreditCard, 
-  Calculator,
-  Dumbbell,
-  Apple,
-  User,
-  Video,
-  CalendarDays,
-  Calendar,
-  History
-} from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -22,99 +10,37 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { getClientNavItems } from "@/lib/routeConfig";
+import { CreditCard, User } from "lucide-react";
 
 interface ClientSidebarProps {
-  activeSection: string;
-  onSectionChange: (section: string) => void;
+  activeSection?: string;
+  onSectionChange?: (section: string) => void;
   isPendingApproval?: boolean;
   profile?: any;
   subscription?: any;
   sessionBookingEnabled?: boolean;
 }
 
-// Menu items with optional paths for route-based navigation
-const menuItems = [
-  { 
-    id: "overview", 
-    title: "Overview", 
-    icon: LayoutDashboard,
-    group: "main",
-    path: "/dashboard"
-  },
-  { 
-    id: "subscription", 
-    title: "My Subscription", 
-    icon: CreditCard,
-    group: "main",
-    path: "/dashboard?section=subscription"
-  },
-  { 
-    id: "workouts", 
-    title: "Today's Workouts", 
-    icon: Dumbbell,
-    group: "workouts",
-    path: "/dashboard"
-  },
-  { 
-    id: "calendar", 
-    title: "Workout Calendar", 
-    icon: Calendar,
-    group: "workouts",
-    path: "/client/workout/calendar"
-  },
-  { 
-    id: "history", 
-    title: "Exercise History", 
-    icon: History,
-    group: "workouts",
-    path: "/client/workout/history"
-  },
-  { 
-    id: "nutrition", 
-    title: "Nutrition & Calculator", 
-    icon: Apple,
-    group: "tools",
-    path: "/nutrition"
-  },
-  { 
-    id: "sessions", 
-    title: "Sessions", 
-    icon: CalendarDays,
-    group: "tools",
-    requiresSessionBooking: true,
-    path: "/sessions"
-  },
-  { 
-    id: "exercises", 
-    title: "Exercise Library", 
-    icon: Dumbbell,
-    group: "tools",
-    path: "/workout-library"
-  },
-  { 
-    id: "educational-videos", 
-    title: "Educational Videos", 
-    icon: Video,
-    group: "tools",
-    path: "/educational-videos"
-  },
-  { 
-    id: "profile", 
-    title: "Profile", 
-    icon: User,
-    group: "settings",
-    path: "/dashboard?section=profile"
-  },
-];
+// Get nav items from route registry (sorted by navOrder)
+const routeNavItems = getClientNavItems();
 
+// Group definitions for organizing nav items
 const groups = [
-  { id: "main", label: "Dashboard" },
-  { id: "workouts", label: "Workouts" },
-  { id: "tools", label: "Resources" },
-  { id: "settings", label: "Settings" },
+  { id: "main", label: "Dashboard", routeIds: ["client-dashboard"] },
+  { id: "nutrition", label: "Nutrition", routeIds: ["nutrition"] },
+  { id: "workouts", label: "Workouts", routeIds: ["client-workout-calendar", "client-workout-history", "workout-library"] },
+  { id: "resources", label: "Resources", routeIds: ["educational-videos", "sessions"] },
 ];
 
-export function ClientSidebar({ activeSection, onSectionChange, isPendingApproval = false, profile, subscription, sessionBookingEnabled = false }: ClientSidebarProps) {
+export function ClientSidebar({ 
+  activeSection, 
+  onSectionChange, 
+  isPendingApproval = false, 
+  profile, 
+  subscription, 
+  sessionBookingEnabled = false 
+}: ClientSidebarProps) {
   const { state, isMobile, setOpenMobile } = useSidebar();
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
@@ -123,43 +49,53 @@ export function ClientSidebar({ activeSection, onSectionChange, isPendingApprova
   // Check if user is active client (for content access)
   const isActiveClient = profile?.status === 'active' && subscription?.status === 'active';
 
-  const handleNavigation = (item: typeof menuItems[0]) => {
-    const targetPath = item.path || '/dashboard';
+  const handleNavigation = (path: string) => {
+    navigate(path);
     
-    // DEV: Log single navigation trigger
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[ClientSidebar] Single navigation:', targetPath);
-    }
-    
-    // Single navigation action - navigate first
-    navigate(targetPath);
-    
-    // Close mobile drawer AFTER navigation initiated
+    // Close mobile drawer after navigation
     if (isMobile) {
       setOpenMobile(false);
     }
-    
-    // Update section state (for UI highlighting only, not navigation)
-    onSectionChange(item.id);
   };
 
   // Determine active item from current path - URL is primary source of truth
-  const getIsActive = (item: typeof menuItems[0]) => {
+  const isActive = (path: string) => {
     const currentPath = location.pathname;
-    const searchParams = new URLSearchParams(location.search);
-    const sectionParam = searchParams.get("section");
     
-    // Check section param for dashboard sub-sections
-    if (sectionParam && item.id === sectionParam) return true;
-    
-    // Check path matches
-    if (item.path) {
-      const itemPath = item.path.split("?")[0]; // Remove query params for comparison
-      if (currentPath === itemPath) return true;
+    // Exact match for dashboard
+    if (path === "/dashboard") {
+      return currentPath === "/dashboard" || currentPath === "/client/dashboard";
     }
     
-    // Fallback to activeSection prop
-    return activeSection === item.id;
+    // Prefix match for other routes
+    return currentPath === path || currentPath.startsWith(path + "/");
+  };
+
+  // Filter nav items based on user status
+  const getVisibleItems = () => {
+    return routeNavItems.filter(item => {
+      // Hide workout library and educational videos for non-active clients
+      if (!isActiveClient && (item.id === 'workout-library' || item.id === 'educational-videos')) {
+        return false;
+      }
+      
+      // Hide sessions for non-active clients or if session booking is not enabled
+      if (item.id === 'sessions' && (!isActiveClient || !sessionBookingEnabled)) {
+        return false;
+      }
+      
+      return true;
+    });
+  };
+
+  const visibleItems = getVisibleItems();
+
+  // Group items by their category
+  const getGroupItems = (groupId: string) => {
+    const group = groups.find(g => g.id === groupId);
+    if (!group) return [];
+    
+    return visibleItems.filter(item => group.routeIds.includes(item.id));
   };
 
   return (
@@ -169,24 +105,7 @@ export function ClientSidebar({ activeSection, onSectionChange, isPendingApprova
     >
       <SidebarContent>
         {groups.map((group) => {
-          const groupItems = menuItems.filter(item => {
-            // Hide workout library and educational videos for non-active clients
-            if (!isActiveClient && (item.id === 'exercises' || item.id === 'educational-videos')) {
-              return false;
-            }
-            
-            // Hide sessions for non-active clients or if session booking is not enabled
-            if (item.id === 'sessions' && (!isActiveClient || !sessionBookingEnabled)) {
-              return false;
-            }
-            
-            // Hide restricted items when pending approval (legacy check)
-            if (isPendingApproval && item.id === 'nutrition') {
-              return false;
-            }
-            
-            return item.group === group.id;
-          });
+          const groupItems = getGroupItems(group.id);
           
           // Don't render empty groups
           if (groupItems.length === 0) return null;
@@ -198,17 +117,17 @@ export function ClientSidebar({ activeSection, onSectionChange, isPendingApprova
                 <SidebarMenu>
                   {groupItems.map((item) => {
                     const Icon = item.icon;
-                    const isActive = getIsActive(item);
+                    const active = isActive(item.path);
                     
                     return (
                       <SidebarMenuItem key={item.id}>
                         <SidebarMenuButton
-                          onClick={() => handleNavigation(item)}
-                          className={isActive ? "bg-primary/10 text-primary font-medium" : ""}
-                          title={collapsed ? item.title : undefined}
+                          onClick={() => handleNavigation(item.path)}
+                          className={active ? "bg-primary/10 text-primary font-medium" : ""}
+                          title={collapsed ? item.label : undefined}
                         >
-                          <Icon className="h-4 w-4" />
-                          {!collapsed && <span>{item.title}</span>}
+                          {Icon && <Icon className="h-4 w-4" />}
+                          {!collapsed && <span>{item.label}</span>}
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     );
@@ -218,7 +137,42 @@ export function ClientSidebar({ activeSection, onSectionChange, isPendingApprova
             </SidebarGroup>
           );
         })}
+        
+        {/* Account section - always visible */}
+        <SidebarGroup>
+          {!collapsed && <SidebarGroupLabel>Account</SidebarGroupLabel>}
+          <SidebarGroupContent>
+            <SidebarMenu>
+              <SidebarMenuItem>
+                <SidebarMenuButton
+                  onClick={() => handleNavigation("/account")}
+                  className={isActive("/account") ? "bg-primary/10 text-primary font-medium" : ""}
+                  title={collapsed ? "Account" : undefined}
+                >
+                  <User className="h-4 w-4" />
+                  {!collapsed && <span>Account</span>}
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+            </SidebarMenu>
+          </SidebarGroupContent>
+        </SidebarGroup>
       </SidebarContent>
     </Sidebar>
   );
+}
+
+/**
+ * Get nav items for mobile bottom navigation.
+ * Returns simplified list for mobile use.
+ */
+export function getClientMobileNavItems() {
+  return routeNavItems
+    .filter(item => 
+      ["client-dashboard", "nutrition", "client-workout-calendar", "workout-library"].includes(item.id)
+    )
+    .map(item => ({
+      path: item.path,
+      label: item.label,
+      icon: item.icon!,
+    }));
 }

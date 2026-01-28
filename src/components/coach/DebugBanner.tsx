@@ -22,6 +22,8 @@ export function DebugBanner({
   counts 
 }: DebugBannerProps) {
   // PRODUCTION SAFETY: Always return null in production builds
+  const location = useLocation();
+  
   // This ensures no debug info leaks to end users
   const isDevelopment = import.meta.env.DEV;
   if (!isDevelopment) return null;
@@ -29,8 +31,6 @@ export function DebugBanner({
   // Also disable if explicitly set via env
   const disableDebug = import.meta.env.VITE_DISABLE_DEBUG === 'true';
   if (disableDebug) return null;
-
-  const location = useLocation();
 
   return (
     <div

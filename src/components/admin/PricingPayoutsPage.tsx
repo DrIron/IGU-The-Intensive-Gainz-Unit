@@ -175,7 +175,7 @@ function ServicePricingSection() {
 
       // Get updater names if we have updated_by values
       const updaterIds = pricingData?.filter(p => p.updated_by).map(p => p.updated_by) || [];
-      let updaterNames: Record<string, string> = {};
+      const updaterNames: Record<string, string> = {};
       
       if (updaterIds.length > 0) {
         const { data: profiles } = await supabase

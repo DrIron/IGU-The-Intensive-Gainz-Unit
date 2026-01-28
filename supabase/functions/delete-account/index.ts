@@ -153,7 +153,7 @@ Deno.serve(async (req) => {
 
     if (authError) {
       // If the user is already deleted in auth, proceed gracefully
-      // @ts-ignore - runtime error object may include status/code
+      // @ts-expect-error - runtime error object may include status/code
       if (authError.status === 404 || authError.code === 'user_not_found') {
         console.warn('Auth user not found, proceeding with cleanup');
       } else {

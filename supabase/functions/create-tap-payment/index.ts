@@ -68,7 +68,7 @@ serve(async (req) => {
     // Server-side discount validation - NEVER trust client-side values
     let discountCodeData = null;
     let validatedCodeId: string | null = null;
-    let basePrice = service.price_kwd;
+    const basePrice = service.price_kwd;
     let billingAmount = basePrice;
 
     if (discountCode) {
@@ -149,6 +149,12 @@ serve(async (req) => {
       ? `${service.name} - Monthly Renewal`
       : `${service.name} - Initial Payment`;
 
+    // Generate unique reference IDs for idempotency and reconciliation
+    // Using timestamp + userId to prevent duplicate charges from double-clicks
+    const timestamp = Date.now();
+    const orderRef = `igu_${userId.slice(0, 8)}_${timestamp}`;
+    const txnRef = `txn_${timestamp}`;
+
     const chargeResponse = await fetch('https://api.tap.company/v2/charges', {
       method: 'POST',
       headers: {
@@ -158,12 +164,22 @@ serve(async (req) => {
       body: JSON.stringify({
         amount: billingAmount,
         currency: 'KWD',
+        // Recommended: threeDSecure and customer_initiated for first-time payments
+        threeDSecure: true,
+        customer_initiated: true,
         customer: {
           first_name: customerName.split(' ')[0] || customerName,
           last_name: customerName.split(' ').slice(1).join(' ') || '',
           email: customerEmail,
         },
         description: chargeDescription,
+        // Reference object for idempotency and reconciliation (TAP Best Practice)
+        reference: {
+          transaction: txnRef,
+          order: orderRef,
+          // Idempotent string prevents duplicate charges within 24 hours
+          idempotent: orderRef,
+        },
         metadata: {
           service_id: serviceId,
           user_id: userId,

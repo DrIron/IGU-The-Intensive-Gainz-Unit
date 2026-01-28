@@ -7,7 +7,6 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Star, Check, X, Archive } from "lucide-react";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
 
 interface Testimonial {
   id: string;
@@ -359,9 +358,5 @@ function TestimonialsManagementContent() {
 }
 
 export default function TestimonialsManagement() {
-  return (
-    <ProtectedRoute requireAdmin>
-      <TestimonialsManagementContent />
-    </ProtectedRoute>
-  );
+  return <TestimonialsManagementContent />;
 }

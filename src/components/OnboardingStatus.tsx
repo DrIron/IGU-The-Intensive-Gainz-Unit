@@ -69,7 +69,7 @@ export function OnboardingStatus() {
 
       // Profile status is synced server-side via RLS and triggers
       // Client cannot directly update their own status
-      let profileStatus = profile?.status || 'pending';
+      const profileStatus = profile?.status || 'pending';
 
       // Resolve serviceId fallback by plan name if needed (useful for fresh team plan submissions)
       let resolvedServiceId: string | undefined = subscription?.service_id as string | undefined;

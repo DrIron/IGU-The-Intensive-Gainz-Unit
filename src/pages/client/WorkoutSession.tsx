@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -575,9 +574,5 @@ function WorkoutSessionContent() {
 }
 
 export default function WorkoutSession() {
-  return (
-    <ProtectedRoute>
-      <WorkoutSessionContent />
-    </ProtectedRoute>
-  );
+  return <WorkoutSessionContent />;
 }

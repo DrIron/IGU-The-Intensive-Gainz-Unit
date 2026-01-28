@@ -73,7 +73,7 @@ export function PricingAuditLogDialog({ open, onOpenChange }: PricingAuditLogDia
 
       // Get admin names
       const adminIds = [...new Set((data || []).map(d => d.admin_user_id))];
-      let adminNames: Record<string, string> = {};
+      const adminNames: Record<string, string> = {};
       
       if (adminIds.length > 0) {
         const { data: profiles } = await supabase

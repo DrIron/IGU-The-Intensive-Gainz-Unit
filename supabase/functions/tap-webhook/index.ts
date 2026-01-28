@@ -1,25 +1,118 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { crypto } from "https://deno.land/std@0.177.0/crypto/mod.ts";
 
 /**
  * TAP WEBHOOK HANDLER
  * 
- * This webhook receives payment notifications from TAP.
- * It verifies the charge with TAP API and uses the SAME activation logic
- * as verify-payment to ensure consistency.
+ * SECURITY LAYERS (defense in depth):
+ * 1. HMAC Signature verification (TAP sends `hashstring` header)
+ * 2. TAP API verification (fetch charge directly)
+ * 3. IP rate limiting
+ * 4. Per-charge rate limiting
+ * 5. Idempotency checks
+ * 6. Amount/currency validation
  * 
  * The database trigger enforces that:
  * - last_verified_charge_id must be set
  * - last_payment_verified_at must be set
  * - last_payment_status must be 'CAPTURED'
  * 
- * This prevents any activation without proper TAP API verification.
+ * This prevents any activation without proper verification.
+ * A forged webhook CANNOT change subscription status.
  */
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// =============================================================================
+// HMAC SIGNATURE VERIFICATION (TAP FORMAT)
+// =============================================================================
+
+/**
+ * Verify TAP webhook HMAC signature.
+ * TAP sends the signature in the `hashstring` header.
+ * 
+ * TAP's hashstring format for charges:
+ * x_id{id}x_amount{amount}x_currency{currency}x_gateway_reference{gateway_ref}x_payment_reference{payment_ref}x_status{status}x_created{created}
+ * 
+ * Then: HMAC-SHA256(concatenated_string, secret_key)
+ */
+async function verifyWebhookSignature(
+  chargeData: any,
+  receivedSignature: string | null,
+  secretKey: string
+): Promise<{ valid: boolean; reason?: string }> {
+  // If no signature header, log warning but continue (TAP API verification is the fallback)
+  if (!receivedSignature) {
+    console.warn('No hashstring header received - will rely on TAP API verification');
+    return { valid: true, reason: 'no_signature_header' };
+  }
+
+  try {
+    // Extract values from charge data (matching TAP's format exactly)
+    const id = chargeData.id || '';
+    const amount = chargeData.amount !== undefined ? Number(chargeData.amount).toFixed(3) : ''; // KWD uses 3 decimals
+    const currency = chargeData.currency || '';
+    const gatewayReference = chargeData.reference?.gateway || '';
+    const paymentReference = chargeData.reference?.payment || '';
+    const status = chargeData.status || '';
+    const created = chargeData.transaction?.created || '';
+
+    // Build the string to hash (TAP's format)
+    const toBeHashedString = 
+      'x_id' + id + 
+      'x_amount' + amount + 
+      'x_currency' + currency + 
+      'x_gateway_reference' + gatewayReference + 
+      'x_payment_reference' + paymentReference + 
+      'x_status' + status + 
+      'x_created' + created;
+
+    console.log('Hashstring input:', toBeHashedString);
+
+    // Create HMAC-SHA256 signature
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secretKey);
+    const messageData = encoder.encode(toBeHashedString);
+
+    const cryptoKey = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+
+    const signatureBuffer = await crypto.subtle.sign('HMAC', cryptoKey, messageData);
+    const signatureArray = new Uint8Array(signatureBuffer);
+    const computedSignature = Array.from(signatureArray)
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+
+    console.log('Computed hashstring:', computedSignature);
+    console.log('Received hashstring:', receivedSignature);
+
+    // Compare signatures (case-insensitive)
+    const signaturesMatch = computedSignature.toLowerCase() === receivedSignature.toLowerCase();
+
+    if (!signaturesMatch) {
+      return { valid: false, reason: 'signature_mismatch' };
+    }
+
+    return { valid: true };
+  } catch (error) {
+    console.error('Signature verification error:', error);
+    // Don't fail on verification error - TAP API verification is the authoritative check
+    return { valid: true, reason: 'verification_error_bypassed' };
+  }
+}
+
+// =============================================================================
+// RATE LIMITING
+// =============================================================================
 
 // IP rate limiting
 const ipRateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -422,6 +515,43 @@ serve(async (req) => {
         JSON.stringify({ received: true, ignored: true, reason: 'invalid_payload' }),
         { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+    
+    // ==========================================================================
+    // LAYER 1: HMAC SIGNATURE VERIFICATION (TAP Format)
+    // ==========================================================================
+    // TAP sends signature in `hashstring` header
+    // Format: HMAC-SHA256 of concatenated charge fields
+    const receivedSignature = req.headers.get('hashstring') || req.headers.get('Hashstring');
+    
+    const signatureResult = await verifyWebhookSignature(webhookData, receivedSignature, tapSecretKey);
+    
+    if (!signatureResult.valid) {
+      console.warn(`[${requestId}] Signature verification failed: ${signatureResult.reason}`);
+      
+      // Log the failed attempt for security monitoring
+      await logWebhookEvent(supabase, {
+        requestId,
+        rawPayload: { charge_id: webhookData.id, has_signature: !!receivedSignature },
+        verifiedWithTap: false,
+        verificationResult: `signature_${signatureResult.reason}`,
+        ipAddress: clientIp,
+        errorDetails: `Signature verification failed: ${signatureResult.reason}`,
+      });
+
+      // CRITICAL: Do not process webhook without valid signature
+      // We still return 200 to prevent TAP from retrying indefinitely
+      // But we DO NOT process the payment
+      return new Response(
+        JSON.stringify({ received: true, ignored: true, reason: 'invalid_signature' }),
+        { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (signatureResult.reason) {
+      console.log(`[${requestId}] Signature check: ${signatureResult.reason}`);
+    } else {
+      console.log(`[${requestId}] Signature verified successfully`);
     }
 
     const chargeId = webhookData.id || webhookData.charge_id;

@@ -402,7 +402,8 @@ export default function OnboardingForm() {
     const serviceName = form.getValues("plan_name");
 
     switch (step) {
-      case 0: // Service
+      case 0: {
+        // Service
         fieldsToValidate = ["first_name", "last_name", "email", "phone_number", "plan_name", "heard_about_us"];
         // Validate focus_areas for 1:1 services
         const currentPlan = form.getValues("plan_name");
@@ -422,6 +423,7 @@ export default function OnboardingForm() {
           }
         }
         break;
+      }
       case 1: // Service Details
         if (serviceName === "Fe Squad" || serviceName === "Bunz of Steel") {
           // Manual validation for team plan checkboxes

@@ -18,8 +18,10 @@ import { LucideIcon, LayoutDashboard, Users, UserCog, Shield, ShieldCheck,
   Library, Tag, Activity, CreditCard, Wallet, ClipboardCheck, Bug, 
   Stethoscope, CalendarDays, BookOpen, UsersRound, Dumbbell, Apple, 
   User, Video, Calendar, History, Home } from "lucide-react";
+import { Role, getDashboardForRole, isRouteBlocked } from "@/auth/roles";
 
-export type AppRole = "admin" | "coach" | "client" | "authenticated" | "public";
+// Re-export Role as AppRole for backward compatibility
+export type AppRole = Role | "authenticated" | "public";
 export type LayoutType = "AdminLayout" | "CoachLayout" | "ClientLayout" | "Public";
 export type NavGroup = "admin" | "coach" | "client" | null;
 
@@ -189,39 +191,25 @@ export function canAccessRoute(routePath: string, userRoles: string[]): boolean 
 
 /**
  * Check if a route is BLOCKED for a specific role (hard block)
+ * Delegates to canonical implementation in @/auth/roles
  */
 export function isRouteBlockedForRole(routePath: string, role: AppRole): boolean {
-  // Coaches are HARD BLOCKED from ALL admin routes
-  if (role === "coach" && routePath.startsWith("/admin")) {
-    return true;
+  // For extended roles (authenticated, public), no blocking
+  if (role === "authenticated" || role === "public") {
+    return false;
   }
-
-  // Admins are HARD BLOCKED from coach routes (must use separate account)
-  if (role === "admin" && routePath.startsWith("/coach")) {
-    return true;
-  }
-
-  // Clients are blocked from admin and coach routes
-  if (role === "client") {
-    if (routePath.startsWith("/admin") || routePath.startsWith("/coach")) {
-      return true;
-    }
-  }
-
-  return false;
+  return isRouteBlocked(routePath, role);
 }
 
 /**
  * Get the primary dashboard for a role
+ * Delegates to canonical implementation in @/auth/roles
  */
 export function getPrimaryDashboardForRole(role: AppRole): string {
-  switch (role) {
-    case "admin": return "/admin/dashboard";
-    case "coach": return "/coach/dashboard";
-    case "client": 
-    case "authenticated":
-    default: return "/dashboard";
+  if (role === "authenticated" || role === "public") {
+    return "/dashboard";
   }
+  return getDashboardForRole(role);
 }
 
 /**

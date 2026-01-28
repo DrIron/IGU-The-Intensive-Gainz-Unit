@@ -135,7 +135,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     try {
       // Admin uses profiles view (security_invoker=true, RLS-protected for admin)
       // This allows fetching all client data including PII for admin pages
-      let query = supabase
+      const query = supabase
         .from("profiles")
         .select(`
           *,

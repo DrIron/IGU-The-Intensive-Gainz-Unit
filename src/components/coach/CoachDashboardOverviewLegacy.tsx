@@ -215,7 +215,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
       setLoading(true);
 
       // Build client filter
-      let clientFilter = selectedClientId !== "all" ? selectedClientId : null;
+      const clientFilter = selectedClientId !== "all" ? selectedClientId : null;
 
       // Get all subscriptions for this coach - use profiles_public only (no PII)
       let subscriptionsQuery = supabase

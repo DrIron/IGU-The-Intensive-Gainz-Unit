@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
-import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useClientAccess, getAccessDeniedMessage } from "@/hooks/useClientAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -605,9 +604,5 @@ function ClientSessionsContent() {
 }
 
 export default function ClientSessions() {
-  return (
-    <ProtectedRoute>
-      <ClientSessionsContent />
-    </ProtectedRoute>
-  );
+  return <ClientSessionsContent />;
 }

@@ -138,7 +138,7 @@ export function DiscountAnalytics() {
 
       // 3. Get subscription statuses for active count
       const subscriptionIds = [...new Set(redemptions?.map(r => r.subscription_id) || [])];
-      let subscriptionStatuses: Record<string, string> = {};
+      const subscriptionStatuses: Record<string, string> = {};
       
       if (subscriptionIds.length > 0) {
         const { data: subs } = await supabase
@@ -268,8 +268,8 @@ export function DiscountAnalytics() {
       const userIds = [...new Set(redemptions?.map(r => r.user_id) || [])];
       const subscriptionIds = [...new Set(redemptions?.map(r => r.subscription_id) || [])];
 
-      let userNames: Record<string, string> = {};
-      let subscriptionDetails: Record<string, { serviceName: string; status: string }> = {};
+      const userNames: Record<string, string> = {};
+      const subscriptionDetails: Record<string, { serviceName: string; status: string }> = {};
 
       if (userIds.length > 0) {
         // Admin: use profiles_public for names + RPC for email

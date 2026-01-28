@@ -94,7 +94,7 @@ const getEmailTemplate = (type: string, data: any, dashboardUrl: string): { subj
 </html>`
       };
 
-    case 'legal_issue':
+    case 'legal_issue': {
       const docsList = data.missingDocuments?.map((doc: string) => `<li style="margin: 4px 0; color: #1a1a1a; font-size: 14px;">${doc}</li>`).join('');
       return {
         subject: `Legal Documents Alert: ${data.clientName}`,
@@ -129,6 +129,7 @@ const getEmailTemplate = (type: string, data: any, dashboardUrl: string): { subj
 </body>
 </html>`
       };
+    }
 
     case 'upcoming_renewal':
       return {

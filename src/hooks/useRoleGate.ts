@@ -3,13 +3,17 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
-  AppRole,
+  Role,
   isRouteBlocked,
-  getPrimaryDashboard,
+  getDashboardForRole,
   logAccessViolation,
-  hasFeaturePermission,
-  FEATURE_PERMISSIONS,
-} from "@/lib/accessControl";
+  hasPermission,
+  PERMISSIONS,
+  PermissionKey,
+} from "@/auth/roles";
+
+// Alias for backward compatibility
+type AppRole = Role;
 
 export interface RoleGateState {
   // Role flags
@@ -31,7 +35,7 @@ export interface RoleGateState {
   primaryRole: AppRole;
   
   // Helper methods
-  canAccess: (feature: keyof typeof FEATURE_PERMISSIONS) => boolean;
+  canAccess: (feature: PermissionKey) => boolean;
   redirectToDashboard: () => void;
 }
 
@@ -77,12 +81,12 @@ export function useRoleGate(options: UseRoleGateOptions = {}): RoleGateState {
   });
 
   const redirectToDashboard = useCallback(() => {
-    const dashboard = getPrimaryDashboard(state.primaryRole);
+    const dashboard = getDashboardForRole(state.primaryRole);
     navigate(dashboard, { replace: true });
   }, [navigate, state.primaryRole]);
 
-  const canAccess = useCallback((feature: keyof typeof FEATURE_PERMISSIONS): boolean => {
-    return state.roles.some(role => hasFeaturePermission(feature, role));
+  const canAccess = useCallback((feature: PermissionKey): boolean => {
+    return hasPermission(state.roles, feature);
   }, [state.roles]);
 
   useEffect(() => {
@@ -181,8 +185,8 @@ export function useRoleGate(options: UseRoleGateOptions = {}): RoleGateState {
               userId: user.id,
               roles,
               primaryRole,
-              canAccess: (feature) => roles.some(role => hasFeaturePermission(feature, role)),
-              redirectToDashboard: () => navigate(getPrimaryDashboard(primaryRole), { replace: true }),
+              canAccess: (feature: PermissionKey) => hasPermission(roles, feature),
+              redirectToDashboard: () => navigate(getDashboardForRole(primaryRole), { replace: true }),
             });
           }
 
@@ -190,7 +194,7 @@ export function useRoleGate(options: UseRoleGateOptions = {}): RoleGateState {
             toast.error("Access Denied", {
               description: getAccessDeniedMessage(primaryRole, requiredRole),
             });
-            navigate(getPrimaryDashboard(primaryRole), { replace: true });
+            navigate(getDashboardForRole(primaryRole), { replace: true });
           }
           return;
         }
@@ -206,8 +210,8 @@ export function useRoleGate(options: UseRoleGateOptions = {}): RoleGateState {
             userId: user.id,
             roles,
             primaryRole,
-            canAccess: (feature) => roles.some(role => hasFeaturePermission(feature, role)),
-            redirectToDashboard: () => navigate(getPrimaryDashboard(primaryRole), { replace: true }),
+            canAccess: (feature: PermissionKey) => hasPermission(roles, feature),
+            redirectToDashboard: () => navigate(getDashboardForRole(primaryRole), { replace: true }),
           });
         }
       } catch (error) {
@@ -264,9 +268,9 @@ function getAccessDeniedMessage(userRole: AppRole, requiredRole?: AppRole): stri
 /**
  * Hook to check a specific feature permission without route validation
  */
-export function useFeatureAccess(feature: keyof typeof FEATURE_PERMISSIONS): boolean {
+export function useFeatureAccess(feature: PermissionKey): boolean {
   const { roles, loading } = useRoleGate({ redirectOnFail: false });
   
   if (loading) return false;
-  return roles.some(role => hasFeaturePermission(feature, role));
+  return hasPermission(roles, feature);
 }

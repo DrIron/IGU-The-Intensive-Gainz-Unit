@@ -37,22 +37,13 @@ export function CoachSidebar({ activeSection, onSectionChange }: CoachSidebarPro
   const navigate = useNavigate();
   const location = useLocation();
 
-  const handleNavigation = (path: string, sectionId: string) => {
-    // DEV: Log single navigation trigger
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[CoachSidebar] Single navigation:', path);
-    }
-    
-    // Single navigation action
+  const handleNavigation = (path: string) => {
     navigate(path);
     
-    // Close mobile drawer AFTER navigation initiated
+    // Close mobile drawer after navigation
     if (isMobile) {
       setOpenMobile(false);
     }
-    
-    // Update section state (for UI highlighting only, not navigation)
-    onSectionChange(sectionId);
   };
 
   // Determine active item from current path - primary source of truth
@@ -94,7 +85,7 @@ export function CoachSidebar({ activeSection, onSectionChange }: CoachSidebarPro
                     return (
                       <SidebarMenuItem key={item.id}>
                         <SidebarMenuButton
-                          onClick={() => handleNavigation(item.path, item.id)}
+                          onClick={() => handleNavigation(item.path)}
                           className={isActive ? "bg-primary/10 text-primary font-medium" : ""}
                           title={collapsed ? item.label : undefined}
                         >

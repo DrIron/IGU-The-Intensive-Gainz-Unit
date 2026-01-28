@@ -180,7 +180,7 @@ export function ClientPipelineSection() {
       // Get subscriptions for these profiles
       const profileIds = stuckProfiles?.map(p => p.id) || [];
       
-      let subscriptionsMap: Record<string, { serviceName: string | null; coachName: string | null }> = {};
+      const subscriptionsMap: Record<string, { serviceName: string | null; coachName: string | null }> = {};
       
       if (profileIds.length > 0) {
         const { data: subs } = await supabase

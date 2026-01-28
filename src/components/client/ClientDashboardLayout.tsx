@@ -1,7 +1,8 @@
 import { useState, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { ClientSidebar } from "./ClientSidebar";
+import { ClientSidebar, getClientMobileNavItems } from "./ClientSidebar";
+import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -492,7 +493,7 @@ export function ClientDashboardLayout({
                 </div>
               </div>
             </div>
-            <div className="p-4 md:p-6 pb-8 safe-area-bottom">
+            <div className="p-4 md:p-6 pb-24 md:pb-8 safe-area-bottom">
               <div className="max-w-7xl mx-auto">
                 {/* Grace Period Banner - shows during soft lock */}
                 {isInGracePeriod && (
@@ -502,6 +503,8 @@ export function ClientDashboardLayout({
               </div>
             </div>
           </main>
+          {/* Mobile Bottom Navigation */}
+          <MobileBottomNav items={getClientMobileNavItems()} />
         </div>
       </SidebarProvider>
     );
