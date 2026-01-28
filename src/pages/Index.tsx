@@ -94,42 +94,50 @@ export default function Index() {
   });
 
   useEffect(() => {
-    checkUserAndLoadServices();
+    checkUserAndRedirect();
     loadTeamPlanSettings();
     loadTestimonials();
   }, []);
 
-  const checkUserAndLoadServices = async () => {
+  const checkUserAndRedirect = async () => {
     const { data: { user: currentUser } } = await supabase.auth.getUser();
-    setUser(currentUser);
     
     if (currentUser) {
-      // Fetch profile status - use profiles_public (client's own data, RLS protected)
-      const { data: profileData } = await supabase
-        .from("profiles_public")
-        .select("id, status")
-        .eq("id", currentUser.id)
-        .single();
+      // Authenticated users should go to their dashboard, not the marketing home page
+      // Check their role to determine which dashboard
+      const { data: roles } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", currentUser.id);
       
-      setProfile(profileData);
+      const roleList = roles?.map(r => r.role) || [];
       
-      // Fetch latest subscription status
-      const { data: subData } = await supabase
-        .from("subscriptions")
-        .select("id, status")
-        .eq("user_id", currentUser.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      setSubscription(subData);
-      
-      // User is authenticated, load services
-      await loadServices();
-    } else {
-      // No authenticated user - services won't load due to RLS
-      setLoading(false);
+      if (roleList.includes("admin")) {
+        navigate("/admin", { replace: true });
+        return;
+      } else if (roleList.includes("coach")) {
+        navigate("/coach", { replace: true });
+        return;
+      } else {
+        // Regular client - check if onboarding completed
+        const { data: profile } = await supabase
+          .from("profiles_public")
+          .select("status, onboarding_completed_at")
+          .eq("id", currentUser.id)
+          .single();
+        
+        if (!profile?.onboarding_completed_at && profile?.status === "pending") {
+          navigate("/onboarding", { replace: true });
+        } else {
+          navigate("/dashboard", { replace: true });
+        }
+        return;
+      }
     }
+    
+    // Not authenticated - show public home page
+    setUser(null);
+    setLoading(false);
   };
 
   const loadTeamPlanSettings = async () => {

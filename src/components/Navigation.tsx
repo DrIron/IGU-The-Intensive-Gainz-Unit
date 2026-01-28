@@ -135,13 +135,17 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const user = currentUser;
 
   const handleSignOut = async () => {
-    await supabase.auth.signOut();
-    toast({
-      title: "Signed out successfully",
-    });
-    setMobileMenuOpen(false);
-    // Refresh the page after sign out
-    window.location.href = "/";
+    try {
+      await supabase.auth.signOut();
+      toast({
+        title: "Signed out successfully",
+      });
+    } catch (error) {
+      console.error("Error signing out:", error);
+    } finally {
+      // Force full page reload to clear all React state
+      window.location.replace("/");
+    }
   };
 
   // Public links for header navigation

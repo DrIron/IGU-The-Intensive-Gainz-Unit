@@ -320,12 +320,11 @@ SELECT
   ccr.role AS assignment_role,
   ccr.started_at AS assigned_since,
   s.id AS subscription_id,
-  s.plan_name,
   s.status AS subscription_status,
   s.current_period_end
 FROM public.profiles_public pp
 INNER JOIN public.coach_client_relationships ccr ON ccr.client_id = pp.id
-INNER JOIN public.subscriptions s ON s.id = ccr.subscription_id
+LEFT JOIN public.subscriptions s ON s.user_id = pp.id
 WHERE ccr.ended_at IS NULL;  -- Only active assignments
 
 COMMENT ON VIEW public.coach_client_list IS 
