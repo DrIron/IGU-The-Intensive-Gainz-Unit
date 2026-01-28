@@ -142,67 +142,54 @@ export default function Auth() {
           return;
         }
         
-        // Defer Supabase query to prevent deadlock
+        // Defer to prevent React state conflicts
         setTimeout(async () => {
-          let roleList: string[] = [];
-          
-          // Bootstrap admin role for eligible users (runs only once per session)
-          const userEmail = session.user.email?.toLowerCase() || "";
-          if (userEmail && !bootstrapCalledRef.current) {
-            bootstrapCalledRef.current = true;
-            try {
-              const { data, error } = await supabase.functions.invoke("bootstrap-admin-role");
-              if (!error && data?.roles) {
-                // Use roles returned by bootstrap function directly
-                roleList = data.roles;
-                console.log("[Auth] Bootstrap completed, roles:", roleList);
-              } else {
-                console.warn("[Auth] Bootstrap admin role response:", error || "no roles returned");
-              }
-            } catch (err) {
-              console.warn("[Auth] Bootstrap admin role failed:", err);
-            }
-          }
-          
-          // If bootstrap didn't return roles, fetch from database
-          if (roleList.length === 0) {
+          try {
+            // Fetch roles from database directly (fast, reliable)
             const { data: roles } = await supabase
               .from("user_roles")
               .select("role")
               .eq("user_id", session.user.id);
-            roleList = roles?.map(r => r.role) || [];
-          }
-          
-          // Admins go to /admin, coaches go to /dashboard
-          if (roleList.includes('admin')) {
-            window.location.href = "/admin";
-          } else if (roleList.includes('coach') || isCoachAuth) {
-            window.location.href = "/dashboard";
-          } else {
-            // For regular users, check profile status and onboarding completion
-            // Use profiles_public (non-PII fields only)
+            const roleList = roles?.map(r => r.role) || [];
+            
+            // Admins go to /admin
+            if (roleList.includes('admin')) {
+              window.location.href = "/admin";
+              return;
+            }
+            
+            // Coaches go to /coach
+            if (roleList.includes('coach') || isCoachAuth) {
+              window.location.href = "/coach";
+              return;
+            }
+            
+            // Regular users - check onboarding status
             const { data: profile } = await supabase
               .from("profiles_public")
               .select("status, onboarding_completed_at")
               .eq("id", session.user.id)
               .single();
             
-            // Only send to onboarding if status is 'pending' AND onboarding not completed
             const onboardingCompleted = !!profile?.onboarding_completed_at;
             if (!onboardingCompleted && profile?.status === 'pending') {
               window.location.href = "/onboarding";
               return;
             }
             
-            // All other cases go to dashboard
+            // Default to dashboard
+            window.location.href = "/dashboard";
+          } catch (error) {
+            console.error("[Auth] Error during redirect:", error);
+            // Fallback to dashboard on error
             window.location.href = "/dashboard";
           }
-        }, 0);
+        }, 100);
       }
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, searchParams]);
+  }, [navigate, searchParams, isCoachAuth]);
 
   const loadServices = async () => {
     try {

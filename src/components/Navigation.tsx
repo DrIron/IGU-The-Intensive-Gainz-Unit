@@ -134,18 +134,16 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const activeRole = detectedRole;
   const user = currentUser;
 
-  const handleSignOut = async () => {
-    try {
-      await supabase.auth.signOut();
-      toast({
-        title: "Signed out successfully",
-      });
-    } catch (error) {
-      console.error("Error signing out:", error);
-    } finally {
-      // Force full page reload to clear all React state
-      window.location.replace("/");
-    }
+  const handleSignOut = () => {
+    // Clear auth immediately - don't wait for response
+    supabase.auth.signOut().catch(console.error);
+    
+    // Clear any local storage that might persist state
+    localStorage.removeItem('supabase.auth.token');
+    sessionStorage.clear();
+    
+    // Force immediate full page reload
+    window.location.href = "/auth";
   };
 
   // Public links for header navigation
