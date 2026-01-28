@@ -16,6 +16,7 @@ export const APP_BASE_URL = "https://theigu.com";
  * Auth redirect URLs - always use production domain
  */
 export const AUTH_REDIRECT_URLS = {
+  emailConfirmed: `${APP_BASE_URL}/email-confirmed`,
   onboarding: `${APP_BASE_URL}/onboarding`,
   resetPassword: `${APP_BASE_URL}/reset-password`,
   dashboard: `${APP_BASE_URL}/dashboard`,

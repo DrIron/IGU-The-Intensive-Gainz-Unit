@@ -51,6 +51,7 @@ import WorkoutSession from "./pages/client/WorkoutSession";
 import WorkoutCalendar from "./pages/client/WorkoutCalendar";
 import ExerciseHistory from "./pages/client/ExerciseHistory";
 import AccessDebug from "./pages/AccessDebug";
+import EmailConfirmed from "./pages/EmailConfirmed";
 // Onboarding pages
 import MedicalReview from "./pages/onboarding/MedicalReview";
 import AwaitingApproval from "./pages/onboarding/AwaitingApproval";
@@ -74,6 +75,7 @@ const App = () => {
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/auth" element={<PublicLayout minimal><Auth /></PublicLayout>} />
+                <Route path="/email-confirmed" element={<PublicLayout minimal><EmailConfirmed /></PublicLayout>} />
                 <Route path="/services" element={<PublicLayout><Services /></PublicLayout>} />
                 
                 {/* Role-scoped Admin routes - requires admin role */}

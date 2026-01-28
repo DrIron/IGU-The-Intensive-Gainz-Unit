@@ -62,6 +62,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "auth", path: "/auth", label: "Sign In", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
   { id: "services", path: "/services", label: "Services", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
   { id: "reset-password", path: "/reset-password", label: "Reset Password", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
+  { id: "email-confirmed", path: "/email-confirmed", label: "Email Confirmed", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
   { id: "calorie-calculator", path: "/calorie-calculator", label: "Calorie Calculator", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
   { id: "testimonial", path: "/testimonial", label: "Testimonial", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },
   { id: "client-submission", path: "/client-submission/:userId", label: "Client Submission", layout: "Public", requiredRoles: ["public"], navGroup: null, showInNav: false },

@@ -251,7 +251,7 @@ export default function Auth() {
         password,
         options: {
           // Always use production URL to prevent preview/dev URLs in emails
-          emailRedirectTo: AUTH_REDIRECT_URLS.onboarding,
+          emailRedirectTo: AUTH_REDIRECT_URLS.emailConfirmed,
           data: {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
