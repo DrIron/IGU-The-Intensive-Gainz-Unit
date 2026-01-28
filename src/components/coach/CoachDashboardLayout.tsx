@@ -3,6 +3,7 @@ import { useSearchParams, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { CoachSidebar } from "./CoachSidebar";
 import CoachProfile from "@/components/CoachProfile";
+import { ExerciseLibrary } from "./ExerciseLibrary";
 
 import { CoachDashboardOverview } from "./CoachDashboardOverview";
 import { CoachMyClientsPage } from "./CoachMyClientsPage";
@@ -33,6 +34,7 @@ export function CoachDashboardLayout({
     if (path.includes('/coach/assignments')) return 'assignments';
     if (path.includes('/coach/sessions')) return 'sessions';
     if (path.includes('/coach/programs')) return 'programs';
+    if (path.includes('/coach/exercises')) return 'exercises';
     if (path.includes('/coach/profile')) return 'profile';
     return 'overview';
   };
@@ -102,6 +104,8 @@ export function CoachDashboardLayout({
         );
       case "programs":
         return user && <CoachProgramsPage coachUserId={user.id} />;
+      case "exercises":
+        return <ExerciseLibrary />;
       case "profile":
         return <CoachProfile />;
       default:
@@ -147,6 +151,7 @@ function getPageTitle(section: string): string {
     "pending-clients": "Pending Clients",
     "pending-approvals": "Pending Approvals",
     programs: "Programs",
+    exercises: "Exercise Library",
     profile: "My Profile",
     "my-documents": "My Documents",
   };
@@ -162,6 +167,7 @@ function getSectionSubtitle(section: string): string {
     "pending-clients": "Review pending client approvals",
     "pending-approvals": "Review pending client approvals",
     programs: "Your coaching programs",
+    exercises: "Browse and search exercises for your programs",
     profile: "View and edit your profile",
     "my-documents": "Upload your documents",
   };

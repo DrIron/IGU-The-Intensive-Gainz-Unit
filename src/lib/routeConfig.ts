@@ -108,6 +108,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "coach-assignments", path: "/coach/assignments", label: "My Assignments", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: UsersRound, navOrder: 3 },
   { id: "coach-sessions", path: "/coach/sessions", label: "Sessions", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: CalendarDays, navOrder: 4 },
   { id: "coach-programs", path: "/coach/programs", label: "Program Library", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: BookOpen, navOrder: 5 },
+  { id: "coach-exercises", path: "/coach/exercises", label: "Exercise Library", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: Dumbbell, navOrder: 5.5 },
   { id: "coach-profile", path: "/coach/profile", label: "My Profile", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: UserCog, navOrder: 6 },
   { id: "coach-pending-clients", path: "/coach/pending-clients", label: "Pending Clients", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: false },
   { id: "coach-section", path: "/coach/:section", label: "Coach Section", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: false },
