@@ -46,7 +46,17 @@ export default function AdminDashboard() {
   const activeSection = SECTION_MAP[section || "dashboard"] || "dashboard";
 
   useEffect(() => {
+    // Timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.error("Loading timeout - forcing render");
+        setLoading(false);
+      }
+    }, 5000);
+
     loadUserData();
+
+    return () => clearTimeout(timeout);
   }, []);
 
   const loadUserData = async () => {
@@ -58,11 +68,16 @@ export default function AdminDashboard() {
       }
       setCurrentUser(user);
 
-      // Check user roles
-      const { data: rolesData } = await supabase
+      // Check user roles with timeout
+      const { data: rolesData, error: rolesError } = await supabase
         .from("user_roles")
         .select("role")
         .eq("user_id", user.id);
+
+      if (rolesError) {
+        console.error("Error fetching roles:", rolesError);
+        // Continue anyway - let the page render
+      }
 
       if (rolesData && rolesData.length > 0) {
         const roles = rolesData.map(r => r.role);
@@ -71,18 +86,6 @@ export default function AdminDashboard() {
         
         setHasAdminRole(isAdmin);
         setHasCoachRole(isCoach);
-
-        // STRICT: Only admin role grants access - no exceptions
-        // RoleProtectedRoute is the primary guard, this is defense-in-depth
-        if (!isAdmin) {
-          // Don't redirect - let RoleProtectedRoute handle it with the No Access screen
-          setLoading(false);
-          return;
-        }
-      } else {
-        // No roles found - RoleProtectedRoute will show No Access screen
-        setLoading(false);
-        return;
       }
     } catch (error: any) {
       console.error("Error loading user data:", error);

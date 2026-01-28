@@ -94,48 +94,48 @@ export default function Index() {
   });
 
   useEffect(() => {
+    // Timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 3000);
+
     checkUserAndRedirect();
     loadTeamPlanSettings();
     loadTestimonials();
+
+    return () => clearTimeout(timeout);
   }, []);
 
   const checkUserAndRedirect = async () => {
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    
-    if (currentUser) {
-      // Authenticated users should go to their dashboard, not the marketing home page
-      // Check their role to determine which dashboard
-      const { data: roles } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", currentUser.id);
+    try {
+      const { data: { user: currentUser } } = await supabase.auth.getUser();
       
-      const roleList = roles?.map(r => r.role) || [];
-      
-      if (roleList.includes("admin")) {
-        navigate("/admin", { replace: true });
-        return;
-      } else if (roleList.includes("coach")) {
-        navigate("/coach", { replace: true });
-        return;
-      } else {
-        // Regular client - check if onboarding completed
-        const { data: profile } = await supabase
-          .from("profiles_public")
-          .select("status, onboarding_completed_at")
-          .eq("id", currentUser.id)
-          .single();
+      if (currentUser) {
+        // Authenticated users should go to their dashboard
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", currentUser.id);
         
-        if (!profile?.onboarding_completed_at && profile?.status === "pending") {
-          navigate("/onboarding", { replace: true });
+        const roleList = roles?.map(r => r.role) || [];
+        
+        if (roleList.includes("admin")) {
+          navigate("/admin", { replace: true });
+          return;
+        } else if (roleList.includes("coach")) {
+          navigate("/coach", { replace: true });
+          return;
         } else {
+          // Regular client - go to dashboard (onboarding guard will redirect if needed)
           navigate("/dashboard", { replace: true });
+          return;
         }
-        return;
       }
+    } catch (error) {
+      console.error("Error checking user:", error);
     }
     
-    // Not authenticated - show public home page
+    // Not authenticated or error - show public home page
     setUser(null);
     setLoading(false);
   };
