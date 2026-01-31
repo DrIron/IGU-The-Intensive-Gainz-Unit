@@ -62,6 +62,7 @@ export default function Auth() {
   
   // Guard to ensure bootstrap-admin-role runs only once per session
   const bootstrapCalledRef = useRef(false);
+  const redirectingRef = useRef(false);
 
   useDocumentTitle({
     title: "Sign In | Intensive Gainz Unit",
@@ -69,7 +70,7 @@ export default function Auth() {
   });
 
   useEffect(() => {
-    // Load services
+    // Load services (don't block on error)
     loadServices();
     
     // Check if coach authentication mode
@@ -91,105 +92,93 @@ export default function Auth() {
     }
 
     // Check if already logged in
-    const redirectParam = searchParams.get("redirect");
-    supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (session) {
-        if (redirectParam) {
-          navigate(redirectParam);
-          return;
-        }
-        // Check user roles and profile status
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id);
-        const roleList = roles?.map(r => r.role) || [];
-        
-        // Admins go to /admin, coaches go to dashboard
-        if (roleList.includes('admin')) {
-          navigate('/admin');
-        } else if (roleList.includes('coach') || isCoachAuth) {
-          navigate('/dashboard');
-          // For regular users, check profile status and onboarding completion
-          // Use profiles_public (non-PII fields only)
-          const { data: profile } = await supabase
-            .from("profiles_public")
-            .select("status, onboarding_completed_at")
-            .eq("id", session.user.id)
-            .single();
-          
-          // Only send to onboarding if status is 'pending' AND onboarding not completed
-          const onboardingCompleted = !!profile?.onboarding_completed_at;
-          if (!onboardingCompleted && profile?.status === 'pending') {
-            navigate('/onboarding');
-            return;
-          }
-          
-          // All other cases go to dashboard
-          navigate('/dashboard');
-        }
+    const checkExistingSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session && !redirectingRef.current) {
+        redirectingRef.current = true;
+        await handleRedirectAfterAuth(session.user.id);
       }
-    });
+    };
+    
+    checkExistingSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      if (session) {
-        const redirectParam = searchParams.get("redirect");
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth] onAuthStateChange:', event, session?.user?.email);
+      
+      if (event === 'SIGNED_IN' && session && !redirectingRef.current) {
+        redirectingRef.current = true;
         
-        if (redirectParam) {
-          window.location.href = redirectParam;
-          return;
-        }
+        // Small delay to ensure session is persisted to localStorage
+        await new Promise(resolve => setTimeout(resolve, 200));
         
-        // Defer to prevent React state conflicts
-        setTimeout(async () => {
-          try {
-            // Fetch roles from database directly (fast, reliable)
-            const { data: roles } = await supabase
-              .from("user_roles")
-              .select("role")
-              .eq("user_id", session.user.id);
-            const roleList = roles?.map(r => r.role) || [];
-            
-            // Admins go to /admin
-            if (roleList.includes('admin')) {
-              window.location.href = "/admin";
-              return;
-            }
-            
-            // Coaches go to /coach
-            if (roleList.includes('coach') || isCoachAuth) {
-              window.location.href = "/coach";
-              return;
-            }
-            
-            // Regular users - check onboarding status
-            const { data: profile } = await supabase
-              .from("profiles_public")
-              .select("status, onboarding_completed_at")
-              .eq("id", session.user.id)
-              .single();
-            
-            const onboardingCompleted = !!profile?.onboarding_completed_at;
-            if (!onboardingCompleted && profile?.status === 'pending') {
-              window.location.href = "/onboarding";
-              return;
-            }
-            
-            // Default to dashboard
-            window.location.href = "/dashboard";
-          } catch (error) {
-            console.error("[Auth] Error during redirect:", error);
-            // Fallback to dashboard on error
-            window.location.href = "/dashboard";
-          }
-        }, 100);
+        await handleRedirectAfterAuth(session.user.id);
       }
     });
 
     return () => subscription.unsubscribe();
   }, [navigate, searchParams, isCoachAuth]);
+
+  const handleRedirectAfterAuth = async (userId: string) => {
+    const redirectParam = searchParams.get("redirect");
+    
+    if (redirectParam) {
+      navigate(redirectParam);
+      return;
+    }
+    
+    try {
+      // Fetch roles from database
+      const { data: roles, error: rolesError } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", userId);
+      
+      if (rolesError) {
+        console.error('[Auth] Error fetching roles:', rolesError);
+      }
+      
+      const roleList = roles?.map(r => r.role) || [];
+      console.log('[Auth] User roles:', roleList);
+      
+      // Admins go to /admin
+      if (roleList.includes('admin')) {
+        console.log('[Auth] Redirecting to /admin');
+        navigate("/admin");
+        return;
+      }
+      
+      // Coaches go to /coach
+      if (roleList.includes('coach') || isCoachAuth) {
+        console.log('[Auth] Redirecting to /coach');
+        navigate("/coach");
+        return;
+      }
+      
+      // Regular users - check onboarding status
+      const { data: profile } = await supabase
+        .from("profiles_public")
+        .select("status, onboarding_completed_at")
+        .eq("id", userId)
+        .single();
+      
+      const onboardingCompleted = !!profile?.onboarding_completed_at;
+      if (!onboardingCompleted && profile?.status === 'pending') {
+        console.log('[Auth] Redirecting to /onboarding');
+        navigate("/onboarding");
+        return;
+      }
+      
+      // Default to dashboard
+      console.log('[Auth] Redirecting to /dashboard');
+      navigate("/dashboard");
+    } catch (error) {
+      console.error("[Auth] Error during redirect:", error);
+      // Fallback to dashboard on error
+      navigate("/dashboard");
+    }
+  };
 
   const loadServices = async () => {
     try {
@@ -200,7 +189,11 @@ export default function Auth() {
         .order("type")
         .order("price_kwd");
 
-      if (error) throw error;
+      if (error) {
+        console.error("Error loading services:", error);
+        // Don't throw - services are optional for the auth page
+        return;
+      }
       setServices(data || []);
     } catch (error: any) {
       console.error("Error loading services:", error);
@@ -237,7 +230,6 @@ export default function Auth() {
         email: email.trim().toLowerCase(),
         password,
         options: {
-          // Always use production URL to prevent preview/dev URLs in emails
           emailRedirectTo: AUTH_REDIRECT_URLS.emailConfirmed,
           data: {
             first_name: firstName.trim(),
@@ -247,7 +239,6 @@ export default function Auth() {
       });
 
       if (error) {
-        // Handle specific error cases
         if (error.message.includes("already registered")) {
           throw new Error("This email is already registered. Please sign in instead.");
         }
@@ -265,13 +256,12 @@ export default function Auth() {
           });
         } catch (emailError) {
           console.error("Error sending confirmation email:", emailError);
-          // Don't block signup if email fails
         }
       }
 
       toast({
         title: "Account created!",
-        description: "Redirecting to onboarding...",
+        description: "Please check your email to verify your account.",
       });
     } catch (error: any) {
       toast({
@@ -309,7 +299,6 @@ export default function Auth() {
       });
 
       if (error) {
-        // Handle specific error cases
         if (error.message.includes("Invalid login credentials")) {
           throw new Error("Invalid email or password. Please try again.");
         }
@@ -320,6 +309,8 @@ export default function Auth() {
         title: "Welcome back!",
         description: "Successfully signed in.",
       });
+      
+      // The onAuthStateChange listener will handle the redirect
     } catch (error: any) {
       toast({
         title: "Sign In Failed",
@@ -337,7 +328,6 @@ export default function Auth() {
 
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        // Always use production URL to prevent preview/dev URLs in emails
         redirectTo: AUTH_REDIRECT_URLS.resetPassword,
       });
 
