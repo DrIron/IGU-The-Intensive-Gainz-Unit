@@ -33,11 +33,29 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
   useEffect(() => {
     let mounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
+
+      // Ignore INITIAL_SESSION with null - localStorage may still be loading
+      if (event === 'INITIAL_SESSION' && !session) {
+        return;
+      }
+
       setSession(session);
 
       if (!session) {
+        // Add delay before redirect to allow localStorage to be read
+        await new Promise(resolve => setTimeout(resolve, 300));
+        if (!mounted) return;
+
+        // Re-check session after delay
+        const { data: { session: freshSession } } = await supabase.auth.getSession();
+        if (freshSession) {
+          setSession(freshSession);
+          await checkAuthorization(freshSession.user.id);
+          return;
+        }
+
         setLoading(false);
         navigate("/auth");
         return;
@@ -52,6 +70,18 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       setSession(session);
 
       if (!session) {
+        // Add delay before redirect to allow localStorage to be read
+        await new Promise(resolve => setTimeout(resolve, 300));
+        if (!mounted) return;
+
+        // Re-check session after delay
+        const { data: { session: freshSession } } = await supabase.auth.getSession();
+        if (freshSession) {
+          setSession(freshSession);
+          await checkAuthorization(freshSession.user.id);
+          return;
+        }
+
         setLoading(false);
         navigate("/auth");
         return;

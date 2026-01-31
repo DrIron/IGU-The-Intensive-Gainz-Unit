@@ -22,26 +22,62 @@ export function AuthGuard({ children }: AuthGuardProps) {
   useEffect(() => {
     let mounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
-      setSession(session);
-      setLoading(false);
-      
-      if (!session) {
-        navigate("/auth", { replace: true });
+
+      // Ignore INITIAL_SESSION with null - localStorage may still be loading
+      if (event === 'INITIAL_SESSION' && !session) {
+        return;
       }
+
+      setSession(session);
+
+      if (!session) {
+        // Add delay before redirect to allow localStorage to be read
+        await new Promise(resolve => setTimeout(resolve, 300));
+        if (!mounted) return;
+
+        // Re-check session after delay
+        const { data: { session: freshSession } } = await supabase.auth.getSession();
+        if (freshSession) {
+          setSession(freshSession);
+          setLoading(false);
+          return;
+        }
+
+        setLoading(false);
+        navigate("/auth", { replace: true });
+        return;
+      }
+
+      setLoading(false);
     });
 
     const checkAuth = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
-      
+
       setSession(session);
-      setLoading(false);
-      
+
       if (!session) {
+        // Add delay before redirect to allow localStorage to be read
+        await new Promise(resolve => setTimeout(resolve, 300));
+        if (!mounted) return;
+
+        // Re-check session after delay
+        const { data: { session: freshSession } } = await supabase.auth.getSession();
+        if (freshSession) {
+          setSession(freshSession);
+          setLoading(false);
+          return;
+        }
+
+        setLoading(false);
         navigate("/auth", { replace: true });
+        return;
       }
+
+      setLoading(false);
     };
 
     checkAuth();
