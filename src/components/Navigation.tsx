@@ -137,11 +137,10 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const handleSignOut = () => {
     // Clear auth immediately - don't wait for response
     supabase.auth.signOut().catch(console.error);
-    
-    // Clear any local storage that might persist state
-    localStorage.removeItem('supabase.auth.token');
+
+    // Clear session storage
     sessionStorage.clear();
-    
+
     // Force immediate full page reload
     window.location.href = "/auth";
   };
