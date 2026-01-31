@@ -61,11 +61,13 @@ export default function AdminDashboard() {
 
   const loadUserData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.log('[AdminDashboard] No session found, redirecting to auth');
         navigate("/auth");
         return;
       }
+      const user = session.user;
       setCurrentUser(user);
 
       // Check user roles with timeout
