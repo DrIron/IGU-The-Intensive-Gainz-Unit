@@ -14,10 +14,10 @@
  * ============================================================================
  */
 
-import { LucideIcon, LayoutDashboard, Users, UserCog, Shield, ShieldCheck, 
-  Library, Tag, Activity, CreditCard, Wallet, ClipboardCheck, Bug, 
-  Stethoscope, CalendarDays, BookOpen, UsersRound, Dumbbell, Apple, 
-  User, Video, Calendar, History, Home } from "lucide-react";
+import { LucideIcon, LayoutDashboard, Users, UserCog, Shield, ShieldCheck,
+  Library, Tag, Activity, CreditCard, Wallet, ClipboardCheck, Bug,
+  Stethoscope, CalendarDays, BookOpen, UsersRound, Dumbbell, Apple,
+  User, Video, Calendar, History, Home, MessageSquare } from "lucide-react";
 import { Role, getDashboardForRole, isRouteBlocked } from "@/auth/roles";
 
 // Re-export Role as AppRole for backward compatibility
@@ -87,12 +87,14 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "admin-discord-legal", path: "/admin/discord-legal", label: "Discord & Legal", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Shield, navOrder: 7 },
   { id: "admin-exercises", path: "/admin/exercises", label: "Content Library", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Library, navOrder: 8 },
   { id: "admin-system-health", path: "/admin/system-health", label: "System Health", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Activity, navOrder: 9 },
-  { id: "admin-pre-launch", path: "/admin/pre-launch", label: "Pre-Launch Check", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Shield, navOrder: 10 },
-  { id: "admin-security", path: "/admin/security", label: "Security Checklist", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: ShieldCheck, navOrder: 11 },
-  { id: "admin-phi-audit", path: "/admin/phi-audit", label: "PHI Access Audit", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Shield, navOrder: 12 },
-  { id: "admin-launch-checklist", path: "/admin/launch-checklist", label: "Launch Test Checklist", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: ClipboardCheck, navOrder: 13 },
-  { id: "admin-debug-roles", path: "/admin/debug/roles", label: "Roles Debug", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Bug, navOrder: 14 },
-  { id: "admin-diagnostics-index", path: "/admin/diagnostics", label: "Diagnostics", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Stethoscope, navOrder: 15 },
+  { id: "admin-testimonials", path: "/admin/testimonials", label: "Testimonials", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: MessageSquare, navOrder: 10 },
+  // Developer-only pages - accessible via URL but hidden from nav
+  { id: "admin-pre-launch", path: "/admin/pre-launch", label: "Pre-Launch Check", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: Shield, navOrder: 20 },
+  { id: "admin-security", path: "/admin/security", label: "Security Checklist", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: ShieldCheck, navOrder: 21 },
+  { id: "admin-phi-audit", path: "/admin/phi-audit", label: "PHI Access Audit", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: Shield, navOrder: 22 },
+  { id: "admin-launch-checklist", path: "/admin/launch-checklist", label: "Launch Test Checklist", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: ClipboardCheck, navOrder: 23 },
+  { id: "admin-debug-roles", path: "/admin/debug/roles", label: "Roles Debug", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: Bug, navOrder: 24 },
+  { id: "admin-diagnostics-index", path: "/admin/diagnostics", label: "Diagnostics", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: Stethoscope, navOrder: 25 },
   { id: "admin-diagnostics-sitemap", path: "/admin/diagnostics/site-map", label: "Site Map Audit", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false },
   { id: "admin-client-diagnostics", path: "/admin/client-diagnostics", label: "Client Diagnostics", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false },
   { id: "admin-email-log", path: "/admin/email-log", label: "Email Log", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false },
