@@ -29,66 +29,18 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-
-      // Ignore INITIAL_SESSION with null - localStorage may still be loading
-      if (event === 'INITIAL_SESSION' && !session) {
-        return;
-      }
-
-      setSession(session);
-
-      if (!session) {
-        // Add delay before redirect to allow localStorage to be read
-        await new Promise(resolve => setTimeout(resolve, 300));
-        if (!mounted) return;
-
-        // Re-check session after delay
-        const { data: { session: freshSession } } = await supabase.auth.getSession();
-        if (freshSession) {
-          setSession(freshSession);
-          await checkAuthorization(freshSession.user.id);
-          return;
-        }
-
+    // Timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      if (mounted && loading) {
+        console.error('[RoleProtectedRoute] Loading timeout - forcing completion');
         setLoading(false);
-        navigate("/auth");
-        return;
       }
-
-      await checkAuthorization(session.user.id);
-    });
-
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!mounted) return;
-      setSession(session);
-
-      if (!session) {
-        // Add delay before redirect to allow localStorage to be read
-        await new Promise(resolve => setTimeout(resolve, 300));
-        if (!mounted) return;
-
-        // Re-check session after delay
-        const { data: { session: freshSession } } = await supabase.auth.getSession();
-        if (freshSession) {
-          setSession(freshSession);
-          await checkAuthorization(freshSession.user.id);
-          return;
-        }
-
-        setLoading(false);
-        navigate("/auth");
-        return;
-      }
-
-      await checkAuthorization(session.user.id);
-    };
+    }, 5000);
 
     const checkAuthorization = async (userId: string) => {
       if (!mounted) return;
@@ -99,6 +51,8 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           .select("role")
           .eq("user_id", userId);
 
+        if (!mounted) return;
+
         const roles = rolesData?.map(r => r.role) || [];
         const isAdmin = roles.includes("admin");
         const isCoach = roles.includes("coach");
@@ -107,92 +61,129 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
 
         // CRITICAL: Check if user's role is BLOCKED from this route
         const primaryRole: AppRole = isAdmin ? "admin" : isCoach ? "coach" : "client";
-        
+
         if (isRouteBlockedForRole(currentPath, primaryRole)) {
           console.error("[ACCESS BLOCKED]", {
             userId,
             role: primaryRole,
             attemptedRoute: currentPath,
           });
-          
+
           toast.error("You don't have access to that page.", {
-            description: primaryRole === "coach" 
+            description: primaryRole === "coach"
               ? "This area is restricted to administrators only."
               : primaryRole === "admin"
               ? "Admins must use a separate coach account for coach features."
               : "This area requires elevated permissions."
           });
-          
+
           navigate(getPrimaryDashboardForRole(primaryRole), { replace: true });
-          
-          if (mounted) {
-            setAuthorized(false);
-            setLoading(false);
-          }
+          setAuthorized(false);
+          setLoading(false);
           return;
         }
 
         // Secondary check: explicit role requirement
+        let isAuthorized = false;
         switch (requiredRole) {
           case "admin":
-            if (isAdmin) {
-              setAuthorized(true);
-            } else {
+            isAuthorized = isAdmin;
+            if (!isAdmin) {
               toast.error("Access Denied", {
                 description: "Admin access required for this page."
               });
-              if (isCoach) {
-                navigate("/coach/dashboard", { replace: true });
-              } else {
-                navigate("/dashboard", { replace: true });
-              }
+              navigate(isCoach ? "/coach/dashboard" : "/dashboard", { replace: true });
             }
             break;
 
           case "coach":
-            if (isCoach) {
-              setAuthorized(true);
-            } else {
+            isAuthorized = isCoach;
+            if (!isCoach) {
               toast.error("Access Denied", {
                 description: "Coach access required. Admins must use a separate coach account."
               });
-              if (isAdmin) {
-                navigate("/admin/dashboard", { replace: true });
-              } else {
-                navigate("/dashboard", { replace: true });
-              }
+              navigate(isAdmin ? "/admin/dashboard" : "/dashboard", { replace: true });
             }
             break;
 
           case "client":
-            if (isClient) {
-              setAuthorized(true);
-            } else {
+            isAuthorized = isClient;
+            if (!isClient) {
               toast.error("Access Denied", {
                 description: "This page is for clients only."
               });
-              if (isAdmin) {
-                navigate("/admin/dashboard", { replace: true });
-              } else if (isCoach) {
-                navigate("/coach/dashboard", { replace: true });
-              }
+              navigate(isAdmin ? "/admin/dashboard" : isCoach ? "/coach/dashboard" : "/dashboard", { replace: true });
             }
             break;
         }
+
+        if (mounted) {
+          setAuthorized(isAuthorized);
+          setLoading(false);
+        }
       } catch (error) {
         console.error("Error checking authorization:", error);
-        navigate("/dashboard", { replace: true });
-      } finally {
         if (mounted) {
+          navigate("/dashboard", { replace: true });
           setLoading(false);
         }
       }
     };
 
+    // Primary auth check - runs immediately on mount
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!mounted) return;
+
+        if (session) {
+          setSession(session);
+          await checkAuthorization(session.user.id);
+          setAuthChecked(true);
+        } else {
+          // No session - redirect to auth
+          setLoading(false);
+          navigate("/auth", { replace: true });
+        }
+      } catch (error) {
+        console.error('[RoleProtectedRoute] Error in checkAuth:', error);
+        if (mounted) {
+          setLoading(false);
+          navigate("/auth", { replace: true });
+        }
+      }
+    };
+
+    // Listen for auth changes AFTER initial check
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+      if (!mounted) return;
+
+      // Skip INITIAL_SESSION - we handle that in checkAuth
+      if (event === 'INITIAL_SESSION') return;
+
+      // Handle sign out
+      if (event === 'SIGNED_OUT' || !newSession) {
+        setSession(null);
+        setAuthorized(false);
+        navigate("/auth", { replace: true });
+        return;
+      }
+
+      // Handle sign in or token refresh
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setSession(newSession);
+        if (authChecked) {
+          // Re-check authorization with new session
+          await checkAuthorization(newSession.user.id);
+        }
+      }
+    });
+
     checkAuth();
 
     return () => {
       mounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
     };
   }, [navigate, requiredRole, location.pathname]);
