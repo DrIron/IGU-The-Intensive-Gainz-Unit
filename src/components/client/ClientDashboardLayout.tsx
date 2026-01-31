@@ -109,8 +109,8 @@ export function ClientDashboardLayout({
               title: "Payment Verified",
               description: "Your subscription is now active!",
             });
-            // Force reload to get fresh data
-            window.location.href = '/dashboard';
+            // Navigate to refresh the dashboard with new subscription status
+            navigate('/dashboard', { replace: true });
           }
         } catch (err) {
           console.error('Fallback payment verification failed:', err);

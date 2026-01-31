@@ -63,8 +63,9 @@ export function OnboardingGuard({
 
     const checkOnboardingStatus = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
-        
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
+
         if (!user) {
           // Not authenticated - AuthGuard should handle this
           navigate("/auth", { replace: true });
@@ -180,7 +181,8 @@ export function useOnboardingStatus() {
 
     const fetchStatus = async () => {
       try {
-        const { data: { user } } = await supabase.auth.getUser();
+        const { data: { session } } = await supabase.auth.getSession();
+        const user = session?.user;
         if (!user) {
           if (mounted) {
             setStatus(null);
