@@ -164,13 +164,14 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
 
       if (error) throw error;
 
-      // Filter out users with roles (coaches/admins)
+      // Filter out users with admin or coach roles (not just any role)
       const { data: rolesData } = await supabase
         .from("user_roles")
-        .select("user_id");
+        .select("user_id")
+        .in("role", ["admin", "coach"]);
 
-      const roleUserIds = new Set(rolesData?.map(r => r.user_id) || []);
-      const clientsOnly = (data || []).filter(user => !roleUserIds.has(user.id));
+      const adminCoachUserIds = new Set(rolesData?.map(r => r.user_id) || []);
+      const clientsOnly = (data || []).filter(user => !adminCoachUserIds.has(user.id));
 
       setClients(clientsOnly as Client[]);
     } catch (error: any) {
