@@ -5,12 +5,29 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// Custom storage adapter with logging for debugging session persistence
+const customStorage = {
+  getItem: (key: string) => {
+    const value = window.localStorage.getItem(key);
+    console.log('[Supabase Storage] getItem:', key, value ? 'found' : 'not found');
+    return value;
+  },
+  setItem: (key: string, value: string) => {
+    console.log('[Supabase Storage] setItem:', key, 'length:', value?.length);
+    window.localStorage.setItem(key, value);
+  },
+  removeItem: (key: string) => {
+    console.log('[Supabase Storage] removeItem:', key);
+    window.localStorage.removeItem(key);
+  },
+};
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: window.localStorage,
+    storage: customStorage,
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
