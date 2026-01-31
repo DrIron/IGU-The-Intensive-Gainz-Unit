@@ -135,13 +135,26 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const user = currentUser;
 
   const handleSignOut = () => {
-    // Clear auth immediately - don't wait for response
-    supabase.auth.signOut().catch(console.error);
+    // Clear local state FIRST before any network calls
+    // This ensures the user is logged out even if the network fails
 
-    // Clear session storage
+    // Clear all Supabase-related localStorage keys
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-') || key.includes('supabase')) {
+        localStorage.removeItem(key);
+      }
+    });
+
+    // Clear sessionStorage
     sessionStorage.clear();
 
-    // Force immediate full page reload
+    // Attempt server signOut but don't block on it
+    // Using scope: 'local' avoids the network call that can fail
+    supabase.auth.signOut({ scope: 'local' }).catch(err => {
+      console.warn('SignOut API call failed (user still logged out locally):', err);
+    });
+
+    // Redirect to auth page
     window.location.href = "/auth";
   };
 
