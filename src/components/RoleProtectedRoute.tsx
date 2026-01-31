@@ -34,26 +34,33 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
   useEffect(() => {
     let mounted = true;
 
-    // Timeout to prevent infinite loading
+    // Timeout to prevent infinite loading (increased to 8s to allow for slow role queries)
     const timeout = setTimeout(() => {
       if (mounted && loading) {
-        console.error('[RoleProtectedRoute] Loading timeout - forcing completion');
+        console.error('[RoleProtectedRoute] Loading timeout after 8s - forcing completion');
         setLoading(false);
       }
-    }, 5000);
+    }, 8000);
 
     const checkAuthorization = async (userId: string) => {
       if (!mounted) return;
 
       try {
-        const { data: rolesData } = await supabase
+        console.log('[RoleProtectedRoute] Fetching roles for user:', userId);
+        const { data: rolesData, error: rolesError } = await supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", userId);
 
+        if (rolesError) {
+          console.error('[RoleProtectedRoute] Error fetching roles:', rolesError);
+        }
+
         if (!mounted) return;
 
         const roles = rolesData?.map(r => r.role) || [];
+        console.log('[RoleProtectedRoute] Roles fetched:', roles);
+
         const isAdmin = roles.includes("admin");
         const isCoach = roles.includes("coach");
         const isClient = !isAdmin && !isCoach;
@@ -61,6 +68,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
 
         // CRITICAL: Check if user's role is BLOCKED from this route
         const primaryRole: AppRole = isAdmin ? "admin" : isCoach ? "coach" : "client";
+        console.log('[RoleProtectedRoute] Primary role:', primaryRole, 'Required:', requiredRole);
 
         if (isRouteBlockedForRole(currentPath, primaryRole)) {
           console.error("[ACCESS BLOCKED]", {
@@ -118,11 +126,12 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
         }
 
         if (mounted) {
+          console.log('[RoleProtectedRoute] Authorization complete:', { isAuthorized, requiredRole });
           setAuthorized(isAuthorized);
           setLoading(false);
         }
       } catch (error) {
-        console.error("Error checking authorization:", error);
+        console.error("[RoleProtectedRoute] Error checking authorization:", error);
         if (mounted) {
           navigate("/dashboard", { replace: true });
           setLoading(false);
@@ -132,16 +141,20 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
 
     // Primary auth check - runs immediately on mount
     const checkAuth = async () => {
+      console.log('[RoleProtectedRoute] Starting auth check...');
       try {
         const { data: { session } } = await supabase.auth.getSession();
+        console.log('[RoleProtectedRoute] Session:', session ? 'found' : 'not found');
         if (!mounted) return;
 
         if (session) {
           setSession(session);
           await checkAuthorization(session.user.id);
           setAuthChecked(true);
+          console.log('[RoleProtectedRoute] Auth check complete');
         } else {
           // No session - redirect to auth
+          console.log('[RoleProtectedRoute] No session, redirecting to /auth');
           setLoading(false);
           navigate("/auth", { replace: true });
         }
