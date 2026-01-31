@@ -146,7 +146,12 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   };
 
   // Public links for header navigation
-  const publicLinks = user 
+  // Hide public links for admin/coach dashboards - they use sidebar navigation
+  const isAdminOrCoachDashboard = activeRole === 'admin' || activeRole === 'coach';
+
+  const publicLinks = isAdminOrCoachDashboard
+    ? [] // Admin and coach use sidebar navigation, not top nav
+    : user
     ? [
         { label: "Home", path: "/" },
         { label: "Services", path: "/services" },
