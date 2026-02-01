@@ -131,6 +131,8 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
   const lastUserId = useRef<string | null>(null);
   // Guard to prevent re-running authorization while already checking
   const isCheckingAuth = useRef(false);
+  // CRITICAL: Use ref to track authorization - refs are synchronous and don't suffer from React's batched state updates
+  const isAuthorizedRef = useRef(false);
 
   /**
    * Log access decisions for debugging
@@ -171,6 +173,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
 
     // Navigate to appropriate dashboard
     navigate(getRedirectForRole(primaryRole), { replace: true });
+    isAuthorizedRef.current = false;
     setAuthState('unauthorized');
   }, [logAccess, navigate, requiredRole]);
 
@@ -205,6 +208,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
         }
 
         logAccess('GRANTED', { roles: serverRoles, source: 'server-verified' });
+        isAuthorizedRef.current = true;
         setAuthState('authorized');
       } else {
         handleUnauthorized(serverRoles, 'role-mismatch');
@@ -218,6 +222,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       if (currentRoles.length > 0) {
         console.log('[RoleProtectedRoute] Keeping cached roles due to server failure');
       } else {
+        isAuthorizedRef.current = false;
         setAuthState('unauthorized');
       }
     }
@@ -227,10 +232,11 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
    * Main authorization logic
    */
   useEffect(() => {
-    // GUARD AT USEEFFECT LEVEL - check current authState before calling async function
-    // This avoids stale closure issues inside the async function
-    if (authState === 'authorized') {
-      console.log('[RoleProtectedRoute] useEffect: Already authorized, not running checkAuthorization');
+    // GUARD AT USEEFFECT LEVEL - check ref BEFORE calling async function
+    // Refs are synchronous and don't suffer from React's batched state updates
+    // This prevents re-running authorization when user state temporarily becomes null
+    if (isAuthorizedRef.current) {
+      console.log('[RoleProtectedRoute] useEffect: Already authorized (ref check), skipping checkAuthorization');
       return;
     }
 
@@ -278,6 +284,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           }
 
           logAccess('BLOCKED', { reason: 'no-session' });
+          isAuthorizedRef.current = false;
           setAuthState('no-session');
           return;
         }
@@ -304,6 +311,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           }
 
           logAccess('GRANTED', { roles: cachedRoles, source: 'cache' });
+          isAuthorizedRef.current = true;
           setAuthState('authorized');
 
           // Step 2: Verify in background (non-blocking)
@@ -338,6 +346,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           }
 
           logAccess('GRANTED', { roles: serverRoles, source: 'server' });
+          isAuthorizedRef.current = true;
           setAuthState('authorized');
         } else {
           handleUnauthorized(serverRoles, 'role-mismatch-server');
@@ -346,6 +355,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
         // No roles from server - this is the problematic case
         console.error('[RoleProtectedRoute] No roles from server - likely auth header issue');
         logAccess('BLOCKED', { reason: 'no-roles-from-server' });
+        isAuthorizedRef.current = false;
         setAuthState('unauthorized');
       }
       } finally {
@@ -365,13 +375,19 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
     logAccess,
     handleUnauthorized,
     location.pathname,
-    authState, // Include to prevent re-running when already authorized
+    // Note: authState removed from deps - we use isAuthorizedRef (synchronous) for the guard instead
   ]);
 
-  // Reset verification flag when user changes
+  // Reset flags when user actually changes (different user signs in)
   useEffect(() => {
     if (user?.id !== lastUserId.current) {
       verificationAttempted.current = false;
+      // Only reset authorization if user actually changed to a different user
+      // Don't reset if user just temporarily became null (session hiccup)
+      if (user?.id && lastUserId.current && user.id !== lastUserId.current) {
+        console.log('[RoleProtectedRoute] User changed, resetting authorization');
+        isAuthorizedRef.current = false;
+      }
     }
   }, [user?.id]);
 
