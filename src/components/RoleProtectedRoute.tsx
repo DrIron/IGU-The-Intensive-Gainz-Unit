@@ -57,6 +57,15 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           return;
         }
 
+        // Check session state before query - helps diagnose refresh vs fresh sign-in differences
+        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        console.log('[RoleProtectedRoute] Current session before query:', {
+          hasSession: !!currentSession,
+          hasAccessToken: !!currentSession?.access_token,
+          tokenPrefix: currentSession?.access_token?.substring(0, 20) + '...',
+          expiresAt: currentSession?.expires_at
+        });
+
         const queryStartTime = Date.now();
 
         // Create a timeout promise that rejects after 5 seconds
