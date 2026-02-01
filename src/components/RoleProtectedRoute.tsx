@@ -1,20 +1,114 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
-import { Session } from "@supabase/supabase-js";
-import { toast } from "sonner";
+/**
+ * RoleProtectedRoute - Cache-First Auth Guard Component
+ *
+ * This component protects routes based on user roles with a cache-first approach
+ * to solve the page refresh authentication issue.
+ *
+ * Strategy:
+ * 1. Check localStorage cache immediately (instant)
+ * 2. If cache hit -> render protected content immediately
+ * 3. Verify with server in background (non-blocking)
+ * 4. If verification fails -> redirect appropriately
+ */
+
+import React, { useEffect, useState, useCallback, useRef } from 'react';
+import { Navigate, useNavigate, useLocation } from 'react-router-dom';
+import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
+import { useAuthSession } from '@/hooks/useAuthSession';
+import { useRoleCache } from '@/hooks/useRoleCache';
+import { TIMEOUTS, AUTH_ROUTES } from '@/lib/constants';
 import {
   isRouteBlockedForRole,
   getPrimaryDashboardForRole,
-  canAccessRoute,
   AppRole,
-} from "@/lib/routeConfig";
+} from '@/lib/routeConfig';
 
-type Role = "admin" | "coach" | "client";
+type Role = 'admin' | 'coach' | 'client';
 
 interface RoleProtectedRouteProps {
   children: React.ReactNode;
   requiredRole: Role;
+}
+
+type AuthState = 'loading' | 'authorized' | 'unauthorized' | 'no-session';
+
+/**
+ * Query user roles from database with timeout
+ */
+async function fetchUserRoles(userId: string): Promise<string[]> {
+  return new Promise((resolve) => {
+    const timeoutId = setTimeout(() => {
+      console.warn(`[RoleProtectedRoute] Roles query timed out after ${TIMEOUTS.ROLES_QUERY}ms`);
+      resolve([]);
+    }, TIMEOUTS.ROLES_QUERY);
+
+    supabase
+      .from('user_roles')
+      .select('role')
+      .eq('user_id', userId)
+      .then(({ data, error }) => {
+        clearTimeout(timeoutId);
+
+        if (error) {
+          console.error('[RoleProtectedRoute] Roles query error:', error);
+          resolve([]);
+          return;
+        }
+
+        const roles = data?.map(r => r.role) || [];
+        console.log('[RoleProtectedRoute] Roles fetched from DB:', roles);
+        resolve(roles);
+      })
+      .catch((error) => {
+        clearTimeout(timeoutId);
+        console.error('[RoleProtectedRoute] Roles query exception:', error);
+        resolve([]);
+      });
+  });
+}
+
+/**
+ * Check if user has required role
+ */
+function hasRequiredRole(userRoles: string[], requiredRole: Role): boolean {
+  const isAdmin = userRoles.includes('admin');
+  const isCoach = userRoles.includes('coach');
+  const isClient = !isAdmin && !isCoach;
+
+  switch (requiredRole) {
+    case 'admin':
+      return isAdmin;
+    case 'coach':
+      return isCoach;
+    case 'client':
+      return isClient;
+    default:
+      return false;
+  }
+}
+
+/**
+ * Get the primary role from a list of roles
+ */
+function getPrimaryRole(userRoles: string[]): AppRole {
+  if (userRoles.includes('admin')) return 'admin';
+  if (userRoles.includes('coach')) return 'coach';
+  return 'client';
+}
+
+/**
+ * Get redirect destination for a role
+ */
+function getRedirectForRole(primaryRole: AppRole): string {
+  switch (primaryRole) {
+    case 'admin':
+      return AUTH_ROUTES.ADMIN_DASHBOARD;
+    case 'coach':
+      return AUTH_ROUTES.COACH_DASHBOARD;
+    default:
+      return AUTH_ROUTES.CLIENT_DASHBOARD;
+  }
 }
 
 /**
@@ -22,275 +116,299 @@ interface RoleProtectedRouteProps {
  * - /admin/* requires admin role ONLY - coaches are BLOCKED
  * - /coach/* requires coach role ONLY - admins must use separate coach account
  * - /client routes require client role (no admin/coach role)
+ *
+ * Uses cache-first approach to solve page refresh authentication issues.
  */
 export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRouteProps) {
   const navigate = useNavigate();
   const location = useLocation();
-  const [session, setSession] = useState<Session | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [authorized, setAuthorized] = useState(false);
+  const { session, user, isLoading: sessionLoading } = useAuthSession();
+  const { getCachedRoles, setCachedRoles, isCacheValid } = useRoleCache();
 
-  useEffect(() => {
-    let mounted = true;
+  const [authState, setAuthState] = useState<AuthState>('loading');
+  const [currentRoles, setCurrentRoles] = useState<string[]>([]);
+  const verificationAttempted = useRef(false);
+  const lastUserId = useRef<string | null>(null);
 
-    // Timeout to prevent infinite loading (increased to 10s to allow for session restoration)
-    const timeout = setTimeout(() => {
-      if (mounted && loading) {
-        console.error('[RoleProtectedRoute] Loading timeout after 10s - forcing completion');
-        setLoading(false);
-      }
-    }, 10000);
-
-    const checkAuthorization = async (userId: string, authSession: Session) => {
-      if (!mounted) return;
-
-      try {
-        // Debug: Validate inputs before query
-        console.log('[RoleProtectedRoute] Starting roles query for user:', userId);
-        console.log('[RoleProtectedRoute] userId type:', typeof userId, 'length:', userId?.length);
-        console.log('[RoleProtectedRoute] supabase client exists:', !!supabase);
-        console.log('[RoleProtectedRoute] supabase.from exists:', typeof supabase?.from);
-
-        if (!userId || typeof userId !== 'string') {
-          console.error('[RoleProtectedRoute] Invalid userId:', userId);
-          setLoading(false);
-          return;
-        }
-
-        // Ensure the Supabase client has the session set before making queries
-        // This is critical on page refresh where getSession() may hang
-        console.log('[RoleProtectedRoute] Setting session on client before query');
-        try {
-          await supabase.auth.setSession({
-            access_token: authSession.access_token,
-            refresh_token: authSession.refresh_token
-          });
-          console.log('[RoleProtectedRoute] setSession succeeded');
-        } catch (e) {
-          console.warn('[RoleProtectedRoute] setSession failed:', e);
-        }
-
-        console.log('[RoleProtectedRoute] Session before query:', {
-          hasSession: !!authSession,
-          hasAccessToken: !!authSession?.access_token,
-          tokenPrefix: authSession?.access_token?.substring(0, 20) + '...',
-          expiresAt: authSession?.expires_at
-        });
-
-        const queryStartTime = Date.now();
-
-        // Create a timeout promise that rejects after 5 seconds
-        const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => reject(new Error('Query timeout after 5s')), 5000);
-        });
-
-        // Race the actual query against the timeout
-        let rolesData: { role: string }[] | null = null;
-        let rolesError: Error | null = null;
-
-        try {
-          console.log('[RoleProtectedRoute] About to execute Promise.race...');
-          const result = await Promise.race([
-            supabase
-              .from("user_roles")
-              .select("role")
-              .eq("user_id", userId),
-            timeoutPromise
-          ]);
-
-          const queryDuration = Date.now() - queryStartTime;
-          console.log(`[RoleProtectedRoute] Roles query completed in ${queryDuration}ms`);
-
-          rolesData = result.data;
-          if (result.error) {
-            rolesError = result.error;
-          }
-        } catch (err) {
-          const queryDuration = Date.now() - queryStartTime;
-          if (err instanceof Error && err.message === 'Query timeout after 5s') {
-            console.error(`[RoleProtectedRoute] Query timeout after 5s - treating as empty roles`);
-          } else {
-            console.error(`[RoleProtectedRoute] Query failed after ${queryDuration}ms:`, err);
-          }
-          rolesError = err instanceof Error ? err : new Error(String(err));
-        }
-
-        if (rolesError) {
-          console.error('[RoleProtectedRoute] Error fetching roles:', rolesError);
-        }
-
-        if (!mounted) return;
-
-        const roles = rolesData?.map(r => r.role) || [];
-        console.log('[RoleProtectedRoute] Roles fetched:', roles);
-
-        const isAdmin = roles.includes("admin");
-        const isCoach = roles.includes("coach");
-        const isClient = !isAdmin && !isCoach;
-        const currentPath = location.pathname;
-
-        // CRITICAL: Check if user's role is BLOCKED from this route
-        const primaryRole: AppRole = isAdmin ? "admin" : isCoach ? "coach" : "client";
-        console.log('[RoleProtectedRoute] Primary role:', primaryRole, 'Required:', requiredRole);
-
-        if (isRouteBlockedForRole(currentPath, primaryRole)) {
-          console.error("[ACCESS BLOCKED]", {
-            userId,
-            role: primaryRole,
-            attemptedRoute: currentPath,
-          });
-
-          toast.error("You don't have access to that page.", {
-            description: primaryRole === "coach"
-              ? "This area is restricted to administrators only."
-              : primaryRole === "admin"
-              ? "Admins must use a separate coach account for coach features."
-              : "This area requires elevated permissions."
-          });
-
-          navigate(getPrimaryDashboardForRole(primaryRole), { replace: true });
-          setAuthorized(false);
-          setLoading(false);
-          return;
-        }
-
-        // Secondary check: explicit role requirement
-        let isAuthorized = false;
-        switch (requiredRole) {
-          case "admin":
-            isAuthorized = isAdmin;
-            if (!isAdmin) {
-              toast.error("Access Denied", {
-                description: "Admin access required for this page."
-              });
-              navigate(isCoach ? "/coach/dashboard" : "/dashboard", { replace: true });
-            }
-            break;
-
-          case "coach":
-            isAuthorized = isCoach;
-            if (!isCoach) {
-              toast.error("Access Denied", {
-                description: "Coach access required. Admins must use a separate coach account."
-              });
-              navigate(isAdmin ? "/admin/dashboard" : "/dashboard", { replace: true });
-            }
-            break;
-
-          case "client":
-            isAuthorized = isClient;
-            if (!isClient) {
-              toast.error("Access Denied", {
-                description: "This page is for clients only."
-              });
-              navigate(isAdmin ? "/admin/dashboard" : isCoach ? "/coach/dashboard" : "/dashboard", { replace: true });
-            }
-            break;
-        }
-
-        if (mounted) {
-          console.log('[RoleProtectedRoute] Authorization complete:', { isAuthorized, requiredRole });
-          setAuthorized(isAuthorized);
-          setLoading(false);
-        }
-      } catch (error) {
-        console.error("[RoleProtectedRoute] Error checking authorization:", error);
-        if (mounted) {
-          navigate("/dashboard", { replace: true });
-          setLoading(false);
-        }
-      }
-    };
-
-    // Use onAuthStateChange as the single source of truth for session state
-    // This ensures we wait for Supabase to fully restore the session from localStorage
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (!mounted) return;
-
-      console.log('[RoleProtectedRoute] Auth state change:', event, newSession ? 'session exists' : 'no session');
-
-      // Handle INITIAL_SESSION - this fires when Supabase restores session from localStorage
-      // This is the key fix: we wait for this event instead of calling getSession() immediately
-      if (event === 'INITIAL_SESSION') {
-        if (newSession) {
-          console.log('[RoleProtectedRoute] Session restored from storage, checking authorization');
-          console.log('[RoleProtectedRoute] Session user:', newSession.user?.id, 'email:', newSession.user?.email);
-          setSession(newSession);
-          await checkAuthorization(newSession.user.id, newSession);
-        } else {
-          // No session found after restoration attempt - redirect to auth
-          console.log('[RoleProtectedRoute] No session after INITIAL_SESSION, redirecting to /auth');
-          setLoading(false);
-          navigate("/auth", { replace: true });
-        }
-        return;
-      }
-
-      // Handle sign out
-      if (event === 'SIGNED_OUT' || !newSession) {
-        setSession(null);
-        setAuthorized(false);
-        setLoading(false);
-        navigate("/auth", { replace: true });
-        return;
-      }
-
-      // Handle sign in or token refresh
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        console.log('[RoleProtectedRoute] Session updated via', event);
-        setSession(newSession);
-        await checkAuthorization(newSession.user.id, newSession);
-      }
+  /**
+   * Log access decisions for debugging
+   */
+  const logAccess = useCallback((
+    decision: 'GRANTED' | 'BLOCKED' | 'PENDING',
+    details: Record<string, unknown>
+  ) => {
+    console.log(`[RoleProtectedRoute][${decision}]`, {
+      route: location.pathname,
+      requiredRole,
+      ...details,
     });
+  }, [location.pathname, requiredRole]);
 
-    return () => {
-      mounted = false;
-      clearTimeout(timeout);
-      subscription.unsubscribe();
+  /**
+   * Handle authorization failure with appropriate redirect
+   */
+  const handleUnauthorized = useCallback((roles: string[], reason: string) => {
+    const primaryRole = getPrimaryRole(roles);
+
+    logAccess('BLOCKED', { roles, primaryRole, reason });
+
+    // Show toast with appropriate message
+    if (requiredRole === 'admin') {
+      toast.error('Access Denied', {
+        description: 'Admin access required for this page.'
+      });
+    } else if (requiredRole === 'coach') {
+      toast.error('Access Denied', {
+        description: 'Coach access required. Admins must use a separate coach account.'
+      });
+    } else {
+      toast.error('Access Denied', {
+        description: 'This page is for clients only.'
+      });
+    }
+
+    // Navigate to appropriate dashboard
+    navigate(getRedirectForRole(primaryRole), { replace: true });
+    setAuthState('unauthorized');
+  }, [logAccess, navigate, requiredRole]);
+
+  /**
+   * Verify roles with server (background operation)
+   */
+  const verifyRolesWithServer = useCallback(async (userId: string) => {
+    if (verificationAttempted.current && lastUserId.current === userId) {
+      console.log('[RoleProtectedRoute] Skipping duplicate verification');
+      return;
+    }
+
+    verificationAttempted.current = true;
+    lastUserId.current = userId;
+
+    console.log('[RoleProtectedRoute] Starting background verification for user:', userId);
+
+    const serverRoles = await fetchUserRoles(userId);
+
+    if (serverRoles.length > 0) {
+      // Update cache with fresh server data
+      setCachedRoles(serverRoles, userId);
+      setCurrentRoles(serverRoles);
+
+      // Re-check authorization with fresh data
+      if (hasRequiredRole(serverRoles, requiredRole)) {
+        // Check route blocking
+        const primaryRole = getPrimaryRole(serverRoles);
+        if (isRouteBlockedForRole(location.pathname, primaryRole)) {
+          handleUnauthorized(serverRoles, 'route-blocked');
+          return;
+        }
+
+        logAccess('GRANTED', { roles: serverRoles, source: 'server-verified' });
+        setAuthState('authorized');
+      } else {
+        handleUnauthorized(serverRoles, 'role-mismatch');
+      }
+    } else {
+      // Server returned no roles - could be RLS issue or user has no roles
+      console.warn('[RoleProtectedRoute] Server returned no roles - possible RLS issue');
+
+      // If we had cached roles, keep using them (don't kick user out)
+      // This handles the case where RLS is still broken
+      if (currentRoles.length > 0) {
+        console.log('[RoleProtectedRoute] Keeping cached roles due to server failure');
+      } else {
+        setAuthState('unauthorized');
+      }
+    }
+  }, [requiredRole, setCachedRoles, logAccess, currentRoles, handleUnauthorized, location.pathname]);
+
+  /**
+   * Main authorization logic
+   */
+  useEffect(() => {
+    const checkAuthorization = async () => {
+      console.log('[RoleProtectedRoute] Checking authorization...', {
+        sessionLoading,
+        hasUser: !!user,
+        userId: user?.id,
+      });
+
+      // Still loading session
+      if (sessionLoading) {
+        setAuthState('loading');
+        return;
+      }
+
+      // No session at all
+      if (!user) {
+        // Quick check: do we have valid cached roles?
+        // This handles the race condition where session isn't ready yet
+        const cachedRoles = getCachedRoles();
+
+        if (cachedRoles && cachedRoles.length > 0) {
+          console.log('[RoleProtectedRoute] No session but found cached roles - waiting...');
+          // Give session a moment to initialize
+          await new Promise(r => setTimeout(r, TIMEOUTS.AUTH_REDIRECT_DELAY));
+
+          // Check if session became available
+          const { data: { session: recheckedSession } } = await supabase.auth.getSession();
+          if (recheckedSession?.user) {
+            console.log('[RoleProtectedRoute] Session became available after wait');
+            // Let the effect re-run with the new session
+            return;
+          }
+        }
+
+        logAccess('BLOCKED', { reason: 'no-session' });
+        setAuthState('no-session');
+        return;
+      }
+
+      const userId = user.id;
+
+      // ============================================
+      // CACHE-FIRST APPROACH - This is the key fix
+      // ============================================
+
+      // Step 1: Check cache immediately
+      const cachedRoles = getCachedRoles(userId);
+
+      if (cachedRoles && cachedRoles.length > 0) {
+        setCurrentRoles(cachedRoles);
+
+        if (hasRequiredRole(cachedRoles, requiredRole)) {
+          // Check route blocking
+          const primaryRole = getPrimaryRole(cachedRoles);
+          if (isRouteBlockedForRole(location.pathname, primaryRole)) {
+            handleUnauthorized(cachedRoles, 'route-blocked');
+            return;
+          }
+
+          logAccess('GRANTED', { roles: cachedRoles, source: 'cache' });
+          setAuthState('authorized');
+
+          // Step 2: Verify in background (non-blocking)
+          if (!isCacheValid(userId)) {
+            console.log('[RoleProtectedRoute] Cache stale - verifying in background');
+            verifyRolesWithServer(userId);
+          }
+          return;
+        } else {
+          // User is authenticated but doesn't have required role
+          handleUnauthorized(cachedRoles, 'role-mismatch-cached');
+          return;
+        }
+      }
+
+      // Step 3: No cache - must fetch from server (blocking)
+      console.log('[RoleProtectedRoute] No cached roles - fetching from server');
+      setAuthState('loading');
+
+      const serverRoles = await fetchUserRoles(userId);
+
+      if (serverRoles.length > 0) {
+        setCachedRoles(serverRoles, userId);
+        setCurrentRoles(serverRoles);
+
+        if (hasRequiredRole(serverRoles, requiredRole)) {
+          // Check route blocking
+          const primaryRole = getPrimaryRole(serverRoles);
+          if (isRouteBlockedForRole(location.pathname, primaryRole)) {
+            handleUnauthorized(serverRoles, 'route-blocked');
+            return;
+          }
+
+          logAccess('GRANTED', { roles: serverRoles, source: 'server' });
+          setAuthState('authorized');
+        } else {
+          handleUnauthorized(serverRoles, 'role-mismatch-server');
+        }
+      } else {
+        // No roles from server - this is the problematic case
+        console.error('[RoleProtectedRoute] No roles from server - likely auth header issue');
+        logAccess('BLOCKED', { reason: 'no-roles-from-server' });
+        setAuthState('unauthorized');
+      }
     };
-  }, [navigate, requiredRole, location.pathname]);
 
-  if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="animate-pulse text-lg text-muted-foreground">Loading...</div>
-      </div>
-    );
-  }
+    checkAuthorization();
+  }, [
+    sessionLoading,
+    user,
+    requiredRole,
+    getCachedRoles,
+    setCachedRoles,
+    isCacheValid,
+    verifyRolesWithServer,
+    logAccess,
+    handleUnauthorized,
+    location.pathname,
+  ]);
 
-  if (!authorized) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-destructive/5 p-4">
-        <div className="max-w-md w-full text-center space-y-6">
-          <div className="mx-auto p-4 rounded-full bg-destructive/10 w-fit">
-            <svg 
-              xmlns="http://www.w3.org/2000/svg" 
-              className="h-12 w-12 text-destructive" 
-              fill="none" 
-              viewBox="0 0 24 24" 
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
+  // Reset verification flag when user changes
+  useEffect(() => {
+    if (user?.id !== lastUserId.current) {
+      verificationAttempted.current = false;
+    }
+  }, [user?.id]);
+
+  // Render based on auth state
+  switch (authState) {
+    case 'loading':
+      return (
+        <div className="flex min-h-screen items-center justify-center">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4" />
+            <p className="text-muted-foreground">Verifying access...</p>
           </div>
-          <div>
-            <h1 className="text-2xl font-bold text-foreground mb-2">No Access</h1>
-            <p className="text-muted-foreground">
-              {requiredRole === "admin" 
-                ? "This area is restricted to administrators only. Your account does not have admin privileges."
-                : requiredRole === "coach"
-                ? "This area is for coaches only. Admins must use a separate coach account."
-                : "You don't have permission to view this page."
-              }
+        </div>
+      );
+
+    case 'no-session':
+      return (
+        <Navigate
+          to={AUTH_ROUTES.SIGN_IN}
+          state={{ from: location }}
+          replace
+        />
+      );
+
+    case 'unauthorized':
+      return (
+        <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-destructive/5 p-4">
+          <div className="max-w-md w-full text-center space-y-6">
+            <div className="mx-auto p-4 rounded-full bg-destructive/10 w-fit">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-12 w-12 text-destructive"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold text-foreground mb-2">No Access</h1>
+              <p className="text-muted-foreground">
+                {requiredRole === 'admin'
+                  ? 'This area is restricted to administrators only. Your account does not have admin privileges.'
+                  : requiredRole === 'coach'
+                  ? 'This area is for coaches only. Admins must use a separate coach account.'
+                  : 'You don\'t have permission to view this page.'
+                }
+              </p>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              If you believe this is an error, please contact support.
             </p>
           </div>
-          <p className="text-xs text-muted-foreground">
-            If you believe this is an error, please contact support.
-          </p>
         </div>
-      </div>
-    );
-  }
+      );
 
-  return <div className="animate-fade-in">{children}</div>;
+    case 'authorized':
+      return <div className="animate-fade-in">{children}</div>;
+
+    default:
+      return null;
+  }
 }
