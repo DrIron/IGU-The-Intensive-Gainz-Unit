@@ -45,7 +45,18 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       if (!mounted) return;
 
       try {
+        // Debug: Validate inputs before query
         console.log('[RoleProtectedRoute] Starting roles query for user:', userId);
+        console.log('[RoleProtectedRoute] userId type:', typeof userId, 'length:', userId?.length);
+        console.log('[RoleProtectedRoute] supabase client exists:', !!supabase);
+        console.log('[RoleProtectedRoute] supabase.from exists:', typeof supabase?.from);
+
+        if (!userId || typeof userId !== 'string') {
+          console.error('[RoleProtectedRoute] Invalid userId:', userId);
+          setLoading(false);
+          return;
+        }
+
         const queryStartTime = Date.now();
 
         // Create a timeout promise that rejects after 5 seconds
@@ -58,6 +69,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
         let rolesError: Error | null = null;
 
         try {
+          console.log('[RoleProtectedRoute] About to execute Promise.race...');
           const result = await Promise.race([
             supabase
               .from("user_roles")
@@ -182,6 +194,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       if (event === 'INITIAL_SESSION') {
         if (newSession) {
           console.log('[RoleProtectedRoute] Session restored from storage, checking authorization');
+          console.log('[RoleProtectedRoute] Session user:', newSession.user?.id, 'email:', newSession.user?.email);
           setSession(newSession);
           await checkAuthorization(newSession.user.id);
         } else {
