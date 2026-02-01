@@ -41,7 +41,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       }
     }, 10000);
 
-    const checkAuthorization = async (userId: string) => {
+    const checkAuthorization = async (userId: string, authSession: Session) => {
       if (!mounted) return;
 
       try {
@@ -57,25 +57,24 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           return;
         }
 
-        // Get session with timeout - sometimes getSession hangs on refresh
-        let currentSession = null;
+        // Ensure the Supabase client has the session set before making queries
+        // This is critical on page refresh where getSession() may hang
+        console.log('[RoleProtectedRoute] Setting session on client before query');
         try {
-          const sessionPromise = supabase.auth.getSession();
-          const sessionTimeout = new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('getSession timeout')), 2000)
-          );
-          const { data } = await Promise.race([sessionPromise, sessionTimeout]) as any;
-          currentSession = data?.session;
-          console.log('[RoleProtectedRoute] getSession succeeded');
+          await supabase.auth.setSession({
+            access_token: authSession.access_token,
+            refresh_token: authSession.refresh_token
+          });
+          console.log('[RoleProtectedRoute] setSession succeeded');
         } catch (e) {
-          console.warn('[RoleProtectedRoute] getSession timed out, proceeding anyway');
+          console.warn('[RoleProtectedRoute] setSession failed:', e);
         }
 
-        console.log('[RoleProtectedRoute] Current session before query:', {
-          hasSession: !!currentSession,
-          hasAccessToken: !!currentSession?.access_token,
-          tokenPrefix: currentSession?.access_token?.substring(0, 20) + '...',
-          expiresAt: currentSession?.expires_at
+        console.log('[RoleProtectedRoute] Session before query:', {
+          hasSession: !!authSession,
+          hasAccessToken: !!authSession?.access_token,
+          tokenPrefix: authSession?.access_token?.substring(0, 20) + '...',
+          expiresAt: authSession?.expires_at
         });
 
         const queryStartTime = Date.now();
@@ -217,7 +216,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           console.log('[RoleProtectedRoute] Session restored from storage, checking authorization');
           console.log('[RoleProtectedRoute] Session user:', newSession.user?.id, 'email:', newSession.user?.email);
           setSession(newSession);
-          await checkAuthorization(newSession.user.id);
+          await checkAuthorization(newSession.user.id, newSession);
         } else {
           // No session found after restoration attempt - redirect to auth
           console.log('[RoleProtectedRoute] No session after INITIAL_SESSION, redirecting to /auth');
@@ -240,7 +239,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         console.log('[RoleProtectedRoute] Session updated via', event);
         setSession(newSession);
-        await checkAuthorization(newSession.user.id);
+        await checkAuthorization(newSession.user.id, newSession);
       }
     });
 
