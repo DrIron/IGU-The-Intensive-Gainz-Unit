@@ -28,6 +28,8 @@ interface UseRoleCacheReturn {
   isCacheValid: (userId?: string) => boolean;
   /** Current cached roles (reactive) */
   cachedRoles: string[] | null;
+  /** Cached user ID (for when session is unavailable) */
+  cachedUserId: string | null;
 }
 
 /**
@@ -112,6 +114,14 @@ export function useRoleCache(): UseRoleCacheReturn {
     return null;
   });
 
+  const [cachedUserId, setCachedUserIdState] = useState<string | null>(() => {
+    const cached = parseCachedRoles();
+    if (cached && !isCacheExpired(cached.timestamp)) {
+      return cached.userId;
+    }
+    return null;
+  });
+
   /**
    * Get cached roles if valid
    */
@@ -153,6 +163,7 @@ export function useRoleCache(): UseRoleCacheReturn {
       localStorage.setItem(CACHE_KEYS.USER_ID, userId);
 
       setCachedRolesState(roles);
+      setCachedUserIdState(userId);
     } catch (error) {
       console.error('[RoleCache] Error saving roles to cache:', error);
     }
@@ -165,6 +176,7 @@ export function useRoleCache(): UseRoleCacheReturn {
     console.log('[RoleCache] Clearing role cache');
     clearCacheInternal();
     setCachedRolesState(null);
+    setCachedUserIdState(null);
   }, []);
 
   /**
@@ -186,6 +198,7 @@ export function useRoleCache(): UseRoleCacheReturn {
     clearCache,
     isCacheValid,
     cachedRoles,
+    cachedUserId,
   };
 }
 
