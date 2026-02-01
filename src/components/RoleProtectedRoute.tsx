@@ -45,11 +45,43 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       if (!mounted) return;
 
       try {
-        console.log('[RoleProtectedRoute] Fetching roles for user:', userId);
-        const { data: rolesData, error: rolesError } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userId);
+        console.log('[RoleProtectedRoute] Starting roles query for user:', userId);
+        const queryStartTime = Date.now();
+
+        // Create a timeout promise that rejects after 5 seconds
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Query timeout after 5s')), 5000);
+        });
+
+        // Race the actual query against the timeout
+        let rolesData: { role: string }[] | null = null;
+        let rolesError: Error | null = null;
+
+        try {
+          const result = await Promise.race([
+            supabase
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", userId),
+            timeoutPromise
+          ]);
+
+          const queryDuration = Date.now() - queryStartTime;
+          console.log(`[RoleProtectedRoute] Roles query completed in ${queryDuration}ms`);
+
+          rolesData = result.data;
+          if (result.error) {
+            rolesError = result.error;
+          }
+        } catch (err) {
+          const queryDuration = Date.now() - queryStartTime;
+          if (err instanceof Error && err.message === 'Query timeout after 5s') {
+            console.error(`[RoleProtectedRoute] Query timeout after 5s - treating as empty roles`);
+          } else {
+            console.error(`[RoleProtectedRoute] Query failed after ${queryDuration}ms:`, err);
+          }
+          rolesError = err instanceof Error ? err : new Error(String(err));
+        }
 
         if (rolesError) {
           console.error('[RoleProtectedRoute] Error fetching roles:', rolesError);
