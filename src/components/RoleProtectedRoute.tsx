@@ -129,6 +129,8 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
   const [currentRoles, setCurrentRoles] = useState<string[]>([]);
   const verificationAttempted = useRef(false);
   const lastUserId = useRef<string | null>(null);
+  // Guard to prevent re-running authorization while already checking
+  const isCheckingAuth = useRef(false);
 
   /**
    * Log access decisions for debugging
@@ -226,44 +228,61 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
    */
   useEffect(() => {
     const checkAuthorization = async () => {
+      // Skip if we're already checking (prevents loops from onAuthStateChange)
+      if (isCheckingAuth.current) {
+        console.log('[RoleProtectedRoute] Already checking auth, skipping');
+        return;
+      }
+
+      // Skip if we're already authorized and user hasn't changed
+      if (authState === 'authorized' && user?.id === lastUserId.current) {
+        console.log('[RoleProtectedRoute] Already authorized for this user, skipping');
+        return;
+      }
+
+      isCheckingAuth.current = true;
+
       console.log('[RoleProtectedRoute] Checking authorization...', {
         sessionLoading,
         hasUser: !!user,
         userId: user?.id,
+        currentAuthState: authState,
       });
 
-      // Still loading session
-      if (sessionLoading) {
-        setAuthState('loading');
-        return;
-      }
-
-      // No session at all
-      if (!user) {
-        // Quick check: do we have valid cached roles?
-        // This handles the race condition where session isn't ready yet
-        const cachedRoles = getCachedRoles();
-
-        if (cachedRoles && cachedRoles.length > 0) {
-          console.log('[RoleProtectedRoute] No session but found cached roles - waiting...');
-          // Give session a moment to initialize
-          await new Promise(r => setTimeout(r, TIMEOUTS.AUTH_REDIRECT_DELAY));
-
-          // Check if session became available
-          const { data: { session: recheckedSession } } = await supabase.auth.getSession();
-          if (recheckedSession?.user) {
-            console.log('[RoleProtectedRoute] Session became available after wait');
-            // Let the effect re-run with the new session
-            return;
-          }
+      try {
+        // Still loading session
+        if (sessionLoading) {
+          setAuthState('loading');
+          return;
         }
 
-        logAccess('BLOCKED', { reason: 'no-session' });
-        setAuthState('no-session');
-        return;
-      }
+        // No session at all
+        if (!user) {
+          // Quick check: do we have valid cached roles?
+          // This handles the race condition where session isn't ready yet
+          const cachedRoles = getCachedRoles();
 
-      const userId = user.id;
+          if (cachedRoles && cachedRoles.length > 0) {
+            console.log('[RoleProtectedRoute] No session but found cached roles - waiting...');
+            // Give session a moment to initialize
+            await new Promise(r => setTimeout(r, TIMEOUTS.AUTH_REDIRECT_DELAY));
+
+            // Check if session became available (don't use setSession, just check)
+            const { data: { session: recheckedSession } } = await supabase.auth.getSession();
+            if (recheckedSession?.user) {
+              console.log('[RoleProtectedRoute] Session became available after wait');
+              // Let the effect re-run with the new session
+              return;
+            }
+          }
+
+          logAccess('BLOCKED', { reason: 'no-session' });
+          setAuthState('no-session');
+          return;
+        }
+
+        const userId = user.id;
+        lastUserId.current = userId;
 
       // ============================================
       // CACHE-FIRST APPROACH - This is the key fix
@@ -328,6 +347,9 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
         logAccess('BLOCKED', { reason: 'no-roles-from-server' });
         setAuthState('unauthorized');
       }
+      } finally {
+        isCheckingAuth.current = false;
+      }
     };
 
     checkAuthorization();
@@ -342,6 +364,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
     logAccess,
     handleUnauthorized,
     location.pathname,
+    authState, // Include to prevent re-running when already authorized
   ]);
 
   // Reset verification flag when user changes

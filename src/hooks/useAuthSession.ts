@@ -137,6 +137,9 @@ export function useAuthSession(): UseAuthSessionReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const initAttempted = useRef(false);
+  // Flag to track if we're in the middle of restoring a session
+  // This prevents onAuthStateChange from causing loops
+  const isRestoring = useRef(false);
 
   /**
    * Initialize session
@@ -154,12 +157,16 @@ export function useAuthSession(): UseAuthSessionReturn {
       let currentSession = await getSessionWithTimeout(TIMEOUTS.GET_SESSION);
 
       // Step 2: If getSession failed/timed out, try manual restoration
+      // NOTE: setSession() triggers onAuthStateChange which will update our state
+      // We use isRestoring flag to prevent the handler from causing issues
       if (!currentSession) {
         console.log('[AuthSession] getSession failed, trying manual restoration...');
+        isRestoring.current = true;
         currentSession = await tryRestoreSession();
+        isRestoring.current = false;
       }
 
-      // Step 3: Update state
+      // Step 3: Update state (only if not already set by onAuthStateChange)
       if (currentSession) {
         console.log('[AuthSession] Session initialized:', {
           userId: currentSession.user?.id,
@@ -177,6 +184,7 @@ export function useAuthSession(): UseAuthSessionReturn {
       setError(err instanceof Error ? err : new Error('Session initialization failed'));
       setSession(null);
       setUser(null);
+      isRestoring.current = false;
     } finally {
       setIsLoading(false);
     }
@@ -213,7 +221,13 @@ export function useAuthSession(): UseAuthSessionReturn {
     console.log('[AuthSession] Setting up onAuthStateChange listener');
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
+        // Skip if we're in the middle of restoring - we'll handle it in initSession
+        if (isRestoring.current) {
+          console.log('[AuthSession] Skipping onAuthStateChange - restoration in progress');
+          return;
+        }
+
         console.log('[AuthSession] Auth state changed:', event, {
           hasSession: !!newSession,
           userId: newSession?.user?.id,
@@ -222,7 +236,14 @@ export function useAuthSession(): UseAuthSessionReturn {
         switch (event) {
           case 'SIGNED_IN':
           case 'TOKEN_REFRESHED':
-            setSession(newSession);
+            // Only update if session actually changed (prevent unnecessary re-renders)
+            setSession(prev => {
+              if (prev?.user?.id === newSession?.user?.id) {
+                console.log('[AuthSession] Session unchanged, skipping update');
+                return prev;
+              }
+              return newSession;
+            });
             setUser(newSession?.user ?? null);
             setIsLoading(false);
             break;
@@ -236,11 +257,18 @@ export function useAuthSession(): UseAuthSessionReturn {
           case 'INITIAL_SESSION':
             // This fires on page load - but might be unreliable
             // We handle this in initSession instead
-            if (newSession && !session) {
-              setSession(newSession);
-              setUser(newSession.user);
-              setIsLoading(false);
-            }
+            // Only set if we don't already have a session
+            setSession(prev => {
+              if (prev) {
+                console.log('[AuthSession] Already have session, skipping INITIAL_SESSION');
+                return prev;
+              }
+              if (newSession) {
+                setUser(newSession.user);
+                setIsLoading(false);
+              }
+              return newSession;
+            });
             break;
         }
       }
@@ -250,7 +278,7 @@ export function useAuthSession(): UseAuthSessionReturn {
       console.log('[AuthSession] Cleaning up onAuthStateChange listener');
       subscription.unsubscribe();
     };
-  }, [session]);
+  }, []); // Remove session from dependencies to prevent re-subscribing
 
   return {
     session,
