@@ -299,7 +299,7 @@ When understanding this codebase, read in this order:
 
 ---
 
-## Current State (Jan 2026)
+## Current State (Feb 2026)
 
 ### Completed Phases
 - Phase 0: Build stability, ESLint fixes
@@ -310,11 +310,41 @@ When understanding this codebase, read in this order:
 - Phase 5: Payment integration (Tap)
 - Phase 6: Observability (Sentry, error logging)
 - Phase 7: CI/CD pipeline (GitHub Actions)
+- Phase 8: Auth stability and session handling improvements
+
+### Recent Fixes (Jan-Feb 2026)
+
+**Auth & Session Handling:**
+- Fixed auth race conditions by replacing `getUser()` with `getSession()` throughout the app
+- Added explicit `window.localStorage` for Supabase auth storage to prevent session loss
+- Implemented custom storage adapter with debug logging for session persistence issues
+- Added delays before auth redirects to prevent race conditions
+- Increased auth timeout and added debug logging for troubleshooting
+- Made `signOut` resilient to network failures (clears local state even if API call fails)
+- Use `navigate()` instead of `window.location.href` to preserve auth session state
+
+**Admin Dashboard:**
+- Fixed infinite loading loop on page refresh
+- Added timeouts to prevent infinite loading states
+- Hid developer-only pages from admin sidebar navigation
+
+**Navigation:**
+- Hidden public nav links on admin/coach dashboards
+- Fixed client directory to exclude admin/coach roles properly
+
+**Features Added:**
+- Email confirmation page for new user registration
+- Exercise Library added to coach dashboard navigation
+
+### Known Issues
+- Auth session persistence can still be flaky in Safari/iOS (investigating IndexedDB vs localStorage)
+- Debug logging for auth is still enabled - should be disabled for production after stability confirmed
 
 ### Known Limitations
 - No automated tests for components (only smoke tests)
 - No staging environment (production only)
 - Bundle size is large (~2.4MB) - needs code splitting
+- Auth debugging logs add noise to console (temporary)
 
 ---
 
