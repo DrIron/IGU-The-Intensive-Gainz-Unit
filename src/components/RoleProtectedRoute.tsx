@@ -29,18 +29,17 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [authorized, setAuthorized] = useState(false);
-  const [authChecked, setAuthChecked] = useState(false);
 
   useEffect(() => {
     let mounted = true;
 
-    // Timeout to prevent infinite loading (increased to 8s to allow for slow role queries)
+    // Timeout to prevent infinite loading (increased to 10s to allow for session restoration)
     const timeout = setTimeout(() => {
       if (mounted && loading) {
-        console.error('[RoleProtectedRoute] Loading timeout after 8s - forcing completion');
+        console.error('[RoleProtectedRoute] Loading timeout after 10s - forcing completion');
         setLoading(false);
       }
-    }, 8000);
+    }, 10000);
 
     const checkAuthorization = async (userId: string) => {
       if (!mounted) return;
@@ -139,60 +138,45 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       }
     };
 
-    // Primary auth check - runs immediately on mount
-    const checkAuth = async () => {
-      console.log('[RoleProtectedRoute] Starting auth check...');
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        console.log('[RoleProtectedRoute] Session:', session ? 'found' : 'not found');
-        if (!mounted) return;
-
-        if (session) {
-          setSession(session);
-          await checkAuthorization(session.user.id);
-          setAuthChecked(true);
-          console.log('[RoleProtectedRoute] Auth check complete');
-        } else {
-          // No session - redirect to auth
-          console.log('[RoleProtectedRoute] No session, redirecting to /auth');
-          setLoading(false);
-          navigate("/auth", { replace: true });
-        }
-      } catch (error) {
-        console.error('[RoleProtectedRoute] Error in checkAuth:', error);
-        if (mounted) {
-          setLoading(false);
-          navigate("/auth", { replace: true });
-        }
-      }
-    };
-
-    // Listen for auth changes AFTER initial check
+    // Use onAuthStateChange as the single source of truth for session state
+    // This ensures we wait for Supabase to fully restore the session from localStorage
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
 
-      // Skip INITIAL_SESSION - we handle that in checkAuth
-      if (event === 'INITIAL_SESSION') return;
+      console.log('[RoleProtectedRoute] Auth state change:', event, newSession ? 'session exists' : 'no session');
+
+      // Handle INITIAL_SESSION - this fires when Supabase restores session from localStorage
+      // This is the key fix: we wait for this event instead of calling getSession() immediately
+      if (event === 'INITIAL_SESSION') {
+        if (newSession) {
+          console.log('[RoleProtectedRoute] Session restored from storage, checking authorization');
+          setSession(newSession);
+          await checkAuthorization(newSession.user.id);
+        } else {
+          // No session found after restoration attempt - redirect to auth
+          console.log('[RoleProtectedRoute] No session after INITIAL_SESSION, redirecting to /auth');
+          setLoading(false);
+          navigate("/auth", { replace: true });
+        }
+        return;
+      }
 
       // Handle sign out
       if (event === 'SIGNED_OUT' || !newSession) {
         setSession(null);
         setAuthorized(false);
+        setLoading(false);
         navigate("/auth", { replace: true });
         return;
       }
 
       // Handle sign in or token refresh
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        console.log('[RoleProtectedRoute] Session updated via', event);
         setSession(newSession);
-        if (authChecked) {
-          // Re-check authorization with new session
-          await checkAuthorization(newSession.user.id);
-        }
+        await checkAuthorization(newSession.user.id);
       }
     });
-
-    checkAuth();
 
     return () => {
       mounted = false;
