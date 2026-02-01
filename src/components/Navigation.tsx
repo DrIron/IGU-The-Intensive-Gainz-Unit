@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { 
-  Menu, X, Dumbbell, User, ChevronDown, 
-  LayoutDashboard, CreditCard, Apple, Users, 
+import {
+  Menu, X, Dumbbell, User, ChevronDown,
+  LayoutDashboard, CreditCard, Apple, Users,
   UserCog, Shield, Video, Library, MessageSquare,
   Calculator, Home, FileText, Settings, DollarSign,
   UserCheck, UsersRound
@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthNavigation } from "@/hooks/useAuthNavigation";
+import { useAuthCleanup } from "@/hooks/useAuthCleanup";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,6 +39,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const navigate = useNavigate();
   const { toast } = useToast();
   const { goToAuthOrDashboard } = useAuthNavigation();
+  const { signOutWithCleanup } = useAuthCleanup();
 
   // Fetch current user if not provided as prop
   useEffect(() => {
@@ -134,28 +136,28 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const activeRole = detectedRole;
   const user = currentUser;
 
-  const handleSignOut = () => {
-    // Clear local state FIRST before any network calls
-    // This ensures the user is logged out even if the network fails
+  const handleSignOut = async () => {
+    try {
+      // Use signOutWithCleanup to clear role cache and sign out
+      await signOutWithCleanup();
 
-    // Clear all Supabase-related localStorage keys
-    Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('sb-') || key.includes('supabase')) {
-        localStorage.removeItem(key);
-      }
-    });
+      // Clear all Supabase-related localStorage keys (additional cleanup)
+      Object.keys(localStorage).forEach(key => {
+        if (key.startsWith('sb-') || key.includes('supabase')) {
+          localStorage.removeItem(key);
+        }
+      });
 
-    // Clear sessionStorage
-    sessionStorage.clear();
+      // Clear sessionStorage
+      sessionStorage.clear();
 
-    // Attempt server signOut but don't block on it
-    // Using scope: 'local' avoids the network call that can fail
-    supabase.auth.signOut({ scope: 'local' }).catch(err => {
-      console.warn('SignOut API call failed (user still logged out locally):', err);
-    });
-
-    // Redirect to auth page
-    window.location.href = "/auth";
+      // Redirect to auth page
+      window.location.href = "/auth";
+    } catch (error) {
+      console.error('[Navigation] Sign out failed:', error);
+      // Still redirect even on error - caches are cleared
+      window.location.href = "/auth";
+    }
   };
 
   // Public links for header navigation
