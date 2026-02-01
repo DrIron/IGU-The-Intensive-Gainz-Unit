@@ -46,14 +46,40 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       if (!mounted) return;
 
       try {
-        console.log('[RoleProtectedRoute] Fetching roles for user:', userId);
-        const { data: rolesData, error: rolesError } = await supabase
+        console.log('[RoleProtectedRoute] Fetching roles for user:', userId, 'at', new Date().toISOString());
+
+        // Create a timeout promise for the query itself
+        const queryTimeout = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('Query timeout after 5s')), 5000);
+        });
+
+        // Race the query against the timeout
+        const queryPromise = supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", userId);
+          .eq("user_id", userId)
+          .then((result) => {
+            console.log('[RoleProtectedRoute] Query resolved at', new Date().toISOString(), 'result:', result);
+            return result;
+          })
+          .catch((err) => {
+            console.error('[RoleProtectedRoute] Query rejected at', new Date().toISOString(), 'error:', err);
+            throw err;
+          });
+
+        const { data: rolesData, error: rolesError } = await Promise.race([
+          queryPromise,
+          queryTimeout
+        ]) as Awaited<typeof queryPromise>;
 
         if (rolesError) {
-          console.error('[RoleProtectedRoute] Error fetching roles:', rolesError);
+          console.error('[RoleProtectedRoute] Error fetching roles:', {
+            message: rolesError.message,
+            code: rolesError.code,
+            details: rolesError.details,
+            hint: rolesError.hint,
+            fullError: JSON.stringify(rolesError)
+          });
         }
 
         if (!mounted) return;
@@ -131,8 +157,20 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           setLoading(false);
         }
       } catch (error) {
-        console.error("[RoleProtectedRoute] Error checking authorization:", error);
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        const isTimeout = errorMessage.includes('Query timeout');
+
+        console.error("[RoleProtectedRoute] Error checking authorization:", {
+          message: errorMessage,
+          isTimeout,
+          error,
+          timestamp: new Date().toISOString()
+        });
+
         if (mounted) {
+          if (isTimeout) {
+            console.error('[RoleProtectedRoute] Query timed out - possible RLS policy issue or network problem');
+          }
           navigate("/dashboard", { replace: true });
           setLoading(false);
         }
