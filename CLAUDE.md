@@ -318,6 +318,41 @@ When understanding this codebase, read in this order:
 
 ---
 
+## Auth Session Refresh Fix - In Progress
+
+### Problem
+- Fresh sign-in works perfectly (query completes in ~200ms)
+- Page refresh causes user_roles query to timeout/hang
+- Root cause: getSession() hangs on page refresh, and Supabase client loses auth context
+
+### Fixes Applied (Database)
+- is_admin() function now has SECURITY DEFINER (bypasses RLS)
+- has_role() function now has SECURITY DEFINER
+- is_admin_internal() helper function created
+
+### Fixes Applied (Code)
+- RoleProtectedRoute.tsx: Added 5s timeout for user_roles query
+- RoleProtectedRoute.tsx: Added 2s timeout for getSession() call
+- RoleProtectedRoute.tsx: Now uses setSession() with tokens from onAuthStateChange before querying
+- Extensive debug logging added
+
+### Current Branch
+claude/fix-dashboard-session-timeout-qC5p5
+
+### Latest Commit
+97832e1 fix: use setSession to ensure auth headers before query
+
+### Next Steps
+1. Test if setSession() fix resolves the refresh issue
+2. If not, may need to investigate why Supabase client loses auth context on refresh
+3. Clean up debug logging once fixed
+
+### Other Issues Found
+- Public homepage queries (testimonials, team_plan_settings) return 401 - need public RLS policies
+- These are separate from the auth refresh issue
+
+---
+
 ## Code Style Guidelines
 
 1. **TypeScript**: Strict mode, no `any` unless necessary
