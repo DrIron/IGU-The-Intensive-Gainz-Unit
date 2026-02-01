@@ -227,14 +227,14 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
    * Main authorization logic
    */
   useEffect(() => {
-    const checkAuthorization = async () => {
-      // IMMEDIATE EXIT if already authorized - don't process anything else
-      // The only way to lose authorization is sign out (clears cache) or navigation to different route
-      if (authState === 'authorized') {
-        console.log('[RoleProtectedRoute] Already authorized, skipping all checks');
-        return;
-      }
+    // GUARD AT USEEFFECT LEVEL - check current authState before calling async function
+    // This avoids stale closure issues inside the async function
+    if (authState === 'authorized') {
+      console.log('[RoleProtectedRoute] useEffect: Already authorized, not running checkAuthorization');
+      return;
+    }
 
+    const checkAuthorization = async () => {
       // Skip if we're already checking (prevents loops from onAuthStateChange)
       if (isCheckingAuth.current) {
         console.log('[RoleProtectedRoute] Already checking auth, skipping');
