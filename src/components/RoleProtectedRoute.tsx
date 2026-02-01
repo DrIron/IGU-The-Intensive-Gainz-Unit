@@ -57,8 +57,20 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           return;
         }
 
-        // Check session state before query - helps diagnose refresh vs fresh sign-in differences
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
+        // Get session with timeout - sometimes getSession hangs on refresh
+        let currentSession = null;
+        try {
+          const sessionPromise = supabase.auth.getSession();
+          const sessionTimeout = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('getSession timeout')), 2000)
+          );
+          const { data } = await Promise.race([sessionPromise, sessionTimeout]) as any;
+          currentSession = data?.session;
+          console.log('[RoleProtectedRoute] getSession succeeded');
+        } catch (e) {
+          console.warn('[RoleProtectedRoute] getSession timed out, proceeding anyway');
+        }
+
         console.log('[RoleProtectedRoute] Current session before query:', {
           hasSession: !!currentSession,
           hasAccessToken: !!currentSession?.access_token,
