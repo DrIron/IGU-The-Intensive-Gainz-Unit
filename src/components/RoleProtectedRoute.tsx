@@ -131,8 +131,6 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
   const lastUserId = useRef<string | null>(null);
   // Guard to prevent re-running authorization while already checking
   const isCheckingAuth = useRef(false);
-  // Track the user ID that was authorized - prevents session hiccups from kicking out users
-  const lastAuthorizedUserId = useRef<string | null>(null);
 
   /**
    * Log access decisions for debugging
@@ -207,7 +205,6 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
         }
 
         logAccess('GRANTED', { roles: serverRoles, source: 'server-verified' });
-        lastAuthorizedUserId.current = userId;
         setAuthState('authorized');
       } else {
         handleUnauthorized(serverRoles, 'role-mismatch');
@@ -231,22 +228,17 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
    */
   useEffect(() => {
     const checkAuthorization = async () => {
+      // IMMEDIATE EXIT if already authorized - don't process anything else
+      // The only way to lose authorization is sign out (clears cache) or navigation to different route
+      if (authState === 'authorized') {
+        console.log('[RoleProtectedRoute] Already authorized, skipping all checks');
+        return;
+      }
+
       // Skip if we're already checking (prevents loops from onAuthStateChange)
       if (isCheckingAuth.current) {
         console.log('[RoleProtectedRoute] Already checking auth, skipping');
         return;
-      }
-
-      // Once authorized, stay authorized unless user explicitly changes to a DIFFERENT user
-      // This prevents session hiccups (like getSession timeout) from kicking out users
-      if (authState === 'authorized' && lastAuthorizedUserId.current) {
-        // Only re-check if user changed to a DIFFERENT user (not null/undefined)
-        if (!user || user.id === lastAuthorizedUserId.current) {
-          console.log('[RoleProtectedRoute] Already authorized, ignoring session state changes');
-          return;
-        }
-        // User changed to different user - need to re-check
-        console.log('[RoleProtectedRoute] User changed to different user, re-checking authorization');
       }
 
       isCheckingAuth.current = true;
@@ -312,7 +304,6 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           }
 
           logAccess('GRANTED', { roles: cachedRoles, source: 'cache' });
-          lastAuthorizedUserId.current = userId;
           setAuthState('authorized');
 
           // Step 2: Verify in background (non-blocking)
@@ -347,7 +338,6 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           }
 
           logAccess('GRANTED', { roles: serverRoles, source: 'server' });
-          lastAuthorizedUserId.current = userId;
           setAuthState('authorized');
         } else {
           handleUnauthorized(serverRoles, 'role-mismatch-server');
