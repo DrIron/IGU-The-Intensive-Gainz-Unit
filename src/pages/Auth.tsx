@@ -94,15 +94,28 @@ export default function Auth() {
       setActiveTab(tab);
     }
 
-    // Check if already logged in
+    // Check if already logged in (with timeout to prevent blocking)
     const checkExistingSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session && !redirectingRef.current) {
-        redirectingRef.current = true;
-        await handleRedirectAfterAuth(session.user.id);
+      try {
+        // Use timeout to prevent getSession from blocking forever
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), TIMEOUTS.GET_SESSION)
+        );
+
+        const result = await Promise.race([sessionPromise, timeoutPromise]);
+        const session = result && 'data' in result ? result.data.session : null;
+
+        if (session && !redirectingRef.current) {
+          redirectingRef.current = true;
+          await handleRedirectAfterAuth(session.user.id);
+        }
+      } catch (error) {
+        console.warn('[Auth] checkExistingSession failed:', error);
+        // Don't block - let user sign in manually
       }
     };
-    
+
     checkExistingSession();
 
     const {
@@ -314,7 +327,11 @@ export default function Auth() {
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
+    // CRITICAL: Reset redirect guard when user explicitly clicks Sign In
+    // This ensures a fresh redirect attempt even if a previous one got stuck
+    redirectingRef.current = false;
+
     // Validate inputs
     const validation = signInSchema.safeParse({ email, password });
 
