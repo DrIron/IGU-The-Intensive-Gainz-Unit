@@ -122,10 +122,13 @@ export function useAuthSession(): UseAuthSessionReturn {
     return session?.access_token ?? null;
   }, [session]);
 
-  // Initialize on mount
+  // Initialize on mount - CRITICAL: empty deps to run exactly once
+  // The initAttempted guard inside initSession handles the duplicate prevention
+  // Empty deps ensures React doesn't re-run this effect even if dependencies would change
   useEffect(() => {
     initSession();
-  }, [initSession]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Empty deps - run once only per mount
 
   // Listen for auth state changes
   useEffect(() => {
