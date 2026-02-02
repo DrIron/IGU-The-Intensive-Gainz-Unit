@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +38,7 @@ export function SecurityChecklist() {
   const [loading, setLoading] = useState(true);
   const [expandedItems, setExpandedItems] = useState<Set<string>>(new Set());
 
-  const securityChecks: SecurityCheck[] = [
+  const securityChecks: SecurityCheck[] = useMemo(() => [
     {
       id: "coaches-privacy",
       title: "Coaches Table Privacy",
@@ -198,12 +198,12 @@ export function SecurityChecklist() {
         "4. Verify PDF exports only use text/table methods, no loadFile/addImage with paths"
       ]
     }
-  ];
+  ], []);
 
-  const runAllChecks = async () => {
+  const runAllChecks = useCallback(async () => {
     setLoading(true);
     const newResults: Record<string, CheckResult> = {};
-    
+
     // Initialize all as loading
     securityChecks.forEach(check => {
       newResults[check.id] = { status: "loading", message: "Checking..." };
@@ -217,20 +217,20 @@ export function SecurityChecklist() {
           const result = await check.check();
           setResults(prev => ({ ...prev, [check.id]: result }));
         } catch (e: any) {
-          setResults(prev => ({ 
-            ...prev, 
-            [check.id]: { status: "fail", message: e.message } 
+          setResults(prev => ({
+            ...prev,
+            [check.id]: { status: "fail", message: e.message }
           }));
         }
       })
     );
 
     setLoading(false);
-  };
+  }, [securityChecks]);
 
   useEffect(() => {
     runAllChecks();
-  }, []);
+  }, [runAllChecks]);
 
   const toggleExpanded = (id: string) => {
     setExpandedItems(prev => {

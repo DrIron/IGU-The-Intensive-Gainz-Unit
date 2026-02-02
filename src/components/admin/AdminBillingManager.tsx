@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -105,15 +105,7 @@ export function AdminBillingManager() {
   
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadClients();
-  }, []);
-
-  useEffect(() => {
-    filterClients();
-  }, [clients, searchQuery, statusFilter]);
-
-  const loadClients = async () => {
+  const loadClients = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -133,14 +125,14 @@ export function AdminBillingManager() {
         .order("next_billing_date", { ascending: true });
 
       if (error) throw error;
-      
+
       // Handle the join result properly
       const processedData = (data || []).map(sub => ({
         ...sub,
         profiles: Array.isArray(sub.profiles) ? sub.profiles[0] : sub.profiles,
         services: Array.isArray(sub.services) ? sub.services[0] : sub.services,
       })) as BillingClient[];
-      
+
       setClients(processedData);
     } catch (error) {
       console.error("Error loading clients:", error);
@@ -152,9 +144,9 @@ export function AdminBillingManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const filterClients = () => {
+  const filterClients = useCallback(() => {
     let filtered = [...clients];
 
     if (searchQuery) {
@@ -171,7 +163,15 @@ export function AdminBillingManager() {
     }
 
     setFilteredClients(filtered);
-  };
+  }, [clients, searchQuery, statusFilter]);
+
+  useEffect(() => {
+    loadClients();
+  }, [loadClients]);
+
+  useEffect(() => {
+    filterClients();
+  }, [filterClients]);
 
   const loadClientDetails = async (client: BillingClient) => {
     setSelectedClient(client);

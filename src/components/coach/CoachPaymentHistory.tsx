@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,11 +35,7 @@ export function CoachPaymentHistory() {
   const [loading, setLoading] = useState(true);
   const [coachId, setCoachId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadCoachPayments();
-  }, []);
-
-  const loadCoachPayments = async () => {
+  const loadCoachPayments = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -88,7 +84,11 @@ export function CoachPaymentHistory() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadCoachPayments();
+  }, [loadCoachPayments]);
 
   const totalEarned = payments
     .filter(p => p.is_paid)

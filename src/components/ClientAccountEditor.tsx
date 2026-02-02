@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,39 +82,7 @@ export function ClientAccountEditor() {
     },
   });
 
-  useEffect(() => {
-    if (selectedClient) {
-      // Extract country code from phone if present
-      const phoneWithCode = selectedClient.phone || "";
-      let extractedCode = "+965";
-      let extractedPhone = phoneWithCode;
-      
-      if (phoneWithCode) {
-        const match = phoneWithCode.match(/^(\+\d+)\s*(.*)$/);
-        if (match) {
-          extractedCode = match[1];
-          extractedPhone = match[2];
-        }
-      }
-
-      form.reset({
-        firstName: selectedClient.first_name || "",
-        lastName: selectedClient.last_name || "",
-        email: selectedClient.email,
-        phone: extractedPhone,
-        countryCode: extractedCode,
-        dateOfBirth: selectedClient.date_of_birth || "",
-        gender: selectedClient.gender || "",
-      });
-
-      // Load care team when client is selected
-      loadCareTeam(selectedClient.id);
-    } else {
-      setCareTeam([]);
-    }
-  }, [selectedClient, form]);
-
-  const loadCareTeam = async (clientId: string) => {
+  const loadCareTeam = useCallback(async (clientId: string) => {
     setLoadingCareTeam(true);
     try {
       const { data, error } = await supabase
@@ -148,7 +116,39 @@ export function ClientAccountEditor() {
     } finally {
       setLoadingCareTeam(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    if (selectedClient) {
+      // Extract country code from phone if present
+      const phoneWithCode = selectedClient.phone || "";
+      let extractedCode = "+965";
+      let extractedPhone = phoneWithCode;
+
+      if (phoneWithCode) {
+        const match = phoneWithCode.match(/^(\+\d+)\s*(.*)$/);
+        if (match) {
+          extractedCode = match[1];
+          extractedPhone = match[2];
+        }
+      }
+
+      form.reset({
+        firstName: selectedClient.first_name || "",
+        lastName: selectedClient.last_name || "",
+        email: selectedClient.email,
+        phone: extractedPhone,
+        countryCode: extractedCode,
+        dateOfBirth: selectedClient.date_of_birth || "",
+        gender: selectedClient.gender || "",
+      });
+
+      // Load care team when client is selected
+      loadCareTeam(selectedClient.id);
+    } else {
+      setCareTeam([]);
+    }
+  }, [selectedClient, form, loadCareTeam]);
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) {

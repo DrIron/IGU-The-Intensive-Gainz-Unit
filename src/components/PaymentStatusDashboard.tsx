@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -55,113 +55,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    // First verify if payment was completed (user returning from TAP)
-    verifyPaymentStatus();
-  }, [userId]);
-
-  useEffect(() => {
-    if (!paymentDeadline) return;
-
-    const timer = setInterval(() => {
-      const now = new Date().getTime();
-      const deadline = paymentDeadline.getTime();
-      const distance = deadline - now;
-
-      if (distance < 0) {
-        setTimeRemaining("Payment deadline expired");
-        setProgressPercentage(0);
-        clearInterval(timer);
-        return;
-      }
-
-      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
-      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
-      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
-
-      setTimeRemaining(`${days}d ${hours}h ${minutes}m ${seconds}s`);
-
-      // Calculate progress (7 days = 100%)
-      const totalTime = 7 * 24 * 60 * 60 * 1000;
-      const elapsed = totalTime - distance;
-      const percentage = Math.min((elapsed / totalTime) * 100, 100);
-      setProgressPercentage(100 - percentage);
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [paymentDeadline]);
-
-  // Verify payment status with TAP API (for users returning from payment)
-  const verifyPaymentStatus = async () => {
-    try {
-      setVerifyingPayment(true);
-      
-      // Check URL for tap_id parameter (TAP redirect includes this)
-      const urlParams = new URLSearchParams(window.location.search);
-      const tapChargeId = urlParams.get('tap_id') || urlParams.get('charge_id');
-      
-      console.log('Verifying payment status...', { userId, tapChargeId });
-      
-      const { data, error } = await supabase.functions.invoke('verify-payment', {
-        body: { 
-          userId,
-          chargeId: tapChargeId || undefined,
-        },
-      });
-
-      if (error) {
-        console.error('Error verifying payment:', error);
-        // Don't show error - just proceed to load payment info
-        loadPaymentInfo();
-        return;
-      }
-
-      console.log('Verify payment response:', data);
-
-      if (data?.status === 'active') {
-        // Payment was successful! Show success message and redirect
-        setPaymentVerified(true);
-        toast({
-          title: "🎉 Payment Successful!",
-          description: data.message || "Your subscription is now active. Redirecting to dashboard...",
-        });
-        
-        // Clear URL params to prevent re-verification
-        if (tapChargeId) {
-          window.history.replaceState({}, '', window.location.pathname);
-        }
-        
-        // Short delay to show the success message
-        setTimeout(() => {
-          navigate('/dashboard', { replace: true });
-        }, 2000);
-        return;
-      }
-
-      if (data?.status === 'pending') {
-        // Payment still processing - show message but don't error
-        toast({
-          title: "Payment Processing",
-          description: data.message || "Your payment is being processed. Please wait a moment and refresh.",
-        });
-      }
-
-      if (data?.status === 'failed') {
-        setPaymentError(data.message || 'Payment failed. Please try again.');
-      }
-
-      // Continue loading payment info for other statuses
-      loadPaymentInfo();
-    } catch (err) {
-      console.error('Error in payment verification:', err);
-      loadPaymentInfo();
-    } finally {
-      setVerifyingPayment(false);
-    }
-  };
-
-  const loadPaymentInfo = async () => {
+  const loadPaymentInfo = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -220,7 +114,113 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, toast]);
+
+  // Verify payment status with TAP API (for users returning from payment)
+  const verifyPaymentStatus = useCallback(async () => {
+    try {
+      setVerifyingPayment(true);
+
+      // Check URL for tap_id parameter (TAP redirect includes this)
+      const urlParams = new URLSearchParams(window.location.search);
+      const tapChargeId = urlParams.get('tap_id') || urlParams.get('charge_id');
+
+      console.log('Verifying payment status...', { userId, tapChargeId });
+
+      const { data, error } = await supabase.functions.invoke('verify-payment', {
+        body: {
+          userId,
+          chargeId: tapChargeId || undefined,
+        },
+      });
+
+      if (error) {
+        console.error('Error verifying payment:', error);
+        // Don't show error - just proceed to load payment info
+        loadPaymentInfo();
+        return;
+      }
+
+      console.log('Verify payment response:', data);
+
+      if (data?.status === 'active') {
+        // Payment was successful! Show success message and redirect
+        setPaymentVerified(true);
+        toast({
+          title: "Payment Successful!",
+          description: data.message || "Your subscription is now active. Redirecting to dashboard...",
+        });
+
+        // Clear URL params to prevent re-verification
+        if (tapChargeId) {
+          window.history.replaceState({}, '', window.location.pathname);
+        }
+
+        // Short delay to show the success message
+        setTimeout(() => {
+          navigate('/dashboard', { replace: true });
+        }, 2000);
+        return;
+      }
+
+      if (data?.status === 'pending') {
+        // Payment still processing - show message but don't error
+        toast({
+          title: "Payment Processing",
+          description: data.message || "Your payment is being processed. Please wait a moment and refresh.",
+        });
+      }
+
+      if (data?.status === 'failed') {
+        setPaymentError(data.message || 'Payment failed. Please try again.');
+      }
+
+      // Continue loading payment info for other statuses
+      loadPaymentInfo();
+    } catch (err) {
+      console.error('Error in payment verification:', err);
+      loadPaymentInfo();
+    } finally {
+      setVerifyingPayment(false);
+    }
+  }, [userId, navigate, toast, loadPaymentInfo]);
+
+  useEffect(() => {
+    // First verify if payment was completed (user returning from TAP)
+    verifyPaymentStatus();
+  }, [verifyPaymentStatus]);
+
+  useEffect(() => {
+    if (!paymentDeadline) return;
+
+    const timer = setInterval(() => {
+      const now = new Date().getTime();
+      const deadline = paymentDeadline.getTime();
+      const distance = deadline - now;
+
+      if (distance < 0) {
+        setTimeRemaining("Payment deadline expired");
+        setProgressPercentage(0);
+        clearInterval(timer);
+        return;
+      }
+
+      const days = Math.floor(distance / (1000 * 60 * 60 * 24));
+      const hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+      const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+      const seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+      setTimeRemaining(`${days}d ${hours}h ${minutes}m ${seconds}s`);
+
+      // Calculate progress (7 days = 100%)
+      const totalTime = 7 * 24 * 60 * 60 * 1000;
+      const elapsed = totalTime - distance;
+      const percentage = Math.min((elapsed / totalTime) * 100, 100);
+      setProgressPercentage(100 - percentage);
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [paymentDeadline]);
 
   const calculateDiscountedPrice = (discount: AppliedDiscount, originalPrice: number): number => {
     let newPrice = originalPrice;

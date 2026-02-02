@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { UseFormReturn } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -49,11 +49,7 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
   const selectedPlanName = form.watch("plan_name");
   const focusAreas = form.watch("focus_areas") || [];
 
-  useEffect(() => {
-    loadServices();
-  }, []);
-
-  const loadServices = async () => {
+  const loadServices = useCallback(async () => {
     try {
       const { data: servicesData, error: servicesError } = await supabase
         .from('services')
@@ -76,7 +72,11 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [serviceId, form]);
+
+  useEffect(() => {
+    loadServices();
+  }, [loadServices]);
 
   const isOneToOneService = () => {
     const selectedService = services.find(s => s.name === selectedPlanName);

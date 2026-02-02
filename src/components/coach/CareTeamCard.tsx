@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -103,11 +103,7 @@ export function CareTeamCard({
 
   const canManageTeam = isPrimaryCoach || isAdmin;
 
-  useEffect(() => {
-    fetchCareTeam();
-  }, [clientId, subscriptionId]);
-
-  const fetchCareTeam = async () => {
+  const fetchCareTeam = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -172,7 +168,11 @@ export function CareTeamCard({
     } finally {
       setLoading(false);
     }
-  };
+  }, [subscriptionId, toast]);
+
+  useEffect(() => {
+    fetchCareTeam();
+  }, [fetchCareTeam]);
 
   const getMemberName = (member: CareTeamMember) => {
     if (member.coach_info) {

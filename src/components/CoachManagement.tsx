@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -95,10 +95,6 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     youtube_url: "",
   });
 
-  useEffect(() => {
-    fetchCoaches();
-  }, []);
-
   // Update active tab when URL param changes
   useEffect(() => {
     if (tabFromUrl) {
@@ -106,7 +102,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     }
   }, [tabFromUrl]);
 
-  const fetchCoaches = async () => {
+  const fetchCoaches = useCallback(async () => {
     try {
       // Fetch coaches using coaches_full VIEW (admin has access to joined public+private data)
       const { data: coachesData, error } = await supabase
@@ -115,7 +111,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      
+
       // Get client counts separately
       const coachUserIds = (coachesData || []).map(c => c.user_id);
       const { data: subsData } = await supabase
@@ -123,20 +119,20 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
         .select("coach_id")
         .in("coach_id", coachUserIds)
         .eq("status", "active");
-      
+
       // Count clients per coach
       const clientCounts = new Map<string, number>();
       (subsData || []).forEach(sub => {
         const count = clientCounts.get(sub.coach_id) || 0;
         clientCounts.set(sub.coach_id, count + 1);
       });
-      
+
       const coachesWithCounts = (coachesData || []).map(coach => ({
         ...coach,
         email: coach.email || "",
         client_count: clientCounts.get(coach.user_id) || 0,
       }));
-      
+
       setCoaches(coachesWithCounts);
     } catch (error: any) {
       toast({
@@ -145,7 +141,11 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchCoaches();
+  }, [fetchCoaches]);
 
   const activeCoaches = coaches.filter(coach => coach.status === 'approved' || coach.status === 'active');
   const pendingCoaches = coaches.filter(coach => coach.status === 'pending');

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,13 +29,7 @@ export function NeedsAttentionAlerts({ coachUserId, onNavigate }: NeedsAttention
   const [dismissed, setDismissed] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    if (coachUserId) {
-      fetchAttentionMetrics();
-    }
-  }, [coachUserId]);
-
-  const fetchAttentionMetrics = async () => {
+  const fetchAttentionMetrics = useCallback(async () => {
     try {
       // Get pending approvals count
       const { count: pendingCount } = await supabase
@@ -90,7 +84,13 @@ export function NeedsAttentionAlerts({ coachUserId, onNavigate }: NeedsAttention
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachUserId]);
+
+  useEffect(() => {
+    if (coachUserId) {
+      fetchAttentionMetrics();
+    }
+  }, [coachUserId, fetchAttentionMetrics]);
 
   const handleNavigate = (section: string, filter?: string) => {
     if (onNavigate) {

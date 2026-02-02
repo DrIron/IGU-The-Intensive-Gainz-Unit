@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,11 +49,7 @@ export function ModuleExerciseEditor({ moduleId, coachUserId }: ModuleExerciseEd
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadExercises();
-  }, [moduleId]);
-
-  const loadExercises = async () => {
+  const loadExercises = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("module_exercises")
@@ -77,7 +73,11 @@ export function ModuleExerciseEditor({ moduleId, coachUserId }: ModuleExerciseEd
     } finally {
       setLoading(false);
     }
-  };
+  }, [moduleId, toast]);
+
+  useEffect(() => {
+    loadExercises();
+  }, [loadExercises]);
 
   const addExercise = async (exerciseId: string, section: Enums<"exercise_section">) => {
     try {

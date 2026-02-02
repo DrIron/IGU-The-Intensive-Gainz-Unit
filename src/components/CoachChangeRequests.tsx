@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,11 +29,7 @@ export default function CoachChangeRequests({ coachUserId }: { coachUserId: stri
   const [requests, setRequests] = useState<CoachChangeRequest[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchRequests();
-  }, [coachUserId]);
-
-  const fetchRequests = async () => {
+  const fetchRequests = useCallback(async () => {
     try {
       // Fetch change requests (without profile join due to view limitations)
       const { data, error } = await supabase
@@ -51,7 +47,7 @@ export default function CoachChangeRequests({ coachUserId }: { coachUserId: stri
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      
+
       // Fetch profile info separately for each request
       const enrichedData = await Promise.all(
         (data || []).map(async (req) => {
@@ -69,14 +65,18 @@ export default function CoachChangeRequests({ coachUserId }: { coachUserId: stri
           };
         })
       );
-      
+
       setRequests(enrichedData as any || []);
     } catch (error: any) {
       console.error("Error fetching requests:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachUserId]);
+
+  useEffect(() => {
+    fetchRequests();
+  }, [fetchRequests]);
 
   const handleRequest = async (requestId: string, action: "approved" | "rejected") => {
     setLoading(true);

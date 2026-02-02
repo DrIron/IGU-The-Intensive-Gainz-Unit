@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, ReferenceLine } from "recharts";
@@ -17,13 +17,8 @@ export function CoachNutritionGraphs({ phase }: CoachNutritionGraphsProps) {
   const [circumferenceData, setCircumferenceData] = useState<any[]>([]);
   const [adjustments, setAdjustments] = useState<any[]>([]);
 
-  useEffect(() => {
-    if (phase) {
-      loadGraphData();
-    }
-  }, [phase]);
-
-  const loadGraphData = async () => {
+  const loadGraphData = useCallback(async () => {
+    if (!phase) return;
     try {
       setLoading(true);
 
@@ -83,7 +78,13 @@ export function CoachNutritionGraphs({ phase }: CoachNutritionGraphsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase) {
+      loadGraphData();
+    }
+  }, [phase, loadGraphData]);
 
   const calculateTotalChange = () => {
     if (weeklyAverages.length < 2) return null;

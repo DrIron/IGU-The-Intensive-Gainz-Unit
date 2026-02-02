@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,11 +54,7 @@ export function EducationalVideosManager() {
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [isPinned, setIsPinned] = useState(false);
 
-  useEffect(() => {
-    loadVideos();
-  }, []);
-
-  const loadVideos = async () => {
+  const loadVideos = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -79,7 +75,11 @@ export function EducationalVideosManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadVideos();
+  }, [loadVideos]);
 
   const resetForm = () => {
     setTitle("");

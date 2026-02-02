@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -63,11 +63,7 @@ export function CareTeamOverviewCard({ subscriptionId, primaryCoach }: CareTeamO
   const [careTeam, setCareTeam] = useState<CareTeamMember[]>([]);
   const [serviceModules, setServiceModules] = useState<ServiceModules | null>(null);
 
-  useEffect(() => {
-    fetchCareTeamAndModules();
-  }, [subscriptionId]);
-
-  const fetchCareTeamAndModules = async () => {
+  const fetchCareTeamAndModules = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -143,7 +139,11 @@ export function CareTeamOverviewCard({ subscriptionId, primaryCoach }: CareTeamO
     } finally {
       setLoading(false);
     }
-  };
+  }, [subscriptionId]);
+
+  useEffect(() => {
+    fetchCareTeamAndModules();
+  }, [fetchCareTeamAndModules]);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);

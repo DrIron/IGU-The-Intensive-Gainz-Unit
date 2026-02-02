@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,11 +28,79 @@ export default function ClientNutrition() {
   const [weeklyProgress, setWeeklyProgress] = useState<any[]>([]);
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    loadUser();
-  }, []);
+  const loadActivePhase = useCallback(async () => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
 
-  const loadUser = async () => {
+      // Load active nutrition phase
+      const { data: phase, error: phaseError } = await supabase
+        .from('nutrition_phases')
+        .select('*')
+        .eq('user_id', user.id)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .maybeSingle();
+
+      if (phaseError) throw phaseError;
+      setActivePhase(phase);
+
+      if (phase) {
+        // Load additional data for graphs and summary
+        const [weightsRes, adherenceRes, adjustmentsRes, weeklyProgressRes] = await Promise.all([
+          supabase.from('weight_logs').select('*').eq('phase_id', phase.id).order('log_date', { ascending: true }),
+          supabase.from('adherence_logs').select('*').eq('phase_id', phase.id),
+          supabase.from('nutrition_adjustments').select('*').eq('phase_id', phase.id),
+          supabase.from('weekly_progress').select('week_number, body_fat_percentage').eq('goal_id', phase.id).order('week_number', { ascending: true })
+        ]);
+
+        setWeightLogs(weightsRes.data || []);
+        setWeeklyProgress(weeklyProgressRes.data || []);
+
+        // Check if user had initial body fat
+        if (weightsRes.data && weightsRes.data.length > 0) {
+          const { data: weeklyProgress } = await supabase
+            .from('weekly_progress')
+            .select('body_fat_percentage')
+            .eq('goal_id', phase.id)
+            .eq('week_number', 1)
+            .maybeSingle();
+
+          setInitialBodyFat(weeklyProgress?.body_fat_percentage || null);
+        }
+
+        // Generate phase summary if phase is complete
+        const weeksSinceStart = Math.floor(
+          (new Date().getTime() - new Date(phase.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)
+        ) + 1;
+
+        const estimatedWeeks = phase.estimated_end_date
+          ? Math.floor((new Date(phase.estimated_end_date).getTime() - new Date(phase.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000))
+          : null;
+
+        if (estimatedWeeks && weeksSinceStart >= estimatedWeeks) {
+          const summary = generatePhaseSummary(
+            phase,
+            weightsRes.data || [],
+            adherenceRes.data || [],
+            adjustmentsRes.data || []
+          );
+          setPhaseSummary(summary);
+        }
+      }
+    } catch (error: any) {
+      console.error('Error loading nutrition phase:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load nutrition data",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [toast]);
+
+  const loadUser = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -84,79 +152,12 @@ export default function ClientNutrition() {
       setError(true);
       setLoading(false);
     }
-  };
+  }, [navigate, toast, loadActivePhase]);
 
-  const loadActivePhase = async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
 
-      // Load active nutrition phase
-      const { data: phase, error: phaseError } = await supabase
-        .from('nutrition_phases')
-        .select('*')
-        .eq('user_id', user.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false })
-        .maybeSingle();
-
-      if (phaseError) throw phaseError;
-      setActivePhase(phase);
-
-      if (phase) {
-        // Load additional data for graphs and summary
-        const [weightsRes, adherenceRes, adjustmentsRes, weeklyProgressRes] = await Promise.all([
-          supabase.from('weight_logs').select('*').eq('phase_id', phase.id).order('log_date', { ascending: true }),
-          supabase.from('adherence_logs').select('*').eq('phase_id', phase.id),
-          supabase.from('nutrition_adjustments').select('*').eq('phase_id', phase.id),
-          supabase.from('weekly_progress').select('week_number, body_fat_percentage').eq('goal_id', phase.id).order('week_number', { ascending: true })
-        ]);
-
-        setWeightLogs(weightsRes.data || []);
-        setWeeklyProgress(weeklyProgressRes.data || []);
-
-        // Check if user had initial body fat
-        if (weightsRes.data && weightsRes.data.length > 0) {
-          const { data: weeklyProgress } = await supabase
-            .from('weekly_progress')
-            .select('body_fat_percentage')
-            .eq('goal_id', phase.id)
-            .eq('week_number', 1)
-            .maybeSingle();
-          
-          setInitialBodyFat(weeklyProgress?.body_fat_percentage || null);
-        }
-
-        // Generate phase summary if phase is complete
-        const weeksSinceStart = Math.floor(
-          (new Date().getTime() - new Date(phase.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)
-        ) + 1;
-
-        const estimatedWeeks = phase.estimated_end_date 
-          ? Math.floor((new Date(phase.estimated_end_date).getTime() - new Date(phase.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000))
-          : null;
-
-        if (estimatedWeeks && weeksSinceStart >= estimatedWeeks) {
-          const summary = generatePhaseSummary(
-            phase,
-            weightsRes.data || [],
-            adherenceRes.data || [],
-            adjustmentsRes.data || []
-          );
-          setPhaseSummary(summary);
-        }
-      }
-    } catch (error: any) {
-      console.error('Error loading nutrition phase:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load nutrition data",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">

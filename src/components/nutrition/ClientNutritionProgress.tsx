@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -49,21 +49,16 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
   const [physicalChanges, setPhysicalChanges] = useState<string>("");
   const [notes, setNotes] = useState("");
 
-  useEffect(() => {
-    if (phase) {
-      loadProgressData();
-      calculateCurrentWeek();
-    }
-  }, [phase]);
-
-  const calculateCurrentWeek = () => {
+  const calculateCurrentWeek = useCallback(() => {
+    if (!phase) return;
     const weeksSinceStart = Math.floor(
       (new Date().getTime() - new Date(phase.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)
     ) + 1;
     setCurrentWeek(weeksSinceStart);
-  };
+  }, [phase]);
 
-  const loadProgressData = async () => {
+  const loadProgressData = useCallback(async () => {
+    if (!phase) return;
     try {
       const [weights, circumferences, adherence, weeklyProgress] = await Promise.all([
         supabase.from('weight_logs').select('*').eq('phase_id', phase.id).order('log_date', { ascending: false }),
@@ -76,7 +71,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
       setCircumferenceLogs(circumferences.data || []);
       setAdherenceLogs(adherence.data || []);
       setBodyFatLogs(weeklyProgress.data || []);
-      
+
       // Load current week's notes
       const thisWeekProgress = weeklyProgress.data?.find((p: any) => p.week_number === currentWeek);
       if (thisWeekProgress?.notes) {
@@ -85,7 +80,14 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
     } catch (error: any) {
       console.error('Error loading progress data:', error);
     }
-  };
+  }, [phase, currentWeek]);
+
+  useEffect(() => {
+    if (phase) {
+      loadProgressData();
+      calculateCurrentWeek();
+    }
+  }, [phase, loadProgressData, calculateCurrentWeek]);
   
   // Helper function to check if circumference measurements should be shown this week
   const shouldShowCircumMeasurements = () => {

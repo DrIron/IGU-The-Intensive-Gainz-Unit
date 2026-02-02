@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -93,13 +93,7 @@ export default function ClientSubmission() {
   const userCanViewPHI = canViewPHI(isAdmin, currentUserId, userId || "");
   const userCanEditMedical = canEditMedicalData(isAdmin);
 
-  useEffect(() => {
-    if (!roleLoading) {
-      loadSubmission();
-    }
-  }, [userId, roleLoading, isAdmin]);
-
-  const loadSubmission = async () => {
+  const loadSubmission = useCallback(async () => {
     try {
       let publicData: any = null;
       let fullData: any = null;
@@ -203,7 +197,13 @@ export default function ClientSubmission() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, isAdmin, isCoach, logAccess, toast]);
+
+  useEffect(() => {
+    if (!roleLoading) {
+      loadSubmission();
+    }
+  }, [roleLoading, loadSubmission]);
 
   if (loading || roleLoading) {
     return (

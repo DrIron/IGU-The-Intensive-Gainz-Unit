@@ -18,7 +18,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -96,7 +96,7 @@ export function CoachPaymentCalculator() {
     loadPayoutRules();
     loadData();
     loadMonthlyPayments();
-  }, []);
+  }, [loadData]);
 
   // Load payout rules from NEW tables
   const loadPayoutRules = async () => {
@@ -133,7 +133,7 @@ export function CoachPaymentCalculator() {
   };
 
   // Calculate coach payout using NEW formula
-  const calculatePayoutForService = (serviceId: string): number => {
+  const calculatePayoutForService = useCallback((serviceId: string): number => {
     const rule = payoutRules.find(r => r.service_id === serviceId);
     if (!rule) return 0;
 
@@ -142,7 +142,7 @@ export function CoachPaymentCalculator() {
     } else {
       return rule.primary_payout_value;
     }
-  };
+  }, [payoutRules]);
 
   const handleCalculateMonthlyPayments = async () => {
     try {
@@ -218,7 +218,7 @@ export function CoachPaymentCalculator() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -343,7 +343,7 @@ export function CoachPaymentCalculator() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [calculatePayoutForService, toast]);
 
   const totalPayments = coaches.reduce((sum, c) => sum + c.estimated_payment, 0);
   const totalClients = coaches.reduce((sum, c) => sum + c.clients.total, 0);

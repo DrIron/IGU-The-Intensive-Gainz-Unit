@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -58,11 +58,7 @@ export function CoachApplicationsManager() {
   const [adminNotes, setAdminNotes] = useState("");
   const [processing, setProcessing] = useState(false);
 
-  useEffect(() => {
-    loadApplications();
-  }, []);
-
-  const loadApplications = async () => {
+  const loadApplications = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -74,15 +70,19 @@ export function CoachApplicationsManager() {
       setApplications(data || []);
     } catch (error: any) {
       console.error('Error loading applications:', error);
-      toast({ 
-        title: "Error", 
-        description: "Failed to load applications", 
-        variant: "destructive" 
+      toast({
+        title: "Error",
+        description: "Failed to load applications",
+        variant: "destructive"
       });
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadApplications();
+  }, [loadApplications]);
 
   const handleOpenDialog = (app: CoachApplication, action: 'approve' | 'reject') => {
     setSelectedApp(app);

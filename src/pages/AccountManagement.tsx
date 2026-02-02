@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigation } from "@/components/Navigation";
@@ -99,26 +99,21 @@ export default function AccountManagement() {
   const [updatingPassword, setUpdatingPassword] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
-  useEffect(() => {
-    checkUser();
-    getUserRoles();
-  }, []);
-
   const [userRoles, setUserRoles] = useState<string[]>([]);
 
-  const getUserRoles = async () => {
+  const getUserRoles = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
-    
+
     const { data: roles } = await supabase
       .from("user_roles")
       .select("role")
       .eq("user_id", user.id);
-    
-    setUserRoles(roles?.map(r => r.role) || []);
-  };
 
-  const checkUser = async () => {
+    setUserRoles(roles?.map(r => r.role) || []);
+  }, []);
+
+  const checkUser = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) {
       navigate("/auth");
@@ -131,7 +126,12 @@ export default function AccountManagement() {
       loadCoaches(),
       loadPendingRequest(user.id),
     ]);
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    checkUser();
+    getUserRoles();
+  }, [checkUser, getUserRoles]);
 
   const loadProfileData = async (userId: string) => {
     try {

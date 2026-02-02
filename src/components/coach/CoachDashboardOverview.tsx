@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -43,13 +43,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
     recentActivity: [],
   });
 
-  useEffect(() => {
-    if (coachUserId) {
-      fetchDashboardMetrics();
-    }
-  }, [coachUserId]);
-
-  const fetchDashboardMetrics = async () => {
+  const fetchDashboardMetrics = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -274,7 +268,13 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachUserId, toast]);
+
+  useEffect(() => {
+    if (coachUserId) {
+      fetchDashboardMetrics();
+    }
+  }, [coachUserId, fetchDashboardMetrics]);
 
   const handleCapacityMetricsLoaded = (totalActive: number, totalCapacity: number | null, loadPercent: number | null) => {
     setMetrics(prev => ({

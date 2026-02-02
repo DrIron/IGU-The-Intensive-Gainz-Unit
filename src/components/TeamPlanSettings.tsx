@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,11 +19,7 @@ export function TeamPlanSettings() {
   } | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadSettings();
-  }, []);
-
-  const loadSettings = async () => {
+  const loadSettings = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('team_plan_settings')
@@ -33,7 +29,7 @@ export function TeamPlanSettings() {
         .maybeSingle();
 
       if (error) throw error;
-      
+
       // If no settings exist, create default ones
       if (!data) {
         const { data: newSettings, error: insertError } = await supabase
@@ -45,7 +41,7 @@ export function TeamPlanSettings() {
           })
           .select()
           .single();
-        
+
         if (insertError) throw insertError;
         setSettings(newSettings);
       } else {
@@ -59,7 +55,11 @@ export function TeamPlanSettings() {
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadSettings();
+  }, [loadSettings]);
 
   const handleSave = async () => {
     if (!settings) return;

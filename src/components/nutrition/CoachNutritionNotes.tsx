@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -34,13 +34,7 @@ export function CoachNutritionNotes({ phase }: CoachNutritionNotesProps) {
   const [editIsReminder, setEditIsReminder] = useState(false);
   const [editReminderDate, setEditReminderDate] = useState<Date>();
 
-  useEffect(() => {
-    if (phase) {
-      loadNotes();
-    }
-  }, [phase]);
-
-  const loadNotes = async () => {
+  const loadNotes = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('coach_nutrition_notes')
@@ -54,7 +48,13 @@ export function CoachNutritionNotes({ phase }: CoachNutritionNotesProps) {
       console.error('Error loading notes:', error);
       toast({ title: "Error", description: "Failed to load notes", variant: "destructive" });
     }
-  };
+  }, [phase.id, toast]);
+
+  useEffect(() => {
+    if (phase) {
+      loadNotes();
+    }
+  }, [phase, loadNotes]);
 
   const handleAddNote = async () => {
     if (!noteText.trim()) {

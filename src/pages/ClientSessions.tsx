@@ -77,7 +77,7 @@ function ClientSessionsContent() {
       });
       navigate("/dashboard");
     }
-  }, [access.loading, access.isStaff, access.hasActiveSubscription, navigate, toast]);
+  }, [access, navigate, toast]);
 
   // Fetch session subscription and data
   useEffect(() => {
@@ -193,7 +193,7 @@ function ClientSessionsContent() {
     };
 
     fetchData();
-  }, [access.loading, access.profile, toast]);
+  }, [access, toast]);
 
   const weeklyLimit = sessionSubscription?.weekly_session_limit ?? 0;
   const remaining = Math.max(weeklyLimit - weeklyUsed, 0);

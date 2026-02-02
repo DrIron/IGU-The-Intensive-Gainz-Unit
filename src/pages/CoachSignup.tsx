@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -38,44 +38,7 @@ export default function CoachSignup() {
     specializations: "",
   });
 
-  useEffect(() => {
-    const initAuth = async () => {
-      if (!coachId) {
-        toast({
-          title: "Invalid access",
-          description: "Missing coach ID parameter",
-          variant: "destructive",
-        });
-        navigate("/");
-        return;
-      }
-
-      // Check if user is authenticated
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-      }
-
-      if (!session) {
-        toast({
-          title: "Authentication required",
-          description: "Please set your password first via the email link",
-          variant: "destructive",
-        });
-        navigate(`/auth`);
-        return;
-      }
-      
-      // User is authenticated, verify coach access
-      await checkCoachAccess(session.user.id);
-      setInitializing(false);
-    };
-
-    initAuth();
-  }, [coachId]);
-
-  const checkCoachAccess = async (userId: string) => {
+  const checkCoachAccess = useCallback(async (userId: string) => {
     if (!coachId) {
       toast({
         title: "Invalid access",
@@ -112,7 +75,44 @@ export default function CoachSignup() {
       });
       navigate("/dashboard");
     }
-  };
+  }, [coachId, navigate, toast]);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      if (!coachId) {
+        toast({
+          title: "Invalid access",
+          description: "Missing coach ID parameter",
+          variant: "destructive",
+        });
+        navigate("/");
+        return;
+      }
+
+      // Check if user is authenticated
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+      }
+
+      if (!session) {
+        toast({
+          title: "Authentication required",
+          description: "Please set your password first via the email link",
+          variant: "destructive",
+        });
+        navigate(`/auth`);
+        return;
+      }
+
+      // User is authenticated, verify coach access
+      await checkCoachAccess(session.user.id);
+      setInitializing(false);
+    };
+
+    initAuth();
+  }, [coachId, checkCoachAccess, navigate, toast]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

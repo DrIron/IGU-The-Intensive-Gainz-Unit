@@ -9,7 +9,7 @@
  * Discounts do not reduce coach compensation.
  */
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -67,18 +67,18 @@ export function PayoutRatesManager() {
   const [coaches, setCoaches] = useState<CoachSummary[]>([]);
   const [editingRuleId, setEditingRuleId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
       await Promise.all([loadPayoutRules(), loadAddonPayoutRules(), loadCoachSummaries()]);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const loadPayoutRules = async () => {
     try {

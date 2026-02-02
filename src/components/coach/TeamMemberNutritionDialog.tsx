@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
 import { useToast } from "@/hooks/use-toast";
@@ -28,13 +28,7 @@ export function TeamMemberNutritionDialog({
   const [activePhase, setActivePhase] = useState<any>(null);
   const isMobile = useIsMobile();
 
-  useEffect(() => {
-    if (open && clientId) {
-      loadNutritionData();
-    }
-  }, [open, clientId]);
-
-  const loadNutritionData = async () => {
+  const loadNutritionData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -59,7 +53,13 @@ export function TeamMemberNutritionDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [clientId, toast]);
+
+  useEffect(() => {
+    if (open && clientId) {
+      loadNutritionData();
+    }
+  }, [open, clientId, loadNutritionData]);
 
   const content = (
     <div className="space-y-6">

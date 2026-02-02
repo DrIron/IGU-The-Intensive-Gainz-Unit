@@ -90,6 +90,7 @@ export function PermissionGate({
  * }
  * ```
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function usePermission(permission: PermissionKey): boolean {
   const { canAccess, loading } = useRoleGate({ redirectOnFail: false });
   

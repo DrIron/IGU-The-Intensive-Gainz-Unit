@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -85,18 +85,9 @@ export default function WorkoutLibrary() {
       });
       navigate("/dashboard");
     }
-  }, [access.loading, access.isStaff, access.hasActiveSubscription, navigate, toast]);
+  }, [access, navigate, toast]);
 
-  // Load exercises when access is granted
-  useEffect(() => {
-    const canAccess = access.isStaff || access.hasActiveSubscription;
-    if (!access.loading && canAccess && !exercisesLoaded) {
-      fetchExercises();
-      setExercisesLoaded(true);
-    }
-  }, [access.loading, access.isStaff, access.hasActiveSubscription, exercisesLoaded]);
-
-  const fetchExercises = async () => {
+  const fetchExercises = useCallback(async () => {
     const { data, error } = await supabase
       .from("exercises")
       .select("*")
@@ -116,7 +107,16 @@ export default function WorkoutLibrary() {
       muscle_subdivisions: ex.muscle_subdivisions as Record<string, string[]>,
       youtube_url: ex.youtube_url || null,
     })));
-  };
+  }, [toast]);
+
+  // Load exercises when access is granted
+  useEffect(() => {
+    const canAccess = access.isStaff || access.hasActiveSubscription;
+    if (!access.loading && canAccess && !exercisesLoaded) {
+      fetchExercises();
+      setExercisesLoaded(true);
+    }
+  }, [access.loading, access.isStaff, access.hasActiveSubscription, exercisesLoaded, fetchExercises]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

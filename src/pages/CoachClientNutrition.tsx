@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -40,45 +40,7 @@ export default function CoachClientNutrition() {
   const [activePhase, setActivePhase] = useState<any>(null);
   const [phaseStats, setPhaseStats] = useState<any>(null);
 
-  useEffect(() => {
-    loadUser();
-  }, []);
-
-  useEffect(() => {
-    if (selectedClient) {
-      loadClientPhase();
-    }
-  }, [selectedClient, filter]);
-
-  useEffect(() => {
-    if (isAdmin) {
-      loadCoaches();
-    }
-  }, [isAdmin]);
-
-  const loadUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-    if (user) {
-      // Check if admin
-      const { data: roleData } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', user.id)
-        .eq('role', 'admin')
-        .maybeSingle();
-      
-      const adminStatus = !!roleData;
-      setIsAdmin(adminStatus);
-      
-      if (adminStatus) {
-        loadCoaches();
-      }
-      loadClients();
-    }
-  };
-
-  const loadCoaches = async () => {
+  const loadCoaches = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('coaches')
@@ -98,9 +60,9 @@ export default function CoachClientNutrition() {
     } catch (error: any) {
       console.error('Error loading coaches:', error);
     }
-  };
+  }, []);
 
-  const loadClients = async () => {
+  const loadClients = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -113,7 +75,7 @@ export default function CoachClientNutrition() {
         .eq('role', 'admin')
         .maybeSingle();
 
-      const isAdmin = !!roleData;
+      const isAdminUser = !!roleData;
 
       // Build query - only show 1:1 clients (team plan members excluded)
       // SECURITY: Use profiles_public only - coaches cannot access email/phone/DOB
@@ -131,7 +93,7 @@ export default function CoachClientNutrition() {
         .eq('services.type', 'one_to_one');
 
       // If not admin, filter by coach_id
-      if (!isAdmin) {
+      if (!isAdminUser) {
         query = query.eq('coach_id', user.id);
       }
 
@@ -160,9 +122,47 @@ export default function CoachClientNutrition() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const loadClientPhase = async () => {
+  const loadUser = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    setUser(user);
+    if (user) {
+      // Check if admin
+      const { data: roleData } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('role', 'admin')
+        .maybeSingle();
+
+      const adminStatus = !!roleData;
+      setIsAdmin(adminStatus);
+
+      if (adminStatus) {
+        loadCoaches();
+      }
+      loadClients();
+    }
+  }, [loadCoaches, loadClients]);
+
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
+
+  useEffect(() => {
+    if (selectedClient) {
+      loadClientPhase();
+    }
+  }, [selectedClient, filter, loadClientPhase]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      loadCoaches();
+    }
+  }, [isAdmin, loadCoaches]);
+
+  const loadClientPhase = useCallback(async () => {
     try {
       if (!selectedClient) return;
 
@@ -222,7 +222,7 @@ export default function CoachClientNutrition() {
     } catch (error: any) {
       console.error('Error loading client phase:', error);
     }
-  };
+  }, [selectedClient, clients, filter]);
 
   // Filter clients based on selected coach (admin only)
   const filteredClients = isAdmin && selectedCoach !== "all"

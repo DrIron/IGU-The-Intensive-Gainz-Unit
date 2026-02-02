@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
@@ -48,11 +48,7 @@ export function PlansServicesManager() {
   // Edit form state - NOTE: price is read-only, managed in Pricing & Payouts
   const [editForm, setEditForm] = useState<Partial<Service>>({});
 
-  useEffect(() => {
-    loadServices();
-  }, []);
-
-  const loadServices = async () => {
+  const loadServices = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -73,7 +69,11 @@ export function PlansServicesManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadServices();
+  }, [loadServices]);
 
   const openEditDialog = (service: Service) => {
     setSelectedService(service);

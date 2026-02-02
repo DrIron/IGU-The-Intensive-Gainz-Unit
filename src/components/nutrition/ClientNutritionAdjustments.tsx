@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
@@ -13,13 +13,8 @@ export function ClientNutritionAdjustments({ phase }: ClientNutritionAdjustments
   const [adjustments, setAdjustments] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    if (phase) {
-      loadAdjustments();
-    }
-  }, [phase]);
-
-  const loadAdjustments = async () => {
+  const loadAdjustments = useCallback(async () => {
+    if (!phase) return;
     try {
       const { data, error } = await supabase
         .from('nutrition_adjustments')
@@ -34,7 +29,13 @@ export function ClientNutritionAdjustments({ phase }: ClientNutritionAdjustments
     } finally {
       setLoading(false);
     }
-  };
+  }, [phase]);
+
+  useEffect(() => {
+    if (phase) {
+      loadAdjustments();
+    }
+  }, [phase, loadAdjustments]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {

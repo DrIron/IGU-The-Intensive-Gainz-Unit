@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -307,12 +307,7 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
     upcomingRenewals: [] as any[],
   });
 
-  useEffect(() => {
-    fetchMetrics();
-    fetchWorkQueue();
-  }, [dateRange]);
-
-  const fetchMetrics = async () => {
+  const fetchMetrics = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -445,9 +440,9 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const fetchWorkQueue = async () => {
+  const fetchWorkQueue = useCallback(async () => {
     try {
       // 1. Pending Approvals - admin uses profiles view (security_invoker=true, RLS-protected)
       const { data: pendingProfiles, error: pendingError } = await supabase
@@ -562,7 +557,12 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchMetrics();
+    fetchWorkQueue();
+  }, [dateRange, fetchMetrics, fetchWorkQueue]);
 
   const getMissingLegalDocs = (submission: any) => {
     const missing = [];

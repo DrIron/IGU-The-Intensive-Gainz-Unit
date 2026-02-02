@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,11 +43,7 @@ export function CoachReassignmentSection({
   const [reassigning, setReassigning] = useState(false);
   const [currentCoachName, setCurrentCoachName] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadCoachesWithCapacity();
-  }, [serviceId, currentCoachId]);
-
-  const loadCoachesWithCapacity = async () => {
+  const loadCoachesWithCapacity = useCallback(async () => {
     setLoading(true);
     try {
       // Get all coaches with service limits for this service
@@ -131,7 +127,11 @@ export function CoachReassignmentSection({
     } finally {
       setLoading(false);
     }
-  };
+  }, [serviceId, currentCoachId, toast]);
+
+  useEffect(() => {
+    loadCoachesWithCapacity();
+  }, [loadCoachesWithCapacity]);
 
   const handleReassign = async () => {
     if (!selectedCoachId || selectedCoachId === currentCoachId) {

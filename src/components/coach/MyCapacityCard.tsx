@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -39,13 +39,7 @@ export function MyCapacityCard({ coachUserId, onNavigate }: MyCapacityCardProps)
   const [totalConfiguredCapacity, setTotalConfiguredCapacity] = useState<number | null>(null);
   const [overallLoadPercent, setOverallLoadPercent] = useState<number | null>(null);
 
-  useEffect(() => {
-    if (coachUserId) {
-      fetchCapacityData();
-    }
-  }, [coachUserId]);
-
-  const fetchCapacityData = async () => {
+  const fetchCapacityData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -163,7 +157,13 @@ export function MyCapacityCard({ coachUserId, onNavigate }: MyCapacityCardProps)
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachUserId, toast]);
+
+  useEffect(() => {
+    if (coachUserId) {
+      fetchCapacityData();
+    }
+  }, [coachUserId, fetchCapacityData]);
 
   const getLoadColor = (loadPercent: number | null): string => {
     if (loadPercent === null) return 'bg-muted';

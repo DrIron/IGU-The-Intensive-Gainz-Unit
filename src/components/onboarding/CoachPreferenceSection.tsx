@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { UseFormReturn } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 
@@ -51,19 +51,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
   const preferenceType = form.watch("coach_preference_type") || "auto";
   const selectedCoachId = form.watch("requested_coach_id");
 
-  useEffect(() => {
-    loadAvailableCoaches();
-  }, [planType]);
-
-  // Auto-switch to auto-match if no coaches available
-  useEffect(() => {
-    if (noCoachesAvailable && preferenceType === 'specific') {
-      form.setValue("coach_preference_type", "auto");
-      form.setValue("requested_coach_id", null);
-    }
-  }, [noCoachesAvailable, preferenceType, form]);
-
-  const loadAvailableCoaches = async () => {
+  const loadAvailableCoaches = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -190,7 +178,19 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
     } finally {
       setLoading(false);
     }
-  };
+  }, [planType, focusAreas]);
+
+  useEffect(() => {
+    loadAvailableCoaches();
+  }, [loadAvailableCoaches]);
+
+  // Auto-switch to auto-match if no coaches available
+  useEffect(() => {
+    if (noCoachesAvailable && preferenceType === 'specific') {
+      form.setValue("coach_preference_type", "auto");
+      form.setValue("requested_coach_id", null);
+    }
+  }, [noCoachesAvailable, preferenceType, form]);
 
   const calculateMatchScore = (specializations: string[] | null, clientFocusAreas: string[]): number => {
     if (!specializations || !clientFocusAreas.length) return 0;

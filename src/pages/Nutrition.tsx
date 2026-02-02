@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -10,14 +10,10 @@ export default function Nutrition() {
   const { toast } = useToast();
   const [error, setError] = useState(false);
 
-  useEffect(() => {
-    checkAccessAndRedirect();
-  }, []);
-
-  const checkAccessAndRedirect = async () => {
+  const checkAccessAndRedirect = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
+
       // Not logged in -> public calculator
       if (!user) {
         navigate('/calorie-calculator');
@@ -68,7 +64,7 @@ export default function Nutrition() {
       }
 
       // Check if client is fully active
-      const isActiveClient = 
+      const isActiveClient =
         profile.status === "active" && subscription.status === "active";
 
       if (!isActiveClient) {
@@ -83,12 +79,12 @@ export default function Nutrition() {
 
       // At this point, client is active with active subscription
       const serviceType = (subscription as any)?.services?.type;
-      
+
       if (serviceType === 'team') {
         navigate('/nutrition-team');
         return;
       }
-      
+
       if (serviceType === 'one_to_one') {
         navigate('/nutrition-client');
         return;
@@ -105,7 +101,11 @@ export default function Nutrition() {
       console.error('Error checking access:', err);
       setError(true);
     }
-  };
+  }, [navigate, toast]);
+
+  useEffect(() => {
+    checkAccessAndRedirect();
+  }, [checkAccessAndRedirect]);
 
   if (error) {
     return (

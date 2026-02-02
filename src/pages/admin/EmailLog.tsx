@@ -77,13 +77,6 @@ export default function EmailLog() {
     setInitialized(true);
   }, [searchParams]);
 
-  // Load emails when initialized or page changes
-  useEffect(() => {
-    if (initialized) {
-      loadEmails();
-    }
-  }, [currentPage, initialized]);
-
   const loadFilterOptions = async () => {
     const { data: types } = await supabase
       .from("email_notifications")
@@ -106,25 +99,25 @@ export default function EmailLog() {
     }
   };
 
-  const loadEmails = async () => {
+  const loadEmails = useCallback(async () => {
     setLoading(true);
     try {
       let query = supabase
         .from("email_notifications")
         .select("id, user_id, notification_type, status, sent_at", { count: "exact" });
-      
+
       if (typeFilter !== "all") {
         query = query.eq("notification_type", typeFilter);
       }
-      
+
       if (statusFilter !== "all") {
         query = query.eq("status", statusFilter);
       }
-      
+
       if (dateFrom) {
         query = query.gte("sent_at", `${dateFrom}T00:00:00`);
       }
-      
+
       if (dateTo) {
         query = query.lte("sent_at", `${dateTo}T23:59:59`);
       }
@@ -146,16 +139,16 @@ export default function EmailLog() {
       }
 
       const userIds = [...new Set(notifications.map(n => n.user_id))];
-      
+
       // Admin: fetch profiles_public for names, then admin RPC for email
       const profileMap = new Map<string, { email?: string; full_name?: string; first_name?: string; last_name?: string }>();
-      
+
       for (const userId of userIds) {
         const [{ data: pub }, { data: priv }] = await Promise.all([
           supabase.from("profiles_public").select("id, first_name, display_name").eq("id", userId).maybeSingle(),
           supabase.rpc('admin_get_profile_private', { p_user_id: userId })
         ]);
-        
+
         if (pub) {
           profileMap.set(userId, {
             first_name: pub.first_name,
@@ -168,9 +161,9 @@ export default function EmailLog() {
 
       let enrichedEmails: EmailNotification[] = notifications.map(n => {
         const profile = profileMap.get(n.user_id);
-        const name = profile?.full_name || 
-          (profile?.first_name || profile?.last_name 
-            ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim() 
+        const name = profile?.full_name ||
+          (profile?.first_name || profile?.last_name
+            ? `${profile.first_name || ""} ${profile.last_name || ""}`.trim()
             : undefined);
         return {
           ...n,
@@ -181,7 +174,7 @@ export default function EmailLog() {
 
       if (emailFilter.trim()) {
         const lowerFilter = emailFilter.toLowerCase();
-        enrichedEmails = enrichedEmails.filter(e => 
+        enrichedEmails = enrichedEmails.filter(e =>
           e.profile_email?.toLowerCase().includes(lowerFilter)
         );
       }
@@ -194,7 +187,14 @@ export default function EmailLog() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [typeFilter, statusFilter, dateFrom, dateTo, currentPage, emailFilter]);
+
+  // Load emails when initialized or page changes
+  useEffect(() => {
+    if (initialized) {
+      loadEmails();
+    }
+  }, [initialized, loadEmails]);
 
   const handleApplyFilters = () => {
     setCurrentPage(1);

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,11 +31,7 @@ export function TodayWorkoutsCard({ userId }: TodayWorkoutsCardProps) {
   const [dayId, setDayId] = useState<string | null>(null);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchTodayWorkouts();
-  }, [userId]);
-
-  const fetchTodayWorkouts = async () => {
+  const fetchTodayWorkouts = useCallback(async () => {
     try {
       const today = format(new Date(), 'yyyy-MM-dd');
       
@@ -105,7 +101,11 @@ export function TodayWorkoutsCard({ userId }: TodayWorkoutsCardProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    fetchTodayWorkouts();
+  }, [fetchTodayWorkouts]);
 
   const completedCount = modules.filter(m => m.status === 'completed').length;
   const totalCount = modules.length;

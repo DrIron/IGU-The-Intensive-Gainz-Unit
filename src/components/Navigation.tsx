@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,27 +48,15 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
 
   // User is considered authenticated if we have a session user OR valid cached roles
   // This ensures Navigation stays in sync with RoleProtectedRoute's cache-first approach
-  const currentUser = propUser || sessionUser || (cachedRoles && cachedRoles.length > 0 && cachedUserId ? { id: cachedUserId } : null);
+  const currentUser = useMemo(() =>
+    propUser || sessionUser || (cachedRoles && cachedRoles.length > 0 && cachedUserId ? { id: cachedUserId } : null),
+    [propUser, sessionUser, cachedRoles, cachedUserId]
+  );
 
   // Effective user ID for database queries (prefer session user, fall back to cached)
   const effectiveUserId = sessionUser?.id || cachedUserId;
 
-  useEffect(() => {
-    if ((currentUser || cachedRoles) && !propUserRole) {
-      loadUserRole();
-    } else if (propUserRole) {
-      setDetectedRole(propUserRole);
-    }
-  }, [currentUser, propUserRole, cachedRoles]);
-
-  // Fetch profile and subscription for member status badge
-  useEffect(() => {
-    if (effectiveUserId) {
-      loadMemberStatus();
-    }
-  }, [effectiveUserId]);
-
-  const loadMemberStatus = async () => {
+  const loadMemberStatus = useCallback(async () => {
     if (!effectiveUserId) return;
 
     // Fetch profile - use profiles_public for navigation (client's own data, RLS protected)
@@ -97,9 +85,9 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
       .maybeSingle();
 
     setSubscription(subData);
-  };
+  }, [effectiveUserId]);
 
-  const loadUserRole = async () => {
+  const loadUserRole = useCallback(async () => {
     // First, check if we have cached roles - use them directly (cache-first approach)
     if (cachedRoles && cachedRoles.length > 0) {
       if (cachedRoles.includes('admin')) {
@@ -130,7 +118,22 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
         setDetectedRole('client');
       }
     }
-  };
+  }, [cachedRoles, effectiveUserId]);
+
+  useEffect(() => {
+    if ((currentUser || cachedRoles) && !propUserRole) {
+      loadUserRole();
+    } else if (propUserRole) {
+      setDetectedRole(propUserRole);
+    }
+  }, [currentUser, propUserRole, cachedRoles, loadUserRole]);
+
+  // Fetch profile and subscription for member status badge
+  useEffect(() => {
+    if (effectiveUserId) {
+      loadMemberStatus();
+    }
+  }, [effectiveUserId, loadMemberStatus]);
 
   const activeRole = detectedRole;
   const user = currentUser;

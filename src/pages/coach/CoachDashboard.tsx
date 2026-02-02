@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -46,20 +46,7 @@ export default function CoachDashboard() {
     }
   }, [cachedRoles]);
 
-  useEffect(() => {
-    const timeout = setTimeout(() => {
-      if (loading) {
-        console.error("[CoachDashboard] Loading timeout - forcing render");
-        setLoading(false);
-      }
-    }, 5000);
-
-    loadUserData();
-
-    return () => clearTimeout(timeout);
-  }, [cachedUserId, sessionUser]);
-
-  const loadUserData = async () => {
+  const loadUserData = useCallback(async () => {
     try {
       const userId = sessionUser?.id || cachedUserId;
 
@@ -125,7 +112,20 @@ export default function CoachDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [sessionUser, cachedUserId, sessionLoading, navigate, setCachedRoles, cachedRoles, toast]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.error("[CoachDashboard] Loading timeout - forcing render");
+        setLoading(false);
+      }
+    }, 5000);
+
+    loadUserData();
+
+    return () => clearTimeout(timeout);
+  }, [loadUserData, loading]);
 
   const handleSectionChange = (newSection: string) => {
     let urlPath = newSection;

@@ -165,6 +165,7 @@ export function ClientSidebar({
  * Get nav items for mobile bottom navigation.
  * Returns simplified list for mobile use.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function getClientMobileNavItems() {
   return routeNavItems
     .filter(item => 

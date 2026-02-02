@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -93,32 +93,19 @@ export default function Index() {
     description: "Evidence-based online coaching, team programs, and performance tracking for serious lifters. Built by Dr. Iron.",
   });
 
-  useEffect(() => {
-    // Timeout to prevent hanging
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 3000);
-
-    checkUserAndRedirect();
-    loadTeamPlanSettings();
-    loadTestimonials();
-
-    return () => clearTimeout(timeout);
-  }, []);
-
-  const checkUserAndRedirect = async () => {
+  const checkUserAndRedirect = useCallback(async () => {
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
+
       if (currentUser) {
         // Authenticated users should go to their dashboard
         const { data: roles } = await supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", currentUser.id);
-        
+
         const roleList = roles?.map(r => r.role) || [];
-        
+
         if (roleList.includes("admin")) {
           navigate("/admin", { replace: true });
           return;
@@ -134,11 +121,24 @@ export default function Index() {
     } catch (error) {
       console.error("Error checking user:", error);
     }
-    
+
     // Not authenticated or error - show public home page
     setUser(null);
     setLoading(false);
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    // Timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 3000);
+
+    checkUserAndRedirect();
+    loadTeamPlanSettings();
+    loadTestimonials();
+
+    return () => clearTimeout(timeout);
+  }, [checkUserAndRedirect]);
 
   const loadTeamPlanSettings = async () => {
     try {

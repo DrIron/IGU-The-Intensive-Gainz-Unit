@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -52,15 +52,7 @@ export function MyTeamCard({ userId, subscriptionId, primaryCoach }: MyTeamCardP
   const [loading, setLoading] = useState(true);
   const [careTeam, setCareTeam] = useState<CareTeamMember[]>([]);
 
-  useEffect(() => {
-    if (subscriptionId) {
-      fetchCareTeam();
-    } else {
-      setLoading(false);
-    }
-  }, [subscriptionId]);
-
-  const fetchCareTeam = async () => {
+  const fetchCareTeam = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -104,7 +96,15 @@ export function MyTeamCard({ userId, subscriptionId, primaryCoach }: MyTeamCardP
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    if (subscriptionId) {
+      fetchCareTeam();
+    } else {
+      setLoading(false);
+    }
+  }, [subscriptionId, fetchCareTeam]);
 
   const getMemberName = (member: CareTeamMember) => {
     if (member.coach_info) {
