@@ -12,6 +12,8 @@ import { Dumbbell, X } from "lucide-react";
 import { z } from "zod";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { AUTH_REDIRECT_URLS } from "@/lib/config";
+import { useRoleCache } from "@/hooks/useRoleCache";
+import { TIMEOUTS } from "@/lib/constants";
 
 const signUpSchema = z.object({
   email: z.string().email("Invalid email address").trim().toLowerCase(),
@@ -63,6 +65,7 @@ export default function Auth() {
   // Guard to ensure bootstrap-admin-role runs only once per session
   const bootstrapCalledRef = useRef(false);
   const redirectingRef = useRef(false);
+  const { setCachedRoles } = useRoleCache();
 
   useDocumentTitle({
     title: "Sign In | Intensive Gainz Unit",
@@ -118,58 +121,93 @@ export default function Auth() {
     });
 
     return () => subscription.unsubscribe();
-  }, [navigate, searchParams, isCoachAuth]);
+  }, [navigate, searchParams, isCoachAuth, setCachedRoles]);
 
   const handleRedirectAfterAuth = async (userId: string) => {
     const redirectParam = searchParams.get("redirect");
-    
+
     if (redirectParam) {
       navigate(redirectParam);
       return;
     }
-    
+
     try {
-      // Fetch roles from database
-      const { data: roles, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", userId);
-      
-      if (rolesError) {
-        console.error('[Auth] Error fetching roles:', rolesError);
+      // Fetch roles from database WITH TIMEOUT
+      // The auth token may not be attached yet, causing the query to hang
+      let roleList: string[] = [];
+
+      try {
+        const rolesPromise = supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId);
+
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Roles query timeout')), TIMEOUTS.ROLES_QUERY)
+        );
+
+        const { data: roles, error: rolesError } = await Promise.race([
+          rolesPromise,
+          timeoutPromise
+        ]) as { data: { role: string }[] | null; error: Error | null };
+
+        if (rolesError) {
+          console.error('[Auth] Error fetching roles:', rolesError);
+        } else if (roles) {
+          roleList = roles.map(r => r.role);
+          // Cache the roles for RoleProtectedRoute
+          setCachedRoles(roleList, userId);
+        }
+      } catch (timeoutError) {
+        console.warn('[Auth] Roles query timed out - redirecting to default dashboard');
+        // On timeout, redirect to dashboard and let RoleProtectedRoute handle it
+        navigate("/dashboard");
+        return;
       }
-      
-      const roleList = roles?.map(r => r.role) || [];
+
       console.log('[Auth] User roles:', roleList);
-      
+
       // Admins go to /admin
       if (roleList.includes('admin')) {
         console.log('[Auth] Redirecting to /admin');
         navigate("/admin");
         return;
       }
-      
+
       // Coaches go to /coach
       if (roleList.includes('coach') || isCoachAuth) {
         console.log('[Auth] Redirecting to /coach');
         navigate("/coach");
         return;
       }
-      
-      // Regular users - check onboarding status
-      const { data: profile } = await supabase
-        .from("profiles_public")
-        .select("status, onboarding_completed_at")
-        .eq("id", userId)
-        .single();
-      
-      const onboardingCompleted = !!profile?.onboarding_completed_at;
-      if (!onboardingCompleted && profile?.status === 'pending') {
-        console.log('[Auth] Redirecting to /onboarding');
-        navigate("/onboarding");
-        return;
+
+      // Regular users - check onboarding status (with timeout)
+      try {
+        const profilePromise = supabase
+          .from("profiles_public")
+          .select("status, onboarding_completed_at")
+          .eq("id", userId)
+          .single();
+
+        const profileTimeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Profile query timeout')), TIMEOUTS.ROLES_QUERY)
+        );
+
+        const { data: profile } = await Promise.race([
+          profilePromise,
+          profileTimeoutPromise
+        ]) as { data: { status: string; onboarding_completed_at: string | null } | null };
+
+        const onboardingCompleted = !!profile?.onboarding_completed_at;
+        if (!onboardingCompleted && profile?.status === 'pending') {
+          console.log('[Auth] Redirecting to /onboarding');
+          navigate("/onboarding");
+          return;
+        }
+      } catch (profileError) {
+        console.warn('[Auth] Profile query timed out - redirecting to dashboard');
       }
-      
+
       // Default to dashboard
       console.log('[Auth] Redirecting to /dashboard');
       navigate("/dashboard");
