@@ -299,7 +299,7 @@ When understanding this codebase, read in this order:
 
 ---
 
-## Current State (Jan 2026)
+## Current State (Feb 2026)
 
 ### Completed Phases
 - Phase 0: Build stability, ESLint fixes
@@ -310,6 +310,39 @@ When understanding this codebase, read in this order:
 - Phase 5: Payment integration (Tap)
 - Phase 6: Observability (Sentry, error logging)
 - Phase 7: CI/CD pipeline (GitHub Actions)
+- Phase 8: Auth session persistence fix (Feb 2, 2026)
+
+### Recent Fix: Auth Session Persistence (Feb 2026)
+
+**Problem**: Page refresh caused authentication failures - `getSession()` hung, auth headers didn't attach to Supabase client, RLS policies blocked queries, users got locked out of admin dashboard.
+
+**Solution**: Cache-first role management pattern:
+- Cache user roles in localStorage after successful authentication
+- Read cached roles instantly on page refresh (no waiting for session)
+- Background verification with server (non-blocking)
+- Use refs instead of state for authorization guards (avoids React batched update issues)
+
+**Key Files**:
+- `src/lib/constants.ts` - Cache keys, timeouts configuration
+- `src/hooks/useRoleCache.ts` - localStorage role caching hook
+- `src/hooks/useAuthSession.ts` - Session management with timeouts
+- `src/hooks/useAuthCleanup.ts` - Sign-out with cache cleanup
+- `src/components/RoleProtectedRoute.tsx` - Cache-first auth guard with `isAuthorizedRef`
+- `src/components/Navigation.tsx` - Synced with cached auth state
+- `src/pages/Auth.tsx` - Fixed sign-in redirect (timeout + reset redirectingRef)
+- `src/pages/admin/AdminDashboard.tsx` - Uses cached roles for instant sidebar render
+
+**Pattern**:
+```typescript
+// Cache-first approach in RoleProtectedRoute
+const cachedRoles = getCachedRoles(userId);
+if (cachedRoles && hasRequiredRole(cachedRoles, requiredRole)) {
+  // Grant access IMMEDIATELY from cache
+  setAuthState('authorized');
+  // Verify in background (non-blocking)
+  verifyRolesWithServer(userId);
+}
+```
 
 ### Known Limitations
 - No automated tests for components (only smoke tests)
