@@ -5,6 +5,10 @@ import type { Database } from './types';
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
+// Extract project ref from URL for storage key
+const PROJECT_REF = SUPABASE_URL?.match(/https:\/\/([^.]+)\./)?.[1] || 'ghotrbotrywonaejlppg';
+const STORAGE_KEY = `sb-${PROJECT_REF}-auth-token`;
+
 // Custom storage adapter with logging for debugging session persistence
 const customStorage = {
   getItem: (key: string) => {
@@ -34,3 +38,31 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     flowType: 'pkce'
   }
 });
+
+// FIX: Manually restore session from localStorage on module init
+// This fixes the issue where getSession() hangs on page refresh but token exists
+(async () => {
+  try {
+    const storedSession = window.localStorage.getItem(STORAGE_KEY);
+
+    if (storedSession) {
+      const parsed = JSON.parse(storedSession);
+      if (parsed.access_token && parsed.refresh_token) {
+        console.log('[Supabase Client] Manually restoring session from localStorage');
+
+        const { error } = await supabase.auth.setSession({
+          access_token: parsed.access_token,
+          refresh_token: parsed.refresh_token,
+        });
+
+        if (error) {
+          console.error('[Supabase Client] Failed to restore session:', error);
+        } else {
+          console.log('[Supabase Client] Session restored successfully');
+        }
+      }
+    }
+  } catch (error) {
+    console.error('[Supabase Client] Error restoring session:', error);
+  }
+})();
