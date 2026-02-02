@@ -7,7 +7,7 @@ import { PaymentAttentionBanner } from "./PaymentAttentionBanner";
 import { ProgressSummaryCard } from "./ProgressSummaryCard";
 import { AlertsCard } from "./AlertsCard";
 import { MyCareTeamCard } from "./MyCareTeamCard";
-import { TodayWorkoutsCard } from "./TodayWorkoutsCard";
+import { TodaysWorkoutHero } from "./TodaysWorkoutHero";
 import { AdherenceSummaryCard } from "./AdherenceSummaryCard";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -153,6 +153,9 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         weeklyLogsCount={weeklyLogsCount}
       />
 
+      {/* Today's Workout Hero */}
+      <TodaysWorkoutHero userId={user?.id} />
+
       {/* Quick Actions */}
       <div>
         <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
@@ -162,11 +165,8 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         />
       </div>
 
-      {/* Today's Workouts */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        <TodayWorkoutsCard userId={user?.id} />
-        <AdherenceSummaryCard userId={user?.id} />
-      </div>
+      {/* Adherence Summary */}
+      <AdherenceSummaryCard userId={user?.id} />
 
       {/* Main Content Grid */}
       <div className="grid gap-6 lg:grid-cols-2">
