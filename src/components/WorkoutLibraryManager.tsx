@@ -8,9 +8,17 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Search, Plus, X, Youtube, Pencil } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Search, Plus, X, Youtube, Pencil, Zap, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+
+interface QuickAddEntry {
+  name: string;
+  youtube_url: string;
+  primary_muscle: string;
+  difficulty: "Beginner" | "Intermediate" | "Advanced";
+}
 
 interface Exercise {
   id: string;
@@ -60,6 +68,12 @@ export default function WorkoutLibraryManager() {
     execution_instructions: [""],
     pitfalls: [""],
   });
+
+  // Quick Add state
+  const [quickAddEntries, setQuickAddEntries] = useState<QuickAddEntry[]>([
+    { name: "", youtube_url: "", primary_muscle: "", difficulty: "Beginner" },
+  ]);
+  const [isSubmittingQuickAdd, setIsSubmittingQuickAdd] = useState(false);
 
   useEffect(() => {
     fetchExercises();
@@ -168,6 +182,89 @@ export default function WorkoutLibraryManager() {
     setEditingExercise(null);
   };
 
+  // Quick Add functions
+  const resetQuickAdd = () => {
+    setQuickAddEntries([
+      { name: "", youtube_url: "", primary_muscle: "", difficulty: "Beginner" },
+    ]);
+  };
+
+  const addQuickAddRow = () => {
+    setQuickAddEntries(prev => [
+      ...prev,
+      { name: "", youtube_url: "", primary_muscle: "", difficulty: "Beginner" },
+    ]);
+  };
+
+  const removeQuickAddRow = (index: number) => {
+    if (quickAddEntries.length > 1) {
+      setQuickAddEntries(prev => prev.filter((_, i) => i !== index));
+    }
+  };
+
+  const updateQuickAddEntry = (index: number, field: keyof QuickAddEntry, value: string) => {
+    setQuickAddEntries(prev => prev.map((entry, i) =>
+      i === index ? { ...entry, [field]: value } : entry
+    ));
+  };
+
+  const handleQuickAddSubmit = async () => {
+    const validEntries = quickAddEntries.filter(e => e.name.trim() && e.primary_muscle);
+
+    if (validEntries.length === 0) {
+      toast({
+        title: "No valid entries",
+        description: "Please fill in at least one exercise with name and muscle group",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSubmittingQuickAdd(true);
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      setIsSubmittingQuickAdd(false);
+      return;
+    }
+
+    const exercisesToInsert = validEntries.map(entry => ({
+      name: entry.name.trim(),
+      muscle_groups: [entry.primary_muscle],
+      muscle_subdivisions: { [entry.primary_muscle]: [] },
+      difficulty: entry.difficulty,
+      youtube_url: entry.youtube_url.trim() || null,
+      setup_instructions: [],
+      execution_instructions: [],
+      pitfalls: [],
+      created_by: user.id,
+    }));
+
+    const { error } = await supabase
+      .from("exercises")
+      .insert(exercisesToInsert);
+
+    setIsSubmittingQuickAdd(false);
+
+    if (error) {
+      toast({
+        title: "Error adding exercises",
+        description: error.message,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    toast({
+      title: "Success",
+      description: `Added ${validEntries.length} exercise${validEntries.length > 1 ? 's' : ''} successfully`,
+    });
+
+    setIsDialogOpen(false);
+    resetQuickAdd();
+    fetchExercises();
+  };
+
   const toggleMuscleGroup = (muscle: string) => {
     setFormData(prev => {
       const newSelected = { ...prev.selectedMuscles };
@@ -269,12 +366,13 @@ export default function WorkoutLibraryManager() {
           </DialogTrigger>
           <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>{editingExercise ? "Edit Exercise" : "Add New Exercise"}</DialogTitle>
+              <DialogTitle>{editingExercise ? "Edit Exercise" : "Add Exercises"}</DialogTitle>
               <DialogDescription>
-                {editingExercise ? "Update the exercise details" : "Add a new exercise with detailed instructions and video guide"}
+                {editingExercise ? "Update the exercise details" : "Add exercises with full details or use Quick Add for rapid entry"}
               </DialogDescription>
             </DialogHeader>
 
+            {editingExercise ? (
             <form onSubmit={handleSubmit} className="space-y-6">
               <div className="space-y-2">
                 <Label htmlFor="name">Exercise Name *</Label>
@@ -467,6 +565,300 @@ export default function WorkoutLibraryManager() {
                 <Button type="submit">{editingExercise ? "Update Exercise" : "Add Exercise"}</Button>
               </div>
             </form>
+            ) : (
+            <Tabs defaultValue="quick" className="w-full">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="quick" className="flex items-center gap-2">
+                  <Zap className="h-4 w-4" />
+                  Quick Add
+                </TabsTrigger>
+                <TabsTrigger value="full">Full Form</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="quick" className="space-y-4 mt-4">
+                <p className="text-sm text-muted-foreground">
+                  Rapidly add exercises with just the essentials. You can add details later.
+                </p>
+
+                <div className="space-y-3">
+                  {/* Header row */}
+                  <div className="grid grid-cols-[1fr_1fr_140px_140px_40px] gap-2 text-sm font-medium text-muted-foreground">
+                    <span>Exercise Name *</span>
+                    <span>YouTube URL</span>
+                    <span>Muscle Group *</span>
+                    <span>Difficulty</span>
+                    <span></span>
+                  </div>
+
+                  {/* Entry rows */}
+                  {quickAddEntries.map((entry, index) => (
+                    <div key={index} className="grid grid-cols-[1fr_1fr_140px_140px_40px] gap-2 items-center">
+                      <Input
+                        value={entry.name}
+                        onChange={(e) => updateQuickAddEntry(index, 'name', e.target.value)}
+                        placeholder="e.g., Bench Press"
+                      />
+                      <Input
+                        value={entry.youtube_url}
+                        onChange={(e) => updateQuickAddEntry(index, 'youtube_url', e.target.value)}
+                        placeholder="https://youtube.com/..."
+                      />
+                      <Select
+                        value={entry.primary_muscle}
+                        onValueChange={(value) => updateQuickAddEntry(index, 'primary_muscle', value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {Object.keys(MUSCLE_GROUPS).map(muscle => (
+                            <SelectItem key={muscle} value={muscle}>{muscle}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={entry.difficulty}
+                        onValueChange={(value) => updateQuickAddEntry(index, 'difficulty', value as QuickAddEntry['difficulty'])}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Beginner">Beginner</SelectItem>
+                          <SelectItem value="Intermediate">Intermediate</SelectItem>
+                          <SelectItem value="Advanced">Advanced</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeQuickAddRow(index)}
+                        disabled={quickAddEntries.length === 1}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+
+                <Button type="button" variant="outline" onClick={addQuickAddRow}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Another Row
+                </Button>
+
+                <div className="flex justify-end gap-2 pt-4 border-t">
+                  <Button type="button" variant="outline" onClick={() => {
+                    setIsDialogOpen(false);
+                    resetQuickAdd();
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleQuickAddSubmit}
+                    disabled={isSubmittingQuickAdd}
+                  >
+                    {isSubmittingQuickAdd ? "Adding..." : `Add ${quickAddEntries.filter(e => e.name.trim() && e.primary_muscle).length} Exercise(s)`}
+                  </Button>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="full" className="mt-4">
+                <form onSubmit={handleSubmit} className="space-y-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Exercise Name *</Label>
+                    <Input
+                      id="name"
+                      required
+                      value={formData.name}
+                      onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                      placeholder="e.g., Barbell Bench Press"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="difficulty">Difficulty *</Label>
+                    <Select
+                      value={formData.difficulty}
+                      onValueChange={(value) => setFormData(prev => ({ ...prev, difficulty: value as "Beginner" | "Intermediate" | "Advanced" }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Beginner">Beginner</SelectItem>
+                        <SelectItem value="Intermediate">Intermediate</SelectItem>
+                        <SelectItem value="Advanced">Advanced</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="youtube">YouTube URL</Label>
+                    <Input
+                      id="youtube"
+                      type="url"
+                      value={formData.youtube_url}
+                      onChange={(e) => setFormData(prev => ({ ...prev, youtube_url: e.target.value }))}
+                      placeholder="https://youtube.com/watch?v=..."
+                    />
+                  </div>
+
+                  <div className="space-y-4">
+                    <Label>Muscle Groups & Subdivisions *</Label>
+                    <div className="grid grid-cols-2 gap-4 max-h-60 overflow-y-auto border rounded-md p-4">
+                      {Object.entries(MUSCLE_GROUPS).map(([muscle, subdivisions]) => (
+                        <div key={muscle} className="space-y-2">
+                          <div className="flex items-center space-x-2">
+                            <Checkbox
+                              id={`full-${muscle}`}
+                              checked={!!formData.selectedMuscles[muscle]}
+                              onCheckedChange={() => toggleMuscleGroup(muscle)}
+                            />
+                            <label htmlFor={`full-${muscle}`} className="font-semibold text-sm cursor-pointer">
+                              {muscle}
+                            </label>
+                          </div>
+                          {subdivisions.length > 0 && formData.selectedMuscles[muscle] && (
+                            <div className="ml-6 space-y-1">
+                              {subdivisions.map(sub => (
+                                <div key={sub} className="flex items-center space-x-2">
+                                  <Checkbox
+                                    id={`full-${muscle}-${sub}`}
+                                    checked={formData.selectedMuscles[muscle]?.includes(sub)}
+                                    onCheckedChange={() => toggleSubdivision(muscle, sub)}
+                                  />
+                                  <label htmlFor={`full-${muscle}-${sub}`} className="text-sm cursor-pointer">
+                                    {sub}
+                                  </label>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Setup Instructions</Label>
+                    <div className="space-y-2">
+                      {formData.setup_instructions.map((instruction, index) => (
+                        <div key={index} className="flex gap-2">
+                          <span className="text-sm text-muted-foreground mt-2">{index + 1}.</span>
+                          <Input
+                            value={instruction}
+                            onChange={(e) => updateInstruction('setup_instructions', index, e.target.value)}
+                            placeholder="Enter setup step"
+                          />
+                          {formData.setup_instructions.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeInstruction('setup_instructions', index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addInstruction('setup_instructions')}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Setup Step
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Execution Instructions</Label>
+                    <p className="text-sm text-muted-foreground">Describe the exercise intent and movement</p>
+                    <div className="space-y-2">
+                      {formData.execution_instructions.map((instruction, index) => (
+                        <div key={index} className="flex gap-2">
+                          <span className="text-sm text-muted-foreground mt-2">{index + 1}.</span>
+                          <Textarea
+                            value={instruction}
+                            onChange={(e) => updateInstruction('execution_instructions', index, e.target.value)}
+                            placeholder="Describe the movement and intent"
+                          />
+                          {formData.execution_instructions.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeInstruction('execution_instructions', index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addInstruction('execution_instructions')}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Execution Step
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Common Pitfalls</Label>
+                    <div className="space-y-2">
+                      {formData.pitfalls.map((pitfall, index) => (
+                        <div key={index} className="flex gap-2">
+                          <span className="text-sm text-muted-foreground mt-2">•</span>
+                          <Input
+                            value={pitfall}
+                            onChange={(e) => updateInstruction('pitfalls', index, e.target.value)}
+                            placeholder="Describe a common mistake"
+                          />
+                          {formData.pitfalls.length > 1 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => removeInstruction('pitfalls', index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => addInstruction('pitfalls')}
+                      >
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Pitfall
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2">
+                    <Button type="button" variant="outline" onClick={() => {
+                      setIsDialogOpen(false);
+                      resetForm();
+                    }}>
+                      Cancel
+                    </Button>
+                    <Button type="submit">Add Exercise</Button>
+                  </div>
+                </form>
+              </TabsContent>
+            </Tabs>
+            )}
           </DialogContent>
         </Dialog>
       </div>
