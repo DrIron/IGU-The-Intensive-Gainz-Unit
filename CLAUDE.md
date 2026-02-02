@@ -385,3 +385,24 @@ When asking for help:
 2. Include relevant file paths
 3. Note if it involves PHI/PII data
 4. Mention if it's a frontend or backend (Edge Function) issue
+
+---
+
+## Launch Plan (February 2026)
+
+### Launch Profile
+- **Timeline:** February 2026
+- **Initial Clients:** 12-15 (existing + social media)
+- **Team:** 2 exercise coaches + 1-2 dieticians
+- **Content:** Exercise library needs population
+
+### Pre-Launch Priorities
+1. Exercise library population from YouTube
+2. Dashboard UX improvements (see docs/Dashboard_UX_Plan.md)
+3. QA testing through all user flows
+4. Mobile responsive verification
+
+### Documentation
+- `/docs/IGU_Discovery_Report.md` - Platform audit
+- `/docs/Dashboard_UX_Plan.md` - Dashboard UX specs
+- `/docs/LAUNCH_CHECKLIST.md` - Pre-launch tasks
