@@ -9,6 +9,7 @@ import { CoachActivityFeed, ActivityItem } from "./CoachActivityFeed";
 import { EnhancedCapacityCard } from "./EnhancedCapacityCard";
 import { CoachTodaysTasks } from "./CoachTodaysTasks";
 import { CoachQuickActions } from "./CoachQuickActions";
+import { NeedsAttentionAlerts } from "./NeedsAttentionAlerts";
 
 interface CoachDashboardOverviewProps {
   coachUserId: string;
@@ -296,9 +297,15 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
 
   return (
     <div className="space-y-6 w-full max-w-full overflow-hidden">
+      {/* Needs Attention Alerts - Top Banner */}
+      <NeedsAttentionAlerts
+        coachUserId={coachUserId}
+        onNavigate={handleNavigate}
+      />
+
       {/* Welcome Header */}
       <div>
-        <h2 className="text-2xl font-bold">Welcome, Coach 👋</h2>
+        <h2 className="text-2xl font-bold">Welcome, Coach</h2>
         <p className="text-muted-foreground">Here's your dashboard at a glance.</p>
       </div>
 
