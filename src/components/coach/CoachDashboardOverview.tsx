@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
-import { startOfWeek, endOfWeek, subDays } from "date-fns";
+import { startOfWeek, endOfWeek } from "date-fns";
 
 import { CoachKPIRow } from "./CoachKPIRow";
 import { CoachActivityFeed, ActivityItem } from "./CoachActivityFeed";
@@ -10,6 +10,8 @@ import { EnhancedCapacityCard } from "./EnhancedCapacityCard";
 import { CoachTodaysTasks } from "./CoachTodaysTasks";
 import { CoachQuickActions } from "./CoachQuickActions";
 import { NeedsAttentionAlerts } from "./NeedsAttentionAlerts";
+import { CoachStatsCards } from "./CoachStatsCards";
+import { ClientActivityFeed } from "./ClientActivityFeed";
 
 interface CoachDashboardOverviewProps {
   coachUserId: string;
@@ -297,22 +299,36 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
 
   return (
     <div className="space-y-6 w-full max-w-full overflow-hidden">
-      {/* Needs Attention Alerts - Top Banner */}
+      {/* Needs Attention Alerts - Top Priority */}
       <NeedsAttentionAlerts
         coachUserId={coachUserId}
         onNavigate={handleNavigate}
       />
 
-      {/* Welcome Header */}
-      <div>
-        <h2 className="text-2xl font-bold">Welcome, Coach</h2>
-        <p className="text-muted-foreground">Here's your dashboard at a glance.</p>
+      {/* Stats Cards */}
+      <CoachStatsCards coachId={coachUserId} />
+
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Column */}
+        <div className="space-y-6">
+          <CoachQuickActions
+            pendingCount={metrics.pendingApprovals}
+            activeCount={metrics.activeClients}
+            checkInsCount={metrics.checkInsDue}
+          />
+        </div>
+
+        {/* Right Column */}
+        <div className="space-y-6">
+          <ClientActivityFeed coachId={coachUserId} limit={8} />
+        </div>
       </div>
 
-      {/* KPI Row - Top - Horizontal scroll on mobile with snap */}
+      {/* KPI Row - Horizontal scroll on mobile with snap */}
       <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0 md:overflow-visible">
         <div className="min-w-max md:min-w-0 snap-x snap-mandatory">
-          <CoachKPIRow 
+          <CoachKPIRow
             metrics={{
               totalClients: metrics.totalClients,
               activeClients: metrics.activeClients,
@@ -325,28 +341,21 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
         </div>
       </div>
 
-      {/* Quick Actions Row */}
-      <CoachQuickActions 
-        pendingCount={metrics.pendingApprovals}
-        activeCount={metrics.activeClients}
-        checkInsCount={metrics.checkInsDue}
-      />
-
-      {/* Activity Feed - Full Width */}
-      <CoachActivityFeed 
+      {/* Legacy Activity Feed */}
+      <CoachActivityFeed
         activities={metrics.recentActivity}
         maxItems={5}
       />
 
       {/* Two Column Layout for Capacity & Tasks */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <EnhancedCapacityCard 
+        <EnhancedCapacityCard
           coachUserId={coachUserId}
           onNavigate={handleNavigate}
           onMetricsLoaded={handleCapacityMetricsLoaded}
         />
-        
-        <CoachTodaysTasks 
+
+        <CoachTodaysTasks
           checkInsDueToday={metrics.checkInsDueToday}
           inactiveFor14Days={metrics.inactiveFor14Days}
           pendingApprovals={metrics.pendingApprovals}

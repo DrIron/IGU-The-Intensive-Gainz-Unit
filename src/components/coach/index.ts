@@ -1,0 +1,14 @@
+export { NeedsAttentionAlerts } from "./NeedsAttentionAlerts";
+export { CoachStatsCards } from "./CoachStatsCards";
+export { ClientActivityFeed } from "./ClientActivityFeed";
+export { CoachQuickActions } from "./CoachQuickActions";
+export { ExerciseLibrary } from "./ExerciseLibrary";
+export { CoachMyClientsPage } from "./CoachMyClientsPage";
+export { CoachDashboardOverview } from "./CoachDashboardOverview";
+export { CoachDashboardLayout } from "./CoachDashboardLayout";
+export { CoachActivityFeed } from "./CoachActivityFeed";
+export { CoachKPIRow } from "./CoachKPIRow";
+export { CoachSidebar } from "./CoachSidebar";
+export { CoachClientDetail } from "./CoachClientDetail";
+export { CoachTodaysTasks } from "./CoachTodaysTasks";
+export { EnhancedCapacityCard } from "./EnhancedCapacityCard";
