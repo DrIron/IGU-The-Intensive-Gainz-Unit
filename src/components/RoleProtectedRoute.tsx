@@ -270,15 +270,25 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
           const cachedRoles = getCachedRoles();
 
           if (cachedRoles && cachedRoles.length > 0) {
-            console.log('[RoleProtectedRoute] No session but found cached roles - waiting...');
-            // Give session a moment to initialize
-            await new Promise(r => setTimeout(r, TIMEOUTS.AUTH_REDIRECT_DELAY));
+            // CACHE-FIRST: If we have cached roles with the required role, grant access IMMEDIATELY
+            // Don't wait for session - trust the cache and verify in background
+            if (hasRequiredRole(cachedRoles, requiredRole)) {
+              const primaryRole = getPrimaryRole(cachedRoles);
+              if (isRouteBlockedForRole(location.pathname, primaryRole)) {
+                handleUnauthorized(cachedRoles, 'route-blocked-no-session');
+                return;
+              }
 
-            // Check if session became available (don't use setSession, just check)
-            const { data: { session: recheckedSession } } = await supabase.auth.getSession();
-            if (recheckedSession?.user) {
-              console.log('[RoleProtectedRoute] Session became available after wait');
-              // Let the effect re-run with the new session
+              console.log('[RoleProtectedRoute] No session but cached roles valid - granting access immediately');
+              setCurrentRoles(cachedRoles);
+              logAccess('GRANTED', { roles: cachedRoles, source: 'cache-no-session' });
+              isAuthorizedRef.current = true;
+              setAuthState('authorized');
+              // Session will sync in background via onAuthStateChange
+              return;
+            } else {
+              // Cached roles don't have required role - redirect
+              handleUnauthorized(cachedRoles, 'role-mismatch-cached-no-session');
               return;
             }
           }

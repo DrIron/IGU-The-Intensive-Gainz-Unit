@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
 import { AdminDashboardLayout } from "@/components/admin/AdminDashboardLayout";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useRoleCache } from "@/hooks/useRoleCache";
 
 // Map URL paths to internal section IDs
 const SECTION_MAP: Record<string, string> = {
@@ -36,6 +37,16 @@ export default function AdminDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [hasAdminRole, setHasAdminRole] = useState(false);
   const [hasCoachRole, setHasCoachRole] = useState(false);
+  const { cachedRoles, setCachedRoles } = useRoleCache();
+
+  // CACHE-FIRST: Check cached roles immediately to render sidebar
+  // This prevents the sidebar from being hidden while roles are loading
+  useEffect(() => {
+    if (cachedRoles && cachedRoles.length > 0) {
+      setHasAdminRole(cachedRoles.includes('admin'));
+      setHasCoachRole(cachedRoles.includes('coach'));
+    }
+  }, [cachedRoles]);
 
   useDocumentTitle({
     title: "Admin Dashboard | Intensive Gainz Unit",
@@ -85,9 +96,11 @@ export default function AdminDashboard() {
         const roles = rolesData.map(r => r.role);
         const isAdmin = roles.includes('admin');
         const isCoach = roles.includes('coach');
-        
+
         setHasAdminRole(isAdmin);
         setHasCoachRole(isCoach);
+        // Update cache with fresh roles
+        setCachedRoles(roles, user.id);
       }
     } catch (error: any) {
       console.error("Error loading user data:", error);
