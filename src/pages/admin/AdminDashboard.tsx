@@ -6,6 +6,7 @@ import { Navigation } from "@/components/Navigation";
 import { AdminDashboardLayout } from "@/components/admin/AdminDashboardLayout";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useRoleCache } from "@/hooks/useRoleCache";
+import { useAuthSession } from "@/hooks/useAuthSession";
 
 // Map URL paths to internal section IDs
 const SECTION_MAP: Record<string, string> = {
@@ -37,10 +38,12 @@ export default function AdminDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [hasAdminRole, setHasAdminRole] = useState(false);
   const [hasCoachRole, setHasCoachRole] = useState(false);
-  const { cachedRoles, setCachedRoles } = useRoleCache();
+
+  // FIX: Use cached roles and user from the cache-first auth system
+  const { cachedRoles, cachedUserId, setCachedRoles } = useRoleCache();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
 
   // CACHE-FIRST: Check cached roles immediately to render sidebar
-  // This prevents the sidebar from being hidden while roles are loading
   useEffect(() => {
     if (cachedRoles && cachedRoles.length > 0) {
       setHasAdminRole(cachedRoles.includes('admin'));
@@ -57,10 +60,9 @@ export default function AdminDashboard() {
   const activeSection = SECTION_MAP[section || "dashboard"] || "dashboard";
 
   useEffect(() => {
-    // Timeout to prevent infinite loading
     const timeout = setTimeout(() => {
       if (loading) {
-        console.error("Loading timeout - forcing render");
+        console.error("[AdminDashboard] Loading timeout - forcing render");
         setLoading(false);
       }
     }, 5000);
@@ -68,53 +70,62 @@ export default function AdminDashboard() {
     loadUserData();
 
     return () => clearTimeout(timeout);
-  }, []);
+  }, [cachedUserId, sessionUser]);
 
   const loadUserData = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.log('[AdminDashboard] No session found, redirecting to auth');
+      // FIX: CACHE-FIRST - Use cached user ID if session isn't ready
+      const userId = sessionUser?.id || cachedUserId;
+
+      if (!userId) {
+        if (sessionLoading) {
+          console.log('[AdminDashboard] Session still loading, waiting...');
+          return;
+        }
+        console.log('[AdminDashboard] No user found, redirecting to auth');
         navigate("/auth");
         return;
       }
-      const user = session.user;
+
+      const user = sessionUser || { id: userId, email: null };
       setCurrentUser(user);
 
-      // Check user roles with timeout
-      const { data: rolesData, error: rolesError } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
+      // FIX: Try to fetch roles with timeout, fall back to cache
+      try {
+        const rolesPromise = supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId);
 
-      if (rolesError) {
-        console.error("Error fetching roles:", rolesError);
-        // Continue anyway - let the page render
-      }
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Roles query timeout')), 3000)
+        );
 
-      if (rolesData && rolesData.length > 0) {
-        const roles = rolesData.map(r => r.role);
-        const isAdmin = roles.includes('admin');
-        const isCoach = roles.includes('coach');
+        const { data: rolesData, error: rolesError } = await Promise.race([
+          rolesPromise,
+          timeoutPromise
+        ]) as { data: { role: string }[] | null; error: Error | null };
 
-        setHasAdminRole(isAdmin);
-        setHasCoachRole(isCoach);
-        // Update cache with fresh roles
-        setCachedRoles(roles, user.id);
+        if (rolesError) {
+          console.warn("[AdminDashboard] Error fetching roles, using cache:", rolesError);
+        } else if (rolesData && rolesData.length > 0) {
+          const roles = rolesData.map(r => r.role);
+          setHasAdminRole(roles.includes('admin'));
+          setHasCoachRole(roles.includes('coach'));
+          setCachedRoles(roles, userId);
+        }
+      } catch (timeoutErr) {
+        console.warn("[AdminDashboard] Roles query timed out, using cached roles");
       }
     } catch (error: any) {
-      console.error("Error loading user data:", error);
+      console.error("[AdminDashboard] Error loading user data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle section changes by navigating to new URL
   const handleSectionChange = (newSection: string) => {
-    // Map internal section IDs back to URL paths
     const urlPath = newSection === "dashboard" ? "dashboard" : newSection;
-    
-    // Preserve query params
     const queryString = searchParams.toString();
     const url = `/admin/${urlPath}${queryString ? `?${queryString}` : ''}`;
     navigate(url, { replace: true });
@@ -130,18 +141,18 @@ export default function AdminDashboard() {
 
   return (
     <>
-      <Navigation 
-        user={currentUser} 
-        userRole="admin" 
-        onSectionChange={handleSectionChange} 
-        activeSection={activeSection} 
+      <Navigation
+        user={currentUser}
+        userRole="admin"
+        onSectionChange={handleSectionChange}
+        activeSection={activeSection}
       />
-      <AdminDashboardLayout 
-        user={currentUser} 
+      <AdminDashboardLayout
+        user={currentUser}
         hasCoachRole={hasCoachRole}
         hasAdminRole={hasAdminRole}
-        activeSection={activeSection} 
-        onSectionChange={handleSectionChange} 
+        activeSection={activeSection}
+        onSectionChange={handleSectionChange}
       />
     </>
   );

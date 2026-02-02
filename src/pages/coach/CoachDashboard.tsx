@@ -5,8 +5,9 @@ import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
 import { CoachDashboardLayout } from "@/components/coach/CoachDashboardLayout";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useRoleCache } from "@/hooks/useRoleCache";
+import { useAuthSession } from "@/hooks/useAuthSession";
 
-// Map URL paths to internal section IDs
 const SECTION_MAP: Record<string, string> = {
   dashboard: "overview",
   overview: "overview",
@@ -29,81 +30,108 @@ export default function CoachDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [hasCoachRole, setHasCoachRole] = useState(false);
 
+  const { cachedRoles, cachedUserId, setCachedRoles } = useRoleCache();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
+
   useDocumentTitle({
     title: "Coach Dashboard | Intensive Gainz Unit",
     description: "Coach management dashboard for IGU.",
   });
 
-  // Derive active section from URL path
   const activeSection = SECTION_MAP[section || "dashboard"] || "overview";
 
   useEffect(() => {
+    if (cachedRoles && cachedRoles.length > 0) {
+      setHasCoachRole(cachedRoles.includes('coach'));
+    }
+  }, [cachedRoles]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.error("[CoachDashboard] Loading timeout - forcing render");
+        setLoading(false);
+      }
+    }, 5000);
+
     loadUserData();
-  }, []);
+
+    return () => clearTimeout(timeout);
+  }, [cachedUserId, sessionUser]);
 
   const loadUserData = async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const user = session?.user;
-      if (!user) {
+      const userId = sessionUser?.id || cachedUserId;
+
+      if (!userId) {
+        if (sessionLoading) {
+          console.log('[CoachDashboard] Session still loading, waiting...');
+          return;
+        }
         navigate("/auth");
         return;
       }
+
+      const user = sessionUser || { id: userId, email: null };
       setCurrentUser(user);
 
-      // Check user roles
-      const { data: rolesData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
+      try {
+        const rolesPromise = supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId);
 
-      if (rolesData && rolesData.length > 0) {
-        const roles = rolesData.map(r => r.role);
-        const isAdmin = roles.includes('admin');
-        const isCoach = roles.includes('coach');
-        
-        setHasCoachRole(isCoach);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Roles query timeout')), 3000)
+        );
 
-        // STRICT: Only coaches can access coach routes - NO admin preview mode
-        if (!isCoach) {
-          toast({
-            title: "Access Denied",
-            description: isAdmin 
-              ? "Admins must use a separate coach account to access coach features."
-              : "You don't have permission to access the coach dashboard.",
-            variant: "destructive",
-          });
-          if (isAdmin) {
-            navigate("/admin/dashboard");
-          } else {
-            navigate("/dashboard");
+        const { data: rolesData } = await Promise.race([
+          rolesPromise,
+          timeoutPromise
+        ]) as { data: { role: string }[] | null };
+
+        if (rolesData && rolesData.length > 0) {
+          const roles = rolesData.map(r => r.role);
+          const isAdmin = roles.includes('admin');
+          const isCoach = roles.includes('coach');
+
+          setHasCoachRole(isCoach);
+          setCachedRoles(roles, userId);
+
+          if (!isCoach) {
+            toast({
+              title: "Access Denied",
+              description: isAdmin
+                ? "Admins must use a separate coach account to access coach features."
+                : "You don't have permission to access the coach dashboard.",
+              variant: "destructive",
+            });
+            navigate(isAdmin ? "/admin/dashboard" : "/dashboard");
+            return;
           }
+        } else if (cachedRoles && !cachedRoles.includes('coach')) {
+          navigate("/dashboard");
           return;
         }
-      } else {
-        // No roles found, redirect to client dashboard
-        navigate("/dashboard");
-        return;
+      } catch (timeoutErr) {
+        console.warn("[CoachDashboard] Roles query timed out, using cached roles");
+        if (cachedRoles && !cachedRoles.includes('coach')) {
+          navigate("/dashboard");
+          return;
+        }
       }
     } catch (error: any) {
-      toast({
-        title: "Error loading data",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.error("[CoachDashboard] Error loading user data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  // Handle section changes by navigating to new URL
   const handleSectionChange = (newSection: string) => {
-    // Map internal section IDs to URL paths
     let urlPath = newSection;
     if (newSection === "overview") urlPath = "dashboard";
     if (newSection === "clients") urlPath = "clients";
-    
-    // Preserve query params
+
     const queryString = searchParams.toString();
     const url = `/coach/${urlPath}${queryString ? `?${queryString}` : ''}`;
     navigate(url, { replace: true });
@@ -119,16 +147,16 @@ export default function CoachDashboard() {
 
   return (
     <>
-      <Navigation 
-        user={currentUser} 
-        userRole="coach" 
-        onSectionChange={handleSectionChange} 
-        activeSection={activeSection} 
+      <Navigation
+        user={currentUser}
+        userRole="coach"
+        onSectionChange={handleSectionChange}
+        activeSection={activeSection}
       />
-      <CoachDashboardLayout 
-        user={currentUser} 
-        activeSection={activeSection} 
-        onSectionChange={handleSectionChange} 
+      <CoachDashboardLayout
+        user={currentUser}
+        activeSection={activeSection}
+        onSectionChange={handleSectionChange}
       />
     </>
   );

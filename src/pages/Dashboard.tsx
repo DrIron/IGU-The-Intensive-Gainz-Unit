@@ -5,8 +5,10 @@ import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
 import { ClientDashboardLayout } from "@/components/client/ClientDashboardLayout";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useRoleCache } from "@/hooks/useRoleCache";
+import { useAuthSession } from "@/hooks/useAuthSession";
+import { TIMEOUTS } from "@/lib/constants";
 
-// Profile interface matches profiles_public schema
 interface Profile {
   status: string;
   display_name: string | null;
@@ -29,48 +31,25 @@ interface Subscription {
   };
 }
 
-// Admin section mappings for legacy redirect
 const ADMIN_SECTION_MAP: Record<string, string> = {
-  dashboard: "dashboard",
-  overview: "dashboard",
-  clients: "clients",
-  coaches: "coaches",
-  "plans-services": "pricing-payouts",
-  "pricing-payouts": "pricing-payouts",
-  "discount-codes": "discount-codes",
-  "discord-legal": "discord-legal",
-  exercises: "exercises",
-  content: "exercises",
-  "educational-videos": "exercises",
-  "system-health": "system-health",
-  testimonials: "testimonials",
+  dashboard: "dashboard", overview: "dashboard", clients: "clients",
+  coaches: "coaches", "plans-services": "pricing-payouts",
+  "pricing-payouts": "pricing-payouts", "discount-codes": "discount-codes",
+  "discord-legal": "discord-legal", exercises: "exercises",
+  content: "exercises", "educational-videos": "exercises",
+  "system-health": "system-health", testimonials: "testimonials",
 };
 
-// Coach section mappings for legacy redirect
 const COACH_SECTION_MAP: Record<string, string> = {
-  dashboard: "dashboard",
-  overview: "dashboard",
-  "coach-dashboard": "dashboard",
-  clients: "clients",
-  "my-clients": "clients",
-  sessions: "sessions",
-  programs: "programs",
-  profile: "profile",
-  "client-nutrition": "nutrition",
+  dashboard: "dashboard", overview: "dashboard", "coach-dashboard": "dashboard",
+  clients: "clients", "my-clients": "clients", sessions: "sessions",
+  programs: "programs", profile: "profile", "client-nutrition": "nutrition",
 };
 
-// Sections that are admin-only
 const ADMIN_ONLY_SECTIONS = [
-  "clients", // Admin Client Directory
-  "coaches",
-  "pricing-payouts",
-  "discount-codes",
-  "discord-legal",
-  "exercises",
-  "content",
-  "educational-videos",
-  "system-health",
-  "testimonials",
+  "clients", "coaches", "pricing-payouts", "discount-codes",
+  "discord-legal", "exercises", "content", "educational-videos",
+  "system-health", "testimonials",
 ];
 
 function DashboardContent() {
@@ -82,8 +61,10 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
-  
-  // Read section from URL query param
+
+  const { cachedRoles, cachedUserId, setCachedRoles } = useRoleCache();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
+
   const sectionFromUrl = searchParams.get("section");
   const [activeSection, setActiveSection] = useState(sectionFromUrl || "overview");
 
@@ -93,101 +74,142 @@ function DashboardContent() {
   });
 
   useEffect(() => {
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.error("[Dashboard] Loading timeout - forcing render");
+        setLoading(false);
+      }
+    }, 5000);
+
     loadUserData();
-  }, []);
+
+    return () => clearTimeout(timeout);
+  }, [cachedUserId, sessionUser]);
 
   const loadUserData = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      const userId = sessionUser?.id || cachedUserId;
+
+      if (!userId) {
+        if (sessionLoading) {
+          console.log('[Dashboard] Session still loading, waiting...');
+          return;
+        }
+        navigate("/auth");
+        return;
+      }
+
+      const user = sessionUser || { id: userId, email: null };
       setCurrentUser(user);
 
-      // Load profile - use profiles_public for client dashboard (RLS secured)
-      // Client's own profile data is accessible through profiles_public
-      const { data: profileData, error: profileError } = await supabase
-        .from("profiles_public")
-        .select("*")
-        .eq("id", user.id)
-        .single();
+      // Load profile with timeout
+      try {
+        const profilePromise = supabase
+          .from("profiles_public")
+          .select("*")
+          .eq("id", userId)
+          .single();
 
-      if (profileError) throw profileError;
-      setProfile(profileData);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Profile query timeout')), TIMEOUTS.ROLES_QUERY)
+        );
 
-      // Check user roles
-      const { data: rolesData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
+        const { data, error } = await Promise.race([
+          profilePromise,
+          timeoutPromise
+        ]) as { data: Profile | null; error: Error | null };
 
-      if (rolesData && rolesData.length > 0) {
-        const roles = rolesData.map(r => r.role);
-        
-        // Get section and other params for potential redirect
+        if (!error) setProfile(data);
+      } catch (e) {
+        console.warn("[Dashboard] Profile query timed out");
+      }
+
+      // Check roles with timeout
+      let roles: string[] = cachedRoles || [];
+      try {
+        const rolesPromise = supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", userId);
+
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Roles query timeout')), TIMEOUTS.ROLES_QUERY)
+        );
+
+        const { data: rolesData } = await Promise.race([
+          rolesPromise,
+          timeoutPromise
+        ]) as { data: { role: string }[] | null };
+
+        if (rolesData && rolesData.length > 0) {
+          roles = rolesData.map(r => r.role);
+          setCachedRoles(roles, userId);
+        }
+      } catch (e) {
+        console.warn("[Dashboard] Roles query timed out, using cached roles");
+      }
+
+      // Role-based redirects
+      if (roles.length > 0) {
         const section = searchParams.get("section") || "dashboard";
         const filter = searchParams.get("filter");
         const tab = searchParams.get("tab");
 
-        // Build query string (excluding section)
         const newParams = new URLSearchParams();
         if (filter) newParams.set("filter", filter);
         if (tab) newParams.set("tab", tab);
         const queryString = newParams.toString();
 
-        // STRICT: Redirect admin to admin routes ONLY (no coach access)
         if (roles.includes('admin')) {
           const mappedSection = ADMIN_SECTION_MAP[section] || "dashboard";
-          const url = `/admin/${mappedSection}${queryString ? `?${queryString}` : ''}`;
-          navigate(url, { replace: true });
+          navigate(`/admin/${mappedSection}${queryString ? `?${queryString}` : ''}`, { replace: true });
           return;
         }
-        
-        // STRICT: Redirect coach to coach routes ONLY
+
         if (roles.includes('coach')) {
-          // If trying to access admin-only section, redirect to coach dashboard
           if (ADMIN_ONLY_SECTIONS.includes(section)) {
             navigate("/coach/dashboard", { replace: true });
             return;
           }
-          
           const mappedSection = COACH_SECTION_MAP[section] || "dashboard";
-          const url = `/coach/${mappedSection}${queryString ? `?${queryString}` : ''}`;
-          navigate(url, { replace: true });
+          navigate(`/coach/${mappedSection}${queryString ? `?${queryString}` : ''}`, { replace: true });
           return;
         }
-        
-        // Set role for client
+
         setUserRole(roles[0]);
       }
 
-      // Load subscription for clients
-      const { data: subscriptionData, error: subscriptionError } = await supabase
-        .from("subscriptions")
-        .select(`
-          *,
-          services (
-            name,
-            price_kwd
-          )
-        `)
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+      // Load subscription with timeout
+      try {
+        const subPromise = supabase
+          .from("subscriptions")
+          .select(`*, services (name, price_kwd)`)
+          .eq("user_id", userId)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-      if (subscriptionError) throw subscriptionError;
-      setSubscription(subscriptionData);
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Subscription query timeout')), TIMEOUTS.ROLES_QUERY)
+        );
+
+        const { data, error } = await Promise.race([
+          subPromise,
+          timeoutPromise
+        ]) as { data: Subscription | null; error: Error | null };
+
+        if (!error) setSubscription(data);
+      } catch (e) {
+        console.warn("[Dashboard] Subscription query timed out");
+      }
     } catch (error: any) {
-      toast({
-        title: "Error loading data",
-        description: error.message,
-        variant: "destructive",
-      });
+      console.error("[Dashboard] Error loading data:", error);
+      toast({ title: "Error loading data", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
   };
 
-  // Custom section change handler for client dashboard
   const handleSectionChange = (section: string) => {
     setActiveSection(section);
     if (section === "overview") {
@@ -206,11 +228,10 @@ function DashboardContent() {
     );
   }
 
-  // Render client dashboard (admin/coach are redirected above)
   return (
     <>
       <Navigation user={currentUser} userRole="client" onSectionChange={handleSectionChange} activeSection={activeSection} />
-      <ClientDashboardLayout 
+      <ClientDashboardLayout
         user={currentUser}
         profile={profile}
         subscription={subscription}
