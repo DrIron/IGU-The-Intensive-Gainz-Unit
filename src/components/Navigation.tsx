@@ -14,6 +14,8 @@ import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthNavigation } from "@/hooks/useAuthNavigation";
 import { useAuthCleanup } from "@/hooks/useAuthCleanup";
+import { useAuthSession } from "@/hooks/useAuthSession";
+import { useRoleCache } from "@/hooks/useRoleCache";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +34,6 @@ interface NavigationProps {
 
 export function Navigation({ user: propUser, userRole: propUserRole, onSectionChange, activeSection }: NavigationProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<any>(propUser || null);
   const [detectedRole, setDetectedRole] = useState<string | null>(propUserRole || null);
   const [profile, setProfile] = useState<any>(null);
   const [subscription, setSubscription] = useState<any>(null);
@@ -41,55 +42,40 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const { goToAuthOrDashboard } = useAuthNavigation();
   const { signOutWithCleanup } = useAuthCleanup();
 
-  // Fetch current user if not provided as prop
-  useEffect(() => {
-    const checkUser = async () => {
-      if (propUser) {
-        setCurrentUser(propUser);
-        return;
-      }
+  // Use the same auth hooks as RoleProtectedRoute for consistency
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
+  const { cachedRoles, cachedUserId } = useRoleCache();
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        setCurrentUser(session.user);
-      } else {
-        setCurrentUser(null);
-      }
-    };
+  // User is considered authenticated if we have a session user OR valid cached roles
+  // This ensures Navigation stays in sync with RoleProtectedRoute's cache-first approach
+  const currentUser = propUser || sessionUser || (cachedRoles && cachedRoles.length > 0 && cachedUserId ? { id: cachedUserId } : null);
 
-    checkUser();
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setCurrentUser(session?.user || null);
-    });
-
-    return () => subscription.unsubscribe();
-  }, [propUser]);
+  // Effective user ID for database queries (prefer session user, fall back to cached)
+  const effectiveUserId = sessionUser?.id || cachedUserId;
 
   useEffect(() => {
-    if (currentUser && !propUserRole) {
+    if ((currentUser || cachedRoles) && !propUserRole) {
       loadUserRole();
     } else if (propUserRole) {
       setDetectedRole(propUserRole);
     }
-  }, [currentUser, propUserRole]);
+  }, [currentUser, propUserRole, cachedRoles]);
 
   // Fetch profile and subscription for member status badge
   useEffect(() => {
-    if (currentUser) {
+    if (effectiveUserId) {
       loadMemberStatus();
     }
-  }, [currentUser]);
+  }, [effectiveUserId]);
 
   const loadMemberStatus = async () => {
-    if (!currentUser) return;
+    if (!effectiveUserId) return;
 
     // Fetch profile - use profiles_public for navigation (client's own data, RLS protected)
     const { data: profileData } = await supabase
       .from("profiles_public")
       .select("*")
-      .eq("id", currentUser.id)
+      .eq("id", effectiveUserId)
       .single();
 
     setProfile(profileData);
@@ -105,7 +91,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
           type
         )
       `)
-      .eq("user_id", currentUser.id)
+      .eq("user_id", effectiveUserId)
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -114,12 +100,25 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   };
 
   const loadUserRole = async () => {
-    if (!currentUser) return;
-    
+    // First, check if we have cached roles - use them directly (cache-first approach)
+    if (cachedRoles && cachedRoles.length > 0) {
+      if (cachedRoles.includes('admin')) {
+        setDetectedRole('admin');
+      } else if (cachedRoles.includes('coach')) {
+        setDetectedRole('coach');
+      } else {
+        setDetectedRole('client');
+      }
+      return;
+    }
+
+    // Otherwise, query the database if we have a valid user ID
+    if (!effectiveUserId) return;
+
     const { data: rolesData } = await supabase
       .from("user_roles")
       .select("role")
-      .eq("user_id", currentUser.id);
+      .eq("user_id", effectiveUserId);
 
     if (rolesData && rolesData.length > 0) {
       const roles = rolesData.map(r => r.role);
