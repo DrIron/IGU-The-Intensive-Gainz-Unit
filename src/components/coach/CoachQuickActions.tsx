@@ -1,16 +1,11 @@
-import { Button } from "@/components/ui/button";
-import { UserCheck, Users, ClipboardCheck, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
-import { cn } from "@/lib/utils";
-
-interface QuickAction {
-  label: string;
-  icon: React.ElementType;
-  filter?: string;
-  count?: number;
-  variant?: "default" | "secondary" | "outline";
-  highlight?: boolean;
-}
+import { Card, CardContent } from "@/components/ui/card";
+import {
+  Plus,
+  ClipboardList,
+  Apple,
+  Library,
+} from "lucide-react";
 
 interface CoachQuickActionsProps {
   pendingCount?: number;
@@ -18,77 +13,64 @@ interface CoachQuickActionsProps {
   checkInsCount?: number;
 }
 
-export function CoachQuickActions({ 
-  pendingCount = 0, 
-  activeCount = 0, 
-  checkInsCount = 0 
+export function CoachQuickActions({
+  pendingCount = 0,
+  activeCount = 0,
+  checkInsCount = 0
 }: CoachQuickActionsProps) {
   const navigate = useNavigate();
 
-  const handleNavigate = (filter?: string) => {
-    const params = new URLSearchParams();
-    if (filter) params.set('filter', filter);
-    navigate(`/coach/clients${params.toString() ? `?${params.toString()}` : ''}`);
-  };
-
-  const actions: QuickAction[] = [
+  const actions = [
     {
-      label: "Review Pending",
-      icon: UserCheck,
-      filter: "pending",
-      count: pendingCount,
-      variant: pendingCount > 0 ? "default" : "outline",
-      highlight: pendingCount > 0,
+      icon: Plus,
+      label: "Create Program",
+      description: "Build a new workout program",
+      onClick: () => navigate("/coach/programs?action=new"),
+      color: "text-blue-600 bg-blue-100 dark:bg-blue-900/50",
     },
     {
-      label: "My Active Clients",
-      icon: Users,
-      filter: "active",
-      count: activeCount,
-      variant: "outline",
+      icon: ClipboardList,
+      label: "Assign Program",
+      description: "Assign program to client",
+      onClick: () => navigate("/coach/clients"),
+      color: "text-purple-600 bg-purple-100 dark:bg-purple-900/50",
     },
     {
-      label: "Client Check-ins",
-      icon: ClipboardCheck,
-      filter: "needs_checkin",
-      count: checkInsCount,
-      variant: checkInsCount > 0 ? "secondary" : "outline",
-      highlight: checkInsCount > 0,
+      icon: Apple,
+      label: "Nutrition",
+      description: "Manage client nutrition",
+      onClick: () => navigate("/coach-client-nutrition"),
+      color: "text-green-600 bg-green-100 dark:bg-green-900/50",
+    },
+    {
+      icon: Library,
+      label: "Exercise Library",
+      description: "Browse exercises",
+      onClick: () => navigate("/workout-library"),
+      color: "text-orange-600 bg-orange-100 dark:bg-orange-900/50",
     },
   ];
 
   return (
-    <div className="flex flex-wrap gap-2">
-      {actions.map((action) => {
-        const Icon = action.icon;
-        return (
-          <Button
+    <div className="space-y-3">
+      <h3 className="font-semibold">Quick Actions</h3>
+      <div className="grid grid-cols-2 gap-3">
+        {actions.map((action) => (
+          <Card
             key={action.label}
-            variant={action.variant}
-            size="sm"
-            onClick={() => handleNavigate(action.filter)}
-            className={cn(
-              // Ensure minimum 44px tap target height on mobile
-              "gap-2 h-11 min-h-[44px] px-4",
-              action.highlight && action.variant === "default" && "bg-amber-600 hover:bg-amber-700"
-            )}
+            className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+            onClick={action.onClick}
           >
-            <Icon className="h-4 w-4" />
-            <span>{action.label}</span>
-            {action.count !== undefined && action.count > 0 && (
-              <span className={cn(
-                "ml-1 text-xs font-bold px-1.5 py-0.5 rounded-full",
-                action.variant === "default" 
-                  ? "bg-white/20 text-white" 
-                  : "bg-muted text-muted-foreground"
-              )}>
-                {action.count}
-              </span>
-            )}
-            <ArrowRight className="h-3 w-3 ml-1" />
-          </Button>
-        );
-      })}
+            <CardContent className="p-4">
+              <div className={`inline-flex p-2 rounded-lg ${action.color} mb-2`}>
+                <action.icon className="h-4 w-4" />
+              </div>
+              <p className="font-medium text-sm">{action.label}</p>
+              <p className="text-xs text-muted-foreground">{action.description}</p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
     </div>
   );
 }
