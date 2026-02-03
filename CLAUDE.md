@@ -179,6 +179,9 @@ payments           -- Payment transactions
 programs           -- Workout programs
 workout_sessions   -- Individual sessions
 exercise_logs      -- Exercise tracking
+
+-- Coach Configuration
+specialization_tags -- Admin-managed standardized tags for coach specializations
 ```
 
 ### 6. Row Level Security (RLS)
@@ -311,6 +314,11 @@ When understanding this codebase, read in this order:
 - Phase 6: Observability (Sentry, error logging)
 - Phase 7: CI/CD pipeline (GitHub Actions)
 - Phase 8: Auth session persistence fix (Feb 2, 2026)
+- Phase 9: Dashboard UX redesign — all 3 roles (Feb 3, 2026)
+- Phase 10: Exercise Quick-Add tool (Feb 3, 2026)
+- Phase 11: Auth regression fix after dashboard merge conflicts (Feb 3, 2026)
+- Phase 12: Admin dashboard QA — all 10 pages assessed (Feb 3, 2026)
+- Phase 13: Specialization tags — admin-managed multi-select (Feb 3, 2026)
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -344,10 +352,67 @@ if (cachedRoles && hasRequiredRole(cachedRoles, requiredRole)) {
 }
 ```
 
+**Phase 11 Regression Note**: Dashboard UX merge conflicts removed role caching from Auth.tsx sign-in flow, causing infinite redirect loops. Two-part fix: (1) Auth.tsx: Query and cache roles immediately after signInWithPassword, BEFORE redirect. (2) Dashboard components: Remove independent getSession() calls, trust RoleProtectedRoute cache.
+
+### Dashboard UX Redesign (Phase 9)
+
+Consistent pattern across all 3 role dashboards:
+1. **Attention alerts** at top (flagged items, pending actions)
+2. **Metrics cards** row showing key KPIs
+3. **Two-column layout** for main content (left: primary actions, right: secondary info)
+
+**Key Components**:
+- Admin: `src/components/admin/AdminSidebar.tsx`, `AdminDashboard.tsx`
+- Coach: `src/components/coach/CoachKPIRow.tsx`, `ChartDrillDown.tsx`
+- Client: `src/components/client/` dashboard components
+
+### Specialization Tags (Phase 13)
+
+Converted coach specializations from free-text comma-separated input to standardized admin-managed multi-select tags.
+
+**New Database Table**:
+```sql
+specialization_tags  -- id, name, display_order, is_active, created_at
+```
+
+**New Files**:
+- `src/hooks/useSpecializationTags.ts` - React Query hook with 5min stale time
+- `src/components/ui/SpecializationTagPicker.tsx` - Reusable multi-select pills
+- `src/components/admin/SpecializationTagManager.tsx` - Admin CRUD for tags
+
+**Modified Files**:
+- `src/components/CoachApplicationForm.tsx` - Uses SpecializationTagPicker
+- `src/pages/CoachSignup.tsx` - Uses SpecializationTagPicker
+- `src/components/CoachManagement.tsx` - New "Specializations" tab
+- `src/components/onboarding/CoachPreferenceSection.tsx` - Exact Set-based matching
+- `src/lib/coachMatching.ts` - Exact Set-based matching
+
+### Admin QA Results (Feb 3, 2026)
+
+10 known issues found across admin dashboard pages:
+
+**Critical (2)**:
+1. Testimonials page hangs on load
+2. "Error loading services" spam in console
+
+**Medium (4)**:
+1. Status shows "Unknown" briefly on page load
+2. "One To_one" label instead of "1:1" in service names
+3. Empty state text inconsistencies
+4. Admin user flagged in system health checks
+
+**Low (4)**:
+1. No sidebar tooltips when collapsed
+2. Stale build timestamp display
+3. /dashboard route shows loading state
+4. Sign-out flow doesn't redirect properly
+
 ### Known Limitations
 - No automated tests for components (only smoke tests)
 - No staging environment (production only)
 - Bundle size is large (~2.4MB) - needs code splitting
+- `getSession()` can hang on page refresh — always use cache-first pattern
+- Sign-out flow doesn't properly redirect to login page
 
 ---
 
@@ -396,11 +461,28 @@ When asking for help:
 - **Team:** 2 exercise coaches + 1-2 dieticians
 - **Content:** Exercise library needs population
 
-### Pre-Launch Priorities
-1. Exercise library population from YouTube
-2. Dashboard UX improvements (see docs/Dashboard_UX_Plan.md)
-3. QA testing through all user flows
-4. Mobile responsive verification
+### Pre-Launch Checklist
+
+**Completed**:
+- Auth persistence fix (cache-first pattern)
+- 3 dashboard UX redesigns (admin, coach, client)
+- Exercise Quick-Add tool
+- Admin QA (10 pages assessed)
+- Specialization tags feature
+
+**In Progress**:
+- Coach application & approval flow QA
+- Coach dashboard QA
+- Client onboarding & dashboard QA
+
+**Remaining**:
+- Fix critical issues (testimonials hang, services error spam)
+- Populate exercise library from YouTube
+- Mobile responsive testing
+- End-to-end client journey testing
+- Performance optimization (bundle splitting)
+- Security audit
+- Backup/recovery procedures
 
 ### Documentation
 - `/docs/IGU_Discovery_Report.md` - Platform audit

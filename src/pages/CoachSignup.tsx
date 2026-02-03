@@ -3,9 +3,9 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { SpecializationTagPicker } from "@/components/ui/SpecializationTagPicker";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
@@ -19,10 +19,9 @@ const coachProfileSchema = z.object({
     .min(20, "Please provide detailed qualifications")
     .max(2000, "Qualifications must be less than 2000 characters")
     .trim(),
-  specializations: z.string()
-    .min(10, "Please list your specializations")
-    .max(500, "Specializations must be less than 500 characters")
-    .trim(),
+  specializations: z.array(z.string())
+    .min(1, "Please select at least one specialization")
+    .max(15, "Maximum 15 specializations"),
 });
 
 export default function CoachSignup() {
@@ -35,7 +34,7 @@ export default function CoachSignup() {
   const [formData, setFormData] = useState({
     bio: "",
     qualifications: "",
-    specializations: "",
+    specializations: [] as string[],
   });
 
   const checkCoachAccess = useCallback(async (userId: string) => {
@@ -142,18 +141,9 @@ export default function CoachSignup() {
         .map(q => q.trim())
         .slice(0, 20); // Max 20 qualifications
 
-      const specializations = formData.specializations
-        .split(",")
-        .filter(s => s.trim())
-        .map(s => s.trim())
-        .slice(0, 15); // Max 15 specializations
-
-      // Validate arrays are not empty after processing
+      // Validate qualifications array is not empty after processing
       if (qualifications.length === 0) {
         throw new Error("Please provide at least one qualification");
-      }
-      if (specializations.length === 0) {
-        throw new Error("Please provide at least one specialization");
       }
 
       // SECURITY: Do NOT update status - only admin can activate coaches
@@ -163,7 +153,7 @@ export default function CoachSignup() {
         .update({
           bio: formData.bio.trim(),
           qualifications,
-          specializations,
+          specializations: formData.specializations,
           // status field intentionally excluded - admin-only
         })
         .eq("id", coachId)
@@ -240,18 +230,17 @@ export default function CoachSignup() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="specializations">Specializations</Label>
-              <Input
-                id="specializations"
-                placeholder="Strength Training, Weight Loss, Sports Performance"
-                value={formData.specializations}
-                onChange={(e) => setFormData({ ...formData, specializations: e.target.value })}
-                maxLength={500}
-                required
+              <Label>Specializations</Label>
+              <SpecializationTagPicker
+                selectedTags={formData.specializations}
+                onToggle={(tagName) => {
+                  const updated = formData.specializations.includes(tagName)
+                    ? formData.specializations.filter(t => t !== tagName)
+                    : [...formData.specializations, tagName];
+                  setFormData({ ...formData, specializations: updated });
+                }}
+                maxTags={15}
               />
-              <p className="text-sm text-muted-foreground">
-                {formData.specializations.length}/500 characters - Separate with commas (max 15)
-              </p>
             </div>
 
             <Button type="submit" className="w-full" disabled={loading}>

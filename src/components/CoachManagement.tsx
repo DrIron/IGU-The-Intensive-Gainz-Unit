@@ -11,11 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText, Sliders } from "lucide-react";
+import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText, Sliders, Tag } from "lucide-react";
 import { CoachCapacityManager } from "@/components/admin/CoachCapacityManager";
 import { CoachLoadOverview } from "@/components/admin/CoachLoadOverview";
 import { CoachApplicationsManager } from "@/components/CoachApplicationsManager";
 import { PricingPayoutsCallout } from "@/components/admin/PricingPayoutsCallout";
+import { SpecializationTagManager } from "@/components/admin/SpecializationTagManager";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -586,7 +587,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     <div className="space-y-6">
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="load-capacity" className="gap-2">
             <BarChart3 className="h-4 w-4 hidden sm:block" />
             Load & Capacity
@@ -598,6 +599,10 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
           <TabsTrigger value="applications" className="gap-2">
             <FileText className="h-4 w-4 hidden sm:block" />
             Applications
+          </TabsTrigger>
+          <TabsTrigger value="specializations" className="gap-2">
+            <Tag className="h-4 w-4 hidden sm:block" />
+            Specializations
           </TabsTrigger>
         </TabsList>
 
@@ -762,6 +767,11 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
         {/* Applications Tab */}
         <TabsContent value="applications">
           <CoachApplicationsManager />
+        </TabsContent>
+
+        {/* Specializations Tab */}
+        <TabsContent value="specializations">
+          <SpecializationTagManager />
         </TabsContent>
       </Tabs>
 
