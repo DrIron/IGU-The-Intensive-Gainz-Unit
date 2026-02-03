@@ -9,7 +9,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, X, Youtube, Pencil, Zap, Trash2 } from "lucide-react";
+import { Search, Plus, X, Youtube, Pencil, Zap, Trash2, List } from "lucide-react";
+import { ExerciseQuickAdd } from "@/components/admin/ExerciseQuickAdd";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
@@ -339,20 +340,32 @@ export default function WorkoutLibraryManager() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex gap-4 items-center">
-        <div className="relative flex-1 max-w-md">
-          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
-          <Input
-            type="text"
-            placeholder="Search exercises, muscle groups, or subdivisions..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        
-        <Dialog open={isDialogOpen} onOpenChange={(open) => {
+    <Tabs defaultValue="library" className="space-y-6">
+      <TabsList>
+        <TabsTrigger value="library" className="flex items-center gap-2">
+          <List className="h-4 w-4" />
+          Exercise Library
+        </TabsTrigger>
+        <TabsTrigger value="quick-add" className="flex items-center gap-2">
+          <Zap className="h-4 w-4" />
+          Quick Add
+        </TabsTrigger>
+      </TabsList>
+
+      <TabsContent value="library" className="space-y-6">
+        <div className="flex gap-4 items-center">
+          <div className="relative flex-1 max-w-md">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+            <Input
+              type="text"
+              placeholder="Search exercises, muscle groups, or subdivisions..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+
+          <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
           if (!open) {
             resetForm();
@@ -947,15 +960,20 @@ export default function WorkoutLibraryManager() {
             </CardContent>
           </Card>
         ))}
-      </div>
-
-      {filteredExercises.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground text-lg">
-            No exercises found matching "{searchTerm}"
-          </p>
         </div>
-      )}
-    </div>
+
+        {filteredExercises.length === 0 && (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground text-lg">
+              No exercises found matching "{searchTerm}"
+            </p>
+          </div>
+        )}
+      </TabsContent>
+
+      <TabsContent value="quick-add">
+        <ExerciseQuickAdd />
+      </TabsContent>
+    </Tabs>
   );
 }
