@@ -1,11 +1,9 @@
-import { useState, useEffect } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "./AdminSidebar";
 import CoachManagement from "@/components/CoachManagement";
 import { AdminClientDirectory } from "@/components/admin/AdminClientDirectory";
-import CoachChangeRequests from "@/components/CoachChangeRequests";
 import { ServiceConfiguration } from "@/components/ServiceConfiguration";
 import { LegalDocumentsManager } from "@/components/LegalDocumentsManager";
 import { TeamPlanSettings } from "@/components/TeamPlanSettings";
@@ -19,11 +17,13 @@ import { PHIAccessAuditLog } from "@/components/admin/PHIAccessAuditLog";
 import { PricingPayoutsPage } from "@/components/admin/PricingPayoutsPage";
 import { AdminBillingManager } from "@/components/admin/AdminBillingManager";
 import LaunchTestChecklist from "@/pages/admin/LaunchTestChecklist";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Users, UserCog, TrendingUp, AlertCircle, DollarSign, Activity, UserPen, MessageSquare, Settings, Library } from "lucide-react";
 import { AdminErrorBoundary } from "@/components/admin/AdminErrorBoundary";
+import { AdminMetricsCards } from "@/components/admin/AdminMetricsCards";
+import { AdminRequiresAttention } from "@/components/admin/AdminRequiresAttention";
+import { SubscriptionBreakdown } from "@/components/admin/SubscriptionBreakdown";
+import { CoachWorkloadPanel } from "@/components/admin/CoachWorkloadPanel";
+import { AdminQuickActions } from "@/components/admin/AdminQuickActions";
 
 const ADMIN_BUILD_VERSION = "Admin build 2025-12-13T10:30";
 
@@ -219,312 +219,23 @@ const titles: Record<string, string> = {
 }
 
 function OverviewSection({ onNavigate }: { onNavigate: (section: string) => void }) {
-  const navigate = useNavigate();
-  const [analytics, setAnalytics] = useState({
-    newSignupsThisMonth: 0,
-    activeSubscriptions: 0,
-    totalMonthlyRevenue: 0,
-    pendingCoachApprovals: 0,
-    coachChangeRequests: 0,
-    newTestimonials: 0,
-  });
-  const [monthlySignups, setMonthlySignups] = useState<{ month: string; count: number }[]>([]);
-
-  useEffect(() => {
-    fetchAnalytics();
-    fetchMonthlySignups();
-  }, []);
-
-  const fetchAnalytics = async () => {
-    try {
-      // Get current month signups (excluding payment_exempt users)
-      const startOfMonth = new Date();
-      startOfMonth.setDate(1);
-      startOfMonth.setHours(0, 0, 0, 0);
-
-      // Admin uses profiles_public for counts (RLS protected, admin has access)
-      const { data: profiles, error: profilesError } = await supabase
-        .from("profiles_public")
-        .select("id")
-        .gte("created_at", startOfMonth.toISOString())
-        .eq("payment_exempt", false);
-
-      if (profilesError) throw profilesError;
-
-      // Get active subscriptions (active paying clients only, excluding payment_exempt)
-      const { data: subscriptions, error: subsError } = await supabase
-        .from("subscriptions")
-        .select(`
-          id,
-          user_id,
-          services (
-            price_kwd
-          )
-        `)
-        .eq("status", "active");
-
-      // Filter out payment_exempt users using profiles_public
-      const payingSubscriptions = subscriptions?.filter(async (sub: any) => {
-        const { data: profile } = await supabase
-          .from("profiles_public")
-          .select("payment_exempt")
-          .eq("id", sub.user_id)
-          .single();
-        return !profile?.payment_exempt;
-      }) || [];
-
-      // Wait for all profile checks to complete - use profiles_public
-      const filteredSubs = await Promise.all(
-        subscriptions?.map(async (sub: any) => {
-          const { data: profile } = await supabase
-            .from("profiles_public")
-            .select("payment_exempt")
-            .eq("id", sub.user_id)
-            .single();
-          return !profile?.payment_exempt ? sub : null;
-        }) || []
-      ).then(results => results.filter(Boolean));
-
-      if (subsError) throw subsError;
-
-      // Calculate monthly revenue from active paying subscriptions
-      const revenue = filteredSubs.reduce((sum, sub: any) => 
-        sum + (sub.services?.price_kwd || 0), 0
-      );
-
-      // Get pending coach approvals
-      const { data: pendingCoaches, error: coachError } = await supabase
-        .from("coaches")
-        .select("id")
-        .eq("status", "pending");
-
-      if (coachError) throw coachError;
-
-      // Get coach change requests
-      const { data: changeRequests, error: requestsError } = await supabase
-        .from("coach_change_requests")
-        .select("id")
-        .eq("status", "pending");
-
-      if (requestsError) throw requestsError;
-
-      // Get new testimonials
-      const { data: testimonials, error: testimonialsError } = await supabase
-        .from("testimonials")
-        .select("id")
-        .eq("is_approved", false)
-        .eq("is_archived", false);
-
-      if (testimonialsError) throw testimonialsError;
-
-      setAnalytics({
-        newSignupsThisMonth: profiles?.length || 0,
-        activeSubscriptions: filteredSubs.length,
-        totalMonthlyRevenue: revenue,
-        pendingCoachApprovals: pendingCoaches?.length || 0,
-        coachChangeRequests: changeRequests?.length || 0,
-        newTestimonials: testimonials?.length || 0,
-      });
-    } catch (error) {
-      console.error("Error fetching analytics:", error);
-    }
-  };
-
-  const fetchMonthlySignups = async () => {
-    try {
-      // Admin uses profiles_public for signup counts
-      const { data, error } = await supabase
-        .from("profiles_public")
-        .select("created_at")
-        .eq("payment_exempt", false)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      // Group by month
-      const monthCounts: { [key: string]: number } = {};
-      data?.forEach((profile) => {
-        const date = new Date(profile.created_at);
-        const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        monthCounts[monthKey] = (monthCounts[monthKey] || 0) + 1;
-      });
-
-      // Convert to array and get last 6 months
-      const monthsArray = Object.entries(monthCounts)
-        .map(([month, count]) => ({ month, count }))
-        .slice(0, 6);
-
-      setMonthlySignups(monthsArray);
-    } catch (error) {
-      console.error("Error fetching monthly signups:", error);
-    }
-  };
-
   return (
     <div className="space-y-6">
-      {/* Analytics Cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">New Signups This Month</CardTitle>
-            <Users className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.newSignupsThisMonth}</div>
-            <p className="text-xs text-muted-foreground mt-2">
-              {new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
-            </p>
-          </CardContent>
-        </Card>
+      {/* Requires Attention - Top Priority */}
+      <AdminRequiresAttention />
 
-        <Card className="border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Active Subscriptions</CardTitle>
-            <Activity className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.activeSubscriptions}</div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Paying clients
-            </p>
-          </CardContent>
-        </Card>
+      {/* Key Metrics */}
+      <AdminMetricsCards />
 
-        <Card className="border-border/50">
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Monthly Revenue</CardTitle>
-            <DollarSign className="h-4 w-4 text-green-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.totalMonthlyRevenue} KWD</div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Recurring income
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="border-border/50 hover:shadow-lg transition-shadow cursor-pointer" 
-          onClick={() => onNavigate("coaches-tab:applications")}
-        >
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Pending Coach Approvals</CardTitle>
-            <UserCog className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.pendingCoachApprovals}</div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Click to review
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="border-border/50 hover:shadow-lg transition-shadow cursor-pointer" 
-          onClick={() => onNavigate("coaches")}
-        >
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Coach Change Requests</CardTitle>
-            <AlertCircle className="h-4 w-4 text-orange-500" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{analytics.coachChangeRequests}</div>
-            <p className="text-xs text-muted-foreground mt-2">
-              Click to review
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Monthly Signups */}
-      <Card className="border-border/50">
-        <CardHeader>
-          <CardTitle className="text-lg">Monthly Signups</CardTitle>
-          <CardDescription>New user registrations by month (excluding payment exempt)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-            {monthlySignups.map((item) => (
-              <div key={item.month} className="flex flex-col items-center justify-center p-4 border rounded-lg">
-                <span className="text-sm font-medium text-muted-foreground">{item.month}</span>
-                <span className="text-2xl font-bold mt-2">{item.count}</span>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Quick Actions */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-        <Card className="border-border/50 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate("clients")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">All Clients</CardTitle>
-            <Users className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">View and manage all client accounts</p>
-          </CardContent>
-        </Card>
-
-        <Card className="border-border/50 hover:shadow-lg transition-shadow cursor-pointer" onClick={() => onNavigate("coaches")}>
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Manage Coaches</CardTitle>
-            <UserPen className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">Manage coaching staff and applications</p>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="border-border/50 hover:shadow-lg transition-shadow cursor-pointer" 
-          onClick={() => onNavigate("testimonials")}
-        >
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">New Testimonials</CardTitle>
-            <MessageSquare className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center justify-between">
-              <p className="text-xs text-muted-foreground">Review client testimonials</p>
-              {analytics.newTestimonials > 0 && (
-                <Badge variant="destructive">{analytics.newTestimonials}</Badge>
-              )}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="border-border/50 hover:shadow-lg transition-shadow cursor-pointer" 
-          onClick={() => {
-            onNavigate("discord-legal");
-            // Scroll to team plan section after navigation
-            setTimeout(() => {
-              document.getElementById('team-plan-registration')?.scrollIntoView({ behavior: 'smooth' });
-            }, 100);
-          }}
-        >
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Team Plan Settings</CardTitle>
-            <Settings className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">Configure team program settings</p>
-          </CardContent>
-        </Card>
-
-        <Card 
-          className="border-border/50 hover:shadow-lg transition-shadow cursor-pointer" 
-          onClick={() => onNavigate("exercises")}
-        >
-          <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium">Exercise Library</CardTitle>
-            <Library className="h-5 w-5 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <p className="text-xs text-muted-foreground">Manage workout exercises</p>
-          </CardContent>
-        </Card>
+      {/* Two Column Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="space-y-6">
+          <SubscriptionBreakdown />
+          <AdminQuickActions />
+        </div>
+        <div className="space-y-6">
+          <CoachWorkloadPanel />
+        </div>
       </div>
     </div>
   );
