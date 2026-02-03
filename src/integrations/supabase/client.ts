@@ -39,30 +39,34 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
-// FIX: Manually restore session from localStorage on module init
-// This fixes the issue where getSession() hangs on page refresh but token exists
-(async () => {
+/**
+ * Get stored access token directly from localStorage
+ * This bypasses getSession() which can hang on page refresh
+ */
+export function getStoredAccessToken(): string | null {
   try {
     const storedSession = window.localStorage.getItem(STORAGE_KEY);
-
     if (storedSession) {
       const parsed = JSON.parse(storedSession);
-      if (parsed.access_token && parsed.refresh_token) {
-        console.log('[Supabase Client] Manually restoring session from localStorage');
+      return parsed.access_token || null;
+    }
+  } catch (error) {
+    console.error('[Supabase Client] Error reading stored token:', error);
+  }
+  return null;
+}
 
-        const { error } = await supabase.auth.setSession({
-          access_token: parsed.access_token,
-          refresh_token: parsed.refresh_token,
-        });
-
-        if (error) {
-          console.error('[Supabase Client] Failed to restore session:', error);
-        } else {
-          console.log('[Supabase Client] Session restored successfully');
-        }
+// Log stored session on module init (but do NOT call setSession - it blocks queries)
+(() => {
+  try {
+    const storedSession = window.localStorage.getItem(STORAGE_KEY);
+    if (storedSession) {
+      const parsed = JSON.parse(storedSession);
+      if (parsed.access_token) {
+        console.log('[Supabase Client] Found stored session in localStorage, letting Supabase handle it naturally');
       }
     }
   } catch (error) {
-    console.error('[Supabase Client] Error restoring session:', error);
+    console.error('[Supabase Client] Error checking stored session:', error);
   }
 })();

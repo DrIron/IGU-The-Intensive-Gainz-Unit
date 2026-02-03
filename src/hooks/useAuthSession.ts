@@ -2,16 +2,16 @@
  * useAuthSession - Session management hook with timeout protection
  *
  * Key behaviors:
- * 1. Timeout protection for getSession() - returns null if it hangs
- * 2. onAuthStateChange listener for reliable session updates
- * 3. If session unavailable, relies on cache-first approach in RoleProtectedRoute
+ * 1. Cache-first: check localStorage token immediately, don't wait for getSession()
+ * 2. Set up onAuthStateChange FIRST, then race getSession() against timeout
+ * 3. If getSession times out but we have a stored token, add grace period then set isLoading=false
  *
  * IMPORTANT: Does NOT call setSession() - that causes infinite loops via onAuthStateChange
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, getStoredAccessToken } from '@/integrations/supabase/client';
 import { TIMEOUTS } from '@/lib/constants';
 
 interface UseAuthSessionReturn {
@@ -24,6 +24,9 @@ interface UseAuthSessionReturn {
   /** Get access token (from session or localStorage fallback) */
   getAccessToken: () => string | null;
 }
+
+// Grace period after timeout if we have a stored token
+const TOKEN_GRACE_PERIOD_MS = 500;
 
 /**
  * Get session with timeout protection
@@ -66,45 +69,14 @@ export function useAuthSession(): UseAuthSessionReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
   const initAttempted = useRef(false);
+  const authStateReceived = useRef(false);
 
   /**
-   * Initialize session
+   * Get access token from current session or localStorage fallback
    */
-  const initSession = useCallback(async () => {
-    if (initAttempted.current) return;
-    initAttempted.current = true;
-
-    console.log('[AuthSession] Initializing session...');
-    setIsLoading(true);
-    setError(null);
-
-    try {
-      // Try normal getSession with timeout
-      // If it fails/times out, we return null and let the cache-first approach handle it
-      // DO NOT call setSession() here - it causes infinite loops via onAuthStateChange
-      const currentSession = await getSessionWithTimeout(TIMEOUTS.GET_SESSION);
-
-      if (currentSession) {
-        console.log('[AuthSession] Session initialized:', {
-          userId: currentSession.user?.id,
-          email: currentSession.user?.email,
-        });
-        setSession(currentSession);
-        setUser(currentSession.user);
-      } else {
-        console.log('[AuthSession] No session from getSession - relying on cache-first approach');
-        setSession(null);
-        setUser(null);
-      }
-    } catch (err) {
-      console.error('[AuthSession] Initialization error:', err);
-      setError(err instanceof Error ? err : new Error('Session initialization failed'));
-      setSession(null);
-      setUser(null);
-    } finally {
-      setIsLoading(false);
-    }
-  }, []);
+  const getAccessToken = useCallback((): string | null => {
+    return session?.access_token ?? getStoredAccessToken();
+  }, [session]);
 
   /**
    * Refresh session manually
@@ -112,25 +84,29 @@ export function useAuthSession(): UseAuthSessionReturn {
   const refreshSession = useCallback(async () => {
     console.log('[AuthSession] Manual session refresh requested');
     initAttempted.current = false;
-    await initSession();
-  }, [initSession]);
+    authStateReceived.current = false;
 
-  /**
-   * Get access token from current session
-   */
-  const getAccessToken = useCallback((): string | null => {
-    return session?.access_token ?? null;
-  }, [session]);
+    setIsLoading(true);
+    setError(null);
 
-  // Initialize on mount - CRITICAL: empty deps to run exactly once
-  // The initAttempted guard inside initSession handles the duplicate prevention
-  // Empty deps ensures React doesn't re-run this effect even if dependencies would change
-  useEffect(() => {
-    initSession();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Empty deps - run once only per mount
+    try {
+      const currentSession = await getSessionWithTimeout(TIMEOUTS.GET_SESSION);
+      if (currentSession) {
+        setSession(currentSession);
+        setUser(currentSession.user);
+      } else {
+        setSession(null);
+        setUser(null);
+      }
+    } catch (err) {
+      console.error('[AuthSession] Refresh error:', err);
+      setError(err instanceof Error ? err : new Error('Session refresh failed'));
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
 
-  // Listen for auth state changes
+  // Set up auth state change listener FIRST (before getSession)
   useEffect(() => {
     console.log('[AuthSession] Setting up onAuthStateChange listener');
 
@@ -141,10 +117,11 @@ export function useAuthSession(): UseAuthSessionReturn {
           userId: newSession?.user?.id,
         });
 
+        authStateReceived.current = true;
+
         switch (event) {
           case 'SIGNED_IN':
           case 'TOKEN_REFRESHED':
-            // Only update if session actually changed (prevent unnecessary re-renders)
             setSession(prev => {
               if (prev?.user?.id === newSession?.user?.id) {
                 console.log('[AuthSession] Session unchanged, skipping update');
@@ -163,9 +140,7 @@ export function useAuthSession(): UseAuthSessionReturn {
             break;
 
           case 'INITIAL_SESSION':
-            // This fires on page load - but might be unreliable
-            // We handle this in initSession instead
-            // Only set if we don't already have a session
+            // This fires on page load
             setSession(prev => {
               if (prev) {
                 console.log('[AuthSession] Already have session, skipping INITIAL_SESSION');
@@ -186,7 +161,67 @@ export function useAuthSession(): UseAuthSessionReturn {
       console.log('[AuthSession] Cleaning up onAuthStateChange listener');
       subscription.unsubscribe();
     };
-  }, []); // Empty deps - only subscribe once
+  }, []);
+
+  // Initialize session after auth listener is set up
+  useEffect(() => {
+    if (initAttempted.current) return;
+    initAttempted.current = true;
+
+    const initSession = async () => {
+      console.log('[AuthSession] Initializing session...');
+
+      // Cache-first: check if we have a stored token immediately
+      const storedToken = getStoredAccessToken();
+      const hasStoredToken = !!storedToken;
+
+      if (hasStoredToken) {
+        console.log('[AuthSession] Found stored token, proceeding with cache-first approach');
+      }
+
+      setError(null);
+
+      try {
+        // Race getSession against timeout
+        const currentSession = await getSessionWithTimeout(TIMEOUTS.GET_SESSION);
+
+        if (currentSession) {
+          console.log('[AuthSession] Session initialized:', {
+            userId: currentSession.user?.id,
+            email: currentSession.user?.email,
+          });
+          setSession(currentSession);
+          setUser(currentSession.user);
+          setIsLoading(false);
+        } else if (hasStoredToken) {
+          // getSession timed out but we have a stored token
+          // Add grace period to let onAuthStateChange potentially fire
+          console.log('[AuthSession] getSession timed out but have stored token, waiting grace period...');
+
+          await new Promise(resolve => setTimeout(resolve, TOKEN_GRACE_PERIOD_MS));
+
+          // Check if auth state change already handled it
+          if (!authStateReceived.current) {
+            console.log('[AuthSession] Grace period ended, no auth state received - relying on cache-first approach');
+          }
+          setIsLoading(false);
+        } else {
+          console.log('[AuthSession] No session and no stored token');
+          setSession(null);
+          setUser(null);
+          setIsLoading(false);
+        }
+      } catch (err) {
+        console.error('[AuthSession] Initialization error:', err);
+        setError(err instanceof Error ? err : new Error('Session initialization failed'));
+        setSession(null);
+        setUser(null);
+        setIsLoading(false);
+      }
+    };
+
+    initSession();
+  }, []);
 
   return {
     session,
