@@ -39,6 +39,35 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
   }
 });
 
+// Immediately set auth header from stored token to prevent 401s on page refresh
+// The Supabase client's internal getSession() hangs, so queries go out without auth
+const storedToken = window.localStorage.getItem(`sb-${PROJECT_REF}-auth-token`);
+if (storedToken) {
+  try {
+    const parsed = JSON.parse(storedToken);
+    if (parsed?.access_token) {
+      supabase.auth.getSession = async () => {
+        return {
+          data: {
+            session: {
+              access_token: parsed.access_token,
+              refresh_token: parsed.refresh_token,
+              token_type: 'bearer',
+              expires_in: parsed.expires_in || 3600,
+              expires_at: parsed.expires_at,
+              user: parsed.user,
+            }
+          },
+          error: null,
+        };
+      };
+      console.log('[Supabase Client] Patched getSession to return stored token immediately');
+    }
+  } catch (e) {
+    console.error('[Supabase Client] Failed to patch getSession:', e);
+  }
+}
+
 /**
  * Get stored access token directly from localStorage
  * This bypasses getSession() which can hang on page refresh
