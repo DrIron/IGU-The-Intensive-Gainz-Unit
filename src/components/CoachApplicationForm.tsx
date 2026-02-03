@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SpecializationTagPicker } from "@/components/ui/SpecializationTagPicker";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -23,10 +24,9 @@ const coachApplicationSchema = z.object({
     .max(2000, "Certifications must be less than 2000 characters")
     .trim(),
   yearsOfExperience: z.coerce.number().min(0, "Years of experience must be 0 or greater").max(50, "Years of experience seems unrealistic"),
-  specializations: z.string()
-    .min(20, "Please provide detailed specializations (at least 20 characters)")
-    .max(500, "Specializations must be less than 500 characters")
-    .trim(),
+  specializations: z.array(z.string())
+    .min(1, "Please select at least one specialization")
+    .max(15, "Maximum 15 specializations"),
   motivation: z.string()
     .min(100, "Please provide at least 100 characters explaining your motivation")
     .max(2000, "Motivation must be less than 2000 characters")
@@ -54,7 +54,7 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
       phoneNumber: "",
       certifications: "",
       yearsOfExperience: 0,
-      specializations: "",
+      specializations: [],
       motivation: "",
     },
   });
@@ -62,24 +62,15 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
   const onSubmit = async (values: CoachApplicationFormValues) => {
     setIsSubmitting(true);
     try {
-      // Process and validate arrays
+      // Process certifications array
       const certifications = values.certifications
         .split(",")
         .map(c => c.trim())
         .filter(c => c.length > 0)
         .slice(0, 20); // Max 20 certifications
 
-      const specializations = values.specializations
-        .split(",")
-        .map(s => s.trim())
-        .filter(s => s.length > 0)
-        .slice(0, 15); // Max 15 specializations
-
       if (certifications.length === 0) {
         throw new Error("Please provide at least one certification");
-      }
-      if (specializations.length === 0) {
-        throw new Error("Please provide at least one specialization");
       }
 
       const { error } = await supabase.from("coach_applications").insert({
@@ -91,7 +82,7 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
         phone_number: values.phoneNumber?.trim() || null,
         certifications,
         years_of_experience: values.yearsOfExperience,
-        specializations,
+        specializations: values.specializations,
         motivation: values.motivation.trim(),
       });
 
@@ -264,20 +255,22 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
               <FormField
                 control={form.control}
                 name="specializations"
-                render={({ field }) => (
+                render={() => (
                   <FormItem>
-                    <FormLabel>Areas of Specialization (comma-separated)</FormLabel>
+                    <FormLabel>Areas of Specialization</FormLabel>
                     <FormControl>
-                      <Textarea 
-                        placeholder="Strength Training, Nutrition Coaching, Body Recomposition"
-                        className="resize-none"
-                        maxLength={500}
-                        {...field}
+                      <SpecializationTagPicker
+                        selectedTags={form.getValues("specializations")}
+                        onToggle={(tagName) => {
+                          const current = form.getValues("specializations");
+                          const updated = current.includes(tagName)
+                            ? current.filter((t: string) => t !== tagName)
+                            : [...current, tagName];
+                          form.setValue("specializations", updated, { shouldValidate: true, shouldDirty: true });
+                        }}
+                        maxTags={15}
                       />
                     </FormControl>
-                    <p className="text-sm text-muted-foreground">
-                      {field.value.length}/500 characters (max 15 specializations)
-                    </p>
                     <FormMessage />
                   </FormItem>
                 )}

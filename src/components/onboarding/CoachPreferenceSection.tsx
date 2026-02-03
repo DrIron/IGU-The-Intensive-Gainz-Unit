@@ -194,13 +194,8 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
 
   const calculateMatchScore = (specializations: string[] | null, clientFocusAreas: string[]): number => {
     if (!specializations || !clientFocusAreas.length) return 0;
-    
-    const normalizedSpecs = specializations.map(s => s.toLowerCase());
-    const normalizedFocus = clientFocusAreas.map(f => f.toLowerCase());
-    
-    return normalizedFocus.filter(f => 
-      normalizedSpecs.some(s => s.includes(f) || f.includes(s))
-    ).length;
+    const normalizedSpecs = new Set(specializations.map(s => s.toLowerCase().trim()));
+    return clientFocusAreas.filter(f => normalizedSpecs.has(f.toLowerCase().trim())).length;
   };
 
   const handlePreferenceChange = (value: 'auto' | 'specific') => {

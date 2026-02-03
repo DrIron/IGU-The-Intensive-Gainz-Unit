@@ -40,7 +40,8 @@ const PLAN_TYPE_TO_SERVICE_NAME: Record<string, string> = {
 
 /**
  * Calculates a match score between coach specializations and client goals
- * Higher scores indicate better matches
+ * Higher scores indicate better matches.
+ * Uses exact Set-based matching for standardized tags.
  */
 export function calculateSpecializationMatchScore(
   coachSpecializations: string[] | null,
@@ -50,24 +51,8 @@ export function calculateSpecializationMatchScore(
     return 0;
   }
 
-  // Normalize both arrays for case-insensitive comparison
-  const normalizedSpecs = coachSpecializations.map(s => s.toLowerCase().trim());
-  const normalizedGoals = clientGoals.map(g => g.toLowerCase().trim());
-
-  let matches = 0;
-  
-  // Check for direct matches or partial matches
-  for (const goal of normalizedGoals) {
-    for (const spec of normalizedSpecs) {
-      // Direct match or one contains the other
-      if (spec === goal || spec.includes(goal) || goal.includes(spec)) {
-        matches++;
-        break; // Only count each goal once
-      }
-    }
-  }
-
-  return matches;
+  const normalizedSpecs = new Set(coachSpecializations.map(s => s.toLowerCase().trim()));
+  return clientGoals.filter(g => normalizedSpecs.has(g.toLowerCase().trim())).length;
 }
 
 /**
