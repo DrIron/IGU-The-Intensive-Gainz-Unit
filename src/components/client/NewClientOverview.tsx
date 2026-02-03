@@ -9,6 +9,8 @@ import { AlertsCard } from "./AlertsCard";
 import { MyCareTeamCard } from "./MyCareTeamCard";
 import { TodaysWorkoutHero } from "./TodaysWorkoutHero";
 import { AdherenceSummaryCard } from "./AdherenceSummaryCard";
+import { WeeklyProgressCard } from "./WeeklyProgressCard";
+import { NutritionTargetsCard } from "./NutritionTargetsCard";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -153,54 +155,60 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         weeklyLogsCount={weeklyLogsCount}
       />
 
-      {/* Today's Workout Hero */}
+      {/* Hero: Today's Workout */}
       <TodaysWorkoutHero userId={user?.id} />
 
-      {/* Quick Actions */}
-      <div>
-        <h2 className="text-lg font-semibold mb-4">Quick Actions</h2>
-        <QuickActionsGrid
-          profile={profile}
-          subscription={subscription}
-        />
-      </div>
-
-      {/* Adherence Summary */}
-      <AdherenceSummaryCard userId={user?.id} />
-
-      {/* Main Content Grid */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      {/* Two Column Layout for Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Left Column */}
         <div className="space-y-6">
-          {/* Payment Due Card - shows next payment info for active subscriptions */}
-          <PaymentDueCard subscription={subscription} />
-          
-          <PlanBillingCard
-            subscription={subscription}
-            onManageBilling={() => {
-              window.location.href = "/billing/pay";
-            }}
-          />
-          
-          {/* My Care Team Card - shows primary coach + specialists with end dates */}
-          <MyCareTeamCard
-            subscriptionId={subscription?.id}
-            primaryCoach={primaryCoach}
-            nextBillingDate={subscription?.next_billing_date}
-          />
-        </div>
-
-        {/* Right Column */}
-        <div className="space-y-6">
-          <ProgressSummaryCard phase={activePhase} />
-          
-          {/* Legacy CoachCard for WhatsApp contact - only if coach exists */}
+          <NutritionTargetsCard userId={user?.id} />
           {coach && (
             <CoachCard
               coach={{ ...coach, id: coach.user_id }}
               clientFirstName={profile?.first_name}
             />
           )}
+        </div>
+
+        {/* Right Column */}
+        <div className="space-y-6">
+          <WeeklyProgressCard userId={user?.id} />
+          <QuickActionsGrid
+            profile={profile}
+            subscription={subscription}
+          />
+        </div>
+      </div>
+
+      {/* Adherence Summary */}
+      <AdherenceSummaryCard userId={user?.id} />
+
+      {/* Billing & Account Section */}
+      <div className="grid gap-6 lg:grid-cols-2">
+        {/* Left Column */}
+        <div className="space-y-6">
+          {/* Payment Due Card - shows next payment info for active subscriptions */}
+          <PaymentDueCard subscription={subscription} />
+
+          <PlanBillingCard
+            subscription={subscription}
+            onManageBilling={() => {
+              window.location.href = "/billing/pay";
+            }}
+          />
+        </div>
+
+        {/* Right Column */}
+        <div className="space-y-6">
+          {/* My Care Team Card - shows primary coach + specialists with end dates */}
+          <MyCareTeamCard
+            subscriptionId={subscription?.id}
+            primaryCoach={primaryCoach}
+            nextBillingDate={subscription?.next_billing_date}
+          />
+
+          <ProgressSummaryCard phase={activePhase} />
         </div>
       </div>
     </div>
