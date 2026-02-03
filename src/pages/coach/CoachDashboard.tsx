@@ -48,16 +48,26 @@ export default function CoachDashboard() {
 
   const loadUserData = useCallback(async () => {
     try {
-      const userId = sessionUser?.id || cachedUserId;
+      // FIX: CACHE-FIRST - Use cached user ID if session isn't ready
+      // CRITICAL: If we have cachedUserId, use it IMMEDIATELY without waiting for session
+      // This prevents blocking when getSession() hangs
+      const userId = cachedUserId || sessionUser?.id;
 
       if (!userId) {
-        if (sessionLoading) {
-          console.log('[CoachDashboard] Session still loading, waiting...');
-          return;
+        // Only redirect to auth if:
+        // 1. No cached user ID AND
+        // 2. Session loading is complete AND
+        // 3. No session user
+        if (!sessionLoading && !sessionUser) {
+          console.log('[CoachDashboard] No user found (cache empty, session empty), redirecting to auth');
+          navigate("/auth");
+        } else if (sessionLoading) {
+          console.log('[CoachDashboard] No cache, waiting for session...');
         }
-        navigate("/auth");
         return;
       }
+
+      console.log('[CoachDashboard] Using userId:', userId, '(from cache:', !!cachedUserId, ')');
 
       const user = sessionUser || { id: userId, email: null };
       setCurrentUser(user);

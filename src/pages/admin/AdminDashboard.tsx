@@ -62,17 +62,25 @@ export default function AdminDashboard() {
   const loadUserData = useCallback(async () => {
     try {
       // FIX: CACHE-FIRST - Use cached user ID if session isn't ready
-      const userId = sessionUser?.id || cachedUserId;
+      // CRITICAL: If we have cachedUserId, use it IMMEDIATELY without waiting for session
+      // This prevents blocking when getSession() hangs
+      const userId = cachedUserId || sessionUser?.id;
 
       if (!userId) {
-        if (sessionLoading) {
-          console.log('[AdminDashboard] Session still loading, waiting...');
-          return;
+        // Only redirect to auth if:
+        // 1. No cached user ID AND
+        // 2. Session loading is complete AND
+        // 3. No session user
+        if (!sessionLoading && !sessionUser) {
+          console.log('[AdminDashboard] No user found (cache empty, session empty), redirecting to auth');
+          navigate("/auth");
+        } else if (sessionLoading) {
+          console.log('[AdminDashboard] No cache, waiting for session...');
         }
-        console.log('[AdminDashboard] No user found, redirecting to auth');
-        navigate("/auth");
         return;
       }
+
+      console.log('[AdminDashboard] Using userId:', userId, '(from cache:', !!cachedUserId, ')');
 
       const user = sessionUser || { id: userId, email: null };
       setCurrentUser(user);
