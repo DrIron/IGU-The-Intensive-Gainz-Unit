@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -51,52 +51,17 @@ export default function SystemHealth() {
   const [recentErrors, setRecentErrors] = useState<ReturnType<typeof getRecentErrors>>([]);
   const [lastWebhook, setLastWebhook] = useState<{ time: string; status: string; chargeId?: string } | null>(null);
 
-  useEffect(() => {
-    checkAllServices();
-    loadRecentErrors();
-  }, []);
-
   const loadRecentErrors = () => {
     setRecentErrors(getRecentErrors());
   };
 
-  const checkAllServices = async () => {
-    setLoading(true);
-    
-    const results: ServiceHealth[] = [];
-    
-    // Check Supabase connectivity
-    results.push(await checkSupabase());
-    
-    // Check last webhook
-    const webhookResult = await checkLastWebhook();
-    results.push(webhookResult.health);
-    setLastWebhook(webhookResult.lastWebhook);
-    
-    // Check email provider
-    results.push(await checkEmailProvider());
-    
-    // Check auth service
-    results.push(await checkAuthService());
-    
-    setServices(results);
-    setLoading(false);
-  };
-
-  const refresh = async () => {
-    setRefreshing(true);
-    await checkAllServices();
-    loadRecentErrors();
-    setRefreshing(false);
-  };
-
   // Supabase connectivity check
-  const checkSupabase = async (): Promise<ServiceHealth> => {
+  const checkSupabase = useCallback(async (): Promise<ServiceHealth> => {
     const startTime = Date.now();
     try {
       const { error } = await supabase.from("profiles_public").select("id").limit(1);
       const latency = Date.now() - startTime;
-      
+
       if (error) {
         return {
           name: "Supabase Database",
@@ -105,7 +70,7 @@ export default function SystemHealth() {
           message: error.message,
         };
       }
-      
+
       return {
         name: "Supabase Database",
         status: latency < 500 ? "healthy" : "degraded",
@@ -121,10 +86,10 @@ export default function SystemHealth() {
         message: error instanceof Error ? error.message : "Connection failed",
       };
     }
-  };
+  }, []);
 
   // Last webhook check
-  const checkLastWebhook = async (): Promise<{ health: ServiceHealth; lastWebhook: typeof lastWebhook }> => {
+  const checkLastWebhook = useCallback(async (): Promise<{ health: ServiceHealth; lastWebhook: typeof lastWebhook }> => {
     try {
       const { data, error } = await supabase
         .from("payment_webhook_events")
@@ -147,7 +112,7 @@ export default function SystemHealth() {
 
       const lastTime = new Date(data.created_at);
       const hoursSince = (Date.now() - lastTime.getTime()) / (1000 * 60 * 60);
-      
+
       // If no webhook in 24+ hours, might be an issue (unless no payments)
       const status: HealthStatus = hoursSince < 24 ? "healthy" : hoursSince < 72 ? "degraded" : "unknown";
 
@@ -157,7 +122,7 @@ export default function SystemHealth() {
           status,
           lastChecked: new Date(),
           message: `Last webhook: ${formatDistanceToNow(lastTime, { addSuffix: true })}`,
-          details: { 
+          details: {
             lastWebhookTime: data.created_at,
             verificationResult: data.verification_result,
           },
@@ -179,10 +144,10 @@ export default function SystemHealth() {
         lastWebhook: null,
       };
     }
-  };
+  }, []);
 
   // Email provider check (Resend)
-  const checkEmailProvider = async (): Promise<ServiceHealth> => {
+  const checkEmailProvider = useCallback(async (): Promise<ServiceHealth> => {
     try {
       // Check if we have recent email logs
       const { data, error } = await supabase
@@ -211,7 +176,7 @@ export default function SystemHealth() {
 
       const recentFailures = data.filter(e => e.status === "failed" || e.status === "error").length;
       const lastEmail = new Date(data[0].created_at);
-      
+
       return {
         name: "Email Service (Resend)",
         status: recentFailures === 0 ? "healthy" : recentFailures < 3 ? "degraded" : "unhealthy",
@@ -227,13 +192,13 @@ export default function SystemHealth() {
         message: "Could not check email status",
       };
     }
-  };
+  }, []);
 
   // Auth service check
-  const checkAuthService = async (): Promise<ServiceHealth> => {
+  const checkAuthService = useCallback(async (): Promise<ServiceHealth> => {
     try {
       const { data: { session }, error } = await supabase.auth.getSession();
-      
+
       if (error) {
         return {
           name: "Auth Service",
@@ -242,7 +207,7 @@ export default function SystemHealth() {
           message: error.message,
         };
       }
-      
+
       return {
         name: "Auth Service",
         status: "healthy",
@@ -257,6 +222,41 @@ export default function SystemHealth() {
         message: error instanceof Error ? error.message : "Auth check failed",
       };
     }
+  }, []);
+
+  const checkAllServices = useCallback(async () => {
+    setLoading(true);
+
+    const results: ServiceHealth[] = [];
+
+    // Check Supabase connectivity
+    results.push(await checkSupabase());
+
+    // Check last webhook
+    const webhookResult = await checkLastWebhook();
+    results.push(webhookResult.health);
+    setLastWebhook(webhookResult.lastWebhook);
+
+    // Check email provider
+    results.push(await checkEmailProvider());
+
+    // Check auth service
+    results.push(await checkAuthService());
+
+    setServices(results);
+    setLoading(false);
+  }, [checkSupabase, checkLastWebhook, checkEmailProvider, checkAuthService]);
+
+  useEffect(() => {
+    checkAllServices();
+    loadRecentErrors();
+  }, [checkAllServices]);
+
+  const refresh = async () => {
+    setRefreshing(true);
+    await checkAllServices();
+    loadRecentErrors();
+    setRefreshing(false);
   };
 
   const getStatusIcon = (status: HealthStatus) => {

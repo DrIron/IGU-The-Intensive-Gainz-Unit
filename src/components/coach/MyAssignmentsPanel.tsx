@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -61,11 +61,7 @@ export function MyAssignmentsPanel({ onClientSelect }: MyAssignmentsPanelProps) 
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [dischargingAssignment, setDischargingAssignment] = useState<Assignment | null>(null);
 
-  useEffect(() => {
-    fetchAssignments();
-  }, []);
-
-  const fetchAssignments = async () => {
+  const fetchAssignments = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -130,7 +126,11 @@ export function MyAssignmentsPanel({ onClientSelect }: MyAssignmentsPanelProps) 
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchAssignments();
+  }, [fetchAssignments]);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -33,15 +33,7 @@ export default function TestimonialsManager() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadTestimonials();
-  }, []);
-
-  useEffect(() => {
-    filterTestimonials();
-  }, [searchQuery, testimonials]);
-
-  const loadTestimonials = async () => {
+  const loadTestimonials = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -59,7 +51,7 @@ export default function TestimonialsManager() {
             supabase.from("profiles_public").select("display_name, first_name").eq("id", testimonial.user_id).maybeSingle(),
             supabase.rpc('admin_get_profile_private', { p_user_id: testimonial.user_id })
           ]);
-          
+
           const profile = {
             full_name: priv?.[0]?.full_name || pub?.display_name || pub?.first_name,
             email: priv?.[0]?.email,
@@ -93,9 +85,9 @@ export default function TestimonialsManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const filterTestimonials = () => {
+  const filterTestimonials = useCallback(() => {
     if (!searchQuery.trim()) {
       setFilteredTestimonials(testimonials);
       return;
@@ -107,7 +99,7 @@ export default function TestimonialsManager() {
       const email = testimonial.profiles?.email?.toLowerCase() || "";
       const feedback = testimonial.feedback.toLowerCase();
       const coachName = testimonial.coaches ? `${testimonial.coaches.first_name} ${testimonial.coaches.last_name}`.toLowerCase() : "";
-      
+
       return (
         name.includes(query) ||
         email.includes(query) ||
@@ -117,7 +109,15 @@ export default function TestimonialsManager() {
     });
 
     setFilteredTestimonials(filtered);
-  };
+  }, [searchQuery, testimonials]);
+
+  useEffect(() => {
+    loadTestimonials();
+  }, [loadTestimonials]);
+
+  useEffect(() => {
+    filterTestimonials();
+  }, [filterTestimonials]);
 
   const handleApprovalToggle = async (testimonialId: string, currentStatus: boolean) => {
     try {

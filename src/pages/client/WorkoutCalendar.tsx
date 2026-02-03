@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigation } from "@/components/Navigation";
@@ -36,11 +36,7 @@ function WorkoutCalendarContent() {
     description: "View your workout schedule",
   });
 
-  useEffect(() => {
-    loadCalendarData();
-  }, [currentMonth]);
-
-  const loadCalendarData = async () => {
+  const loadCalendarData = useCallback(async () => {
     try {
       setLoading(true);
       const { data: { user: currentUser } } = await supabase.auth.getUser();
@@ -95,7 +91,11 @@ function WorkoutCalendarContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentMonth, toast]);
+
+  useEffect(() => {
+    loadCalendarData();
+  }, [loadCalendarData]);
 
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),

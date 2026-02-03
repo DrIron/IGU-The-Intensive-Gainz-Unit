@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -43,11 +43,7 @@ export function ServiceBillingComponentsEditor({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    loadComponents();
-  }, [serviceId]);
-
-  const loadComponents = async () => {
+  const loadComponents = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
@@ -74,7 +70,11 @@ export function ServiceBillingComponentsEditor({
     } finally {
       setLoading(false);
     }
-  };
+  }, [serviceId, toast]);
+
+  useEffect(() => {
+    loadComponents();
+  }, [loadComponents]);
 
   const addComponent = () => {
     const newComponent: BillingComponent = {

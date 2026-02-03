@@ -52,11 +52,7 @@ export default function BillingPayment() {
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadBillingData();
-  }, []);
-
-  const loadBillingData = async () => {
+  const loadBillingData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -125,7 +121,11 @@ export default function BillingPayment() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate, toast]);
+
+  useEffect(() => {
+    loadBillingData();
+  }, [loadBillingData]);
 
   const handlePayment = useCallback(async () => {
     if (!subscription || !userId || processingPayment || isSubmittingRef.current) {

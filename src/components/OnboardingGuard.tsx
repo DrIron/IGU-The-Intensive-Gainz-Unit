@@ -172,6 +172,7 @@ export function OnboardingGuard({
  * Hook to get current onboarding status.
  * Useful for components that need to show different UI based on status.
  */
+// eslint-disable-next-line react-refresh/only-export-components
 export function useOnboardingStatus() {
   const [status, setStatus] = useState<ProfileStatus | null>(null);
   const [loading, setLoading] = useState(true);

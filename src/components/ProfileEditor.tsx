@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -52,14 +52,7 @@ export default function ProfileEditor({ userId }: { userId: string }) {
     requested_coach_id: "",
   });
 
-  useEffect(() => {
-    fetchProfileData();
-    fetchCoaches();
-    fetchCurrentCoach();
-    fetchPendingRequest();
-  }, [userId]);
-
-  const fetchProfileData = async () => {
+  const fetchProfileData = useCallback(async () => {
     try {
       // Fetch from split tables - profiles_private for PII (own user has access via RLS)
       const [{ data: profilePrivate, error: privateError }, { data: profilePublic, error: publicError }] = await Promise.all([
@@ -93,9 +86,9 @@ export default function ProfileEditor({ userId }: { userId: string }) {
     } catch (error: any) {
       console.error("Error fetching profile:", error);
     }
-  };
+  }, [userId]);
 
-  const fetchCoaches = async () => {
+  const fetchCoaches = useCallback(async () => {
     try {
       // Use coaches_directory (public-safe view) for client-facing coach list
       const { data, error } = await supabase
@@ -108,9 +101,9 @@ export default function ProfileEditor({ userId }: { userId: string }) {
     } catch (error: any) {
       console.error("Error fetching coaches:", error);
     }
-  };
+  }, []);
 
-  const fetchCurrentCoach = async () => {
+  const fetchCurrentCoach = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("subscriptions")
@@ -124,9 +117,9 @@ export default function ProfileEditor({ userId }: { userId: string }) {
     } catch (error: any) {
       console.error("Error fetching current coach:", error);
     }
-  };
+  }, [userId]);
 
-  const fetchPendingRequest = async () => {
+  const fetchPendingRequest = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("coach_change_requests")
@@ -146,7 +139,14 @@ export default function ProfileEditor({ userId }: { userId: string }) {
     } catch (error: any) {
       console.error("Error fetching pending request:", error);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    fetchProfileData();
+    fetchCoaches();
+    fetchCurrentCoach();
+    fetchPendingRequest();
+  }, [userId, fetchProfileData, fetchCoaches, fetchCurrentCoach, fetchPendingRequest]);
 
   const handleUpdateProfile = async (e: React.FormEvent) => {
     e.preventDefault();

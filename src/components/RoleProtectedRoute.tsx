@@ -253,7 +253,6 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
         sessionLoading,
         hasUser: !!user,
         userId: user?.id,
-        currentAuthState: authState,
       });
 
       try {

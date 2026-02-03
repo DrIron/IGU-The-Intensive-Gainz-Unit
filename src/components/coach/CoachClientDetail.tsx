@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -60,12 +60,7 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadClientInfo();
-    checkCurrentUserRole();
-  }, [clientUserId]);
-
-  const checkCurrentUserRole = async () => {
+  const checkCurrentUserRole = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -83,9 +78,9 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
     } catch (error) {
       console.error("Error checking user role:", error);
     }
-  };
+  }, []);
 
-  const loadClientInfo = async () => {
+  const loadClientInfo = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -209,7 +204,12 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
     } finally {
       setLoading(false);
     }
-  };
+  }, [clientUserId, isPrimaryCoach]);
+
+  useEffect(() => {
+    loadClientInfo();
+    checkCurrentUserRole();
+  }, [loadClientInfo, checkCurrentUserRole]);
 
   const handleRequestAdminReview = () => {
     toast({

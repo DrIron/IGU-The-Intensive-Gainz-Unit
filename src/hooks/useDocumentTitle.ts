@@ -12,14 +12,15 @@ interface SEOOptions {
 }
 
 export function useDocumentTitle(options: SEOOptions = {}) {
+  const {
+    title = DEFAULT_TITLE,
+    description = DEFAULT_DESCRIPTION,
+    ogTitle,
+    ogDescription,
+    ogType = "website",
+  } = options;
+
   useEffect(() => {
-    const {
-      title = DEFAULT_TITLE,
-      description = DEFAULT_DESCRIPTION,
-      ogTitle,
-      ogDescription,
-      ogType = "website",
-    } = options;
 
     // Set document title
     document.title = title;
@@ -66,5 +67,5 @@ export function useDocumentTitle(options: SEOOptions = {}) {
     return () => {
       document.title = DEFAULT_TITLE;
     };
-  }, [options.title, options.description, options.ogTitle, options.ogDescription, options.ogType]);
+  }, [title, description, ogTitle, ogDescription, ogType]);
 }

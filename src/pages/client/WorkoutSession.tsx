@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigation } from "@/components/Navigation";
@@ -96,11 +96,7 @@ function WorkoutSessionContent() {
     description: "Complete your workout session",
   });
 
-  useEffect(() => {
-    loadSession();
-  }, [moduleId]);
-
-  const loadSession = async () => {
+  const loadSession = useCallback(async () => {
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) return;
@@ -227,7 +223,11 @@ function WorkoutSessionContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [moduleId, toast]);
+
+  useEffect(() => {
+    loadSession();
+  }, [loadSession]);
 
   const updateSetLog = (exerciseId: string, setIndex: number, field: keyof SetLog, value: any) => {
     setSetLogs(prev => ({

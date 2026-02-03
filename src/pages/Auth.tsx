@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -72,71 +72,7 @@ export default function Auth() {
     description: "Log in or create your IGU coaching account.",
   });
 
-  useEffect(() => {
-    // Load services (don't block on error)
-    loadServices();
-    
-    // Check if coach authentication mode
-    const coachParam = searchParams.get("coach");
-    if (coachParam === "true") {
-      setIsCoachAuth(true);
-    }
-    
-    // Check for pre-selected service from URL
-    const serviceId = searchParams.get("service");
-    if (serviceId) {
-      setSelectedService(serviceId);
-    }
-    
-    // Check for active tab from URL
-    const tab = searchParams.get("tab");
-    if (tab) {
-      setActiveTab(tab);
-    }
-
-    // Check if already logged in (with timeout to prevent blocking)
-    const checkExistingSession = async () => {
-      try {
-        // Use timeout to prevent getSession from blocking forever
-        const sessionPromise = supabase.auth.getSession();
-        const timeoutPromise = new Promise<null>((resolve) =>
-          setTimeout(() => resolve(null), TIMEOUTS.GET_SESSION)
-        );
-
-        const result = await Promise.race([sessionPromise, timeoutPromise]);
-        const session = result && 'data' in result ? result.data.session : null;
-
-        if (session && !redirectingRef.current) {
-          redirectingRef.current = true;
-          await handleRedirectAfterAuth(session.user.id);
-        }
-      } catch (error) {
-        console.warn('[Auth] checkExistingSession failed:', error);
-        // Don't block - let user sign in manually
-      }
-    };
-
-    checkExistingSession();
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[Auth] onAuthStateChange:', event, session?.user?.email);
-      
-      if (event === 'SIGNED_IN' && session && !redirectingRef.current) {
-        redirectingRef.current = true;
-        
-        // Small delay to ensure session is persisted to localStorage
-        await new Promise(resolve => setTimeout(resolve, 200));
-        
-        await handleRedirectAfterAuth(session.user.id);
-      }
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate, searchParams, isCoachAuth, setCachedRoles]);
-
-  const handleRedirectAfterAuth = async (userId: string) => {
+  const handleRedirectAfterAuth = useCallback(async (userId: string) => {
     const redirectParam = searchParams.get("redirect");
 
     if (redirectParam) {
@@ -229,7 +165,71 @@ export default function Auth() {
       // Fallback to dashboard on error
       navigate("/dashboard");
     }
-  };
+  }, [navigate, searchParams, isCoachAuth, setCachedRoles]);
+
+  useEffect(() => {
+    // Load services (don't block on error)
+    loadServices();
+
+    // Check if coach authentication mode
+    const coachParam = searchParams.get("coach");
+    if (coachParam === "true") {
+      setIsCoachAuth(true);
+    }
+
+    // Check for pre-selected service from URL
+    const serviceId = searchParams.get("service");
+    if (serviceId) {
+      setSelectedService(serviceId);
+    }
+
+    // Check for active tab from URL
+    const tab = searchParams.get("tab");
+    if (tab) {
+      setActiveTab(tab);
+    }
+
+    // Check if already logged in (with timeout to prevent blocking)
+    const checkExistingSession = async () => {
+      try {
+        // Use timeout to prevent getSession from blocking forever
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), TIMEOUTS.GET_SESSION)
+        );
+
+        const result = await Promise.race([sessionPromise, timeoutPromise]);
+        const session = result && 'data' in result ? result.data.session : null;
+
+        if (session && !redirectingRef.current) {
+          redirectingRef.current = true;
+          await handleRedirectAfterAuth(session.user.id);
+        }
+      } catch (error) {
+        console.warn('[Auth] checkExistingSession failed:', error);
+        // Don't block - let user sign in manually
+      }
+    };
+
+    checkExistingSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log('[Auth] onAuthStateChange:', event, session?.user?.email);
+
+      if (event === 'SIGNED_IN' && session && !redirectingRef.current) {
+        redirectingRef.current = true;
+
+        // Small delay to ensure session is persisted to localStorage
+        await new Promise(resolve => setTimeout(resolve, 200));
+
+        await handleRedirectAfterAuth(session.user.id);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [handleRedirectAfterAuth, searchParams]);
 
   const loadServices = async () => {
     try {

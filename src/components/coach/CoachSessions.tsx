@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -58,19 +58,7 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
   const [slotType, setSlotType] = useState<"in_person" | "online">("in_person");
   const [addingSlots, setAddingSlots] = useState(false);
 
-  useEffect(() => {
-    if (coachUserId) {
-      fetchData();
-    }
-  }, [coachUserId]);
-
-  const fetchData = async () => {
-    setLoading(true);
-    await Promise.all([fetchUpcomingSessions(), fetchTimeSlots()]);
-    setLoading(false);
-  };
-
-  const fetchUpcomingSessions = async () => {
+  const fetchUpcomingSessions = useCallback(async () => {
     try {
       const now = new Date().toISOString();
       
@@ -128,9 +116,9 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
         variant: "destructive",
       });
     }
-  };
+  }, [coachUserId, toast]);
 
-  const fetchTimeSlots = async () => {
+  const fetchTimeSlots = useCallback(async () => {
     try {
       const now = new Date().toISOString();
       
@@ -151,7 +139,19 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
         variant: "destructive",
       });
     }
-  };
+  }, [coachUserId, toast]);
+
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    await Promise.all([fetchUpcomingSessions(), fetchTimeSlots()]);
+    setLoading(false);
+  }, [fetchUpcomingSessions, fetchTimeSlots]);
+
+  useEffect(() => {
+    if (coachUserId) {
+      fetchData();
+    }
+  }, [coachUserId, fetchData]);
 
   const handleMarkCompleted = async (bookingId: string) => {
     setActionLoading(bookingId);

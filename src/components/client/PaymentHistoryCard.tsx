@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -26,11 +26,7 @@ export function PaymentHistoryCard({ userId, maxRecords = 10 }: PaymentHistoryCa
   const [payments, setPayments] = useState<PaymentRecord[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadPaymentHistory();
-  }, [userId]);
-
-  const loadPaymentHistory = async () => {
+  const loadPaymentHistory = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("subscription_payments")
@@ -46,7 +42,11 @@ export function PaymentHistoryCard({ userId, maxRecords = 10 }: PaymentHistoryCa
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId, maxRecords]);
+
+  useEffect(() => {
+    loadPaymentHistory();
+  }, [loadPaymentHistory]);
 
   const getStatusIcon = (status: PaymentRecord["status"]) => {
     switch (status) {

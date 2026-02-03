@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -23,11 +23,7 @@ export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
   const [moduleBreakdown, setModuleBreakdown] = useState<ModuleAdherence[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    fetchAdherenceData();
-  }, [userId]);
-
-  const fetchAdherenceData = async () => {
+  const fetchAdherenceData = useCallback(async () => {
     try {
       const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
       const weekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
@@ -96,7 +92,11 @@ export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    fetchAdherenceData();
+  }, [fetchAdherenceData]);
 
   const getModuleTypeLabel = (type: string) => {
     const labels: Record<string, string> = {

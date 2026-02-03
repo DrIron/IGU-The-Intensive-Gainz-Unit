@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -36,16 +36,10 @@ export function CoachServiceLimits({ coachId, coachName, open, onOpenChange }: C
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (open) {
-      fetchServicesAndLimits();
-    }
-  }, [open, coachId]);
-
-  const fetchServicesAndLimits = async () => {
+  const fetchServicesAndLimits = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       // Fetch all services
       const { data: servicesData, error: servicesError } = await supabase
         .from("services")
@@ -73,7 +67,13 @@ export function CoachServiceLimits({ coachId, coachName, open, onOpenChange }: C
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachId, toast]);
+
+  useEffect(() => {
+    if (open) {
+      fetchServicesAndLimits();
+    }
+  }, [open, fetchServicesAndLimits]);
 
   const getLimitForService = (serviceId: string): number => {
     const limit = limits.find(l => l.service_id === serviceId);

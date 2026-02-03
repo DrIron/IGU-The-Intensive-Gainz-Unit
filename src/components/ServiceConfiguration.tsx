@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -22,11 +22,7 @@ export function ServiceConfiguration() {
   const [saving, setSaving] = useState(false);
   const [roleIds, setRoleIds] = useState<Record<string, string>>({});
 
-  useEffect(() => {
-    loadServices();
-  }, []);
-
-  const loadServices = async () => {
+  const loadServices = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('services')
@@ -36,7 +32,7 @@ export function ServiceConfiguration() {
       if (error) throw error;
 
       setServices(data || []);
-      
+
       // Initialize roleIds state
       const ids: Record<string, string> = {};
       data?.forEach(service => {
@@ -53,7 +49,11 @@ export function ServiceConfiguration() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadServices();
+  }, [loadServices]);
 
   const handleSave = async () => {
     setSaving(true);

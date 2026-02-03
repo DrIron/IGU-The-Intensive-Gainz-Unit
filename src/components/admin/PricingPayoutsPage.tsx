@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -151,11 +151,7 @@ function ServicePricingSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<Partial<ServicePricingRow>>({});
 
-  useEffect(() => {
-    loadServices();
-  }, []);
-
-  const loadServices = async () => {
+  const loadServices = useCallback(async () => {
     setLoading(true);
     try {
       // First get all services
@@ -215,7 +211,11 @@ function ServicePricingSection() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadServices();
+  }, [loadServices]);
 
   const startEdit = (row: ServicePricingRow) => {
     setEditingId(row.service_id);
@@ -571,11 +571,7 @@ function AddonCatalogSection() {
     allowed_plan_types: ["one_to_one", "team"] as string[],
   });
 
-  useEffect(() => {
-    loadAddons();
-  }, []);
-
-  const loadAddons = async () => {
+  const loadAddons = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -594,7 +590,11 @@ function AddonCatalogSection() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadAddons();
+  }, [loadAddons]);
 
   const openCreate = () => {
     setEditingAddon(null);
@@ -1035,11 +1035,7 @@ function CareTeamPricingSection() {
     is_active: true,
   });
 
-  useEffect(() => {
-    loadAddons();
-  }, []);
-
-  const loadAddons = async () => {
+  const loadAddons = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -1058,7 +1054,11 @@ function CareTeamPricingSection() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadAddons();
+  }, [loadAddons]);
 
   const openEditDialog = (addon: CareTeamAddonRow) => {
     setSelectedAddon(addon);

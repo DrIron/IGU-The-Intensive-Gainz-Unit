@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -37,11 +37,7 @@ export function ClientPipelineSection() {
   const [stuckClients, setStuckClients] = useState<StuckClient[]>([]);
   const [totalClients, setTotalClients] = useState(0);
 
-  useEffect(() => {
-    fetchPipelineData();
-  }, []);
-
-  const fetchPipelineData = async () => {
+  const fetchPipelineData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -150,7 +146,11 @@ export function ClientPipelineSection() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchPipelineData();
+  }, [fetchPipelineData]);
 
   const fetchStuckClients = async () => {
     try {

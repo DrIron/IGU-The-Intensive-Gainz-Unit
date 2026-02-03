@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigation } from "@/components/Navigation";
@@ -33,30 +33,7 @@ export default function Services() {
     description: "Browse 1:1 coaching and team programs, including online coaching and Fe Squad.",
   });
 
-  useEffect(() => {
-    checkUserAndLoadData();
-    loadTeamPlanSettings();
-  }, []);
-
-  const checkUserAndLoadData = async () => {
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    setUser(currentUser);
-    
-    if (!currentUser) {
-      // Redirect unauthenticated users to login
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to view our services and pricing.",
-      });
-      navigate("/auth?redirect=/services");
-      return;
-    }
-    
-    // User is authenticated, load services
-    await loadServices();
-  };
-
-  const loadTeamPlanSettings = async () => {
+  const loadTeamPlanSettings = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('team_plan_settings')
@@ -68,9 +45,9 @@ export default function Services() {
     } catch (error: any) {
       console.error('Error loading team plan settings:', error);
     }
-  };
+  }, []);
 
-  const loadServices = async () => {
+  const loadServices = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("services")
@@ -90,7 +67,30 @@ export default function Services() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  const checkUserAndLoadData = useCallback(async () => {
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    setUser(currentUser);
+
+    if (!currentUser) {
+      // Redirect unauthenticated users to login
+      toast({
+        title: "Authentication required",
+        description: "Please sign in to view our services and pricing.",
+      });
+      navigate("/auth?redirect=/services");
+      return;
+    }
+
+    // User is authenticated, load services
+    await loadServices();
+  }, [navigate, toast, loadServices]);
+
+  useEffect(() => {
+    checkUserAndLoadData();
+    loadTeamPlanSettings();
+  }, [checkUserAndLoadData, loadTeamPlanSettings]);
 
   const handleServiceSelect = async (serviceId: string) => {
     const { data: { user } } = await supabase.auth.getUser();

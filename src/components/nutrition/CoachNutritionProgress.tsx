@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -33,16 +33,10 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
   const [weeklyData, setWeeklyData] = useState<WeekData[]>([]);
   const [adjustmentInputs, setAdjustmentInputs] = useState<{ [key: number]: { calories: string; notes: string; isDietBreak: boolean } }>({});
 
-  useEffect(() => {
-    if (phase) {
-      loadAllData();
-    }
-  }, [phase]);
-
-  const loadAllData = async () => {
+  const loadAllData = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       // Fetch all data in parallel
       const [weightsRes, adherenceRes, adjustmentsRes] = await Promise.all([
         supabase.from('weight_logs').select('*').eq('phase_id', phase.id).order('log_date', { ascending: true }),
@@ -56,7 +50,7 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
 
       // Group data by week
       const weekMap = new Map<number, any>();
-      
+
       weights.forEach(log => {
         const week = log.week_number;
         if (!weekMap.has(week)) {
@@ -84,7 +78,7 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
       sortedWeeks.forEach((weekNum, index) => {
         const data = weekMap.get(weekNum);
         const avgWeight = data.weightLogs.reduce((sum: number, log: any) => sum + parseFloat(log.weight_kg), 0) / data.weightLogs.length;
-        
+
         const previousWeekAvg = index > 0 ? weeks[index - 1].averageWeight : null;
         const actualChange = previousWeekAvg ? ((avgWeight - previousWeekAvg) / previousWeekAvg) * 100 : null;
         const expectedChange = phase.weekly_rate_percentage || 0;
@@ -108,7 +102,13 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
     } finally {
       setLoading(false);
     }
-  };
+  }, [phase.id, phase.weekly_rate_percentage, toast]);
+
+  useEffect(() => {
+    if (phase) {
+      loadAllData();
+    }
+  }, [phase, loadAllData]);
 
   const handleCreateAdjustment = async (weekData: WeekData) => {
     const input = adjustmentInputs[weekData.weekNumber];

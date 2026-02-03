@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,13 +52,7 @@ export function ExercisePickerDialog({
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (open) {
-      loadExercises();
-    }
-  }, [open]);
-
-  const loadExercises = async () => {
+  const loadExercises = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("exercise_library")
@@ -78,7 +72,13 @@ export function ExercisePickerDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachUserId, toast]);
+
+  useEffect(() => {
+    if (open) {
+      loadExercises();
+    }
+  }, [open, loadExercises]);
 
   const filteredExercises = exercises.filter((exercise) => {
     const matchesSearch =

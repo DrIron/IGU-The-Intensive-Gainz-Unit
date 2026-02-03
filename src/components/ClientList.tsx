@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -127,11 +127,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     },
   });
 
-  useEffect(() => {
-    fetchClients();
-  }, []);
-
-  const fetchClients = async () => {
+  const fetchClients = useCallback(async () => {
     try {
       // Admin uses profiles view (security_invoker=true, RLS-protected for admin)
       // This allows fetching all client data including PII for admin pages
@@ -183,7 +179,11 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchClients();
+  }, [fetchClients]);
 
   // Apply filters
   let filteredClients = clients;
@@ -243,7 +243,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     if (!loading && pendingClients.length > 0 && activeTab === "active") {
       setActiveTab("pending");
     }
-  }, [loading, pendingClients.length]);
+  }, [loading, pendingClients.length, activeTab]);
 
   useEffect(() => {
     if (editingClient) {

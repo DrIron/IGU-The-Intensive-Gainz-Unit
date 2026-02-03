@@ -128,46 +128,7 @@ export default function OnboardingForm() {
   
   const steps = ["Service", "Service Details", "Health", "Legal"];
 
-  useEffect(() => {
-    checkAuth();
-    loadServiceName();
-    loadDraft();
-  }, []);
-
-  // Auto-save form data when it changes (debounced)
-  useEffect(() => {
-    if (!userId) return;
-
-    const subscription = form.watch(() => {
-      // Clear existing timeout
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-
-      // Set new timeout to save after 2 seconds of inactivity
-      saveTimeoutRef.current = setTimeout(() => {
-        saveDraft();
-      }, 2000);
-    });
-
-    return () => {
-      subscription.unsubscribe();
-      if (saveTimeoutRef.current) {
-        clearTimeout(saveTimeoutRef.current);
-      }
-    };
-  }, [userId, currentStep]);
-
-  useEffect(() => {
-    const subscription = form.watch((value) => {
-      if (value.plan_name) {
-        setSelectedServiceName(value.plan_name);
-      }
-    });
-    return () => subscription.unsubscribe();
-  }, [form]);
-
-  const loadServiceName = async () => {
+  const loadServiceName = useCallback(async () => {
     try {
       const serviceId = searchParams.get('service');
       console.log('Service ID from URL:', serviceId);
@@ -203,9 +164,9 @@ export default function OnboardingForm() {
     } catch (error) {
       console.error('Error loading service:', error);
     }
-  };
+  }, [searchParams, form]);
 
-  const checkAuth = async () => {
+  const checkAuth = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
@@ -287,10 +248,10 @@ export default function OnboardingForm() {
       if (profile) {
         // Prefill email (always from profile)
         form.setValue('email', profile.email);
-        
+
         // Prefill phone if available
         if (profile.phone) form.setValue('phone_number', profile.phone);
-        
+
         // Prefill name from user metadata first, then profile fields
         if (firstName) {
           form.setValue('first_name', firstName);
@@ -298,7 +259,7 @@ export default function OnboardingForm() {
           const [first] = profile.full_name.split(' ');
           form.setValue('first_name', first || '');
         }
-        
+
         if (lastName) {
           form.setValue('last_name', lastName);
         } else if (profile.full_name) {
@@ -320,9 +281,9 @@ export default function OnboardingForm() {
       setFatalError(true);
       setLoading(false);
     }
-  };
+  }, [navigate, toast, form]);
 
-  const loadDraft = async () => {
+  const loadDraft = useCallback(async () => {
     if (!userId) return;
 
     try {
@@ -339,14 +300,14 @@ export default function OnboardingForm() {
         Object.keys(draft.form_data).forEach((key) => {
           form.setValue(key as any, draft.form_data[key]);
         });
-        
+
         // Restore current step
         if (draft.current_step) {
           setCurrentStep(draft.current_step);
         }
 
         setLastSaved(new Date(draft.updated_at));
-        
+
         toast({
           title: "Draft Restored",
           description: "Your previous progress has been loaded.",
@@ -355,7 +316,7 @@ export default function OnboardingForm() {
     } catch (error: any) {
       console.error('Error loading draft:', error);
     }
-  };
+  }, [userId, form, toast]);
 
   const saveDraft = useCallback(async () => {
     if (!userId || hasSubmitted || submitting) return;
@@ -363,7 +324,7 @@ export default function OnboardingForm() {
     setAutoSaving(true);
     try {
       const formData = form.getValues();
-      
+
       const { error } = await supabase
         .from('onboarding_drafts')
         .upsert({
@@ -383,6 +344,48 @@ export default function OnboardingForm() {
       setAutoSaving(false);
     }
   }, [userId, currentStep, hasSubmitted, submitting, form]);
+
+  useEffect(() => {
+    checkAuth();
+    loadServiceName();
+  }, [checkAuth, loadServiceName]);
+
+  useEffect(() => {
+    loadDraft();
+  }, [loadDraft]);
+
+  // Auto-save form data when it changes (debounced)
+  useEffect(() => {
+    if (!userId) return;
+
+    const subscription = form.watch(() => {
+      // Clear existing timeout
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+
+      // Set new timeout to save after 2 seconds of inactivity
+      saveTimeoutRef.current = setTimeout(() => {
+        saveDraft();
+      }, 2000);
+    });
+
+    return () => {
+      subscription.unsubscribe();
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+    };
+  }, [userId, form, saveDraft]);
+
+  useEffect(() => {
+    const subscription = form.watch((value) => {
+      if (value.plan_name) {
+        setSelectedServiceName(value.plan_name);
+      }
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
 
   const deleteDraft = async () => {
     if (!userId) return;

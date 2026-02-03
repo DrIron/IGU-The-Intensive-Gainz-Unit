@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,11 +28,7 @@ export function NutritionProgress() {
   const [currentWeek, setCurrentWeek] = useState(1);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set([1]));
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -46,7 +42,7 @@ export function NutritionProgress() {
         .maybeSingle();
 
       if (goalError) throw goalError;
-      
+
       if (!goal) {
         toast({
           title: "No Active Goal",
@@ -69,7 +65,7 @@ export function NutritionProgress() {
       if (progressError) throw progressError;
 
       setWeeklyProgress(progress || []);
-      
+
       // Calculate current week based on start date
       const weeksSinceStart = Math.ceil(
         (Date.now() - new Date(goal.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)
@@ -86,7 +82,11 @@ export function NutritionProgress() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const toggleWeek = (week: number) => {
     const newExpanded = new Set(expandedWeeks);

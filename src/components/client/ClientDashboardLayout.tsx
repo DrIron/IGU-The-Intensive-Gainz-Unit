@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { ClientSidebar, getClientMobileNavItems } from "./ClientSidebar";
@@ -46,7 +46,7 @@ export function ClientDashboardLayout({
     if (sectionParam && sectionParam !== internalActiveSection) {
       setInternalActiveSection(sectionParam);
     }
-  }, [searchParams]);
+  }, [searchParams, internalActiveSection]);
 
   const activeSection = externalActiveSection || internalActiveSection;
   
@@ -119,9 +119,9 @@ export function ClientDashboardLayout({
         }
       }
     };
-    
+
     verifyPaymentFallback();
-  }, [user?.id, isActive]);
+  }, [user?.id, isActive, navigate, toast]);
 
   // 0. Verifying payment fallback - show loading
   if (verifying) {

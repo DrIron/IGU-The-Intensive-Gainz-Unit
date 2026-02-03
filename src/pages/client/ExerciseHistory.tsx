@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigation } from "@/components/Navigation";
@@ -45,17 +45,7 @@ function ExerciseHistoryContent() {
     description: "View your exercise performance history",
   });
 
-  useEffect(() => {
-    loadExercises();
-  }, []);
-
-  useEffect(() => {
-    if (selectedExercise) {
-      loadExerciseLogs();
-    }
-  }, [selectedExercise]);
-
-  const loadExercises = async () => {
+  const loadExercises = useCallback(async () => {
     try {
       const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) return;
@@ -101,9 +91,9 @@ function ExerciseHistoryContent() {
     } finally {
       setExercisesLoading(false);
     }
-  };
+  }, [toast]);
 
-  const loadExerciseLogs = async () => {
+  const loadExerciseLogs = useCallback(async () => {
     if (!selectedExercise || !user) return;
     
     setLoading(true);
@@ -156,7 +146,17 @@ function ExerciseHistoryContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [selectedExercise, user, toast]);
+
+  useEffect(() => {
+    loadExercises();
+  }, [loadExercises]);
+
+  useEffect(() => {
+    if (selectedExercise) {
+      loadExerciseLogs();
+    }
+  }, [selectedExercise, loadExerciseLogs]);
 
   const filteredExercises = exercises.filter(ex =>
     ex.name.toLowerCase().includes(searchTerm.toLowerCase())

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,13 +43,8 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [addons, setAddons] = useState<SubscriptionAddon[]>([]);
 
-  useEffect(() => {
-    if (subscription?.id) {
-      loadAddons();
-    }
-  }, [subscription?.id]);
-
-  const loadAddons = async () => {
+  const loadAddons = useCallback(async () => {
+    if (!subscription?.id) return;
     // Fetch addons with staff profile info
     const { data: addonsData } = await supabase
       .from("subscription_addons")
@@ -78,7 +73,11 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
     }));
 
     setAddons(enrichedAddons);
-  };
+  }, [subscription?.id]);
+
+  useEffect(() => {
+    loadAddons();
+  }, [loadAddons]);
 
   const getStatusBadge = () => {
     const status = subscription?.status;

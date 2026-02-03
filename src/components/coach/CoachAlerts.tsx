@@ -1,6 +1,6 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AlertCircle, FileWarning, UserPlus } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface CoachAlertsProps {
@@ -14,11 +14,7 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
   const [newSignupsCount, setNewSignupsCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadAlerts();
-  }, [coachUserId]);
-
-  const loadAlerts = async () => {
+  const loadAlerts = useCallback(async () => {
     try {
       // Get coach's ID from coaches table
       const { data: coach } = await supabase
@@ -102,7 +98,11 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachUserId]);
+
+  useEffect(() => {
+    loadAlerts();
+  }, [loadAlerts]);
 
   if (loading) {
     return <div className="text-sm text-muted-foreground">Loading alerts...</div>;

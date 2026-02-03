@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
@@ -26,11 +26,7 @@ export function AdminPageLayout({
   const [hasAdminRole, setHasAdminRole] = useState(false);
   const [currentUser, setCurrentUser] = useState<any>(null);
 
-  useEffect(() => {
-    loadUserRoles();
-  }, []);
-
-  const loadUserRoles = async () => {
+  const loadUserRoles = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const user = session?.user;
@@ -48,7 +44,7 @@ export function AdminPageLayout({
       if (rolesData) {
         const roles = rolesData.map(r => r.role);
         setHasAdminRole(roles.includes("admin"));
-        
+
         if (!roles.includes("admin")) {
           navigate("/dashboard");
           return;
@@ -59,7 +55,11 @@ export function AdminPageLayout({
     } finally {
       setLoading(false);
     }
-  };
+  }, [navigate]);
+
+  useEffect(() => {
+    loadUserRoles();
+  }, [loadUserRoles]);
 
   const handleSectionChange = (section: string) => {
     navigate("/dashboard");

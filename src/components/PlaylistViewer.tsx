@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -32,17 +32,7 @@ export function PlaylistViewer() {
   const [playlistVideos, setPlaylistVideos] = useState<PlaylistVideo[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadPlaylists();
-  }, []);
-
-  useEffect(() => {
-    if (selectedPlaylist) {
-      loadPlaylistVideos(selectedPlaylist);
-    }
-  }, [selectedPlaylist]);
-
-  const loadPlaylists = async () => {
+  const loadPlaylists = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("video_playlists")
@@ -52,16 +42,26 @@ export function PlaylistViewer() {
 
       if (error) throw error;
       setPlaylists(data || []);
-      
-      if (data && data.length > 0 && !selectedPlaylist) {
-        setSelectedPlaylist(data[0].id);
+
+      if (data && data.length > 0) {
+        setSelectedPlaylist((current) => current ?? data[0].id);
       }
     } catch (error: any) {
       console.error("Error loading playlists:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    loadPlaylists();
+  }, [loadPlaylists]);
+
+  useEffect(() => {
+    if (selectedPlaylist) {
+      loadPlaylistVideos(selectedPlaylist);
+    }
+  }, [selectedPlaylist]);
 
   const loadPlaylistVideos = async (playlistId: string) => {
     try {

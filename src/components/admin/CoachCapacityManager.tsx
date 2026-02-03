@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -49,11 +49,7 @@ export function CoachCapacityManager() {
   const [newLimit, setNewLimit] = useState({ coach_id: "", service_id: "", max_clients: 0 });
   const [showAddDialog, setShowAddDialog] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -137,7 +133,11 @@ export function CoachCapacityManager() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const handleUpdateLimit = async (limitId: string, maxClients: number) => {
     try {

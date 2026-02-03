@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -35,21 +35,12 @@ function TestimonialsManagementContent() {
   const [user, setUser] = useState(null);
   const { toast } = useToast();
 
-  useEffect(() => {
-    checkUser();
-    loadTestimonials();
-  }, []);
-
-  useEffect(() => {
-    filterTestimonials();
-  }, [searchQuery, testimonials]);
-
   const checkUser = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     setUser(user);
   };
 
-  const loadTestimonials = async () => {
+  const loadTestimonials = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -98,9 +89,9 @@ function TestimonialsManagementContent() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const filterTestimonials = () => {
+  const filterTestimonials = useCallback(() => {
     if (!searchQuery.trim()) {
       setFilteredTestimonials(testimonials);
       return;
@@ -122,7 +113,16 @@ function TestimonialsManagementContent() {
     });
 
     setFilteredTestimonials(filtered);
-  };
+  }, [searchQuery, testimonials]);
+
+  useEffect(() => {
+    checkUser();
+    loadTestimonials();
+  }, [loadTestimonials]);
+
+  useEffect(() => {
+    filterTestimonials();
+  }, [filterTestimonials]);
 
   const handleApprovalToggle = async (testimonialId: string, currentStatus: boolean) => {
     try {

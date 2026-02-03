@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { CoachSidebar } from "./CoachSidebar";
@@ -28,7 +28,7 @@ export function CoachDashboardLayout({
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
 
   // Derive active section from URL path for persistence
-  const getSectionFromPath = (): string => {
+  const getSectionFromPath = useCallback((): string => {
     const path = location.pathname;
     if (path.includes('/coach/clients')) return 'clients';
     if (path.includes('/coach/assignments')) return 'assignments';
@@ -37,14 +37,14 @@ export function CoachDashboardLayout({
     if (path.includes('/coach/exercises')) return 'exercises';
     if (path.includes('/coach/profile')) return 'profile';
     return 'overview';
-  };
+  }, [location.pathname]);
 
   const [internalActiveSection, setInternalActiveSection] = useState(getSectionFromPath());
 
   // Sync section with URL path changes
   useEffect(() => {
     setInternalActiveSection(getSectionFromPath());
-  }, [location.pathname]);
+  }, [getSectionFromPath]);
 
   const activeSection = externalActiveSection || internalActiveSection;
   const setActiveSection = externalOnSectionChange || setInternalActiveSection;

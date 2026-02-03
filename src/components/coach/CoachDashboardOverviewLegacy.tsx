@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -136,14 +136,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
     valueLabel: "",
   });
 
-  useEffect(() => {
-    if (coachUserId) {
-      fetchCoachMetrics();
-      fetchClientOptions();
-    }
-  }, [coachUserId, dateRange, selectedClientId]);
-
-  const fetchClientOptions = async () => {
+  const fetchClientOptions = useCallback(async () => {
     try {
       const { data: subscriptions } = await supabase
         .from("subscriptions")
@@ -177,7 +170,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
     } catch (error) {
       console.error("Error fetching client options:", error);
     }
-  };
+  }, [coachUserId]);
 
   const applyDatePreset = (preset: string) => {
     const now = new Date();
@@ -210,7 +203,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
     });
   };
 
-  const fetchCoachMetrics = async () => {
+  const fetchCoachMetrics = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -546,7 +539,14 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachUserId, dateRange, selectedClientId, toast]);
+
+  useEffect(() => {
+    if (coachUserId) {
+      fetchCoachMetrics();
+      fetchClientOptions();
+    }
+  }, [coachUserId, dateRange, selectedClientId, fetchCoachMetrics, fetchClientOptions]);
 
   const KPICard = ({ 
     title, 

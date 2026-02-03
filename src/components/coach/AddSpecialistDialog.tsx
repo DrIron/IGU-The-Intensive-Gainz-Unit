@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -96,18 +96,6 @@ export function AddSpecialistDialog({
   const [assignedScope, setAssignedScope] = useState<"read" | "write">("write");
   const [createBillableAddon, setCreateBillableAddon] = useState(true);
 
-  useEffect(() => {
-    if (open) {
-      fetchSpecialists();
-      fetchAddonCatalog();
-      resetForm();
-    }
-  }, [open]);
-
-  useEffect(() => {
-    filterSpecialists();
-  }, [searchQuery, selectedSpecialty, specialists]);
-
   const resetForm = () => {
     setSearchQuery("");
     setSelectedSpecialty("all");
@@ -131,7 +119,7 @@ export function AddSpecialistDialog({
     }
   };
 
-  const fetchSpecialists = async () => {
+  const fetchSpecialists = useCallback(async () => {
     try {
       setLoading(true);
       
@@ -167,9 +155,9 @@ export function AddSpecialistDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [existingTeam, toast]);
 
-  const filterSpecialists = () => {
+  const filterSpecialists = useCallback(() => {
     let filtered = specialists;
 
     // Filter by search query
@@ -189,7 +177,19 @@ export function AddSpecialistDialog({
     }
 
     setFilteredSpecialists(filtered);
-  };
+  }, [searchQuery, selectedSpecialty, specialists]);
+
+  useEffect(() => {
+    if (open) {
+      fetchSpecialists();
+      fetchAddonCatalog();
+      resetForm();
+    }
+  }, [open, fetchSpecialists]);
+
+  useEffect(() => {
+    filterSpecialists();
+  }, [filterSpecialists]);
 
   const handleSelectSpecialist = (specialist: AvailableSpecialist) => {
     setSelectedSpecialist(specialist);

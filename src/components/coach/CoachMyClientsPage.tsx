@@ -87,7 +87,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
     if (coachUserId) {
       fetchClients();
     }
-  }, [coachUserId]);
+  }, [coachUserId, fetchClients]);
 
   // Handle URL filter param for auto-scrolling
   useEffect(() => {

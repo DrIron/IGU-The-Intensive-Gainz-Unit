@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -48,13 +48,7 @@ export function ProgramEditor({ coachUserId, programId, onBack }: ProgramEditorP
   const [tagInput, setTagInput] = useState("");
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (programId) {
-      loadProgram();
-    }
-  }, [programId]);
-
-  const loadProgram = async () => {
+  const loadProgram = useCallback(async () => {
     try {
       const { data: templateData, error: templateError } = await supabase
         .from("program_templates")
@@ -76,7 +70,7 @@ export function ProgramEditor({ coachUserId, programId, onBack }: ProgramEditorP
 
       if (daysError) throw daysError;
       setDays(daysData || []);
-      
+
       // Expand first day by default
       if (daysData && daysData.length > 0) {
         setExpandedDays(new Set([daysData[0].id]));
@@ -90,7 +84,13 @@ export function ProgramEditor({ coachUserId, programId, onBack }: ProgramEditorP
     } finally {
       setLoading(false);
     }
-  };
+  }, [programId, toast]);
+
+  useEffect(() => {
+    if (programId) {
+      loadProgram();
+    }
+  }, [programId, loadProgram]);
 
   const saveProgram = async () => {
     if (!program.title) {

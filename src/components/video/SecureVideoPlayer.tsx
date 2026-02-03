@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useVideoSignedUrl } from "@/hooks/useVideoSignedUrl";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,25 +42,25 @@ export function SecureVideoPlayer({
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch video URL when component mounts or videoId changes
-  const fetchUrl = async () => {
+  const fetchUrl = useCallback(async () => {
     setIsExpired(false);
     const result = await getVideoUrl(videoId);
-    
+
     if (result) {
       if (result.signed_url) {
         setVideoUrl(result.signed_url);
         setVideoType("storage");
-        
+
         // Set expiration timer (refresh 1 minute before expiry)
         if (result.expires_in) {
           const expiryTime = new Date(Date.now() + result.expires_in * 1000);
           setExpiresAt(expiryTime);
-          
+
           // Clear existing timer
           if (refreshTimerRef.current) {
             clearTimeout(refreshTimerRef.current);
           }
-          
+
           // Set timer to refresh URL before it expires
           const refreshDelay = (result.expires_in - 60) * 1000; // 1 minute before expiry
           if (refreshDelay > 0) {
@@ -77,19 +77,19 @@ export function SecureVideoPlayer({
     } else if (error) {
       onError?.(error);
     }
-  };
+  }, [videoId, getVideoUrl, error, onLoad, onError]);
 
   useEffect(() => {
     if (hasStarted) {
       fetchUrl();
     }
-    
+
     return () => {
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
       }
     };
-  }, [videoId, hasStarted]);
+  }, [hasStarted, fetchUrl]);
 
   const handlePlay = () => {
     setHasStarted(true);

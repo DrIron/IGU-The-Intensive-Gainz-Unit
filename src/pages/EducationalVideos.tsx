@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigation } from "@/components/Navigation";
@@ -71,30 +71,17 @@ export default function EducationalVideos() {
       });
       navigate("/dashboard");
     }
-  }, [access.loading, access.isStaff, access.hasActiveSubscription, navigate, toast]);
+  }, [access, navigate, toast]);
 
-  // Load videos when access is granted
-  useEffect(() => {
-    const canAccess = access.isStaff || access.hasActiveSubscription;
-    if (!access.loading && canAccess && !videosLoaded) {
-      loadVideos();
-      setVideosLoaded(true);
-    }
-  }, [access.loading, access.isStaff, access.hasActiveSubscription, videosLoaded]);
-
-  useEffect(() => {
-    filterVideos();
-  }, [videos, selectedCategory, searchQuery]);
-
-  const loadVideos = async () => {
+  const loadVideos = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       // Use the RPC function that returns access states
       const { data, error } = await supabase.rpc("get_educational_videos_with_access");
 
       if (error) throw error;
-      
+
       setVideos((data || []) as VideoWithAccess[]);
     } catch (error: any) {
       console.error('Error loading videos:', error);
@@ -106,9 +93,9 @@ export default function EducationalVideos() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const filterVideos = () => {
+  const filterVideos = useCallback(() => {
     let filtered = [...videos];
 
     if (selectedCategory !== "All Categories") {
@@ -117,7 +104,7 @@ export default function EducationalVideos() {
 
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(v => 
+      filtered = filtered.filter(v =>
         v.title.toLowerCase().includes(query) ||
         v.description?.toLowerCase().includes(query) ||
         v.category.toLowerCase().includes(query)
@@ -125,7 +112,20 @@ export default function EducationalVideos() {
     }
 
     setFilteredVideos(filtered);
-  };
+  }, [videos, selectedCategory, searchQuery]);
+
+  // Load videos when access is granted
+  useEffect(() => {
+    const canAccess = access.isStaff || access.hasActiveSubscription;
+    if (!access.loading && canAccess && !videosLoaded) {
+      loadVideos();
+      setVideosLoaded(true);
+    }
+  }, [access.loading, access.isStaff, access.hasActiveSubscription, videosLoaded, loadVideos]);
+
+  useEffect(() => {
+    filterVideos();
+  }, [filterVideos]);
 
   const handleVideoComplete = async (videoId: string) => {
     setCompletingVideoId(videoId);

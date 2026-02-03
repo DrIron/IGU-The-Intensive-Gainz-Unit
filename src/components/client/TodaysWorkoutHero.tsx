@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -51,10 +51,6 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    fetchTodayWorkout();
-  }, [userId]);
-
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return { text: "Good morning", icon: Sunrise };
@@ -62,7 +58,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
     return { text: "Good evening", icon: Moon };
   };
 
-  const fetchTodayWorkout = async () => {
+  const fetchTodayWorkout = useCallback(async () => {
     try {
       const today = startOfDay(new Date());
       const todayStr = format(today, 'yyyy-MM-dd');
@@ -155,7 +151,11 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    fetchTodayWorkout();
+  }, [fetchTodayWorkout]);
 
   const handleStartWorkout = () => {
     if (workout && workout.modules.length > 0) {

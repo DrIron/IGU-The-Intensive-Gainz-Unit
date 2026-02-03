@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,11 +60,7 @@ export function CoachLoadOverview() {
   const [limitsDialogOpen, setLimitsDialogOpen] = useState(false);
   const [selectedCoach, setSelectedCoach] = useState<{ id: string; name: string } | null>(null);
 
-  useEffect(() => {
-    fetchCoachLoadData();
-  }, []);
-
-  const fetchCoachLoadData = async () => {
+  const fetchCoachLoadData = useCallback(async () => {
     try {
       setLoading(true);
 
@@ -225,7 +221,11 @@ export function CoachLoadOverview() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchCoachLoadData();
+  }, [fetchCoachLoadData]);
 
   const toggleCoachExpanded = (coachId: string) => {
     setExpandedCoaches(prev => {

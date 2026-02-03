@@ -1,6 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Shield } from "lucide-react";
 
@@ -19,11 +19,7 @@ export function CoachProgramsSummary({ coachUserId, onViewClients }: CoachProgra
   const [programs, setPrograms] = useState<ProgramSummary[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadProgramsSummary();
-  }, [coachUserId]);
-
-  const loadProgramsSummary = async () => {
+  const loadProgramsSummary = useCallback(async () => {
     try {
       // Get coach's ID
       const { data: coach } = await supabase
@@ -80,7 +76,11 @@ export function CoachProgramsSummary({ coachUserId, onViewClients }: CoachProgra
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachUserId]);
+
+  useEffect(() => {
+    loadProgramsSummary();
+  }, [loadProgramsSummary]);
 
   if (loading) {
     return <div className="text-sm text-muted-foreground">Loading programs...</div>;

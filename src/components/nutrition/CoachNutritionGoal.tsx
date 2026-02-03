@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,46 +55,7 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
     coachNotes: "",
   });
 
-  useEffect(() => {
-    loadClientData();
-  }, [clientUserId]);
-
-  useEffect(() => {
-    if (phase) {
-      setFormData({
-        phaseName: phase.phase_name || "",
-        startDate: new Date(phase.start_date),
-        goalType: phase.goal_type,
-        startingWeight: phase.starting_weight_kg?.toString() || "",
-        targetWeight: phase.target_weight_kg?.toString() || "",
-        targetBodyFat: phase.target_body_fat_percentage?.toString() || "",
-        currentBodyFat: "",
-        height: formData.height,
-        age: formData.age,
-        gender: formData.gender,
-        activityLevel: formData.activityLevel,
-        weeklyRate: [phase.weekly_rate_percentage],
-        proteinIntake: [phase.protein_intake_g_per_kg],
-        fatIntake: [phase.fat_intake_percentage],
-        proteinBasedOnFFM: phase.protein_based_on_ffm,
-        dietBreakEnabled: phase.diet_break_enabled,
-        dietBreakFrequency: phase.diet_break_frequency_weeks?.toString() || "",
-        dietBreakDuration: phase.diet_break_duration_weeks?.toString() || "",
-        coachNotes: phase.coach_notes || "",
-      });
-    } else if (clientData) {
-      // Auto-populate for new phases
-      setFormData(prev => ({
-        ...prev,
-        height: clientData.height_cm?.toString() || "",
-        age: clientData.age?.toString() || "",
-        gender: clientData.gender || "",
-        currentBodyFat: clientData.body_fat_percentage?.toString() || "",
-      }));
-    }
-  }, [phase, clientData]);
-
-  const loadClientData = async () => {
+  const loadClientData = useCallback(async () => {
     try {
       // SECURITY: Coaches have ZERO direct access to form_submissions (PHI table).
       // DOB is PHI and not available in form_submissions_safe.
@@ -121,7 +82,46 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
     } catch (error) {
       console.error('Error loading client data:', error);
     }
-  };
+  }, [clientUserId]);
+
+  useEffect(() => {
+    loadClientData();
+  }, [loadClientData]);
+
+  useEffect(() => {
+    if (phase) {
+      setFormData(prev => ({
+        phaseName: phase.phase_name || "",
+        startDate: new Date(phase.start_date),
+        goalType: phase.goal_type,
+        startingWeight: phase.starting_weight_kg?.toString() || "",
+        targetWeight: phase.target_weight_kg?.toString() || "",
+        targetBodyFat: phase.target_body_fat_percentage?.toString() || "",
+        currentBodyFat: "",
+        height: prev.height,
+        age: prev.age,
+        gender: prev.gender,
+        activityLevel: prev.activityLevel,
+        weeklyRate: [phase.weekly_rate_percentage],
+        proteinIntake: [phase.protein_intake_g_per_kg],
+        fatIntake: [phase.fat_intake_percentage],
+        proteinBasedOnFFM: phase.protein_based_on_ffm,
+        dietBreakEnabled: phase.diet_break_enabled,
+        dietBreakFrequency: phase.diet_break_frequency_weeks?.toString() || "",
+        dietBreakDuration: phase.diet_break_duration_weeks?.toString() || "",
+        coachNotes: phase.coach_notes || "",
+      }));
+    } else if (clientData) {
+      // Auto-populate for new phases
+      setFormData(prev => ({
+        ...prev,
+        height: clientData.height_cm?.toString() || "",
+        age: clientData.age?.toString() || "",
+        gender: clientData.gender || "",
+        currentBodyFat: clientData.body_fat_percentage?.toString() || "",
+      }));
+    }
+  }, [phase, clientData]);
 
   const calculateMacros = () => {
     const w = parseFloat(formData.startingWeight);

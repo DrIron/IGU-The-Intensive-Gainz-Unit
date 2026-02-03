@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -76,11 +76,7 @@ export default function WorkoutLibraryManager() {
   ]);
   const [isSubmittingQuickAdd, setIsSubmittingQuickAdd] = useState(false);
 
-  useEffect(() => {
-    fetchExercises();
-  }, []);
-
-  const fetchExercises = async () => {
+  const fetchExercises = useCallback(async () => {
     const { data, error } = await supabase
       .from("exercises")
       .select("*")
@@ -100,7 +96,11 @@ export default function WorkoutLibraryManager() {
       muscle_subdivisions: ex.muscle_subdivisions as Record<string, string[]>,
       youtube_url: ex.youtube_url || null,
     })));
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    fetchExercises();
+  }, [fetchExercises]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

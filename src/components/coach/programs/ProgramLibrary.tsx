@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,11 +32,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const { toast } = useToast();
 
-  useEffect(() => {
-    loadPrograms();
-  }, [coachUserId]);
-
-  const loadPrograms = async () => {
+  const loadPrograms = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("program_templates")
@@ -58,7 +54,11 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachUserId, toast]);
+
+  useEffect(() => {
+    loadPrograms();
+  }, [loadPrograms]);
 
   const duplicateProgram = async (program: ProgramTemplate) => {
     try {

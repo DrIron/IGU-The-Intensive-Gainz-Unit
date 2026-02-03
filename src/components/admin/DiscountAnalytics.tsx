@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,17 +91,12 @@ export function DiscountAnalytics() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  useEffect(() => {
-    fetchAnalyticsData();
-  }, [dateRange]);
-
-  const getDateFilter = () => {
-    if (dateRange === "all") return null;
-    const days = parseInt(dateRange);
-    return subDays(new Date(), days);
-  };
-
-  const fetchAnalyticsData = async () => {
+  const fetchAnalyticsData = useCallback(async () => {
+    const getDateFilter = () => {
+      if (dateRange === "all") return null;
+      const days = parseInt(dateRange);
+      return subDays(new Date(), days);
+    };
     try {
       setLoading(true);
       const dateFilter = getDateFilter();
@@ -237,7 +232,11 @@ export function DiscountAnalytics() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [dateRange, toast]);
+
+  useEffect(() => {
+    fetchAnalyticsData();
+  }, [fetchAnalyticsData]);
 
   const fetchCodeDetails = async (code: DiscountCodeSummary) => {
     try {

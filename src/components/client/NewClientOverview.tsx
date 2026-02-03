@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { QuickActionsGrid } from "./QuickActionsGrid";
 import { CoachCard } from "./CoachCard";
 import { PlanBillingCard } from "./PlanBillingCard";
@@ -43,11 +43,7 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
   const [weeklyLogsCount, setWeeklyLogsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadDashboardData();
-  }, [user?.id, subscription?.coach_id]);
-
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     if (!user?.id) return;
 
     try {
@@ -128,7 +124,11 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
     } finally {
       setLoading(false);
     }
-  };
+  }, [user?.id, subscription?.coach_id]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, [loadDashboardData]);
 
   if (loading) {
     return (

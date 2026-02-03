@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
@@ -33,11 +33,7 @@ export function NutritionGoal() {
   const [stepsGoal, setStepsGoal] = useState("");
   const [result, setResult] = useState<any>(null);
 
-  useEffect(() => {
-    loadActiveGoal();
-  }, []);
-
-  const loadActiveGoal = async () => {
+  const loadActiveGoal = useCallback(async () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
@@ -70,7 +66,7 @@ export function NutritionGoal() {
           setTargetGoalType(data.target_type as "weight" | "bodyfat");
           setTargetGoal((data.target_type === 'weight' ? data.target_weight_kg : data.target_body_fat).toString());
         }
-        
+
         // Set result to display summary
         setResult({
           calories: data.daily_calories,
@@ -94,7 +90,11 @@ export function NutritionGoal() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
+
+  useEffect(() => {
+    loadActiveGoal();
+  }, [loadActiveGoal]);
 
   const calculateCalories = () => {
     const weightNum = parseFloat(weight);

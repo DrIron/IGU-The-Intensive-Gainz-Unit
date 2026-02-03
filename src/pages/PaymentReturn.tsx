@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -27,15 +27,7 @@ export default function PaymentReturn() {
   const verificationAttemptedRef = useRef(false);
   const maxRetries = 3;
 
-  useEffect(() => {
-    // Prevent double verification
-    if (verificationAttemptedRef.current) return;
-    verificationAttemptedRef.current = true;
-    
-    verifyPayment();
-  }, []);
-
-  const verifyPayment = async () => {
+  const verifyPayment = useCallback(async () => {
     setState('verifying');
     
     try {
@@ -106,7 +98,15 @@ export default function PaymentReturn() {
       setState('error');
       setMessage("We couldn't verify your payment status. Please try again.");
     }
-  };
+  }, [searchParams, navigate, toast]);
+
+  useEffect(() => {
+    // Prevent double verification
+    if (verificationAttemptedRef.current) return;
+    verificationAttemptedRef.current = true;
+
+    verifyPayment();
+  }, [verifyPayment]);
 
   const handleRetry = () => {
     if (retryCount < maxRetries) {

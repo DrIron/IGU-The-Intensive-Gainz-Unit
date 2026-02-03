@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -65,13 +65,7 @@ export function AssignProgramDialog({
   const [assigning, setAssigning] = useState(false);
   const { toast } = useToast();
 
-  useEffect(() => {
-    if (open) {
-      loadPrograms();
-    }
-  }, [open, coachUserId]);
-
-  const loadPrograms = async () => {
+  const loadPrograms = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("program_templates")
@@ -106,7 +100,13 @@ export function AssignProgramDialog({
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachUserId, toast]);
+
+  useEffect(() => {
+    if (open) {
+      loadPrograms();
+    }
+  }, [open, coachUserId, loadPrograms]);
 
   const assignProgram = async () => {
     if (!selectedProgramId) {
