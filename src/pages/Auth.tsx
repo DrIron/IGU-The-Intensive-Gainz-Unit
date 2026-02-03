@@ -325,6 +325,45 @@ export default function Auth() {
     }
   };
 
+  /**
+   * Fetch roles with retry logic - handles the race condition where
+   * auth headers may not be attached immediately after sign-in
+   */
+  const fetchRolesWithRetry = useCallback(async (userId: string, maxRetries = 3): Promise<string[]> => {
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      console.log(`[Auth] Fetching roles, attempt ${attempt}/${maxRetries}`);
+
+      try {
+        const { data, error } = await supabase
+          .from('user_roles')
+          .select('role')
+          .eq('user_id', userId);
+
+        if (error) {
+          console.warn(`[Auth] Roles query error (attempt ${attempt}):`, error);
+        } else if (data && data.length > 0) {
+          const roles = data.map(r => r.role);
+          console.log('[Auth] Roles fetched successfully:', roles);
+          return roles;
+        } else {
+          console.log(`[Auth] No roles returned (attempt ${attempt})`);
+        }
+      } catch (err) {
+        console.warn(`[Auth] Roles query exception (attempt ${attempt}):`, err);
+      }
+
+      // Wait before retry with exponential backoff (200ms, 400ms, 800ms)
+      if (attempt < maxRetries) {
+        const delay = 200 * Math.pow(2, attempt - 1);
+        console.log(`[Auth] Retrying in ${delay}ms...`);
+        await new Promise(r => setTimeout(r, delay));
+      }
+    }
+
+    console.warn('[Auth] All role fetch attempts failed');
+    return [];
+  }, []);
+
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -348,7 +387,8 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({
+      // IMPORTANT: Capture the session/user from response - don't discard!
+      const { data, error } = await supabase.auth.signInWithPassword({
         email: email.trim(),
         password,
       });
@@ -360,13 +400,67 @@ export default function Auth() {
         throw error;
       }
 
+      const { session, user } = data;
+
+      if (!session || !user) {
+        throw new Error("Sign in succeeded but no session returned.");
+      }
+
+      console.log('[Auth] Sign-in successful for:', user.email);
+
       toast({
         title: "Welcome back!",
         description: "Successfully signed in.",
       });
-      
-      // The onAuthStateChange listener will handle the redirect
+
+      // CRITICAL FIX: Fetch and cache roles IMMEDIATELY after sign-in
+      // This prevents the race condition where RoleProtectedRoute tries to
+      // query roles before auth headers are ready
+      redirectingRef.current = true;
+
+      // Small delay to allow session to propagate to Supabase client internals
+      await new Promise(r => setTimeout(r, 300));
+
+      // Fetch roles with retry logic to handle auth header propagation delay
+      const roleList = await fetchRolesWithRetry(user.id);
+
+      if (roleList.length > 0) {
+        // Cache roles BEFORE redirect - this is the key fix
+        setCachedRoles(roleList, user.id);
+        console.log('[Auth] Roles cached:', roleList);
+      } else {
+        console.warn('[Auth] No roles fetched - user may see "No Access" temporarily');
+      }
+
+      // Now redirect based on roles
+      const redirectParam = searchParams.get("redirect");
+      if (redirectParam) {
+        navigate(redirectParam);
+      } else if (roleList.includes('admin')) {
+        navigate('/admin');
+      } else if (roleList.includes('coach') || isCoachAuth) {
+        navigate('/coach');
+      } else {
+        // Check onboarding status for clients
+        try {
+          const { data: profile } = await supabase
+            .from('profiles_public')
+            .select('status, onboarding_completed_at')
+            .eq('id', user.id)
+            .single();
+
+          if (profile && !profile.onboarding_completed_at && profile.status === 'pending') {
+            navigate('/onboarding');
+            return;
+          }
+        } catch {
+          // Ignore profile query errors - default to dashboard
+        }
+        navigate('/dashboard');
+      }
     } catch (error: any) {
+      // Reset redirect guard on error so user can try again
+      redirectingRef.current = false;
       toast({
         title: "Sign In Failed",
         description: error.message || "Failed to sign in. Please try again.",
