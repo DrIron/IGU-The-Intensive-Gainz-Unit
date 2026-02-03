@@ -4174,6 +4174,30 @@ export type Database = {
           },
         ]
       }
+      specialization_tags: {
+        Row: {
+          id: string
+          name: string
+          display_order: number
+          is_active: boolean
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          name: string
+          display_order?: number
+          is_active?: boolean
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          name?: string
+          display_order?: number
+          is_active?: boolean
+          created_at?: string
+        }
+        Relationships: []
+      }
       subscription_addons: {
         Row: {
           billing_type: string
