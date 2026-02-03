@@ -55,36 +55,3 @@ export function getStoredAccessToken(): string | null {
   }
   return null;
 }
-
-(async () => {
-  try {
-    const storedSession = window.localStorage.getItem(STORAGE_KEY);
-    if (storedSession) {
-      const parsed = JSON.parse(storedSession);
-      if (parsed?.access_token && parsed?.refresh_token) {
-        console.log('[Supabase Client] Restoring session with timeout protection');
-
-        const timeout = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Session restore timeout')), 3000)
-        );
-
-        try {
-          await Promise.race([
-            supabase.auth.setSession({
-              access_token: parsed.access_token,
-              refresh_token: parsed.refresh_token,
-            }),
-            timeout
-          ]);
-          console.log('[Supabase Client] Session restored successfully');
-        } catch (e) {
-          console.warn('[Supabase Client] Session restore timed out, clearing stale session');
-          window.localStorage.removeItem(STORAGE_KEY);
-          await supabase.auth.signOut();
-        }
-      }
-    }
-  } catch (error) {
-    console.error('[Supabase Client] Error restoring session:', error);
-  }
-})();
