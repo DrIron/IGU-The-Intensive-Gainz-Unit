@@ -321,6 +321,8 @@ When understanding this codebase, read in this order:
 - Phase 12: Admin dashboard QA — all 10 pages assessed (Feb 3, 2026)
 - Phase 13: Specialization tags — admin-managed multi-select (Feb 3, 2026)
 - Phase 14: Coach application email fix — CORS, JWT, Resend domain (Feb 4, 2026)
+- Phase 15: Coach approval flow complete — DB fixes, email flow, validation (Feb 4, 2026)
+- Phase 16: Coach dashboard QA — infinite loop fixes, My Clients crash fix (Feb 5, 2026)
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -417,16 +419,139 @@ supabase functions deploy <function-name> --no-verify-jwt
 - All emails must use `@mail.theigu.com` sender addresses
 - Future: Add Cloudflare Turnstile for bot protection on anonymous endpoints
 
+### Coach Approval Flow Complete Fix (Phase 15 - Feb 4, 2026)
+
+Fixed the complete coach approval pipeline from application submission to dashboard access.
+
+**Session 7-9: Database & Validation Fixes**
+
+1. **profiles_legacy FK constraint** - Coach approval edge function failed because `profiles_legacy` table had FK to `profiles.id` but coaches aren't in profiles table. Fixed by making the insert conditional.
+
+2. **Duplicate coach_applications** - Found 3 duplicate applications for same email in database. Cleaned up via SQL:
+   ```sql
+   DELETE FROM coach_applications WHERE id NOT IN (
+     SELECT MIN(id) FROM coach_applications GROUP BY email
+   );
+   ```
+
+3. **Zod validation error** - Edge function failed with `phoneNumber` expecting string but receiving null. Fixed by making field nullable in validation schema:
+   ```typescript
+   phoneNumber: z.string().nullable().optional()
+   ```
+
+**Session 10-11: Email Flow Fixes**
+
+4. **Missing password setup email** - `send-coach-invitation` edge function had JWT verification enabled, blocking edge-function-to-edge-function calls. Fixed by deploying with `--no-verify-jwt`:
+   ```bash
+   supabase functions deploy send-coach-invitation --no-verify-jwt
+   ```
+
+**Files Modified**:
+- `supabase/functions/create-coach-account/index.ts` - Nullable phoneNumber, conditional profiles_legacy insert
+- `supabase/functions/send-coach-invitation/index.ts` - Deployed without JWT verification
+
+**Result**: Full coach approval flow working end-to-end:
+- ✅ Admin approves coach application
+- ✅ Coach account created in `coaches`, `coaches_private` tables
+- ✅ Password setup email sent via Resend
+- ✅ Coach can set password and access dashboard
+
+### Coach Dashboard QA & Infinite Loop Fixes (Phase 16 - Feb 5, 2026)
+
+Comprehensive fix for coach dashboard infinite polling loops and page crashes discovered during QA testing.
+
+**Problems Found**:
+1. **Infinite polling loop** - Coach dashboard making 1000+ Supabase requests per minute (user_roles, services, coach_service_limits, subscriptions)
+2. **My Clients page crash** - `/coach/clients` showing error boundary immediately on load
+3. **coaches_public confusion** - Attempted to INSERT into what turned out to be a VIEW
+
+**Root Cause Analysis**:
+
+The infinite loop pattern was caused by React useEffect dependency arrays containing `useCallback` functions that depended on state setters or callbacks that changed on every render:
+
+```typescript
+// BROKEN PATTERN - causes infinite loop
+const fetchData = useCallback(async () => {
+  // ... calls setCachedRoles() or onMetricsLoaded()
+}, [toast, onMetricsLoaded]); // onMetricsLoaded changes every render
+
+useEffect(() => {
+  fetchData();
+}, [fetchData]); // fetchData changes → useEffect runs → state changes → repeat
+```
+
+**Solution Pattern** (use for ALL data-fetching useEffects):
+```typescript
+const hasFetchedData = useRef(false);
+
+useEffect(() => {
+  if (hasFetchedData.current) return;
+  hasFetchedData.current = true;
+  fetchData();
+}, [fetchData]);
+```
+
+**Files Fixed**:
+
+| File | Fix | Commit |
+|------|-----|--------|
+| `src/pages/coach/CoachDashboard.tsx` | Added `hasLoadedData` ref guard | `39b3896` |
+| `src/pages/admin/AdminDashboard.tsx` | Added `hasLoadedData` ref guard | `39b3896` |
+| `src/pages/Dashboard.tsx` | Added `hasLoadedData` ref guard | `39b3896` |
+| `src/components/coach/EnhancedCapacityCard.tsx` | Added `hasFetchedCapacity` ref guard | `453c8aa` |
+| `src/components/coach/CoachMyClientsPage.tsx` | Moved `fetchClients` before useEffect + added `hasFetchedClients` ref | `7c48429` |
+
+**CoachMyClientsPage Crash** (Temporal Dead Zone):
+
+The crash was caused by JavaScript's temporal dead zone - the useEffect referenced `fetchClients` in its dependency array before the `useCallback` was defined later in the file:
+
+```typescript
+// BROKEN - fetchClients not defined yet!
+useEffect(() => {
+  fetchClients(); // ReferenceError
+}, [fetchClients]);
+
+// ... 100 lines later ...
+const fetchClients = useCallback(...);
+```
+
+**Fix**: Move `useCallback` declarations BEFORE the `useEffect` that uses them.
+
+**Key Discovery - coaches_public is a VIEW**:
+
+```sql
+-- coaches_public is NOT a table - it's a VIEW that auto-populates
+CREATE VIEW coaches_public AS
+SELECT ... FROM coaches WHERE status IN ('approved', 'active');
+```
+
+This means:
+- ❌ Cannot INSERT into coaches_public directly
+- ❌ Cannot add RLS policies to views
+- ✅ View auto-updates when coaches.status changes to 'approved' or 'active'
+- ✅ The `create-coach-account` edge function does NOT need to touch coaches_public
+
+**Reverted Changes**:
+- Removed coaches_public upsert from `create-coach-account/index.ts` (commit `ce3fa8c`)
+- Deleted invalid migration `20260205120000_coaches_public_rls_fix.sql`
+
+**Testing Verification**:
+- ✅ Coach dashboard loads without infinite loop (was 1000+ requests, now 1-2)
+- ✅ My Clients page loads successfully
+- ✅ No console errors
+- ✅ Page refresh maintains auth session
+- ✅ Admin dashboard also fixed (same pattern)
+
 ### Admin QA Results (Feb 3, 2026)
 
-10 known issues found across admin dashboard pages:
+10 known issues found across admin dashboard pages (updated Feb 5):
 
-**Critical (2)**:
+**Critical (1 remaining)**:
 1. Testimonials page hangs on load
-2. "Error loading services" spam in console
+2. ~~"Error loading services" spam in console~~ ✅ FIXED (Phase 16 - was infinite loop)
 
-**Medium (4)**:
-1. Status shows "Unknown" briefly on page load
+**Medium (3 remaining)**:
+1. ~~Status shows "Unknown" briefly on page load~~ ✅ FIXED (related to auth cache)
 2. "One To_one" label instead of "1:1" in service names
 3. Empty state text inconsistencies
 4. Admin user flagged in system health checks
@@ -445,6 +570,9 @@ supabase functions deploy <function-name> --no-verify-jwt
 - Sign-out flow doesn't properly redirect to login page
 - Edge functions: Always handle OPTIONS before `req.json()` to avoid CORS preflight crashes
 - Resend emails must use `@mail.theigu.com` (only verified subdomain)
+- React useEffect with useCallback dependencies can cause infinite loops — always use `hasFetched` ref guards for data fetching
+- `coaches_public` is a VIEW (not a table) — auto-populated from coaches table, cannot INSERT directly
+- Edge functions calling other edge functions must use `--no-verify-jwt` on the called function
 
 ---
 
@@ -502,14 +630,14 @@ When asking for help:
 - Admin QA (10 pages assessed)
 - Specialization tags feature
 - Coach application confirmation emails (CORS + JWT + Resend fixes)
+- Coach approval/rejection email flow QA ✅ (Feb 4, 2026)
+- Coach dashboard QA — infinite loop and crash fixes ✅ (Feb 5, 2026)
 
 **In Progress**:
-- Coach approval/rejection email flow QA
-- Coach dashboard QA
-- Client onboarding & dashboard QA
+- Client onboarding & dashboard QA (next session)
 
 **Remaining**:
-- Fix critical issues (testimonials hang, services error spam)
+- Fix critical issues (testimonials hang)
 - Add Cloudflare Turnstile to anonymous endpoints (coach application form)
 - Populate exercise library from YouTube
 - Mobile responsive testing
@@ -522,3 +650,54 @@ When asking for help:
 - `/docs/IGU_Discovery_Report.md` - Platform audit
 - `/docs/Dashboard_UX_Plan.md` - Dashboard UX specs
 - `/docs/LAUNCH_CHECKLIST.md` - Pre-launch tasks
+
+---
+
+## Edge Function Deployment Reference
+
+Quick reference for edge function JWT settings:
+
+| Function | JWT Required | Reason |
+|----------|--------------|--------|
+| `create-coach-account` | No | Called during admin approval flow |
+| `send-coach-invitation` | **No** | Called by other edge functions |
+| `send-coach-application-emails` | **No** | Called by anonymous users |
+| `tap-webhook` | **No** | Called by payment provider |
+| `create-tap-payment` | Yes | Authenticated users only |
+| `verify-payment` | Yes | Authenticated users only |
+
+Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
+
+---
+
+## React Pattern: Safe Data Fetching in useEffect
+
+Always use this pattern to prevent infinite loops:
+
+```typescript
+import { useEffect, useRef, useCallback } from 'react';
+
+function MyComponent() {
+  const hasFetched = useRef(false);
+
+  // 1. Define useCallback FIRST
+  const fetchData = useCallback(async () => {
+    // ... fetch logic
+  }, [dependencies]);
+
+  // 2. Use ref guard in useEffect
+  useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    fetchData();
+  }, [fetchData]);
+}
+```
+
+Components using this pattern:
+- `src/pages/coach/CoachDashboard.tsx`
+- `src/pages/admin/AdminDashboard.tsx`
+- `src/pages/Dashboard.tsx`
+- `src/components/coach/EnhancedCapacityCard.tsx`
+- `src/components/coach/CoachMyClientsPage.tsx`
+- `src/hooks/useRoleGate.ts`
