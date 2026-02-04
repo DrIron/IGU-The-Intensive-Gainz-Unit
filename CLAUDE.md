@@ -76,6 +76,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── create-tap-payment/
 │   │   ├── tap-webhook/      # Payment webhook handler
 │   │   ├── verify-payment/
+│   │   ├── send-coach-application-emails/  # Coach app confirmation (no JWT)
 │   │   └── _shared/          # Shared utilities
 │   ├── migrations/           # Database migrations (version controlled)
 │   └── config.toml           # Supabase CLI config
@@ -319,6 +320,7 @@ When understanding this codebase, read in this order:
 - Phase 11: Auth regression fix after dashboard merge conflicts (Feb 3, 2026)
 - Phase 12: Admin dashboard QA — all 10 pages assessed (Feb 3, 2026)
 - Phase 13: Specialization tags — admin-managed multi-select (Feb 3, 2026)
+- Phase 14: Coach application email fix — CORS, JWT, Resend domain (Feb 4, 2026)
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -387,6 +389,34 @@ specialization_tags  -- id, name, display_order, is_active, created_at
 - `src/components/onboarding/CoachPreferenceSection.tsx` - Exact Set-based matching
 - `src/lib/coachMatching.ts` - Exact Set-based matching
 
+### Coach Application Email Fix (Phase 14)
+
+Fixed 3 layered bugs preventing coach application confirmation emails from sending.
+
+**Bug 1 — CORS preflight crash**: `req.json()` was called at the top of the function before checking for OPTIONS requests. Since OPTIONS has no body, `JSON.parse("")` threw `SyntaxError: Unexpected end of JSON input`, returning 500 before CORS headers could be set, which killed the preflight → browser never sent the POST.
+
+**Bug 2 — JWT verification blocking anonymous users**: Supabase gateway had "Verify JWT with legacy secret" enabled, returning 401 before the function even executed. Coach applicants are anonymous (not logged in), so JWT verification must be off.
+
+**Bug 3 — Resend domain mismatch**: The `from` address used `noreply@theigu.com` but only `mail.theigu.com` was verified in Resend. Changed to `noreply@mail.theigu.com`.
+
+**Key File**: `supabase/functions/send-coach-application-emails/index.ts`
+
+**Changes Made**:
+- Added `corsHeaders` constant and OPTIONS preflight handler before `req.json()`
+- Deployed with `--no-verify-jwt` flag (anonymous endpoint)
+- Changed `from` address to `noreply@mail.theigu.com`
+- All Response objects include `...corsHeaders`
+
+**Edge Function Deployment Pattern** (for public-facing functions):
+```bash
+supabase functions deploy <function-name> --no-verify-jwt
+```
+
+**Resend Configuration**:
+- Verified domain: `mail.theigu.com` (not root `theigu.com`)
+- All emails must use `@mail.theigu.com` sender addresses
+- Future: Add Cloudflare Turnstile for bot protection on anonymous endpoints
+
 ### Admin QA Results (Feb 3, 2026)
 
 10 known issues found across admin dashboard pages:
@@ -413,6 +443,8 @@ specialization_tags  -- id, name, display_order, is_active, created_at
 - Bundle size is large (~2.4MB) - needs code splitting
 - `getSession()` can hang on page refresh — always use cache-first pattern
 - Sign-out flow doesn't properly redirect to login page
+- Edge functions: Always handle OPTIONS before `req.json()` to avoid CORS preflight crashes
+- Resend emails must use `@mail.theigu.com` (only verified subdomain)
 
 ---
 
@@ -469,14 +501,16 @@ When asking for help:
 - Exercise Quick-Add tool
 - Admin QA (10 pages assessed)
 - Specialization tags feature
+- Coach application confirmation emails (CORS + JWT + Resend fixes)
 
 **In Progress**:
-- Coach application & approval flow QA
+- Coach approval/rejection email flow QA
 - Coach dashboard QA
 - Client onboarding & dashboard QA
 
 **Remaining**:
 - Fix critical issues (testimonials hang, services error spam)
+- Add Cloudflare Turnstile to anonymous endpoints (coach application form)
 - Populate exercise library from YouTube
 - Mobile responsive testing
 - End-to-end client journey testing
