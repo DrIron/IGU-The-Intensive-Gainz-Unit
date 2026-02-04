@@ -9,6 +9,25 @@ export interface SpecializationTag {
   created_at: string;
 }
 
+// Fallback specializations when database table is empty
+const SPECIALIZATION_OPTIONS: SpecializationTag[] = [
+  { id: 'fallback-1', name: 'Strength Training', display_order: 1, is_active: true, created_at: '' },
+  { id: 'fallback-2', name: 'Weight Loss', display_order: 2, is_active: true, created_at: '' },
+  { id: 'fallback-3', name: 'Muscle Building', display_order: 3, is_active: true, created_at: '' },
+  { id: 'fallback-4', name: 'Sports Performance', display_order: 4, is_active: true, created_at: '' },
+  { id: 'fallback-5', name: 'Powerlifting', display_order: 5, is_active: true, created_at: '' },
+  { id: 'fallback-6', name: 'Bodybuilding', display_order: 6, is_active: true, created_at: '' },
+  { id: 'fallback-7', name: 'Functional Fitness', display_order: 7, is_active: true, created_at: '' },
+  { id: 'fallback-8', name: 'Nutrition Coaching', display_order: 8, is_active: true, created_at: '' },
+  { id: 'fallback-9', name: 'Injury Rehabilitation', display_order: 9, is_active: true, created_at: '' },
+  { id: 'fallback-10', name: 'Mobility & Flexibility', display_order: 10, is_active: true, created_at: '' },
+  { id: 'fallback-11', name: 'HIIT & Conditioning', display_order: 11, is_active: true, created_at: '' },
+  { id: 'fallback-12', name: 'Senior Fitness', display_order: 12, is_active: true, created_at: '' },
+  { id: 'fallback-13', name: 'Youth Athletics', display_order: 13, is_active: true, created_at: '' },
+  { id: 'fallback-14', name: 'Pre/Postnatal Fitness', display_order: 14, is_active: true, created_at: '' },
+  { id: 'fallback-15', name: 'Contest Prep', display_order: 15, is_active: true, created_at: '' },
+];
+
 interface UseSpecializationTagsOptions {
   includeInactive?: boolean;
 }
@@ -66,7 +85,9 @@ export function useSpecializationTags({ includeInactive = false }: UseSpecializa
           throw error;
         }
 
-        return (data as SpecializationTag[]) || [];
+        // Use fallback if database table is empty
+        const tags = (data as SpecializationTag[]) || [];
+        return tags.length > 0 ? tags : SPECIALIZATION_OPTIONS;
       };
 
       try {
