@@ -108,6 +108,26 @@ serve(async (req) => {
 
     if (roleError) throw roleError;
 
+    // Create profiles_legacy row first to satisfy FK constraint on coaches table
+    const { error: profilesLegacyError } = await supabaseAdmin
+      .from('profiles_legacy')
+      .upsert({
+        id: userId,
+        email,
+        first_name,
+        last_name,
+        full_name: `${first_name} ${last_name}`,
+        date_of_birth: date_of_birth ?? null,
+        status: 'active',
+      }, {
+        onConflict: 'id',
+      });
+
+    if (profilesLegacyError) {
+      console.error('Error upserting profiles_legacy:', profilesLegacyError);
+      throw profilesLegacyError;
+    }
+
     // Check if coach profile already exists
     const { data: existingCoach } = await supabaseAdmin
       .from('coaches')
