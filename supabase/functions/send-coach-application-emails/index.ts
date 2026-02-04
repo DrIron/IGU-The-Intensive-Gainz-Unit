@@ -162,7 +162,7 @@ serve(async (req) => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: "IGU Coaching <noreply@theigu.com>",
+        from: "IGU Coaching <noreply@mail.theigu.com>",
         to: [applicantEmail],
         subject: subject,
         html: html,
