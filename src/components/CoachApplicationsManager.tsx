@@ -126,10 +126,10 @@ export function CoachApplicationsManager() {
       const { error: createError } = await supabase.functions.invoke('create-coach-account', {
         body: {
           applicationId: selectedApp.id,
-          firstName: selectedApp.first_name,
-          lastName: selectedApp.last_name,
+          first_name: selectedApp.first_name,
+          last_name: selectedApp.last_name,
           email: selectedApp.email,
-          dateOfBirth: selectedApp.date_of_birth,
+          date_of_birth: selectedApp.date_of_birth,
           certifications: selectedApp.certifications,
           specializations: selectedApp.specializations,
           phoneNumber: selectedApp.phone_number
