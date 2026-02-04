@@ -208,6 +208,27 @@ serve(async (req) => {
       console.error('Error upserting coaches_private:', contactError);
       // Don't fail the whole operation - contacts table might not be ready
     }
+
+    // Insert into coaches_public for public profile visibility
+    const { error: publicInsertError } = await supabaseAdmin
+      .from('coaches_public')
+      .upsert({
+        coach_id: coachData.id,
+        first_name: first_name,
+        last_name: last_name,
+        email: email,
+        avatar_url: null,
+        bio: null,
+        is_visible: false,
+      }, {
+        onConflict: 'coach_id',
+      });
+
+    if (publicInsertError) {
+      console.error('Error creating coaches_public row:', publicInsertError);
+      // Non-fatal - continue with approval
+    }
+
     let passwordResetLink = null;
     try {
       const redirectTo = `https://theigu.com/coach-password-setup?coach_id=${coachData.id}`;

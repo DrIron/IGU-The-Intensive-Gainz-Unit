@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -80,6 +80,8 @@ export function useRoleGate(options: UseRoleGateOptions = {}): RoleGateState {
     redirectToDashboard: () => {},
   });
 
+  const hasFetchedRoles = useRef(false);
+
   const redirectToDashboard = useCallback(() => {
     const dashboard = getDashboardForRole(state.primaryRole);
     navigate(dashboard, { replace: true });
@@ -89,10 +91,22 @@ export function useRoleGate(options: UseRoleGateOptions = {}): RoleGateState {
     return hasPermission(state.roles, feature);
   }, [state.roles]);
 
+  // Reset fetch flag when user actually changes
+  useEffect(() => {
+    return () => {
+      hasFetchedRoles.current = false;
+    };
+  }, []);
+
   useEffect(() => {
     let mounted = true;
 
     const checkAuthorization = async () => {
+      if (hasFetchedRoles.current) {
+        console.log('[useRoleGate] Already fetched roles, skipping');
+        return;
+      }
+
       try {
         const { data: { session } } = await supabase.auth.getSession();
         const user = session?.user;
@@ -112,6 +126,7 @@ export function useRoleGate(options: UseRoleGateOptions = {}): RoleGateState {
         }
 
         // Fetch roles from database
+        hasFetchedRoles.current = true;
         const { data: rolesData } = await supabase
           .from("user_roles")
           .select("role")
