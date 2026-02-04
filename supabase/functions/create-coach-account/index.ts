@@ -13,7 +13,7 @@ const requestSchema = z.object({
   email: z.string().email().max(255).trim().toLowerCase(),
   first_name: z.string().min(1).max(50).trim(),
   last_name: z.string().min(1).max(50).trim(),
-  date_of_birth: z.string().optional(),
+  date_of_birth: z.string().nullable().optional(),
   location: z.string().max(100).trim().optional(),
   nickname: z.string().max(50).trim().optional(),
   instagram_url: urlSchema,
@@ -24,7 +24,7 @@ const requestSchema = z.object({
   applicationId: z.string().uuid().optional(),
   certifications: z.array(z.string().min(1).max(200)).max(20).optional(), // Max 20 certs, 200 chars each
   specializations: z.array(z.string().min(1).max(100)).max(15).optional(), // Max 15 specs, 100 chars each
-  phoneNumber: z.string().max(20).trim().optional(),
+  phoneNumber: z.string().max(20).trim().nullable().optional(),
 });
 
 serve(async (req) => {
