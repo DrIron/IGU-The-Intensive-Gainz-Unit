@@ -16,6 +16,10 @@ CREATE POLICY "anon_can_submit_applications"
   TO anon
   WITH CHECK (status = 'pending');
 
+-- Grant table-level INSERT permission to anon role
+-- (RLS policy above controls which rows, this grants the basic permission)
+GRANT INSERT ON public.coach_applications TO anon;
+
 -- Verify: Existing policies should be:
 -- - Admin can SELECT/UPDATE/DELETE (for reviewing applications)
 -- - Anon can INSERT with status = 'pending' (this new one)
