@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -61,6 +61,7 @@ function DashboardContent() {
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<any>(null);
+  const hasLoadedData = useRef(false);
 
   const { cachedRoles, cachedUserId, setCachedRoles } = useRoleCache();
   const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
@@ -198,6 +199,12 @@ function DashboardContent() {
   }, [sessionUser, cachedUserId, sessionLoading, navigate, cachedRoles, setCachedRoles, searchParams, toast]);
 
   useEffect(() => {
+    // Prevent infinite loop - only load once
+    if (hasLoadedData.current) {
+      return;
+    }
+    hasLoadedData.current = true;
+
     const timeout = setTimeout(() => {
       if (loading) {
         console.error("[Dashboard] Loading timeout - forcing render");

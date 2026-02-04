@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -38,6 +38,7 @@ export default function AdminDashboard() {
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [hasAdminRole, setHasAdminRole] = useState(false);
   const [hasCoachRole, setHasCoachRole] = useState(false);
+  const hasLoadedData = useRef(false);
 
   // FIX: Use cached roles and user from the cache-first auth system
   const { cachedRoles, cachedUserId, setCachedRoles } = useRoleCache();
@@ -120,6 +121,12 @@ export default function AdminDashboard() {
   }, [sessionUser, cachedUserId, sessionLoading, navigate, setCachedRoles]);
 
   useEffect(() => {
+    // Prevent infinite loop - only load once
+    if (hasLoadedData.current) {
+      return;
+    }
+    hasLoadedData.current = true;
+
     const timeout = setTimeout(() => {
       if (loading) {
         console.error("[AdminDashboard] Loading timeout - forcing render");

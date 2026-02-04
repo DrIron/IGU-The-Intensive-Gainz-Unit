@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +29,7 @@ export default function CoachDashboard() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [hasCoachRole, setHasCoachRole] = useState(false);
+  const hasLoadedData = useRef(false);
 
   const { cachedRoles, cachedUserId, setCachedRoles } = useRoleCache();
   const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
@@ -125,6 +126,12 @@ export default function CoachDashboard() {
   }, [sessionUser, cachedUserId, sessionLoading, navigate, setCachedRoles, cachedRoles, toast]);
 
   useEffect(() => {
+    // Prevent infinite loop - only load once
+    if (hasLoadedData.current) {
+      return;
+    }
+    hasLoadedData.current = true;
+
     const timeout = setTimeout(() => {
       if (loading) {
         console.error("[CoachDashboard] Loading timeout - forcing render");
