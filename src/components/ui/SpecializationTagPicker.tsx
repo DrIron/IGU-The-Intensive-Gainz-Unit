@@ -3,8 +3,8 @@ import { cn } from "@/lib/utils";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 
 interface SpecializationTagPickerProps {
-  selectedTags: string[];
-  onToggle: (tagName: string) => void;
+  selectedTags: string[];  // Array of tag values (e.g., ["strength_training", "bodybuilding"])
+  onToggle: (tagValue: string) => void;
   maxTags?: number;
   disabled?: boolean;
 }
@@ -12,6 +12,7 @@ interface SpecializationTagPickerProps {
 /**
  * Reusable multi-select component for coach specialization tags.
  * Fetches active tags from the database and displays them as selectable pills.
+ * Stores tag values (snake_case) but displays labels (Title Case).
  */
 export function SpecializationTagPicker({
   selectedTags,
@@ -19,11 +20,11 @@ export function SpecializationTagPicker({
   maxTags = 15,
   disabled = false,
 }: SpecializationTagPickerProps) {
-  const { data: tags, isLoading, error } = useSpecializationTags();
+  const { tags, loading, error } = useSpecializationTags();
 
   const isAtMaxSelections = selectedTags.length >= maxTags;
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="flex items-center gap-2 py-4 text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -43,15 +44,15 @@ export function SpecializationTagPicker({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap gap-2">
-        {tags?.map((tag) => {
-          const isSelected = selectedTags.includes(tag.name);
+        {tags.map((tag) => {
+          const isSelected = selectedTags.includes(tag.value);
           const isDisabledTag = disabled || (isAtMaxSelections && !isSelected);
 
           return (
             <button
               key={tag.id}
               type="button"
-              onClick={() => !isDisabledTag && onToggle(tag.name)}
+              onClick={() => !isDisabledTag && onToggle(tag.value)}
               disabled={isDisabledTag}
               className={cn(
                 "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
@@ -63,7 +64,7 @@ export function SpecializationTagPicker({
               )}
             >
               {isSelected && <span>✓</span>}
-              {tag.name}
+              {tag.label}
             </button>
           );
         })}

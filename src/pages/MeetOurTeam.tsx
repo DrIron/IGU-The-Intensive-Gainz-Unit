@@ -8,6 +8,7 @@ import { CoachDetailDialog } from "@/components/CoachDetailDialog";
 import { MapPin } from "lucide-react";
 import { Footer } from "@/components/Footer";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 
 // Public coach profile - no sensitive contact info
 interface Coach {
@@ -29,6 +30,7 @@ export default function MeetOurTeam() {
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const { getLabel } = useSpecializationTags();
 
   useDocumentTitle({
     title: "Coaching Team | Intensive Gainz Unit",
@@ -125,7 +127,7 @@ export default function MeetOurTeam() {
                     <div className="flex flex-wrap gap-2">
                       {coach.specializations.slice(0, 3).map((spec, idx) => (
                         <Badge key={idx} variant="secondary" className="text-xs">
-                          {spec}
+                          {getLabel(spec)}
                         </Badge>
                       ))}
                       {coach.specializations.length > 3 && (

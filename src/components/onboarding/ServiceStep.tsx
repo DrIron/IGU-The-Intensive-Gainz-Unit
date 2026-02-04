@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { PersonalDetailsFields } from "@/components/forms/PersonalDetailsFields";
 import { CoachPreferenceSection } from "@/components/onboarding/CoachPreferenceSection";
+import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 
 interface ServiceStepProps {
   form: UseFormReturn<any>;
@@ -31,20 +32,11 @@ const referralSources = [
   { value: "other", label: "Other" },
 ];
 
-const FOCUS_OPTIONS = [
-  { value: 'general_fitness', label: 'General fitness & lifestyle' },
-  { value: 'bodybuilding', label: 'Body recomposition / bodybuilding' },
-  { value: 'powerlifting', label: 'Strength & powerlifting' },
-  { value: 'running', label: 'Running & endurance' },
-  { value: 'mobility', label: 'Mobility, flexibility, yoga / pilates' },
-  { value: 'nutrition', label: 'Nutrition coaching / diet support' },
-  { value: 'rehab_physio', label: 'Rehab, injuries & physiotherapy' },
-];
-
 export function ServiceStep({ form, serviceId }: ServiceStepProps) {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [preSelectedService, setPreSelectedService] = useState<Service | null>(null);
+  const { tags: focusOptions, loading: tagsLoading } = useSpecializationTags();
 
   const selectedPlanName = form.watch("plan_name");
   const focusAreas = form.watch("focus_areas") || [];
@@ -211,23 +203,30 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
               <FormDescription className="mb-3">
                 Select one or more areas you'd like to focus on. This helps us match you with the best coach for your goals.
               </FormDescription>
-              <div className="space-y-3">
-                {FOCUS_OPTIONS.map((option) => (
-                  <div key={option.value} className="flex items-center space-x-3">
-                    <Checkbox
-                      id={`focus-${option.value}`}
-                      checked={focusAreas.includes(option.value)}
-                      onCheckedChange={(checked) => handleFocusAreaChange(option.value, checked as boolean)}
-                    />
-                    <label
-                      htmlFor={`focus-${option.value}`}
-                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                    >
-                      {option.label}
-                    </label>
-                  </div>
-                ))}
-              </div>
+              {tagsLoading ? (
+                <div className="flex items-center gap-2 py-4 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>Loading focus areas...</span>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {focusOptions.map((option) => (
+                    <div key={option.value} className="flex items-center space-x-3">
+                      <Checkbox
+                        id={`focus-${option.value}`}
+                        checked={focusAreas.includes(option.value)}
+                        onCheckedChange={(checked) => handleFocusAreaChange(option.value, checked as boolean)}
+                      />
+                      <label
+                        htmlFor={`focus-${option.value}`}
+                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
+                      >
+                        {option.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              )}
               <FormMessage />
             </FormItem>
           )}

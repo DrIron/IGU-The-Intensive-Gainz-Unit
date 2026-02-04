@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Sparkles, User, CheckCircle2, AlertCircle, Users } from "lucide-react";
+import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 
 interface Coach {
   id: string;
@@ -47,6 +48,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
   const [noCoachesAvailable, setNoCoachesAvailable] = useState(false);
+  const { getLabel } = useSpecializationTags();
 
   const preferenceType = form.watch("coach_preference_type") || "auto";
   const selectedCoachId = form.watch("requested_coach_id");
@@ -224,7 +226,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
 
   const formatSpecialties = (specializations: string[] | null): string => {
     if (!specializations || specializations.length === 0) return '';
-    return specializations.slice(0, 3).join(' • ');
+    return specializations.slice(0, 3).map(s => getLabel(s)).join(' • ');
   };
 
   return (

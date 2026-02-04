@@ -11,25 +11,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
-
-// Specialization options aligned with client FOCUS_OPTIONS in ServiceStep.tsx for coach-client matching
-const SPECIALIZATION_OPTIONS = [
-  { value: "strength_training", label: "Strength Training" },
-  { value: "bodybuilding", label: "Bodybuilding" },
-  { value: "powerlifting", label: "Powerlifting" },
-  { value: "body_recomposition", label: "Body Recomposition" },
-  { value: "nutrition_coaching", label: "Nutrition Coaching" },
-  { value: "weight_loss", label: "Weight Loss" },
-  { value: "general_fitness", label: "General Fitness" },
-  { value: "athletic_performance", label: "Athletic Performance" },
-  { value: "mobility_flexibility", label: "Mobility & Flexibility" },
-  { value: "running_endurance", label: "Running & Endurance" },
-  { value: "rehab_injury_prevention", label: "Rehab & Injury Prevention" },
-  { value: "contest_prep", label: "Contest Prep" },
-  { value: "womens_training", label: "Women's Training" },
-  { value: "senior_fitness", label: "Senior Fitness" },
-  { value: "youth_training", label: "Youth Training" },
-] as const;
+import { useSpecializationTags } from "@/hooks/useSpecializationTags";
+import { Loader2 } from "lucide-react";
 
 const coachApplicationSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters").max(50, "First name too long").trim(),
@@ -61,6 +44,7 @@ interface CoachApplicationFormProps {
 
 export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { tags: specializationTags, loading: tagsLoading } = useSpecializationTags();
 
   const form = useForm<CoachApplicationFormValues>({
     resolver: zodResolver(coachApplicationSchema),
@@ -279,32 +263,39 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
                     <FormLabel>Areas of Specialization</FormLabel>
                     <FormControl>
                       <div className="space-y-3">
-                        <div className="flex flex-wrap gap-2">
-                          {SPECIALIZATION_OPTIONS.map((option) => {
-                            const isSelected = field.value.includes(option.value);
-                            return (
-                              <button
-                                key={option.value}
-                                type="button"
-                                onClick={() => {
-                                  const updated = isSelected
-                                    ? field.value.filter((v: string) => v !== option.value)
-                                    : [...field.value, option.value];
-                                  field.onChange(updated);
-                                }}
-                                className={cn(
-                                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
-                                  isSelected
-                                    ? "bg-primary text-primary-foreground border-primary"
-                                    : "bg-muted/50 text-muted-foreground border-border hover:border-primary/50"
-                                )}
-                              >
-                                {isSelected && <span>✓</span>}
-                                {option.label}
-                              </button>
-                            );
-                          })}
-                        </div>
+                        {tagsLoading ? (
+                          <div className="flex items-center gap-2 py-4 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Loading specializations...</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {specializationTags.map((tag) => {
+                              const isSelected = field.value.includes(tag.value);
+                              return (
+                                <button
+                                  key={tag.id}
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = isSelected
+                                      ? field.value.filter((v: string) => v !== tag.value)
+                                      : [...field.value, tag.value];
+                                    field.onChange(updated);
+                                  }}
+                                  className={cn(
+                                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
+                                    isSelected
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-muted/50 text-muted-foreground border-border hover:border-primary/50"
+                                  )}
+                                >
+                                  {isSelected && <span>✓</span>}
+                                  {tag.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
                         <p className="text-sm text-muted-foreground">
                           {field.value.length}/15 selected
                         </p>

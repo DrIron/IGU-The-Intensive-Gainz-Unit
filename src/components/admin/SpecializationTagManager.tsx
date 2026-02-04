@@ -24,23 +24,26 @@ import { useSpecializationTags, SpecializationTag } from "@/hooks/useSpecializat
 /**
  * Admin CRUD component for managing specialization tags.
  * Allows adding, editing, reordering, toggling active status, and deleting tags.
+ *
+ * NOTE: This manages the specializations system (coach expertise tags).
+ * Do NOT confuse with specialties (staff_specialty enum for care team add-ons).
  */
 export function SpecializationTagManager() {
   const queryClient = useQueryClient();
-  const { data: tags, isLoading, error } = useSpecializationTags({ includeInactive: true });
+  const { tags, loading: isLoading, error } = useSpecializationTags({ includeInactive: true });
 
-  const [newTagName, setNewTagName] = useState("");
-  const [addingTag, setAddingTag] = useState(false);
+  const [newTagValue, setNewTagValue] = useState("");
+  const [newTagLabel, setNewTagLabel] = useState("");
 
   // Add tag mutation
   const addTagMutation = useMutation({
-    mutationFn: async (name: string) => {
-      // Get max display_order
-      const maxOrder = tags?.reduce((max, t) => Math.max(max, t.display_order), 0) || 0;
+    mutationFn: async ({ value, label }: { value: string; label: string }) => {
+      // Get max sort_order
+      const maxOrder = tags.reduce((max, t) => Math.max(max, t.sort_order), 0);
 
       const { data, error } = await supabase
         .from('specialization_tags')
-        .insert({ name, display_order: maxOrder + 1 })
+        .insert({ value, label, sort_order: maxOrder + 1 })
         .select()
         .single();
 
@@ -49,14 +52,14 @@ export function SpecializationTagManager() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['specialization-tags'] });
-      setNewTagName("");
-      setAddingTag(false);
+      setNewTagValue("");
+      setNewTagLabel("");
       toast.success("Tag added successfully");
     },
     onError: (error: any) => {
       console.error('Error adding tag:', error);
       if (error.code === '23505') {
-        toast.error("A tag with this name already exists");
+        toast.error("A tag with this value already exists");
       } else {
         toast.error("Failed to add tag");
       }
@@ -82,20 +85,20 @@ export function SpecializationTagManager() {
     },
   });
 
-  // Reorder mutation - swap display_order between two adjacent tags
+  // Reorder mutation - swap sort_order between two adjacent tags
   const reorderMutation = useMutation({
     mutationFn: async ({ tag1, tag2 }: { tag1: SpecializationTag; tag2: SpecializationTag }) => {
-      // Swap display_order values
+      // Swap sort_order values
       const { error: error1 } = await supabase
         .from('specialization_tags')
-        .update({ display_order: tag2.display_order })
+        .update({ sort_order: tag2.sort_order })
         .eq('id', tag1.id);
 
       if (error1) throw error1;
 
       const { error: error2 } = await supabase
         .from('specialization_tags')
-        .update({ display_order: tag1.display_order })
+        .update({ sort_order: tag1.sort_order })
         .eq('id', tag2.id);
 
       if (error2) throw error2;
@@ -130,21 +133,27 @@ export function SpecializationTagManager() {
   });
 
   const handleAddTag = () => {
-    const trimmed = newTagName.trim();
-    if (trimmed.length < 2) {
-      toast.error("Tag name must be at least 2 characters");
+    const trimmedValue = newTagValue.trim().toLowerCase().replace(/\s+/g, '_');
+    const trimmedLabel = newTagLabel.trim();
+
+    if (trimmedValue.length < 2) {
+      toast.error("Tag value must be at least 2 characters");
       return;
     }
-    if (trimmed.length > 50) {
-      toast.error("Tag name must be less than 50 characters");
+    if (trimmedLabel.length < 2) {
+      toast.error("Tag label must be at least 2 characters");
+      return;
+    }
+    if (trimmedValue.length > 50 || trimmedLabel.length > 50) {
+      toast.error("Tag value and label must be less than 50 characters");
       return;
     }
     // Check for duplicates
-    if (tags?.some(t => t.name.toLowerCase() === trimmed.toLowerCase())) {
-      toast.error("A tag with this name already exists");
+    if (tags.some(t => t.value === trimmedValue)) {
+      toast.error("A tag with this value already exists");
       return;
     }
-    addTagMutation.mutate(trimmed);
+    addTagMutation.mutate({ value: trimmedValue, label: trimmedLabel });
   };
 
   const handleToggleActive = (tag: SpecializationTag) => {
@@ -155,12 +164,12 @@ export function SpecializationTagManager() {
   };
 
   const handleMoveUp = (index: number) => {
-    if (!tags || index === 0) return;
+    if (index === 0) return;
     reorderMutation.mutate({ tag1: tags[index], tag2: tags[index - 1] });
   };
 
   const handleMoveDown = (index: number) => {
-    if (!tags || index === tags.length - 1) return;
+    if (index === tags.length - 1) return;
     reorderMutation.mutate({ tag1: tags[index], tag2: tags[index + 1] });
   };
 
@@ -198,16 +207,18 @@ export function SpecializationTagManager() {
         </div>
         <CardDescription>
           Manage the standardized specialization tags that coaches can select for their profiles.
-          These tags help clients find coaches that match their goals.
+          These tags help match clients with coaches based on their goals.
+          <br /><br />
+          <strong>Note:</strong> This is separate from the care team "specialties" (dietitian, physio, etc.) used for add-on pricing.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
         {/* Add new tag */}
         <div className="flex gap-2">
           <Input
-            placeholder="New tag name..."
-            value={newTagName}
-            onChange={(e) => setNewTagName(e.target.value)}
+            placeholder="value (e.g., strength_training)"
+            value={newTagValue}
+            onChange={(e) => setNewTagValue(e.target.value.toLowerCase().replace(/\s+/g, '_'))}
             onKeyDown={(e) => {
               if (e.key === 'Enter') {
                 e.preventDefault();
@@ -215,11 +226,24 @@ export function SpecializationTagManager() {
               }
             }}
             maxLength={50}
-            className="max-w-xs"
+            className="max-w-[200px]"
+          />
+          <Input
+            placeholder="Label (e.g., Strength Training)"
+            value={newTagLabel}
+            onChange={(e) => setNewTagLabel(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleAddTag();
+              }
+            }}
+            maxLength={50}
+            className="max-w-[200px]"
           />
           <Button
             onClick={handleAddTag}
-            disabled={addTagMutation.isPending || !newTagName.trim()}
+            disabled={addTagMutation.isPending || !newTagValue.trim() || !newTagLabel.trim()}
           >
             {addTagMutation.isPending ? (
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
@@ -235,26 +259,28 @@ export function SpecializationTagManager() {
           <TableHeader>
             <TableRow>
               <TableHead className="w-[60px]">#</TableHead>
-              <TableHead>Name</TableHead>
+              <TableHead>Value</TableHead>
+              <TableHead>Label</TableHead>
               <TableHead className="w-[100px] text-center">Active</TableHead>
               <TableHead className="w-[100px] text-center">Order</TableHead>
               <TableHead className="w-[80px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {tags?.length === 0 ? (
+            {tags.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
+                <TableCell colSpan={6} className="text-center text-muted-foreground py-8">
                   No specialization tags found. Add one above.
                 </TableCell>
               </TableRow>
             ) : (
-              tags?.map((tag, index) => (
+              tags.map((tag, index) => (
                 <TableRow key={tag.id} className={!tag.is_active ? 'opacity-50' : ''}>
                   <TableCell className="font-mono text-muted-foreground">
-                    {tag.display_order}
+                    {tag.sort_order}
                   </TableCell>
-                  <TableCell className="font-medium">{tag.name}</TableCell>
+                  <TableCell className="font-mono text-sm">{tag.value}</TableCell>
+                  <TableCell className="font-medium">{tag.label}</TableCell>
                   <TableCell className="text-center">
                     <Switch
                       checked={tag.is_active}
@@ -277,7 +303,7 @@ export function SpecializationTagManager() {
                         variant="ghost"
                         size="icon"
                         onClick={() => handleMoveDown(index)}
-                        disabled={index === (tags?.length || 0) - 1 || reorderMutation.isPending}
+                        disabled={index === tags.length - 1 || reorderMutation.isPending}
                         className="h-8 w-8"
                       >
                         <ArrowDown className="h-4 w-4" />
@@ -299,7 +325,7 @@ export function SpecializationTagManager() {
                         <AlertDialogHeader>
                           <AlertDialogTitle>Delete Tag</AlertDialogTitle>
                           <AlertDialogDescription>
-                            Are you sure you want to delete "{tag.name}"?
+                            Are you sure you want to delete "{tag.label}" ({tag.value})?
                             <br /><br />
                             <strong>Note:</strong> Existing coach profiles that use this tag will keep
                             their current values, but this tag will no longer appear for new selections.
