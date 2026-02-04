@@ -1,20 +1,20 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
 const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
-  "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { status: 204, headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -23,7 +23,10 @@ serve(async (req) => {
     if (!applicantEmail || !applicantName || !type) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        {
+          status: 400,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -31,17 +34,19 @@ serve(async (req) => {
     let html = "";
 
     if (type === "received") {
-      subject = "Coach Application Received - IGU Coaching";
+      subject = "Coach Application Received \u2013 IGU Coaching";
       html = `
 <!DOCTYPE html>
 <html>
 <head>
   <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-    .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+    .container { padding: 20px; }
+    .header { background-color: #1a1a2e; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { padding: 20px; background-color: #f8f9fa; }
+    .footer { text-align: center; padding: 15px; color: #666; font-size: 12px; }
+    h1 { margin: 0; font-size: 24px; }
+    p { margin: 10px 0; }
   </style>
 </head>
 <body>
@@ -57,30 +62,32 @@ serve(async (req) => {
       <p>Best regards,<br>IGU Coaching Team</p>
     </div>
     <div class="footer">
-      <p>© ${new Date().getFullYear()} IGU Coaching. All rights reserved.</p>
+      <p>&copy; ${new Date().getFullYear()} IGU Coaching. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>
       `;
     } else if (type === "approved") {
-      subject = "Coach Application Approved - Welcome to IGU Coaching!";
+      subject = "Coach Application Approved \u2013 Welcome to IGU Coaching!";
       html = `
 <!DOCTYPE html>
 <html>
 <head>
   <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-    .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+    .container { padding: 20px; }
+    .header { background-color: #1a1a2e; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { padding: 20px; background-color: #f8f9fa; }
+    .footer { text-align: center; padding: 15px; color: #666; font-size: 12px; }
+    h1 { margin: 0; font-size: 24px; }
+    p { margin: 10px 0; }
   </style>
 </head>
 <body>
   <div class="container">
     <div class="header">
-      <h1>🎉 Application Approved!</h1>
+      <h1>Application Approved</h1>
     </div>
     <div class="content">
       <p>Dear ${applicantName},</p>
@@ -91,24 +98,26 @@ serve(async (req) => {
       <p>Best regards,<br>IGU Coaching Team</p>
     </div>
     <div class="footer">
-      <p>© ${new Date().getFullYear()} IGU Coaching. All rights reserved.</p>
+      <p>&copy; ${new Date().getFullYear()} IGU Coaching. All rights reserved.</p>
     </div>
   </div>
 </body>
 </html>
       `;
     } else if (type === "rejected") {
-      subject = "Coach Application Update - IGU Coaching";
+      subject = "Coach Application Update \u2013 IGU Coaching";
       html = `
 <!DOCTYPE html>
 <html>
 <head>
   <style>
-    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-    .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-    .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 10px 10px; }
-    .footer { text-align: center; margin-top: 20px; color: #666; font-size: 12px; }
+    body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; }
+    .container { padding: 20px; }
+    .header { background-color: #1a1a2e; color: #fff; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }
+    .content { padding: 20px; background-color: #f8f9fa; }
+    .footer { text-align: center; padding: 15px; color: #666; font-size: 12px; }
+    h1 { margin: 0; font-size: 24px; }
+    p { margin: 10px 0; }
   </style>
 </head>
 <body>
@@ -125,7 +134,7 @@ serve(async (req) => {
       <p>Best regards,<br>IGU Coaching Team</p>
     </div>
     <div class="footer">
-      <p>© ${new Date().getFullYear()} IGU Coaching. All rights reserved.</p>
+      <p>&copy; ${new Date().getFullYear()} IGU Coaching. All rights reserved.</p>
     </div>
   </div>
 </body>
@@ -136,8 +145,13 @@ serve(async (req) => {
     if (!RESEND_API_KEY) {
       console.log("Would send email:", { to: applicantEmail, subject });
       return new Response(
-        JSON.stringify({ success: true, message: "Email logged (no API key)" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        JSON.stringify({
+          success: true,
+          message: "Email logged (no API key)",
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
       );
     }
 
@@ -158,18 +172,27 @@ serve(async (req) => {
     const data = await res.json();
 
     if (!res.ok) {
-      throw new Error(data.message || "Failed to send email");
+      console.error("Resend API error:", data);
+      return new Response(
+        JSON.stringify({ error: "Failed to send email", details: data }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
     }
 
     return new Response(
       JSON.stringify({ success: true, emailId: data.id }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      }
     );
   } catch (error: any) {
     console.error("Error:", error);
-    return new Response(
-      JSON.stringify({ error: error.message }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
+    return new Response(JSON.stringify({ error: error.message }), {
+      status: 500,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
   }
 });
