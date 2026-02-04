@@ -8,9 +8,28 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { SpecializationTagPicker } from "@/components/ui/SpecializationTagPicker";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
+
+// Specialization options aligned with client FOCUS_OPTIONS in ServiceStep.tsx for coach-client matching
+const SPECIALIZATION_OPTIONS = [
+  { value: "strength_training", label: "Strength Training" },
+  { value: "bodybuilding", label: "Bodybuilding" },
+  { value: "powerlifting", label: "Powerlifting" },
+  { value: "body_recomposition", label: "Body Recomposition" },
+  { value: "nutrition_coaching", label: "Nutrition Coaching" },
+  { value: "weight_loss", label: "Weight Loss" },
+  { value: "general_fitness", label: "General Fitness" },
+  { value: "athletic_performance", label: "Athletic Performance" },
+  { value: "mobility_flexibility", label: "Mobility & Flexibility" },
+  { value: "running_endurance", label: "Running & Endurance" },
+  { value: "rehab_injury_prevention", label: "Rehab & Injury Prevention" },
+  { value: "contest_prep", label: "Contest Prep" },
+  { value: "womens_training", label: "Women's Training" },
+  { value: "senior_fitness", label: "Senior Fitness" },
+  { value: "youth_training", label: "Youth Training" },
+] as const;
 
 const coachApplicationSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters").max(50, "First name too long").trim(),
@@ -255,21 +274,41 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
               <FormField
                 control={form.control}
                 name="specializations"
-                render={() => (
+                render={({ field }) => (
                   <FormItem>
                     <FormLabel>Areas of Specialization</FormLabel>
                     <FormControl>
-                      <SpecializationTagPicker
-                        selectedTags={form.getValues("specializations")}
-                        onToggle={(tagName) => {
-                          const current = form.getValues("specializations");
-                          const updated = current.includes(tagName)
-                            ? current.filter((t: string) => t !== tagName)
-                            : [...current, tagName];
-                          form.setValue("specializations", updated, { shouldValidate: true, shouldDirty: true });
-                        }}
-                        maxTags={15}
-                      />
+                      <div className="space-y-3">
+                        <div className="flex flex-wrap gap-2">
+                          {SPECIALIZATION_OPTIONS.map((option) => {
+                            const isSelected = field.value.includes(option.value);
+                            return (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => {
+                                  const updated = isSelected
+                                    ? field.value.filter((v: string) => v !== option.value)
+                                    : [...field.value, option.value];
+                                  field.onChange(updated);
+                                }}
+                                className={cn(
+                                  "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
+                                  isSelected
+                                    ? "bg-primary text-primary-foreground border-primary"
+                                    : "bg-muted/50 text-muted-foreground border-border hover:border-primary/50"
+                                )}
+                              >
+                                {isSelected && <span>✓</span>}
+                                {option.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {field.value.length}/15 selected
+                        </p>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
