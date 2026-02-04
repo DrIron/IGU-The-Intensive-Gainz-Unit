@@ -81,27 +81,13 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
 
   // Ref for pending section (auto-scroll when needed)
   const pendingRef = useRef<HTMLDivElement>(null);
+  const hasFetchedClients = useRef(false);
 
-  // Fetch clients on mount and when coach changes
-  useEffect(() => {
-    if (coachUserId) {
-      fetchClients();
-    }
-  }, [coachUserId, fetchClients]);
-
-  // Handle URL filter param for auto-scrolling
-  useEffect(() => {
-    if (urlFilter === 'pending' && pendingRef.current) {
-      setTimeout(() => {
-        pendingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      }, 100);
-    }
-  }, [urlFilter]);
-
+  // Define fetchClients BEFORE the useEffect that calls it
   const fetchClients = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       // Get subscriptions for this coach
       const { data: subscriptions, error: subsError } = await supabase
         .from("subscriptions")
@@ -128,7 +114,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           .select("id, first_name, display_name, status, payment_deadline")
           .eq("id", sub.user_id)
           .single();
-        
+
         // Get last weight log for check-in info
         const { data: weightLogs } = await supabase
           .from("weight_logs")
@@ -138,7 +124,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           .limit(1);
 
         const lastCheckIn = weightLogs?.[0]?.log_date || null;
-        const daysSinceCheckIn = lastCheckIn 
+        const daysSinceCheckIn = lastCheckIn
           ? Math.floor((Date.now() - new Date(lastCheckIn).getTime()) / (1000 * 60 * 60 * 24))
           : null;
 
@@ -172,6 +158,28 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
       setLoading(false);
     }
   }, [coachUserId, toast]);
+
+  // Fetch clients on mount and when coach changes
+  useEffect(() => {
+    // Prevent running multiple times
+    if (hasFetchedClients.current) {
+      return;
+    }
+
+    if (coachUserId) {
+      hasFetchedClients.current = true;
+      fetchClients();
+    }
+  }, [coachUserId, fetchClients]);
+
+  // Handle URL filter param for auto-scrolling
+  useEffect(() => {
+    if (urlFilter === 'pending' && pendingRef.current) {
+      setTimeout(() => {
+        pendingRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100);
+    }
+  }, [urlFilter]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
