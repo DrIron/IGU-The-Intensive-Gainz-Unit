@@ -225,7 +225,7 @@ serve(async (req) => {
 
     // Send invitation email
     try {
-      await supabaseAdmin.functions.invoke('send-coach-invitation', {
+      const { data: emailData, error: emailError } = await supabaseAdmin.functions.invoke('send-coach-invitation', {
         body: {
           coachId: coachData.id,
           coachEmail: email,
@@ -235,8 +235,13 @@ serve(async (req) => {
           passwordResetLink: passwordResetLink,
         },
       });
+      if (emailError) {
+        console.error('Error from send-coach-invitation:', emailError);
+      } else {
+        console.log('Invitation email sent successfully:', JSON.stringify(emailData));
+      }
     } catch (emailError) {
-      console.error('Error sending invitation email:', emailError);
+      console.error('Exception sending invitation email:', emailError);
       // Don't fail the whole operation if email fails
     }
 
