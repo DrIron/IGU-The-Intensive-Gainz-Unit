@@ -234,7 +234,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Error creating coach:', error);
     return new Response(
-      JSON.stringify({ success: false, error: "Failed to create coach account" }),
+      JSON.stringify({ success: false, error: error.message || "Failed to create coach account" }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 400,
