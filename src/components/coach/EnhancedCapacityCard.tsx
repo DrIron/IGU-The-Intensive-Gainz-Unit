@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +34,7 @@ export function EnhancedCapacityCard({ coachUserId, onNavigate, onMetricsLoaded 
   const [totalActiveClients, setTotalActiveClients] = useState(0);
   const [totalConfiguredCapacity, setTotalConfiguredCapacity] = useState<number | null>(null);
   const [overallLoadPercent, setOverallLoadPercent] = useState<number | null>(null);
+  const hasFetchedCapacity = useRef(false);
 
   const fetchCapacityData = useCallback(async () => {
     try {
@@ -150,7 +151,13 @@ export function EnhancedCapacityCard({ coachUserId, onNavigate, onMetricsLoaded 
   }, [coachUserId, toast, onMetricsLoaded]);
 
   useEffect(() => {
+    // Prevent infinite loop - only fetch once
+    if (hasFetchedCapacity.current) {
+      return;
+    }
+
     if (coachUserId) {
+      hasFetchedCapacity.current = true;
       fetchCapacityData();
     }
   }, [coachUserId, fetchCapacityData]);
