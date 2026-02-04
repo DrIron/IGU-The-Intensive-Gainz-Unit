@@ -19,6 +19,12 @@ ON CONFLICT (name) DO NOTHING;
 -- Enable Row Level Security
 ALTER TABLE public.specialization_tags ENABLE ROW LEVEL SECURITY;
 
+-- Drop existing policies if they exist (idempotent)
+DROP POLICY IF EXISTS "Anyone can read active specialization tags" ON public.specialization_tags;
+DROP POLICY IF EXISTS "Admins can insert specialization tags" ON public.specialization_tags;
+DROP POLICY IF EXISTS "Admins can update specialization tags" ON public.specialization_tags;
+DROP POLICY IF EXISTS "Admins can delete specialization tags" ON public.specialization_tags;
+
 -- Policy: Anyone authenticated can read active specialization tags
 CREATE POLICY "Anyone can read active specialization tags"
   ON public.specialization_tags FOR SELECT TO authenticated USING (true);
