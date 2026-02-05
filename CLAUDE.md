@@ -181,7 +181,7 @@ payments           -- Payment transactions
 programs           -- Workout programs
 workout_sessions   -- Individual sessions
 exercise_logs      -- Exercise tracking
-exercise_prescriptions -- Exercise prescriptions (has column_config JSONB)
+exercise_prescriptions -- Exercise prescriptions (has column_config JSONB, sets_json JSONB)
 
 -- Workout Builder (Phase 17)
 coach_column_presets       -- Saved column configuration presets per coach
@@ -333,6 +333,7 @@ When understanding this codebase, read in this order:
 - Phase 15: Coach approval flow complete — DB fixes, email flow, validation (Feb 4, 2026)
 - Phase 16: Coach dashboard QA — infinite loop fixes, My Clients crash fix (Feb 5, 2026)
 - Phase 17: Workout Builder Phase 1 — dynamic columns, calendar builder, direct client calendar, enhanced logger (Feb 5, 2026)
+- Phase 18: Exercise Editor V2 — per-set row-based layout, dual column categories, video thumbnails, collapsible warmup (Feb 5, 2026)
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -568,12 +569,14 @@ Implemented the first phase of the workout builder system from `/docs/WORKOUT_BU
 - Created `get_default_column_config()` SQL function
 
 **New Type Definitions**: `src/types/workout-builder.ts`
-- `PrescriptionColumnType`, `ClientInputColumnType`, `ColumnConfig`, `ColumnPreset`
+- `PrescriptionColumnType` (incl. `band_resistance`), `ClientInputColumnType` (incl. `performed_hr`, `performed_calories`), `ColumnConfig`, `ColumnPreset`
 - `SessionType` (strength, cardio, hiit, mobility, recovery, sport_specific, other)
 - `SessionTiming` (morning, afternoon, evening, anytime)
 - `CalendarWeek`, `CalendarDay`, `CalendarSession`, `DirectCalendarSession`
 - `ExercisePrescription`, `SetLog`, `EnhancedExerciseDisplay`
+- `SetPrescription` (V2 per-set data), `EnhancedExerciseDisplayV2` (V2 display type), `DEFAULT_INPUT_COLUMNS`
 - Helper functions: `getColumnValue`, `setColumnValue`, `generateColumnId`
+- V2 helpers: `splitColumnsByCategory`, `legacyPrescriptionToSets`, `getSetColumnValue`, `setSetColumnValue`, `getYouTubeThumbnailUrl`
 
 **New Hooks**:
 | Hook | Purpose |
@@ -586,9 +589,15 @@ Implemented the first phase of the workout builder system from `/docs/WORKOUT_BU
 | Component | Purpose |
 |-----------|---------|
 | `src/components/coach/programs/ColumnConfigDropdown.tsx` | Dropdown to configure which columns appear per exercise, drag to reorder, save as preset |
-| `src/components/coach/programs/DynamicExerciseRow.tsx` | Single exercise row with dynamic column inputs, muscle badge, video link, last performance hint |
+| `src/components/coach/programs/DynamicExerciseRow.tsx` | (Legacy) Single exercise row with shared prescription values — kept as fallback |
 | `src/components/coach/programs/SessionTypeSelector.tsx` | Radio groups for session type (7 options) and timing (4 options) with icons |
-| `src/components/coach/programs/EnhancedModuleExerciseEditor.tsx` | Main exercise editor with DnD reordering between sections (warmup/main/accessory/cooldown), dynamic columns, batch save |
+| `src/components/coach/programs/ExerciseCardV2.tsx` | V2 exercise card with video thumbnail, per-set table, instructions textarea, add/remove sets |
+| `src/components/coach/programs/SetRowEditor.tsx` | Per-set table row with independent editable inputs |
+| `src/components/coach/programs/ColumnCategoryHeader.tsx` | Dual-category table header ("Exercise Instructions" / "Client Inputs") |
+| `src/components/coach/programs/AddColumnDropdown.tsx` | Dropdown to add prescription/input columns with custom field dialog |
+| `src/components/coach/programs/VideoThumbnail.tsx` | Clickable YouTube video thumbnail with hover effects |
+| `src/components/coach/programs/WarmupSection.tsx` | Collapsible warmup section with amber styling |
+| `src/components/coach/programs/EnhancedModuleExerciseEditor.tsx` | Main exercise editor (V2) with per-set data, DnD reordering, dual column categories, batch save |
 | `src/components/coach/programs/ProgramCalendarBuilder.tsx` | Week × Day grid: add weeks, copy weeks, add/delete sessions, publish toggle |
 | `src/components/coach/programs/DirectClientCalendar.tsx` | Month calendar for building ad-hoc workouts on a client's schedule |
 | `src/components/client/EnhancedWorkoutLogger.tsx` | Mobile-optimized workout logger with rest timer, progress bar, previous performance display |
@@ -602,12 +611,81 @@ Implemented the first phase of the workout builder system from `/docs/WORKOUT_BU
 | `src/components/coach/CoachClientDetail.tsx` | Added "Direct Calendar" button, renders `DirectClientCalendar` |
 
 **Key Architectural Decisions**:
-- `ModuleExerciseEditor.tsx` kept as fallback (not deleted), just no longer imported
+- `ModuleExerciseEditor.tsx` and `DynamicExerciseRow.tsx` kept as fallbacks (not deleted)
 - `ExercisePickerDialog` API unchanged — works with both old and new editors
 - All new hooks/components use `hasFetched` ref guard pattern for data fetching
 - `ProgramCalendarBuilder` resets `hasFetched.current = false` before reload after mutations
 - `DirectClientCalendar` exercise editing is a placeholder (Phase 2)
 - `EnhancedWorkoutLogger` component exists but is not yet wired into client routing
+- V2 per-set data (`sets_json`) coexists with legacy scalar fields for backward compatibility
+- Column config stored as single JSONB array, split by type at app layer via `splitColumnsByCategory()`
+
+### Exercise Editor V2 (Phase 18 - Feb 5, 2026)
+
+Replaced the shared-prescription exercise editor with a per-set row-based layout. Each set now has its own editable row with independent values instead of one shared value per exercise.
+
+**Key Changes:**
+- Per-set data model: each set is a `SetPrescription` object stored in `sets_json` JSONB array
+- Two visually separated column categories: "Exercise Instructions" (coach prescriptions) and "Client Inputs" (empty fields for client)
+- YouTube video thumbnails on exercise cards
+- Coach instructions textarea per exercise
+- Collapsible warmup section with amber styling
+
+**Migration**: `supabase/migrations/20260206_exercise_editor_v2.sql`
+- Added `sets_json JSONB DEFAULT NULL` to `exercise_prescriptions`
+- When NULL, legacy scalar fields are used (backward compat)
+
+**New Types** (in `src/types/workout-builder.ts`):
+- `SetPrescription` — per-set values (set_number, reps, weight, tempo, rir, rpe, etc.)
+- `EnhancedExerciseDisplayV2` — extends display with `sets[]`, `prescription_columns[]`, `input_columns[]`
+- `DEFAULT_INPUT_COLUMNS` — default client input columns (Weight, Reps, RPE)
+- New column types: `band_resistance` (prescription), `performed_hr`/`performed_calories` (client input)
+
+**New Helper Functions** (in `src/types/workout-builder.ts`):
+- `splitColumnsByCategory(columns)` — splits ColumnConfig[] into prescription vs input categories
+- `legacyPrescriptionToSets(prescription)` — expands shared values into N identical SetPrescription rows
+- `getSetColumnValue(set, columnType)` / `setSetColumnValue(set, columnType, value)` — per-set getters/setters
+- `getYouTubeThumbnailUrl(videoUrl)` — extracts YouTube video ID → thumbnail URL
+
+**New Components**:
+| Component | Purpose | Lines |
+|-----------|---------|-------|
+| `src/components/coach/programs/VideoThumbnail.tsx` | Clickable YouTube thumbnail with hover effects, placeholder when no video | ~50 |
+| `src/components/coach/programs/SetRowEditor.tsx` | Single set table row with per-set editable inputs for prescription & input columns | ~130 |
+| `src/components/coach/programs/AddColumnDropdown.tsx` | Dropdown to add prescription/input columns, includes custom field dialog | ~130 |
+| `src/components/coach/programs/ColumnCategoryHeader.tsx` | Dual-category table header with "Exercise Instructions" / "Client Inputs" spans | ~110 |
+| `src/components/coach/programs/WarmupSection.tsx` | Collapsible warmup section with amber styling and exercise count badge | ~50 |
+| `src/components/coach/programs/ExerciseCardV2.tsx` | Full exercise card: video thumbnail, instructions textarea, per-set table, add/remove sets | ~220 |
+
+**Modified Files**:
+| File | Change |
+|------|--------|
+| `src/types/workout-builder.ts` | Added V2 types, helper functions, new column types |
+| `src/components/coach/programs/EnhancedModuleExerciseEditor.tsx` | Refactored to use `EnhancedExerciseDisplayV2`, `ExerciseCardV2`, `WarmupSection`, per-set load/save |
+
+**Backward Compatibility**:
+- **Load**: if `sets_json` is NULL → `legacyPrescriptionToSets()` expands legacy scalar fields into per-set array
+- **Save**: always writes both `sets_json` (new V2) + legacy scalar fields from first set (`set_count`, `rep_range_min`, etc.)
+- **Column config**: stored as single JSONB array, split by type at app layer via `splitColumnsByCategory()`
+- **Client logger** (`EnhancedWorkoutLogger`): continues reading legacy scalar fields — no changes needed
+- `DynamicExerciseRow.tsx` kept as fallback (not deleted)
+
+**ExerciseCardV2 Layout**:
+```
+┌───────────────────────────────────────────────────────────────┐
+│ ⠿ Drag | VideoThumbnail | Exercise Name | Muscle Badge | ⚙ 🗑│
+├───────────────────────────────────────────────────────────────┤
+│ Coach Instructions: [textarea________________________]       │
+├───────────────────────────────────────────────────────────────┤
+│     Exercise Instructions    │    Client Inputs              │
+│  Set | Reps | RIR | Rest ... │ Weight | Reps | RPE ...       │
+│   1  | 8-12 |  2  |  90  ...│   —    |  —   |  —  ...       │
+│   2  | 8-12 |  2  |  90  ...│   —    |  —   |  —  ...       │
+│   3  | 8-12 |  2  |  90  ...│   —    |  —   |  —  ...       │
+├───────────────────────────────────────────────────────────────┤
+│                                              [+ Add Set]     │
+└───────────────────────────────────────────────────────────────┘
+```
 
 ### Admin QA Results (Feb 3, 2026)
 
@@ -700,6 +778,7 @@ When asking for help:
 - Coach approval/rejection email flow QA ✅ (Feb 4, 2026)
 - Coach dashboard QA — infinite loop and crash fixes ✅ (Feb 5, 2026)
 - Workout Builder Phase 1 — calendar builder, dynamic columns, direct calendar, enhanced logger ✅ (Feb 5, 2026)
+- Exercise Editor V2 — per-set rows, dual column categories, video thumbnails, collapsible warmup ✅ (Feb 5, 2026)
 
 **In Progress**:
 - Client onboarding & dashboard QA (next session)
@@ -749,6 +828,7 @@ When asking for help:
 
 **Database:**
 - ✅ `column_config` JSONB on `exercise_prescriptions`
+- ✅ `sets_json` JSONB on `exercise_prescriptions` (V2 per-set data)
 - ✅ `session_type`, `session_timing` on `day_modules` and `client_day_modules`
 - ✅ `coach_column_presets` table with RLS
 - ✅ `direct_calendar_sessions` table with RLS
@@ -761,8 +841,11 @@ When asking for help:
 |---------|--------|-------|
 | Programs | ✅ Calendar grid + linear editor | Copy week, add/delete sessions |
 | Days | ✅ Multi-session, types/timing | Session type & timing selectors |
-| Exercises | ✅ Flexible column system | Dynamic columns, drag-and-drop |
+| Exercises | ✅ Per-set row editor (V2) | Each set gets independent values, dual column categories |
 | Column presets | ✅ Save/load presets | Per-coach column configurations |
+| Video thumbnails | ✅ YouTube thumbnails | Clickable thumbnails on exercise cards |
+| Coach instructions | ✅ Per-exercise textarea | "Add coaching notes..." |
+| Collapsible warmup | ✅ WarmupSection component | Amber-themed, auto-expands when empty |
 | Direct client calendar | ✅ Month view | Exercise editing is placeholder |
 | Workout logging | ✅ Component built | Not yet routed into client views |
 | Draft/Publish | ✅ Per-session toggle | |
