@@ -334,6 +334,7 @@ When understanding this codebase, read in this order:
 - Phase 16: Coach dashboard QA — infinite loop fixes, My Clients crash fix (Feb 5, 2026)
 - Phase 17: Workout Builder Phase 1 — dynamic columns, calendar builder, direct client calendar, enhanced logger (Feb 5, 2026)
 - Phase 18: Exercise Editor V2 — per-set row-based layout, dual column categories, video thumbnails, collapsible warmup (Feb 5, 2026)
+- Phase 19: Column header drag-to-reorder — direct header dragging with category separation (Feb 5, 2026)
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -687,6 +688,31 @@ Replaced the shared-prescription exercise editor with a per-set row-based layout
 └───────────────────────────────────────────────────────────────┘
 ```
 
+### Column Header Drag-to-Reorder (Phase 19 - Feb 5, 2026)
+
+Added direct drag-to-reorder on column headers in the exercise table. Each category (Exercise Instructions / Client Inputs) is an independent reorder zone — columns cannot be dragged between categories.
+
+**Behavior:**
+- GripVertical drag handle appears on hover over column header
+- Dragged column goes semi-transparent (opacity-40)
+- Drop target highlights with primary-colored ring
+- Category separation enforced: prescription columns only reorder within prescription, input columns within input
+- Order persists to `column_config` JSONB via existing save mechanism
+
+**Implementation:** Uses native HTML5 drag events on `<th>` elements (matches existing `ColumnConfigDropdown` drag pattern, avoids invalid HTML from nesting `@hello-pangea/dnd` `<div>` droppables inside `<tr>`).
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `src/components/coach/programs/ColumnCategoryHeader.tsx` | Added drag state tracking, native drag handlers per category, visual feedback (opacity, ring) |
+| `src/components/coach/programs/ExerciseCardV2.tsx` | Added `handleReorderPrescriptionColumns` / `handleReorderInputColumns` callbacks, passed to header |
+| `src/types/workout-builder.ts` | Added `reorderColumns(columns, fromIndex, toIndex)` helper |
+
+**Files NOT Modified:**
+| File | Reason |
+|------|--------|
+| `SetRowEditor.tsx` | Already sorts cells by `.order` — automatically reflects new order |
+
 ### Admin QA Results (Feb 3, 2026)
 
 10 known issues found across admin dashboard pages (updated Feb 5):
@@ -779,6 +805,7 @@ When asking for help:
 - Coach dashboard QA — infinite loop and crash fixes ✅ (Feb 5, 2026)
 - Workout Builder Phase 1 — calendar builder, dynamic columns, direct calendar, enhanced logger ✅ (Feb 5, 2026)
 - Exercise Editor V2 — per-set rows, dual column categories, video thumbnails, collapsible warmup ✅ (Feb 5, 2026)
+- Column header drag-to-reorder — direct header dragging with category separation ✅ (Feb 5, 2026)
 
 **In Progress**:
 - Client onboarding & dashboard QA (next session)

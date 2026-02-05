@@ -107,6 +107,25 @@ export function ExerciseCardV2({
     [exercise.prescription_columns, exercise.input_columns, onExerciseChange]
   );
 
+  const handleReorderPrescriptionColumns = useCallback(
+    (reordered: ColumnConfig[]) => {
+      // Merge reordered visible columns back with hidden ones
+      const hidden = exercise.prescription_columns.filter(
+        (c) => !c.visible || c.type === "sets"
+      );
+      onExerciseChange({ prescription_columns: [...reordered, ...hidden] });
+    },
+    [exercise.prescription_columns, onExerciseChange]
+  );
+
+  const handleReorderInputColumns = useCallback(
+    (reordered: ColumnConfig[]) => {
+      const hidden = exercise.input_columns.filter((c) => !c.visible);
+      onExerciseChange({ input_columns: [...reordered, ...hidden] });
+    },
+    [exercise.input_columns, onExerciseChange]
+  );
+
   // Handle column config changes from the ColumnConfigDropdown (presets/reorder)
   const handleColumnsChange = useCallback(
     (columns: ColumnConfig[]) => {
@@ -227,6 +246,8 @@ export function ExerciseCardV2({
             onAddPrescriptionColumn={handleAddPrescriptionColumn}
             onAddInputColumn={handleAddInputColumn}
             onRemoveColumn={handleRemoveColumn}
+            onReorderPrescriptionColumns={handleReorderPrescriptionColumns}
+            onReorderInputColumns={handleReorderInputColumns}
             isReadOnly={isReadOnly}
           />
           <TableBody>

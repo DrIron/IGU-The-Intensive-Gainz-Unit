@@ -572,6 +572,17 @@ export function setSetColumnValue(
   return updated;
 }
 
+export function reorderColumns(
+  columns: ColumnConfig[],
+  fromIndex: number,
+  toIndex: number
+): ColumnConfig[] {
+  const reordered = [...columns];
+  const [moved] = reordered.splice(fromIndex, 1);
+  reordered.splice(toIndex, 0, moved);
+  return reordered.map((col, i) => ({ ...col, order: i }));
+}
+
 export function getYouTubeThumbnailUrl(videoUrl: string): string | null {
   const patterns = [
     /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,

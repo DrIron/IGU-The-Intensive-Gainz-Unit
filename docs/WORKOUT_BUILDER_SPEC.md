@@ -1301,3 +1301,117 @@ exercise_logs (
 |-----|------------|------|----------------|-----|
 | 1 | 60 | 30s | [ ] | [ ] |
 | 2 | 60 | 30s | [ ] | [ ] |
+
+---
+
+## Exercise Editor V2 (Implemented - Phase 18)
+
+### Overview
+
+Replaced the shared-prescription exercise editor (`DynamicExerciseRow`) with a per-set row-based layout (`ExerciseCardV2`). Each set now has its own editable row with independent values. Two visually separated column categories: "Exercise Instructions" (coach prescriptions) and "Client Inputs" (empty fields for client).
+
+### Database Changes
+
+- `sets_json JSONB DEFAULT NULL` added to `exercise_prescriptions` table
+- When NULL, legacy scalar fields (`set_count`, `rep_range_min`, etc.) are used
+- Migration: `supabase/migrations/20260206_exercise_editor_v2.sql`
+
+### New Data Model
+
+Each exercise prescription stores per-set data as:
+```json
+{
+  "sets_json": [
+    { "set_number": 1, "rep_range_min": 8, "rep_range_max": 12, "weight": 50, "rir": 2, "rest_seconds": 90, "tempo": "3010" },
+    { "set_number": 2, "rep_range_min": 8, "rep_range_max": 12, "weight": 50, "rir": 2, "rest_seconds": 90, "tempo": "3010" },
+    { "set_number": 3, "rep_range_min": 8, "rep_range_max": 12, "weight": 50, "rir": 1, "rest_seconds": 90, "tempo": "3010" }
+  ]
+}
+```
+
+### New Types
+
+- `SetPrescription` — per-set values (set_number, reps, rep_range_min/max, weight, tempo, rir, rpe, percent_1rm, rest_seconds, time_seconds, distance_meters, band_resistance, notes, custom_fields)
+- `EnhancedExerciseDisplayV2` — extends `EnhancedExerciseDisplay` with `sets[]`, `prescription_columns[]`, `input_columns[]`
+- `DEFAULT_INPUT_COLUMNS` — default client input columns (Weight, Reps, RPE)
+- New column types: `band_resistance` (prescription), `performed_hr`/`performed_calories` (client input)
+
+### Helper Functions
+
+- `splitColumnsByCategory(columns)` — splits ColumnConfig[] into prescription vs input categories
+- `legacyPrescriptionToSets(prescription)` — expands shared values into N identical SetPrescription rows
+- `getSetColumnValue(set, columnType)` / `setSetColumnValue(set, columnType, value)` — per-set getters/setters
+- `getYouTubeThumbnailUrl(videoUrl)` — extracts YouTube video ID → thumbnail URL
+- `reorderColumns(columns, fromIndex, toIndex)` — reorder columns within a category
+
+### Components
+
+| Component | Purpose |
+|-----------|---------|
+| `VideoThumbnail.tsx` | Clickable YouTube thumbnail with hover scale + ring highlight |
+| `SetRowEditor.tsx` | Single set table row with per-set editable inputs for prescription & input columns |
+| `AddColumnDropdown.tsx` | Dropdown to add/remove columns per category, includes custom field dialog |
+| `ColumnCategoryHeader.tsx` | Dual-category table header with drag-to-reorder within each category |
+| `WarmupSection.tsx` | Collapsible warmup section with amber styling |
+| `ExerciseCardV2.tsx` | Full exercise card combining all V2 features |
+
+### ExerciseCardV2 Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ⠿ [Video] Exercise Name              [muscle tag]  [⚙] [🗑]│
+├─────────────────────────────────────────────────────────────┤
+│ [Add coaching notes...]                                     │
+├─────────────────────────────────────────────────────────────┤
+│     │ Exercise Instructions    +  │ Client Inputs        + │
+│ Set │ Reps   Weight  RIR  Rest    │ Weight  Reps  RPE      │
+├─────┼─────────────────────────────┼─────────────────────────┤
+│  1  │ 8-12   50kg    2    90s     │  ___    ___   ___   [x]│
+│  2  │ 8-12   50kg    2    90s     │  ___    ___   ___   [x]│
+│  3  │ 8-12   50kg    1    90s     │  ___    ___   ___   [x]│
+├─────┴─────────────────────────────┴─────────────────────────┤
+│                                              [+ Add Set]    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Backward Compatibility
+
+- **Load**: `sets_json` NULL → `legacyPrescriptionToSets()` expands legacy scalar fields into per-set array
+- **Save**: always writes both `sets_json` (new V2) + legacy scalar fields from first set
+- **Column config**: stored as single JSONB array, split by type at app layer via `splitColumnsByCategory()`
+- **Client logger**: continues reading legacy scalar fields — no changes needed
+- `DynamicExerciseRow.tsx` kept as fallback (not deleted)
+
+---
+
+## Column Header Drag-to-Reorder (Implemented - Phase 19)
+
+### Requirement
+
+Column headers are directly draggable in the exercise table for intuitive reordering.
+
+### Behavior
+
+- Drag handle icon (GripVertical) appears on hover over column header
+- Dragged column shows as semi-transparent (opacity-40)
+- Drop zone highlights with a primary-colored ring
+- Two separate reorder zones:
+  1. **Exercise Instructions** — columns reorder within this group only
+  2. **Client Inputs** — columns reorder within this group only
+- Cannot drag a column from one category to another (enforced by category check)
+- New order persists to `column_config` JSONB via the existing save mechanism
+
+### Implementation
+
+Uses native HTML5 drag events on `<th>` elements (matches existing `ColumnConfigDropdown` drag pattern). Each column header has `draggable` attribute and handlers for `onDragStart`, `onDragOver`, `onDrop`, `onDragEnd`.
+
+The `reorderColumns(columns, fromIndex, toIndex)` helper splices the moved column and reassigns `.order` values.
+
+### Files
+
+| File | Change |
+|------|--------|
+| `ColumnCategoryHeader.tsx` | Added drag state, native drag handlers per category, visual feedback classes |
+| `ExerciseCardV2.tsx` | Added `handleReorderPrescriptionColumns` / `handleReorderInputColumns` callbacks |
+| `src/types/workout-builder.ts` | Added `reorderColumns()` helper |
+| `SetRowEditor.tsx` | No changes needed — already sorts by `.order` |
