@@ -42,6 +42,8 @@ import {
   Trash2,
   Edit,
   Loader2,
+  Clipboard,
+  ClipboardPaste,
 } from "lucide-react";
 import { SessionTypeSelector } from "./SessionTypeSelector";
 import {
@@ -77,6 +79,7 @@ export function ProgramCalendarBuilder({
   const [newSessionTiming, setNewSessionTiming] = useState<SessionTiming>("anytime");
   const [copyFromWeek, setCopyFromWeek] = useState<number | null>(null);
   const [copyToWeek, setCopyToWeek] = useState<number | null>(null);
+  const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
   const hasFetched = useRef(false);
   const { toast } = useToast();
 
@@ -320,6 +323,8 @@ export function ProgramCalendarBuilder({
                   intensity_type: presc.intensity_type,
                   intensity_value: presc.intensity_value,
                   column_config: presc.column_config,
+                  sets_json: presc.sets_json,
+                  custom_fields_json: presc.custom_fields_json,
                 });
               }
             }
@@ -363,6 +368,121 @@ export function ProgramCalendarBuilder({
       toast({ title: "Session deleted" });
     } catch (error: any) {
       toast({ title: "Error deleting session", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const pasteSession = async (targetDayIndex: number) => {
+    if (!copiedSessionId) return;
+
+    try {
+      // 1. Get or create target day record
+      let targetDayId: string;
+      const existingDay = await supabase
+        .from("program_template_days")
+        .select("id")
+        .eq("program_template_id", programId)
+        .eq("day_index", targetDayIndex)
+        .single();
+
+      if (existingDay.data) {
+        targetDayId = existingDay.data.id;
+      } else {
+        const { data: newDay, error } = await supabase
+          .from("program_template_days")
+          .insert({
+            program_template_id: programId,
+            day_index: targetDayIndex,
+            day_title: `Day ${targetDayIndex}`,
+          })
+          .select()
+          .single();
+        if (error) throw error;
+        targetDayId = newDay.id;
+      }
+
+      // 2. Fetch source module with nested exercises + prescriptions
+      const { data: sourceModule } = await supabase
+        .from("day_modules")
+        .select(`*, module_exercises(*, exercise_prescriptions(*))`)
+        .eq("id", copiedSessionId)
+        .single();
+
+      if (!sourceModule) throw new Error("Source session not found");
+
+      // 3. Get max sort_order for target day
+      const { data: existingModules } = await supabase
+        .from("day_modules")
+        .select("sort_order")
+        .eq("program_template_day_id", targetDayId);
+      const maxOrder = Math.max(0, ...(existingModules || []).map((m) => m.sort_order));
+
+      // 4. Insert new module (copy of source)
+      const { data: newModule, error: moduleError } = await supabase
+        .from("day_modules")
+        .insert({
+          program_template_day_id: targetDayId,
+          module_owner_coach_id: sourceModule.module_owner_coach_id,
+          module_type: sourceModule.module_type,
+          session_type: sourceModule.session_type,
+          session_timing: sourceModule.session_timing,
+          title: sourceModule.title,
+          sort_order: maxOrder + 1,
+          status: "draft",
+        })
+        .select()
+        .single();
+      if (moduleError) throw moduleError;
+
+      // 5. Copy exercises + prescriptions (including sets_json, custom_fields_json)
+      if (sourceModule.module_exercises) {
+        for (const ex of sourceModule.module_exercises) {
+          const { data: newEx, error: exError } = await supabase
+            .from("module_exercises")
+            .insert({
+              day_module_id: newModule.id,
+              exercise_id: ex.exercise_id,
+              section: ex.section,
+              sort_order: ex.sort_order,
+              instructions: ex.instructions,
+            })
+            .select()
+            .single();
+          if (exError) throw exError;
+
+          if (ex.exercise_prescriptions?.[0]) {
+            const presc = ex.exercise_prescriptions[0];
+            await supabase.from("exercise_prescriptions").insert({
+              module_exercise_id: newEx.id,
+              set_count: presc.set_count,
+              rep_range_min: presc.rep_range_min,
+              rep_range_max: presc.rep_range_max,
+              tempo: presc.tempo,
+              rest_seconds: presc.rest_seconds,
+              intensity_type: presc.intensity_type,
+              intensity_value: presc.intensity_value,
+              column_config: presc.column_config,
+              sets_json: presc.sets_json,
+              custom_fields_json: presc.custom_fields_json,
+            });
+          }
+        }
+      }
+
+      // 6. Refresh and provide feedback
+      hasFetched.current = false;
+      await loadProgramStructure();
+      hasFetched.current = true;
+
+      toast({
+        title: "Session pasted",
+        description: `"${sourceModule.title}" added to Day ${targetDayIndex}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error pasting session",
+        description: error.message,
+        variant: "destructive",
+      });
     }
   };
 
@@ -416,6 +536,18 @@ export function ProgramCalendarBuilder({
         </div>
       </div>
 
+      {/* Clipboard Banner */}
+      {copiedSessionId && (
+        <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/20 rounded-md text-sm">
+          <ClipboardPaste className="h-4 w-4 text-primary" />
+          <span>Session copied — click paste on any day</span>
+          <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 text-xs"
+            onClick={() => setCopiedSessionId(null)}>
+            Cancel
+          </Button>
+        </div>
+      )}
+
       {/* Calendar Grid */}
       <div className="grid grid-cols-7 gap-2">
         {DAYS_OF_WEEK.map((day) => (
@@ -432,24 +564,43 @@ export function ProgramCalendarBuilder({
             <CardHeader className="p-2 pb-1">
               <div className="flex items-center justify-between">
                 <span className="text-sm font-medium">Day {day.dayIndex}</span>
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-6 w-6"
-                        onClick={() => {
-                          setAddDayIndex(day.dayIndex);
-                          setShowAddDayDialog(true);
-                        }}
-                      >
-                        <Plus className="h-3 w-3" />
-                      </Button>
-                    </TooltipTrigger>
-                    <TooltipContent>Add session</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <div className="flex items-center gap-0.5">
+                  {copiedSessionId && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-primary"
+                            onClick={() => pasteSession(day.dayIndex)}
+                          >
+                            <ClipboardPaste className="h-3 w-3" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Paste session here</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-6 w-6"
+                          onClick={() => {
+                            setAddDayIndex(day.dayIndex);
+                            setShowAddDayDialog(true);
+                          }}
+                        >
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      </TooltipTrigger>
+                      <TooltipContent>Add session</TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                </div>
               </div>
             </CardHeader>
             <CardContent className="p-2 pt-0 space-y-1">
@@ -488,6 +639,14 @@ export function ProgramCalendarBuilder({
                             <DropdownMenuItem onClick={() => onEditDay?.(session.id)}>
                               <Edit className="h-4 w-4 mr-2" />
                               Edit Session
+                            </DropdownMenuItem>
+                            <DropdownMenuItem onClick={(e) => {
+                              e.stopPropagation();
+                              setCopiedSessionId(session.id);
+                              toast({ title: "Session copied", description: `"${session.title}" ready to paste.` });
+                            }}>
+                              <Clipboard className="h-4 w-4 mr-2" />
+                              Copy Session
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => toggleModuleStatus(session.id, session.status)}>
                               {session.status === "published" ? (

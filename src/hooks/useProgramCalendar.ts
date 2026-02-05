@@ -306,6 +306,8 @@ export function useProgramCalendar({
                     intensity_type: presc.intensity_type,
                     intensity_value: presc.intensity_value,
                     column_config: presc.column_config,
+                    sets_json: presc.sets_json,
+                    custom_fields_json: presc.custom_fields_json,
                   });
                 }
               }

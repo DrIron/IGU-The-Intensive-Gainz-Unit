@@ -335,6 +335,7 @@ When understanding this codebase, read in this order:
 - Phase 17: Workout Builder Phase 1 — dynamic columns, calendar builder, direct client calendar, enhanced logger (Feb 5, 2026)
 - Phase 18: Exercise Editor V2 — per-set row-based layout, dual column categories, video thumbnails, collapsible warmup (Feb 5, 2026)
 - Phase 19: Column header drag-to-reorder — direct header dragging with category separation (Feb 5, 2026)
+- Phase 20: Session copy/paste — clipboard-based deep copy of sessions between days, copyWeek V2 field fix (Feb 5, 2026)
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -713,6 +714,26 @@ Added direct drag-to-reorder on column headers in the exercise table. Each categ
 |------|--------|
 | `SetRowEditor.tsx` | Already sorts cells by `.order` — automatically reflects new order |
 
+### Session Copy/Paste (Phase 20 - Feb 5, 2026)
+
+Added clipboard-based copy/paste for individual sessions on the ProgramCalendarBuilder calendar grid. Coach copies a session from its dropdown menu, then pastes it onto any day cell.
+
+**Behavior:**
+- "Copy Session" menu item in the session dropdown (between Edit and Publish/Unpublish)
+- Clipboard banner appears above calendar grid when a session is copied
+- Paste button (ClipboardPaste icon) appears in each day cell header next to "+" button
+- Deep-copies module + exercises + prescriptions (including sets_json, custom_fields_json)
+- Pasted session always has status "draft"
+- "Cancel" button on banner clears the clipboard
+
+**Bug Fix:** `copyWeek` in both `ProgramCalendarBuilder.tsx` and `useProgramCalendar.ts` was not copying `sets_json` or `custom_fields_json` — fixed to include V2 per-set data.
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `src/components/coach/programs/ProgramCalendarBuilder.tsx` | Added copiedSessionId state, Copy menu item, Paste buttons, pasteSession fn, clipboard banner, fix copyWeek V2 fields |
+| `src/hooks/useProgramCalendar.ts` | Fix copyWeek to include sets_json/custom_fields_json |
+
 ### Admin QA Results (Feb 3, 2026)
 
 10 known issues found across admin dashboard pages (updated Feb 5):
@@ -806,6 +827,7 @@ When asking for help:
 - Workout Builder Phase 1 — calendar builder, dynamic columns, direct calendar, enhanced logger ✅ (Feb 5, 2026)
 - Exercise Editor V2 — per-set rows, dual column categories, video thumbnails, collapsible warmup ✅ (Feb 5, 2026)
 - Column header drag-to-reorder — direct header dragging with category separation ✅ (Feb 5, 2026)
+- Session copy/paste — clipboard-based deep copy of sessions between days, copyWeek V2 fix ✅ (Feb 5, 2026)
 
 **In Progress**:
 - Client onboarding & dashboard QA (next session)
@@ -876,6 +898,7 @@ When asking for help:
 | Direct client calendar | ✅ Month view | Exercise editing is placeholder |
 | Workout logging | ✅ Component built | Not yet routed into client views |
 | Draft/Publish | ✅ Per-session toggle | |
+| Session copy/paste | ✅ Clipboard-based deep copy | Copy from dropdown, paste on any day |
 | Teams | ❌ | Phase 2 |
 | Volume tracking | ❌ | Phase 2 |
 | Exercise swap | ❌ | Phase 2 |

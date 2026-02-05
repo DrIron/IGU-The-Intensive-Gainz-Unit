@@ -1384,6 +1384,41 @@ Each exercise prescription stores per-set data as:
 
 ---
 
+## Session Copy/Paste (Implemented - Phase 20)
+
+### Overview
+
+Copy/paste functionality for individual sessions on the ProgramCalendarBuilder calendar grid. Coach clicks "Copy Session" from a session's dropdown menu, then clicks "Paste" on any day cell to deep-copy that session (including all exercises and prescriptions) to the target day.
+
+### Behavior
+
+1. Coach opens a session's dropdown menu (⋮) and clicks "Copy Session"
+2. A clipboard banner appears above the calendar grid: "Session copied — click paste on any day"
+3. Each day cell header shows a paste button (ClipboardPaste icon) next to the existing "+" button
+4. Coach clicks paste on any day → session is deep-copied (module + exercises + prescriptions + sets_json)
+5. Pasted session always has status "draft"
+6. Coach can click "Cancel" on the banner to clear the clipboard
+
+### Deep Copy Details
+
+The paste operation copies the complete session hierarchy:
+- **Module**: title, session_type, session_timing, module_type, module_owner_coach_id
+- **Exercises**: exercise_id, section, sort_order, instructions
+- **Prescriptions**: set_count, rep_range_min/max, tempo, rest_seconds, intensity_type/value, column_config, sets_json, custom_fields_json
+
+### Bug Fix: copyWeek V2 Fields
+
+The existing `copyWeek` function (in both `ProgramCalendarBuilder.tsx` and `useProgramCalendar.ts`) was not copying `sets_json` or `custom_fields_json` when duplicating prescriptions. This was fixed as part of Phase 20 to ensure week copies preserve V2 per-set data.
+
+### Files
+
+| File | Change |
+|------|--------|
+| `ProgramCalendarBuilder.tsx` | Added copiedSessionId state, Copy menu item, Paste buttons, pasteSession fn, clipboard banner, fix copyWeek V2 fields |
+| `useProgramCalendar.ts` | Fix copyWeek to include sets_json/custom_fields_json |
+
+---
+
 ## Column Header Drag-to-Reorder (Implemented - Phase 19)
 
 ### Requirement
