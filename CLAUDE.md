@@ -645,11 +645,64 @@ When asking for help:
 - Performance optimization (bundle splitting)
 - Security audit
 - Backup/recovery procedures
+- **Workout builder enhancement (see /docs/WORKOUT_BUILDER_SPEC.md)** — Post-launch priority
 
 ### Documentation
 - `/docs/IGU_Discovery_Report.md` - Platform audit
 - `/docs/Dashboard_UX_Plan.md` - Dashboard UX specs
 - `/docs/LAUNCH_CHECKLIST.md` - Pre-launch tasks
+- `/docs/WORKOUT_BUILDER_SPEC.md` - **Complete workout builder system specification (NOT YET IMPLEMENTED)**
+
+---
+
+## Future Feature Specifications
+
+### Workout Builder System (Planned)
+
+**Spec Document:** `/docs/WORKOUT_BUILDER_SPEC.md` (1,303 lines)
+
+**Status:** SPECIFICATION ONLY — Not yet implemented. The current workout builder is basic (programs, days, modules, exercises). The spec defines the target system.
+
+**Key Planned Features:**
+
+**Coach Side:**
+- Program Library with calendar grid builder (Week × Day)
+- Multi-session days (AM/PM splits, different training types)
+- Flexible Column System (coach picks prescription & input fields per exercise)
+- Direct Client Calendar Building (for 1:1 clients, skip program templates)
+- Draft/Publish System (sessions hidden until published)
+- Team Programs (synced group assignments, all members on same week/day)
+- Volume Tracking (session → exercise → per-muscle with algorithm)
+
+**Client Side:**
+- Calendar View (month/week) - mobile-optimized
+- Multi-session Day View
+- Active Workout Logging with rest timer
+- Previous Values Display & Exercise History
+- Exercise Swap (this session OR all future sessions)
+- Workout Summary with PR tracking
+
+**Column System Options:**
+- Coach Prescription: Tempo, Rep Range, RIR, RPE, % 1RM, Weight (lb/kg), Rest, Time, Distance, Other (custom)
+- Client Input: Weight (lb/kg), Reps, RPE, RIR, Time, Distance, Calories, HR, Velocity, Other (custom)
+
+**Current State vs Spec:**
+
+| Feature | Current | Spec |
+|---------|---------|------|
+| Programs | ✅ Basic CRUD | Calendar grid, copy week |
+| Days | ✅ Add days | Multi-session, types/timing |
+| Exercises | ✅ Basic fields | Flexible column system |
+| Client calendar | ❌ | ✅ Month/week view |
+| Workout logging | ❌ | ✅ Mobile-optimized |
+| Teams | ❌ | ✅ Synced programs |
+| Volume tracking | ❌ | ✅ 3-phase analytics |
+| Draft/Publish | ❌ | ✅ Full workflow |
+
+**Implementation Priority:**
+- Phase 1 (MVP): Core builder, column system, client logging, teams
+- Phase 2: Multi-session, swaps, volume per exercise
+- Phase 3: Per-muscle analytics, templates, sync changes
 
 ---
 
