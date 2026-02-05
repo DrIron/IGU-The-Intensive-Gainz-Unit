@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertTriangle, Crown, Users, Info, Shield, CheckCircle2, Clock, MessageSquare, Dumbbell } from "lucide-react";
+import { AlertTriangle, Crown, Users, Info, Shield, CheckCircle2, Clock, MessageSquare, Dumbbell, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import ClientNutritionProgress from "@/pages/ClientNutrition";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { CareTeamOverviewCard } from "@/components/client/CareTeamOverviewCard";
 import { MedicalSectionHeader } from "@/components/phi/PHIRestrictedField";
 import { logPHIAccess } from "@/hooks/usePHIAuditLog";
 import { AssignProgramDialog } from "./programs/AssignProgramDialog";
+import { DirectClientCalendar } from "./programs/DirectClientCalendar";
 
 interface CoachClientDetailProps {
   clientUserId: string;
@@ -57,6 +58,7 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [showAssignProgram, setShowAssignProgram] = useState(false);
+  const [showDirectCalendar, setShowDirectCalendar] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -244,12 +246,20 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
         <Button onClick={onBack} variant="outline">
           ← Back to Clients
         </Button>
-        {isPrimaryCoach && (
-          <Button onClick={() => setShowAssignProgram(true)}>
-            <Dumbbell className="h-4 w-4 mr-2" />
-            Assign Program
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {isPrimaryCoach && (
+            <Button variant="outline" onClick={() => setShowDirectCalendar(!showDirectCalendar)}>
+              <Calendar className="h-4 w-4 mr-2" />
+              {showDirectCalendar ? "Hide Calendar" : "Direct Calendar"}
+            </Button>
+          )}
+          {isPrimaryCoach && (
+            <Button onClick={() => setShowAssignProgram(true)}>
+              <Dumbbell className="h-4 w-4 mr-2" />
+              Assign Program
+            </Button>
+          )}
+        </div>
       </div>
 
       {medicalFlags?.needsMedicalReview && !medicalFlags?.medicalCleared && (
@@ -273,6 +283,15 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
             )}
           </AlertDescription>
         </Alert>
+      )}
+
+      {/* Direct Client Calendar */}
+      {showDirectCalendar && currentUserId && (
+        <DirectClientCalendar
+          clientUserId={clientUserId}
+          coachUserId={currentUserId}
+          subscriptionId={clientInfo.subscriptionId}
+        />
       )}
 
       <Card>

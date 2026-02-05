@@ -22,7 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { ModuleExerciseEditor } from "./ModuleExerciseEditor";
+import { EnhancedModuleExerciseEditor } from "./EnhancedModuleExerciseEditor";
 import { Tables, Enums } from "@/integrations/supabase/types";
 
 type DayModule = Tables<"day_modules">;
@@ -312,7 +312,7 @@ export function DayModuleEditor({
                 </Button>
                 {expandedModule === module.id && (
                   <div className="mt-3">
-                    <ModuleExerciseEditor
+                    <EnhancedModuleExerciseEditor
                       moduleId={module.id}
                       coachUserId={coachUserId}
                     />

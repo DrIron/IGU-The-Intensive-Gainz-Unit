@@ -22,6 +22,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 - **Routing**: React Router DOM v6
 - **State**: TanStack Query (React Query)
 - **Forms**: React Hook Form + Zod validation
+- **Drag & Drop**: @hello-pangea/dnd (exercise reordering)
 
 ### Backend
 - **Database**: Supabase (PostgreSQL)
@@ -48,15 +49,15 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   ├── components/
 │   │   ├── ui/               # shadcn/ui components
 │   │   ├── admin/            # Admin-specific components
-│   │   ├── coach/            # Coach-specific components
-│   │   ├── client/           # Client-specific components
+│   │   ├── coach/            # Coach-specific components (incl. programs/*)
+│   │   ├── client/           # Client-specific components (incl. EnhancedWorkoutLogger)
 │   │   ├── layouts/          # Layout components (PublicLayout, etc.)
 │   │   ├── AuthGuard.tsx     # Auth-only route protection
 │   │   ├── RoleProtectedRoute.tsx  # Role-based route protection
 │   │   ├── OnboardingGuard.tsx     # Onboarding flow enforcement
 │   │   ├── PermissionGate.tsx      # Feature-level permission checks
 │   │   └── GlobalErrorBoundary.tsx # Error boundary with Sentry
-│   ├── hooks/                # Custom React hooks
+│   ├── hooks/                # Custom React hooks (incl. useColumnConfig, useProgramCalendar, useExerciseHistory)
 │   ├── integrations/
 │   │   └── supabase/         # Supabase client and generated types
 │   ├── lib/
@@ -180,6 +181,14 @@ payments           -- Payment transactions
 programs           -- Workout programs
 workout_sessions   -- Individual sessions
 exercise_logs      -- Exercise tracking
+exercise_prescriptions -- Exercise prescriptions (has column_config JSONB)
+
+-- Workout Builder (Phase 17)
+coach_column_presets       -- Saved column configuration presets per coach
+direct_calendar_sessions   -- Ad-hoc sessions on client calendars (not from program templates)
+direct_session_exercises   -- Exercises within direct calendar sessions
+day_modules                -- Now has session_type, session_timing columns
+client_day_modules         -- Now has session_type, session_timing columns
 
 -- Coach Configuration
 specialization_tags -- Admin-managed standardized tags for coach specializations
@@ -323,6 +332,7 @@ When understanding this codebase, read in this order:
 - Phase 14: Coach application email fix — CORS, JWT, Resend domain (Feb 4, 2026)
 - Phase 15: Coach approval flow complete — DB fixes, email flow, validation (Feb 4, 2026)
 - Phase 16: Coach dashboard QA — infinite loop fixes, My Clients crash fix (Feb 5, 2026)
+- Phase 17: Workout Builder Phase 1 — dynamic columns, calendar builder, direct client calendar, enhanced logger (Feb 5, 2026)
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -542,6 +552,63 @@ This means:
 - ✅ Page refresh maintains auth session
 - ✅ Admin dashboard also fixed (same pattern)
 
+### Workout Builder Phase 1 (Phase 17 - Feb 5, 2026)
+
+Implemented the first phase of the workout builder system from `/docs/WORKOUT_BUILDER_SPEC.md`. Source package: `iguphase1`.
+
+**New Dependencies**:
+- `@hello-pangea/dnd` — Drag-and-drop for exercise reordering between sections
+
+**Migration**: `supabase/migrations/20260205_workout_builder_phase1.sql`
+- Added `column_config JSONB` to `exercise_prescriptions`
+- Added `session_type TEXT`, `session_timing TEXT` to `day_modules` and `client_day_modules`
+- Created `coach_column_presets` table (RLS: coaches own their presets)
+- Created `direct_calendar_sessions` table (RLS: coach owns, client reads)
+- Created `direct_session_exercises` table (RLS: coach owns, client reads)
+- Created `get_default_column_config()` SQL function
+
+**New Type Definitions**: `src/types/workout-builder.ts`
+- `PrescriptionColumnType`, `ClientInputColumnType`, `ColumnConfig`, `ColumnPreset`
+- `SessionType` (strength, cardio, hiit, mobility, recovery, sport_specific, other)
+- `SessionTiming` (morning, afternoon, evening, anytime)
+- `CalendarWeek`, `CalendarDay`, `CalendarSession`, `DirectCalendarSession`
+- `ExercisePrescription`, `SetLog`, `EnhancedExerciseDisplay`
+- Helper functions: `getColumnValue`, `setColumnValue`, `generateColumnId`
+
+**New Hooks**:
+| Hook | Purpose |
+|------|---------|
+| `src/hooks/useColumnConfig.ts` | Column config CRUD, preset save/load, defaults |
+| `src/hooks/useProgramCalendar.ts` | Calendar state: weeks, days, sessions, copy week |
+| `src/hooks/useExerciseHistory.ts` | Exercise history, personal bests, last performance |
+
+**New Components**:
+| Component | Purpose |
+|-----------|---------|
+| `src/components/coach/programs/ColumnConfigDropdown.tsx` | Dropdown to configure which columns appear per exercise, drag to reorder, save as preset |
+| `src/components/coach/programs/DynamicExerciseRow.tsx` | Single exercise row with dynamic column inputs, muscle badge, video link, last performance hint |
+| `src/components/coach/programs/SessionTypeSelector.tsx` | Radio groups for session type (7 options) and timing (4 options) with icons |
+| `src/components/coach/programs/EnhancedModuleExerciseEditor.tsx` | Main exercise editor with DnD reordering between sections (warmup/main/accessory/cooldown), dynamic columns, batch save |
+| `src/components/coach/programs/ProgramCalendarBuilder.tsx` | Week × Day grid: add weeks, copy weeks, add/delete sessions, publish toggle |
+| `src/components/coach/programs/DirectClientCalendar.tsx` | Month calendar for building ad-hoc workouts on a client's schedule |
+| `src/components/client/EnhancedWorkoutLogger.tsx` | Mobile-optimized workout logger with rest timer, progress bar, previous performance display |
+
+**Modified Files**:
+| File | Change |
+|------|--------|
+| `src/components/coach/programs/DayModuleEditor.tsx` | Import `EnhancedModuleExerciseEditor` instead of `ModuleExerciseEditor` |
+| `src/components/coach/programs/CoachProgramsPage.tsx` | Added `"calendar"` view state, renders `ProgramCalendarBuilder` |
+| `src/components/coach/programs/ProgramEditor.tsx` | Added `onCalendarView` prop, "Calendar View" toggle button in header |
+| `src/components/coach/CoachClientDetail.tsx` | Added "Direct Calendar" button, renders `DirectClientCalendar` |
+
+**Key Architectural Decisions**:
+- `ModuleExerciseEditor.tsx` kept as fallback (not deleted), just no longer imported
+- `ExercisePickerDialog` API unchanged — works with both old and new editors
+- All new hooks/components use `hasFetched` ref guard pattern for data fetching
+- `ProgramCalendarBuilder` resets `hasFetched.current = false` before reload after mutations
+- `DirectClientCalendar` exercise editing is a placeholder (Phase 2)
+- `EnhancedWorkoutLogger` component exists but is not yet wired into client routing
+
 ### Admin QA Results (Feb 3, 2026)
 
 10 known issues found across admin dashboard pages (updated Feb 5):
@@ -632,9 +699,11 @@ When asking for help:
 - Coach application confirmation emails (CORS + JWT + Resend fixes)
 - Coach approval/rejection email flow QA ✅ (Feb 4, 2026)
 - Coach dashboard QA — infinite loop and crash fixes ✅ (Feb 5, 2026)
+- Workout Builder Phase 1 — calendar builder, dynamic columns, direct calendar, enhanced logger ✅ (Feb 5, 2026)
 
 **In Progress**:
 - Client onboarding & dashboard QA (next session)
+- Workout Builder Phase 2 — client routing integration, exercise swap, teams
 
 **Remaining**:
 - Fix critical issues (testimonials hang)
@@ -645,64 +714,70 @@ When asking for help:
 - Performance optimization (bundle splitting)
 - Security audit
 - Backup/recovery procedures
-- **Workout builder enhancement (see /docs/WORKOUT_BUILDER_SPEC.md)** — Post-launch priority
 
 ### Documentation
 - `/docs/IGU_Discovery_Report.md` - Platform audit
 - `/docs/Dashboard_UX_Plan.md` - Dashboard UX specs
 - `/docs/LAUNCH_CHECKLIST.md` - Pre-launch tasks
-- `/docs/WORKOUT_BUILDER_SPEC.md` - **Complete workout builder system specification (NOT YET IMPLEMENTED)**
+- `/docs/WORKOUT_BUILDER_SPEC.md` - Workout builder system specification (Phase 1 implemented, Phase 2-3 pending)
 
 ---
 
-## Future Feature Specifications
-
-### Workout Builder System (Planned)
+## Workout Builder System
 
 **Spec Document:** `/docs/WORKOUT_BUILDER_SPEC.md` (1,303 lines)
 
-**Status:** SPECIFICATION ONLY — Not yet implemented. The current workout builder is basic (programs, days, modules, exercises). The spec defines the target system.
+### Phase 1 — Implemented (Phase 17 - Feb 5, 2026)
 
-**Key Planned Features:**
+**What's Built:**
 
 **Coach Side:**
-- Program Library with calendar grid builder (Week × Day)
-- Multi-session days (AM/PM splits, different training types)
-- Flexible Column System (coach picks prescription & input fields per exercise)
-- Direct Client Calendar Building (for 1:1 clients, skip program templates)
-- Draft/Publish System (sessions hidden until published)
-- Team Programs (synced group assignments, all members on same week/day)
-- Volume Tracking (session → exercise → per-muscle with algorithm)
+- ✅ Program Calendar Builder (Week × Day grid with add week, copy week)
+- ✅ Flexible Column System (coach picks prescription & input fields per exercise)
+- ✅ Dynamic exercise rows with configurable columns (Sets, Reps, Weight, RIR, RPE, Rest, Tempo, etc.)
+- ✅ Column preset save/load system
+- ✅ Direct Client Calendar (month view for ad-hoc 1:1 workouts)
+- ✅ Session type (Strength, Cardio, HIIT, Mobility, Recovery, Sport-Specific, Other)
+- ✅ Session timing (Morning, Afternoon, Evening, Anytime)
+- ✅ Draft/Publish toggle per session
+- ✅ Drag-and-drop exercise reordering between sections (warmup, main, accessory, cooldown)
+- ✅ Enhanced module exercise editor with batch save and unsaved changes indicator
 
 **Client Side:**
-- Calendar View (month/week) - mobile-optimized
-- Multi-session Day View
-- Active Workout Logging with rest timer
-- Previous Values Display & Exercise History
-- Exercise Swap (this session OR all future sessions)
-- Workout Summary with PR tracking
+- ✅ Enhanced Workout Logger (mobile-optimized, rest timer, progress bar, previous performance display)
+- ⚠️ Logger component created but not yet wired into client routing (Phase 2)
 
-**Column System Options:**
-- Coach Prescription: Tempo, Rep Range, RIR, RPE, % 1RM, Weight (lb/kg), Rest, Time, Distance, Other (custom)
-- Client Input: Weight (lb/kg), Reps, RPE, RIR, Time, Distance, Calories, HR, Velocity, Other (custom)
+**Database:**
+- ✅ `column_config` JSONB on `exercise_prescriptions`
+- ✅ `session_type`, `session_timing` on `day_modules` and `client_day_modules`
+- ✅ `coach_column_presets` table with RLS
+- ✅ `direct_calendar_sessions` table with RLS
+- ✅ `direct_session_exercises` table with RLS
+- ✅ `get_default_column_config()` function
 
 **Current State vs Spec:**
 
-| Feature | Current | Spec |
-|---------|---------|------|
-| Programs | ✅ Basic CRUD | Calendar grid, copy week |
-| Days | ✅ Add days | Multi-session, types/timing |
-| Exercises | ✅ Basic fields | Flexible column system |
-| Client calendar | ❌ | ✅ Month/week view |
-| Workout logging | ❌ | ✅ Mobile-optimized |
-| Teams | ❌ | ✅ Synced programs |
-| Volume tracking | ❌ | ✅ 3-phase analytics |
-| Draft/Publish | ❌ | ✅ Full workflow |
+| Feature | Status | Notes |
+|---------|--------|-------|
+| Programs | ✅ Calendar grid + linear editor | Copy week, add/delete sessions |
+| Days | ✅ Multi-session, types/timing | Session type & timing selectors |
+| Exercises | ✅ Flexible column system | Dynamic columns, drag-and-drop |
+| Column presets | ✅ Save/load presets | Per-coach column configurations |
+| Direct client calendar | ✅ Month view | Exercise editing is placeholder |
+| Workout logging | ✅ Component built | Not yet routed into client views |
+| Draft/Publish | ✅ Per-session toggle | |
+| Teams | ❌ | Phase 2 |
+| Volume tracking | ❌ | Phase 2 |
+| Exercise swap | ❌ | Phase 2 |
 
-**Implementation Priority:**
-- Phase 1 (MVP): Core builder, column system, client logging, teams
-- Phase 2: Multi-session, swaps, volume per exercise
-- Phase 3: Per-muscle analytics, templates, sync changes
+### Phase 2 — Remaining
+
+- Direct calendar exercise editing (currently placeholder)
+- Full client workout logger integration into client routing
+- Exercise swap functionality (this session OR all future)
+- Team programs (synced group assignments)
+- Volume tracking / per-muscle analytics
+- Exercise history sheet UI
 
 ---
 
@@ -754,3 +829,10 @@ Components using this pattern:
 - `src/components/coach/EnhancedCapacityCard.tsx`
 - `src/components/coach/CoachMyClientsPage.tsx`
 - `src/hooks/useRoleGate.ts`
+- `src/hooks/useColumnConfig.ts`
+- `src/hooks/useProgramCalendar.ts`
+- `src/hooks/useExerciseHistory.ts`
+- `src/components/coach/programs/EnhancedModuleExerciseEditor.tsx`
+- `src/components/coach/programs/ProgramCalendarBuilder.tsx`
+- `src/components/coach/programs/DirectClientCalendar.tsx`
+- `src/components/client/EnhancedWorkoutLogger.tsx`

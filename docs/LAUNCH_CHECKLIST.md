@@ -16,10 +16,12 @@
 - [ ] Mobile responsive testing on iOS and Android
 - [ ] Test coach dashboard workflows
 - [ ] Verify RLS policies for all roles
+- [x] Workout Builder Phase 1 deployed (calendar builder, dynamic columns, direct client calendar)
+- [ ] Workout Builder Phase 2 (client logger routing, exercise swap, teams)
 
 ### Team Readiness
 - [ ] Create coach accounts for all coaches
-- [ ] Coach training on workout builder
+- [ ] Coach training on workout builder (calendar view, dynamic columns, direct client calendar)
 - [ ] Coach training on nutrition management
 - [ ] Admin training on client management
 

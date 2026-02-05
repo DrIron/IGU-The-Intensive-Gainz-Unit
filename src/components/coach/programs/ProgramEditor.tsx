@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Save, Trash2, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Plus, Save, Trash2, GripVertical, ChevronDown, ChevronRight, Calendar } from "lucide-react";
 import {
   Select,
   SelectContent,
@@ -31,9 +31,10 @@ interface ProgramEditorProps {
   coachUserId: string;
   programId?: string;
   onBack: () => void;
+  onCalendarView?: () => void;
 }
 
-export function ProgramEditor({ coachUserId, programId, onBack }: ProgramEditorProps) {
+export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView }: ProgramEditorProps) {
   const [loading, setLoading] = useState(!!programId);
   const [saving, setSaving] = useState(false);
   const [program, setProgram] = useState<Partial<ProgramTemplate>>({
@@ -321,6 +322,12 @@ export function ProgramEditor({ coachUserId, programId, onBack }: ProgramEditorP
             {programId ? "Edit Program" : "Create Program"}
           </h2>
         </div>
+        {programId && onCalendarView && (
+          <Button variant="outline" onClick={onCalendarView}>
+            <Calendar className="h-4 w-4 mr-2" />
+            Calendar View
+          </Button>
+        )}
         <Button onClick={saveProgram} disabled={saving}>
           <Save className="h-4 w-4 mr-2" />
           {saving ? "Saving..." : "Save"}
