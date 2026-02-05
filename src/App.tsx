@@ -48,6 +48,7 @@ import SystemHealth from "./pages/admin/SystemHealth";
 import Unauthorized from "./pages/Unauthorized";
 import { RoutesDebugPanel } from "./components/admin/RoutesDebugPanel";
 import WorkoutSession from "./pages/client/WorkoutSession";
+import WorkoutSessionV2 from "./pages/client/WorkoutSessionV2";
 import WorkoutCalendar from "./pages/client/WorkoutCalendar";
 import ExerciseHistory from "./pages/client/ExerciseHistory";
 import AccessDebug from "./pages/AccessDebug";
@@ -98,7 +99,7 @@ const App = () => {
                 {/* Client routes - requires complete onboarding */}
                 <Route path="/client" element={<AuthGuard><OnboardingGuard><Dashboard /></OnboardingGuard></AuthGuard>} />
                 <Route path="/client/dashboard" element={<AuthGuard><OnboardingGuard><Dashboard /></OnboardingGuard></AuthGuard>} />
-                <Route path="/client/workout/session/:moduleId" element={<AuthGuard><OnboardingGuard><WorkoutSession /></OnboardingGuard></AuthGuard>} />
+                <Route path="/client/workout/session/:moduleId" element={<AuthGuard><OnboardingGuard><WorkoutSessionV2 /></OnboardingGuard></AuthGuard>} />
                 <Route path="/client/workout/calendar" element={<AuthGuard><OnboardingGuard><WorkoutCalendar /></OnboardingGuard></AuthGuard>} />
                 <Route path="/client/workout/history" element={<AuthGuard><OnboardingGuard><ExerciseHistory /></OnboardingGuard></AuthGuard>} />
                 

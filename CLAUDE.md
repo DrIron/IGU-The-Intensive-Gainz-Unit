@@ -336,6 +336,7 @@ When understanding this codebase, read in this order:
 - Phase 18: Exercise Editor V2 — per-set row-based layout, dual column categories, video thumbnails, collapsible warmup (Feb 5, 2026)
 - Phase 19: Column header drag-to-reorder — direct header dragging with category separation (Feb 5, 2026)
 - Phase 20: Session copy/paste — clipboard-based deep copy of sessions between days, copyWeek V2 field fix (Feb 5, 2026)
+- Phase 21: WorkoutSessionV2 integration — per-set prescriptions, history blocks, rest timer, video thumbnails, client route wired (Feb 5, 2026)
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -734,6 +735,51 @@ Added clipboard-based copy/paste for individual sessions on the ProgramCalendarB
 | `src/components/coach/programs/ProgramCalendarBuilder.tsx` | Added copiedSessionId state, Copy menu item, Paste buttons, pasteSession fn, clipboard banner, fix copyWeek V2 fields |
 | `src/hooks/useProgramCalendar.ts` | Fix copyWeek to include sets_json/custom_fields_json |
 
+### WorkoutSessionV2 Integration (Phase 21 - Feb 5, 2026)
+
+Replaced the client workout session route with an enhanced workout logger (`WorkoutSessionV2`) featuring per-set prescriptions, history blocks, rest timer, and video thumbnails.
+
+**Features:**
+- Per-set prescription display (each set can have different reps, RIR, RPE, tempo, rest)
+- Compact history blocks showing previous performance for the same exercise
+- Personal best (PR) display per exercise
+- Rest timer with circular SVG progress, pause/skip controls
+- YouTube video thumbnails with modal player on exercise cards
+- Progress bar tracking completed sets across the session
+- Auto-expand first incomplete exercise on load
+- Mobile-optimized input fields (inputMode for numeric keyboards)
+
+**Data Flow:**
+```
+client_day_modules → client_module_exercises → exercise_set_logs
+                     ↓
+                     prescription_snapshot_json.sets_json (V2 per-set data)
+                     OR legacy scalar fields (backward compat)
+```
+
+**Files Created:**
+| File | Purpose |
+|------|---------|
+| `src/pages/client/WorkoutSessionV2.tsx` | Enhanced workout logger with all features above |
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `src/App.tsx` | Added import, replaced route to use WorkoutSessionV2 |
+
+**Fixes Applied (vs original draft):**
+1. `useDocumentTitle` — changed `{ suffix }` to `{ description }` matching hook API
+2. `Navigation` — added `user={user} userRole="client"` props for consistency
+3. `sets_json` access — reads from `prescription_snapshot_json.sets_json` (not top-level column)
+4. Coach name query — uses `coaches_client_safe` view with `.maybeSingle()` (RLS-safe)
+5. History/PB queries — filters through `client_module_exercises` by `exercise_id` (same movement only)
+6. Rest timer `onComplete` — uses ref to avoid stale closure in setInterval
+
+**Backward Compatibility:**
+- If `prescription_snapshot_json.sets_json` is null → `legacyToPerSet()` converts legacy shared prescription to per-set array
+- Old `WorkoutSession` component kept as fallback (import retained in App.tsx)
+- Uses `hasFetched` ref guard pattern for data fetching (consistent with Phase 16 pattern)
+
 ### Admin QA Results (Feb 3, 2026)
 
 10 known issues found across admin dashboard pages (updated Feb 5):
@@ -828,10 +874,11 @@ When asking for help:
 - Exercise Editor V2 — per-set rows, dual column categories, video thumbnails, collapsible warmup ✅ (Feb 5, 2026)
 - Column header drag-to-reorder — direct header dragging with category separation ✅ (Feb 5, 2026)
 - Session copy/paste — clipboard-based deep copy of sessions between days, copyWeek V2 fix ✅ (Feb 5, 2026)
+- WorkoutSessionV2 — per-set prescriptions, history, rest timer, video thumbnails, client route wired ✅ (Feb 5, 2026)
 
 **In Progress**:
 - Client onboarding & dashboard QA (next session)
-- Workout Builder Phase 2 — client routing integration, exercise swap, teams
+- Workout Builder Phase 2 — exercise swap, teams
 
 **Remaining**:
 - Fix critical issues (testimonials hang)
@@ -873,7 +920,7 @@ When asking for help:
 
 **Client Side:**
 - ✅ Enhanced Workout Logger (mobile-optimized, rest timer, progress bar, previous performance display)
-- ⚠️ Logger component created but not yet wired into client routing (Phase 2)
+- ✅ WorkoutSessionV2 wired into client routing (Phase 21) — replaces old WorkoutSession route
 
 **Database:**
 - ✅ `column_config` JSONB on `exercise_prescriptions`
@@ -896,7 +943,7 @@ When asking for help:
 | Coach instructions | ✅ Per-exercise textarea | "Add coaching notes..." |
 | Collapsible warmup | ✅ WarmupSection component | Amber-themed, auto-expands when empty |
 | Direct client calendar | ✅ Month view | Exercise editing is placeholder |
-| Workout logging | ✅ Component built | Not yet routed into client views |
+| Workout logging | ✅ Routed (Phase 21) | WorkoutSessionV2 replaces old route |
 | Draft/Publish | ✅ Per-session toggle | |
 | Session copy/paste | ✅ Clipboard-based deep copy | Copy from dropdown, paste on any day |
 | Teams | ❌ | Phase 2 |
@@ -906,7 +953,6 @@ When asking for help:
 ### Phase 2 — Remaining
 
 - Direct calendar exercise editing (currently placeholder)
-- Full client workout logger integration into client routing
 - Exercise swap functionality (this session OR all future)
 - Team programs (synced group assignments)
 - Volume tracking / per-muscle analytics
@@ -969,3 +1015,4 @@ Components using this pattern:
 - `src/components/coach/programs/ProgramCalendarBuilder.tsx`
 - `src/components/coach/programs/DirectClientCalendar.tsx`
 - `src/components/client/EnhancedWorkoutLogger.tsx`
+- `src/pages/client/WorkoutSessionV2.tsx`
