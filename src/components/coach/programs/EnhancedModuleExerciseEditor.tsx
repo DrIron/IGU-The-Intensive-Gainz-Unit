@@ -1,5 +1,5 @@
 // src/components/coach/programs/EnhancedModuleExerciseEditor.tsx
-// Enhanced exercise editor with dynamic columns - replaces ModuleExerciseEditor
+// V2 Exercise editor with per-set rows and dual column categories
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,15 +8,19 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Loader2, AlertCircle } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
-import { DynamicExerciseRow } from "./DynamicExerciseRow";
+import { ExerciseCardV2 } from "./ExerciseCardV2";
+import { WarmupSection } from "./WarmupSection";
 import { ExercisePickerDialog } from "./ExercisePickerDialog";
 import {
   ColumnConfig,
-  ExercisePrescription,
-  EnhancedExerciseDisplay,
+  EnhancedExerciseDisplayV2,
+  SetPrescription,
   DEFAULT_PRESCRIPTION_COLUMNS,
+  DEFAULT_INPUT_COLUMNS,
   ExerciseSection,
   EXERCISE_SECTIONS,
+  splitColumnsByCategory,
+  legacyPrescriptionToSets,
 } from "@/types/workout-builder";
 import {
   Select,
@@ -37,10 +41,10 @@ interface EnhancedModuleExerciseEditorProps {
 }
 
 interface GroupedExercises {
-  warmup: EnhancedExerciseDisplay[];
-  main: EnhancedExerciseDisplay[];
-  accessory: EnhancedExerciseDisplay[];
-  cooldown: EnhancedExerciseDisplay[];
+  warmup: EnhancedExerciseDisplayV2[];
+  main: EnhancedExerciseDisplayV2[];
+  accessory: EnhancedExerciseDisplayV2[];
+  cooldown: EnhancedExerciseDisplayV2[];
 }
 
 export function EnhancedModuleExerciseEditor({
@@ -48,7 +52,7 @@ export function EnhancedModuleExerciseEditor({
   coachUserId,
   isReadOnly = false,
 }: EnhancedModuleExerciseEditorProps) {
-  const [exercises, setExercises] = useState<EnhancedExerciseDisplay[]>([]);
+  const [exercises, setExercises] = useState<EnhancedExerciseDisplayV2[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showExercisePicker, setShowExercisePicker] = useState(false);
@@ -82,47 +86,59 @@ export function EnhancedModuleExerciseEditor({
 
       if (error) throw error;
 
-      // Transform to EnhancedExerciseDisplay format
-      const enhanced: EnhancedExerciseDisplay[] = await Promise.all(
-        (data || []).map(async (ex) => {
-          const prescription = ex.exercise_prescriptions?.[0] || {};
+      const enhanced: EnhancedExerciseDisplayV2[] = (data || []).map((ex) => {
+        const prescription = ex.exercise_prescriptions?.[0] || {};
 
-          const lastPerformance = undefined; // Placeholder - would query exercise_set_logs
+        // Build legacy prescription object
+        const legacyPrescription = {
+          set_count: prescription.set_count || 3,
+          rep_range_min: prescription.rep_range_min,
+          rep_range_max: prescription.rep_range_max,
+          tempo: prescription.tempo,
+          rest_seconds: prescription.rest_seconds,
+          rir: prescription.intensity_type === "RIR" ? prescription.intensity_value : undefined,
+          rpe: prescription.intensity_type === "RPE" ? prescription.intensity_value : undefined,
+          percent_1rm: prescription.intensity_type === "PERCENT_1RM" ? prescription.intensity_value : undefined,
+          notes: prescription.progression_notes,
+          custom_fields: prescription.custom_fields_json as Record<string, string | number> | undefined,
+        };
 
-          // Parse column config from prescription or use defaults
-          let columnConfig: ColumnConfig[] = DEFAULT_PRESCRIPTION_COLUMNS;
-          if (prescription.column_config && Array.isArray(prescription.column_config)) {
-            columnConfig = prescription.column_config as ColumnConfig[];
-          }
+        // Parse per-set data (V2) or expand from legacy
+        let sets: SetPrescription[];
+        const setsJson = (prescription as any).sets_json;
+        if (setsJson && Array.isArray(setsJson)) {
+          sets = setsJson;
+        } else {
+          sets = legacyPrescriptionToSets(legacyPrescription);
+        }
 
-          return {
-            id: ex.id,
-            exercise_id: ex.exercise_id,
-            section: ex.section as ExerciseSection,
-            sort_order: ex.sort_order,
-            instructions: ex.instructions,
-            prescription: {
-              set_count: prescription.set_count || 3,
-              rep_range_min: prescription.rep_range_min,
-              rep_range_max: prescription.rep_range_max,
-              tempo: prescription.tempo,
-              rest_seconds: prescription.rest_seconds,
-              rir: prescription.intensity_type === "RIR" ? prescription.intensity_value : undefined,
-              rpe: prescription.intensity_type === "RPE" ? prescription.intensity_value : undefined,
-              percent_1rm: prescription.intensity_type === "PERCENT_1RM" ? prescription.intensity_value : undefined,
-              notes: prescription.progression_notes,
-              custom_fields: prescription.custom_fields_json as Record<string, string | number> | undefined,
-            },
-            column_config: columnConfig,
-            exercise: {
-              name: ex.exercise_library?.name || "Unknown Exercise",
-              primary_muscle: ex.exercise_library?.primary_muscle || "",
-              default_video_url: ex.exercise_library?.default_video_url,
-            },
-            last_performance: lastPerformance,
-          };
-        })
-      );
+        // Split column config into prescription vs input categories
+        const allColumns: ColumnConfig[] =
+          prescription.column_config && Array.isArray(prescription.column_config)
+            ? (prescription.column_config as ColumnConfig[])
+            : DEFAULT_PRESCRIPTION_COLUMNS;
+
+        const { prescriptionColumns, inputColumns } = splitColumnsByCategory(allColumns);
+        const finalInputColumns = inputColumns.length > 0 ? inputColumns : DEFAULT_INPUT_COLUMNS;
+
+        return {
+          id: ex.id,
+          exercise_id: ex.exercise_id,
+          section: ex.section as ExerciseSection,
+          sort_order: ex.sort_order,
+          instructions: ex.instructions,
+          prescription: legacyPrescription,
+          sets,
+          prescription_columns: prescriptionColumns,
+          input_columns: finalInputColumns,
+          column_config: allColumns,
+          exercise: {
+            name: ex.exercise_library?.name || "Unknown Exercise",
+            primary_muscle: ex.exercise_library?.primary_muscle || "",
+            default_video_url: ex.exercise_library?.default_video_url,
+          },
+        };
+      });
 
       setExercises(enhanced);
     } catch (error: any) {
@@ -163,11 +179,9 @@ export function EnhancedModuleExerciseEditor({
   // Add exercise
   const addExercise = async (exerciseId: string, section: ExerciseSection) => {
     try {
-      // Get current max sort order for this section
       const sectionExercises = exercises.filter((e) => e.section === section);
       const maxOrder = Math.max(0, ...sectionExercises.map((e) => e.sort_order));
 
-      // Insert module_exercise
       const { data: newExercise, error: exerciseError } = await supabase
         .from("module_exercises")
         .insert({
@@ -184,8 +198,18 @@ export function EnhancedModuleExerciseEditor({
 
       if (exerciseError) throw exerciseError;
 
-      // Create prescription with default columns
-      const { data: prescription, error: prescError } = await supabase
+      // Create default sets
+      const defaultSets: SetPrescription[] = [
+        { set_number: 1, rep_range_min: 8, rep_range_max: 12, rest_seconds: 90, rir: 2 },
+        { set_number: 2, rep_range_min: 8, rep_range_max: 12, rest_seconds: 90, rir: 2 },
+        { set_number: 3, rep_range_min: 8, rep_range_max: 12, rest_seconds: 90, rir: 2 },
+      ];
+
+      // Split default columns
+      const { prescriptionColumns, inputColumns } = splitColumnsByCategory(defaultColumns);
+      const finalInputColumns = inputColumns.length > 0 ? inputColumns : DEFAULT_INPUT_COLUMNS;
+
+      const { error: prescError } = await supabase
         .from("exercise_prescriptions")
         .insert({
           module_exercise_id: newExercise.id,
@@ -195,15 +219,15 @@ export function EnhancedModuleExerciseEditor({
           rest_seconds: 90,
           intensity_type: "RIR",
           intensity_value: 2,
-          column_config: defaultColumns,
+          column_config: [...prescriptionColumns, ...finalInputColumns],
+          sets_json: defaultSets,
         })
         .select()
         .single();
 
       if (prescError) throw prescError;
 
-      // Add to local state
-      const enhanced: EnhancedExerciseDisplay = {
+      const enhanced: EnhancedExerciseDisplayV2 = {
         id: newExercise.id,
         exercise_id: newExercise.exercise_id,
         section: section,
@@ -216,7 +240,10 @@ export function EnhancedModuleExerciseEditor({
           rest_seconds: 90,
           rir: 2,
         },
-        column_config: defaultColumns,
+        sets: defaultSets,
+        prescription_columns: prescriptionColumns,
+        input_columns: finalInputColumns,
+        column_config: [...prescriptionColumns, ...finalInputColumns],
         exercise: {
           name: newExercise.exercise_library?.name || "Unknown",
           primary_muscle: newExercise.exercise_library?.primary_muscle || "",
@@ -241,7 +268,7 @@ export function EnhancedModuleExerciseEditor({
   };
 
   // Update exercise
-  const updateExercise = async (exerciseId: string, updates: Partial<EnhancedExerciseDisplay>) => {
+  const updateExercise = (exerciseId: string, updates: Partial<EnhancedExerciseDisplayV2>) => {
     setExercises((prev) =>
       prev.map((ex) => (ex.id === exerciseId ? { ...ex, ...updates } : ex))
     );
@@ -274,19 +301,20 @@ export function EnhancedModuleExerciseEditor({
     setSaving(true);
     try {
       for (const exercise of exercises) {
-        // Determine intensity type and value
+        // Derive legacy intensity from first set
+        const firstSet = exercise.sets[0];
         let intensityType: "RIR" | "RPE" | "PERCENT_1RM" | "TARGET_LOAD" | "OTHER" | null = null;
         let intensityValue: number | null = null;
 
-        if (exercise.prescription.rir !== undefined) {
+        if (firstSet?.rir !== undefined) {
           intensityType = "RIR";
-          intensityValue = exercise.prescription.rir;
-        } else if (exercise.prescription.rpe !== undefined) {
+          intensityValue = firstSet.rir;
+        } else if (firstSet?.rpe !== undefined) {
           intensityType = "RPE";
-          intensityValue = exercise.prescription.rpe;
-        } else if (exercise.prescription.percent_1rm !== undefined) {
+          intensityValue = firstSet.rpe;
+        } else if (firstSet?.percent_1rm !== undefined) {
           intensityType = "PERCENT_1RM";
-          intensityValue = exercise.prescription.percent_1rm;
+          intensityValue = firstSet.percent_1rm;
         }
 
         // Update module_exercise
@@ -307,16 +335,22 @@ export function EnhancedModuleExerciseEditor({
           .single();
 
         const prescriptionData = {
-          set_count: exercise.prescription.set_count,
-          rep_range_min: exercise.prescription.rep_range_min,
-          rep_range_max: exercise.prescription.rep_range_max,
-          tempo: exercise.prescription.tempo,
-          rest_seconds: exercise.prescription.rest_seconds,
+          // V2: per-set data
+          sets_json: exercise.sets,
+
+          // Legacy: first-set values for backward compatibility
+          set_count: exercise.sets.length,
+          rep_range_min: firstSet?.rep_range_min,
+          rep_range_max: firstSet?.rep_range_max,
+          tempo: firstSet?.tempo,
+          rest_seconds: firstSet?.rest_seconds,
           intensity_type: intensityType,
           intensity_value: intensityValue,
-          progression_notes: exercise.prescription.notes,
-          custom_fields_json: exercise.prescription.custom_fields,
-          column_config: exercise.column_config,
+          progression_notes: firstSet?.notes,
+          custom_fields_json: firstSet?.custom_fields,
+
+          // Recombine columns for storage
+          column_config: [...exercise.prescription_columns, ...exercise.input_columns],
         };
 
         if (existingPrescription) {
@@ -361,19 +395,15 @@ export function EnhancedModuleExerciseEditor({
     const sourceItems = newExercises.filter((e) => e.section === sourceSection);
     const [movedItem] = sourceItems.splice(sourceIndex, 1);
 
-    // Update section if moved to different section
     movedItem.section = destSection;
 
-    // Get destination section items
     const destItems = newExercises.filter((e) => e.section === destSection && e.id !== movedItem.id);
     destItems.splice(destIndex, 0, movedItem);
 
-    // Update sort orders
     destItems.forEach((item, index) => {
       item.sort_order = index + 1;
     });
 
-    // Rebuild exercises array
     const updatedExercises = newExercises.map((ex) => {
       if (ex.id === movedItem.id) return movedItem;
       const destItem = destItems.find((d) => d.id === ex.id);
@@ -383,6 +413,54 @@ export function EnhancedModuleExerciseEditor({
 
     setExercises(updatedExercises);
     setHasUnsavedChanges(true);
+  };
+
+  const renderSectionContent = (section: { value: ExerciseSection; label: string }) => {
+    const sectionExercises = groupedExercises[section.value];
+
+    return (
+      <Droppable droppableId={section.value}>
+        {(provided, snapshot) => (
+          <div
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+            className={`space-y-3 min-h-[60px] p-2 rounded-lg border-2 border-dashed transition-colors ${
+              snapshot.isDraggingOver
+                ? "border-primary bg-primary/5"
+                : "border-transparent"
+            }`}
+          >
+            {sectionExercises.map((exercise, index) => (
+              <Draggable key={exercise.id} draggableId={exercise.id} index={index}>
+                {(provided, snapshot) => (
+                  <div
+                    ref={provided.innerRef}
+                    {...provided.draggableProps}
+                  >
+                    <ExerciseCardV2
+                      exercise={exercise}
+                      onExerciseChange={(updates) =>
+                        updateExercise(exercise.id, updates)
+                      }
+                      onDelete={() => deleteExercise(exercise.id)}
+                      isDragging={snapshot.isDragging}
+                      dragHandleProps={provided.dragHandleProps}
+                      isReadOnly={isReadOnly}
+                    />
+                  </div>
+                )}
+              </Draggable>
+            ))}
+            {provided.placeholder}
+            {sectionExercises.length === 0 && (
+              <div className="text-center py-4 text-sm text-muted-foreground">
+                No exercises in {section.label.toLowerCase()}. Drag exercises here or add new ones.
+              </div>
+            )}
+          </div>
+        )}
+      </Droppable>
+    );
   };
 
   if (loading) {
@@ -455,6 +533,28 @@ export function EnhancedModuleExerciseEditor({
       <DragDropContext onDragEnd={handleDragEnd}>
         {EXERCISE_SECTIONS.map((section) => {
           const sectionExercises = groupedExercises[section.value];
+
+          // Warmup uses collapsible WarmupSection
+          if (section.value === "warmup") {
+            if (sectionExercises.length === 0 && !isReadOnly) {
+              // Show warmup section even when empty for adding exercises
+              return (
+                <WarmupSection key={section.value} exerciseCount={0}>
+                  {renderSectionContent(section)}
+                </WarmupSection>
+              );
+            }
+            if (sectionExercises.length > 0) {
+              return (
+                <WarmupSection key={section.value} exerciseCount={sectionExercises.length}>
+                  {renderSectionContent(section)}
+                </WarmupSection>
+              );
+            }
+            return null;
+          }
+
+          // Other sections: skip if empty (except main)
           if (sectionExercises.length === 0 && section.value !== "main") return null;
 
           return (
@@ -465,54 +565,7 @@ export function EnhancedModuleExerciseEditor({
                   {sectionExercises.length}
                 </Badge>
               </div>
-
-              <Droppable droppableId={section.value}>
-                {(provided, snapshot) => (
-                  <div
-                    ref={provided.innerRef}
-                    {...provided.droppableProps}
-                    className={`space-y-2 min-h-[60px] p-2 rounded-lg border-2 border-dashed transition-colors ${
-                      snapshot.isDraggingOver
-                        ? "border-primary bg-primary/5"
-                        : "border-transparent"
-                    }`}
-                  >
-                    {sectionExercises.map((exercise, index) => (
-                      <Draggable key={exercise.id} draggableId={exercise.id} index={index}>
-                        {(provided, snapshot) => (
-                          <div
-                            ref={provided.innerRef}
-                            {...provided.draggableProps}
-                          >
-                            <DynamicExerciseRow
-                              exercise={exercise}
-                              columns={exercise.column_config}
-                              onColumnsChange={(cols) =>
-                                updateExercise(exercise.id, { column_config: cols })
-                              }
-                              onPrescriptionChange={(prescription) =>
-                                updateExercise(exercise.id, { prescription })
-                              }
-                              onInstructionsChange={(instructions) =>
-                                updateExercise(exercise.id, { instructions })
-                              }
-                              onDelete={() => deleteExercise(exercise.id)}
-                              isDragging={snapshot.isDragging}
-                              dragHandleProps={provided.dragHandleProps}
-                            />
-                          </div>
-                        )}
-                      </Draggable>
-                    ))}
-                    {provided.placeholder}
-                    {sectionExercises.length === 0 && (
-                      <div className="text-center py-4 text-sm text-muted-foreground">
-                        No exercises in {section.label.toLowerCase()}. Drag exercises here or add new ones.
-                      </div>
-                    )}
-                  </div>
-                )}
-              </Droppable>
+              {renderSectionContent(section)}
             </div>
           );
         })}

@@ -17,6 +17,7 @@ export type PrescriptionColumnType =
   | 'rest'
   | 'time'
   | 'distance'
+  | 'band_resistance'
   | 'notes'
   | 'custom';
 
@@ -27,6 +28,8 @@ export type ClientInputColumnType =
   | 'performed_rpe'
   | 'performed_time'
   | 'performed_distance'
+  | 'performed_hr'
+  | 'performed_calories'
   | 'client_notes';
 
 export interface ColumnConfig {
@@ -73,6 +76,7 @@ export const AVAILABLE_PRESCRIPTION_COLUMNS: { type: PrescriptionColumnType; lab
   { type: 'rest', label: 'Rest Period', unit: 'sec' },
   { type: 'time', label: 'Time/Duration', unit: 'sec' },
   { type: 'distance', label: 'Distance', unit: 'm' },
+  { type: 'band_resistance', label: 'Band Color/Resistance' },
   { type: 'notes', label: 'Coach Notes' },
   { type: 'custom', label: 'Custom Field' },
 ];
@@ -84,6 +88,8 @@ export const AVAILABLE_CLIENT_COLUMNS: { type: ClientInputColumnType; label: str
   { type: 'performed_rpe', label: 'Actual RPE' },
   { type: 'performed_time', label: 'Time Taken', unit: 'sec' },
   { type: 'performed_distance', label: 'Distance Covered', unit: 'm' },
+  { type: 'performed_hr', label: 'Heart Rate', unit: 'bpm' },
+  { type: 'performed_calories', label: 'Calories' },
   { type: 'client_notes', label: 'Notes' },
 ];
 
@@ -386,4 +392,198 @@ export function setColumnValue(
   }
 
   return updated;
+}
+
+// ============================================================
+// V2 Per-Set Types
+// ============================================================
+
+export interface SetPrescription {
+  set_number: number; // 1-indexed
+  reps?: number;
+  rep_range_min?: number;
+  rep_range_max?: number;
+  weight?: number;
+  tempo?: string;
+  rir?: number;
+  rpe?: number;
+  percent_1rm?: number;
+  rest_seconds?: number;
+  time_seconds?: number;
+  distance_meters?: number;
+  band_resistance?: string;
+  notes?: string;
+  custom_fields?: Record<string, string | number>;
+}
+
+export interface EnhancedExerciseDisplayV2 extends Omit<EnhancedExerciseDisplay, 'prescription'> {
+  prescription: ExercisePrescription; // legacy (backward compat)
+  sets: SetPrescription[]; // per-set array
+  prescription_columns: ColumnConfig[]; // coach instruction columns
+  input_columns: ColumnConfig[]; // client input columns
+}
+
+export const DEFAULT_INPUT_COLUMNS: ColumnConfig[] = [
+  { id: 'input_weight', type: 'performed_weight', label: 'Weight', visible: true, order: 0, unit: 'kg' },
+  { id: 'input_reps', type: 'performed_reps', label: 'Reps', visible: true, order: 1 },
+  { id: 'input_rpe', type: 'performed_rpe', label: 'RPE', visible: true, order: 2 },
+];
+
+// ============================================================
+// V2 Helper Functions
+// ============================================================
+
+const PRESCRIPTION_COLUMN_TYPES: Set<string> = new Set([
+  'sets', 'reps', 'rep_range', 'weight', 'tempo', 'rir', 'rpe',
+  'percent_1rm', 'rest', 'time', 'distance', 'band_resistance', 'notes', 'custom',
+]);
+
+export function splitColumnsByCategory(columns: ColumnConfig[]): {
+  prescriptionColumns: ColumnConfig[];
+  inputColumns: ColumnConfig[];
+} {
+  const prescriptionColumns: ColumnConfig[] = [];
+  const inputColumns: ColumnConfig[] = [];
+
+  for (const col of columns) {
+    if (PRESCRIPTION_COLUMN_TYPES.has(col.type)) {
+      prescriptionColumns.push(col);
+    } else {
+      inputColumns.push(col);
+    }
+  }
+
+  return { prescriptionColumns, inputColumns };
+}
+
+export function legacyPrescriptionToSets(prescription: ExercisePrescription): SetPrescription[] {
+  const count = prescription.set_count || 3;
+  const sets: SetPrescription[] = [];
+
+  for (let i = 1; i <= count; i++) {
+    sets.push({
+      set_number: i,
+      reps: prescription.reps,
+      rep_range_min: prescription.rep_range_min,
+      rep_range_max: prescription.rep_range_max,
+      weight: prescription.weight,
+      tempo: prescription.tempo,
+      rir: prescription.rir,
+      rpe: prescription.rpe,
+      percent_1rm: prescription.percent_1rm,
+      rest_seconds: prescription.rest_seconds,
+      time_seconds: prescription.time_seconds,
+      distance_meters: prescription.distance_meters,
+      notes: prescription.notes,
+      custom_fields: prescription.custom_fields,
+    });
+  }
+
+  return sets;
+}
+
+export function getSetColumnValue(
+  set: SetPrescription,
+  columnType: PrescriptionColumnType | ClientInputColumnType
+): string | number | null {
+  switch (columnType) {
+    case 'reps':
+      return set.reps ?? null;
+    case 'rep_range':
+      if (set.rep_range_min && set.rep_range_max) {
+        return `${set.rep_range_min}-${set.rep_range_max}`;
+      }
+      return set.rep_range_min ?? set.rep_range_max ?? null;
+    case 'weight':
+      return set.weight ?? null;
+    case 'tempo':
+      return set.tempo ?? null;
+    case 'rir':
+      return set.rir ?? null;
+    case 'rpe':
+      return set.rpe ?? null;
+    case 'percent_1rm':
+      return set.percent_1rm ?? null;
+    case 'rest':
+      return set.rest_seconds ?? null;
+    case 'time':
+      return set.time_seconds ?? null;
+    case 'distance':
+      return set.distance_meters ?? null;
+    case 'band_resistance':
+      return set.band_resistance ?? null;
+    case 'notes':
+      return set.notes ?? null;
+    default:
+      return null;
+  }
+}
+
+export function setSetColumnValue(
+  set: SetPrescription,
+  columnType: PrescriptionColumnType | ClientInputColumnType,
+  value: string | number | null
+): SetPrescription {
+  const updated = { ...set };
+
+  switch (columnType) {
+    case 'reps':
+      updated.reps = typeof value === 'number' ? value : parseInt(value as string) || undefined;
+      break;
+    case 'rep_range':
+      if (typeof value === 'string' && value.includes('-')) {
+        const [min, max] = value.split('-').map(v => parseInt(v.trim()));
+        updated.rep_range_min = min || undefined;
+        updated.rep_range_max = max || undefined;
+      }
+      break;
+    case 'weight':
+      updated.weight = typeof value === 'number' ? value : parseFloat(value as string) || undefined;
+      break;
+    case 'tempo':
+      updated.tempo = value as string || undefined;
+      break;
+    case 'rir':
+      updated.rir = typeof value === 'number' ? value : parseInt(value as string) || undefined;
+      break;
+    case 'rpe':
+      updated.rpe = typeof value === 'number' ? value : parseFloat(value as string) || undefined;
+      break;
+    case 'percent_1rm':
+      updated.percent_1rm = typeof value === 'number' ? value : parseFloat(value as string) || undefined;
+      break;
+    case 'rest':
+      updated.rest_seconds = typeof value === 'number' ? value : parseInt(value as string) || undefined;
+      break;
+    case 'time':
+      updated.time_seconds = typeof value === 'number' ? value : parseInt(value as string) || undefined;
+      break;
+    case 'distance':
+      updated.distance_meters = typeof value === 'number' ? value : parseFloat(value as string) || undefined;
+      break;
+    case 'band_resistance':
+      updated.band_resistance = value as string || undefined;
+      break;
+    case 'notes':
+      updated.notes = value as string || undefined;
+      break;
+  }
+
+  return updated;
+}
+
+export function getYouTubeThumbnailUrl(videoUrl: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /youtube\.com\/shorts\/([a-zA-Z0-9_-]{11})/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = videoUrl.match(pattern);
+    if (match?.[1]) {
+      return `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg`;
+    }
+  }
+
+  return null;
 }
