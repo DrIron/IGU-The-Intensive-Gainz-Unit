@@ -13,6 +13,8 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { StepLogForm } from "./StepLogForm";
+import { BodyFatLogForm } from "./BodyFatLogForm";
 
 interface ClientNutritionProgressProps {
   phase: any;
@@ -447,6 +449,15 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
           </CardContent>
         </Card>
       )}
+
+      {/* Step Tracking - Phase 22 */}
+      <StepLogForm onLogAdded={loadProgressData} />
+
+      {/* Body Fat Logging - Phase 22 */}
+      <BodyFatLogForm
+        currentWeight={weightLogs.length > 0 ? weightLogs[0].weight_kg : undefined}
+        onLogAdded={loadProgressData}
+      />
 
       {/* Body Fat Percentage - Every 4 weeks if initially provided */}
       {shouldShowBodyFat() && (

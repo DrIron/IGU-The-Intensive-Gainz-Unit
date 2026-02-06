@@ -10,6 +10,12 @@ import { CoachNutritionGoal } from "@/components/nutrition/CoachNutritionGoal";
 import { CoachNutritionProgress } from "@/components/nutrition/CoachNutritionProgress";
 import { CoachNutritionGraphs } from "@/components/nutrition/CoachNutritionGraphs";
 import { CoachNutritionNotes } from "@/components/nutrition/CoachNutritionNotes";
+import { DietBreakManager } from "@/components/nutrition/DietBreakManager";
+import { RefeedDayScheduler } from "@/components/nutrition/RefeedDayScheduler";
+import { StepProgressDisplay } from "@/components/nutrition/StepProgressDisplay";
+import { StepRecommendationCard } from "@/components/nutrition/StepRecommendationCard";
+import { NutritionPermissionGate } from "@/components/nutrition/NutritionPermissionGate";
+import { useNutritionPermissions } from "@/hooks/useNutritionPermissions";
 
 interface Client {
   id: string;
@@ -387,9 +393,11 @@ export default function CoachClientNutrition() {
           {/* Client Tabs */}
           {selectedClient && (
               <Tabs defaultValue="progress" className="w-full">
-                <TabsList className="grid w-full grid-cols-4">
+                <TabsList className="grid w-full grid-cols-6">
                   <TabsTrigger value="goal">Goal</TabsTrigger>
                   <TabsTrigger value="progress">Progress</TabsTrigger>
+                  <TabsTrigger value="diet-breaks">Diet Breaks</TabsTrigger>
+                  <TabsTrigger value="steps">Steps</TabsTrigger>
                   <TabsTrigger value="graphs">Graphs</TabsTrigger>
                   <TabsTrigger value="notes">Notes</TabsTrigger>
                 </TabsList>
@@ -419,6 +427,52 @@ export default function CoachClientNutrition() {
                       </CardContent>
                     </Card>
                   )}
+                </TabsContent>
+
+                <TabsContent value="diet-breaks">
+                  {activePhase ? (
+                    <div className="space-y-6">
+                      <NutritionPermissionGate clientUserId={selectedClient}>
+                        <DietBreakManager
+                          phase={activePhase}
+                          clientUserId={selectedClient}
+                          canEdit={true}
+                          onBreakUpdated={loadClientPhase}
+                        />
+                      </NutritionPermissionGate>
+                      <NutritionPermissionGate clientUserId={selectedClient}>
+                        <RefeedDayScheduler
+                          phase={activePhase}
+                          clientUserId={selectedClient}
+                          canEdit={true}
+                          onRefeedUpdated={loadClientPhase}
+                        />
+                      </NutritionPermissionGate>
+                    </div>
+                  ) : (
+                    <Card>
+                      <CardContent className="pt-6">
+                        <div className="text-center space-y-2 py-4">
+                          <p className="text-muted-foreground">
+                            Create a nutrition goal first to manage diet breaks.
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </TabsContent>
+
+                <TabsContent value="steps">
+                  <div className="space-y-6">
+                    <StepProgressDisplay userId={selectedClient} />
+                    <NutritionPermissionGate clientUserId={selectedClient}>
+                      <StepRecommendationCard
+                        clientUserId={selectedClient}
+                        canEdit={true}
+                        onRecommendationUpdated={loadClientPhase}
+                      />
+                    </NutritionPermissionGate>
+                  </div>
                 </TabsContent>
 
                 <TabsContent value="graphs">

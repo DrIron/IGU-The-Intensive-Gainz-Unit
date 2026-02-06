@@ -14,6 +14,7 @@ import { MedicalSectionHeader } from "@/components/phi/PHIRestrictedField";
 import { logPHIAccess } from "@/hooks/usePHIAuditLog";
 import { AssignProgramDialog } from "./programs/AssignProgramDialog";
 import { DirectClientCalendar } from "./programs/DirectClientCalendar";
+import { CareTeamMessagesPanel } from "@/components/nutrition/CareTeamMessagesPanel";
 
 interface CoachClientDetailProps {
   clientUserId: string;
@@ -467,6 +468,11 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
           subscriptionId={clientInfo.subscriptionId}
           primaryCoach={primaryCoach}
         />
+      )}
+
+      {/* Care Team Messages - Internal communication */}
+      {(isPrimaryCoach || isCareTeamMember || isAdmin) && (
+        <CareTeamMessagesPanel clientId={clientUserId} />
       )}
 
       <div>

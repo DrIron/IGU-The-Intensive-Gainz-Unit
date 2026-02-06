@@ -25,7 +25,7 @@ import type { Database } from "@/integrations/supabase/types";
 type CareTeamStatus = Database["public"]["Enums"]["care_team_status"];
 
 // Type for staff specialty
-type StaffSpecialty = 
+type StaffSpecialty =
   | 'nutrition'
   | 'lifestyle'
   | 'bodybuilding'
@@ -33,7 +33,8 @@ type StaffSpecialty =
   | 'running'
   | 'calisthenics'
   | 'mobility'
-  | 'physiotherapy';
+  | 'physiotherapy'
+  | 'dietitian';
 
 interface CareTeamMember {
   id: string;
@@ -84,6 +85,7 @@ const SPECIALTY_CONFIG: Record<StaffSpecialty, { label: string; icon: React.Elem
   calisthenics: { label: "Calisthenics", icon: Accessibility, color: "bg-indigo-100 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-400" },
   mobility: { label: "Mobility", icon: Activity, color: "bg-cyan-100 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-400" },
   physiotherapy: { label: "Physiotherapy", icon: Heart, color: "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" },
+  dietitian: { label: "Dietitian", icon: Apple, color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
 };
 
 export function CareTeamCard({ 
