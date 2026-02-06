@@ -168,8 +168,16 @@ export function ExercisePickerDialog({
                 {filteredExercises.map((exercise) => (
                   <div
                     key={exercise.id}
-                    className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors"
                     onClick={() => onSelectExercise(exercise.id, selectedSection)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        onSelectExercise(exercise.id, selectedSection);
+                      }
+                    }}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm">{exercise.name}</div>
@@ -192,9 +200,9 @@ export function ExercisePickerDialog({
                         Custom
                       </Badge>
                     )}
-                    <Button size="sm" variant="ghost">
-                      <Plus className="h-4 w-4" />
-                    </Button>
+                    <div className="h-8 w-8 rounded-md flex items-center justify-center hover:bg-muted">
+                      <Plus className="h-4 w-4 text-muted-foreground" />
+                    </div>
                   </div>
                 ))}
               </div>
