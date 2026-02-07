@@ -63,7 +63,18 @@ export function useNutritionPermissions({ clientUserId }: UseNutritionPermission
       const roles = rolesData?.map(r => r.role) || [];
       const isAdmin = roles.includes('admin');
       const isCoach = roles.includes('coach');
-      const isDietitian = roles.includes('dietitian');
+      const isDietitianRole = roles.includes('dietitian');
+
+      // Also check subrole-based dietitian status
+      const { data: subroleData } = await supabase
+        .from('user_subroles')
+        .select('subrole_definitions!inner(slug)')
+        .eq('user_id', user.id)
+        .eq('status', 'approved');
+
+      const approvedSlugs = (subroleData || []).map((r: any) => r.subrole_definitions.slug as string);
+      const isDietitian = isDietitianRole || approvedSlugs.includes('dietitian');
+      const isMobilityCoach = approvedSlugs.includes('mobility_coach');
 
       // Check if client has a dietitian assigned
       const { data: hasDietitianData } = await supabase
@@ -90,8 +101,8 @@ export function useNutritionPermissions({ clientUserId }: UseNutritionPermission
         if (assignmentData) {
           currentUserRole = 'dietitian';
         }
-      } else if (isCoach) {
-        // Check if this coach is primary for this client
+      } else if (isCoach || isMobilityCoach) {
+        // Check if this coach/mobility_coach is primary or care team for this client
         const { data: subscriptionData } = await supabase
           .from('subscriptions')
           .select('id')
@@ -102,6 +113,19 @@ export function useNutritionPermissions({ clientUserId }: UseNutritionPermission
 
         if (subscriptionData) {
           currentUserRole = 'coach';
+        } else if (isMobilityCoach) {
+          // Mobility coaches in care team can also edit nutrition (when no dietitian)
+          const { data: careTeamData } = await supabase
+            .from('care_team_assignments')
+            .select('id')
+            .eq('staff_user_id', user.id)
+            .eq('client_id', clientUserId)
+            .in('lifecycle_status', ['active', 'scheduled_end'])
+            .maybeSingle();
+
+          if (careTeamData) {
+            currentUserRole = 'coach';
+          }
         }
       } else if (isSelf) {
         currentUserRole = 'self';

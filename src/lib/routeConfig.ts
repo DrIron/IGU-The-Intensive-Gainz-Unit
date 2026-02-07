@@ -89,6 +89,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "admin-system-health", path: "/admin/system-health", label: "System Health", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Activity, navOrder: 9 },
   { id: "admin-testimonials", path: "/admin/testimonials", label: "Testimonials", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: MessageSquare, navOrder: 10 },
   { id: "admin-site-content", path: "/admin/site-content", label: "Site Content", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: FileText, navOrder: 11 },
+  { id: "admin-subrole-approvals", path: "/admin/subrole-approvals", label: "Subrole Approvals", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: ShieldCheck, navOrder: 12 },
   // Developer-only pages - accessible via URL but hidden from nav
   { id: "admin-pre-launch", path: "/admin/pre-launch", label: "Pre-Launch Check", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: Shield, navOrder: 20 },
   { id: "admin-security", path: "/admin/security", label: "Security Checklist", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: ShieldCheck, navOrder: 21 },

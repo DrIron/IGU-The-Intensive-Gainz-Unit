@@ -25,6 +25,7 @@ const SECTION_MAP: Record<string, string> = {
   "system-health": "system-health",
   testimonials: "testimonials",
   "site-content": "site-content",
+  "subrole-approvals": "subrole-approvals",
   "pre-launch": "pre-launch",
   security: "security",
   "phi-audit": "phi-audit",

@@ -46,6 +46,7 @@ interface CoachApplication {
   created_at: string;
   reviewed_at: string | null;
   reviewed_by: string | null;
+  requested_subroles: string[] | null;
 }
 
 export function CoachApplicationsManager() {
@@ -138,9 +139,46 @@ export function CoachApplicationsManager() {
 
       if (createError) throw createError;
 
-      toast({ 
-        title: "Success", 
-        description: "Application approved and coach account created. Invitation email sent." 
+      // Create pending user_subroles records for requested subroles
+      if (selectedApp.requested_subroles && selectedApp.requested_subroles.length > 0) {
+        try {
+          // Get subrole definition IDs for the requested slugs
+          const { data: subroleDefsData } = await supabase
+            .from('subrole_definitions')
+            .select('id, slug')
+            .in('slug', selectedApp.requested_subroles);
+
+          if (subroleDefsData && subroleDefsData.length > 0) {
+            // We need the user ID of the newly created coach account
+            // Look it up by email from auth.users via the coaches table
+            const { data: coachData } = await supabase
+              .from('coaches')
+              .select('user_id')
+              .eq('email', selectedApp.email)
+              .maybeSingle();
+
+            if (coachData?.user_id) {
+              const subroleInserts = subroleDefsData.map((sd: any) => ({
+                user_id: coachData.user_id,
+                subrole_id: sd.id,
+                status: 'pending' as const,
+                credential_notes: `Requested during coach application (${selectedApp.first_name} ${selectedApp.last_name})`,
+              }));
+
+              await supabase
+                .from('user_subroles')
+                .insert(subroleInserts);
+            }
+          }
+        } catch (subroleErr) {
+          console.warn('Could not create subrole requests:', subroleErr);
+          // Non-fatal: coach account was still created successfully
+        }
+      }
+
+      toast({
+        title: "Success",
+        description: "Application approved and coach account created. Invitation email sent."
       });
 
       setDialogOpen(false);
@@ -272,6 +310,22 @@ export function CoachApplicationsManager() {
               {app.specializations.map((spec, idx) => (
                 <Badge key={idx} variant="outline" className="text-xs">
                   {spec}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {app.requested_subroles && app.requested_subroles.length > 0 && (
+          <div>
+            <p className="text-xs font-semibold mb-2 flex items-center gap-1">
+              <Award className="h-3 w-3" />
+              Requested Subroles
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {app.requested_subroles.map((slug, idx) => (
+                <Badge key={idx} variant="default" className="text-xs capitalize">
+                  {slug.replace(/_/g, ' ')}
                 </Badge>
               ))}
             </div>

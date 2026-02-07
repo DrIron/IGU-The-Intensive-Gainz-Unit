@@ -12,6 +12,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
+import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
 
 const coachApplicationSchema = z.object({
@@ -33,6 +34,7 @@ const coachApplicationSchema = z.object({
     .min(100, "Please provide at least 100 characters explaining your motivation")
     .max(2000, "Motivation must be less than 2000 characters")
     .trim(),
+  requestedSubroles: z.array(z.string()).default([]),
 });
 
 type CoachApplicationFormValues = z.infer<typeof coachApplicationSchema>;
@@ -45,6 +47,21 @@ interface CoachApplicationFormProps {
 export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { tags: specializationTags, loading: tagsLoading } = useSpecializationTags();
+
+  // Fetch subrole definitions for the multi-select
+  const { data: subroleDefinitions = [], isLoading: subroleDefsLoading } = useQuery({
+    queryKey: ["subrole-definitions"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("subrole_definitions")
+        .select("id, slug, display_name, description, requires_credentials")
+        .eq("is_active", true)
+        .order("sort_order");
+      if (error) throw error;
+      return data || [];
+    },
+    staleTime: 5 * 60 * 1000,
+  });
 
   const form = useForm<CoachApplicationFormValues>({
     resolver: zodResolver(coachApplicationSchema),
@@ -59,6 +76,7 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
       yearsOfExperience: 0,
       specializations: [],
       motivation: "",
+      requestedSubroles: [],
     },
   });
 
@@ -87,6 +105,7 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
         years_of_experience: values.yearsOfExperience,
         specializations: values.specializations,
         motivation: values.motivation.trim(),
+        requested_subroles: values.requestedSubroles,
       });
 
       if (error) throw error;
@@ -298,6 +317,57 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
                         )}
                         <p className="text-sm text-muted-foreground">
                           {field.value.length}/15 selected
+                        </p>
+                      </div>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="requestedSubroles"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Requested Practitioner Roles (Optional)</FormLabel>
+                    <FormControl>
+                      <div className="space-y-2">
+                        {subroleDefsLoading ? (
+                          <div className="flex items-center gap-2 py-2 text-muted-foreground">
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                            <span>Loading roles...</span>
+                          </div>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {subroleDefinitions.map((def: any) => {
+                              const isSelected = field.value.includes(def.slug);
+                              return (
+                                <button
+                                  key={def.id}
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = isSelected
+                                      ? field.value.filter((v: string) => v !== def.slug)
+                                      : [...field.value, def.slug];
+                                    field.onChange(updated);
+                                  }}
+                                  className={cn(
+                                    "inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors",
+                                    isSelected
+                                      ? "bg-primary text-primary-foreground border-primary"
+                                      : "bg-muted/50 text-muted-foreground border-border hover:border-primary/50"
+                                  )}
+                                >
+                                  {isSelected && <span>&#10003;</span>}
+                                  {def.display_name}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          Select any specialized roles you'd like to apply for. These require admin approval and may need credential verification.
                         </p>
                       </div>
                     </FormControl>

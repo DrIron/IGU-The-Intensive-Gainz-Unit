@@ -15,6 +15,7 @@ import { logPHIAccess } from "@/hooks/usePHIAuditLog";
 import { AssignProgramDialog } from "./programs/AssignProgramDialog";
 import { DirectClientCalendar } from "./programs/DirectClientCalendar";
 import { CareTeamMessagesPanel } from "@/components/nutrition/CareTeamMessagesPanel";
+import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 
 interface CoachClientDetailProps {
   clientUserId: string;
@@ -62,6 +63,7 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
   const [showDirectCalendar, setShowDirectCalendar] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { toast } = useToast();
+  const { canBuildPrograms, canAssignWorkouts } = useSubrolePermissions(currentUserId || undefined);
 
   const checkCurrentUserRole = useCallback(async () => {
     try {
@@ -248,13 +250,13 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
           ← Back to Clients
         </Button>
         <div className="flex items-center gap-2">
-          {isPrimaryCoach && (
+          {(isPrimaryCoach || isCareTeamMember || isAdmin) && (
             <Button variant="outline" onClick={() => setShowDirectCalendar(!showDirectCalendar)}>
               <Calendar className="h-4 w-4 mr-2" />
               {showDirectCalendar ? "Hide Calendar" : "Direct Calendar"}
             </Button>
           )}
-          {isPrimaryCoach && (
+          {(isPrimaryCoach || canBuildPrograms) && (
             <Button onClick={() => setShowAssignProgram(true)}>
               <Dumbbell className="h-4 w-4 mr-2" />
               Assign Program
@@ -286,8 +288,8 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
         </Alert>
       )}
 
-      {/* Direct Client Calendar */}
-      {showDirectCalendar && currentUserId && (
+      {/* Direct Client Calendar - visible to primary coach, care team, and admin */}
+      {showDirectCalendar && currentUserId && clientInfo && (
         <DirectClientCalendar
           clientUserId={clientUserId}
           coachUserId={currentUserId}

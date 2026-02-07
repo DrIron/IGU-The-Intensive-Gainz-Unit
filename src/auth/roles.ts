@@ -208,6 +208,72 @@ export function getDashboardForRole(role: Role): string {
 }
 
 // ============================================================================
+// SUBROLES — Credential-based capabilities within the "coach" core role
+// ============================================================================
+
+/**
+ * Subrole slugs — admin-approved credential types.
+ * All practitioners have the core "coach" role; subroles grant specific capabilities.
+ */
+export type SubroleSlug =
+  | "coach"
+  | "dietitian"
+  | "physiotherapist"
+  | "sports_psychologist"
+  | "mobility_coach";
+
+/**
+ * Status of a user's subrole request.
+ */
+export type SubroleStatus = "pending" | "approved" | "rejected" | "revoked";
+
+/**
+ * A user's subrole record (from user_subroles joined with subrole_definitions).
+ */
+export interface UserSubrole {
+  id: string;
+  user_id: string;
+  subrole_id: string;
+  slug: SubroleSlug;
+  display_name: string;
+  status: SubroleStatus;
+  credential_notes: string | null;
+  credential_document_url: string | null;
+  admin_notes: string | null;
+  reviewed_at: string | null;
+  created_at: string;
+}
+
+/**
+ * Capability keys that subroles grant.
+ */
+export type SubroleCapability =
+  | "canBuildPrograms"
+  | "canAssignWorkouts"
+  | "canEditNutritionIfNoDietitian"
+  | "canEditNutritionOverride"
+  | "canWriteInjuryNotes"
+  | "canWritePsychNotes";
+
+/**
+ * Maps each subrole to the capabilities it grants.
+ */
+export const SUBROLE_CAPABILITIES: Record<SubroleSlug, SubroleCapability[]> = {
+  coach: ["canBuildPrograms", "canAssignWorkouts", "canEditNutritionIfNoDietitian"],
+  dietitian: ["canEditNutritionOverride"],
+  physiotherapist: ["canBuildPrograms", "canAssignWorkouts", "canWriteInjuryNotes"],
+  sports_psychologist: ["canWritePsychNotes"],
+  mobility_coach: ["canBuildPrograms", "canAssignWorkouts", "canEditNutritionIfNoDietitian"],
+};
+
+/**
+ * Check if a set of approved subrole slugs grants a specific capability.
+ */
+export function hasCapability(approvedSlugs: SubroleSlug[], capability: SubroleCapability): boolean {
+  return approvedSlugs.some(slug => SUBROLE_CAPABILITIES[slug]?.includes(capability));
+}
+
+// ============================================================================
 // ACCESS VIOLATION LOGGING
 // ============================================================================
 

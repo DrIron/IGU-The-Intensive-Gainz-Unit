@@ -380,6 +380,78 @@ When understanding this codebase, read in this order:
 - Phase 23: Full Site UI/UX Redesign — dark theme, CMS-driven content, new fonts, admin content editor (Feb 7, 2026) ✅
 - Phase 24: IGU Marketing System — auth gate removal, FAQ, comparison table, leads/UTM tracking, referrals (Feb 7, 2026) ✅
 - Phase 25: Client Onboarding & Coach Matching QA — polling pages, audit logging, gender collection, coach matching dedup, UX improvements (Feb 7, 2026) ✅
+- Phase 26: Roles, Subroles & Tags System — subrole definitions, permission functions, admin approval queue, coach request UI, feature gating (Feb 7, 2026) ✅
+
+### Phase 26: Roles, Subroles & Tags System (Complete - Feb 7, 2026)
+
+Implemented a three-layer permission system separating core roles, subroles (admin-approved credentials), and tags (self-service labels).
+
+**Concepts:**
+- **Core Roles** (admin/coach/client) — route access gates (unchanged)
+- **Subroles** (coach/dietitian/physiotherapist/sports_psychologist/mobility_coach) — admin-approved credentials granting specific capabilities
+- **Tags** (bodybuilding, powerlifting, etc.) — self-service expertise labels with zero permission implications
+
+**Key Design Decision:** All practitioners are "coaches" (core role). The subrole = credential type. No FK changes needed.
+
+**New Database Tables:**
+```sql
+subrole_definitions     -- 5 seed rows: coach, dietitian, physiotherapist, sports_psychologist, mobility_coach
+user_subroles           -- user_id + subrole_id UNIQUE, status enum (pending/approved/rejected/revoked)
+```
+
+**New Database Functions:**
+- `has_approved_subrole(user_id, slug)` — Check approved subrole
+- `can_build_programs(user_id)` — coach/physio/mobility + backward-compat fallback
+- `can_assign_workouts(user_id)` — delegates to can_build_programs
+- `can_write_injury_notes(user_id)` — admin + physiotherapist
+- `can_write_psych_notes(user_id)` — admin + sports_psychologist
+- `get_user_subroles(user_id)` — returns text[] of approved slugs
+- Updated `is_dietitian()` — checks subroles first, fallback to user_roles
+- Updated `can_edit_nutrition()` — adds mobility_coach support
+
+**Backward Compatibility:** `can_build_programs()` includes fallback for existing coaches without ANY subrole records — they still get access.
+
+**Self-Service Re-Request:** Rejected users can UPDATE own record back to `pending`. Revoked users cannot re-request.
+
+**Migrations (7 files):**
+```
+20260208100000_create_subroles_system.sql          -- Tables + RLS + seed data
+20260208100001_subrole_permission_functions.sql     -- Helper functions
+20260208100002_backfill_existing_subroles.sql       -- Migrate coaches/dietitians from user_roles
+20260208100003_workout_rls_shared_calendar.sql      -- Multi-practitioner calendar RLS
+20260208100004_cleanup_specialization_tags.sql      -- Deactivate credential-like tags
+20260208100005_coach_apps_requested_subroles.sql    -- Add requested_subroles to coach_applications
+20260208100006_care_team_subrole_validation.sql     -- Trigger validates specialty matches subrole
+```
+
+**New Frontend Files:**
+| File | Purpose |
+|------|---------|
+| `src/hooks/useUserSubroles.ts` | React Query hook for user's subroles (5min stale time) |
+| `src/hooks/useSubrolePermissions.ts` | Computed capability booleans (canBuildPrograms, canWriteInjuryNotes, etc.) |
+| `src/components/admin/SubroleApprovalQueue.tsx` | Admin approval UI with Pending/Approved/Rejected/Revoked tabs |
+| `src/components/coach/SubroleRequestForm.tsx` | Coach request UI with re-request for rejected subroles |
+
+**Modified Frontend Files:**
+| File | Changes |
+|------|---------|
+| `src/auth/roles.ts` | Added SubroleSlug, SubroleStatus, UserSubrole, SubroleCapability, SUBROLE_CAPABILITIES, hasCapability() |
+| `src/hooks/useNutritionPermissions.ts` | Subrole-based dietitian check + mobility_coach care team support |
+| `src/components/CoachApplicationForm.tsx` | Added subrole multi-select (requestedSubroles field) |
+| `src/components/CoachApplicationsManager.tsx` | Shows requested subroles badges, creates pending user_subroles on approve |
+| `src/components/coach/CoachClientDetail.tsx` | useSubrolePermissions for canBuildPrograms, calendar visible to all care team |
+| `src/components/coach/programs/CoachProgramsPage.tsx` | Program builder gated by canBuildPrograms |
+| `src/lib/routeConfig.ts` | Added admin-subrole-approvals route |
+| `src/pages/admin/AdminDashboard.tsx` | Added subrole-approvals to SECTION_MAP |
+| `src/components/admin/AdminDashboardLayout.tsx` | Added SubroleApprovalQueue case + title/subtitle |
+
+**Feature Gating:**
+- Program builder → `canBuildPrograms` (coach, physiotherapist, mobility_coach)
+- Direct Calendar → visible to primary coach, care team members, and admin
+- Assign Program → `canBuildPrograms` OR primary coach
+- Injury notes → `canWriteInjuryNotes` (physiotherapist only, UI not yet built)
+- Psych notes → `canWritePsychNotes` (sports_psychologist only, UI not yet built)
+- Nutrition → updated RPC respects mobility_coach in care team
 
 ### Phase 25: Client Onboarding & Coach Matching QA (Complete - Feb 7, 2026)
 
