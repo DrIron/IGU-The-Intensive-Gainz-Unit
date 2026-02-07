@@ -137,12 +137,13 @@ export async function autoMatchCoachForClient(
       }
     }
 
-    // Get active client counts for each coach for this service
+    // Get active + pending client counts for each coach for this service
+    // Must match server-side: count pending + active (real current load)
     const { data: subscriptions, error: subsError } = await supabaseClient
       .from('subscriptions')
       .select('coach_id')
       .eq('service_id', targetServiceId)
-      .eq('status', 'active');
+      .in('status', ['pending', 'active']);
 
     if (subsError) {
       console.error('[CoachMatching] Error fetching subscriptions:', subsError);
@@ -263,13 +264,13 @@ export async function validateCoachSelection(
       return { valid: false, reason: 'Coach does not offer this service' };
     }
 
-    // Count current active clients
+    // Count current active + pending clients (matches server-side logic)
     const { count, error: countError } = await supabaseClient
       .from('subscriptions')
       .select('*', { count: 'exact', head: true })
       .eq('coach_id', coach.user_id)
       .eq('service_id', serviceId)
-      .eq('status', 'active');
+      .in('status', ['pending', 'active']);
 
     if (countError) {
       console.error('[CoachMatching] Error counting clients:', countError);

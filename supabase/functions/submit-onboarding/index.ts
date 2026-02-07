@@ -49,6 +49,7 @@ const formSchema = z.object({
   last_name: z.string().min(1).max(100).trim(),
   email: z.string().email().max(255).trim().toLowerCase(),
   phone_number: z.string().min(1).max(50).trim(),
+  gender: z.enum(['male', 'female']).optional(),
   discord_username: z.string().max(100).trim().optional(),
   plan_name: z.string().min(1).max(100),
   focus_areas: z.array(z.string().max(50)).optional(),
@@ -284,7 +285,7 @@ Deno.serve(async (req) => {
     }
 
     // Normalize enums from legacy values and provide safe defaults
-    const referralAllowed = new Set(['instagram', 'tiktok', 'friend_referral', 'other']);
+    const referralAllowed = new Set(['instagram', 'tiktok', 'youtube', 'google', 'twitter_x', 'friend_referral', 'gym_flyer', 'returning_client', 'other']);
     const mappedHeard = referralAllowed.has(validatedData.heard_about_us)
       ? validatedData.heard_about_us
       : (validatedData.heard_about_us === 'friend' ? 'friend_referral' : 'other');
@@ -394,13 +395,17 @@ Deno.serve(async (req) => {
     }
 
     // Update profiles_private (PII fields)
+    const profilePrivateUpdate: Record<string, unknown> = {
+      full_name: `${validatedData.first_name} ${validatedData.last_name}`,
+      last_name: validatedData.last_name,
+      phone: validatedData.phone_number,
+    };
+    if (validatedData.gender) {
+      profilePrivateUpdate.gender = validatedData.gender;
+    }
     const { error: profilePrivateError } = await supabase
       .from('profiles_private')
-      .update({
-        full_name: `${validatedData.first_name} ${validatedData.last_name}`,
-        last_name: validatedData.last_name,
-        phone: validatedData.phone_number,
-      })
+      .update(profilePrivateUpdate)
       .eq('profile_id', user.id);
 
     if (profilePrivateError) {

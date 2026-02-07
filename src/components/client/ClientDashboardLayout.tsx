@@ -14,6 +14,7 @@ import { NewClientOverview } from "./NewClientOverview";
 import { PaymentStatusDashboard } from "@/components/PaymentStatusDashboard";
 import { CancelledSubscriptionCard } from "./CancelledSubscriptionCard";
 import { GracePeriodBanner } from "./GracePeriodBanner";
+import { WelcomeModal } from "./WelcomeModal";
 import { User, CreditCard, Calendar, AlertCircle, Dumbbell, Calculator, Apple, Loader2, Lock } from "lucide-react";
 import { formatProfileStatus, getProfileStatusVariant } from "@/lib/statusUtils";
 import { supabase } from "@/integrations/supabase/client";
@@ -482,6 +483,14 @@ export function ClientDashboardLayout({
             sessionBookingEnabled={subscription?.session_booking_enabled === true}
           />
           <main className="flex-1 overflow-auto">
+            {/* Welcome modal — shown once on first active dashboard load */}
+            {isActive && user?.id && (
+              <WelcomeModal
+                userId={user.id}
+                firstName={profile?.first_name || profile?.full_name || ""}
+                subscription={subscription}
+              />
+            )}
             <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
               <div className="flex items-center gap-4">
                 <SidebarTrigger className="md:hidden" />

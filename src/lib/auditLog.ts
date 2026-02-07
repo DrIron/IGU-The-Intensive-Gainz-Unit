@@ -7,7 +7,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 
-export type AuditEntityType = 
+export type AuditEntityType =
   | 'service_pricing'
   | 'payout_rules'
   | 'addon_pricing'
@@ -17,7 +17,8 @@ export type AuditEntityType =
   | 'subscription'
   | 'profile'
   | 'discount_code'
-  | 'discount_code_grant';
+  | 'discount_code_grant'
+  | 'onboarding_status';
 
 export interface AuditLogEntry {
   action_type: string;
@@ -124,6 +125,27 @@ export async function logAddonCatalogChange(
     },
     before_json: before,
     after_json: after,
+  });
+}
+
+/**
+ * Log an onboarding status change
+ */
+export async function logOnboardingStatusChange(
+  userId: string,
+  fromStatus: string | null,
+  toStatus: string,
+  reason?: string
+): Promise<void> {
+  await logAuditAction({
+    action_type: 'status_change',
+    target_type: 'onboarding_status',
+    target_id: userId,
+    details: {
+      reason: reason || 'Status transition',
+    },
+    before_json: fromStatus ? { status: fromStatus } : undefined,
+    after_json: { status: toStatus },
   });
 }
 

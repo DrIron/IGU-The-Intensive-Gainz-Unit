@@ -129,24 +129,19 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
         const maxClients = limitsMap.get(coach.id) || 0;
 
         // Count current subscriptions for this coach + service
-        // Using the correct definition: profiles.status='active' AND subscriptions.status='active'
-        const { data: activeSubs } = await supabase
+        // Must match server-side: count pending + active subscriptions (real current load)
+        const { count: currentClients } = await supabase
           .from('subscriptions')
-          .select(`
-            id,
-            profiles_public!inner(status)
-          `)
+          .select('*', { count: 'exact', head: true })
           .eq('coach_id', coach.user_id)
           .eq('service_id', serviceData.id)
-          .eq('status', 'active')
-          .eq('profiles_public.status', 'active');
-
-        const currentClients = activeSubs?.length || 0;
-        const availableSpots = maxClients - currentClients;
+          .in('status', ['pending', 'active']);
+        const clientCount = currentClients || 0;
+        const availableSpots = maxClients - clientCount;
 
         // Only include coaches with available capacity
         if (availableSpots <= 0) {
-          console.log(`Coach ${coach.first_name} is at capacity (${currentClients}/${maxClients})`);
+          console.log(`Coach ${coach.first_name} is at capacity (${clientCount}/${maxClients})`);
           continue;
         }
 
@@ -160,7 +155,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
           specializations: coach.specializations,
           available_spots: availableSpots,
           max_clients: maxClients,
-          current_clients: currentClients,
+          current_clients: clientCount,
         });
       }
 

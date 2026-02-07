@@ -1,20 +1,65 @@
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, Phone, Mail, Clock } from "lucide-react";
+import { AlertCircle, Phone, Mail, Clock, RefreshCw, Loader2 } from "lucide-react";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
+import { supabase } from "@/integrations/supabase/client";
+import { getOnboardingRedirect, ClientStatus } from "@/auth/onboarding";
 
 /**
  * Medical Review page - shown when PAR-Q flags health concerns.
  * User cannot proceed until admin/coach clears them.
+ * Polls every 30s for status changes.
  */
 export default function MedicalReview() {
+  const navigate = useNavigate();
+  const [checking, setChecking] = useState(false);
+  const pollIntervalRef = useRef<NodeJS.Timeout>();
+
+  const checkStatus = useCallback(async (isManual = false) => {
+    if (isManual) setChecking(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const { data: profile } = await supabase
+        .from("profiles_public")
+        .select("status")
+        .eq("id", user.id)
+        .single();
+
+      if (profile?.status && profile.status !== "needs_medical_review") {
+        const redirect = getOnboardingRedirect(profile.status as ClientStatus);
+        navigate(redirect || "/dashboard", { replace: true });
+      }
+    } catch (error) {
+      console.error("Error checking status:", error);
+    } finally {
+      if (isManual) setChecking(false);
+    }
+  }, [navigate]);
+
+  // Poll every 30s
+  useEffect(() => {
+    pollIntervalRef.current = setInterval(() => {
+      checkStatus();
+    }, 30000);
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+      }
+    };
+  }, [checkStatus]);
+
   return (
     <PublicLayout minimal>
       <div className="container max-w-2xl py-8 px-4">
         <OnboardingProgress currentStep="medical" />
-        
+
         <Card className="mt-6">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -30,8 +75,8 @@ export default function MedicalReview() {
               <AlertCircle className="h-4 w-4 text-yellow-600" />
               <AlertTitle>Why am I seeing this?</AlertTitle>
               <AlertDescription>
-                Based on your PAR-Q (Physical Activity Readiness Questionnaire) responses, 
-                we need to ensure it's safe for you to begin training. This is a standard 
+                Based on your PAR-Q (Physical Activity Readiness Questionnaire) responses,
+                we need to ensure it's safe for you to begin training. This is a standard
                 safety measure to protect your health.
               </AlertDescription>
             </Alert>
@@ -54,10 +99,28 @@ export default function MedicalReview() {
               </ul>
             </div>
 
+            <div className="flex flex-col gap-3">
+              <Button
+                variant="outline"
+                onClick={() => checkStatus(true)}
+                disabled={checking}
+              >
+                {checking ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                )}
+                Check Status
+              </Button>
+              <p className="text-xs text-muted-foreground text-center">
+                This page automatically checks for updates every 30 seconds
+              </p>
+            </div>
+
             <div className="border-t pt-6">
               <h3 className="font-semibold mb-3">Need to update your information?</h3>
               <p className="text-sm text-muted-foreground mb-4">
-                If you believe you made an error in your health questionnaire or have 
+                If you believe you made an error in your health questionnaire or have
                 additional information to provide, please contact us.
               </p>
               <div className="flex flex-col sm:flex-row gap-3">

@@ -28,7 +28,12 @@ interface Service {
 const referralSources = [
   { value: "instagram", label: "Instagram" },
   { value: "tiktok", label: "TikTok" },
+  { value: "youtube", label: "YouTube" },
+  { value: "google", label: "Google Search" },
+  { value: "twitter_x", label: "Twitter/X" },
   { value: "friend_referral", label: "Friend/Family Referral" },
+  { value: "gym_flyer", label: "Gym/Flyer" },
+  { value: "returning_client", label: "Returning Client" },
   { value: "other", label: "Other" },
 ];
 
@@ -134,7 +139,8 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
           phoneField="phone_number"
           countryCodeField="country_code"
           dateOfBirthField="date_of_birth"
-          showGender={false}
+          showGender={true}
+          genderField="gender"
         />
       </div>
 
@@ -148,7 +154,10 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
               <Input placeholder="username#1234" {...field} />
             </FormControl>
             <FormDescription>
-              For community access and coach communication
+              Join our private Discord community for coach check-ins, workout tips, and member support.{" "}
+              <a href="https://discord.com/download" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
+                Download Discord
+              </a>
             </FormDescription>
           </FormItem>
         )}

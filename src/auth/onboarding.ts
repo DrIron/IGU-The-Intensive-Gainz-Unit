@@ -273,22 +273,25 @@ export interface StatusChangeEvent {
 }
 
 /**
- * Log a status change event.
- * In production, this should write to the security_audit_log table.
+ * Log a status change event to the admin_audit_log table.
  */
-export function logStatusChange(event: StatusChangeEvent): void {
+export async function logStatusChange(event: StatusChangeEvent): Promise<void> {
   console.log("[OnboardingAudit]", {
     ...event,
     timestamp: event.timestamp.toISOString(),
   });
-  
-  // TODO: In production, write to security_audit_log table
-  // supabase.from('security_audit_log').insert({
-  //   event_type: 'status_change',
-  //   user_id: event.userId,
-  //   details: event,
-  //   created_at: event.timestamp.toISOString(),
-  // });
+
+  try {
+    const { logOnboardingStatusChange } = await import("@/lib/auditLog");
+    await logOnboardingStatusChange(
+      event.userId,
+      event.fromStatus,
+      event.toStatus,
+      event.reason
+    );
+  } catch (err) {
+    console.error("[OnboardingAudit] Failed to write audit log:", err);
+  }
 }
 
 // =============================================================================

@@ -379,6 +379,53 @@ When understanding this codebase, read in this order:
 - Phase 22: Nutrition System Enhancement — dietitian role, step/body-fat tracking, diet breaks, refeed days, care team messages (Feb 7, 2026) ✅
 - Phase 23: Full Site UI/UX Redesign — dark theme, CMS-driven content, new fonts, admin content editor (Feb 7, 2026) ✅
 - Phase 24: IGU Marketing System — auth gate removal, FAQ, comparison table, leads/UTM tracking, referrals (Feb 7, 2026) ✅
+- Phase 25: Client Onboarding & Coach Matching QA — polling pages, audit logging, gender collection, coach matching dedup, UX improvements (Feb 7, 2026) ✅
+
+### Phase 25: Client Onboarding & Coach Matching QA (Complete - Feb 7, 2026)
+
+Comprehensive onboarding flow fixes and UX improvements across 12 items in two phases.
+
+**Phase A: Critical Fixes (6 items)**
+
+1. **AwaitingApproval page** — Now fetches subscription+coach data, shows assigned coach name with avatar, shows "finding coach" message for `needs_coach_assignment`, 30s polling for status changes, auto-redirect on status change, manual "Check Status" button
+2. **MedicalReview page** — Added 30s polling for status changes, auto-redirect when cleared, manual "Check Status" button
+3. **Audit logging** — Added `onboarding_status` to `AuditEntityType` in `src/lib/auditLog.ts`, created `logOnboardingStatusChange()` helper. Updated `logStatusChange()` in `src/auth/onboarding.ts` to write to `admin_audit_log` table via dynamic import (was previously console.log only)
+4. **Gender collection** — Set `showGender={true}` in ServiceStep.tsx, added `gender: z.enum(["male", "female"]).optional()` to both client-side and server-side Zod schemas, stored in `profiles_private.gender`
+5. **Coach matching dedup** — Fixed critical bug: client-side `CoachPreferenceSection.tsx` only counted `active` subscriptions while server-side counted `pending+active`. Now both sides use `.in('status', ['pending', 'active'])`. Also fixed `coachMatching.ts` `autoMatchCoachForClient()` and `validateCoachSelection()`
+6. **Direct redirect** — `OnboardingForm.tsx` now uses `getOnboardingRedirect(data.status)` from edge function response to navigate directly to the correct onboarding page (no dashboard flash)
+
+**Phase B: High-Impact UX (6 items)**
+
+7. **Save & Exit button** — Ghost button next to Back, calls `saveDraft()` + navigates to homepage with toast confirmation
+8. **Clickable step indicator** — `StepIndicator.tsx` accepts optional `onStepClick`, completed steps are clickable with hover ring on both desktop and mobile layouts
+9. **Payment deadline countdown** — `Payment.tsx` fetches `profiles_public.payment_deadline`, shows blue countdown alert (red + warning text at ≤2 days)
+10. **Discount code UI** — Promo code input on Payment page calls existing `apply-discount-code` edge function, displays adjusted price with strikethrough original
+11. **Post-payment welcome modal** — New `WelcomeModal.tsx` shows once on first active dashboard load (localStorage flag `igu_welcome_shown_{userId}`), displays coach avatar+name, getting-started steps. Integrated in `ClientDashboardLayout.tsx`
+12. **Referral sources expanded** — Added YouTube, Google Search, Twitter/X, Gym/Flyer, Returning Client to `referralSources` in ServiceStep.tsx. Updated server-side `referralAllowed` set in `submit-onboarding/index.ts`. Improved Discord field description with community benefits and download link
+
+**Files Modified (13):**
+| File | Changes |
+|------|---------|
+| `src/pages/onboarding/AwaitingApproval.tsx` | Rewritten: coach info fetch, polling, auto-redirect |
+| `src/pages/onboarding/MedicalReview.tsx` | Rewritten: polling, auto-redirect, check status button |
+| `src/pages/onboarding/Payment.tsx` | Rewritten: deadline countdown, discount code UI |
+| `src/pages/OnboardingForm.tsx` | Gender field, direct redirect, save & exit, clickable steps |
+| `src/components/onboarding/ServiceStep.tsx` | showGender, expanded referral sources, discord description |
+| `src/components/onboarding/StepIndicator.tsx` | Rewritten: clickable completed steps with hover states |
+| `src/components/onboarding/CoachPreferenceSection.tsx` | Fixed capacity counting: pending+active |
+| `src/lib/auditLog.ts` | Added `onboarding_status` type + `logOnboardingStatusChange()` |
+| `src/auth/onboarding.ts` | `logStatusChange()` now writes to `admin_audit_log` |
+| `src/lib/coachMatching.ts` | Fixed to count pending+active subscriptions |
+| `supabase/functions/submit-onboarding/index.ts` | Gender field, expanded referral source validation |
+| `src/components/client/ClientDashboardLayout.tsx` | WelcomeModal integration |
+
+**Files Created (1):**
+| File | Purpose |
+|------|---------|
+| `src/components/client/WelcomeModal.tsx` | Post-payment welcome modal with coach info and getting-started steps |
+
+**Key Bug Fix — Coach Matching Mismatch:**
+Client-side (`CoachPreferenceSection.tsx`) was counting only `active` subscriptions to determine coach capacity, while server-side (`submit-onboarding/index.ts`) counted `pending + active`. This meant the coach preview could show a coach as available when they were actually at capacity. Fixed all 3 locations: `CoachPreferenceSection`, `coachMatching.ts:autoMatchCoachForClient`, `coachMatching.ts:validateCoachSelection`.
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 

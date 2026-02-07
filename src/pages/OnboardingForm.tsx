@@ -13,9 +13,10 @@ import { ParqStep } from "@/components/onboarding/ParqStep";
 import { LegalStep } from "@/components/onboarding/LegalStep";
 import { ServiceStep } from "@/components/onboarding/ServiceStep";
 import ServiceSpecificStep from "@/components/onboarding/ServiceSpecificStep";
-import { Dumbbell, Loader2, Save, CheckCircle2 } from "lucide-react";
+import { Dumbbell, Loader2, Save, CheckCircle2, LogOut } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ErrorFallback } from "@/components/ui/error-fallback";
+import { getOnboardingRedirect, ClientStatus } from "@/auth/onboarding";
 
 const formSchema = z.object({
   // PAR-Q
@@ -61,6 +62,7 @@ const formSchema = z.object({
   phone_number: z.string().min(1, "Phone number is required"),
   country_code: z.string().min(1, "Country code is required"),
   date_of_birth: z.string().min(1, "Date of birth is required"),
+  gender: z.enum(["male", "female"]).optional(),
   discord_username: z.string().optional(),
   plan_name: z.string().min(1, "Please select a plan"),
   focus_areas: z.array(z.string()).optional(),
@@ -547,19 +549,18 @@ export default function OnboardingForm() {
         throw new Error(data?.error || 'Failed to submit form');
       }
 
-      // Always redirect to dashboard, regardless of plan type
-      // The dashboard will handle the appropriate next steps:
-      // - For needs_medical_review: show medical review message
-      // - For pending_coach_approval: show waiting for coach message
-      // - For pending_payment: show payment card with countdown
+      // Use the status from the edge function to redirect directly to the correct page
+      const returnedStatus = data.status as ClientStatus;
+      const redirectUrl = getOnboardingRedirect(returnedStatus) || "/dashboard";
+
       toast({
         title: "Registration submitted successfully!",
-        description: "Redirecting to your dashboard...",
+        description: "Redirecting...",
       });
 
       setHasSubmitted(true);
-      
-      // Send welcome email
+
+      // Send welcome email (non-blocking)
       try {
         await supabase.functions.invoke('send-welcome-email', {
           body: {
@@ -573,15 +574,14 @@ export default function OnboardingForm() {
         });
       } catch (emailError) {
         console.error('Error sending welcome email:', emailError);
-        // Don't fail the whole process if email fails
       }
 
       // Clear the draft after successful submission
       await deleteDraft();
-      
-      // Redirect to dashboard where the appropriate card will be shown
+
+      // Direct redirect to the correct onboarding page (no dashboard flash)
       setTimeout(() => {
-        navigate('/dashboard');
+        navigate(redirectUrl, { replace: true });
       }, 1000);
 
     } catch (error: any) {
@@ -680,6 +680,7 @@ export default function OnboardingForm() {
               currentStep={currentStep}
               totalSteps={steps.length}
               steps={steps}
+              onStepClick={(stepIndex) => setCurrentStep(stepIndex)}
             />
 
             <Form {...form}>
@@ -699,14 +700,31 @@ export default function OnboardingForm() {
                 {currentStep === 2 && <ParqStep form={form} />}
                 {currentStep === 3 && <LegalStep form={form} />}
                 <div className="flex justify-between pt-6">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={handleBack}
-                    disabled={currentStep === 0}
-                  >
-                    Back
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handleBack}
+                      disabled={currentStep === 0}
+                    >
+                      Back
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={async () => {
+                        await saveDraft();
+                        toast({
+                          title: "Progress Saved",
+                          description: "You can continue your registration anytime by logging back in.",
+                        });
+                        navigate("/");
+                      }}
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Save & Exit
+                    </Button>
+                  </div>
 
                   {currentStep < steps.length - 1 ? (
                     <Button type="button" onClick={handleNext}>
