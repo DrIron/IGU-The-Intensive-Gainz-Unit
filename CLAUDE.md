@@ -23,6 +23,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 - **State**: TanStack Query (React Query)
 - **Forms**: React Hook Form + Zod validation
 - **Drag & Drop**: @hello-pangea/dnd (exercise reordering)
+- **SEO**: react-helmet-async (meta tags)
 
 ### Backend
 - **Database**: Supabase (PostgreSQL)
@@ -51,6 +52,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── admin/            # Admin-specific components
 │   │   ├── coach/            # Coach-specific components (incl. programs/*)
 │   │   ├── client/           # Client-specific components (incl. EnhancedWorkoutLogger)
+│   │   ├── marketing/        # Marketing components (FAQ, WhatsApp, ComparisonTable, HowItWorks)
 │   │   ├── layouts/          # Layout components (PublicLayout, etc.)
 │   │   ├── AuthGuard.tsx     # Auth-only route protection
 │   │   ├── RoleProtectedRoute.tsx  # Role-based route protection
@@ -64,6 +66,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── routeConfig.ts    # CANONICAL route registry
 │   │   ├── payments.ts       # Payment utilities and types
 │   │   ├── errorLogging.ts   # Structured error logging (Sentry integration)
+│   │   ├── utm.ts            # UTM parameter tracking for leads
 │   │   └── utils.ts          # General utilities (cn, etc.)
 │   ├── pages/                # Route page components
 │   │   ├── admin/            # Admin pages
@@ -212,6 +215,10 @@ care_team_assignments  -- Staff specialty assignments to clients
 
 -- CMS (Phase 23)
 site_content           -- CMS-driven content (page, section, key, value, value_type)
+
+-- Marketing (Phase 24)
+leads                  -- Newsletter signups & lead tracking with UTM params
+referrals              -- Client referral codes and conversion tracking
 ```
 
 ### 6. Row Level Security (RLS)
@@ -371,6 +378,7 @@ When understanding this codebase, read in this order:
 - Phase 21: WorkoutSessionV2 integration — per-set prescriptions, history blocks, rest timer, video thumbnails, client route wired (Feb 5, 2026)
 - Phase 22: Nutrition System Enhancement — dietitian role, step/body-fat tracking, diet breaks, refeed days, care team messages (Feb 7, 2026) ✅
 - Phase 23: Full Site UI/UX Redesign — dark theme, CMS-driven content, new fonts, admin content editor (Feb 7, 2026) ✅
+- Phase 24: IGU Marketing System — auth gate removal, FAQ, comparison table, leads/UTM tracking, referrals (Feb 7, 2026) ✅
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -984,12 +992,147 @@ site_content (
 - Hybrid: 175 KWD
 - In-Person: 250 KWD
 
+### Phase 24: IGU Marketing System (Complete - Feb 7, 2026)
+
+Implemented marketing improvements to increase conversions. Critical fix: pricing was hidden from unauthenticated visitors.
+
+**Phase 0A: Fix Testimonials Manager Hang Bug**
+- Added `hasFetched` ref guard to prevent infinite re-fetching
+- Added `withTimeout` wrapper (5s timeout) for RPC calls that could hang
+- File: `src/components/TestimonialsManager.tsx`
+
+**Phase 1: Auth Gate Removal (Highest Impact)**
+- Removed auth gates from Index.tsx and Services.tsx
+- Created `services_public_read.sql` — allows anonymous users to view active services
+- Visitors can now see all 4 pricing cards without signing in
+- "Get Started" still redirects to `/auth?service=...&tab=signup`
+
+**Phase 2: Quick Win Components**
+
+New marketing components in `src/components/marketing/`:
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| `FAQSection` | `FAQSection.tsx` | Accordion FAQ section using shadcn, CMS-driven |
+| `WhatsAppButton` | `WhatsAppButton.tsx` | Floating WhatsApp button (bottom-24 right-6, z-40), only shows if CMS has number |
+| `ComparisonTable` | `ComparisonTable.tsx` | Plan comparison table with verified features |
+| `HowItWorksSection` | `HowItWorksSection.tsx` | 4-step process: Choose Plan → Onboarding → Get Matched → Start Training |
+
+**SEO Setup:**
+- Installed `react-helmet-async` (~3KB)
+- Created `src/components/SEOHead.tsx` for meta tags
+- Added `HelmetProvider` wrapper in `src/main.tsx`
+
+**Phase 3: Comparison Table**
+- Shows all 4 plans side-by-side with feature checkmarks
+- Features verified as built (excludes Video Form Reviews which is NOT built)
+- Added to Services.tsx below pricing cards
+
+**Phase 4: Leads & UTM Tracking**
+
+New database table `leads`:
+```sql
+leads (
+  id UUID PRIMARY KEY,
+  email TEXT NOT NULL UNIQUE,
+  name TEXT,
+  source TEXT DEFAULT 'website',
+  utm_source, utm_medium, utm_campaign, utm_content, utm_term TEXT,
+  converted_to_user_id UUID REFERENCES auth.users(id),
+  converted_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ
+)
+```
+
+New utility `src/lib/utm.ts`:
+- `captureUTMParams()` — stores UTM params in sessionStorage (called on app mount)
+- `getUTMParams()` — retrieves stored UTM params
+- `clearUTMParams()` — clears after conversion
+
+Newsletter signup added to Footer.tsx:
+- Email input + Subscribe button
+- Inserts into leads table with source='newsletter'
+- Includes UTM params from session
+
+**Phase 5: How It Works Section**
+- 4-step visual guide between Features and Programs on homepage
+- CMS-driven content with icon mapping
+
+**Phase 6: Testimonials Enhancement**
+
+New columns added to `testimonials`:
+- `weight_change_kg NUMERIC` — positive for gain, negative for loss
+- `duration_weeks INTEGER` — weeks in program
+- `goal_type TEXT` — fat_loss, muscle_gain, strength, performance, recomp, general_health
+
+New RLS policy: `Anyone can view approved testimonials` (TO anon, authenticated)
+
+Updated TestimonialsManager.tsx:
+- Stats badges display (weight change, duration, goal type)
+- Inline stats editing for admins
+
+**Phase 7: Referral System**
+
+New database table `referrals`:
+```sql
+referrals (
+  id UUID PRIMARY KEY,
+  referrer_user_id UUID REFERENCES auth.users(id),
+  referral_code TEXT UNIQUE,  -- Format: IGU-NAME-XXXX
+  referred_email TEXT,
+  referred_user_id UUID,
+  status TEXT,  -- pending, signed_up, converted, rewarded, expired
+  reward_type TEXT,
+  reward_amount NUMERIC,
+  created_at TIMESTAMPTZ
+)
+```
+
+SQL function `generate_referral_code(first_name)`:
+- Sanitizes name (uppercase, letters only, max 10 chars)
+- Generates unique code: `IGU-{NAME}-{4 random chars}`
+- Fallback to UUID prefix after 10 collision attempts
+
+**Migrations Created (9 files):**
+```
+20260208_services_public_read.sql     -- Services visible to anon users
+20260208_seed_faq.sql                 -- FAQ content for homepage
+20260208_seed_whatsapp.sql            -- WhatsApp contact settings
+20260208_seed_meta.sql                -- SEO meta tags for 4 pages
+20260208_seed_how_it_works.sql        -- How It Works steps
+20260208_create_leads.sql             -- Leads table + RLS
+20260208_testimonials_stats.sql       -- Stats columns
+20260208_testimonials_public.sql      -- Public read policy
+20260208_create_referrals.sql         -- Referrals table + code generator
+```
+
+**Files Created:**
+| File | Purpose |
+|------|---------|
+| `src/components/marketing/FAQSection.tsx` | FAQ accordion section |
+| `src/components/marketing/WhatsAppButton.tsx` | Floating WhatsApp button |
+| `src/components/marketing/ComparisonTable.tsx` | Plan comparison table |
+| `src/components/marketing/HowItWorksSection.tsx` | 4-step process section |
+| `src/components/SEOHead.tsx` | SEO meta tags component |
+| `src/lib/utm.ts` | UTM parameter tracking utility |
+
+**Files Modified:**
+| File | Changes |
+|------|---------|
+| `src/components/TestimonialsManager.tsx` | hasFetched guard, timeout wrapper, stats fields |
+| `src/pages/Index.tsx` | Removed auth gate, added FAQ & How It Works sections |
+| `src/pages/Services.tsx` | Removed redirect, added ComparisonTable |
+| `src/components/layouts/PublicLayout.tsx` | Added WhatsAppButton |
+| `src/main.tsx` | Added HelmetProvider |
+| `src/components/Footer.tsx` | Added newsletter signup with UTM tracking |
+| `src/App.tsx` | Added UTM capture on mount |
+
 ### Admin QA Results (Feb 3, 2026)
 
-10 known issues found across admin dashboard pages (updated Feb 5):
+10 known issues found across admin dashboard pages (updated Feb 7):
 
-**Critical (1 remaining)**:
-1. Testimonials page hangs on load
+**Critical (0 remaining)**:
+1. ~~Testimonials page hangs on load~~ ✅ FIXED (Phase 24 - hasFetched guard + timeout wrapper)
 2. ~~"Error loading services" spam in console~~ ✅ FIXED (Phase 16 - was infinite loop)
 
 **Medium (3 remaining)**:
@@ -1080,13 +1223,13 @@ When asking for help:
 - Session copy/paste — clipboard-based deep copy of sessions between days, copyWeek V2 fix ✅ (Feb 5, 2026)
 - WorkoutSessionV2 — per-set prescriptions, history, rest timer, video thumbnails, client route wired ✅ (Feb 5, 2026)
 - Full Site UI/UX Redesign — dark theme, CMS-driven content, fonts, admin content editor ✅ (Feb 7, 2026)
+- IGU Marketing System — auth gate removal, public pricing, FAQ, comparison table, leads/UTM, referrals ✅ (Feb 7, 2026)
 
 **In Progress**:
 - Client onboarding & dashboard QA (next session)
 - Workout Builder Phase 2 — exercise swap, teams
 
 **Remaining**:
-- Fix critical issues (testimonials hang)
 - Add Cloudflare Turnstile to anonymous endpoints (coach application form)
 - Populate exercise library from YouTube
 - Mobile responsive testing
@@ -1212,6 +1355,7 @@ Components using this pattern:
 - `src/pages/Dashboard.tsx`
 - `src/components/coach/EnhancedCapacityCard.tsx`
 - `src/components/coach/CoachMyClientsPage.tsx`
+- `src/components/TestimonialsManager.tsx`
 - `src/hooks/useRoleGate.ts`
 - `src/hooks/useColumnConfig.ts`
 - `src/hooks/useProgramCalendar.ts`
