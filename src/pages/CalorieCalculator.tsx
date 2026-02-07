@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Navigation } from "@/components/Navigation";
-import { Footer } from "@/components/Footer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Calculator, TrendingUp } from "lucide-react";
@@ -104,8 +102,6 @@ export default function CalorieCalculator() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
-
       <main className="container mx-auto px-4 pt-24 pb-12 max-w-4xl">
         <div className="text-center mb-12">
           <div className="flex justify-center mb-4">
@@ -189,7 +185,6 @@ export default function CalorieCalculator() {
           </Button>
         </div>
       </main>
-      <Footer />
     </div>
   );
 }

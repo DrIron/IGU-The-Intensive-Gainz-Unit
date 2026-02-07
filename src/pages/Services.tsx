@@ -1,8 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { Navigation } from "@/components/Navigation";
-import { Footer } from "@/components/Footer";
 import { ServiceCard } from "@/components/ServiceCard";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles } from "lucide-react";
@@ -26,7 +24,6 @@ export default function Services() {
   const { toast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState(null);
   const [teamPlansOpen, setTeamPlansOpen] = useState(true);
   const isMobile = useIsMobile();
 
@@ -75,8 +72,6 @@ export default function Services() {
   }, [toast]);
 
   const checkUserAndLoadData = useCallback(async () => {
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-    setUser(currentUser);
     // Always load services (pricing is public for all users)
     await loadServices();
   }, [loadServices]);
@@ -135,8 +130,6 @@ export default function Services() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation user={user} />
-
       <main className="container mx-auto px-4 pt-24 pb-12 max-w-7xl">
         <div className="text-center mb-16">
           <div className="flex justify-center mb-4">
@@ -271,7 +264,6 @@ export default function Services() {
           </>
         )}
       </main>
-      <Footer />
     </div>
   );
 }

@@ -1,12 +1,10 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CoachDetailDialog } from "@/components/CoachDetailDialog";
 import { MapPin } from "lucide-react";
-import { Footer } from "@/components/Footer";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 import { useSiteContent } from "@/hooks/useSiteContent";
@@ -30,7 +28,6 @@ export default function MeetOurTeam() {
   const [loading, setLoading] = useState(true);
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [user, setUser] = useState(null);
   const { getLabel } = useSpecializationTags();
 
   useDocumentTitle({
@@ -43,13 +40,7 @@ export default function MeetOurTeam() {
 
   useEffect(() => {
     fetchCoaches();
-    checkUser();
   }, []);
-
-  const checkUser = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    setUser(user);
-  };
 
   const fetchCoaches = async () => {
     try {
@@ -90,8 +81,6 @@ export default function MeetOurTeam() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation user={user} />
-
       <div className="container mx-auto px-4 pt-24 pb-16">
         <div className="text-center mb-12">
           <h1 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
@@ -168,7 +157,6 @@ export default function MeetOurTeam() {
           onOpenChange={setDialogOpen}
         />
       </div>
-      <Footer />
     </div>
   );
 }
