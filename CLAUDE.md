@@ -192,6 +192,23 @@ client_day_modules         -- Now has session_type, session_timing columns
 
 -- Coach Configuration
 specialization_tags -- Admin-managed standardized tags for coach specializations
+
+-- Nutrition System (Phase 22)
+nutrition_phases       -- 1:1 client nutrition phases with macros, goals
+nutrition_goals        -- Team plan version of phases
+weight_logs            -- Daily weight tracking per phase
+circumference_logs     -- Body measurements (waist, chest, hips, thighs)
+adherence_logs         -- Weekly adherence tracking
+nutrition_adjustments  -- Calorie adjustment history with ±100kcal tolerance band
+coach_nutrition_notes  -- Coach internal notes per phase
+dietitians             -- Dietitian profiles (credentials, specialties)
+step_logs              -- Daily steps (observational only, not used in TDEE)
+body_fat_logs          -- Body fat measurements with method tracking
+diet_breaks            -- Actual diet break periods with calculated maintenance
+refeed_days            -- Scheduled refeed days with target/actual macros
+step_recommendations   -- Coach/dietitian step targets
+care_team_messages     -- Inter-team communication (client cannot see)
+care_team_assignments  -- Staff specialty assignments to clients
 ```
 
 ### 6. Row Level Security (RLS)
@@ -204,8 +221,20 @@ All tables have RLS enabled with these patterns:
 
 Helper functions in database:
 ```sql
-auth.is_admin()              -- Check if current user is admin
-auth.is_coach_of(client_id)  -- Check coach-client relationship
+-- Role checks
+public.has_role(uuid, app_role)           -- Check role in user_roles table
+public.is_admin(uuid)                     -- Check admin role
+public.is_coach(uuid)                     -- Check coach role
+public.is_dietitian(uuid)                 -- Check dietitian role
+
+-- Relationship checks
+public.is_primary_coach_for_user(coach, client)    -- Via subscriptions
+public.is_dietitian_for_client(dietitian, client)  -- Via care_team_assignments
+public.is_care_team_member_for_client(staff, client) -- Any care team role
+
+-- Permission checks
+public.can_edit_nutrition(actor, client)  -- Dietitian hierarchy: dietitian > coach > self
+public.client_has_dietitian(client)       -- Check if client has active dietitian
 ```
 
 ---
@@ -337,6 +366,7 @@ When understanding this codebase, read in this order:
 - Phase 19: Column header drag-to-reorder — direct header dragging with category separation (Feb 5, 2026)
 - Phase 20: Session copy/paste — clipboard-based deep copy of sessions between days, copyWeek V2 field fix (Feb 5, 2026)
 - Phase 21: WorkoutSessionV2 integration — per-set prescriptions, history blocks, rest timer, video thumbnails, client route wired (Feb 5, 2026)
+- Phase 22: Nutrition System Enhancement — dietitian role, step/body-fat tracking, diet breaks, refeed days, care team messages (Feb 7, 2026) ✅
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -779,6 +809,56 @@ client_day_modules → client_module_exercises → exercise_set_logs
 - If `prescription_snapshot_json.sets_json` is null → `legacyToPerSet()` converts legacy shared prescription to per-set array
 - Old `WorkoutSession` component kept as fallback (import retained in App.tsx)
 - Uses `hasFetched` ref guard pattern for data fetching (consistent with Phase 16 pattern)
+
+### Phase 22: Nutrition System Enhancement (Complete - Feb 7, 2026)
+
+Added dietitian role support, additional tracking tables, and care team communication for the nutrition coaching system.
+
+**New Tables:**
+- `dietitians` - Dietitian profiles and credentials
+- `step_logs` - Daily step tracking (observational NEAT data, not used in calorie calculations)
+- `body_fat_logs` - Body fat percentage measurements with method tracking
+- `diet_breaks` - Diet break periods with maintenance calories calculated from actual data
+- `refeed_days` - Scheduled refeed days with target/actual macros
+- `step_recommendations` - Coach/dietitian step targets for clients
+- `care_team_messages` - Internal communication between coaches and dietitians (client cannot see)
+
+**New Functions:**
+- `is_dietitian(uuid)` - Check if user has dietitian role
+- `is_dietitian_for_client(uuid, uuid)` - Check dietitian assignment via care_team_assignments
+- `is_care_team_member_for_client(uuid, uuid)` - Combined coach/dietitian/admin check
+- `client_has_dietitian(uuid)` - Check if client has active dietitian assignment
+- `can_edit_nutrition(uuid, uuid)` - Permission hierarchy: Admin → Dietitian → Coach → Self
+
+**Extended Tables:**
+- `nutrition_phases` - Added `fiber_grams`, `steps_target`
+- `nutrition_goals` - Added `coach_id_at_creation`
+- `nutrition_adjustments` - Added `is_flagged`, `flag_reason`, `reviewed_by_dietitian_id` for >20% adjustment reviews
+
+**Enums Extended:**
+- `app_role` - Added `'dietitian'`
+- `staff_specialty` - Added `'dietitian'`
+
+**Key Design Decisions:**
+1. **Steps are observational only** - NEAT coaching tool, not TDEE modifier. Used for recommendations like "add 2k steps before we cut more calories."
+2. **±100 kcal tolerance band** - Not a cap. Within band = `no_change`, outside band = full adjustment applied. >20% = `flag_review` (flagged but allowed).
+3. **Diet break maintenance from actual data** - Formula: `recent_avg_intake + (weekly_weight_change × 7700 / 7)`. Example: 1800 kcal + losing 0.5kg/week = 2350 kcal maintenance.
+4. **Dietitian assignment via care_team_assignments** - Uses existing table with `specialty = 'dietitian'`
+5. **When dietitian assigned**: Coach becomes read-only for nutrition, retains full training program control
+
+**Migrations Applied (10 files):**
+```
+20260207100000_add_dietitian_role.sql        -- Enum additions (must commit before use)
+20260207100001_dietitian_tables_functions.sql -- Dietitians table & helper functions
+20260207100002_step_logs.sql
+20260207100003_body_fat_logs.sql
+20260207100004_diet_breaks.sql
+20260207100005_refeed_days.sql
+20260207100006_step_recommendations.sql
+20260207100007_care_team_messages.sql
+20260207100008_extend_existing_tables.sql
+20260207100009_dietitian_policies.sql
+```
 
 ### Admin QA Results (Feb 3, 2026)
 

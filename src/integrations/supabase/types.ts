@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -243,6 +243,42 @@ export type Database = {
         }
         Relationships: []
       }
+      body_fat_logs: {
+        Row: {
+          body_fat_percentage: number
+          created_at: string
+          fat_free_mass_kg: number | null
+          id: string
+          log_date: string
+          method: string
+          notes: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          body_fat_percentage: number
+          created_at?: string
+          fat_free_mass_kg?: number | null
+          id?: string
+          log_date: string
+          method: string
+          notes?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          body_fat_percentage?: number
+          created_at?: string
+          fat_free_mass_kg?: number | null
+          id?: string
+          log_date?: string
+          method?: string
+          notes?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       care_team_assignments: {
         Row: {
           active_from: string
@@ -381,6 +417,68 @@ export type Database = {
             columns: ["subscription_id"]
             isOneToOne: false
             referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      care_team_messages: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          is_resolved: boolean
+          mentions: string[] | null
+          message: string
+          message_type: string
+          priority: string
+          read_by: string[] | null
+          related_phase_id: string | null
+          related_program_id: string | null
+          resolved_at: string | null
+          resolved_by: string | null
+          sender_id: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          is_resolved?: boolean
+          mentions?: string[] | null
+          message: string
+          message_type?: string
+          priority?: string
+          read_by?: string[] | null
+          related_phase_id?: string | null
+          related_program_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sender_id: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          is_resolved?: boolean
+          mentions?: string[] | null
+          message?: string
+          message_type?: string
+          priority?: string
+          read_by?: string[] | null
+          related_phase_id?: string | null
+          related_program_id?: string | null
+          resolved_at?: string | null
+          resolved_by?: string | null
+          sender_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "care_team_messages_related_phase_id_fkey"
+            columns: ["related_phase_id"]
+            isOneToOne: false
+            referencedRelation: "nutrition_phases"
             referencedColumns: ["id"]
           },
         ]
@@ -553,6 +651,8 @@ export type Database = {
           id: string
           module_owner_coach_id: string
           module_type: string
+          session_timing: string | null
+          session_type: string | null
           sort_order: number
           source_day_module_id: string | null
           status: Database["public"]["Enums"]["client_module_status"]
@@ -566,6 +666,8 @@ export type Database = {
           id?: string
           module_owner_coach_id: string
           module_type: string
+          session_timing?: string | null
+          session_type?: string | null
           sort_order?: number
           source_day_module_id?: string | null
           status?: Database["public"]["Enums"]["client_module_status"]
@@ -579,6 +681,8 @@ export type Database = {
           id?: string
           module_owner_coach_id?: string
           module_type?: string
+          session_timing?: string | null
+          session_type?: string | null
           sort_order?: number
           source_day_module_id?: string | null
           status?: Database["public"]["Enums"]["client_module_status"]
@@ -1022,6 +1126,54 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "profiles_public"
             referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_column_presets: {
+        Row: {
+          coach_id: string
+          column_config: Json
+          created_at: string
+          description: string | null
+          id: string
+          is_default: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          column_config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          column_config?: Json
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_default?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_column_presets_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "coach_column_presets_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches_client_safe"
+            referencedColumns: ["user_id"]
           },
         ]
       }
@@ -1469,6 +1621,8 @@ export type Database = {
           module_owner_coach_id: string
           module_type: string
           program_template_day_id: string
+          session_timing: string | null
+          session_type: string | null
           sort_order: number
           status: Database["public"]["Enums"]["module_status"]
           title: string
@@ -1480,6 +1634,8 @@ export type Database = {
           module_owner_coach_id: string
           module_type: string
           program_template_day_id: string
+          session_timing?: string | null
+          session_type?: string | null
           sort_order?: number
           status?: Database["public"]["Enums"]["module_status"]
           title: string
@@ -1491,6 +1647,8 @@ export type Database = {
           module_owner_coach_id?: string
           module_type?: string
           program_template_day_id?: string
+          session_timing?: string | null
+          session_type?: string | null
           sort_order?: number
           status?: Database["public"]["Enums"]["module_status"]
           title?: string
@@ -1516,6 +1674,264 @@ export type Database = {
             columns: ["program_template_day_id"]
             isOneToOne: false
             referencedRelation: "program_template_days"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      diet_breaks: {
+        Row: {
+          actual_end_date: string | null
+          actual_start_date: string | null
+          approved_at: string | null
+          approved_by: string | null
+          client_feedback: string | null
+          coach_notes: string | null
+          created_at: string
+          id: string
+          initiated_by: string | null
+          maintenance_calories: number | null
+          maintenance_carb_g: number | null
+          maintenance_fat_g: number | null
+          maintenance_protein_g: number | null
+          phase_id: string
+          post_break_weight_kg: number | null
+          pre_break_avg_intake: number | null
+          pre_break_weight_change_rate: number | null
+          pre_break_weight_kg: number | null
+          reason: string | null
+          scheduled_end_date: string
+          scheduled_start_date: string
+          status: string
+          updated_at: string
+          weight_change_during_break_kg: number | null
+        }
+        Insert: {
+          actual_end_date?: string | null
+          actual_start_date?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          client_feedback?: string | null
+          coach_notes?: string | null
+          created_at?: string
+          id?: string
+          initiated_by?: string | null
+          maintenance_calories?: number | null
+          maintenance_carb_g?: number | null
+          maintenance_fat_g?: number | null
+          maintenance_protein_g?: number | null
+          phase_id: string
+          post_break_weight_kg?: number | null
+          pre_break_avg_intake?: number | null
+          pre_break_weight_change_rate?: number | null
+          pre_break_weight_kg?: number | null
+          reason?: string | null
+          scheduled_end_date: string
+          scheduled_start_date: string
+          status?: string
+          updated_at?: string
+          weight_change_during_break_kg?: number | null
+        }
+        Update: {
+          actual_end_date?: string | null
+          actual_start_date?: string | null
+          approved_at?: string | null
+          approved_by?: string | null
+          client_feedback?: string | null
+          coach_notes?: string | null
+          created_at?: string
+          id?: string
+          initiated_by?: string | null
+          maintenance_calories?: number | null
+          maintenance_carb_g?: number | null
+          maintenance_fat_g?: number | null
+          maintenance_protein_g?: number | null
+          phase_id?: string
+          post_break_weight_kg?: number | null
+          pre_break_avg_intake?: number | null
+          pre_break_weight_change_rate?: number | null
+          pre_break_weight_kg?: number | null
+          reason?: string | null
+          scheduled_end_date?: string
+          scheduled_start_date?: string
+          status?: string
+          updated_at?: string
+          weight_change_during_break_kg?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "diet_breaks_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "nutrition_phases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dietitians: {
+        Row: {
+          accepting_clients: boolean
+          bio: string | null
+          certifications: string[] | null
+          created_at: string
+          id: string
+          license_expiry: string | null
+          license_number: string | null
+          license_state: string | null
+          max_clients: number | null
+          nutrition_specialties: string[] | null
+          updated_at: string
+          user_id: string
+          years_experience: number | null
+        }
+        Insert: {
+          accepting_clients?: boolean
+          bio?: string | null
+          certifications?: string[] | null
+          created_at?: string
+          id?: string
+          license_expiry?: string | null
+          license_number?: string | null
+          license_state?: string | null
+          max_clients?: number | null
+          nutrition_specialties?: string[] | null
+          updated_at?: string
+          user_id: string
+          years_experience?: number | null
+        }
+        Update: {
+          accepting_clients?: boolean
+          bio?: string | null
+          certifications?: string[] | null
+          created_at?: string
+          id?: string
+          license_expiry?: string | null
+          license_number?: string | null
+          license_state?: string | null
+          max_clients?: number | null
+          nutrition_specialties?: string[] | null
+          updated_at?: string
+          user_id?: string
+          years_experience?: number | null
+        }
+        Relationships: []
+      }
+      direct_calendar_sessions: {
+        Row: {
+          client_user_id: string
+          coach_user_id: string
+          created_at: string
+          id: string
+          notes: string | null
+          session_date: string
+          session_timing: string
+          session_type: string
+          status: string
+          subscription_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_user_id: string
+          coach_user_id: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          session_date: string
+          session_timing?: string
+          session_type?: string
+          status?: string
+          subscription_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          client_user_id?: string
+          coach_user_id?: string
+          created_at?: string
+          id?: string
+          notes?: string | null
+          session_date?: string
+          session_timing?: string
+          session_type?: string
+          status?: string
+          subscription_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "direct_calendar_sessions_coach_user_id_fkey"
+            columns: ["coach_user_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "direct_calendar_sessions_coach_user_id_fkey"
+            columns: ["coach_user_id"]
+            isOneToOne: false
+            referencedRelation: "coaches_client_safe"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "direct_calendar_sessions_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      direct_session_exercises: {
+        Row: {
+          column_config: Json
+          created_at: string
+          direct_session_id: string
+          exercise_id: string
+          id: string
+          instructions: string | null
+          prescription_json: Json
+          section: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          column_config?: Json
+          created_at?: string
+          direct_session_id: string
+          exercise_id: string
+          id?: string
+          instructions?: string | null
+          prescription_json?: Json
+          section?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          column_config?: Json
+          created_at?: string
+          direct_session_id?: string
+          exercise_id?: string
+          id?: string
+          instructions?: string | null
+          prescription_json?: Json
+          section?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "direct_session_exercises_direct_session_id_fkey"
+            columns: ["direct_session_id"]
+            isOneToOne: false
+            referencedRelation: "direct_calendar_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direct_session_exercises_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercise_library"
             referencedColumns: ["id"]
           },
         ]
@@ -1868,10 +2284,12 @@ export type Database = {
       }
       exercise_library: {
         Row: {
+          anatomical_name: string | null
           category: Database["public"]["Enums"]["exercise_category"]
           created_at: string
           created_by_coach_id: string | null
           default_video_url: string | null
+          description: string | null
           equipment: string | null
           id: string
           is_active: boolean
@@ -1879,13 +2297,16 @@ export type Database = {
           name: string
           primary_muscle: string
           secondary_muscles: string[] | null
+          tags: string[] | null
           updated_at: string
         }
         Insert: {
+          anatomical_name?: string | null
           category?: Database["public"]["Enums"]["exercise_category"]
           created_at?: string
           created_by_coach_id?: string | null
           default_video_url?: string | null
+          description?: string | null
           equipment?: string | null
           id?: string
           is_active?: boolean
@@ -1893,13 +2314,16 @@ export type Database = {
           name: string
           primary_muscle: string
           secondary_muscles?: string[] | null
+          tags?: string[] | null
           updated_at?: string
         }
         Update: {
+          anatomical_name?: string | null
           category?: Database["public"]["Enums"]["exercise_category"]
           created_at?: string
           created_by_coach_id?: string | null
           default_video_url?: string | null
+          description?: string | null
           equipment?: string | null
           id?: string
           is_active?: boolean
@@ -1907,6 +2331,7 @@ export type Database = {
           name?: string
           primary_muscle?: string
           secondary_muscles?: string[] | null
+          tags?: string[] | null
           updated_at?: string
         }
         Relationships: [
@@ -1978,6 +2403,7 @@ export type Database = {
       exercise_prescriptions: {
         Row: {
           allow_client_extra_sets: boolean
+          column_config: Json | null
           created_at: string
           custom_fields_json: Json | null
           id: string
@@ -1989,12 +2415,14 @@ export type Database = {
           rep_range_min: number | null
           rest_seconds: number | null
           set_count: number
+          sets_json: Json | null
           tempo: string | null
           updated_at: string
           warmup_sets_json: Json | null
         }
         Insert: {
           allow_client_extra_sets?: boolean
+          column_config?: Json | null
           created_at?: string
           custom_fields_json?: Json | null
           id?: string
@@ -2006,12 +2434,14 @@ export type Database = {
           rep_range_min?: number | null
           rest_seconds?: number | null
           set_count?: number
+          sets_json?: Json | null
           tempo?: string | null
           updated_at?: string
           warmup_sets_json?: Json | null
         }
         Update: {
           allow_client_extra_sets?: boolean
+          column_config?: Json | null
           created_at?: string
           custom_fields_json?: Json | null
           id?: string
@@ -2023,6 +2453,7 @@ export type Database = {
           rep_range_min?: number | null
           rest_seconds?: number | null
           set_count?: number
+          sets_json?: Json | null
           tempo?: string | null
           updated_at?: string
           warmup_sets_json?: Json | null
@@ -2968,14 +3399,17 @@ export type Database = {
           delayed_reason: string | null
           deviation_percentage: number | null
           expected_weight_change_percentage: number | null
+          flag_reason: string | null
           id: string
           is_delayed: boolean | null
           is_diet_break_week: boolean
+          is_flagged: boolean | null
           new_carb_grams: number | null
           new_daily_calories: number | null
           new_fat_grams: number | null
           new_protein_grams: number | null
           phase_id: string
+          reviewed_by_dietitian_id: string | null
           status: string
           suggested_calorie_adjustment: number | null
           week_number: number
@@ -2990,14 +3424,17 @@ export type Database = {
           delayed_reason?: string | null
           deviation_percentage?: number | null
           expected_weight_change_percentage?: number | null
+          flag_reason?: string | null
           id?: string
           is_delayed?: boolean | null
           is_diet_break_week?: boolean
+          is_flagged?: boolean | null
           new_carb_grams?: number | null
           new_daily_calories?: number | null
           new_fat_grams?: number | null
           new_protein_grams?: number | null
           phase_id: string
+          reviewed_by_dietitian_id?: string | null
           status?: string
           suggested_calorie_adjustment?: number | null
           week_number: number
@@ -3012,14 +3449,17 @@ export type Database = {
           delayed_reason?: string | null
           deviation_percentage?: number | null
           expected_weight_change_percentage?: number | null
+          flag_reason?: string | null
           id?: string
           is_delayed?: boolean | null
           is_diet_break_week?: boolean
+          is_flagged?: boolean | null
           new_carb_grams?: number | null
           new_daily_calories?: number | null
           new_fat_grams?: number | null
           new_protein_grams?: number | null
           phase_id?: string
+          reviewed_by_dietitian_id?: string | null
           status?: string
           suggested_calorie_adjustment?: number | null
           week_number?: number
@@ -3178,6 +3618,7 @@ export type Database = {
           estimated_end_date: string | null
           fat_grams: number
           fat_intake_percentage: number
+          fiber_grams: number | null
           goal_type: string
           id: string
           is_active: boolean
@@ -3192,6 +3633,7 @@ export type Database = {
           start_date: string
           starting_weight_kg: number
           steps_goal: number | null
+          steps_target: number | null
           target_body_fat_percentage: number | null
           target_weight_kg: number | null
           updated_at: string
@@ -3212,6 +3654,7 @@ export type Database = {
           estimated_end_date?: string | null
           fat_grams: number
           fat_intake_percentage: number
+          fiber_grams?: number | null
           goal_type: string
           id?: string
           is_active?: boolean
@@ -3226,6 +3669,7 @@ export type Database = {
           start_date?: string
           starting_weight_kg: number
           steps_goal?: number | null
+          steps_target?: number | null
           target_body_fat_percentage?: number | null
           target_weight_kg?: number | null
           updated_at?: string
@@ -3246,6 +3690,7 @@ export type Database = {
           estimated_end_date?: string | null
           fat_grams?: number
           fat_intake_percentage?: number
+          fiber_grams?: number | null
           goal_type?: string
           id?: string
           is_active?: boolean
@@ -3260,6 +3705,7 @@ export type Database = {
           start_date?: string
           starting_weight_kg?: number
           steps_goal?: number | null
+          steps_target?: number | null
           target_body_fat_percentage?: number | null
           target_weight_kg?: number | null
           updated_at?: string
@@ -3948,6 +4394,83 @@ export type Database = {
           },
         ]
       }
+      refeed_days: {
+        Row: {
+          actual_calories: number | null
+          actual_carb_g: number | null
+          actual_fat_g: number | null
+          actual_protein_g: number | null
+          client_notes: string | null
+          coach_notes: string | null
+          created_at: string
+          id: string
+          phase_id: string
+          post_refeed_weight_kg: number | null
+          pre_refeed_weight_kg: number | null
+          refeed_type: string
+          scheduled_date: string
+          status: string
+          target_calories: number | null
+          target_carb_g: number | null
+          target_fat_g: number | null
+          target_protein_g: number | null
+          training_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          actual_calories?: number | null
+          actual_carb_g?: number | null
+          actual_fat_g?: number | null
+          actual_protein_g?: number | null
+          client_notes?: string | null
+          coach_notes?: string | null
+          created_at?: string
+          id?: string
+          phase_id: string
+          post_refeed_weight_kg?: number | null
+          pre_refeed_weight_kg?: number | null
+          refeed_type: string
+          scheduled_date: string
+          status?: string
+          target_calories?: number | null
+          target_carb_g?: number | null
+          target_fat_g?: number | null
+          target_protein_g?: number | null
+          training_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          actual_calories?: number | null
+          actual_carb_g?: number | null
+          actual_fat_g?: number | null
+          actual_protein_g?: number | null
+          client_notes?: string | null
+          coach_notes?: string | null
+          created_at?: string
+          id?: string
+          phase_id?: string
+          post_refeed_weight_kg?: number | null
+          pre_refeed_weight_kg?: number | null
+          refeed_type?: string
+          scheduled_date?: string
+          status?: string
+          target_calories?: number | null
+          target_carb_g?: number | null
+          target_fat_g?: number | null
+          target_protein_g?: number | null
+          training_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refeed_days_phase_id_fkey"
+            columns: ["phase_id"]
+            isOneToOne: false
+            referencedRelation: "nutrition_phases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_billing_components: {
         Row: {
           amount_kwd: number
@@ -4176,25 +4699,112 @@ export type Database = {
       }
       specialization_tags: {
         Row: {
-          id: string
-          name: string
-          display_order: number
-          is_active: boolean
           created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+          updated_at: string | null
+          value: string | null
         }
         Insert: {
-          id?: string
-          name: string
-          display_order?: number
-          is_active?: boolean
           created_at?: string
+          id?: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+          updated_at?: string | null
+          value?: string | null
         }
         Update: {
-          id?: string
-          name?: string
-          display_order?: number
-          is_active?: boolean
           created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+          updated_at?: string | null
+          value?: string | null
+        }
+        Relationships: []
+      }
+      step_logs: {
+        Row: {
+          created_at: string
+          id: string
+          log_date: string
+          notes: string | null
+          source: string | null
+          steps: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          log_date: string
+          notes?: string | null
+          source?: string | null
+          steps: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          log_date?: string
+          notes?: string | null
+          source?: string | null
+          steps?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      step_recommendations: {
+        Row: {
+          context: string | null
+          created_at: string
+          effective_date: string
+          end_date: string | null
+          id: string
+          is_active: boolean
+          max_steps: number | null
+          min_steps: number | null
+          reason: string | null
+          recommended_by: string
+          target_steps: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          context?: string | null
+          created_at?: string
+          effective_date?: string
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          max_steps?: number | null
+          min_steps?: number | null
+          reason?: string | null
+          recommended_by: string
+          target_steps: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          context?: string | null
+          created_at?: string
+          effective_date?: string
+          end_date?: string | null
+          id?: string
+          is_active?: boolean
+          max_steps?: number | null
+          min_steps?: number | null
+          reason?: string | null
+          recommended_by?: string
+          target_steps?: number
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -4604,15 +5214,7 @@ export type Database = {
           role?: Database["public"]["Enums"]["app_role"]
           user_id?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "user_roles_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles_legacy"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       video_access_log: {
         Row: {
@@ -5046,265 +5648,6 @@ export type Database = {
         }
         Relationships: []
       }
-      form_submissions_decrypted: {
-        Row: {
-          accepts_lower_body_only: boolean | null
-          accepts_team_program: boolean | null
-          agreed_intellectual_property: boolean | null
-          agreed_intellectual_property_at: string | null
-          agreed_medical_disclaimer: boolean | null
-          agreed_medical_disclaimer_at: string | null
-          agreed_privacy: boolean | null
-          agreed_privacy_at: string | null
-          agreed_refund_policy: boolean | null
-          agreed_refund_policy_at: string | null
-          agreed_terms: boolean | null
-          agreed_terms_at: string | null
-          airtable_record_id: string | null
-          cancellation_reason: string | null
-          cancelled_at: string | null
-          client_signed_agreement_url: string | null
-          client_signed_liability_url: string | null
-          coach_preference_type: string | null
-          coach_uploaded_agreement_url: string | null
-          coach_uploaded_liability_url: string | null
-          created_at: string | null
-          date_of_birth: string | null
-          discord_username: string | null
-          documents_approved_at: string | null
-          documents_approved_by_coach: boolean | null
-          documents_verified: boolean | null
-          email: string | null
-          first_name: string | null
-          focus_areas: string[] | null
-          form_type: Database["public"]["Enums"]["form_type"] | null
-          gym_access_type: string | null
-          heard_about_us: Database["public"]["Enums"]["referral_source"] | null
-          heard_about_us_other: string | null
-          home_gym_equipment: string | null
-          id: string | null
-          last_name: string | null
-          liability_release_url: string | null
-          master_agreement_url: string | null
-          needs_medical_review: boolean | null
-          nutrition_approach:
-            | Database["public"]["Enums"]["nutrition_approach"]
-            | null
-          parq_additional_details: string | null
-          parq_balance_dizziness: boolean | null
-          parq_bone_joint_problem: boolean | null
-          parq_chest_pain_active: boolean | null
-          parq_chest_pain_inactive: boolean | null
-          parq_heart_condition: boolean | null
-          parq_injuries_conditions: string | null
-          parq_medication: boolean | null
-          parq_other_reason: boolean | null
-          payment_enabled: boolean | null
-          phone_number: string | null
-          plan_name: string | null
-          preferred_coach_id: string | null
-          preferred_gym_location: string | null
-          preferred_training_times: string[] | null
-          requested_coach_id: string | null
-          submission_status: string | null
-          training_days_per_week: string | null
-          training_experience:
-            | Database["public"]["Enums"]["training_experience"]
-            | null
-          training_goals: string | null
-          understands_no_nutrition: boolean | null
-          updated_at: string | null
-          user_id: string | null
-          verified_at: string | null
-          verified_by_coach_id: string | null
-        }
-        Insert: {
-          accepts_lower_body_only?: boolean | null
-          accepts_team_program?: boolean | null
-          agreed_intellectual_property?: boolean | null
-          agreed_intellectual_property_at?: string | null
-          agreed_medical_disclaimer?: boolean | null
-          agreed_medical_disclaimer_at?: string | null
-          agreed_privacy?: boolean | null
-          agreed_privacy_at?: string | null
-          agreed_refund_policy?: boolean | null
-          agreed_refund_policy_at?: string | null
-          agreed_terms?: boolean | null
-          agreed_terms_at?: string | null
-          airtable_record_id?: string | null
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          client_signed_agreement_url?: string | null
-          client_signed_liability_url?: string | null
-          coach_preference_type?: string | null
-          coach_uploaded_agreement_url?: string | null
-          coach_uploaded_liability_url?: string | null
-          created_at?: string | null
-          date_of_birth?: never
-          discord_username?: string | null
-          documents_approved_at?: string | null
-          documents_approved_by_coach?: boolean | null
-          documents_verified?: boolean | null
-          email?: never
-          first_name?: string | null
-          focus_areas?: string[] | null
-          form_type?: Database["public"]["Enums"]["form_type"] | null
-          gym_access_type?: string | null
-          heard_about_us?: Database["public"]["Enums"]["referral_source"] | null
-          heard_about_us_other?: string | null
-          home_gym_equipment?: string | null
-          id?: string | null
-          last_name?: string | null
-          liability_release_url?: string | null
-          master_agreement_url?: string | null
-          needs_medical_review?: boolean | null
-          nutrition_approach?:
-            | Database["public"]["Enums"]["nutrition_approach"]
-            | null
-          parq_additional_details?: never
-          parq_balance_dizziness?: never
-          parq_bone_joint_problem?: never
-          parq_chest_pain_active?: never
-          parq_chest_pain_inactive?: never
-          parq_heart_condition?: never
-          parq_injuries_conditions?: never
-          parq_medication?: never
-          parq_other_reason?: never
-          payment_enabled?: boolean | null
-          phone_number?: never
-          plan_name?: string | null
-          preferred_coach_id?: string | null
-          preferred_gym_location?: string | null
-          preferred_training_times?: string[] | null
-          requested_coach_id?: string | null
-          submission_status?: string | null
-          training_days_per_week?: string | null
-          training_experience?:
-            | Database["public"]["Enums"]["training_experience"]
-            | null
-          training_goals?: string | null
-          understands_no_nutrition?: boolean | null
-          updated_at?: string | null
-          user_id?: string | null
-          verified_at?: string | null
-          verified_by_coach_id?: string | null
-        }
-        Update: {
-          accepts_lower_body_only?: boolean | null
-          accepts_team_program?: boolean | null
-          agreed_intellectual_property?: boolean | null
-          agreed_intellectual_property_at?: string | null
-          agreed_medical_disclaimer?: boolean | null
-          agreed_medical_disclaimer_at?: string | null
-          agreed_privacy?: boolean | null
-          agreed_privacy_at?: string | null
-          agreed_refund_policy?: boolean | null
-          agreed_refund_policy_at?: string | null
-          agreed_terms?: boolean | null
-          agreed_terms_at?: string | null
-          airtable_record_id?: string | null
-          cancellation_reason?: string | null
-          cancelled_at?: string | null
-          client_signed_agreement_url?: string | null
-          client_signed_liability_url?: string | null
-          coach_preference_type?: string | null
-          coach_uploaded_agreement_url?: string | null
-          coach_uploaded_liability_url?: string | null
-          created_at?: string | null
-          date_of_birth?: never
-          discord_username?: string | null
-          documents_approved_at?: string | null
-          documents_approved_by_coach?: boolean | null
-          documents_verified?: boolean | null
-          email?: never
-          first_name?: string | null
-          focus_areas?: string[] | null
-          form_type?: Database["public"]["Enums"]["form_type"] | null
-          gym_access_type?: string | null
-          heard_about_us?: Database["public"]["Enums"]["referral_source"] | null
-          heard_about_us_other?: string | null
-          home_gym_equipment?: string | null
-          id?: string | null
-          last_name?: string | null
-          liability_release_url?: string | null
-          master_agreement_url?: string | null
-          needs_medical_review?: boolean | null
-          nutrition_approach?:
-            | Database["public"]["Enums"]["nutrition_approach"]
-            | null
-          parq_additional_details?: never
-          parq_balance_dizziness?: never
-          parq_bone_joint_problem?: never
-          parq_chest_pain_active?: never
-          parq_chest_pain_inactive?: never
-          parq_heart_condition?: never
-          parq_injuries_conditions?: never
-          parq_medication?: never
-          parq_other_reason?: never
-          payment_enabled?: boolean | null
-          phone_number?: never
-          plan_name?: string | null
-          preferred_coach_id?: string | null
-          preferred_gym_location?: string | null
-          preferred_training_times?: string[] | null
-          requested_coach_id?: string | null
-          submission_status?: string | null
-          training_days_per_week?: string | null
-          training_experience?:
-            | Database["public"]["Enums"]["training_experience"]
-            | null
-          training_goals?: string | null
-          understands_no_nutrition?: boolean | null
-          updated_at?: string | null
-          user_id?: string | null
-          verified_at?: string | null
-          verified_by_coach_id?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "form_submissions_preferred_coach_id_fkey"
-            columns: ["preferred_coach_id"]
-            isOneToOne: false
-            referencedRelation: "coaches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "form_submissions_preferred_coach_id_fkey"
-            columns: ["preferred_coach_id"]
-            isOneToOne: false
-            referencedRelation: "coaches_client_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "form_submissions_requested_coach_id_fkey"
-            columns: ["requested_coach_id"]
-            isOneToOne: false
-            referencedRelation: "coaches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "form_submissions_requested_coach_id_fkey"
-            columns: ["requested_coach_id"]
-            isOneToOne: false
-            referencedRelation: "coaches_client_safe"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "form_submissions_verified_by_coach_id_fkey"
-            columns: ["verified_by_coach_id"]
-            isOneToOne: false
-            referencedRelation: "coaches"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "form_submissions_verified_by_coach_id_fkey"
-            columns: ["verified_by_coach_id"]
-            isOneToOne: false
-            referencedRelation: "coaches_client_safe"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       profiles: {
         Row: {
           activation_completed_at: string | null
@@ -5410,8 +5753,13 @@ export type Database = {
           updated_at: string
         }[]
       }
+      bootstrap_admin: { Args: { admin_email: string }; Returns: string }
       calculate_age: { Args: { birth_date: string }; Returns: number }
       can_access_video: { Args: { p_video_id: string }; Returns: boolean }
+      can_edit_nutrition: {
+        Args: { p_actor_uid: string; p_client_uid: string }
+        Returns: boolean
+      }
       can_manage_care_team: {
         Args: { p_subscription_id: string; p_user_id: string }
         Returns: boolean
@@ -5427,6 +5775,7 @@ export type Database = {
         }[]
       }
       cleanup_expired_discount_applications: { Args: never; Returns: number }
+      client_has_dietitian: { Args: { p_client_uid: string }; Returns: boolean }
       decrypt_phi_boolean: {
         Args: { encrypted_text: string }
         Returns: boolean
@@ -5520,6 +5869,34 @@ export type Database = {
           started_at: string
         }[]
       }
+      get_decrypted_form_submission: {
+        Args: { submission_id: string }
+        Returns: {
+          created_at: string
+          date_of_birth: string
+          email: string
+          first_name: string
+          form_type: string
+          id: string
+          last_name: string
+          parq_additional_details: string
+          parq_balance_dizziness: boolean
+          parq_bone_joint_problem: boolean
+          parq_chest_pain_active: boolean
+          parq_chest_pain_inactive: boolean
+          parq_heart_condition: boolean
+          parq_injuries_conditions: string
+          parq_medication: boolean
+          parq_other_reason: boolean
+          phone_number: string
+          plan_name: string
+          submission_status: string
+          training_experience: string
+          training_goals: string
+          user_id: string
+        }[]
+      }
+      get_default_column_config: { Args: { p_coach_id: string }; Returns: Json }
       get_educational_videos_with_access: {
         Args: never
         Returns: {
@@ -5702,8 +6079,13 @@ export type Database = {
         Returns: boolean
       }
       is_admin: { Args: { p_user_id: string }; Returns: boolean }
+      is_admin_internal: { Args: { _user_id: string }; Returns: boolean }
       is_admin_or_coach_for_user: {
         Args: { p_actor_uid: string; p_client_uid: string }
+        Returns: boolean
+      }
+      is_care_team_member_for_client: {
+        Args: { p_client_uid: string; p_staff_uid: string }
         Returns: boolean
       }
       is_coach: { Args: { p_user_id: string }; Returns: boolean }
@@ -5713,6 +6095,11 @@ export type Database = {
       }
       is_coach_for_submission: {
         Args: { submission_user_id: string }
+        Returns: boolean
+      }
+      is_dietitian: { Args: { p_user_id: string }; Returns: boolean }
+      is_dietitian_for_client: {
+        Args: { p_client_uid: string; p_dietitian_uid: string }
         Returns: boolean
       }
       is_module_owner: {
@@ -5772,6 +6159,10 @@ export type Database = {
           p_target_user_id: string
         }
         Returns: string
+      }
+      mark_care_team_message_read: {
+        Args: { p_message_id: string }
+        Returns: undefined
       }
       mark_video_complete: { Args: { p_video_id: string }; Returns: boolean }
       process_care_team_discharges: { Args: never; Returns: number }
@@ -5865,7 +6256,7 @@ export type Database = {
         | "expired"
         | "pending_coach_approval"
         | "inactive"
-      app_role: "member" | "coach" | "admin"
+      app_role: "member" | "coach" | "admin" | "dietitian"
       billing_mode: "manual" | "recurring"
       care_team_end_reason:
         | "subscription_cancelled"
@@ -5925,6 +6316,15 @@ export type Database = {
       program_visibility: "private" | "shared"
       referral_source: "instagram" | "tiktok" | "friend_referral" | "other"
       service_type: "team" | "one_to_one"
+      session_timing: "morning" | "afternoon" | "evening" | "anytime"
+      session_type:
+        | "strength"
+        | "cardio"
+        | "hiit"
+        | "mobility"
+        | "recovery"
+        | "sport_specific"
+        | "other"
       staff_specialty:
         | "nutrition"
         | "lifestyle"
@@ -5934,6 +6334,7 @@ export type Database = {
         | "calisthenics"
         | "mobility"
         | "physiotherapy"
+        | "dietitian"
       thread_author_role: "client" | "coach"
       training_experience:
         | "beginner_0_6"
@@ -6078,7 +6479,7 @@ export const Constants = {
         "pending_coach_approval",
         "inactive",
       ],
-      app_role: ["member", "coach", "admin"],
+      app_role: ["member", "coach", "admin", "dietitian"],
       billing_mode: ["manual", "recurring"],
       care_team_end_reason: [
         "subscription_cancelled",
@@ -6148,6 +6549,16 @@ export const Constants = {
       program_visibility: ["private", "shared"],
       referral_source: ["instagram", "tiktok", "friend_referral", "other"],
       service_type: ["team", "one_to_one"],
+      session_timing: ["morning", "afternoon", "evening", "anytime"],
+      session_type: [
+        "strength",
+        "cardio",
+        "hiit",
+        "mobility",
+        "recovery",
+        "sport_specific",
+        "other",
+      ],
       staff_specialty: [
         "nutrition",
         "lifestyle",
@@ -6157,6 +6568,7 @@ export const Constants = {
         "calisthenics",
         "mobility",
         "physiotherapy",
+        "dietitian",
       ],
       thread_author_role: ["client", "coach"],
       training_experience: [
@@ -6167,3 +6579,5 @@ export const Constants = {
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.75.0 (currently installed v2.72.7)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
