@@ -94,31 +94,31 @@ export function RefinedAdminDashboard({
 
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="flex min-h-screen w-full bg-[#F7F8FA]">
+      <div className="flex min-h-screen w-full bg-muted">
         <AdminSidebar activeSection={externalActiveSection || "dashboard"} onSectionChange={externalOnSectionChange || (() => {})} />
         
         <main className="flex-1 overflow-auto">
           {/* Header Row */}
-          <div className="bg-white border-b border-[#E8EBF0] sticky top-0 z-10">
+          <div className="bg-card border-b border-border sticky top-0 z-10">
             <div className="max-w-[1200px] mx-auto px-4 md:px-8 py-4">
               <div className="flex items-center justify-between gap-3 flex-wrap">
                 {/* Left: Title + Role Switcher */}
                 <div className="flex items-center gap-3 flex-wrap min-w-0">
                   <SidebarTrigger className="md:hidden shrink-0" />
-                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-[#0F1720] shrink-0" style={{ fontFamily: 'Sora, sans-serif' }}>
+                  <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-foreground shrink-0">
                     {getSectionTitle()}
                   </h1>
                   <Tabs value={role} onValueChange={(v) => setRole(v as "admin" | "coach")}>
-                    <TabsList className="bg-[#F7F8FA] h-10 p-1">
+                    <TabsList className="bg-muted h-10 p-1">
                       <TabsTrigger 
                         value="admin" 
-                        className="data-[state=active]:bg-white px-4 py-2 min-w-[60px] text-sm font-medium"
+                        className="data-[state=active]:bg-card px-4 py-2 min-w-[60px] text-sm font-medium"
                       >
                         Admin
                       </TabsTrigger>
                       <TabsTrigger 
                         value="coach" 
-                        className="data-[state=active]:bg-white px-4 py-2 min-w-[60px] text-sm font-medium"
+                        className="data-[state=active]:bg-card px-4 py-2 min-w-[60px] text-sm font-medium"
                       >
                         Coach
                       </TabsTrigger>
@@ -139,18 +139,18 @@ export function RefinedAdminDashboard({
                   </Button>
 
                   <div className="relative hidden md:block">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6B7280]" />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input
                       placeholder="Search clients..."
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
-                      className="pl-9 w-[200px] bg-white border-[#E8EBF0]"
+                      className="pl-9 w-[200px] bg-card border-border"
                     />
                   </div>
 
-                  <button className="relative p-2 hover:bg-[#F7F8FA] rounded-lg transition-colors">
-                    <Bell className="h-5 w-5 text-[#6B7280]" />
-                    <span className="absolute top-1 right-1 h-2 w-2 bg-[#E11D2E] rounded-full" />
+                  <button className="relative p-2 hover:bg-muted/50 rounded-lg transition-colors">
+                    <Bell className="h-5 w-5 text-muted-foreground" />
+                    <span className="absolute top-1 right-1 h-2 w-2 bg-primary rounded-full" />
                   </button>
                 </div>
               </div>
@@ -577,7 +577,7 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-[#E11D2E]" />
+        <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>
     );
   }
@@ -632,7 +632,7 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
 
       {/* Work Queue Section */}
       <div>
-        <h2 className="text-lg font-semibold text-[#0F1720] mb-4" style={{ fontFamily: 'Sora, sans-serif' }}>
+        <h2 className="text-lg font-semibold text-foreground mb-4">
           Work Queue
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -703,7 +703,7 @@ function CoachDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
 
       {/* Coach Work Queue */}
       <div>
-        <h2 className="text-lg font-semibold text-[#0F1720] mb-4" style={{ fontFamily: 'Sora, sans-serif' }}>
+        <h2 className="text-lg font-semibold text-foreground mb-4">
           Today's Tasks
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -729,27 +729,27 @@ interface KPICardProps {
 function KPICard({ title, value, change, changeType, icon: Icon, subtitle }: KPICardProps) {
   return (
     <Card 
-      className="bg-white border-[#E8EBF0] hover:shadow-lg transition-all cursor-pointer group"
+      className="bg-card border-border hover:shadow-lg transition-all cursor-pointer group"
       style={{ borderRadius: '12px' }}
     >
       <CardContent className="p-5">
         <div className="flex items-start justify-between mb-3">
-          <p className="text-sm font-medium text-[#6B7280]">{title}</p>
-          <Icon className="h-5 w-5 text-[#6B7280] group-hover:text-[#E11D2E] transition-colors" />
+          <p className="text-sm font-medium text-muted-foreground">{title}</p>
+          <Icon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" />
         </div>
         <div className="space-y-1">
-          <p className="text-3xl font-bold text-[#0F1720]" style={{ fontFamily: 'Sora, sans-serif' }}>
+          <p className="text-3xl font-bold text-foreground">
             {value}
           </p>
           <div className="flex items-center gap-2">
-            <p className="text-xs text-[#6B7280]">{subtitle}</p>
+            <p className="text-xs text-muted-foreground">{subtitle}</p>
             {change && (
               <Badge 
                 variant="outline" 
                 className={`text-xs ${
-                  changeType === "positive" ? "text-[#16A34A] border-[#16A34A]" : 
-                  changeType === "negative" ? "text-[#EF4444] border-[#EF4444]" : 
-                  "text-[#6B7280] border-[#6B7280]"
+                  changeType === "positive" ? "text-status-success border-status-success" : 
+                  changeType === "negative" ? "text-status-error border-status-error" : 
+                  "text-muted-foreground border-[#6B7280]"
                 }`}
               >
                 {change}
@@ -772,20 +772,20 @@ interface WorkQueueCardProps {
 
 function WorkQueueCard({ title, count, items, onItemClick, onViewAll }: WorkQueueCardProps) {
   return (
-    <Card className="bg-white border-[#E8EBF0]" style={{ borderRadius: '12px' }}>
+    <Card className="bg-card border-border" style={{ borderRadius: '12px' }}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
-          <CardTitle className="text-base" style={{ fontFamily: 'Sora, sans-serif' }}>
+          <CardTitle className="text-base">
             {title}
           </CardTitle>
-          <Badge variant="secondary" className="bg-[#F7F8FA] text-[#0F1720]">
+          <Badge variant="secondary" className="bg-muted text-foreground">
             {count}
           </Badge>
         </div>
       </CardHeader>
       <CardContent>
         {items.length === 0 ? (
-          <p className="text-sm text-[#6B7280] text-center py-4">
+          <p className="text-sm text-muted-foreground text-center py-4">
             No items to display
           </p>
         ) : (
@@ -794,13 +794,13 @@ function WorkQueueCard({ title, count, items, onItemClick, onViewAll }: WorkQueu
               <div 
                 key={item.id} 
                 onClick={() => onItemClick?.(item.id)}
-                className="flex items-center justify-between p-3 hover:bg-[#F7F8FA] rounded-lg cursor-pointer transition-colors group"
+                className="flex items-center justify-between p-3 hover:bg-muted/50 rounded-lg cursor-pointer transition-colors group"
               >
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-[#0F1720] truncate">{item.name}</p>
-                  <p className="text-xs text-[#6B7280] truncate">{item.subtitle}</p>
+                  <p className="text-sm font-medium text-foreground truncate">{item.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{item.subtitle}</p>
                 </div>
-                <ChevronRight className="h-4 w-4 text-[#6B7280] group-hover:text-[#E11D2E] flex-shrink-0 ml-2" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground group-hover:text-primary flex-shrink-0 ml-2" />
               </div>
             ))}
           </div>
@@ -808,7 +808,7 @@ function WorkQueueCard({ title, count, items, onItemClick, onViewAll }: WorkQueu
         {count > 0 && (
           <button 
             onClick={onViewAll}
-            className="w-full mt-3 text-sm text-[#E11D2E] hover:underline font-medium transition-all"
+            className="w-full mt-3 text-sm text-primary hover:underline font-medium transition-all"
           >
             View all ({count})
           </button>

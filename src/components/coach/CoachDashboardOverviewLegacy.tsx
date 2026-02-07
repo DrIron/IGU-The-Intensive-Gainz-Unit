@@ -828,7 +828,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
   return (
     <div className="space-y-6 w-full max-w-full overflow-hidden px-2 md:px-0">
       <div>
-        <h2 className="text-2xl font-bold" style={{ fontFamily: 'Sora, sans-serif' }}>Coach Dashboard</h2>
+        <h2 className="text-2xl font-bold">Coach Dashboard</h2>
         <p className="text-muted-foreground">Overview of your clients and activities</p>
       </div>
 

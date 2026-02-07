@@ -50,23 +50,24 @@ All colors MUST be HSL.
   }
 
   .dark {
-    --background: 240 10% 3.9%;
-    --foreground: 0 0% 98%;
+    /* Updated dark theme colors for unified design */
+    --background: 240 10% 3.7%;      /* #09090B - deepest black */
+    --foreground: 0 0% 98%;          /* #FAFAFA */
 
-    --card: 240 10% 7%;
+    --card: 240 6% 8.4%;             /* #141418 */
     --card-foreground: 0 0% 98%;
 
-    --popover: 240 10% 7%;
+    --popover: 240 6% 8.4%;
     --popover-foreground: 0 0% 98%;
 
     --primary: 355 78% 56%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 3.7% 15.9%;
+    --secondary: 240 4% 11.8%;       /* #1C1C22 */
     --secondary-foreground: 0 0% 98%;
 
-    --muted: 240 3.7% 15.9%;
-    --muted-foreground: 240 5% 64.9%;
+    --muted: 240 4% 11.8%;           /* #1C1C22 */
+    --muted-foreground: 240 5% 64.9%; /* #A1A1AA */
 
     --accent: 355 78% 56%;
     --accent-foreground: 0 0% 100%;
@@ -74,9 +75,14 @@ All colors MUST be HSL.
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 0 0% 98%;
 
-    --border: 240 3.7% 15.9%;
-    --input: 240 3.7% 15.9%;
+    --border: 240 4% 16.5%;          /* #27272A */
+    --input: 240 4% 16.5%;
     --ring: 355 78% 56%;
+
+    /* Custom extended properties */
+    --border-hover: 240 4% 25%;
+    --text-tertiary: 240 4% 32%;
+    --red-glow: 0 0 30px hsl(355 78% 56% / 0.2);
 
     --gradient-primary: linear-gradient(135deg, hsl(355 78% 56%), hsl(355 78% 66%));
     --gradient-accent: linear-gradient(135deg, hsl(355 78% 56%), hsl(0 0% 98%));
@@ -126,4 +132,42 @@ All colors MUST be HSL.
   .safe-area-bottom-lg {
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2rem);
   }
+}
+
+/* Fade-up scroll animation */
+.fade-up {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+.fade-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Grid background pattern for hero sections */
+.grid-pattern {
+  background-image:
+    linear-gradient(to right, hsl(var(--border) / 0.3) 1px, transparent 1px),
+    linear-gradient(to bottom, hsl(var(--border) / 0.3) 1px, transparent 1px);
+  background-size: 60px 60px;
+}
+
+/* Red radial glow effect */
+.red-glow {
+  position: relative;
+}
+
+.red-glow::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, hsl(355 78% 56% / 0.15) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
 }

@@ -1,15 +1,19 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
 import { Calculator, TrendingUp } from "lucide-react";
 import { StepWizardGoalSetting } from "@/components/calculator/StepWizardGoalSetting";
 import { AdjustmentCalculator } from "@/components/calculator/AdjustmentCalculator";
 import { calculateAge } from "@/lib/dateUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateNutritionGoals } from "@/utils/nutritionCalculations";
+import { useSiteContent } from "@/hooks/useSiteContent";
 
 export default function CalorieCalculator() {
+  const navigate = useNavigate();
   const [weight, setWeight] = useState("");
   const [height, setHeight] = useState("");
   const [dateOfBirth, setDateOfBirth] = useState("");
@@ -37,6 +41,9 @@ export default function CalorieCalculator() {
     projectedWeeks?: number;
     fatPercent?: number;
   } | null>(null);
+
+  // CMS content
+  const { data: cmsContent } = useSiteContent("calorie-calculator");
 
   // Load user data on mount if logged in
   useEffect(() => {
@@ -96,19 +103,21 @@ export default function CalorieCalculator() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen bg-background">
       <Navigation />
-      
+
       <main className="container mx-auto px-4 pt-24 pb-12 max-w-4xl">
         <div className="text-center mb-12">
           <div className="flex justify-center mb-4">
-            <div className="p-3 rounded-full bg-gradient-to-r from-primary to-accent">
-              <Calculator className="h-8 w-8 text-white" />
+            <div className="p-3 rounded-full bg-primary/10 border border-primary/20">
+              <Calculator className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">IGU Precision Calorie & Macro Engine</h1>
+          <h1 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
+            {cmsContent?.hero?.title || "Calorie Calculator"}
+          </h1>
           <p className="text-xl text-muted-foreground">
-            Calculate your daily caloric needs and track weekly progress
+            {cmsContent?.hero?.subtitle || "Estimate your daily calorie needs based on your goals"}
           </p>
         </div>
 
@@ -166,6 +175,19 @@ export default function CalorieCalculator() {
             <AdjustmentCalculator showSteps={false} />
           </TabsContent>
         </Tabs>
+
+        {/* CTA Section */}
+        <div className="mt-16 text-center p-8 rounded-2xl bg-card border border-border">
+          <h2 className="font-display text-3xl md:text-4xl tracking-tight mb-4">
+            {cmsContent?.cta?.title || "Want Personalized Guidance?"}
+          </h2>
+          <p className="text-muted-foreground mb-6 max-w-xl mx-auto">
+            {cmsContent?.cta?.subtitle || "Our coaches can help you dial in your nutrition with weekly adjustments based on real progress."}
+          </p>
+          <Button size="lg" onClick={() => navigate("/services")}>
+            {cmsContent?.cta?.button_text || "View Coaching Programs"}
+          </Button>
+        </div>
       </main>
       <Footer />
     </div>

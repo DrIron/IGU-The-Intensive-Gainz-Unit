@@ -7,11 +7,13 @@ import { Navigation } from "@/components/Navigation";
 import { Footer } from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthNavigation } from "@/hooks/useAuthNavigation";
-import { Dumbbell, Star, ChevronLeft, ChevronRight } from "lucide-react";
+import { Dumbbell, Star, ChevronLeft, ChevronRight, Target, MessageSquare, Apple, TrendingUp, FlaskConical, Calendar } from "lucide-react";
 import gymHeroBg from "@/assets/gym-hero-bg.jpg";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useSiteContent, parseJsonField } from "@/hooks/useSiteContent";
+import { useFadeUp } from "@/hooks/useFadeUp";
 
 interface Service {
   id: string;
@@ -92,6 +94,26 @@ export default function Index() {
     title: "Intensive Gainz Unit | Coaching for Serious Lifters",
     description: "Evidence-based online coaching, team programs, and performance tracking for serious lifters. Built by Dr. Iron.",
   });
+
+  // CMS content
+  const { data: cmsContent, isLoading: cmsLoading } = useSiteContent("homepage");
+
+  // Fade-up animations for sections
+  const heroFade = useFadeUp();
+  const featuresFade = useFadeUp();
+  const programsFade = useFadeUp();
+  const testimonialsFade = useFadeUp();
+  const ctaFade = useFadeUp();
+
+  // Feature icon mapping
+  const featureIcons: Record<string, React.ElementType> = {
+    Target,
+    MessageSquare,
+    Apple,
+    TrendingUp,
+    FlaskConical,
+    Calendar,
+  };
 
   const checkUserAndRedirect = useCallback(async () => {
     try {
@@ -352,42 +374,101 @@ export default function Index() {
       <Navigation user={user} />
 
       {/* Hero Section with CTA */}
-      <section className="relative h-screen flex items-center justify-center overflow-hidden">
-        <div 
+      <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
+        {/* Background Image */}
+        <div
           className="absolute inset-0 bg-cover bg-center"
-          style={{ 
-            backgroundImage: `url(${gymHeroBg})`
-          }}
+          style={{ backgroundImage: `url(${gymHeroBg})` }}
         />
-        <div className="absolute inset-0 bg-gradient-to-b from-transparent to-background/80" />
-        
-        <div className="relative z-10 text-center px-4 max-w-4xl mx-auto">
-          <div className="flex justify-center mb-6">
-            <div className="p-4 rounded-full bg-gradient-to-r from-primary to-accent shadow-lg">
-              <Dumbbell className="h-12 w-12 text-white" />
+        {/* Dark overlay with gradient */}
+        <div className="absolute inset-0 bg-gradient-to-b from-background/90 via-background/70 to-background" />
+        {/* Grid pattern overlay */}
+        <div className="absolute inset-0 grid-pattern opacity-30" />
+        {/* Red radial glow */}
+        <div className="absolute inset-0 red-glow" />
+
+        <div
+          ref={heroFade.ref}
+          className={`relative z-10 text-center px-4 max-w-4xl mx-auto fade-up ${heroFade.isVisible ? 'visible' : ''}`}
+        >
+          {/* Badge */}
+          {cmsContent?.hero?.badge && (
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 border border-primary/20 mb-6">
+              <span className="text-sm font-medium text-primary">{cmsContent.hero.badge}</span>
             </div>
-          </div>
-          <h1 className="text-5xl md:text-7xl font-bold mb-6 text-white" style={{ textShadow: '0 4px 20px rgba(0, 0, 0, 0.8), 0 2px 8px rgba(0, 0, 0, 0.6)' }}>
-            The Intensive Gains Unit
+          )}
+
+          {/* Title */}
+          <h1 className="font-display text-6xl md:text-8xl lg:text-9xl tracking-tight mb-6 text-foreground">
+            <span className="block">{cmsContent?.hero?.title_line1 || "THE INTENSIVE"}</span>
+            <span className="block text-primary">{cmsContent?.hero?.title_line2 || "GAINZ UNIT"}</span>
           </h1>
-          <div className="bg-black/40 backdrop-blur-sm rounded-2xl p-6 mb-8 inline-block">
-            <p className="text-xl md:text-2xl text-white font-medium max-w-2xl" style={{ textShadow: '0 2px 10px rgba(0, 0, 0, 0.8)' }}>
-              Professional bodybuilding coaching tailored to your goals. Choose from team training or personalized 1:1 programs.
-            </p>
-          </div>
-          <div className="flex flex-col items-center gap-2 px-4">
+
+          {/* Subtitle */}
+          <p className="text-xl md:text-2xl text-muted-foreground font-medium max-w-2xl mx-auto mb-10">
+            {cmsContent?.hero?.subtitle || "Professional bodybuilding coaching tailored to your goals. Choose from team training or personalized 1:1 programs."}
+          </p>
+
+          <div className="flex flex-col items-center gap-4 px-4">
             {renderHeroCta()}
           </div>
         </div>
       </section>
 
-      {/* Services Section */}
-      <section id="services" className="py-20 px-4 bg-gradient-to-b from-background to-primary/5">
-        <div className="container mx-auto max-w-7xl">
+      {/* Features Section */}
+      <section className="py-24 px-4 bg-background relative overflow-hidden">
+        <div className="absolute inset-0 grid-pattern opacity-10" />
+        <div
+          ref={featuresFade.ref}
+          className={`container mx-auto max-w-7xl relative z-10 fade-up ${featuresFade.isVisible ? 'visible' : ''}`}
+        >
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">Choose Your Program</h2>
+            <h2 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
+              {cmsContent?.features?.title || "Why Choose IGU?"}
+            </h2>
             <p className="text-xl text-muted-foreground">
-              Select the coaching plan that fits your goals and lifestyle
+              {cmsContent?.features?.subtitle || "Everything you need for serious progress"}
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {[1, 2, 3, 4, 5, 6].map((i) => {
+              const title = cmsContent?.features?.[`feature_${i}_title`];
+              const description = cmsContent?.features?.[`feature_${i}_description`];
+              const iconName = cmsContent?.features?.[`feature_${i}_icon`] || "Target";
+              const IconComponent = featureIcons[iconName] || Target;
+
+              if (!title) return null;
+
+              return (
+                <div
+                  key={i}
+                  className="group p-6 rounded-2xl bg-card border border-border hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5"
+                >
+                  <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
+                    <IconComponent className="h-6 w-6 text-primary" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{title}</h3>
+                  <p className="text-muted-foreground text-sm">{description}</p>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {/* Services Section */}
+      <section id="services" className="py-24 px-4 bg-muted/30">
+        <div
+          ref={programsFade.ref}
+          className={`container mx-auto max-w-7xl fade-up ${programsFade.isVisible ? 'visible' : ''}`}
+        >
+          <div className="text-center mb-16">
+            <h2 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
+              {cmsContent?.programs?.title || "Choose Your Program"}
+            </h2>
+            <p className="text-xl text-muted-foreground">
+              {cmsContent?.programs?.subtitle || "Select the coaching plan that fits your goals and lifestyle"}
             </p>
           </div>
 
@@ -525,12 +606,17 @@ export default function Index() {
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-20 px-4 bg-background">
-        <div className="container mx-auto max-w-6xl">
+      <section className="py-24 px-4 bg-background">
+        <div
+          ref={testimonialsFade.ref}
+          className={`container mx-auto max-w-6xl fade-up ${testimonialsFade.isVisible ? 'visible' : ''}`}
+        >
           <div className="text-center mb-16">
-            <h2 className="text-4xl md:text-5xl font-bold mb-4">What Our Clients Say</h2>
+            <h2 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
+              {cmsContent?.testimonials?.title || "What Our Clients Say"}
+            </h2>
             <p className="text-xl text-muted-foreground">
-              Real results from real people
+              {cmsContent?.testimonials?.subtitle || "Real results from real people"}
             </p>
           </div>
 
@@ -594,6 +680,32 @@ export default function Index() {
               ))
             )}
           </div>
+        </div>
+      </section>
+
+      {/* CTA Section */}
+      <section className="py-24 px-4 bg-gradient-to-b from-background to-primary/5 relative overflow-hidden">
+        <div className="absolute inset-0 red-glow opacity-50" />
+        <div
+          ref={ctaFade.ref}
+          className={`container mx-auto max-w-4xl text-center relative z-10 fade-up ${ctaFade.isVisible ? 'visible' : ''}`}
+        >
+          <h2 className="font-display text-5xl md:text-7xl tracking-tight mb-6">
+            {cmsContent?.cta?.title || "Ready to Transform?"}
+          </h2>
+          <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
+            {cmsContent?.cta?.subtitle || "Join hundreds of athletes who have elevated their training with IGU coaching."}
+          </p>
+          <Button
+            size="lg"
+            className="text-lg px-8 py-6 font-semibold"
+            onClick={() => {
+              const servicesSection = document.getElementById("services");
+              servicesSection?.scrollIntoView({ behavior: "smooth" });
+            }}
+          >
+            {cmsContent?.cta?.button_text || "Start Your Journey"}
+          </Button>
         </div>
       </section>
 

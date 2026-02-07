@@ -9,6 +9,7 @@ import { MapPin } from "lucide-react";
 import { Footer } from "@/components/Footer";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
+import { useSiteContent } from "@/hooks/useSiteContent";
 
 // Public coach profile - no sensitive contact info
 interface Coach {
@@ -36,6 +37,9 @@ export default function MeetOurTeam() {
     title: "Coaching Team | Intensive Gainz Unit",
     description: "Meet the IGU coaching team, their qualifications, and specializations.",
   });
+
+  // CMS content
+  const { data: cmsContent } = useSiteContent("meet-our-team");
 
   useEffect(() => {
     fetchCoaches();
@@ -68,7 +72,7 @@ export default function MeetOurTeam() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center">
+      <div className="min-h-screen bg-background flex items-center justify-center">
         <p className="text-muted-foreground">Loading our team...</p>
       </div>
     );
@@ -79,35 +83,49 @@ export default function MeetOurTeam() {
     setDialogOpen(true);
   };
 
+  // Check if first coach is Dr. Hasan Dashti (the lead)
+  const isLeadCoach = (coach: Coach) => {
+    return coach.first_name.toLowerCase() === "hasan" && coach.last_name.toLowerCase() === "dashti";
+  };
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20">
+    <div className="min-h-screen bg-background">
       <Navigation user={user} />
-      
+
       <div className="container mx-auto px-4 pt-24 pb-16">
         <div className="text-center mb-12">
-          <h1 className="text-4xl font-bold mb-4 bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
-            Meet Our Team
+          <h1 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
+            {cmsContent?.hero?.title || "Meet Our Team"}
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Our experienced coaches are here to help you achieve your fitness goals
+            {cmsContent?.hero?.subtitle || "Expert coaches dedicated to your success"}
           </p>
         </div>
 
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
           {coaches.map((coach) => (
-            <Card 
-              key={coach.id} 
-              className="hover:shadow-lg transition-all cursor-pointer hover:scale-105"
+            <Card
+              key={coach.id}
+              className={`hover:shadow-lg transition-all cursor-pointer hover:scale-[1.02] ${
+                isLeadCoach(coach) ? "border-primary/50 ring-1 ring-primary/20" : ""
+              }`}
               onClick={() => handleCoachClick(coach)}
             >
               <CardHeader>
                 <div className="flex items-start gap-4 mb-2">
-                  <Avatar className="h-16 w-16 border-2 border-primary">
+                  <Avatar className={`h-16 w-16 border-2 ${isLeadCoach(coach) ? "border-primary" : "border-border"}`}>
                     <AvatarImage src={coach.profile_picture_url || undefined} />
-                    <AvatarFallback>{coach.first_name.slice(0, 1).toUpperCase()}{coach.last_name.slice(0, 1).toUpperCase()}</AvatarFallback>
+                    <AvatarFallback className={isLeadCoach(coach) ? "bg-primary/20 text-primary" : ""}>
+                      {coach.first_name.slice(0, 1).toUpperCase()}{coach.last_name.slice(0, 1).toUpperCase()}
+                    </AvatarFallback>
                   </Avatar>
                   <div className="flex-1">
-                    <CardTitle className="text-xl mb-1">{coach.first_name} {coach.last_name}</CardTitle>
+                    <div className="flex items-center gap-2">
+                      <CardTitle className="text-xl">{coach.first_name} {coach.last_name}</CardTitle>
+                      {isLeadCoach(coach) && (
+                        <Badge variant="default" className="text-xs">Lead</Badge>
+                      )}
+                    </div>
                     {coach.location && (
                       <div className="flex items-center text-sm text-muted-foreground">
                         <MapPin className="h-3 w-3 mr-1" />

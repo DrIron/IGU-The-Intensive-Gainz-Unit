@@ -24,6 +24,7 @@ import { AdminRequiresAttention } from "@/components/admin/AdminRequiresAttentio
 import { SubscriptionBreakdown } from "@/components/admin/SubscriptionBreakdown";
 import { CoachWorkloadPanel } from "@/components/admin/CoachWorkloadPanel";
 import { AdminQuickActions } from "@/components/admin/AdminQuickActions";
+import { SiteContentManager } from "@/components/admin/SiteContentManager";
 
 const ADMIN_BUILD_VERSION = "Admin build 2025-12-13T10:30";
 
@@ -103,7 +104,9 @@ export function AdminDashboardLayout({
         return <PHIAccessAuditLog />;
       case "launch-checklist":
         return <LaunchTestChecklist />;
-      
+      case "site-content":
+        return <SiteContentManager />;
+
       // Fallback
       default:
         return <OverviewSection onNavigate={setActiveSection} />;
@@ -182,6 +185,7 @@ const titles: Record<string, string> = {
     security: "Security Checklist",
     "phi-audit": "PHI Access Audit",
     "launch-checklist": "Launch Test Checklist",
+    "site-content": "Site Content",
     "debug-roles": "Roles Debug",
   };
   return titles[section] || "Admin";
@@ -213,6 +217,7 @@ const titles: Record<string, string> = {
     security: "Security configuration and best practices",
     "phi-audit": "HIPAA compliance: Track all access to protected health information",
     "launch-checklist": "Internal QA tool for verifying end-to-end user flows",
+    "site-content": "Manage website content and copywriting",
     "debug-roles": "Debug role bootstrapping and role assignments",
   };
   return titles[section] || "Dashboard";

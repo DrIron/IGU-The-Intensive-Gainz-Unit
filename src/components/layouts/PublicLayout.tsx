@@ -38,9 +38,9 @@ export function PublicLayout({ children, minimal = false }: PublicLayoutProps) {
   if (minimal) {
     return (
       <div className="min-h-screen bg-background">
-        <header className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+        <header className="border-b border-border/50 bg-background/70 backdrop-blur-xl">
           <div className="container flex h-14 items-center justify-center">
-            <Link to="/" className="font-bold text-xl">
+            <Link to="/" className="font-display text-2xl tracking-wide text-foreground hover:text-primary transition-colors">
               IGU
             </Link>
           </div>
@@ -53,10 +53,10 @@ export function PublicLayout({ children, minimal = false }: PublicLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Desktop Navigation */}
-      <header className="sticky top-0 z-50 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/70 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="font-bold text-xl">
+          <Link to="/" className="font-display text-2xl tracking-wide text-foreground hover:text-primary transition-colors">
             IGU
           </Link>
 

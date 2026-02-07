@@ -4697,6 +4697,48 @@ export type Database = {
           },
         ]
       }
+      site_content: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          key: string
+          page: string
+          section: string
+          sort_order: number
+          updated_at: string
+          updated_by: string | null
+          value: string
+          value_type: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key: string
+          page?: string
+          section: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+          value_type?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          page?: string
+          section?: string
+          sort_order?: number
+          updated_at?: string
+          updated_by?: string | null
+          value?: string
+          value_type?: string
+        }
+        Relationships: []
+      }
       specialization_tags: {
         Row: {
           created_at: string

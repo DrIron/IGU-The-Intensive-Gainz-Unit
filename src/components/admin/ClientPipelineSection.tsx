@@ -296,9 +296,9 @@ export function ClientPipelineSection() {
   return (
     <div className="space-y-6">
       {/* Client Pipeline Card */}
-      <Card className="bg-white border-border">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold" style={{ fontFamily: 'Sora, sans-serif' }}>
+          <CardTitle className="text-lg font-semibold">
             Client Pipeline
           </CardTitle>
           <p className="text-sm text-muted-foreground">
@@ -383,9 +383,9 @@ export function ClientPipelineSection() {
       </Card>
 
       {/* Stuck Clients Card */}
-      <Card className="bg-white border-border">
+      <Card className="bg-card border-border">
         <CardHeader className="pb-4">
-          <CardTitle className="text-lg font-semibold flex items-center gap-2" style={{ fontFamily: 'Sora, sans-serif' }}>
+          <CardTitle className="text-lg font-semibold flex items-center gap-2">
             <AlertCircle className="h-5 w-5 text-amber-500" />
             Stuck Clients
           </CardTitle>

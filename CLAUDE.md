@@ -57,7 +57,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── OnboardingGuard.tsx     # Onboarding flow enforcement
 │   │   ├── PermissionGate.tsx      # Feature-level permission checks
 │   │   └── GlobalErrorBoundary.tsx # Error boundary with Sentry
-│   ├── hooks/                # Custom React hooks (incl. useColumnConfig, useProgramCalendar, useExerciseHistory)
+│   ├── hooks/                # Custom React hooks (incl. useColumnConfig, useProgramCalendar, useExerciseHistory, useSiteContent, useFadeUp)
 │   ├── integrations/
 │   │   └── supabase/         # Supabase client and generated types
 │   ├── lib/
@@ -209,6 +209,9 @@ refeed_days            -- Scheduled refeed days with target/actual macros
 step_recommendations   -- Coach/dietitian step targets
 care_team_messages     -- Inter-team communication (client cannot see)
 care_team_assignments  -- Staff specialty assignments to clients
+
+-- CMS (Phase 23)
+site_content           -- CMS-driven content (page, section, key, value, value_type)
 ```
 
 ### 6. Row Level Security (RLS)
@@ -367,6 +370,7 @@ When understanding this codebase, read in this order:
 - Phase 20: Session copy/paste — clipboard-based deep copy of sessions between days, copyWeek V2 field fix (Feb 5, 2026)
 - Phase 21: WorkoutSessionV2 integration — per-set prescriptions, history blocks, rest timer, video thumbnails, client route wired (Feb 5, 2026)
 - Phase 22: Nutrition System Enhancement — dietitian role, step/body-fat tracking, diet breaks, refeed days, care team messages (Feb 7, 2026) ✅
+- Phase 23: Full Site UI/UX Redesign — dark theme, CMS-driven content, new fonts, admin content editor (Feb 7, 2026) ✅
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
@@ -860,6 +864,126 @@ Added dietitian role support, additional tracking tables, and care team communic
 20260207100009_dietitian_policies.sql
 ```
 
+### Phase 23: Full Site UI/UX Redesign (Complete - Feb 7, 2026)
+
+Implemented a unified dark theme across the entire platform with CMS-driven public content and an admin content editor.
+
+**Design System:**
+- **Fonts**: DM Sans (body), Bebas Neue (display/headings), JetBrains Mono (code/prices)
+- **Dark Theme**: Enabled by default via `class="dark"` on `<html>`
+- **Colors**: Updated CSS variables in `.dark` block for consistent dark theme
+
+**Key Color Variables:**
+```css
+.dark {
+  --background: 240 10% 3.7%;       /* #09090B - page background */
+  --card: 240 6% 8.4%;              /* #141418 - card backgrounds */
+  --muted: 240 4% 11.8%;            /* #1C1C22 - muted backgrounds */
+  --border: 240 4% 16.5%;           /* #27272A - borders */
+  --foreground: 0 0% 98%;           /* #FAFAFA - primary text */
+  --muted-foreground: 240 5% 64.9%; /* #A1A1AA - secondary text */
+  /* Primary kept at 355 78% 56% (IGU red) */
+}
+```
+
+**New Database Table: `site_content`**
+```sql
+site_content (
+  id UUID PRIMARY KEY,
+  page TEXT NOT NULL,           -- 'homepage', 'services', 'meet-our-team', 'calorie-calculator'
+  section TEXT NOT NULL,        -- 'hero', 'features', 'programs', 'cta', etc.
+  key TEXT NOT NULL,            -- 'title', 'subtitle', 'button_text', etc.
+  value TEXT NOT NULL,          -- The actual content
+  value_type TEXT NOT NULL,     -- 'text', 'richtext', 'number', 'url', 'json'
+  sort_order INT,
+  is_active BOOLEAN,
+  UNIQUE (page, section, key)
+)
+```
+
+**RLS Policies:**
+- Public read access for active content
+- Admin-only write access via `has_role(auth.uid(), 'admin')`
+
+**New Hooks:**
+| Hook | File | Purpose |
+|------|------|---------|
+| `useSiteContent` | `src/hooks/useSiteContent.ts` | Fetch CMS content by page, returns grouped `{ section: { key: value } }` |
+| `useAllSiteContent` | `src/hooks/useSiteContent.ts` | Fetch all CMS content (for admin editor) |
+| `useFadeUp` | `src/hooks/useFadeUp.ts` | IntersectionObserver hook for scroll-triggered fade animations |
+| `useFadeUpList` | `src/hooks/useFadeUp.ts` | Same but for multiple elements |
+
+**Helper Functions (in useSiteContent.ts):**
+- `getUniquePages(content)` — Extract unique page names from content array
+- `getSectionsForPage(content, page)` — Get sections for a specific page
+- `getItemsForSection(content, page, section)` — Get items for a specific section
+- `parseJsonField(value)` — Parse JSON arrays (for feature lists, etc.)
+- `getNumericValue(value, fallback)` — Parse numbers with fallback
+
+**New Admin Component:**
+| Component | File | Purpose |
+|-----------|------|---------|
+| `SiteContentManager` | `src/components/admin/SiteContentManager.tsx` | Full CMS editor with page tabs, section accordions, field editors |
+
+**SiteContentManager Features:**
+- Page tabs (Homepage, Services, Meet Our Team, Calorie Calculator)
+- Section accordions per page (Hero, Features, Programs, CTA, etc.)
+- Field editors: text input, textarea (long text), number input
+- JSON array editor for list fields (renders as editable items, not raw JSON)
+- Per-field save with dirty tracking
+- Toast notifications on save
+- "View Live" button to open page in new tab
+- "Refresh" button to reload content
+
+**CSS Additions (in index.css):**
+```css
+/* Fade-up scroll animation */
+.fade-up {
+  opacity: 0;
+  transform: translateY(20px);
+  transition: all 0.6s cubic-bezier(0.23, 1, 0.32, 1);
+}
+.fade-up.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Grid pattern background */
+.grid-pattern { ... }
+
+/* Red glow effect */
+.red-glow { ... }
+```
+
+**Files Modified:**
+| File | Changes |
+|------|---------|
+| `index.html` | Added `class="dark"`, Google Fonts links |
+| `tailwind.config.ts` | Added fontFamily (sans, display, mono) |
+| `src/index.css` | Updated `.dark` variables, added fade-up, grid-pattern, red-glow |
+| `src/components/Footer.tsx` | Fixed routes: /team → /meet-our-team, /calculator → /calorie-calculator |
+| `src/components/layouts/PublicLayout.tsx` | Dark glass-morphic nav, font-display on logo |
+| `src/pages/Index.tsx` | CMS integration, Features section, fade animations |
+| `src/pages/Services.tsx` | Dark theme, CMS section headers |
+| `src/pages/MeetOurTeam.tsx` | Dark theme, lead coach highlight |
+| `src/pages/CalorieCalculator.tsx` | Dark theme, CMS content |
+| `src/lib/routeConfig.ts` | Added admin-site-content route |
+| `src/pages/admin/AdminDashboard.tsx` | Added site-content to SECTION_MAP |
+| `src/components/admin/AdminDashboardLayout.tsx` | Added SiteContentManager case |
+| `src/components/admin/RefinedAdminDashboard.tsx` | Removed hardcoded colors, Sora font refs |
+
+**Migrations Applied:**
+```
+20260207200000_create_site_content.sql    -- Table + RLS
+20260207200001_seed_site_content.sql      -- Homepage, services, team, calculator content
+```
+
+**Pricing Source of Truth (KWD):**
+- Team: 12 KWD
+- 1:1 Online: 50 KWD
+- Hybrid: 175 KWD
+- In-Person: 250 KWD
+
 ### Admin QA Results (Feb 3, 2026)
 
 10 known issues found across admin dashboard pages (updated Feb 5):
@@ -955,6 +1079,7 @@ When asking for help:
 - Column header drag-to-reorder — direct header dragging with category separation ✅ (Feb 5, 2026)
 - Session copy/paste — clipboard-based deep copy of sessions between days, copyWeek V2 fix ✅ (Feb 5, 2026)
 - WorkoutSessionV2 — per-set prescriptions, history, rest timer, video thumbnails, client route wired ✅ (Feb 5, 2026)
+- Full Site UI/UX Redesign — dark theme, CMS-driven content, fonts, admin content editor ✅ (Feb 7, 2026)
 
 **In Progress**:
 - Client onboarding & dashboard QA (next session)

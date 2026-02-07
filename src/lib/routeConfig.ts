@@ -17,7 +17,7 @@
 import { LucideIcon, LayoutDashboard, Users, UserCog, Shield, ShieldCheck,
   Library, Tag, Activity, CreditCard, Wallet, ClipboardCheck, Bug,
   Stethoscope, CalendarDays, BookOpen, UsersRound, Dumbbell, Apple,
-  User, Video, Calendar, History, Home, MessageSquare } from "lucide-react";
+  User, Video, Calendar, History, Home, MessageSquare, FileText } from "lucide-react";
 import { Role, getDashboardForRole, isRouteBlocked } from "@/auth/roles";
 
 // Re-export Role as AppRole for backward compatibility
@@ -88,6 +88,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "admin-exercises", path: "/admin/exercises", label: "Content Library", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Library, navOrder: 8 },
   { id: "admin-system-health", path: "/admin/system-health", label: "System Health", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Activity, navOrder: 9 },
   { id: "admin-testimonials", path: "/admin/testimonials", label: "Testimonials", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: MessageSquare, navOrder: 10 },
+  { id: "admin-site-content", path: "/admin/site-content", label: "Site Content", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: FileText, navOrder: 11 },
   // Developer-only pages - accessible via URL but hidden from nav
   { id: "admin-pre-launch", path: "/admin/pre-launch", label: "Pre-Launch Check", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: Shield, navOrder: 20 },
   { id: "admin-security", path: "/admin/security", label: "Security Checklist", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: ShieldCheck, navOrder: 21 },

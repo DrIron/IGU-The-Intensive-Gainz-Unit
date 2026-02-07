@@ -9,6 +9,7 @@ import { Sparkles } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { useSiteContent } from "@/hooks/useSiteContent";
 
 interface Service {
   id: string;
@@ -32,6 +33,9 @@ export default function Services() {
     title: "Coaching Services | Intensive Gainz Unit",
     description: "Browse 1:1 coaching and team programs, including online coaching and Fe Squad.",
   });
+
+  // CMS content
+  const { data: cmsContent } = useSiteContent("services");
 
   const loadTeamPlanSettings = useCallback(async () => {
     try {
@@ -140,19 +144,21 @@ export default function Services() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen bg-background">
       <Navigation user={user} />
-      
+
       <main className="container mx-auto px-4 pt-24 pb-12 max-w-7xl">
         <div className="text-center mb-16">
           <div className="flex justify-center mb-4">
-            <div className="p-3 rounded-full bg-gradient-to-r from-primary to-accent">
-              <Sparkles className="h-8 w-8 text-white" />
+            <div className="p-3 rounded-full bg-primary/10 border border-primary/20">
+              <Sparkles className="h-8 w-8 text-primary" />
             </div>
           </div>
-          <h1 className="text-4xl md:text-5xl font-bold mb-4">Our Services</h1>
+          <h1 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
+            {cmsContent?.hero?.title || "Our Coaching Programs"}
+          </h1>
           <p className="text-xl text-muted-foreground max-w-2xl mx-auto">
-            Professional bodybuilding coaching programs designed to help you reach your fitness goals
+            {cmsContent?.hero?.subtitle || "Find the perfect program for your fitness journey"}
           </p>
         </div>
 
@@ -165,9 +171,11 @@ export default function Services() {
             {/* Team Plans */}
             {teamPlansOpen && (
               <div className="mb-16">
-                <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">Team Training</h2>
+                <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-4 text-center">
+                  {cmsContent?.team?.title || "Team Training"}
+                </h2>
                 <p className="text-center text-muted-foreground mb-8 max-w-2xl mx-auto">
-                  Train with a group of like-minded individuals and get expert coaching at an affordable price
+                  {cmsContent?.team?.subtitle || "Train with a community of dedicated athletes"}
                 </p>
                 {isMobile ? (
                   <Carousel className="w-full max-w-sm mx-auto">
@@ -212,9 +220,11 @@ export default function Services() {
 
             {/* 1:1 Plans */}
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-8 text-center">1:1 Coaching</h2>
+              <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-4 text-center">
+                {cmsContent?.individual?.title || "1:1 Coaching"}
+              </h2>
               <p className="text-center text-muted-foreground mb-8 max-w-2xl mx-auto">
-                Get personalized attention with custom training and nutrition plans tailored to your specific needs
+                {cmsContent?.individual?.subtitle || "Personalized attention for maximum results"}
               </p>
               {isMobile ? (
                 <Carousel className="w-full max-w-sm mx-auto">

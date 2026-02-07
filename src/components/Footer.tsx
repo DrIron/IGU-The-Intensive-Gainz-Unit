@@ -30,17 +30,17 @@ export function Footer() {
                   </Link>
                 </li>
                 <li>
-                  <Link to="/team" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Link to="/meet-our-team" className="text-muted-foreground hover:text-foreground transition-colors">
                     Meet Our Team
                   </Link>
                 </li>
                 <li>
-                  <Link to="/calculator" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Link to="/calorie-calculator" className="text-muted-foreground hover:text-foreground transition-colors">
                     Calorie Calculator
                   </Link>
                 </li>
                 <li>
-                  <Link to="/testimonials" className="text-muted-foreground hover:text-foreground transition-colors">
+                  <Link to="/testimonial" className="text-muted-foreground hover:text-foreground transition-colors">
                     Client Success Stories
                   </Link>
                 </li>
