@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import { WhatsAppButton } from "@/components/marketing/WhatsAppButton";
 
 interface PublicLayoutProps {
   children: ReactNode;
@@ -130,6 +131,9 @@ export function PublicLayout({ children, minimal = false }: PublicLayoutProps) {
 
       {/* Main Content */}
       <main>{children}</main>
+
+      {/* WhatsApp Floating Button */}
+      <WhatsAppButton />
 
       {/* Footer */}
       <footer className="border-t py-8 mt-auto">

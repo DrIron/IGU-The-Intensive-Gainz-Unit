@@ -58,10 +58,16 @@ import MedicalReview from "./pages/onboarding/MedicalReview";
 import AwaitingApproval from "./pages/onboarding/AwaitingApproval";
 import PaymentOnboarding from "./pages/onboarding/Payment";
 import { OnboardingGuard } from "@/components/OnboardingGuard";
+import { captureUTMParams } from "@/lib/utm";
+import { useEffect } from "react";
 
 const queryClient = new QueryClient();
 
 const App = () => {
+  // Capture UTM parameters on app mount for lead tracking
+  useEffect(() => {
+    captureUTMParams();
+  }, []);
   return (
     <GlobalErrorBoundary>
       <QueryClientProvider client={queryClient}>

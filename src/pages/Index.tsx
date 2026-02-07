@@ -14,6 +14,8 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useSiteContent, parseJsonField } from "@/hooks/useSiteContent";
 import { useFadeUp } from "@/hooks/useFadeUp";
+import { FAQSection } from "@/components/marketing/FAQSection";
+import { HowItWorksSection } from "@/components/marketing/HowItWorksSection";
 
 interface Service {
   id: string;
@@ -158,6 +160,7 @@ export default function Index() {
     checkUserAndRedirect();
     loadTeamPlanSettings();
     loadTestimonials();
+    loadServices(); // Load services for all users (pricing is public)
 
     return () => clearTimeout(timeout);
   }, [checkUserAndRedirect]);
@@ -457,6 +460,9 @@ export default function Index() {
         </div>
       </section>
 
+      {/* How It Works Section */}
+      <HowItWorksSection />
+
       {/* Services Section */}
       <section id="services" className="py-24 px-4 bg-muted/30">
         <div
@@ -475,24 +481,6 @@ export default function Index() {
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-pulse text-lg text-muted-foreground">Loading programs...</div>
-            </div>
-          ) : !user ? (
-            /* Unauthenticated users see a CTA to sign in */
-            <div className="text-center py-12 max-w-xl mx-auto">
-              <div className="bg-card border rounded-2xl p-8 shadow-lg">
-                <Dumbbell className="h-12 w-12 mx-auto mb-4 text-primary" />
-                <h3 className="text-2xl font-bold mb-3">View Our Programs</h3>
-                <p className="text-muted-foreground mb-6">
-                  Sign in or create an account to see our coaching programs and pricing.
-                </p>
-                <Button 
-                  size="lg" 
-                  onClick={() => navigate("/auth?redirect=/services")}
-                  className="w-full sm:w-auto"
-                >
-                  Sign In to View Pricing
-                </Button>
-              </div>
             </div>
           ) : (
             <>
@@ -682,6 +670,9 @@ export default function Index() {
           </div>
         </div>
       </section>
+
+      {/* FAQ Section */}
+      <FAQSection />
 
       {/* CTA Section */}
       <section className="py-24 px-4 bg-gradient-to-b from-background to-primary/5 relative overflow-hidden">

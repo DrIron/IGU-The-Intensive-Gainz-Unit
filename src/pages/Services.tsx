@@ -10,6 +10,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useSiteContent } from "@/hooks/useSiteContent";
+import { ComparisonTable } from "@/components/marketing/ComparisonTable";
 
 interface Service {
   id: string;
@@ -76,20 +77,9 @@ export default function Services() {
   const checkUserAndLoadData = useCallback(async () => {
     const { data: { user: currentUser } } = await supabase.auth.getUser();
     setUser(currentUser);
-
-    if (!currentUser) {
-      // Redirect unauthenticated users to login
-      toast({
-        title: "Authentication required",
-        description: "Please sign in to view our services and pricing.",
-      });
-      navigate("/auth?redirect=/services");
-      return;
-    }
-
-    // User is authenticated, load services
+    // Always load services (pricing is public for all users)
     await loadServices();
-  }, [navigate, toast, loadServices]);
+  }, [loadServices]);
 
   useEffect(() => {
     checkUserAndLoadData();
@@ -264,6 +254,19 @@ export default function Services() {
                     ))}
                 </div>
               )}
+            </div>
+
+            {/* Comparison Table */}
+            <div className="mt-20">
+              <h2 className="font-display text-4xl md:text-5xl tracking-tight mb-4 text-center">
+                Compare Plans
+              </h2>
+              <p className="text-center text-muted-foreground mb-8 max-w-2xl mx-auto">
+                See what's included in each program
+              </p>
+              <div className="bg-card border border-border rounded-2xl p-6">
+                <ComparisonTable />
+              </div>
             </div>
           </>
         )}

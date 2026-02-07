@@ -1,11 +1,23 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Star, Check, X, Archive } from "lucide-react";
+import { Search, Star, Check, X, Archive, TrendingDown, TrendingUp, Clock, Target } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+
+// Timeout wrapper to prevent infinite hangs on RPC calls
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error(`Request timed out after ${ms}ms`)), ms)
+    ),
+  ]);
+}
 
 interface Testimonial {
   id: string;
@@ -16,6 +28,9 @@ interface Testimonial {
   is_approved: boolean;
   is_archived: boolean;
   created_at: string;
+  weight_change_kg: number | null;
+  duration_weeks: number | null;
+  goal_type: string | null;
   profiles?: {
     full_name: string;
     email: string;
@@ -26,12 +41,22 @@ interface Testimonial {
   };
 }
 
+const GOAL_TYPES = [
+  { value: "fat_loss", label: "Fat Loss" },
+  { value: "muscle_gain", label: "Muscle Gain" },
+  { value: "strength", label: "Strength" },
+  { value: "performance", label: "Performance" },
+  { value: "recomp", label: "Body Recomposition" },
+  { value: "general_health", label: "General Health" },
+];
+
 export default function TestimonialsManager() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const [filteredTestimonials, setFilteredTestimonials] = useState<Testimonial[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const hasFetched = useRef(false);
 
   const loadTestimonials = useCallback(async () => {
     setLoading(true);
@@ -43,13 +68,19 @@ export default function TestimonialsManager() {
 
       if (error) throw error;
 
-      // Fetch related data separately
+      // Fetch related data separately with timeout protection
       // Admin: use profiles_public + admin RPC for private data
       const testimonialsWithDetails = await Promise.all(
         (data || []).map(async (testimonial) => {
           const [{ data: pub }, { data: priv }] = await Promise.all([
-            supabase.from("profiles_public").select("display_name, first_name").eq("id", testimonial.user_id).maybeSingle(),
-            supabase.rpc('admin_get_profile_private', { p_user_id: testimonial.user_id })
+            withTimeout(
+              supabase.from("profiles_public").select("display_name, first_name").eq("id", testimonial.user_id).maybeSingle(),
+              5000
+            ),
+            withTimeout(
+              supabase.rpc('admin_get_profile_private', { p_user_id: testimonial.user_id }),
+              5000
+            ).catch(() => ({ data: null })) // Gracefully handle timeout
           ]);
 
           const profile = {
@@ -59,11 +90,14 @@ export default function TestimonialsManager() {
 
           let coach = null;
           if (testimonial.coach_id) {
-            const { data: coachData } = await supabase
-              .from("coaches")
-              .select("first_name, last_name")
-              .eq("user_id", testimonial.coach_id)
-              .maybeSingle();
+            const { data: coachData } = await withTimeout(
+              supabase
+                .from("coaches")
+                .select("first_name, last_name")
+                .eq("user_id", testimonial.coach_id)
+                .maybeSingle(),
+              5000
+            ).catch(() => ({ data: null }));
             coach = coachData;
           }
 
@@ -112,6 +146,8 @@ export default function TestimonialsManager() {
   }, [searchQuery, testimonials]);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     loadTestimonials();
   }, [loadTestimonials]);
 
@@ -165,6 +201,41 @@ export default function TestimonialsManager() {
       toast({
         title: "Success",
         description: `Testimonial ${!currentStatus ? "archived" : "unarchived"} successfully`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error updating testimonial",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleStatsUpdate = async (
+    testimonialId: string,
+    field: "weight_change_kg" | "duration_weeks" | "goal_type",
+    value: string | number | null
+  ) => {
+    try {
+      const updateData: Record<string, any> = {};
+      updateData[field] = value;
+
+      const { error } = await supabase
+        .from("testimonials")
+        .update(updateData)
+        .eq("id", testimonialId);
+
+      if (error) throw error;
+
+      setTestimonials((prev) =>
+        prev.map((t) =>
+          t.id === testimonialId ? { ...t, [field]: value } : t
+        )
+      );
+
+      toast({
+        title: "Success",
+        description: "Stats updated successfully",
       });
     } catch (error: any) {
       toast({
@@ -266,6 +337,35 @@ export default function TestimonialsManager() {
                       {/* Feedback */}
                       <p className="text-foreground italic">&quot;{testimonial.feedback}&quot;</p>
 
+                      {/* Stats Badges */}
+                      {(testimonial.weight_change_kg || testimonial.duration_weeks || testimonial.goal_type) && (
+                        <div className="flex flex-wrap gap-2">
+                          {testimonial.weight_change_kg !== null && (
+                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-primary/10 text-primary text-xs font-medium">
+                              {testimonial.weight_change_kg > 0 ? (
+                                <TrendingUp className="h-3 w-3" />
+                              ) : (
+                                <TrendingDown className="h-3 w-3" />
+                              )}
+                              {testimonial.weight_change_kg > 0 ? "+" : ""}
+                              {testimonial.weight_change_kg} kg
+                            </div>
+                          )}
+                          {testimonial.duration_weeks !== null && (
+                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-blue-500/10 text-blue-600 text-xs font-medium">
+                              <Clock className="h-3 w-3" />
+                              {testimonial.duration_weeks} weeks
+                            </div>
+                          )}
+                          {testimonial.goal_type && (
+                            <div className="inline-flex items-center gap-1 px-2 py-1 rounded-full bg-purple-500/10 text-purple-600 text-xs font-medium">
+                              <Target className="h-3 w-3" />
+                              {GOAL_TYPES.find(g => g.value === testimonial.goal_type)?.label || testimonial.goal_type}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
                       {/* User Info */}
                       <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
                         <div>
@@ -285,6 +385,55 @@ export default function TestimonialsManager() {
                         <div>
                           <span className="font-medium">Submitted:</span>{" "}
                           {new Date(testimonial.created_at).toLocaleDateString()}
+                        </div>
+                      </div>
+
+                      {/* Stats Editing */}
+                      <div className="pt-3 border-t border-border/50 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Weight Change (kg)</Label>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            placeholder="e.g., -5.5"
+                            value={testimonial.weight_change_kg ?? ""}
+                            onChange={(e) => {
+                              const value = e.target.value ? parseFloat(e.target.value) : null;
+                              handleStatsUpdate(testimonial.id, "weight_change_kg", value);
+                            }}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Duration (weeks)</Label>
+                          <Input
+                            type="number"
+                            placeholder="e.g., 12"
+                            value={testimonial.duration_weeks ?? ""}
+                            onChange={(e) => {
+                              const value = e.target.value ? parseInt(e.target.value) : null;
+                              handleStatsUpdate(testimonial.id, "duration_weeks", value);
+                            }}
+                            className="h-8 text-sm"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Goal Type</Label>
+                          <Select
+                            value={testimonial.goal_type || ""}
+                            onValueChange={(value) => handleStatsUpdate(testimonial.id, "goal_type", value || null)}
+                          >
+                            <SelectTrigger className="h-8 text-sm">
+                              <SelectValue placeholder="Select goal" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {GOAL_TYPES.map((goal) => (
+                                <SelectItem key={goal.value} value={goal.value}>
+                                  {goal.label}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </div>
                       </div>
                     </div>

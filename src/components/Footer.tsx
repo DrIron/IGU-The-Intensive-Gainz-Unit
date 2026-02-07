@@ -1,11 +1,59 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Instagram, Youtube, Music2 } from "lucide-react";
+import { Instagram, Youtube, Music2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { CoachApplicationForm } from "@/components/CoachApplicationForm";
+import { supabase } from "@/integrations/supabase/client";
+import { getUTMParams } from "@/lib/utm";
+import { useToast } from "@/hooks/use-toast";
 
 export function Footer() {
   const [showCoachApplication, setShowCoachApplication] = useState(false);
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterLoading, setNewsletterLoading] = useState(false);
+  const { toast } = useToast();
+
+  const handleNewsletterSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newsletterEmail.trim()) return;
+
+    setNewsletterLoading(true);
+    try {
+      const utmParams = getUTMParams();
+      const { error } = await supabase.from("leads").insert({
+        email: newsletterEmail.trim().toLowerCase(),
+        source: "newsletter",
+        ...utmParams,
+      });
+
+      if (error) {
+        if (error.code === "23505") {
+          // Duplicate email
+          toast({
+            title: "Already subscribed",
+            description: "This email is already on our newsletter list.",
+          });
+        } else {
+          throw error;
+        }
+      } else {
+        toast({
+          title: "Subscribed!",
+          description: "Thanks for signing up. You'll hear from us soon!",
+        });
+        setNewsletterEmail("");
+      }
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: "Failed to subscribe. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setNewsletterLoading(false);
+    }
+  };
 
   return (
     <>
@@ -107,9 +155,26 @@ export function Footer() {
               </Button>
               
               <div className="pt-4 border-t">
-                <p className="text-sm text-muted-foreground">
-                  Newsletter coming soon! Stay tuned for updates.
+                <p className="text-sm text-muted-foreground mb-2">
+                  Get training tips & updates:
                 </p>
+                <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="Your email"
+                    value={newsletterEmail}
+                    onChange={(e) => setNewsletterEmail(e.target.value)}
+                    className="flex-1"
+                    required
+                  />
+                  <Button type="submit" size="sm" disabled={newsletterLoading}>
+                    {newsletterLoading ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      "Subscribe"
+                    )}
+                  </Button>
+                </form>
               </div>
             </div>
           </div>
