@@ -80,7 +80,7 @@ const App = () => {
             <RoutesDebugPanel show={!window.location.hostname.includes('theigu.com')} />
             <div className="min-h-screen">
               <Routes>
-                <Route path="/" element={<Index />} />
+                <Route path="/" element={<PublicLayout><Index /></PublicLayout>} />
                 <Route path="/auth" element={<PublicLayout minimal><Auth /></PublicLayout>} />
                 <Route path="/email-confirmed" element={<PublicLayout minimal><EmailConfirmed /></PublicLayout>} />
                 <Route path="/services" element={<PublicLayout><Services /></PublicLayout>} />

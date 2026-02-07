@@ -1205,7 +1205,7 @@ SQL function `generate_referral_code(first_name)`:
 - React useEffect with useCallback dependencies can cause infinite loops — always use `hasFetched` ref guards for data fetching
 - `coaches_public` is a VIEW (not a table) — auto-populated from coaches table, cannot INSERT directly
 - Edge functions calling other edge functions must use `--no-verify-jwt` on the called function
-- **PublicLayout already renders `<Navigation />` and `<Footer />`** — pages wrapped in `PublicLayout` (via App.tsx routes) must NOT import or render their own `<Navigation />` or `<Footer />`. Doing so causes double nav bars and double footers. Check App.tsx to see which routes use PublicLayout before adding nav/footer to a page component.
+- **All public-facing pages MUST be wrapped in `<PublicLayout>` in App.tsx** — this provides the consistent "IGU" navbar and footer. Never render a public page without PublicLayout, and never add `<Navigation />` or `<Footer />` inside a page component that is already wrapped in PublicLayout (causes duplicates). When creating a new public route, wrap it: `<Route path="/foo" element={<PublicLayout><Foo /></PublicLayout>} />`. When editing a page, check App.tsx first to see if it's already wrapped.
 
 ---
 

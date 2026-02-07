@@ -3,8 +3,6 @@ import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { ServiceCard } from "@/components/ServiceCard";
-import { Navigation } from "@/components/Navigation";
-import { Footer } from "@/components/Footer";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthNavigation } from "@/hooks/useAuthNavigation";
 import { Dumbbell, Star, ChevronLeft, ChevronRight, Target, MessageSquare, Apple, TrendingUp, FlaskConical, Calendar } from "lucide-react";
@@ -374,8 +372,6 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation user={user} />
-
       {/* Hero Section with CTA */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         {/* Background Image */}
@@ -700,7 +696,6 @@ export default function Index() {
         </div>
       </section>
 
-      <Footer />
     </div>
   );
 }
