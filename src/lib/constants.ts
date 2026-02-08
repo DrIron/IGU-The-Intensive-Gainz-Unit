@@ -13,8 +13,8 @@ export const CACHE_KEYS = {
 
 // Timeouts (in milliseconds)
 export const TIMEOUTS = {
-  GET_SESSION: 2000,        // Max wait for getSession() call
-  ROLES_QUERY: 5000,        // Max wait for user_roles query
+  GET_SESSION: 5000,         // Max wait for getSession() call
+  ROLES_QUERY: 10000,        // Max wait for user_roles query (includes getSession time)
   CACHE_TTL: 1000 * 60 * 60 * 24, // 24 hours - roles rarely change, verify in background
   AUTH_REDIRECT_DELAY: 500, // Delay before auth-related redirects
 } as const;

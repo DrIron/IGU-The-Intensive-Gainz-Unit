@@ -35,6 +35,7 @@ type AuthState = 'loading' | 'authorized' | 'unauthorized' | 'no-session';
 
 /**
  * Query user roles from database with timeout
+ * Uses RPC function (SECURITY DEFINER) for reliability, with direct query fallback
  */
 async function fetchUserRoles(userId: string): Promise<string[]> {
   return new Promise((resolve) => {
@@ -43,21 +44,33 @@ async function fetchUserRoles(userId: string): Promise<string[]> {
       resolve([]);
     }, TIMEOUTS.ROLES_QUERY);
 
-    supabase
-      .from('user_roles')
-      .select('role')
-      .eq('user_id', userId)
+    // Use RPC function - bypasses RLS, more reliable
+    supabase.rpc('get_my_roles')
       .then(({ data, error }) => {
         clearTimeout(timeoutId);
 
         if (error) {
-          console.error('[RoleProtectedRoute] Roles query error:', error);
-          resolve([]);
-          return;
+          console.error('[RoleProtectedRoute] RPC get_my_roles error:', error);
+          // Fallback to direct query
+          return supabase
+            .from('user_roles')
+            .select('role')
+            .eq('user_id', userId)
+            .then(({ data: fallbackData, error: fallbackError }) => {
+              if (fallbackError) {
+                console.error('[RoleProtectedRoute] Fallback query error:', fallbackError);
+                resolve([]);
+                return;
+              }
+              const roles = fallbackData?.map(r => r.role) || [];
+              console.log('[RoleProtectedRoute] Roles from fallback:', roles);
+              resolve(roles);
+            });
         }
 
-        const roles = data?.map(r => r.role) || [];
-        console.log('[RoleProtectedRoute] Roles fetched from DB:', roles);
+        // RPC returns text[] directly
+        const roles = (data as string[]) || [];
+        console.log('[RoleProtectedRoute] Roles from RPC:', roles);
         resolve(roles);
       })
       .catch((error) => {
