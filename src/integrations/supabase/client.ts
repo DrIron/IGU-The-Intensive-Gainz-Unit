@@ -9,72 +9,38 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const PROJECT_REF = SUPABASE_URL?.match(/https:\/\/([^.]+)\./)?.[1] || 'ghotrbotrywonaejlppg';
 const STORAGE_KEY = `sb-${PROJECT_REF}-auth-token`;
 
-// Maximum time to wait for the Navigator LockManager lock before proceeding without it.
-// The Supabase auth client uses acquireTimeout = -1 (wait forever) for internal operations
-// like getSession() and token refresh. If the lock hangs (slow localStorage, failed refresh),
-// ALL .from() and .rpc() queries queue behind it indefinitely. This timeout converts the
-// infinite wait into a bounded one — worst case a concurrent refresh (idempotent on server).
-const LOCK_TIMEOUT_MS = 5000;
+// Maximum time before we unblock operations waiting on auth initialization.
+//
+// Root cause: Supabase's GoTrueClient has a deadlock-prone initialization flow:
+//   1. initialize() → _recoverAndRefresh() → _notifyAllSubscribers('SIGNED_IN')
+//   2. _notifyAllSubscribers AWAITS all onAuthStateChange listener callbacks
+//   3. If ANY listener calls getSession(), it does `await initializePromise`
+//   4. initializePromise is waiting for step 1 to finish → circular deadlock
+//
+// This timeout breaks the deadlock by ensuring initializePromise resolves
+// within INIT_TIMEOUT_MS, even if the initialization is stuck.
+const INIT_TIMEOUT_MS = 5000;
 
 /**
- * Custom lock function that prevents the Supabase auth client from hanging forever.
+ * Custom lock function that bypasses Navigator LockManager entirely.
  *
- * The default navigatorLock implementation uses acquireTimeout = -1 for internal
- * operations, which means "wait forever." If the lock is never released (e.g. token
- * refresh hangs), every .from()/.rpc() call in the entire app hangs too.
+ * Navigator LockManager is meant for cross-tab coordination, but it causes
+ * deadlocks with Supabase's GoTrueClient because:
+ * - The init function holds the lock while awaiting _notifyAllSubscribers
+ * - Subscribers that call getSession() wait on initializePromise
+ * - initializePromise waits for the init function → circular deadlock
+ * - The lock is never released, blocking ALL subsequent operations
  *
- * This wrapper:
- * - Converts acquireTimeout < 0 → LOCK_TIMEOUT_MS (finite timeout)
- * - Keeps acquireTimeout === 0 behavior (ifAvailable for auto-refresh tick)
- * - Keeps acquireTimeout > 0 as-is
- * - On timeout (AbortError): warns and runs fn() without the lock
- * - Falls back to running fn() directly if navigator.locks is unavailable
+ * By running fn() directly without a navigator lock, we trade cross-tab
+ * token refresh coordination for app reliability. The worst case is a
+ * concurrent token refresh across tabs, which is idempotent on the server.
  */
 async function lockWithTimeout<R>(
-  name: string,
-  acquireTimeout: number,
+  _name: string,
+  _acquireTimeout: number,
   fn: () => Promise<R>
 ): Promise<R> {
-  if (typeof navigator === 'undefined' || !navigator.locks) {
-    return await fn();
-  }
-
-  const timeout = acquireTimeout < 0 ? LOCK_TIMEOUT_MS : acquireTimeout;
-  const abortController = new AbortController();
-
-  let timeoutId: ReturnType<typeof setTimeout> | undefined;
-  if (timeout > 0) {
-    timeoutId = setTimeout(() => abortController.abort(), timeout);
-  }
-
-  try {
-    return await navigator.locks.request(
-      name,
-      timeout === 0
-        ? { mode: 'exclusive' as const, ifAvailable: true }
-        : { mode: 'exclusive' as const, signal: abortController.signal },
-      async (lock) => {
-        if (timeoutId) clearTimeout(timeoutId);
-
-        if (lock) {
-          return await fn();
-        }
-
-        // acquireTimeout === 0 and lock not immediately available
-        throw new Error(`Lock "${name}" not immediately available`);
-      }
-    );
-  } catch (err: unknown) {
-    if (timeoutId) clearTimeout(timeoutId);
-
-    // AbortError means our timeout fired — run fn() without the lock
-    if (err instanceof DOMException && err.name === 'AbortError') {
-      console.warn(`[Supabase Lock] Timed out waiting for lock "${name}" after ${timeout}ms — proceeding without lock`);
-      return await fn();
-    }
-
-    throw err;
-  }
+  return await fn();
 }
 
 // Import the supabase client like this:
@@ -89,6 +55,40 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     lock: lockWithTimeout,
   }
 });
+
+/**
+ * Break the initializePromise deadlock.
+ *
+ * GoTrueClient.getSession() and all data queries internally do:
+ *   await this.initializePromise
+ * before proceeding. If initialization deadlocks (see INIT_TIMEOUT_MS comment),
+ * every .from()/.rpc()/.getSession() call hangs forever.
+ *
+ * This patch races initializePromise against a timeout so that even if init
+ * is deadlocked, the rest of the app unblocks. The session will still be
+ * readable from localStorage — queries will attach the access token and work.
+ */
+const auth = supabase.auth as unknown as {
+  initializePromise?: Promise<unknown>;
+  lockAcquired?: boolean;
+  pendingInLock?: Promise<unknown>[];
+};
+if (auth.initializePromise) {
+  const original = auth.initializePromise;
+  auth.initializePromise = Promise.race([
+    original,
+    new Promise((resolve) =>
+      setTimeout(() => {
+        console.warn(`[Supabase Client] initializePromise timed out after ${INIT_TIMEOUT_MS}ms — unblocking`);
+        // Reset internal lock state so subsequent _acquireLock calls don't
+        // chain onto the deadlocked pendingInLock queue.
+        auth.lockAcquired = false;
+        auth.pendingInLock = [];
+        resolve({ error: null });
+      }, INIT_TIMEOUT_MS)
+    ),
+  ]);
+}
 
 /**
  * Session initialization promise.
@@ -123,8 +123,7 @@ supabase.auth.getSession().then(({ data, error }) => {
   _sessionReadyResolve();
 });
 
-// Safety timeout — if getSession hangs (known issue), resolve after 5s
-// Now mostly redundant with lockWithTimeout but kept as defense-in-depth
+// Safety timeout — if getSession hangs (known issue), resolve after timeout
 setTimeout(() => {
   _sessionReadyResolve();
-}, 5000);
+}, INIT_TIMEOUT_MS);
