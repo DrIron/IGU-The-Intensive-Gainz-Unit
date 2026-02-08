@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
+import { EMAIL_FROM } from '../_shared/config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -64,7 +65,7 @@ Deno.serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          from: 'Dr Iron <noreply@mail.theigu.com>',
+          from: EMAIL_FROM,
           to: [contactInfo.email],
           subject: 'New Client Assigned',
           html: `
@@ -92,7 +93,7 @@ Deno.serve(async (req) => {
               
               <p style="color: #666; font-size: 16px; line-height: 1.5;">
                 Best regards,<br>
-                <strong>Dr. Iron Fitness Team</strong>
+                <strong>The IGU Team</strong>
               </p>
             </div>
           `,

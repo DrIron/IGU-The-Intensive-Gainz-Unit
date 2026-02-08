@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
+import { EMAIL_FROM } from '../_shared/config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -101,9 +102,9 @@ Deno.serve(async (req) => {
         const resendApiKey = Deno.env.get('RESEND_API_KEY');
         if (resendApiKey) {
           try {
-            const subject = isOneToOne 
-              ? '[Dr Iron Coaching] Medical review cleared – next step: coach approval'
-              : '[Dr Iron Coaching] Medical review cleared – next step: complete payment';
+            const subject = isOneToOne
+              ? '[IGU] Medical review cleared – next step: coach approval'
+              : '[IGU] Medical review cleared – next step: complete payment';
             
             const nextStepHtml = isOneToOne
               ? `
@@ -124,30 +125,30 @@ Deno.serve(async (req) => {
                 'Content-Type': 'application/json',
               },
               body: JSON.stringify({
-                from: 'Dr Iron <noreply@mail.theigu.com>',
+                from: EMAIL_FROM,
                 to: [profile.email],
                 subject,
                 html: `
                   <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">✅ Medical Review Cleared!</h1>
-                    
+
                     <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
                       Hi ${publicProfile?.first_name || 'there'},
                     </p>
-                    
+
                     <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
                       Great news! Your medical review for <strong>${serviceName}</strong> has been cleared. You're all set to continue with your application.
                     </p>
-                    
+
                     ${nextStepHtml}
-                    
+
                     <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
                       Log in at <a href="https://theigu.com" style="color: #667eea;">https://theigu.com</a> to check your status and proceed.
                     </p>
-                    
+
                     <p style="color: #666; font-size: 16px; line-height: 1.5;">
                       Best regards,<br>
-                      <strong>Dr. Iron Team</strong>
+                      <strong>The IGU Team</strong>
                     </p>
                   </div>
                 `,
@@ -215,7 +216,7 @@ Deno.serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              from: 'Dr Iron <noreply@mail.theigu.com>',
+              from: EMAIL_FROM,
               to: [rejectPrivate.email],
               subject: 'Application Update Required',
               html: `
@@ -227,7 +228,7 @@ Deno.serve(async (req) => {
                   </p>
                   
                   <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                    Thank you for your interest in Dr. Iron Fitness. After reviewing your medical information, we need to discuss some important details before proceeding.
+                    Thank you for your interest in IGU. After reviewing your medical information, we need to discuss some important details before proceeding.
                   </p>
                   
                   ${rejectionReason ? `
@@ -242,7 +243,7 @@ Deno.serve(async (req) => {
                   
                   <p style="color: #666; font-size: 16px; line-height: 1.5;">
                     Best regards,<br>
-                    <strong>Dr. Iron Fitness Team</strong>
+                    <strong>The IGU Team</strong>
                   </p>
                 </div>
               `,

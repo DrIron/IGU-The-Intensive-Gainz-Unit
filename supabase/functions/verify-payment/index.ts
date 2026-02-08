@@ -387,12 +387,12 @@ async function sendConfirmationEmail(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Dr Iron <noreply@mail.theigu.com>',
+        from: 'IGU Coaching <noreply@mail.theigu.com>',
         to: [profile.email],
-        subject: `🎉 Welcome to ${service.name} - Payment Confirmed!`,
+        subject: `Welcome to ${service.name} - Payment Confirmed!`,
         html: `
           <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #333;">🎉 Welcome to Dr. Iron Coaching!</h1>
+            <h1 style="color: #333;">Welcome to IGU Coaching!</h1>
             <p style="color: #666;">Hi ${fullName},</p>
             <p style="color: #666;">Your <strong>${service.name}</strong> subscription is now active.</p>
             <div style="background-color: #f5f5f5; border-radius: 8px; padding: 20px; margin: 20px 0;">

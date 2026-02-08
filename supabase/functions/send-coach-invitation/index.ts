@@ -61,9 +61,9 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
-    const subject = isPending 
-      ? 'Complete Your Coach Profile - Dr Iron Fitness'
-      : 'Welcome to Dr Iron Fitness Coaching Team';
+    const subject = isPending
+      ? 'Complete Your Coach Profile - IGU'
+      : 'Welcome to the IGU Coaching Team';
     
     const html = effectiveResetLink ? `
 <!DOCTYPE html>
@@ -79,8 +79,8 @@ serve(async (req: Request): Promise<Response> => {
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; padding: 40px;">
           <tr>
             <td>
-              <h1 style="margin: 0 0 20px 0; color: #333; font-size: 24px;">Welcome to Dr Iron Fitness, ${coachName}!</h1>
-              <p style="margin: 0 0 15px 0; color: #666; font-size: 16px;">You've been added as a coach to the Dr Iron Fitness team.</p>
+              <h1 style="margin: 0 0 20px 0; color: #333; font-size: 24px;">Welcome to IGU, ${coachName}!</h1>
+              <p style="margin: 0 0 15px 0; color: #666; font-size: 16px;">You've been added as a coach to the IGU team.</p>
               <p style="margin: 0 0 15px 0; color: #666; font-size: 16px;"><strong>Get Started:</strong></p>
               <p style="margin: 0 0 20px 0; color: #666; font-size: 16px;">Click the button below to set your password and complete your coach profile:</p>
               <table width="100%" cellpadding="0" cellspacing="0">
@@ -92,7 +92,7 @@ serve(async (req: Request): Promise<Response> => {
               </table>
               <p style="margin: 20px 0 10px 0; color: #999; font-size: 14px;">This secure link will allow you to create your password. After setting your password, you'll be able to add your professional details, certifications, and experience.</p>
               <p style="margin: 10px 0 0 0; color: #999; font-size: 14px;"><strong>Note:</strong> This link expires in 24 hours for security.</p>
-              <p style="margin: 30px 0 0 0; color: #666; font-size: 16px;">Best regards,<br>The Dr Iron Fitness Team</p>
+              <p style="margin: 30px 0 0 0; color: #666; font-size: 16px;">Best regards,<br>The IGU Team</p>
             </td>
           </tr>
         </table>
@@ -125,7 +125,7 @@ serve(async (req: Request): Promise<Response> => {
                 </tr>
               </table>
               <p style="margin: 20px 0 0 0; color: #666; font-size: 16px;">${isPending ? 'After signing in, you can add your professional details, certifications, and experience.' : 'You can update your professional details, certifications, and experience.'}</p>
-              <p style="margin: 30px 0 0 0; color: #666; font-size: 16px;">Best regards,<br>The Dr Iron Fitness Team</p>
+              <p style="margin: 30px 0 0 0; color: #666; font-size: 16px;">Best regards,<br>The IGU Team</p>
             </td>
           </tr>
         </table>

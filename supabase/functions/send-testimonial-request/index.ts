@@ -41,7 +41,7 @@ serve(async (req) => {
         Leave Your Testimonial
       </a>
       <p>Thank you for being part of our fitness community!</p>
-      <p>Best regards,<br>${coachName}<br>Dr Iron Coaching</p>
+      <p>Best regards,<br>${coachName}<br>IGU Coaching</p>
     `;
 
     const emailResponse = await fetch('https://api.resend.com/emails', {

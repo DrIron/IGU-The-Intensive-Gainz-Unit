@@ -96,7 +96,7 @@ serve(async (req) => {
               </p>
               <p style="color: #4a5568; font-size: 16px; margin: 16px 0 0 0;">
                 Best regards,<br>
-                <strong style="color: #2d3748;">Dr. Iron Fitness Team</strong>
+                <strong style="color: #2d3748;">The IGU Team</strong>
               </p>
             </div>
           </div>
@@ -118,7 +118,7 @@ serve(async (req) => {
         <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
           <h1 style="color: #2d3748; font-size: 24px;">Hi ${name},</h1>
           <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-            This is a friendly reminder to complete your payment for your Dr. Iron Fitness coaching subscription.
+            This is a friendly reminder to complete your payment for your IGU coaching subscription.
           </p>
           <p style="color: #e53e3e; font-size: 18px; font-weight: bold;">
             You have ${daysRemaining} day${daysRemaining > 1 ? 's' : ''} remaining to complete your payment.
@@ -137,7 +137,7 @@ serve(async (req) => {
           </p>
           <p style="color: #4a5568; font-size: 16px;">
             Best regards,<br>
-            <strong>Dr. Iron Fitness Team</strong>
+            <strong>The IGU Team</strong>
           </p>
         </div>
       `;

@@ -32,8 +32,8 @@ export const AUTH_REDIRECT_URLS = {
  * Email sender configuration
  * All system emails must use domain-based senders - NO personal emails or @resend.dev
  */
-export const EMAIL_FROM = "Dr Iron <noreply@mail.theigu.com>";
-export const EMAIL_FROM_COACHING = "Dr Iron Coaching <noreply@mail.theigu.com>";
+export const EMAIL_FROM = "IGU <noreply@mail.theigu.com>";
+export const EMAIL_FROM_COACHING = "IGU Coaching <noreply@mail.theigu.com>";
 export const EMAIL_FROM_IGU = "IGU Coaching <noreply@mail.theigu.com>";
 export const EMAIL_FROM_ADMIN = "IGU Admin <admin@mail.theigu.com>";
 export const EMAIL_FROM_BILLING = "IGU Billing <billing@mail.theigu.com>";

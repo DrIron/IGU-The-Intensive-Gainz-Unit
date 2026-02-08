@@ -77,7 +77,7 @@ serve(async (req) => {
               
               <p>If you believe this is an error or need assistance, please contact our support team immediately.</p>
               
-              <p>Thank you,<br><strong>Dr Iron Coaching Team</strong></p>
+              <p>Thank you,<br><strong>The IGU Team</strong></p>
             </div>
             <div class="footer">
               <p>This is an automated message. Please do not reply to this email.</p>

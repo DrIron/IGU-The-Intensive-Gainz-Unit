@@ -14,6 +14,7 @@ import { MedicalSectionHeader } from "@/components/phi/PHIRestrictedField";
 import { logPHIAccess } from "@/hooks/usePHIAuditLog";
 import { AssignProgramDialog } from "./programs/AssignProgramDialog";
 import { DirectClientCalendar } from "./programs/DirectClientCalendar";
+import { VolumeChart } from "./VolumeChart";
 import { CareTeamMessagesPanel } from "@/components/nutrition/CareTeamMessagesPanel";
 import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 
@@ -294,8 +295,12 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
           clientUserId={clientUserId}
           coachUserId={currentUserId}
           subscriptionId={clientInfo.subscriptionId}
+          clientName={clientInfo.displayName || clientInfo.firstName || "Client"}
         />
       )}
+
+      {/* Weekly Volume Tracking */}
+      <VolumeChart clientUserId={clientUserId} />
 
       <Card>
         <CardHeader>

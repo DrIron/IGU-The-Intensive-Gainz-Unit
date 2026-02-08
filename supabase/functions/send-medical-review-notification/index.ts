@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
+import { EMAIL_FROM } from '../_shared/config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -64,9 +65,9 @@ Deno.serve(async (req) => {
           'Content-Type': 'application/json',
         },
           body: JSON.stringify({
-            from: 'Dr Iron <noreply@mail.theigu.com>',
+            from: EMAIL_FROM,
             to: [adminProfile.email],
-            subject: '[Dr Iron Coaching] Medical Review Required - New Client Signup',
+            subject: '[IGU] Medical Review Required - New Client Signup',
           html: `
             <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
               <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">Medical Review Required</h1>
@@ -102,7 +103,7 @@ Deno.serve(async (req) => {
               
               <p style="color: #666; font-size: 16px; line-height: 1.5;">
                 Best regards,<br>
-                <strong>Dr. Iron Fitness System</strong>
+                <strong>The IGU Team</strong>
               </p>
             </div>
           `,

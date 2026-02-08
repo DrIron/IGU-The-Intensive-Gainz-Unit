@@ -43,11 +43,11 @@ serve(async (req) => {
       </ol>
       
       <h2>Important:</h2>
-      <p>If you have not been added to True Coach within 48 hours, please contact Dr. Iron directly.</p>
+      <p>If you have not been added to True Coach within 48 hours, please contact IGU directly.</p>
       
       <p>We're excited to have you as part of our community!</p>
       
-      <p>Best regards,<br>Dr. Iron and the Coaching Team</p>
+      <p>Best regards,<br>The IGU Team</p>
     `;
 
     const emailResponse = await fetch('https://api.resend.com/emails', {

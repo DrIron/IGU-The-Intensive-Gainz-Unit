@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { EMAIL_FROM } from '../_shared/config.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -156,7 +157,7 @@ Deno.serve(async (req) => {
           Authorization: `Bearer ${resendApiKey}`,
         },
         body: JSON.stringify({
-          from: "Dr Iron <noreply@mail.theigu.com>",
+          from: EMAIL_FROM,
           to: [contactInfo.email],
           subject: `Message from your IGU client: ${clientName}`,
           html: `

@@ -203,7 +203,7 @@ const handler = async (req: Request): Promise<Response> => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Dr Iron <noreply@mail.theigu.com>',
+        from: EMAIL_FROM,
         to: [coachEmail],
         subject: `New Client Awaiting Your Approval - ${clientFullName}`,
         html: emailHtml,

@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,8 +18,15 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  // Rate limit: 5 requests per minute per IP
+  const ip = getClientIp(req);
+  const rateCheck = checkRateLimit(ip, 5, 60_000);
+  if (!rateCheck.allowed) {
+    return rateLimitResponse(corsHeaders, rateCheck.retryAfterMs);
+  }
+
   try {
-    const { applicantEmail, applicantName, type, notes } = await req.json();
+    const { applicantEmail, applicantName, type, notes, turnstileToken } = await req.json();
 
     if (!applicantEmail || !applicantName || !type) {
       return new Response(
@@ -28,6 +36,44 @@ serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
+    }
+
+    // Verify Turnstile token for "received" type (initial application from anonymous user)
+    const turnstileSecret = Deno.env.get("TURNSTILE_SECRET_KEY");
+    if (type === "received" && turnstileSecret) {
+      if (!turnstileToken) {
+        return new Response(
+          JSON.stringify({ error: "Bot verification required" }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
+
+      const verifyRes = await fetch(
+        "https://challenges.cloudflare.com/turnstile/v0/siteverify",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            secret: turnstileSecret,
+            response: turnstileToken,
+          }),
+        }
+      );
+      const verifyData = await verifyRes.json();
+
+      if (!verifyData.success) {
+        console.warn("Turnstile verification failed:", verifyData);
+        return new Response(
+          JSON.stringify({ error: "Bot verification failed. Please refresh and try again." }),
+          {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          }
+        );
+      }
     }
 
     let subject = "";
@@ -190,7 +236,7 @@ serve(async (req) => {
     );
   } catch (error: any) {
     console.error("Error:", error);
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: "An error occurred. Please try again." }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

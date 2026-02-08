@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,8 @@ import { cn } from "@/lib/utils";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 
 const coachApplicationSchema = z.object({
   firstName: z.string().min(2, "First name must be at least 2 characters").max(50, "First name too long").trim(),
@@ -46,6 +49,8 @@ interface CoachApplicationFormProps {
 
 export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
   const { tags: specializationTags, loading: tagsLoading } = useSpecializationTags();
 
   // Fetch subrole definitions for the multi-select
@@ -110,17 +115,20 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
 
       if (error) throw error;
 
-      // Send confirmation email
+      // Send confirmation email (with Turnstile token for bot protection)
       await supabase.functions.invoke('send-coach-application-emails', {
         body: {
           applicantEmail: values.email,
           applicantName: `${values.firstName} ${values.lastName}`,
-          type: 'received'
+          type: 'received',
+          turnstileToken: turnstileToken,
         }
       });
 
       toast.success("Application submitted successfully! Check your email for confirmation.");
       form.reset();
+      setTurnstileToken(null);
+      turnstileRef.current?.reset();
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error submitting application:", error);
@@ -398,6 +406,18 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
                 )}
               />
 
+            {TURNSTILE_SITE_KEY && (
+              <div className="flex justify-center pt-2">
+                <Turnstile
+                  ref={turnstileRef}
+                  siteKey={TURNSTILE_SITE_KEY}
+                  onSuccess={setTurnstileToken}
+                  onExpire={() => setTurnstileToken(null)}
+                  options={{ theme: "dark", size: "normal" }}
+                />
+              </div>
+            )}
+
             <div className="flex gap-4 pt-4">
               <Button
                 type="button"
@@ -408,7 +428,11 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
               >
                 Cancel
               </Button>
-              <Button type="submit" disabled={isSubmitting} className="flex-1">
+              <Button
+                type="submit"
+                disabled={isSubmitting || (!!TURNSTILE_SITE_KEY && !turnstileToken)}
+                className="flex-1"
+              >
                 {isSubmitting ? "Submitting..." : "Submit Application"}
               </Button>
             </div>

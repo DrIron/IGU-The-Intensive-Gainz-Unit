@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { EMAIL_FROM_IGU } from '../_shared/config.ts';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '../_shared/rateLimit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -17,6 +18,13 @@ const requestSchema = z.object({
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
+  }
+
+  // Rate limit: 5 requests per minute per IP
+  const ip = getClientIp(req);
+  const rateCheck = checkRateLimit(ip, 5, 60_000);
+  if (!rateCheck.allowed) {
+    return rateLimitResponse(corsHeaders, rateCheck.retryAfterMs);
   }
 
   try {

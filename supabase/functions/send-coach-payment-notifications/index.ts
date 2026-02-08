@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
+import { EMAIL_FROM } from '../_shared/config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -136,7 +137,7 @@ Deno.serve(async (req) => {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            from: 'Dr Iron <noreply@mail.theigu.com>',
+            from: EMAIL_FROM,
             to: [coachEmail],
             subject: `Monthly Payment Summary - ${new Date(payment_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`,
             html: emailHtml,

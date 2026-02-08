@@ -398,13 +398,13 @@ export default function Index() {
           )}
 
           {/* Title */}
-          <h1 className="font-display text-6xl md:text-8xl lg:text-9xl tracking-tight mb-6 text-foreground">
+          <h1 className="font-display text-4xl sm:text-6xl md:text-8xl lg:text-9xl tracking-tight mb-6 text-foreground">
             <span className="block">{cmsContent?.hero?.title_line1 || "THE INTENSIVE"}</span>
             <span className="block text-primary">{cmsContent?.hero?.title_line2 || "GAINZ UNIT"}</span>
           </h1>
 
           {/* Subtitle */}
-          <p className="text-xl md:text-2xl text-muted-foreground font-medium max-w-2xl mx-auto mb-10">
+          <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground font-medium max-w-2xl mx-auto mb-10 px-2">
             {cmsContent?.hero?.subtitle || "Professional bodybuilding coaching tailored to your goals. Choose from team training or personalized 1:1 programs."}
           </p>
 
@@ -422,7 +422,7 @@ export default function Index() {
           className={`container mx-auto max-w-7xl relative z-10 fade-up ${featuresFade.isVisible ? 'visible' : ''}`}
         >
           <div className="text-center mb-16">
-            <h2 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
+            <h2 className="font-display text-3xl sm:text-5xl md:text-6xl tracking-tight mb-4">
               {cmsContent?.features?.title || "Why Choose IGU?"}
             </h2>
             <p className="text-xl text-muted-foreground">
@@ -466,7 +466,7 @@ export default function Index() {
           className={`container mx-auto max-w-7xl fade-up ${programsFade.isVisible ? 'visible' : ''}`}
         >
           <div className="text-center mb-16">
-            <h2 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
+            <h2 className="font-display text-3xl sm:text-5xl md:text-6xl tracking-tight mb-4">
               {cmsContent?.programs?.title || "Choose Your Program"}
             </h2>
             <p className="text-xl text-muted-foreground">
@@ -483,7 +483,7 @@ export default function Index() {
               {/* Team Plans */}
               {teamPlansOpen && (
                 <div className="mb-16">
-                  <h3 className="text-4xl md:text-5xl font-bold mb-4 text-center">Team Training</h3>
+                  <h3 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-4 text-center">Team Training</h3>
                   {(teamPlanAnnouncement.text || teamPlanAnnouncement.startDate) && (
                     <div className="max-w-2xl mx-auto mb-8 p-4 bg-primary/10 border border-primary/20 rounded-lg text-center">
                       <p className="text-lg font-medium text-primary">
@@ -544,7 +544,7 @@ export default function Index() {
 
               {/* 1:1 Plans */}
               <div>
-                <h3 className="text-4xl md:text-5xl font-bold mb-8 text-center">1:1 Coaching</h3>
+                <h3 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-8 text-center">1:1 Coaching</h3>
                 {isMobile ? (
                   <Carousel className="w-full max-w-sm mx-auto">
                     <CarouselContent>
@@ -596,7 +596,7 @@ export default function Index() {
           className={`container mx-auto max-w-6xl fade-up ${testimonialsFade.isVisible ? 'visible' : ''}`}
         >
           <div className="text-center mb-16">
-            <h2 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
+            <h2 className="font-display text-3xl sm:text-5xl md:text-6xl tracking-tight mb-4">
               {cmsContent?.testimonials?.title || "What Our Clients Say"}
             </h2>
             <p className="text-xl text-muted-foreground">
@@ -677,7 +677,7 @@ export default function Index() {
           ref={ctaFade.ref}
           className={`container mx-auto max-w-4xl text-center relative z-10 fade-up ${ctaFade.isVisible ? 'visible' : ''}`}
         >
-          <h2 className="font-display text-5xl md:text-7xl tracking-tight mb-6">
+          <h2 className="font-display text-3xl sm:text-5xl md:text-7xl tracking-tight mb-6">
             {cmsContent?.cta?.title || "Ready to Transform?"}
           </h2>
           <p className="text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">

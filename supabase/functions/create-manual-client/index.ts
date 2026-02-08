@@ -243,7 +243,7 @@ serve(async (req) => {
       console.error('profiles_private upsert error:', profilePrivateError);
     }
 
-    // Find the Dr. Iron admin coach account
+    // Find the IGU admin coach account
     const { data: adminCoach, error: coachError } = await supabaseAdmin
       .from("coaches")
       .select("user_id")

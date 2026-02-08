@@ -351,7 +351,7 @@ async function sendUpcomingPaymentEmail(
         <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px;">
           <p style="color: #4a5568; font-size: 16px; margin: 0;">
             Best regards,<br>
-            <strong style="color: #2d3748;">Dr. Iron Team</strong>
+            <strong style="color: #2d3748;">The IGU Team</strong>
           </p>
         </div>
       </div>
@@ -418,7 +418,7 @@ async function sendPastDueEmail(
         <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px;">
           <p style="color: #4a5568; font-size: 16px; margin: 0;">
             Best regards,<br>
-            <strong style="color: #2d3748;">Dr. Iron Team</strong>
+            <strong style="color: #2d3748;">The IGU Team</strong>
           </p>
         </div>
       </div>
@@ -493,7 +493,7 @@ async function sendFinalWarningEmail(
         <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px;">
           <p style="color: #4a5568; font-size: 16px; margin: 0;">
             Best regards,<br>
-            <strong style="color: #2d3748;">Dr. Iron Team</strong>
+            <strong style="color: #2d3748;">The IGU Team</strong>
           </p>
         </div>
       </div>
@@ -554,7 +554,7 @@ async function sendAccountLockedEmail(
         <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px;">
           <p style="color: #4a5568; font-size: 16px; margin: 0;">
             Best regards,<br>
-            <strong style="color: #2d3748;">Dr. Iron Team</strong>
+            <strong style="color: #2d3748;">The IGU Team</strong>
           </p>
         </div>
       </div>

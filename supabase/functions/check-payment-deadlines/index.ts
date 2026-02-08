@@ -85,7 +85,7 @@ serve(async (req) => {
               body: JSON.stringify({
                 from: EMAIL_FROM,
                 to: [profile.email],
-                subject: '[Dr Iron Coaching] Your subscription request has expired',
+                subject: '[IGU] Your subscription request has expired',
                 html: `
                   <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                     <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">Subscription Request Expired</h1>
@@ -101,7 +101,7 @@ serve(async (req) => {
                     <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 30px 0; border-radius: 4px;">
                       <p style="color: #856404; font-size: 14px; margin: 0; line-height: 1.6;">
                         <strong>Want to join?</strong><br>
-                        If you still want to be part of Dr. Iron Coaching, you can restart your application at any time.
+                        If you still want to be part of IGU Coaching, you can restart your application at any time.
                       </p>
                     </div>
                     
@@ -111,7 +111,7 @@ serve(async (req) => {
                     
                     <p style="color: #666; font-size: 16px; line-height: 1.5;">
                       Best regards,<br>
-                      <strong>Dr. Iron Team</strong>
+                      <strong>The IGU Team</strong>
                     </p>
                   </div>
                 `,
@@ -161,7 +161,7 @@ serve(async (req) => {
                 body: JSON.stringify({
                   from: EMAIL_FROM,
                   to: [profile.email],
-                  subject: '[Dr Iron Coaching] Reminder – complete your payment to secure your spot',
+                  subject: '[IGU] Reminder – complete your payment to secure your spot',
                   html: `
                     <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                       <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">⏰ Payment Reminder</h1>
@@ -197,7 +197,7 @@ serve(async (req) => {
                       
                       <p style="color: #666; font-size: 16px; line-height: 1.5;">
                         Best regards,<br>
-                        <strong>Dr. Iron Team</strong>
+                        <strong>The IGU Team</strong>
                       </p>
                     </div>
                   `,

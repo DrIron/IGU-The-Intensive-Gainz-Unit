@@ -43,6 +43,7 @@ import {
   Loader2,
   Dumbbell,
   X,
+  ArrowRightLeft,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -514,6 +515,7 @@ function ExerciseCard({
   logs,
   onUpdateLog,
   onCompleteSet,
+  onSwapExercise,
   isExpanded,
   onToggle,
 }: {
@@ -522,6 +524,7 @@ function ExerciseCard({
   logs: SetLog[];
   onUpdateLog: (setIndex: number, field: keyof SetLog, value: any) => void;
   onCompleteSet: (setIndex: number, restSeconds?: number) => void;
+  onSwapExercise: () => void;
   isExpanded: boolean;
   onToggle: () => void;
 }) {
@@ -587,12 +590,28 @@ function ExerciseCard({
                 </div>
               </div>
 
-              {/* Expand chevron */}
-              {isExpanded ? (
-                <ChevronDown className="w-5 h-5 text-muted-foreground shrink-0" />
-              ) : (
-                <ChevronRight className="w-5 h-5 text-muted-foreground shrink-0" />
-              )}
+              {/* Swap + Expand */}
+              <div className="flex items-center gap-1 shrink-0">
+                {!isComplete && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSwapExercise();
+                    }}
+                    title="Swap Exercise"
+                  >
+                    <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                )}
+                {isExpanded ? (
+                  <ChevronDown className="w-5 h-5 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="w-5 h-5 text-muted-foreground" />
+                )}
+              </div>
             </div>
           </CardHeader>
         </CollapsibleTrigger>
@@ -746,6 +765,108 @@ function RestTimer({
   );
 }
 
+// Swap Exercise Picker - shown as a modal overlay
+function SwapExercisePicker({
+  currentExercise,
+  onSelect,
+  onClose,
+}: {
+  currentExercise?: Exercise;
+  onSelect: (exerciseId: string) => void;
+  onClose: () => void;
+}) {
+  const [exercises, setExercises] = useState<
+    { id: string; name: string; primary_muscle: string; equipment: string | null }[]
+  >([]);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const load = async () => {
+      const { data } = await supabase
+        .from("exercise_library")
+        .select("id, name, primary_muscle, equipment")
+        .eq("is_active", true)
+        .eq("is_global", true)
+        .order("name");
+      setExercises(data || []);
+      setLoading(false);
+    };
+    load();
+  }, []);
+
+  // Filter: prioritize same muscle group, then allow all
+  const filtered = exercises.filter((ex) => {
+    if (currentExercise && ex.id === currentExercise.exercise_id) return false;
+    if (!searchQuery) return true;
+    return (
+      ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      ex.primary_muscle.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
+
+  // Sort: same muscle group first
+  const sorted = [...filtered].sort((a, b) => {
+    const currentMuscle = currentExercise?.exercise.primary_muscle || "";
+    const aMatch = a.primary_muscle === currentMuscle ? 0 : 1;
+    const bMatch = b.primary_muscle === currentMuscle ? 0 : 1;
+    return aMatch - bMatch || a.name.localeCompare(b.name);
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-end sm:items-center justify-center">
+      <div className="bg-background w-full max-w-lg max-h-[80vh] rounded-t-2xl sm:rounded-2xl flex flex-col">
+        <div className="p-4 border-b flex items-center justify-between">
+          <div>
+            <h3 className="font-semibold">Swap Exercise</h3>
+            {currentExercise && (
+              <p className="text-sm text-muted-foreground">
+                Replace {currentExercise.exercise.name}
+              </p>
+            )}
+          </div>
+          <Button variant="ghost" size="icon" onClick={onClose}>
+            <X className="w-5 h-5" />
+          </Button>
+        </div>
+        <div className="p-4 border-b">
+          <Input
+            placeholder="Search exercises..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            autoFocus
+          />
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : sorted.length === 0 ? (
+            <p className="text-center text-muted-foreground py-8">No exercises found</p>
+          ) : (
+            <div className="divide-y">
+              {sorted.map((ex) => (
+                <button
+                  key={ex.id}
+                  onClick={() => onSelect(ex.id)}
+                  className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
+                >
+                  <p className="font-medium text-sm">{ex.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {ex.primary_muscle}
+                    {ex.equipment && ` \u2022 ${ex.equipment}`}
+                  </p>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // =============================================================================
 // MAIN COMPONENT
 // =============================================================================
@@ -769,6 +890,8 @@ function WorkoutSessionV2Content() {
     active: false,
     duration: 0,
   });
+  const [swapExerciseId, setSwapExerciseId] = useState<string | null>(null);
+  const [showSwapPicker, setShowSwapPicker] = useState(false);
 
   const hasFetched = useRef(false);
 
@@ -1037,6 +1160,77 @@ function WorkoutSessionV2Content() {
     }
   };
 
+  // Swap exercise
+  const swapExercise = async (newExerciseId: string) => {
+    if (!swapExerciseId || !module) return;
+
+    try {
+      // Get new exercise info
+      const { data: newExLib, error: exError } = await supabase
+        .from("exercise_library")
+        .select("name, primary_muscle, default_video_url")
+        .eq("id", newExerciseId)
+        .single();
+
+      if (exError) throw exError;
+
+      // Update the client_module_exercises record to point to new exercise
+      const { error: updateError } = await supabase
+        .from("client_module_exercises")
+        .update({ exercise_id: newExerciseId })
+        .eq("id", swapExerciseId);
+
+      if (updateError) throw updateError;
+
+      // Update local state
+      const updatedExercises = module.exercises.map((ex) => {
+        if (ex.id !== swapExerciseId) return ex;
+        return {
+          ...ex,
+          exercise_id: newExerciseId,
+          exercise: {
+            name: newExLib.name,
+            primary_muscle: newExLib.primary_muscle,
+            default_video_url: newExLib.default_video_url,
+          },
+          history: undefined,
+          personal_best: undefined,
+        };
+      });
+
+      setModule({ ...module, exercises: updatedExercises });
+
+      // Reset logs for the swapped exercise (fresh start)
+      const oldLogs = setLogs[swapExerciseId] || [];
+      setSetLogs((prev) => ({
+        ...prev,
+        [swapExerciseId]: oldLogs.map((log) => ({
+          ...log,
+          performed_reps: null,
+          performed_load: null,
+          performed_rir: null,
+          performed_rpe: null,
+          notes: "",
+          completed: false,
+        })),
+      }));
+
+      toast({
+        title: "Exercise swapped",
+        description: `Switched to ${newExLib.name}`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error swapping exercise",
+        description: error.message,
+        variant: "destructive",
+      });
+    } finally {
+      setSwapExerciseId(null);
+      setShowSwapPicker(false);
+    }
+  };
+
   // Save progress
   const saveProgress = async () => {
     if (!user || !module) return;
@@ -1222,6 +1416,10 @@ function WorkoutSessionV2Content() {
               onCompleteSet={(setIndex, restSeconds) =>
                 completeSet(exercise.id, setIndex, restSeconds)
               }
+              onSwapExercise={() => {
+                setSwapExerciseId(exercise.id);
+                setShowSwapPicker(true);
+              }}
               isExpanded={expandedExercise === exercise.id}
               onToggle={() =>
                 setExpandedExercise(
@@ -1238,6 +1436,18 @@ function WorkoutSessionV2Content() {
             duration={restTimer.duration}
             onComplete={() => setRestTimer({ active: false, duration: 0 })}
             onSkip={() => setRestTimer({ active: false, duration: 0 })}
+          />
+        )}
+
+        {/* Exercise Swap Picker */}
+        {showSwapPicker && (
+          <SwapExercisePicker
+            currentExercise={module.exercises.find((e) => e.id === swapExerciseId)}
+            onSelect={(newExerciseId) => swapExercise(newExerciseId)}
+            onClose={() => {
+              setShowSwapPicker(false);
+              setSwapExerciseId(null);
+            }}
           />
         )}
 

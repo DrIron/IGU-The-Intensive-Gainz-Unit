@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths } from "date-fns";
 import { SessionTypeSelector } from "./SessionTypeSelector";
+import { DirectSessionExerciseEditor } from "./DirectSessionExerciseEditor";
 import {
   SessionType,
   SessionTiming,
@@ -538,15 +539,13 @@ export function DirectClientCalendar({
                 </div>
               </div>
 
-              {/* Exercises - Placeholder for Phase 1 */}
+              {/* Exercises */}
               <div className="space-y-2">
                 <Label>Exercises</Label>
-                <Card className="p-4">
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    Exercise editor for direct calendar sessions will be integrated here.
-                    Uses the same EnhancedModuleExerciseEditor with direct_session_id instead of module_id.
-                  </p>
-                </Card>
+                <DirectSessionExerciseEditor
+                  sessionId={editingSession.id}
+                  coachUserId={coachUserId}
+                />
               </div>
 
               {/* Actions */}

@@ -168,14 +168,14 @@ const handler = async (req: Request): Promise<Response> => {
                 </p>
                 <p style="color: #4a5568; font-size: 16px; margin: 16px 0 0 0;">
                   Best regards,<br>
-                  <strong style="color: #2d3748;">Dr. Iron Fitness Team</strong>
+                  <strong style="color: #2d3748;">The IGU Team</strong>
                 </p>
               </div>
             </div>
             
             <div style="text-align: center; margin-top: 16px;">
               <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-                This email was sent because your coach approved your application at Dr. Iron Fitness
+                This email was sent because your coach approved your application at IGU
               </p>
             </div>
           </div>
