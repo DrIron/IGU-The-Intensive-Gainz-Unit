@@ -965,7 +965,9 @@ export default function WorkoutLibraryManager() {
         {filteredExercises.length === 0 && (
           <div className="text-center py-12">
             <p className="text-muted-foreground text-lg">
-              No exercises found matching "{searchTerm}"
+              {searchTerm
+                ? `No exercises found matching "${searchTerm}"`
+                : 'No exercises found'}
             </p>
           </div>
         )}

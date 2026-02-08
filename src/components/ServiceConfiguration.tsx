@@ -138,7 +138,7 @@ export function ServiceConfiguration() {
                 <TableRow key={service.id}>
                   <TableCell className="font-medium">{service.name}</TableCell>
                   <TableCell>
-                    <span className="capitalize">{service.type.replace('_', ' ')}</span>
+                    <span>{{ one_to_one: '1:1', team: 'Team' }[service.type] ?? service.type}</span>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
