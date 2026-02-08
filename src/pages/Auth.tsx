@@ -108,8 +108,30 @@ export default function Auth() {
           setCachedRoles(roleList, userId);
         }
       } catch (timeoutError) {
-        console.warn('[Auth] Roles query timed out - redirecting to default dashboard');
-        // On timeout, redirect to dashboard and let RoleProtectedRoute handle it
+        console.warn('[Auth] Roles query timed out - checking cache before redirect');
+        // On timeout, check localStorage cache for roles before falling back
+        try {
+          const cachedRolesJson = localStorage.getItem('igu_user_roles');
+          const cachedUserId = localStorage.getItem('igu_cached_user_id');
+          if (cachedRolesJson && cachedUserId === userId) {
+            const cachedRoles = JSON.parse(cachedRolesJson);
+            if (Array.isArray(cachedRoles)) {
+              if (cachedRoles.includes('admin')) {
+                console.log('[Auth] Timeout but cache has admin - redirecting to /admin');
+                navigate("/admin");
+                return;
+              }
+              if (cachedRoles.includes('coach')) {
+                console.log('[Auth] Timeout but cache has coach - redirecting to /coach');
+                navigate("/coach");
+                return;
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('[Auth] Error reading role cache:', e);
+        }
+        // No usable cache - redirect to dashboard
         navigate("/dashboard");
         return;
       }

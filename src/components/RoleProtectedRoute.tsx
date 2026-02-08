@@ -179,6 +179,8 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
 
   /**
    * Verify roles with server (background operation)
+   * CRITICAL: This must NEVER revoke access that was already granted via cache.
+   * If the server fails or returns empty, we keep the cached authorization.
    */
   const verifyRolesWithServer = useCallback(async (userId: string) => {
     if (verificationAttempted.current && lastUserId.current === userId) {
@@ -211,22 +213,30 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
         isAuthorizedRef.current = true;
         setAuthState('authorized');
       } else {
+        // Server says different role - only revoke if we're confident
+        // (i.e., server actually returned roles, not just an empty/error response)
         handleUnauthorized(serverRoles, 'role-mismatch');
       }
     } else {
-      // Server returned no roles - could be RLS issue or user has no roles
+      // Server returned no roles - could be RLS issue, timeout, or auth token not attached
       console.warn('[RoleProtectedRoute] Server returned no roles - possible RLS issue');
 
-      // If we had cached roles, keep using them (don't kick user out)
-      // This handles the case where RLS is still broken
-      if (currentRoles.length > 0) {
-        console.log('[RoleProtectedRoute] Keeping cached roles due to server failure');
+      // NEVER revoke access based on empty server response
+      // If we already granted access via cache, keep it
+      if (isAuthorizedRef.current) {
+        console.log('[RoleProtectedRoute] Keeping authorization - already granted via cache, server returned empty');
       } else {
-        isAuthorizedRef.current = false;
-        setAuthState('unauthorized');
+        // Check localStorage directly (currentRoles state may be stale in closure)
+        const cachedRoles = getCachedRoles(userId);
+        if (cachedRoles && cachedRoles.length > 0) {
+          console.log('[RoleProtectedRoute] Keeping cached roles due to server failure');
+        } else {
+          isAuthorizedRef.current = false;
+          setAuthState('unauthorized');
+        }
       }
     }
-  }, [requiredRole, setCachedRoles, logAccess, currentRoles, handleUnauthorized, location.pathname]);
+  }, [requiredRole, setCachedRoles, getCachedRoles, logAccess, handleUnauthorized, location.pathname]);
 
   /**
    * Main authorization logic
