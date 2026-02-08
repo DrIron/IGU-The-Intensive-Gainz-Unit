@@ -9,6 +9,74 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const PROJECT_REF = SUPABASE_URL?.match(/https:\/\/([^.]+)\./)?.[1] || 'ghotrbotrywonaejlppg';
 const STORAGE_KEY = `sb-${PROJECT_REF}-auth-token`;
 
+// Maximum time to wait for the Navigator LockManager lock before proceeding without it.
+// The Supabase auth client uses acquireTimeout = -1 (wait forever) for internal operations
+// like getSession() and token refresh. If the lock hangs (slow localStorage, failed refresh),
+// ALL .from() and .rpc() queries queue behind it indefinitely. This timeout converts the
+// infinite wait into a bounded one — worst case a concurrent refresh (idempotent on server).
+const LOCK_TIMEOUT_MS = 5000;
+
+/**
+ * Custom lock function that prevents the Supabase auth client from hanging forever.
+ *
+ * The default navigatorLock implementation uses acquireTimeout = -1 for internal
+ * operations, which means "wait forever." If the lock is never released (e.g. token
+ * refresh hangs), every .from()/.rpc() call in the entire app hangs too.
+ *
+ * This wrapper:
+ * - Converts acquireTimeout < 0 → LOCK_TIMEOUT_MS (finite timeout)
+ * - Keeps acquireTimeout === 0 behavior (ifAvailable for auto-refresh tick)
+ * - Keeps acquireTimeout > 0 as-is
+ * - On timeout (AbortError): warns and runs fn() without the lock
+ * - Falls back to running fn() directly if navigator.locks is unavailable
+ */
+async function lockWithTimeout<R>(
+  name: string,
+  acquireTimeout: number,
+  fn: () => Promise<R>
+): Promise<R> {
+  if (typeof navigator === 'undefined' || !navigator.locks) {
+    return await fn();
+  }
+
+  const timeout = acquireTimeout < 0 ? LOCK_TIMEOUT_MS : acquireTimeout;
+  const abortController = new AbortController();
+
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  if (timeout > 0) {
+    timeoutId = setTimeout(() => abortController.abort(), timeout);
+  }
+
+  try {
+    return await navigator.locks.request(
+      name,
+      timeout === 0
+        ? { mode: 'exclusive' as const, ifAvailable: true }
+        : { mode: 'exclusive' as const, signal: abortController.signal },
+      async (lock) => {
+        if (timeoutId) clearTimeout(timeoutId);
+
+        if (lock) {
+          return await fn();
+        }
+
+        // acquireTimeout === 0 and lock not immediately available
+        throw new Error(`Lock "${name}" not immediately available`);
+      }
+    );
+  } catch (err: unknown) {
+    if (timeoutId) clearTimeout(timeoutId);
+
+    // AbortError means our timeout fired — run fn() without the lock
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      console.warn(`[Supabase Lock] Timed out waiting for lock "${name}" after ${timeout}ms — proceeding without lock`);
+      return await fn();
+    }
+
+    throw err;
+  }
+}
+
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
@@ -18,19 +86,20 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'implicit',
+    lock: lockWithTimeout,
   }
 });
 
 /**
  * Session initialization promise.
- * 
+ *
  * Waits for the Supabase client to finish its internal initialization
  * (reading from localStorage and optionally refreshing the token).
- * 
+ *
  * IMPORTANT: We do NOT call setSession() here. setSession() triggers
  * a network call to /auth/v1/token which puts the client in a "refreshing"
  * state that blocks ALL supabase.from() and supabase.rpc() queries.
- * 
+ *
  * Instead, we let the client initialize naturally via getSession(),
  * which reads from localStorage and refreshes only if needed.
  */
@@ -55,6 +124,7 @@ supabase.auth.getSession().then(({ data, error }) => {
 });
 
 // Safety timeout — if getSession hangs (known issue), resolve after 5s
+// Now mostly redundant with lockWithTimeout but kept as defense-in-depth
 setTimeout(() => {
   _sessionReadyResolve();
 }, 5000);
