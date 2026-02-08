@@ -381,6 +381,7 @@ When understanding this codebase, read in this order:
 - Phase 24: IGU Marketing System — auth gate removal, FAQ, comparison table, leads/UTM tracking, referrals (Feb 7, 2026) ✅
 - Phase 25: Client Onboarding & Coach Matching QA — polling pages, audit logging, gender collection, coach matching dedup, UX improvements (Feb 7, 2026) ✅
 - Phase 26: Roles, Subroles & Tags System — subrole definitions, permission functions, admin approval queue, coach request UI, feature gating (Feb 7, 2026) ✅
+- Fix: Supabase getSession() hang — custom lock timeout prevents infinite lock waits from freezing all data queries (Feb 8, 2026) ✅
 
 ### Phase 26: Roles, Subroles & Tags System (Complete - Feb 7, 2026)
 
@@ -556,13 +557,21 @@ When showing "no results" messages that reference a search term, always handle t
 
 **Problem**: Page refresh caused authentication failures - `getSession()` hung, auth headers didn't attach to Supabase client, RLS policies blocked queries, users got locked out of admin dashboard.
 
-**Solution**: Cache-first role management pattern:
+**Solution** (two layers):
+
+1. **Cache-first role management** (Phase 8): Authorization checks use cached roles, not `getSession()`
+2. **Custom lock timeout** (Feb 8, 2026): `lockWithTimeout()` in `client.ts` prevents data queries from hanging
+
+The root cause is Supabase's Navigator LockManager usage — internal calls use `acquireTimeout = -1` (wait forever). If the lock hangs, ALL `.from()` and `.rpc()` calls queue behind it. The custom lock function converts `-1` to `5000ms` and proceeds without the lock on timeout (worst case: a concurrent token refresh, which is idempotent).
+
+**Cache-first pattern details:**
 - Cache user roles in localStorage after successful authentication
 - Read cached roles instantly on page refresh (no waiting for session)
 - Background verification with server (non-blocking)
 - Use refs instead of state for authorization guards (avoids React batched update issues)
 
 **Key Files**:
+- `src/integrations/supabase/client.ts` - Custom `lockWithTimeout()` + `sessionReady` promise
 - `src/lib/constants.ts` - Cache keys, timeouts configuration
 - `src/hooks/useRoleCache.ts` - localStorage role caching hook
 - `src/hooks/useAuthSession.ts` - Session management with timeouts
@@ -1323,7 +1332,7 @@ SQL function `generate_referral_code(first_name)`:
 - No automated tests for components (only smoke tests)
 - No staging environment (production only)
 - Bundle size is large (~2.4MB) - needs code splitting
-- `getSession()` can hang on page refresh — always use cache-first pattern
+- `getSession()` could hang on page refresh — mitigated by custom `lockWithTimeout()` in `client.ts` (converts infinite lock wait to 5s timeout) + cache-first role pattern
 - Sign-out flow doesn't properly redirect to login page
 - Edge functions: Always handle OPTIONS before `req.json()` to avoid CORS preflight crashes
 - Resend emails must use `@mail.theigu.com` (only verified subdomain)
