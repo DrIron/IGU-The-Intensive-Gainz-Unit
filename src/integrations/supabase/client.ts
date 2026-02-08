@@ -20,3 +20,41 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     flowType: 'implicit'
   }
 });
+
+/**
+ * Eagerly initialize the Supabase session from localStorage.
+ * 
+ * The Supabase JS client's internal getSession() can hang on page load,
+ * causing all queries (from/rpc) to queue indefinitely since they wait
+ * for the session to be initialized before attaching auth headers.
+ * 
+ * This calls setSession() with the stored tokens, which:
+ * 1. Immediately initializes the internal session state
+ * 2. Allows auto-refresh to work (unlike monkey-patching getSession)
+ * 3. Triggers onAuthStateChange with SIGNED_IN event
+ * 4. Unblocks any queued queries
+ * 
+ * If the access token is expired, setSession will automatically use the
+ * refresh token to get a new one.
+ */
+const storedToken = window.localStorage.getItem(STORAGE_KEY);
+if (storedToken) {
+  try {
+    const parsed = JSON.parse(storedToken);
+    if (parsed?.access_token && parsed?.refresh_token) {
+      // Fire and forget — this kicks the client into an initialized state
+      supabase.auth.setSession({
+        access_token: parsed.access_token,
+        refresh_token: parsed.refresh_token,
+      }).then(({ error }) => {
+        if (error) {
+          console.warn('[Supabase Client] setSession error (will retry via auto-refresh):', error.message);
+        } else {
+          console.log('[Supabase Client] Session initialized from stored token');
+        }
+      });
+    }
+  } catch (e) {
+    console.error('[Supabase Client] Failed to parse stored token:', e);
+  }
+}
