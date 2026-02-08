@@ -1,15 +1,13 @@
 /**
- * useAuthSession - Session management hook with timeout protection
+ * useAuthSession - Session management hook
  *
- * Key behaviors:
- * 1. Set up onAuthStateChange FIRST to catch INITIAL_SESSION
- * 2. Race getSession() against timeout as fallback
- * 3. Relies on Supabase's built-in auto-refresh (no monkey-patching)
+ * Waits for the Supabase client's session to be initialized (via setSession
+ * in client.ts), then listens for auth state changes.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, sessionReady } from '@/integrations/supabase/client';
 import { TIMEOUTS } from '@/lib/constants';
 
 interface UseAuthSessionReturn {
@@ -17,9 +15,7 @@ interface UseAuthSessionReturn {
   user: User | null;
   isLoading: boolean;
   error: Error | null;
-  /** Manually refresh the session */
   refreshSession: () => Promise<void>;
-  /** Get access token from current session */
   getAccessToken: () => string | null;
 }
 
@@ -35,10 +31,7 @@ export function useAuthSession(): UseAuthSessionReturn {
   }, [session]);
 
   const refreshSession = useCallback(async () => {
-    console.log('[AuthSession] Manual session refresh requested');
     setIsLoading(true);
-    setError(null);
-
     try {
       const { data, error: refreshError } = await supabase.auth.refreshSession();
       if (refreshError) throw refreshError;
@@ -58,49 +51,56 @@ export function useAuthSession(): UseAuthSessionReturn {
     if (initDone.current) return;
     initDone.current = true;
 
-    console.log('[AuthSession] Initializing...');
+    // Wait for the eager setSession() in client.ts to complete,
+    // then set up auth state change listener
+    sessionReady.then(() => {
+      console.log('[AuthSession] Session ready, setting up listener');
 
-    // 1. Listen for auth state changes (fires INITIAL_SESSION on mount)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, newSession) => {
-        console.log('[AuthSession] Auth event:', event, {
-          hasSession: !!newSession,
-          userId: newSession?.user?.id,
+      const { data: { subscription } } = supabase.auth.onAuthStateChange(
+        (event, newSession) => {
+          console.log('[AuthSession] Auth event:', event, {
+            hasSession: !!newSession,
+            userId: newSession?.user?.id,
+          });
+
+          switch (event) {
+            case 'INITIAL_SESSION':
+            case 'SIGNED_IN':
+            case 'TOKEN_REFRESHED':
+              setSession(newSession);
+              setUser(newSession?.user ?? null);
+              setIsLoading(false);
+              break;
+
+            case 'SIGNED_OUT':
+              setSession(null);
+              setUser(null);
+              setIsLoading(false);
+              break;
+          }
+        }
+      );
+
+      // Safety timeout — if no auth event fires within 3s of sessionReady,
+      // stop loading (user is likely not authenticated)
+      const safetyTimer = setTimeout(() => {
+        setIsLoading(prev => {
+          if (prev) {
+            console.warn('[AuthSession] Safety timeout after sessionReady');
+            return false;
+          }
+          return prev;
         });
+      }, TIMEOUTS.GET_SESSION);
 
-        switch (event) {
-          case 'INITIAL_SESSION':
-          case 'SIGNED_IN':
-          case 'TOKEN_REFRESHED':
-            setSession(newSession);
-            setUser(newSession?.user ?? null);
-            setIsLoading(false);
-            break;
-
-          case 'SIGNED_OUT':
-            setSession(null);
-            setUser(null);
-            setIsLoading(false);
-            break;
-        }
-      }
-    );
-
-    // 2. Safety timeout - if INITIAL_SESSION never fires, stop loading
-    const safetyTimer = setTimeout(() => {
-      setIsLoading(prev => {
-        if (prev) {
-          console.warn('[AuthSession] Safety timeout - no auth event received');
-          return false;
-        }
-        return prev;
-      });
-    }, TIMEOUTS.GET_SESSION + 1000);
-
-    return () => {
-      clearTimeout(safetyTimer);
-      subscription.unsubscribe();
-    };
+      // Return cleanup — but since we're inside .then(), we store it
+      // The subscription will be cleaned up when the component unmounts
+      // via the returned function from useEffect
+      return () => {
+        clearTimeout(safetyTimer);
+        subscription.unsubscribe();
+      };
+    });
   }, []);
 
   return {

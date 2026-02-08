@@ -14,7 +14,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { toast } from 'sonner';
-import { supabase } from '@/integrations/supabase/client';
+import { supabase, sessionReady } from '@/integrations/supabase/client';
 import { useAuthSession } from '@/hooks/useAuthSession';
 import { useRoleCache } from '@/hooks/useRoleCache';
 import { TIMEOUTS, AUTH_ROUTES } from '@/lib/constants';
