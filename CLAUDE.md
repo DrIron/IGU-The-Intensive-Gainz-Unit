@@ -557,12 +557,20 @@ When showing "no results" messages that reference a search term, always handle t
 
 **Problem**: Page refresh caused authentication failures - `getSession()` hung, auth headers didn't attach to Supabase client, RLS policies blocked queries, users got locked out of admin dashboard.
 
-**Solution** (two layers):
+**Solution** (three layers):
 
 1. **Cache-first role management** (Phase 8): Authorization checks use cached roles, not `getSession()`
-2. **Custom lock timeout** (Feb 8, 2026): `lockWithTimeout()` in `client.ts` prevents data queries from hanging
+2. **Navigator lock bypass** (Feb 8, 2026): Custom `lockWithTimeout()` in `client.ts` bypasses Navigator LockManager entirely — runs `fn()` directly without a lock
+3. **initializePromise timeout** (Feb 8, 2026): Races `initializePromise` against 5s timeout + resets internal `lockAcquired`/`pendingInLock` state to break the deadlock queue
 
-The root cause is Supabase's Navigator LockManager usage — internal calls use `acquireTimeout = -1` (wait forever). If the lock hangs, ALL `.from()` and `.rpc()` calls queue behind it. The custom lock function converts `-1` to `5000ms` and proceeds without the lock on timeout (worst case: a concurrent token refresh, which is idempotent).
+The root cause is a circular deadlock in Supabase's GoTrueClient:
+1. `initialize()` → `_recoverAndRefresh()` → `_notifyAllSubscribers('SIGNED_IN')`
+2. `_notifyAllSubscribers` **AWAITS** all `onAuthStateChange` listener callbacks
+3. If ANY listener calls `getSession()`, it does `await this.initializePromise`
+4. `initializePromise` is waiting for step 1 to finish → circular deadlock
+5. The Navigator LockManager lock is never released, blocking ALL subsequent operations
+
+The lock bypass + initializePromise timeout break both the lock-level and Promise-level deadlocks. Trade-off: no cross-tab token refresh coordination (concurrent refreshes are idempotent on server).
 
 **Cache-first pattern details:**
 - Cache user roles in localStorage after successful authentication
@@ -1332,7 +1340,7 @@ SQL function `generate_referral_code(first_name)`:
 - No automated tests for components (only smoke tests)
 - No staging environment (production only)
 - Bundle size is large (~2.4MB) - needs code splitting
-- `getSession()` could hang on page refresh — mitigated by custom `lockWithTimeout()` in `client.ts` (converts infinite lock wait to 5s timeout) + cache-first role pattern
+- `getSession()` could hang on page refresh — mitigated by Navigator lock bypass + `initializePromise` timeout in `client.ts` + cache-first role pattern
 - Sign-out flow doesn't properly redirect to login page
 - Edge functions: Always handle OPTIONS before `req.json()` to avoid CORS preflight crashes
 - Resend emails must use `@mail.theigu.com` (only verified subdomain)
