@@ -529,6 +529,27 @@ The `PricingPayoutsCallout` component exists in `src/components/admin/PricingPay
 ### 5. Component Placement Inside Tabs
 When using shadcn `Tabs`, all visible content must be inside a `<TabsContent value="...">` wrapper. Any JSX placed between `TabsContent` blocks but outside them will render on ALL tabs simultaneously.
 
+### 6. Display DB Enums with a Label Map, Not String Replace
+Never use `.replace('_', ' ')` + CSS `capitalize` to display database enum values. JS `.replace()` only replaces the **first** occurrence, so `one_to_one` becomes `"one to_one"`. Instead, use an explicit label map:
+```tsx
+// BAD — only replaces first underscore, produces "One To_one"
+<span className="capitalize">{value.replace('_', ' ')}</span>
+
+// GOOD — explicit, readable labels
+const LABELS: Record<string, string> = { one_to_one: '1:1', team: 'Team' };
+<span>{LABELS[value] ?? value}</span>
+```
+
+### 7. Empty State Messages Must Handle Empty Search
+When showing "no results" messages that reference a search term, always handle the empty string case:
+```tsx
+// BAD — shows: No exercises found matching ""
+<p>No exercises found matching "{searchTerm}"</p>
+
+// GOOD
+<p>{searchTerm ? `No exercises found matching "${searchTerm}"` : 'No exercises found'}</p>
+```
+
 ---
 
 ### Recent Fix: Auth Session Persistence (Feb 2026)
