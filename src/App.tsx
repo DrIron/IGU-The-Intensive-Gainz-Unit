@@ -58,10 +58,17 @@ import MedicalReview from "./pages/onboarding/MedicalReview";
 import AwaitingApproval from "./pages/onboarding/AwaitingApproval";
 import PaymentOnboarding from "./pages/onboarding/Payment";
 import { OnboardingGuard } from "@/components/OnboardingGuard";
+import { useTokenGuard } from "@/hooks/useTokenGuard";
 import { captureUTMParams } from "@/lib/utm";
 import { useEffect } from "react";
 
 const queryClient = new QueryClient();
+
+/** Global auth token guard - refreshes expired JWTs and intercepts 401s */
+function TokenGuard() {
+  useTokenGuard();
+  return null;
+}
 
 const App = () => {
   // Capture UTM parameters on app mount for lead tracking
@@ -75,6 +82,7 @@ const App = () => {
           <Toaster />
           <Sonner position="bottom-center" className="md:!bottom-4 md:!right-4 md:!left-auto" />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <TokenGuard />
             <TestEnvironmentBanner />
             {/* Routes Debug Panel - only shows in non-production */}
             <RoutesDebugPanel show={!window.location.hostname.includes('theigu.com')} />

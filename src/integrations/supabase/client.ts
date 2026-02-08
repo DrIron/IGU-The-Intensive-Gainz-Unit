@@ -9,78 +9,14 @@ const SUPABASE_PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 const PROJECT_REF = SUPABASE_URL?.match(/https:\/\/([^.]+)\./)?.[1] || 'ghotrbotrywonaejlppg';
 const STORAGE_KEY = `sb-${PROJECT_REF}-auth-token`;
 
-// Custom storage adapter with logging for debugging session persistence
-const customStorage = {
-  getItem: (key: string) => {
-    const value = window.localStorage.getItem(key);
-    console.log('[Supabase Storage] getItem:', key, value ? 'found' : 'not found');
-    return value;
-  },
-  setItem: (key: string, value: string) => {
-    console.log('[Supabase Storage] setItem:', key, 'length:', value?.length);
-    window.localStorage.setItem(key, value);
-  },
-  removeItem: (key: string) => {
-    console.log('[Supabase Storage] removeItem:', key);
-    window.localStorage.removeItem(key);
-  },
-};
-
 // Import the supabase client like this:
 // import { supabase } from "@/integrations/supabase/client";
 
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
-    storage: customStorage,
     persistSession: true,
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'implicit'
   }
 });
-
-// Immediately set auth header from stored token to prevent 401s on page refresh
-// The Supabase client's internal getSession() hangs, so queries go out without auth
-const storedToken = window.localStorage.getItem(`sb-${PROJECT_REF}-auth-token`);
-if (storedToken) {
-  try {
-    const parsed = JSON.parse(storedToken);
-    if (parsed?.access_token) {
-      supabase.auth.getSession = async () => {
-        return {
-          data: {
-            session: {
-              access_token: parsed.access_token,
-              refresh_token: parsed.refresh_token,
-              token_type: 'bearer',
-              expires_in: parsed.expires_in || 3600,
-              expires_at: parsed.expires_at,
-              user: parsed.user,
-            }
-          },
-          error: null,
-        };
-      };
-      console.log('[Supabase Client] Patched getSession to return stored token immediately');
-    }
-  } catch (e) {
-    console.error('[Supabase Client] Failed to patch getSession:', e);
-  }
-}
-
-/**
- * Get stored access token directly from localStorage
- * This bypasses getSession() which can hang on page refresh
- */
-export function getStoredAccessToken(): string | null {
-  try {
-    const storedSession = window.localStorage.getItem(STORAGE_KEY);
-    if (storedSession) {
-      const parsed = JSON.parse(storedSession);
-      return parsed.access_token || null;
-    }
-  } catch (error) {
-    console.error('[Supabase Client] Error reading stored token:', error);
-  }
-  return null;
-}
