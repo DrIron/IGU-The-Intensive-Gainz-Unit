@@ -18,60 +18,43 @@ export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABL
     autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: 'implicit',
-    // CRITICAL: Use localStorage directly — the default storage adapter
-    // works fine. Previous custom adapters caused issues.
   }
 });
 
 /**
  * Session initialization promise.
  * 
- * The Supabase JS client internally waits for getSession() to resolve
- * before sending any REST API requests. On cold page loads, getSession()
- * can be slow (network roundtrip to refresh token). This causes all
- * supabase.from().select() and supabase.rpc() calls to hang.
+ * Waits for the Supabase client to finish its internal initialization
+ * (reading from localStorage and optionally refreshing the token).
  * 
- * We solve this by eagerly calling setSession() with stored tokens.
- * setSession() initializes the internal auth state immediately and
- * allows auto-refresh to work properly.
+ * IMPORTANT: We do NOT call setSession() here. setSession() triggers
+ * a network call to /auth/v1/token which puts the client in a "refreshing"
+ * state that blocks ALL supabase.from() and supabase.rpc() queries.
  * 
- * Components/hooks that need to ensure the session is ready before
- * querying should await this promise.
+ * Instead, we let the client initialize naturally via getSession(),
+ * which reads from localStorage and refreshes only if needed.
  */
 let _sessionReadyResolve: () => void;
 export const sessionReady: Promise<void> = new Promise((resolve) => {
   _sessionReadyResolve = resolve;
 });
 
-// Eagerly initialize
-const storedToken = window.localStorage.getItem(STORAGE_KEY);
-if (storedToken) {
-  try {
-    const parsed = JSON.parse(storedToken);
-    if (parsed?.access_token && parsed?.refresh_token) {
-      supabase.auth.setSession({
-        access_token: parsed.access_token,
-        refresh_token: parsed.refresh_token,
-      }).then(({ data, error }) => {
-        if (error) {
-          console.warn('[Supabase Client] setSession error:', error.message);
-          // Still resolve — let the app handle auth failures gracefully
-        } else {
-          console.log('[Supabase Client] Session initialized from stored token');
-        }
-        _sessionReadyResolve();
-      }).catch(() => {
-        _sessionReadyResolve();
-      });
-    } else {
-      // No valid tokens — resolve immediately (no session)
-      _sessionReadyResolve();
-    }
-  } catch (e) {
-    console.error('[Supabase Client] Failed to parse stored token:', e);
-    _sessionReadyResolve();
+// Let the client initialize naturally — getSession reads from localStorage
+// and triggers auto-refresh if the token is expired
+supabase.auth.getSession().then(({ data, error }) => {
+  if (error) {
+    console.warn('[Supabase Client] getSession error:', error.message);
+  } else if (data.session) {
+    console.log('[Supabase Client] Session initialized via getSession');
+  } else {
+    console.log('[Supabase Client] No session found');
   }
-} else {
-  // No stored token — resolve immediately (anonymous user)
   _sessionReadyResolve();
-}
+}).catch(() => {
+  _sessionReadyResolve();
+});
+
+// Safety timeout — if getSession hangs (known issue), resolve after 5s
+setTimeout(() => {
+  _sessionReadyResolve();
+}, 5000);

@@ -1,14 +1,13 @@
 /**
  * useAuthSession - Session management hook
  *
- * Waits for the Supabase client's session to be initialized (via setSession
- * in client.ts), then listens for auth state changes.
+ * Uses Supabase's native onAuthStateChange which fires INITIAL_SESSION
+ * on mount. No custom session initialization needed.
  */
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Session, User } from '@supabase/supabase-js';
-import { supabase, sessionReady } from '@/integrations/supabase/client';
-import { TIMEOUTS } from '@/lib/constants';
+import { supabase } from '@/integrations/supabase/client';
 
 interface UseAuthSessionReturn {
   session: Session | null;
@@ -51,66 +50,47 @@ export function useAuthSession(): UseAuthSessionReturn {
     if (initDone.current) return;
     initDone.current = true;
 
-    // Wait for the eager setSession() in client.ts to complete,
-    // then set up auth state change listener
-    sessionReady.then(() => {
-      console.log('[AuthSession] Session ready, setting up listener');
-
-      const { data: { subscription } } = supabase.auth.onAuthStateChange(
-        (event, newSession) => {
-          console.log('[AuthSession] Auth event:', event, {
-            hasSession: !!newSession,
-            userId: newSession?.user?.id,
-          });
-
-          switch (event) {
-            case 'INITIAL_SESSION':
-            case 'SIGNED_IN':
-            case 'TOKEN_REFRESHED':
-              setSession(newSession);
-              setUser(newSession?.user ?? null);
-              setIsLoading(false);
-              break;
-
-            case 'SIGNED_OUT':
-              setSession(null);
-              setUser(null);
-              setIsLoading(false);
-              break;
-          }
-        }
-      );
-
-      // Safety timeout — if no auth event fires within 3s of sessionReady,
-      // stop loading (user is likely not authenticated)
-      const safetyTimer = setTimeout(() => {
-        setIsLoading(prev => {
-          if (prev) {
-            console.warn('[AuthSession] Safety timeout after sessionReady');
-            return false;
-          }
-          return prev;
+    // onAuthStateChange fires INITIAL_SESSION immediately on subscribe
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      (event, newSession) => {
+        console.log('[AuthSession] Auth event:', event, {
+          hasSession: !!newSession,
+          userId: newSession?.user?.id,
         });
-      }, TIMEOUTS.GET_SESSION);
 
-      // Return cleanup — but since we're inside .then(), we store it
-      // The subscription will be cleaned up when the component unmounts
-      // via the returned function from useEffect
-      return () => {
-        clearTimeout(safetyTimer);
-        subscription.unsubscribe();
-      };
-    });
+        if (event === 'SIGNED_OUT') {
+          setSession(null);
+          setUser(null);
+          setIsLoading(false);
+        } else if (newSession) {
+          setSession(newSession);
+          setUser(newSession.user);
+          setIsLoading(false);
+        } else if (event === 'INITIAL_SESSION') {
+          // No session on initial load
+          setIsLoading(false);
+        }
+      }
+    );
+
+    // Safety timeout — if no auth event fires within 5s, stop loading
+    const safetyTimer = setTimeout(() => {
+      setIsLoading(prev => {
+        if (prev) {
+          console.warn('[AuthSession] Safety timeout - no auth event received');
+          return false;
+        }
+        return prev;
+      });
+    }, 5000);
+
+    return () => {
+      clearTimeout(safetyTimer);
+      subscription.unsubscribe();
+    };
   }, []);
 
-  return {
-    session,
-    user,
-    isLoading,
-    error,
-    refreshSession,
-    getAccessToken,
-  };
+  return { session, user, isLoading, error, refreshSession, getAccessToken };
 }
 
 export default useAuthSession;
