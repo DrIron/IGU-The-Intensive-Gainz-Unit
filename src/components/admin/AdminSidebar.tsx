@@ -71,9 +71,8 @@ export function AdminSidebar({
       collapsible="icon"
     >
       <SidebarContent>
-        {/* Admin Section */}
-        {hasAdminRole && (
-          <SidebarGroup>
+        {/* Admin Section - always shown since this component is only rendered on admin routes */}
+        <SidebarGroup>
             {!collapsed && (
               <SidebarGroupLabel className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
                 Admin Pages
@@ -101,7 +100,6 @@ export function AdminSidebar({
               </SidebarMenu>
             </SidebarGroupContent>
           </SidebarGroup>
-        )}
 
         {/* NOTE: Coach pages removed - STRICT role isolation. Admins must use separate coach account. */}
       </SidebarContent>
