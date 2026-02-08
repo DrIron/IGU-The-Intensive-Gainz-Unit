@@ -34,51 +34,104 @@ interface RoleProtectedRouteProps {
 type AuthState = 'loading' | 'authorized' | 'unauthorized' | 'no-session';
 
 /**
- * Query user roles from database with timeout
- * Uses RPC function (SECURITY DEFINER) for reliability, with direct query fallback
+ * Get the Supabase URL and anon key from environment
+ */
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+const PROJECT_REF = SUPABASE_URL?.match(/https:\/\/([^.]+)\./)?.[1] || 'ghotrbotrywonaejlppg';
+const STORAGE_KEY = `sb-${PROJECT_REF}-auth-token`;
+
+/**
+ * Get stored access token directly from localStorage
+ */
+function getStoredToken(): string | null {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (!stored) return null;
+    return JSON.parse(stored)?.access_token || null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Query user roles using direct fetch() - bypasses Supabase client's session lock.
+ * 
+ * The Supabase JS client internally waits for getSession() to resolve before
+ * sending any REST request. On page refresh, getSession() can hang indefinitely,
+ * causing all supabase.from() and supabase.rpc() calls to queue forever.
+ * 
+ * This function uses raw fetch() with the stored JWT to avoid that entirely.
  */
 async function fetchUserRoles(userId: string): Promise<string[]> {
-  return new Promise((resolve) => {
-    const timeoutId = setTimeout(() => {
-      console.warn(`[RoleProtectedRoute] Roles query timed out after ${TIMEOUTS.ROLES_QUERY}ms`);
-      resolve([]);
-    }, TIMEOUTS.ROLES_QUERY);
+  const token = getStoredToken();
+  if (!token) {
+    console.warn('[RoleProtectedRoute] No stored token for roles fetch');
+    return [];
+  }
 
-    // Use RPC function - bypasses RLS, more reliable
-    supabase.rpc('get_my_roles')
-      .then(({ data, error }) => {
-        clearTimeout(timeoutId);
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TIMEOUTS.ROLES_QUERY);
 
-        if (error) {
-          console.error('[RoleProtectedRoute] RPC get_my_roles error:', error);
-          // Fallback to direct query
-          return supabase
-            .from('user_roles')
-            .select('role')
-            .eq('user_id', userId)
-            .then(({ data: fallbackData, error: fallbackError }) => {
-              if (fallbackError) {
-                console.error('[RoleProtectedRoute] Fallback query error:', fallbackError);
-                resolve([]);
-                return;
-              }
-              const roles = fallbackData?.map(r => r.role) || [];
-              console.log('[RoleProtectedRoute] Roles from fallback:', roles);
-              resolve(roles);
-            });
-        }
+  try {
+    // Try RPC first (SECURITY DEFINER, bypasses RLS)
+    console.log('[RoleProtectedRoute] Fetching roles via direct fetch (RPC)...');
+    const rpcResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_roles`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'apikey': SUPABASE_KEY,
+        'Authorization': `Bearer ${token}`,
+      },
+      body: '{}',
+      signal: controller.signal,
+    });
 
-        // RPC returns text[] directly
-        const roles = (data as string[]) || [];
-        console.log('[RoleProtectedRoute] Roles from RPC:', roles);
-        resolve(roles);
-      })
-      .catch((error) => {
-        clearTimeout(timeoutId);
-        console.error('[RoleProtectedRoute] Roles query exception:', error);
-        resolve([]);
-      });
-  });
+    clearTimeout(timeoutId);
+
+    if (rpcResponse.ok) {
+      const roles = await rpcResponse.json();
+      console.log('[RoleProtectedRoute] Roles from RPC:', roles);
+      return Array.isArray(roles) ? roles : [];
+    }
+
+    console.warn('[RoleProtectedRoute] RPC failed:', rpcResponse.status, '- trying direct query');
+
+    // Fallback: direct query to user_roles table
+    const controller2 = new AbortController();
+    const timeoutId2 = setTimeout(() => controller2.abort(), TIMEOUTS.ROLES_QUERY);
+
+    const queryResponse = await fetch(
+      `${SUPABASE_URL}/rest/v1/user_roles?select=role&user_id=eq.${userId}`,
+      {
+        headers: {
+          'apikey': SUPABASE_KEY,
+          'Authorization': `Bearer ${token}`,
+        },
+        signal: controller2.signal,
+      }
+    );
+
+    clearTimeout(timeoutId2);
+
+    if (queryResponse.ok) {
+      const data = await queryResponse.json();
+      const roles = data?.map((r: { role: string }) => r.role) || [];
+      console.log('[RoleProtectedRoute] Roles from direct query:', roles);
+      return roles;
+    }
+
+    console.error('[RoleProtectedRoute] Direct query failed:', queryResponse.status);
+    return [];
+  } catch (error: unknown) {
+    clearTimeout(timeoutId);
+    if (error instanceof Error && error.name === 'AbortError') {
+      console.warn(`[RoleProtectedRoute] Roles fetch timed out after ${TIMEOUTS.ROLES_QUERY}ms`);
+    } else {
+      console.error('[RoleProtectedRoute] Roles fetch exception:', error);
+    }
+    return [];
+  }
 }
 
 /**
