@@ -5,6 +5,7 @@ import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
 import { WhatsAppButton } from "@/components/marketing/WhatsAppButton";
+import { Footer } from "@/components/Footer";
 
 interface PublicLayoutProps {
   children: ReactNode;
@@ -136,11 +137,7 @@ export function PublicLayout({ children, minimal = false }: PublicLayoutProps) {
       <WhatsAppButton />
 
       {/* Footer */}
-      <footer className="border-t py-8 mt-auto">
-        <div className="container text-center text-sm text-muted-foreground">
-          <p>&copy; {new Date().getFullYear()} The Intensive Gainz Unit. All rights reserved.</p>
-        </div>
-      </footer>
+      <Footer />
     </div>
   );
 }

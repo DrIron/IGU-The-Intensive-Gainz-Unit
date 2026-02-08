@@ -317,20 +317,30 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
           name="preferred_training_times"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Preferred training time</FormLabel>
-              <Select onValueChange={(value) => field.onChange([value])} value={field.value?.[0]}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select preferred time" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="early_morning">Early Morning (5am-7am)</SelectItem>
-                  <SelectItem value="late_morning">Late Morning (8am-11am) - WEEKEND ONLY</SelectItem>
-                  <SelectItem value="afternoon">Afternoon (12pm-4pm) - WEEKEND ONLY</SelectItem>
-                  <SelectItem value="evening">Evening (5pm-8pm)</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormLabel>Preferred training times (select all that apply)</FormLabel>
+              <div className="space-y-3">
+                {[
+                  { value: "early_morning", label: "Early Morning (5am-7am)" },
+                  { value: "late_morning", label: "Late Morning (8am-11am) - WEEKEND ONLY" },
+                  { value: "afternoon", label: "Afternoon (12pm-4pm) - WEEKEND ONLY" },
+                  { value: "evening", label: "Evening (5pm-8pm)" },
+                ].map((option) => (
+                  <div key={option.value} className="flex items-center space-x-3 rounded-md border p-3">
+                    <Checkbox
+                      checked={(field.value || []).includes(option.value)}
+                      onCheckedChange={(checked) => {
+                        const current = field.value || [];
+                        if (checked) {
+                          field.onChange([...current, option.value]);
+                        } else {
+                          field.onChange(current.filter((v: string) => v !== option.value));
+                        }
+                      }}
+                    />
+                    <span className="text-sm">{option.label}</span>
+                  </div>
+                ))}
+              </div>
               <FormMessage />
             </FormItem>
           )}

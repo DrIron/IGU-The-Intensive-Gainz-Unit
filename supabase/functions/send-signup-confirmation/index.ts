@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
-import { EMAIL_FROM_COACHING } from '../_shared/config.ts';
+import { EMAIL_FROM_IGU } from '../_shared/config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -42,8 +42,8 @@ serve(async (req) => {
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; padding: 40px;">
           <tr>
             <td>
-              <h1 style="margin: 0 0 20px 0; color: #333; font-size: 24px;">Welcome to Dr Iron Fitness, ${name}!</h1>
-              <p style="margin: 0 0 15px 0; color: #666; font-size: 16px;">${isManualClient ? 'You have been added as a client by an admin.' : 'Thank you for signing up for Dr Iron Fitness.'} We're excited to help you achieve your fitness goals!</p>
+              <h1 style="margin: 0 0 20px 0; color: #333; font-size: 24px;">Welcome to IGU, ${name}!</h1>
+              <p style="margin: 0 0 15px 0; color: #666; font-size: 16px;">${isManualClient ? 'You have been added as a client by an admin.' : 'Thank you for signing up for IGU.'} We're excited to help you achieve your fitness goals!</p>
               <p style="margin: 0 0 15px 0; color: #666; font-size: 16px;"><strong>Get Started:</strong></p>
               <p style="margin: 0 0 20px 0; color: #666; font-size: 16px;">Click the button below to set your password and access your account:</p>
               <table width="100%" cellpadding="0" cellspacing="0">
@@ -55,7 +55,7 @@ serve(async (req) => {
               </table>
               <p style="margin: 20px 0 10px 0; color: #999; font-size: 14px;">After setting your password, you'll be able to complete your onboarding and start your fitness journey.</p>
               <p style="margin: 10px 0 0 0; color: #999; font-size: 14px;"><strong>Note:</strong> This link expires in 24 hours for security.</p>
-              <p style="margin: 30px 0 0 0; color: #666; font-size: 16px;">Best regards,<br>The Dr Iron Fitness Team</p>
+              <p style="margin: 30px 0 0 0; color: #666; font-size: 16px;">Best regards,<br>The IGU Team</p>
             </td>
           </tr>
         </table>
@@ -78,8 +78,8 @@ serve(async (req) => {
         <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 8px; padding: 40px;">
           <tr>
             <td>
-              <h1 style="margin: 0 0 20px 0; color: #333; font-size: 24px;">Welcome to Dr Iron Fitness, ${name}!</h1>
-              <p style="margin: 0 0 15px 0; color: #666; font-size: 16px;">Thank you for signing up for Dr Iron Fitness. We're excited to help you achieve your fitness goals!</p>
+              <h1 style="margin: 0 0 20px 0; color: #333; font-size: 24px;">Welcome to IGU, ${name}!</h1>
+              <p style="margin: 0 0 15px 0; color: #666; font-size: 16px;">Thank you for signing up for IGU. We're excited to help you achieve your fitness goals!</p>
               <p style="margin: 0 0 15px 0; color: #666; font-size: 16px;"><strong>Next Steps:</strong></p>
               <ol style="margin: 0 0 20px 0; color: #666; font-size: 16px; padding-left: 20px;">
                 <li style="margin-bottom: 10px;">Complete your onboarding questionnaire</li>
@@ -87,7 +87,7 @@ serve(async (req) => {
                 <li style="margin-bottom: 10px;">Get matched with your coach</li>
                 <li>Start your fitness journey!</li>
               </ol>
-              <p style="margin: 20px 0 0 0; color: #666; font-size: 16px;">Best regards,<br>The Dr Iron Fitness Team</p>
+              <p style="margin: 20px 0 0 0; color: #666; font-size: 16px;">Best regards,<br>The IGU Team</p>
             </td>
           </tr>
         </table>
@@ -105,9 +105,9 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: EMAIL_FROM_COACHING,
+        from: EMAIL_FROM_IGU,
         to: [email],
-        subject: 'Welcome to Dr Iron Fitness - Account Created Successfully!',
+        subject: 'Welcome to IGU - Account Created Successfully!',
         html,
       }),
     });

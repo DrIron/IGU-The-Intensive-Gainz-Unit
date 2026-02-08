@@ -749,9 +749,9 @@ Deno.serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              from: 'Dr Iron <noreply@mail.theigu.com>',
+              from: 'IGU Coaching <noreply@mail.theigu.com>',
               to: [validatedData.email],
-              subject: '[Dr Iron Coaching] Your application is under medical review',
+              subject: '[IGU] Your application is under medical review',
               html: `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                   <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">Your Application is Under Medical Review</h1>
@@ -780,7 +780,7 @@ Deno.serve(async (req) => {
                   
                   <p style="color: #666; font-size: 16px; line-height: 1.5;">
                     Best regards,<br>
-                    <strong>Dr. Iron Team</strong>
+                    <strong>The IGU Team</strong>
                   </p>
                 </div>
               `,
@@ -823,9 +823,9 @@ Deno.serve(async (req) => {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              from: 'Dr Iron <noreply@mail.theigu.com>',
+              from: 'IGU Coaching <noreply@mail.theigu.com>',
               to: [validatedData.email],
-              subject: '[Dr Iron Coaching] We\'ve received your 1:1 coaching application',
+              subject: '[IGU] We\'ve received your 1:1 coaching application',
               html: `
                 <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
                   <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">Application Received!</h1>
@@ -854,7 +854,7 @@ Deno.serve(async (req) => {
                   
                   <p style="color: #666; font-size: 16px; line-height: 1.5;">
                     Best regards,<br>
-                    <strong>Dr. Iron Team</strong>
+                    <strong>The IGU Team</strong>
                   </p>
                 </div>
               `,
@@ -909,8 +909,23 @@ Deno.serve(async (req) => {
       }
     }
 
+    // FLOW 5: Send welcome email to ALL clients (always)
+    try {
+      await supabaseServiceRole.functions.invoke('send-welcome-email', {
+        body: {
+          email: validatedData.email,
+          firstName: validatedData.first_name,
+          planName: validatedData.plan_name,
+          status: newStatus,
+        },
+      });
+      console.log('Sent welcome email to client');
+    } catch (emailError) {
+      console.error('Error sending welcome email (non-critical):', emailError);
+    }
+
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         submission_id: submission.id,
         needs_medical_review,
