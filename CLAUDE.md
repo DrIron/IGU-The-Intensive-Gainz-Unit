@@ -499,6 +499,38 @@ Comprehensive onboarding flow fixes and UX improvements across 12 items in two p
 **Key Bug Fix — Coach Matching Mismatch:**
 Client-side (`CoachPreferenceSection.tsx`) was counting only `active` subscriptions to determine coach capacity, while server-side (`submit-onboarding/index.ts`) counted `pending + active`. This meant the coach preview could show a coach as available when they were actually at capacity. Fixed all 3 locations: `CoachPreferenceSection`, `coachMatching.ts:autoMatchCoachForClient`, `coachMatching.ts:validateCoachSelection`.
 
+---
+
+## ⚠️ Critical Warnings & Gotchas
+
+### 1. Branding: Always "IGU", Never "Dr Iron"
+The platform branding is **IGU** (The Intensive Gainz Unit). All references to "Dr Iron" must be replaced with "IGU". This applies to:
+- Navigation bar (`src/components/Navigation.tsx`) — both desktop and mobile nav
+- Any page titles, meta tags, or UI text
+- The live site is `theigu.com`
+
+### 2. Coach Data Lives in TWO Tables — Keep Them in Sync
+There are two separate base tables for coach data that MUST stay in sync:
+- `coaches` — the canonical base table (has `status`, `first_name`, etc.)
+- `coaches_public` — a **separate base table** (NOT a view) with public-facing fields
+
+The `coaches_full` **view** joins `coaches_public` + `coaches_private`. Most admin UI reads from `coaches_full`, which means it reads status from `coaches_public`, NOT from `coaches`.
+
+**If you update `coaches.status`, you MUST also update `coaches_public.status`** — otherwise the admin UI (Service Limits, Load & Capacity) will filter out the coach.
+
+Example of the bug this causes: `coaches.status = 'active'` but `coaches_public.status = 'pending'` → `coaches_full` returns `pending` → `activeCoaches` filter excludes the coach → Service Limits tab appears empty.
+
+### 3. Navigation Status Badge — Not for Admin/Coach
+The `getMemberStatus()` function in `Navigation.tsx` derives a status badge from client subscription data. Admin and coach roles don't have client subscriptions, so without an early return they fall through to "Status: Unknown". The function returns `null` for admin/coach roles.
+
+### 4. PricingPayoutsCallout — Removed from CoachManagement
+The `PricingPayoutsCallout` component exists in `src/components/admin/PricingPayoutsCallout.tsx` but is NOT imported or used anywhere. It was previously in `CoachManagement.tsx` placed outside any `TabsContent`, causing it to appear on every tab. Do not re-add it to CoachManagement.
+
+### 5. Component Placement Inside Tabs
+When using shadcn `Tabs`, all visible content must be inside a `<TabsContent value="...">` wrapper. Any JSX placed between `TabsContent` blocks but outside them will render on ALL tabs simultaneously.
+
+---
+
 ### Recent Fix: Auth Session Persistence (Feb 2026)
 
 **Problem**: Page refresh caused authentication failures - `getSession()` hung, auth headers didn't attach to Supabase client, RLS policies blocked queries, users got locked out of admin dashboard.
