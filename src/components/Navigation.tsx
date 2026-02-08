@@ -288,6 +288,9 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   // Derive member status badge and tone
   const getMemberStatus = () => {
     if (!profile) return null;
+    
+    // Admin and coach roles don't have client subscriptions - no status badge needed
+    if (activeRole === 'admin' || activeRole === 'coach') return null;
 
     const profileStatus = profile?.status;
     const subStatus = subscription?.status;
@@ -365,7 +368,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
               <div className="p-2 rounded-full bg-gradient-to-r from-primary to-accent">
                 <Dumbbell className="h-6 w-6 text-white" />
               </div>
-              <span className="font-bold text-xl">Dr Iron</span>
+              <span className="font-bold text-xl">IGU</span>
             </Link>
 
             {/* Desktop Navigation */}
@@ -530,7 +533,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                 <div className="p-1.5 rounded-full bg-gradient-to-r from-primary to-accent">
                   <Dumbbell className="h-4 w-4 text-white" />
                 </div>
-                <span className="font-semibold">Dr Iron</span>
+                <span className="font-semibold">IGU</span>
               </div>
               <button
                 onClick={() => setMobileMenuOpen(false)}

@@ -15,7 +15,6 @@ import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText,
 import { CoachCapacityManager } from "@/components/admin/CoachCapacityManager";
 import { CoachLoadOverview } from "@/components/admin/CoachLoadOverview";
 import { CoachApplicationsManager } from "@/components/CoachApplicationsManager";
-import { PricingPayoutsCallout } from "@/components/admin/PricingPayoutsCallout";
 import { SpecializationTagManager } from "@/components/admin/SpecializationTagManager";
 import {
   DropdownMenu,
@@ -757,12 +756,6 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
         <TabsContent value="service-limits">
           <ServiceLimitsTab />
         </TabsContent>
-
-        {/* Pricing & Payouts Callout (replaces old Payments tab) */}
-        <PricingPayoutsCallout 
-          title="Coach Payments"
-          description="Coach payout rates and payment calculations are now managed centrally."
-        />
 
         {/* Applications Tab */}
         <TabsContent value="applications">
