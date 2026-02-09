@@ -1414,18 +1414,19 @@ When asking for help:
 - Full Site UI/UX Redesign — dark theme, CMS-driven content, fonts, admin content editor ✅ (Feb 7, 2026)
 - IGU Marketing System — auth gate removal, public pricing, FAQ, comparison table, leads/UTM, referrals ✅ (Feb 7, 2026)
 
-**In Progress**:
-- Client onboarding & dashboard QA (next session)
-- Workout Builder Phase 2 — exercise swap, teams
+**Completed (Phase 27-28)**:
+- Client onboarding & dashboard QA ✅ (Feb 8, 2026)
+- Workout Builder Phase 2 — exercise swap, direct calendar editor, volume chart ✅ (Feb 8, 2026)
+- Cloudflare Turnstile on coach application form ✅ (Feb 8, 2026)
+- Exercise library populated (107 exercises seeded) ✅ (Feb 8, 2026)
+- Mobile responsive fixes (8 critical/high items) ✅ (Feb 8, 2026)
+- End-to-end client journey testing ✅ (Feb 8, 2026)
+- Performance optimization — React.lazy + vendor chunks, 2.8MB → 441KB ✅ (Feb 8, 2026)
+- Security audit — error sanitization, rate limiting, default role trigger ✅ (Feb 8, 2026)
+- Admin QA polish — all 10 issues resolved ✅ (Feb 8, 2026)
 
-**Remaining**:
-- Add Cloudflare Turnstile to anonymous endpoints (coach application form)
-- Populate exercise library from YouTube
-- Mobile responsive testing
-- End-to-end client journey testing
-- Performance optimization (bundle splitting)
-- Security audit
-- Backup/recovery procedures
+**Not launched yet**:
+- Backup/recovery procedures (operational, not code)
 
 ### Documentation
 - `/docs/IGU_Discovery_Report.md` - Platform audit
@@ -1483,17 +1484,17 @@ When asking for help:
 | Workout logging | ✅ Routed (Phase 21) | WorkoutSessionV2 replaces old route |
 | Draft/Publish | ✅ Per-session toggle | |
 | Session copy/paste | ✅ Clipboard-based deep copy | Copy from dropdown, paste on any day |
-| Teams | ❌ | Phase 2 |
-| Volume tracking | ❌ | Phase 2 |
-| Exercise swap | ❌ | Phase 2 |
+| Teams | ❌ | Deferred |
+| Volume tracking | ✅ | Phase 28 |
+| Exercise swap | ✅ | Phase 28 |
 
-### Phase 2 — Remaining
+### Phase 2 — Status
 
-- Direct calendar exercise editing (currently placeholder)
-- Exercise swap functionality (this session OR all future)
-- Team programs (synced group assignments)
-- Volume tracking / per-muscle analytics
-- Exercise history sheet UI
+- ✅ Direct calendar exercise editing (DirectSessionExerciseEditor)
+- ✅ Exercise swap functionality (SwapExercisePicker in WorkoutSessionV2)
+- ✅ Volume tracking / per-muscle analytics (useVolumeTracking + VolumeChart)
+- ❌ Team programs (synced group assignments) — deferred, not launch-critical
+- ❌ Exercise history sheet UI — deferred
 
 ---
 
