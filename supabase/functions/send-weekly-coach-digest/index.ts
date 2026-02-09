@@ -52,7 +52,7 @@ Deno.serve(async (req) => {
     // Get all active coaches
     const { data: coaches, error: coachError } = await supabase
       .from("coaches")
-      .select("user_id, name")
+      .select("user_id, first_name, last_name")
       .in("status", ["active", "approved"]);
 
     if (coachError) {
@@ -80,15 +80,12 @@ Deno.serve(async (req) => {
         // Get active client count
         const { data: activeClients } = await supabase
           .from("subscriptions")
-          .select("id, user_id, start_date, profiles!subscriptions_user_id_fkey(first_name, last_name)")
+          .select("id, user_id, start_date")
           .eq("coach_id", coach.user_id)
           .eq("status", "active");
 
         const totalClients = activeClients?.length || 0;
         if (totalClients === 0) continue; // Skip coaches with no clients
-
-        // Count workouts completed this week across all clients
-        const clientIds = activeClients!.map((c) => c.user_id);
 
         // Check exercise_set_logs for activity per client
         let totalWorkoutsLogged = 0;
@@ -102,9 +99,15 @@ Deno.serve(async (req) => {
             .eq("created_by_user_id", client.user_id)
             .gte("created_at", oneWeekAgo);
 
-          const profileData = client.profiles as any;
+          // Get client profile directly from the profiles view
+          const { data: clientProfile } = await supabase
+            .from("profiles")
+            .select("first_name, last_name")
+            .eq("id", client.user_id)
+            .maybeSingle();
+
           const clientName =
-            `${profileData?.first_name || ""} ${profileData?.last_name || ""}`.trim() ||
+            `${clientProfile?.first_name || ""} ${clientProfile?.last_name || ""}`.trim() ||
             "Unknown";
 
           if (count && count > 0) {
@@ -121,7 +124,7 @@ Deno.serve(async (req) => {
         );
 
         const coachFirstName =
-          coachProfile.first_name || coach.name || "Coach";
+          coachProfile.first_name || coach.first_name || "Coach";
 
         const { subject, html } = buildEmail(
           coachFirstName,

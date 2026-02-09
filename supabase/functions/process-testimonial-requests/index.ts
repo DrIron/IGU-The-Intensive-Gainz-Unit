@@ -56,16 +56,7 @@ Deno.serve(async (req) => {
     // Find active subscriptions that started 4-6 weeks ago
     const { data: eligibleSubs, error: fetchError } = await supabase
       .from("subscriptions")
-      .select(
-        `
-        id,
-        user_id,
-        start_date,
-        coach_id,
-        profiles!subscriptions_user_id_fkey(id, email, first_name),
-        services(name)
-      `
-      )
+      .select("id, user_id, start_date, coach_id, services(name)")
       .eq("status", "active")
       .lte("start_date", fourWeeksAgo)
       .gte("start_date", sixWeeksAgo);
@@ -87,16 +78,14 @@ Deno.serve(async (req) => {
 
     for (const sub of eligibleSubs) {
       try {
-        const profileData = sub.profiles as any;
-        if (!profileData || Array.isArray(profileData)) continue;
+        // Get client profile directly from the profiles view
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, email, first_name")
+          .eq("id", sub.user_id)
+          .maybeSingle();
 
-        const profile = profileData as {
-          id: string;
-          email: string;
-          first_name: string | null;
-        };
-
-        if (!profile.email) continue;
+        if (!profile?.email) continue;
 
         // Check if testimonial request was already sent
         const { data: existing } = await supabase

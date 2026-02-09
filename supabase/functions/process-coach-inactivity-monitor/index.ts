@@ -51,7 +51,7 @@ Deno.serve(async (req) => {
     // Get all active coaches
     const { data: coaches, error: coachError } = await supabase
       .from("coaches")
-      .select("user_id, name")
+      .select("user_id, first_name, last_name")
       .in("status", ["active", "approved"]);
 
     if (coachError) {
@@ -123,7 +123,7 @@ Deno.serve(async (req) => {
           .eq("status", "active");
 
         inactiveCoaches.push({
-          name: coach.name || user.email || "Unknown",
+          name: [coach.first_name, coach.last_name].filter(Boolean).join(" ") || user.email || "Unknown",
           email: user.email || "no email",
           daysSinceLogin,
           clientCount: clientCount || 0,

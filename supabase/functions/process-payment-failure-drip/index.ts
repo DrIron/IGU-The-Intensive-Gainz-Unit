@@ -47,20 +47,10 @@ Deno.serve(async (req) => {
       errors: [] as string[],
     };
 
-    // Fetch all failed subscriptions with profile + service + coach data
+    // Fetch all failed subscriptions with service data
     const { data: failedSubs, error: fetchError } = await supabase
       .from("subscriptions")
-      .select(
-        `
-        id,
-        user_id,
-        payment_failed_at,
-        coach_id,
-        service_id,
-        profiles(id, email, first_name, last_name, status),
-        services(name)
-      `
-      )
+      .select("id, user_id, payment_failed_at, coach_id, service_id, services(name)")
       .eq("status", "failed")
       .not("payment_failed_at", "is", null);
 
@@ -81,18 +71,14 @@ Deno.serve(async (req) => {
 
     for (const sub of failedSubs) {
       try {
-        const profileData = sub.profiles as any;
-        if (!profileData || Array.isArray(profileData)) continue;
+        // Get client profile directly from the profiles view
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, email, first_name, last_name, status")
+          .eq("id", sub.user_id)
+          .maybeSingle();
 
-        const profile = profileData as {
-          id: string;
-          email: string;
-          first_name: string | null;
-          last_name: string | null;
-          status: string;
-        };
-
-        if (!profile.email) continue;
+        if (!profile?.email) continue;
 
         const failedAt = new Date(sub.payment_failed_at);
         const daysSinceFailure = Math.floor(

@@ -43,19 +43,10 @@ Deno.serve(async (req) => {
       errors: [] as string[],
     };
 
-    // Get all active subscriptions with client + coach info
+    // Get all active subscriptions with coach info
     const { data: activeSubs, error: fetchError } = await supabase
       .from("subscriptions")
-      .select(
-        `
-        id,
-        user_id,
-        coach_id,
-        service_id,
-        profiles!subscriptions_user_id_fkey(id, email, first_name, last_name),
-        services(name)
-      `
-      )
+      .select("id, user_id, coach_id, service_id, services(name)")
       .eq("status", "active")
       .not("coach_id", "is", null);
 
@@ -78,15 +69,14 @@ Deno.serve(async (req) => {
 
     for (const sub of activeSubs) {
       try {
-        const profileData = sub.profiles as any;
-        if (!profileData || Array.isArray(profileData)) continue;
+        // Get client profile directly from the profiles view
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, email, first_name, last_name")
+          .eq("id", sub.user_id)
+          .maybeSingle();
 
-        const profile = profileData as {
-          id: string;
-          email: string;
-          first_name: string | null;
-          last_name: string | null;
-        };
+        if (!profile) continue;
 
         // Check for recent workout activity via completed sessions
         const { data: recentSessions } = await supabase
@@ -143,14 +133,6 @@ Deno.serve(async (req) => {
         }
 
         // Get coach details
-        const { data: coach } = await supabase
-          .from("coaches")
-          .select("user_id, name")
-          .eq("user_id", sub.coach_id)
-          .maybeSingle();
-
-        if (!coach) continue;
-
         const { data: coachProfile } = await supabase
           .from("profiles")
           .select("email, first_name")
@@ -164,7 +146,7 @@ Deno.serve(async (req) => {
           "A client";
         const serviceData = sub.services as any;
         const serviceName = serviceData?.name || "their program";
-        const coachFirstName = coachProfile.first_name || coach.name || "Coach";
+        const coachFirstName = coachProfile.first_name || "Coach";
 
         const { subject, html } = buildEmail(
           coachFirstName,

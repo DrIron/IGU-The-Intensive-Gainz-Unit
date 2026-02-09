@@ -49,15 +49,7 @@ Deno.serve(async (req) => {
     // Window: next_billing_date between now and 3 days from now
     const { data: upcomingSubs, error: fetchError } = await supabase
       .from("subscriptions")
-      .select(
-        `
-        id,
-        user_id,
-        next_billing_date,
-        profiles!subscriptions_user_id_fkey(id, email, first_name),
-        services(name, price)
-      `
-      )
+      .select("id, user_id, next_billing_date, services(name, price_kwd)")
       .eq("status", "active")
       .gte("next_billing_date", now.toISOString())
       .lte("next_billing_date", threeDaysFromNow.toISOString());
@@ -79,16 +71,14 @@ Deno.serve(async (req) => {
 
     for (const sub of upcomingSubs) {
       try {
-        const profileData = sub.profiles as any;
-        if (!profileData || Array.isArray(profileData)) continue;
+        // Get client profile directly from the profiles view
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("id, email, first_name")
+          .eq("id", sub.user_id)
+          .maybeSingle();
 
-        const profile = profileData as {
-          id: string;
-          email: string;
-          first_name: string | null;
-        };
-
-        if (!profile.email) continue;
+        if (!profile?.email) continue;
 
         // Use billing date month as dedup key
         const billingDate = new Date(sub.next_billing_date);
@@ -113,7 +103,7 @@ Deno.serve(async (req) => {
         const firstName = profile.first_name || "there";
         const serviceData = sub.services as any;
         const serviceName = serviceData?.name || "your coaching program";
-        const price = serviceData?.price;
+        const price = serviceData?.price_kwd;
         const renewalDate = billingDate.toLocaleDateString("en-US", {
           weekday: "long",
           month: "long",
