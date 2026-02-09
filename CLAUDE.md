@@ -1365,6 +1365,9 @@ SQL function `generate_referral_code(first_name)`:
 - **`profiles` is a VIEW** (not a table) — joins `profiles_public` + `profiles_private`. You CANNOT use PostgREST FK joins like `profiles!subscriptions_user_id_fkey(...)` because the FK references `profiles_legacy`, not the view. Always use separate direct queries: `.from("profiles").select("email, first_name").eq("id", userId)`.
 - **`coaches` table columns**: `first_name`, `last_name`, `nickname` — there is NO `name` column. Use `first_name`/`last_name`.
 - **`services` table pricing column**: `price_kwd` — there is NO `price` column.
+- **`account_status` enum values**: pending, active, suspended, approved, needs_medical_review, pending_payment, cancelled, expired, pending_coach_approval, inactive — there is NO `'new'` value.
+- **`app_role` enum values**: member, coach, admin, dietitian — there is NO `'client'` value. The client role is `'member'`.
+- **`form_submissions` table columns**: Does NOT have `red_flags_count`, `service_id`, or `notes_summary` — those columns exist only on `form_submissions_safe`. Triggers on `form_submissions` must not reference `NEW.red_flags_count`.
 - **All public-facing pages MUST be wrapped in `<PublicLayout>` in App.tsx** — this provides the consistent "IGU" navbar and footer. Never render a public page without PublicLayout, and never add `<Navigation />` or `<Footer />` inside a page component that is already wrapped in PublicLayout (causes duplicates). When creating a new public route, wrap it: `<Route path="/foo" element={<PublicLayout><Foo /></PublicLayout>} />`. When editing a page, check App.tsx first to see if it's already wrapped.
 
 ---
@@ -1457,6 +1460,7 @@ When asking for help:
   - Coach inactivity alerts to admins (7+ days no login, weekly dedup)
 - Workout Builder INP performance fix — memoization across 7 component files ✅ (Feb 9, 2026)
 - Edge function DB query fix — repaired 7 n8n edge functions with broken FK joins and wrong column names ✅ (Feb 9, 2026)
+- Client onboarding submission fix — 3 trigger bugs + gateway JWT rejection + functions auth recovery ✅ (Feb 9, 2026)
 
 **Not launched yet**:
 - Backup/recovery procedures (operational, not code)
@@ -1585,6 +1589,7 @@ Quick reference for edge function JWT settings:
 | `process-coach-inactivity-monitor` | **No** | Called by n8n (service role key) |
 | `send-admin-daily-summary` | **No** | Called by n8n (service role key) |
 | `send-weekly-coach-digest` | **No** | Called by n8n (service role key) |
+| `submit-onboarding` | **No** | Gateway rejects ES256 JWTs; function has internal auth checks |
 
 Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
 
@@ -1699,6 +1704,45 @@ for (const sub of subs) {
 **Result:** All 10/10 n8n edge functions return HTTP 200.
 
 **Rule for edge functions:** Never use PostgREST FK joins to the `profiles` view. Always query `.from("profiles")` directly with `.eq("id", userId)`.
+
+---
+
+## Client Onboarding Submission Fix (Feb 9, 2026)
+
+Fixed 4 layered bugs preventing the client onboarding form from submitting successfully. Discovered during live QA testing of the Fe Squad signup flow on theigu.com.
+
+**Bug 1 — Supabase Gateway JWT Rejection (HTTP 401):**
+The `submit-onboarding` edge function was blocked by the Supabase gateway before the function code even ran. The client sent a valid ES256 JWT, but the gateway's `verify_jwt: true` setting rejected it. Evidence: response CORS headers were missing `content-type` (the function adds it, the gateway doesn't). Fix: Deployed with `--no-verify-jwt`. The function already has internal auth checks (lines 159-182 of `submit-onboarding/index.ts`).
+
+**Bug 2 — `sync_form_submissions_safe()` trigger crash (HTTP 500 — "Failed to submit form"):**
+The AFTER INSERT trigger on `form_submissions` referenced `NEW.red_flags_count`, but that column does not exist on `form_submissions` — it only exists on `form_submissions_safe`. PostgreSQL error: `record "new" has no field "red_flags_count"`. Fix: Replaced `COALESCE(NEW.red_flags_count, 0)` with literal `0`.
+
+**Bug 3 — `ensure_default_client_role()` trigger, invalid enum 'new' (HTTP 500 — "Failed to update profile"):**
+The AFTER UPDATE trigger on `profiles_public` had `OLD.status IN ('new', 'pending')`, but `'new'` is not a valid `account_status` enum value. Fix: Changed to `OLD.status = 'pending'`.
+
+**Bug 4 — `ensure_default_client_role()` trigger, invalid enum 'client' (HTTP 500 — "Failed to update profile"):**
+Same trigger inserted `role = 'client'` into `user_roles`, but `'client'` is not a valid `app_role` enum value (the correct value is `'member'`). Fix: Changed `'client'` to `'member'`.
+
+**Bug 5 — Functions auth token not attached after initializePromise timeout:**
+When `initializePromise` times out (see Auth Session Persistence section), `getSession()` returns null even though a valid session exists in localStorage. The internal `onAuthStateChange` listener never fires, so `supabase.functions.invoke()` falls back to the anon key. Fix: After `getSession()` returns null, recover the access token from localStorage and call `supabase.functions.setAuth()`. This was defense-in-depth — the primary fix was Bug 1.
+
+**Files Modified/Created:**
+
+| File | Change |
+|------|--------|
+| `src/integrations/supabase/client.ts` | Added localStorage recovery for functions auth token when getSession returns null |
+| `supabase/migrations/20260209_fix_onboarding_triggers.sql` | Migration documenting all 3 trigger fixes (applied directly via SQL during QA) |
+
+**Database Functions Fixed (applied via SQL, recorded in migration):**
+- `sync_form_submissions_safe()` — `NEW.red_flags_count` → `0`
+- `ensure_default_client_role()` — removed `'new'` from status check, changed `'client'` to `'member'`
+
+**Edge Function Deployment:**
+```bash
+npx supabase functions deploy submit-onboarding --no-verify-jwt
+```
+
+**Result:** Client onboarding form submits successfully. User transitions from onboarding to payment page.
 
 ---
 
