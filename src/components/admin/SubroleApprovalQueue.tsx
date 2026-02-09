@@ -79,7 +79,7 @@ async function fetchSubroleRequests(): Promise<SubroleRequest[]> {
   // Fetch user profile info for each request
   const userIds = [...new Set((data || []).map((r: any) => r.user_id))];
 
-  let profileMap: Record<string, { first_name: string; last_name: string; email: string }> = {};
+  const profileMap: Record<string, { first_name: string; last_name: string; email: string }> = {};
 
   if (userIds.length > 0) {
     const { data: profiles } = await supabase
