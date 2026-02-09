@@ -66,7 +66,7 @@ function getStoredToken(): string | null {
 async function fetchUserRoles(userId: string): Promise<string[]> {
   const token = getStoredToken();
   if (!token) {
-    console.warn('[RoleProtectedRoute] No stored token for roles fetch');
+    if (import.meta.env.DEV) console.warn('[RoleProtectedRoute] No stored token for roles fetch');
     return [];
   }
 
@@ -75,7 +75,7 @@ async function fetchUserRoles(userId: string): Promise<string[]> {
 
   try {
     // Try RPC first (SECURITY DEFINER, bypasses RLS)
-    console.log('[RoleProtectedRoute] Fetching roles via direct fetch (RPC)...');
+    if (import.meta.env.DEV) console.log('[RoleProtectedRoute] Fetching roles via direct fetch (RPC)...');
     const rpcResponse = await fetch(`${SUPABASE_URL}/rest/v1/rpc/get_my_roles`, {
       method: 'POST',
       headers: {
@@ -91,11 +91,11 @@ async function fetchUserRoles(userId: string): Promise<string[]> {
 
     if (rpcResponse.ok) {
       const roles = await rpcResponse.json();
-      console.log('[RoleProtectedRoute] Roles from RPC:', roles);
+      if (import.meta.env.DEV) console.log('[RoleProtectedRoute] Roles from RPC:', roles);
       return Array.isArray(roles) ? roles : [];
     }
 
-    console.warn('[RoleProtectedRoute] RPC failed:', rpcResponse.status, '- trying direct query');
+    if (import.meta.env.DEV) console.warn('[RoleProtectedRoute] RPC failed:', rpcResponse.status, '- trying direct query');
 
     // Fallback: direct query to user_roles table
     const controller2 = new AbortController();
@@ -117,18 +117,18 @@ async function fetchUserRoles(userId: string): Promise<string[]> {
     if (queryResponse.ok) {
       const data = await queryResponse.json();
       const roles = data?.map((r: { role: string }) => r.role) || [];
-      console.log('[RoleProtectedRoute] Roles from direct query:', roles);
+      if (import.meta.env.DEV) console.log('[RoleProtectedRoute] Roles from direct query:', roles);
       return roles;
     }
 
-    console.error('[RoleProtectedRoute] Direct query failed:', queryResponse.status);
+    if (import.meta.env.DEV) console.error('[RoleProtectedRoute] Direct query failed:', queryResponse.status);
     return [];
   } catch (error: unknown) {
     clearTimeout(timeoutId);
     if (error instanceof Error && error.name === 'AbortError') {
-      console.warn(`[RoleProtectedRoute] Roles fetch timed out after ${TIMEOUTS.ROLES_QUERY}ms`);
+      if (import.meta.env.DEV) console.warn(`[RoleProtectedRoute] Roles fetch timed out after ${TIMEOUTS.ROLES_QUERY}ms`);
     } else {
-      console.error('[RoleProtectedRoute] Roles fetch exception:', error);
+      if (import.meta.env.DEV) console.error('[RoleProtectedRoute] Roles fetch exception:', error);
     }
     return [];
   }
@@ -207,7 +207,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
     decision: 'GRANTED' | 'BLOCKED' | 'PENDING',
     details: Record<string, unknown>
   ) => {
-    console.log(`[RoleProtectedRoute][${decision}]`, {
+    if (import.meta.env.DEV) console.log(`[RoleProtectedRoute][${decision}]`, {
       route: location.pathname,
       requiredRole,
       ...details,
@@ -250,14 +250,14 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
    */
   const verifyRolesWithServer = useCallback(async (userId: string) => {
     if (verificationAttempted.current && lastUserId.current === userId) {
-      console.log('[RoleProtectedRoute] Skipping duplicate verification');
+      if (import.meta.env.DEV) console.log('[RoleProtectedRoute] Skipping duplicate verification');
       return;
     }
 
     verificationAttempted.current = true;
     lastUserId.current = userId;
 
-    console.log('[RoleProtectedRoute] Starting background verification for user:', userId);
+    if (import.meta.env.DEV) console.log('[RoleProtectedRoute] Starting background verification for user:', userId);
 
     const serverRoles = await fetchUserRoles(userId);
 
@@ -285,17 +285,17 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       }
     } else {
       // Server returned no roles - could be RLS issue, timeout, or auth token not attached
-      console.warn('[RoleProtectedRoute] Server returned no roles - possible RLS issue');
+      if (import.meta.env.DEV) console.warn('[RoleProtectedRoute] Server returned no roles - possible RLS issue');
 
       // NEVER revoke access based on empty server response
       // If we already granted access via cache, keep it
       if (isAuthorizedRef.current) {
-        console.log('[RoleProtectedRoute] Keeping authorization - already granted via cache, server returned empty');
+        if (import.meta.env.DEV) console.log('[RoleProtectedRoute] Keeping authorization - already granted via cache, server returned empty');
       } else {
         // Check localStorage directly (currentRoles state may be stale in closure)
         const cachedRoles = getCachedRoles(userId);
         if (cachedRoles && cachedRoles.length > 0) {
-          console.log('[RoleProtectedRoute] Keeping cached roles due to server failure');
+          if (import.meta.env.DEV) console.log('[RoleProtectedRoute] Keeping cached roles due to server failure');
         } else {
           isAuthorizedRef.current = false;
           setAuthState('unauthorized');
@@ -312,20 +312,20 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
     // Refs are synchronous and don't suffer from React's batched state updates
     // This prevents re-running authorization when user state temporarily becomes null
     if (isAuthorizedRef.current) {
-      console.log('[RoleProtectedRoute] useEffect: Already authorized (ref check), skipping checkAuthorization');
+      if (import.meta.env.DEV) console.log('[RoleProtectedRoute] useEffect: Already authorized (ref check), skipping checkAuthorization');
       return;
     }
 
     const checkAuthorization = async () => {
       // Skip if we're already checking (prevents loops from onAuthStateChange)
       if (isCheckingAuth.current) {
-        console.log('[RoleProtectedRoute] Already checking auth, skipping');
+        if (import.meta.env.DEV) console.log('[RoleProtectedRoute] Already checking auth, skipping');
         return;
       }
 
       isCheckingAuth.current = true;
 
-      console.log('[RoleProtectedRoute] Checking authorization...', {
+      if (import.meta.env.DEV) console.log('[RoleProtectedRoute] Checking authorization...', {
         sessionLoading,
         hasUser: !!user,
         userId: user?.id,
@@ -340,11 +340,13 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
 
         // No session at all
         if (!user) {
-          // Quick check: do we have valid cached roles?
-          // This handles the race condition where session isn't ready yet
+          // Quick check: do we have valid cached roles AND a stored auth token?
+          // SECURITY: Only trust cache if there's a stored auth token — prevents
+          // pure localStorage manipulation where someone sets igu_user_roles to ["admin"]
+          const storedToken = getStoredToken();
           const cachedRoles = getCachedRoles();
 
-          if (cachedRoles && cachedRoles.length > 0) {
+          if (storedToken && cachedRoles && cachedRoles.length > 0) {
             // CACHE-FIRST: If we have cached roles with the required role, grant access IMMEDIATELY
             // Don't wait for session - trust the cache and verify in background
             if (hasRequiredRole(cachedRoles, requiredRole)) {
@@ -354,7 +356,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
                 return;
               }
 
-              console.log('[RoleProtectedRoute] No session but cached roles valid - granting access immediately');
+              if (import.meta.env.DEV) console.log('[RoleProtectedRoute] No session but cached roles + stored token valid - granting access');
               setCurrentRoles(cachedRoles);
               logAccess('GRANTED', { roles: cachedRoles, source: 'cache-no-session' });
               isAuthorizedRef.current = true;
@@ -366,6 +368,10 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
               handleUnauthorized(cachedRoles, 'role-mismatch-cached-no-session');
               return;
             }
+          }
+
+          if (!storedToken && cachedRoles) {
+            if (import.meta.env.DEV) console.warn('[RoleProtectedRoute] Cached roles found but no stored auth token - ignoring cache (possible tampering)');
           }
 
           logAccess('BLOCKED', { reason: 'no-session' });
@@ -401,7 +407,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
 
           // Step 2: Verify in background (non-blocking)
           if (!isCacheValid(userId)) {
-            console.log('[RoleProtectedRoute] Cache stale - verifying in background');
+            if (import.meta.env.DEV) console.log('[RoleProtectedRoute] Cache stale - verifying in background');
             verifyRolesWithServer(userId);
           }
           return;
@@ -413,7 +419,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       }
 
       // Step 3: No cache - must fetch from server (blocking)
-      console.log('[RoleProtectedRoute] No cached roles - fetching from server');
+      if (import.meta.env.DEV) console.log('[RoleProtectedRoute] No cached roles - fetching from server');
       setAuthState('loading');
 
       const serverRoles = await fetchUserRoles(userId);
@@ -438,7 +444,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
         }
       } else {
         // No roles from server - this is the problematic case
-        console.error('[RoleProtectedRoute] No roles from server - likely auth header issue');
+        if (import.meta.env.DEV) console.error('[RoleProtectedRoute] No roles from server - likely auth header issue');
         logAccess('BLOCKED', { reason: 'no-roles-from-server' });
         isAuthorizedRef.current = false;
         setAuthState('unauthorized');
@@ -470,7 +476,7 @@ export function RoleProtectedRoute({ children, requiredRole }: RoleProtectedRout
       // Only reset authorization if user actually changed to a different user
       // Don't reset if user just temporarily became null (session hiccup)
       if (user?.id && lastUserId.current && user.id !== lastUserId.current) {
-        console.log('[RoleProtectedRoute] User changed, resetting authorization');
+        if (import.meta.env.DEV) console.log('[RoleProtectedRoute] User changed, resetting authorization');
         isAuthorizedRef.current = false;
       }
     }

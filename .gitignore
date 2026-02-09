@@ -16,6 +16,7 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+*.save
 supabase/.env
 
 # Supabase CLI local data (contains access tokens)

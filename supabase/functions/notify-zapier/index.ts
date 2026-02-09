@@ -35,6 +35,16 @@ serve(async (req) => {
   }
 
   try {
+    // Auth: only allow internal calls with service role key
+    const authHeader = req.headers.get('Authorization');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
+    if (!authHeader || authHeader !== `Bearer ${serviceRoleKey}`) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const body: ZapierEventPayload = await req.json();
 
     // Validate event_type

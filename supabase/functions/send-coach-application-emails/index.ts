@@ -12,6 +12,16 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
 const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
+/** Escape HTML special characters to prevent injection in email templates */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 serve(async (req) => {
   // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
@@ -26,9 +36,9 @@ serve(async (req) => {
   }
 
   try {
-    const { applicantEmail, applicantName, type, notes, turnstileToken } = await req.json();
+    const { applicantEmail, applicantName: rawName, type, notes: rawNotes, turnstileToken } = await req.json();
 
-    if (!applicantEmail || !applicantName || !type) {
+    if (!applicantEmail || !rawName || !type) {
       return new Response(
         JSON.stringify({ error: "Missing required fields" }),
         {
@@ -37,6 +47,10 @@ serve(async (req) => {
         }
       );
     }
+
+    // Sanitize user-provided strings before interpolating into HTML
+    const applicantName = escapeHtml(String(rawName));
+    const notes = rawNotes ? escapeHtml(String(rawNotes)) : null;
 
     // Verify Turnstile token for "received" type (initial application from anonymous user)
     const turnstileSecret = Deno.env.get("TURNSTILE_SECRET_KEY");
