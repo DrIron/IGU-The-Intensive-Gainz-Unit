@@ -35,7 +35,13 @@
 </head>
 
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- Static hero shell — paints immediately as LCP before JS loads. React replaces on mount. -->
+      <div style="position:relative;min-height:100vh;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#09090B">
+        <img src="/gym-hero-bg.jpg" alt="" fetchpriority="high" decoding="async" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover" />
+        <div style="position:absolute;inset:0;background:linear-gradient(to bottom,rgba(9,9,11,0.9),rgba(9,9,11,0.7),#09090B)"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
