@@ -6,7 +6,8 @@ import { ServiceCard } from "@/components/ServiceCard";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthNavigation } from "@/hooks/useAuthNavigation";
 import { Dumbbell, Star, ChevronLeft, ChevronRight, Target, MessageSquare, Apple, TrendingUp, FlaskConical, Calendar } from "lucide-react";
-import gymHeroBg from "@/assets/gym-hero-bg.jpg";
+// Hero image served from public/ for preloading (stable URL, no Vite hash)
+const gymHeroBg = "/gym-hero-bg.jpg";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -374,10 +375,13 @@ export default function Index() {
     <div className="min-h-screen bg-background">
       {/* Hero Section with CTA */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
-        {/* Background Image */}
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${gymHeroBg})` }}
+        {/* Background Image — <img> for faster LCP discovery + preloaded from index.html */}
+        <img
+          src={gymHeroBg}
+          alt=""
+          fetchPriority="high"
+          decoding="async"
+          className="absolute inset-0 w-full h-full object-cover"
         />
         {/* Dark overlay with gradient */}
         <div className="absolute inset-0 bg-gradient-to-b from-background/90 via-background/70 to-background" />
