@@ -20,19 +20,42 @@ export default function PaymentReturn() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  
+
   const [state, setState] = useState<VerificationState>('verifying');
   const [message, setMessage] = useState<string>("");
   const [retryCount, setRetryCount] = useState(0);
-  const verificationAttemptedRef = useRef(false);
+  const hasFetched = useRef(false);
+  const autoRetryRef = useRef(0);
   const maxRetries = 3;
+  const maxAutoRetries = 3;
 
   const verifyPayment = useCallback(async () => {
     setState('verifying');
-    
+
     try {
-      // Get user session
-      const { data: { user } } = await supabase.auth.getUser();
+      // Wait for auth session to be ready after external redirect
+      // getUser() can hang if session isn't initialized yet (especially on mobile)
+      let user = null;
+      try {
+        const result = await Promise.race([
+          supabase.auth.getUser(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 8000)),
+        ]);
+        user = result.data?.user;
+      } catch {
+        console.warn('Auth getUser timed out, retrying after delay...');
+      }
+
+      // If first attempt failed, wait for session and retry once
+      if (!user) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const retry = await Promise.race([
+          supabase.auth.getUser(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Auth timeout retry')), 8000)),
+        ]).catch(() => null);
+        user = retry?.data?.user ?? null;
+      }
+
       if (!user) {
         setState('error');
         setMessage("Please log in to verify your payment.");
@@ -41,11 +64,11 @@ export default function PaymentReturn() {
 
       // Get TAP charge ID from URL params
       const tapChargeId = searchParams.get('tap_id') || searchParams.get('charge_id');
-      
+
       console.log('Verifying payment...', { userId: user.id, tapChargeId });
 
       const { data, error } = await supabase.functions.invoke('verify-payment', {
-        body: { 
+        body: {
           userId: user.id,
           chargeId: tapChargeId || undefined,
         },
@@ -62,12 +85,12 @@ export default function PaymentReturn() {
         // Payment successful!
         setState('success');
         setMessage(data.message || "Your subscription is now active!");
-        
+
         toast({
-          title: "🎉 Payment Successful!",
+          title: "Payment Successful!",
           description: "Welcome to IGU! Your subscription is now active.",
         });
-        
+
         // Redirect to dashboard after showing success
         setTimeout(() => {
           navigate('/dashboard', { replace: true });
@@ -76,7 +99,13 @@ export default function PaymentReturn() {
       }
 
       if (data?.status === 'pending' || data?.status === 'no_payment') {
-        // Payment still processing or no payment found
+        // Payment still processing — auto-retry after delay
+        if (autoRetryRef.current < maxAutoRetries) {
+          autoRetryRef.current++;
+          console.log(`Payment pending, auto-retry ${autoRetryRef.current}/${maxAutoRetries} in 3s...`);
+          setTimeout(() => verifyPayment(), 3000);
+          return;
+        }
         setState('pending');
         setMessage(data.message || "Your payment is being processed. This may take a moment.");
         return;
@@ -95,23 +124,31 @@ export default function PaymentReturn() {
 
     } catch (err: any) {
       console.error('Payment verification error:', err);
+      // Auto-retry on error (auth not ready, network issues after redirect)
+      if (autoRetryRef.current < maxAutoRetries) {
+        autoRetryRef.current++;
+        console.log(`Verification error, auto-retry ${autoRetryRef.current}/${maxAutoRetries} in 2s...`);
+        setTimeout(() => verifyPayment(), 2000);
+        return;
+      }
       setState('error');
       setMessage("We couldn't verify your payment status. Please try again.");
     }
   }, [searchParams, navigate, toast]);
 
   useEffect(() => {
-    // Prevent double verification
-    if (verificationAttemptedRef.current) return;
-    verificationAttemptedRef.current = true;
+    if (hasFetched.current) return;
+    hasFetched.current = true;
 
-    verifyPayment();
+    // Small initial delay to let auth session initialize after external redirect
+    const timer = setTimeout(() => verifyPayment(), 500);
+    return () => clearTimeout(timer);
   }, [verifyPayment]);
 
   const handleRetry = () => {
     if (retryCount < maxRetries) {
       setRetryCount(prev => prev + 1);
-      verificationAttemptedRef.current = false;
+      autoRetryRef.current = 0;
       verifyPayment();
     }
   };
