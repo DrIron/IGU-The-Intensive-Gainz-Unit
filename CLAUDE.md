@@ -395,6 +395,7 @@ When understanding this codebase, read in this order:
 - Phase 26: Roles, Subroles & Tags System — subrole definitions, permission functions, admin approval queue, coach request UI, feature gating (Feb 7, 2026) ✅
 - Fix: Supabase getSession() hang — custom lock timeout prevents infinite lock waits from freezing all data queries (Feb 8, 2026) ✅
 - Phase 29: n8n Automation Workflows — 10 scheduled workflows for email drips, admin alerts, and platform operations (Feb 9, 2026) ✅
+- Fix: Workout Builder INP Performance — React.memo, useMemo, useCallback across 7 component files to eliminate 4-51s UI freezes (Feb 9, 2026) ✅
 
 ### Phase 26: Roles, Subroles & Tags System (Complete - Feb 7, 2026)
 
@@ -1438,7 +1439,7 @@ When asking for help:
 - Security audit — error sanitization, rate limiting, default role trigger ✅ (Feb 8, 2026)
 - Admin QA polish — all 10 issues resolved ✅ (Feb 8, 2026)
 
-**Completed (Phase 29)**:
+**Completed (Phase 29+)**:
 - n8n automation workflows — 10 scheduled workflows for platform operations ✅ (Feb 9, 2026)
   - 8 new edge functions + 2 existing (send-admin-daily-summary, send-weekly-coach-digest)
   - Abandoned onboarding recovery drip (day 1/3/7)
@@ -1449,6 +1450,7 @@ When asking for help:
   - Renewal reminders (3 days before billing, monthly dedup)
   - Referral program reminders (2+ weeks active, lifetime dedup)
   - Coach inactivity alerts to admins (7+ days no login, weekly dedup)
+- Workout Builder INP performance fix — memoization across 7 component files ✅ (Feb 9, 2026)
 
 **Not launched yet**:
 - Backup/recovery procedures (operational, not code)
@@ -1579,6 +1581,48 @@ Quick reference for edge function JWT settings:
 | `send-weekly-coach-digest` | **No** | Called by n8n (service role key) |
 
 Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
+
+---
+
+## Workout Builder INP Performance Fix (Feb 9, 2026)
+
+Fixed severe UI freezes (4-51 seconds) on basic workout builder interactions (clicking "Calendar View", toggling exercises, opening column dropdowns). Root cause: zero memoization across the entire component tree — a single state change cascaded re-renders through hundreds of components.
+
+**Approach:** Added `React.memo`, `useMemo`, and `useCallback` at every level of the component tree.
+
+**Files Modified (7):**
+
+| File | Changes |
+|------|---------|
+| `src/components/coach/programs/SetRowEditor.tsx` | Wrapped in `React.memo` with custom comparator. Memoized `visiblePrescriptionCols` and `visibleInputCols` with `useMemo`. |
+| `src/components/coach/programs/ColumnCategoryHeader.tsx` | Wrapped in `React.memo`. Memoized `visiblePrescriptionCols` and `visibleInputCols` with `useMemo`. |
+| `src/components/coach/programs/ColumnConfigDropdown.tsx` | Wrapped in `React.memo`. Memoized `visibleColumns`, `hiddenColumns`, `availableToAdd` with `useMemo`. |
+| `src/components/coach/programs/ExerciseCardV2.tsx` | Wrapped in `React.memo` with custom comparator. Created stable per-index callback maps via `useRef<Map>` for `onSetChange`/`onDeleteSet` (cache invalidation on handler change). Extracted inline Textarea `onChange` to stable `handleInstructionsChange`. |
+| `src/components/coach/programs/EnhancedModuleExerciseEditor.tsx` | Memoized `groupedExercises` with `useMemo` (was 4x filter + 4x sort every render). Stabilized `updateExercise` with `useCallback`. Created per-exercise callback maps (`getExerciseChangeCallback`, `getExerciseDeleteCallback`). Wrapped `ExercisePickerDialog` callback in `useCallback`. |
+| `src/components/coach/programs/ProgramCalendarBuilder.tsx` | Memoized `currentWeek` with `useMemo`. Extracted inline rendering into memoized `SessionCard` and `DayCell` components. Stabilized `handleCopySession`/`handleAddSession` with `useCallback`. |
+| `src/components/coach/programs/CoachProgramsPage.tsx` | Wrapped all handlers in `useCallback`. Extracted inline `onEditDay` to stable `handleEditDay`. |
+
+**Key Pattern — Stable Per-Index Callbacks:**
+
+When passing callbacks to list items (e.g., `onSetChange` per set row), inline arrows like `(updated) => handleSetChange(index, updated)` create new function references on every render, defeating `React.memo`. The fix uses a ref-backed callback map:
+
+```typescript
+const callbacksRef = useRef<Map<number, (updated: T) => void>>(new Map());
+
+// Clear cache when underlying handler changes
+useMemo(() => { callbacksRef.current = new Map(); }, [handler]);
+
+const getCallback = useCallback((index: number) => {
+  const existing = callbacksRef.current.get(index);
+  if (existing) return existing;
+  const cb = (updated: T) => handler(index, updated);
+  callbacksRef.current.set(index, cb);
+  return cb;
+}, [handler]);
+
+// Usage in JSX:
+<SetRowEditor onSetChange={getCallback(index)} />
+```
 
 ---
 
