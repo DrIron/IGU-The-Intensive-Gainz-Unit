@@ -10,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { StepIndicator } from "@/components/onboarding/StepIndicator";
 import { CalorieResults } from "./CalorieResults";
-import { ChevronLeft, ChevronRight, Settings, Info } from "lucide-react";
+import { ChevronLeft, ChevronRight, Settings, Info, Loader2 } from "lucide-react";
 
 interface StepWizardGoalSettingProps {
   weight: string;
@@ -47,6 +47,7 @@ interface StepWizardGoalSettingProps {
   onCalculate: () => void;
   onSave?: () => void;
   showSaveButton?: boolean;
+  saving?: boolean;
 }
 
 export function StepWizardGoalSetting({
@@ -55,7 +56,7 @@ export function StepWizardGoalSetting({
   goal, setGoal, rateOfChange, setRateOfChange, proteinPreference, setProteinPreference,
   fatIntake, setFatIntake, targetGoalType, setTargetGoalType, targetValue, setTargetValue,
   dietBreaks, setDietBreaks, dietBreakFrequency, setDietBreakFrequency,
-  dietBreakDuration, setDietBreakDuration, result, onCalculate, onSave, showSaveButton
+  dietBreakDuration, setDietBreakDuration, result, onCalculate, onSave, showSaveButton, saving
 }: StepWizardGoalSettingProps) {
   const [currentStep, setCurrentStep] = useState(0);
   const [advancedMode, setAdvancedMode] = useState(false);
@@ -586,8 +587,15 @@ export function StepWizardGoalSetting({
               </Button>
             ) : (
               showSaveButton && onSave && (
-                <Button onClick={onSave}>
-                  Save Goal
+                <Button onClick={onSave} disabled={saving}>
+                  {saving ? (
+                    <>
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Saving...
+                    </>
+                  ) : (
+                    "Save Goal"
+                  )}
                 </Button>
               )
             )}

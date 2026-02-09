@@ -107,7 +107,7 @@ export function NutritionGoal() {
     const isProteinBasedOnFFM = proteinIntake[0] < 0; // Negative = FFM based
     const fatNum = fatIntake[0];
     const targetNum = parseFloat(targetGoal);
-    
+
     // Calculate BMR
     let bmr;
     if (bodyFatNum > 0) {
@@ -124,7 +124,7 @@ export function NutritionGoal() {
 
     let adjustedCalories;
     let weeklyRate;
-    
+
     if (goal === "loss") {
       weeklyRate = rateNum;
       const weeklyDeficit = weightNum * (rateNum / 100);
@@ -148,7 +148,7 @@ export function NutritionGoal() {
     } else {
       proteinGrams = weightNum * proteinNum;
     }
-    
+
     const proteinCalories = proteinGrams * 4;
     const fatCalories = adjustedCalories * (fatNum / 100);
     const fatGrams = fatCalories / 9;
@@ -160,7 +160,7 @@ export function NutritionGoal() {
     let estimatedWeeks = 0;
     if (targetNum > 0 && (goal === "loss" || goal === "gain")) {
       let targetWeight = 0;
-      
+
       if (targetGoalType === "weight") {
         targetWeight = targetNum;
       } else if (targetGoalType === "bodyfat" && bodyFatNum && bodyFatNum > 0) {
@@ -172,10 +172,10 @@ export function NutritionGoal() {
 
       if (targetWeight > 0) {
         const remainingWeight = Math.abs(weightNum - targetWeight);
-        
+
         // Calculate weekly rate in kg (fixed, not recalculated each week)
         let weeklyRateKg: number;
-        
+
         if (goal === "gain") {
           // For muscle gain, rate is monthly - convert to weekly
           const monthlyRateKg = (rateNum / 100) * weightNum;
@@ -184,7 +184,7 @@ export function NutritionGoal() {
           // For fat loss, rate is weekly as percentage of CURRENT weight
           weeklyRateKg = (rateNum / 100) * weightNum;
         }
-        
+
         // Simple division: total kg to lose/gain ÷ kg per week = weeks needed
         estimatedWeeks = weeklyRateKg > 0 ? remainingWeight / weeklyRateKg : 0;
 
@@ -195,12 +195,12 @@ export function NutritionGoal() {
         }
       }
     }
-    
+
     if (!isFinite(estimatedWeeks) || estimatedWeeks < 0) {
       estimatedWeeks = 0;
     }
 
-    setResult({
+    const newResult = {
       calories: Math.round(adjustedCalories),
       protein: Math.round(proteinGrams),
       fat: Math.round(fatGrams),
@@ -213,25 +213,18 @@ export function NutritionGoal() {
       tdee: Math.round(tdee),
       deficitPercent: parseFloat((((adjustedCalories - tdee) / tdee) * 100).toFixed(1)),
       fatPercent: parseFloat(((fatCalories / adjustedCalories) * 100).toFixed(1)),
-    });
-  };
-
-  const calculateAndSave = async () => {
-    // First calculate
-    calculateCalories();
-    
-    // Wait a bit for state to update
-    await new Promise(resolve => setTimeout(resolve, 100));
-    
-    // Then save
-    await saveGoal();
+    };
+    setResult(newResult);
+    return newResult;
   };
 
   const saveGoal = async () => {
-    if (!result) {
+    // Calculate inline to avoid stale React state race condition
+    const currentResult = result || calculateCalories();
+    if (!currentResult) {
       toast({
-        title: "Calculate First",
-        description: "Please calculate your calories before saving",
+        title: "Calculation Error",
+        description: "Please fill in all required fields and try again",
         variant: "destructive",
       });
       return;
@@ -239,22 +232,6 @@ export function NutritionGoal() {
 
     setSaving(true);
     try {
-      // Calculate first if not already done
-      if (!result) {
-        calculateCalories();
-        // Wait for state update
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      
-      if (!result) {
-        toast({
-          title: "Calculation Error",
-          description: "Please fill in all required fields",
-          variant: "destructive",
-        });
-        return;
-      }
-
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
@@ -272,8 +249,8 @@ export function NutritionGoal() {
       const monthYear = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       const phaseName = `${goalNames[goal as keyof typeof goalNames]} Phase – ${monthYear}`;
 
-      const estimatedEndDate = result.weeks > 0 
-        ? new Date(Date.now() + result.weeks * 7 * 24 * 60 * 60 * 1000).toISOString()
+      const estimatedEndDate = currentResult.weeks > 0
+        ? new Date(Date.now() + currentResult.weeks * 7 * 24 * 60 * 60 * 1000).toISOString()
         : null;
 
       const calculatedAge = calculateAge(dateOfBirth);
@@ -305,13 +282,13 @@ export function NutritionGoal() {
           diet_break_frequency_weeks: dietBreakEnabled ? parseInt(dietBreakFrequency) : null,
           diet_break_duration_weeks: dietBreakEnabled ? parseInt(dietBreakDuration) : null,
           steps_goal: stepsGoal ? parseInt(stepsGoal) : null,
-          daily_calories: Math.round(result.calories),
-          protein_grams: Math.round(result.protein),
-          fat_grams: Math.round(result.fat),
-          carb_grams: Math.round(result.carbs),
-          fiber_grams: result.fiber,
-          weekly_rate_percentage: result.weeklyRate,
-          estimated_duration_weeks: result.weeks ? Math.round(result.weeks) : null,
+          daily_calories: Math.round(currentResult.calories),
+          protein_grams: Math.round(currentResult.protein),
+          fat_grams: Math.round(currentResult.fat),
+          carb_grams: Math.round(currentResult.carbs),
+          fiber_grams: currentResult.fiber,
+          weekly_rate_percentage: currentResult.weeklyRate,
+          estimated_duration_weeks: currentResult.weeks ? Math.round(currentResult.weeks) : null,
           estimated_end_date: estimatedEndDate
         }]);
 
@@ -475,6 +452,7 @@ export function NutritionGoal() {
         onCalculate={calculateCalories}
         onSave={saveGoal}
         showSaveButton={true}
+        saving={saving}
       />
     </div>
   );
