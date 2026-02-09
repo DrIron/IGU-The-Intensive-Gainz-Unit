@@ -87,7 +87,7 @@ export function LegalStep({ form }: LegalStepProps) {
     {
       name: "agreed_medical_disclaimer",
       label: "Release of Liability and Assumption of Risk",
-      pdfUrl: documentUrls.liability_release,
+      pdfUrl: documentUrls.liability_release || "/legal/release-of-liability.pdf",
       required: true,
     },
   ];
