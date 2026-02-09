@@ -1,17 +1,18 @@
 import { useEffect, useState, ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { 
-  isOnboardingIncomplete, 
+import { useAuthGuardSession } from "@/components/AuthGuard";
+import {
+  isOnboardingIncomplete,
   getOnboardingRedirect,
   hasLimitedAccess,
-  ClientStatus 
+  ClientStatus
 } from "@/auth/onboarding";
 import { PageLoadingSkeleton } from "@/components/ui/loading-skeleton";
 
 interface OnboardingGuardProps {
   children: ReactNode;
-  /** 
+  /**
    * If true, allows users with incomplete onboarding to view the page.
    * Useful for the onboarding pages themselves.
    */
@@ -31,30 +32,20 @@ interface ProfileStatus {
 
 /**
  * Guard component that enforces onboarding completion.
- * 
- * Redirects users to the appropriate onboarding step if they haven't
- * completed the required steps.
- * 
- * Usage:
- * ```tsx
- * // For dashboard routes - requires complete onboarding
- * <OnboardingGuard>
- *   <Dashboard />
- * </OnboardingGuard>
- * 
- * // For onboarding routes - allow incomplete
- * <OnboardingGuard allowIncomplete>
- *   <OnboardingForm />
- * </OnboardingGuard>
- * ```
+ *
+ * Consumes the authenticated session from AuthGuard via context
+ * (avoids a redundant getSession() call).
+ *
+ * Fetches profile + subscription status in parallel for faster loading.
  */
-export function OnboardingGuard({ 
-  children, 
+export function OnboardingGuard({
+  children,
   allowIncomplete = false,
-  allowLimited = true 
+  allowLimited = true
 }: OnboardingGuardProps) {
   const navigate = useNavigate();
   const location = useLocation();
+  const session = useAuthGuardSession();
   const [loading, setLoading] = useState(true);
   const [profileStatus, setProfileStatus] = useState<ProfileStatus | null>(null);
 
@@ -62,46 +53,42 @@ export function OnboardingGuard({
     let mounted = true;
 
     const checkOnboardingStatus = async () => {
+      const user = session?.user;
+
+      if (!user) {
+        // Not authenticated - AuthGuard should handle this
+        navigate("/auth", { replace: true });
+        return;
+      }
+
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        const user = session?.user;
-
-        if (!user) {
-          // Not authenticated - AuthGuard should handle this
-          navigate("/auth", { replace: true });
-          return;
-        }
-
-        // Fetch profile status
-        const { data: profile, error: profileError } = await supabase
-          .from("profiles_public")
-          .select("status")
-          .eq("id", user.id)
-          .single();
-
-        if (profileError) {
-          console.error("Error fetching profile:", profileError);
-          // Profile doesn't exist - user needs to complete onboarding
-          if (mounted) {
-            setProfileStatus({ status: "new" as ClientStatus, hasSubscription: false, subscriptionStatus: null });
-          }
-        } else {
-          // Fetch subscription status
-          const { data: subscription } = await supabase
+        // Fetch profile and subscription in parallel (saves ~300ms)
+        const [profileResult, subscriptionResult] = await Promise.all([
+          supabase
+            .from("profiles_public")
+            .select("status")
+            .eq("id", user.id)
+            .single(),
+          supabase
             .from("subscriptions")
             .select("status")
             .eq("user_id", user.id)
             .order("created_at", { ascending: false })
             .limit(1)
-            .maybeSingle();
+            .maybeSingle(),
+        ]);
 
-          if (mounted) {
-            setProfileStatus({
-              status: (profile?.status as ClientStatus) || "new",
-              hasSubscription: !!subscription,
-              subscriptionStatus: subscription?.status || null,
-            });
-          }
+        if (!mounted) return;
+
+        if (profileResult.error) {
+          console.error("Error fetching profile:", profileResult.error);
+          setProfileStatus({ status: "new" as ClientStatus, hasSubscription: false, subscriptionStatus: null });
+        } else {
+          setProfileStatus({
+            status: (profileResult.data?.status as ClientStatus) || "new",
+            hasSubscription: !!subscriptionResult.data,
+            subscriptionStatus: subscriptionResult.data?.status || null,
+          });
         }
       } catch (error) {
         console.error("Onboarding check error:", error);
@@ -125,7 +112,7 @@ export function OnboardingGuard({
       mounted = false;
       subscription.unsubscribe();
     };
-  }, [navigate]);
+  }, [navigate, session]);
 
   // Handle redirects after status is loaded
   useEffect(() => {
@@ -139,7 +126,7 @@ export function OnboardingGuard({
     // Check if onboarding is incomplete
     if (isOnboardingIncomplete(status)) {
       const redirectUrl = getOnboardingRedirect(status);
-      
+
       // Don't redirect if we're already on the correct onboarding page
       if (redirectUrl && !location.pathname.startsWith(redirectUrl.split("?")[0])) {
         navigate(redirectUrl, { replace: true });
@@ -192,25 +179,27 @@ export function useOnboardingStatus() {
           return;
         }
 
-        const { data: profile } = await supabase
-          .from("profiles_public")
-          .select("status")
-          .eq("id", user.id)
-          .single();
-
-        const { data: subscription } = await supabase
-          .from("subscriptions")
-          .select("status")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
+        // Fetch profile and subscription in parallel
+        const [profileResult, subscriptionResult] = await Promise.all([
+          supabase
+            .from("profiles_public")
+            .select("status")
+            .eq("id", user.id)
+            .single(),
+          supabase
+            .from("subscriptions")
+            .select("status")
+            .eq("user_id", user.id)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle(),
+        ]);
 
         if (mounted) {
           setStatus({
-            status: (profile?.status as ClientStatus) || "new",
-            hasSubscription: !!subscription,
-            subscriptionStatus: subscription?.status || null,
+            status: (profileResult.data?.status as ClientStatus) || "new",
+            hasSubscription: !!subscriptionResult.data,
+            subscriptionStatus: subscriptionResult.data?.status || null,
           });
         }
       } catch (error) {
@@ -229,8 +218,8 @@ export function useOnboardingStatus() {
     };
   }, []);
 
-  return { 
-    ...status, 
+  return {
+    ...status,
     loading,
     isComplete: status ? !isOnboardingIncomplete(status.status) : false,
     isLimited: status ? hasLimitedAccess(status.status) : false,

@@ -1,7 +1,18 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
+
+/**
+ * Context to share the authenticated session with child components.
+ * Avoids redundant getSession() calls in OnboardingGuard and others.
+ */
+const AuthSessionContext = createContext<Session | null>(null);
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useAuthGuardSession(): Session | null {
+  return useContext(AuthSessionContext);
+}
 
 interface AuthGuardProps {
   children: React.ReactNode;
@@ -10,7 +21,9 @@ interface AuthGuardProps {
 /**
  * Simple authentication guard - requires user to be logged in.
  * Does NOT check roles. Use RoleProtectedRoute for role-specific access.
- * 
+ *
+ * Provides the authenticated session to children via AuthSessionContext.
+ *
  * Use this for routes accessible to any authenticated user:
  * - /dashboard, /account, /onboarding, etc.
  */
@@ -25,26 +38,30 @@ export function AuthGuard({ children }: AuthGuardProps) {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
 
-      // Ignore INITIAL_SESSION with null - localStorage may still be loading
-      if (event === 'INITIAL_SESSION' && !session) {
+      if (event === 'INITIAL_SESSION') {
+        if (session) {
+          setSession(session);
+          setLoading(false);
+        } else {
+          // INITIAL_SESSION with null — re-check getSession() immediately
+          // (no artificial delay — Supabase reads localStorage synchronously)
+          const { data: { session: freshSession } } = await supabase.auth.getSession();
+          if (!mounted) return;
+
+          if (freshSession) {
+            setSession(freshSession);
+            setLoading(false);
+          } else {
+            setLoading(false);
+            navigate("/auth", { replace: true });
+          }
+        }
         return;
       }
 
       setSession(session);
 
       if (!session) {
-        // Add delay before redirect to allow localStorage to be read
-        await new Promise(resolve => setTimeout(resolve, 300));
-        if (!mounted) return;
-
-        // Re-check session after delay
-        const { data: { session: freshSession } } = await supabase.auth.getSession();
-        if (freshSession) {
-          setSession(freshSession);
-          setLoading(false);
-          return;
-        }
-
         setLoading(false);
         navigate("/auth", { replace: true });
         return;
@@ -57,27 +74,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
       const { data: { session } } = await supabase.auth.getSession();
       if (!mounted) return;
 
-      setSession(session);
-
-      if (!session) {
-        // Add delay before redirect to allow localStorage to be read
-        await new Promise(resolve => setTimeout(resolve, 300));
-        if (!mounted) return;
-
-        // Re-check session after delay
-        const { data: { session: freshSession } } = await supabase.auth.getSession();
-        if (freshSession) {
-          setSession(freshSession);
-          setLoading(false);
-          return;
-        }
-
+      if (session) {
+        setSession(session);
         setLoading(false);
-        navigate("/auth", { replace: true });
         return;
       }
-
-      setLoading(false);
+      // Don't redirect yet — onAuthStateChange INITIAL_SESSION handles this
     };
 
     checkAuth();
@@ -96,5 +98,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
     );
   }
 
-  return session ? <>{children}</> : null;
+  return session ? (
+    <AuthSessionContext.Provider value={session}>
+      {children}
+    </AuthSessionContext.Provider>
+  ) : null;
 }
