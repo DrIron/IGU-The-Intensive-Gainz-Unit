@@ -36,6 +36,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 - **Error Tracking**: Sentry
 - **Email**: Resend
 - **Payments**: Tap Payments (Kuwait/GCC region)
+- **Workflow Automation**: n8n Cloud (theigu.app.n8n.cloud)
 
 ---
 
@@ -81,7 +82,18 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── tap-webhook/      # Payment webhook handler
 │   │   ├── verify-payment/
 │   │   ├── send-coach-application-emails/  # Coach app confirmation (no JWT)
-│   │   └── _shared/          # Shared utilities
+│   │   ├── _shared/          # Shared utilities (config.ts, rateLimit.ts)
+│   │   └── # n8n automation endpoints (called on schedule):
+│   │       # process-abandoned-onboarding/
+│   │       # process-payment-failure-drip/
+│   │       # process-inactive-client-alerts/
+│   │       # process-lead-nurture/
+│   │       # process-testimonial-requests/
+│   │       # process-renewal-reminders/
+│   │       # process-referral-reminders/
+│   │       # process-coach-inactivity-monitor/
+│   │       # send-admin-daily-summary/
+│   │       # send-weekly-coach-digest/
 │   ├── migrations/           # Database migrations (version controlled)
 │   └── config.toml           # Supabase CLI config
 ├── .github/
@@ -382,6 +394,7 @@ When understanding this codebase, read in this order:
 - Phase 25: Client Onboarding & Coach Matching QA — polling pages, audit logging, gender collection, coach matching dedup, UX improvements (Feb 7, 2026) ✅
 - Phase 26: Roles, Subroles & Tags System — subrole definitions, permission functions, admin approval queue, coach request UI, feature gating (Feb 7, 2026) ✅
 - Fix: Supabase getSession() hang — custom lock timeout prevents infinite lock waits from freezing all data queries (Feb 8, 2026) ✅
+- Phase 29: n8n Automation Workflows — 10 scheduled workflows for email drips, admin alerts, and platform operations (Feb 9, 2026) ✅
 
 ### Phase 26: Roles, Subroles & Tags System (Complete - Feb 7, 2026)
 
@@ -1425,6 +1438,18 @@ When asking for help:
 - Security audit — error sanitization, rate limiting, default role trigger ✅ (Feb 8, 2026)
 - Admin QA polish — all 10 issues resolved ✅ (Feb 8, 2026)
 
+**Completed (Phase 29)**:
+- n8n automation workflows — 10 scheduled workflows for platform operations ✅ (Feb 9, 2026)
+  - 8 new edge functions + 2 existing (send-admin-daily-summary, send-weekly-coach-digest)
+  - Abandoned onboarding recovery drip (day 1/3/7)
+  - Payment failure recovery drip (day 1/2/5/9, includes coach notification)
+  - Inactive client alerts to coaches (5+ days no training)
+  - Lead nurture drip (day 1/3/7 for newsletter signups)
+  - Testimonial requests (4+ weeks active, weekly)
+  - Renewal reminders (3 days before billing, monthly dedup)
+  - Referral program reminders (2+ weeks active, lifetime dedup)
+  - Coach inactivity alerts to admins (7+ days no login, weekly dedup)
+
 **Not launched yet**:
 - Backup/recovery procedures (operational, not code)
 
@@ -1498,6 +1523,38 @@ When asking for help:
 
 ---
 
+## n8n Automation Workflows (Phase 29 - Feb 9, 2026)
+
+Platform operations are automated via n8n Cloud (`theigu.app.n8n.cloud`). Each workflow calls a Supabase edge function on a schedule. The edge functions handle all business logic — n8n is just a scheduler.
+
+**Architecture**: n8n Schedule Trigger → HTTP POST to edge function (Bearer service role key) → edge function queries DB, sends emails via Resend, logs to `email_notifications` for dedup → returns JSON summary.
+
+**All n8n edge functions use `--no-verify-jwt`** (called with service role key, not user JWT).
+
+| Time (UTC) | Workflow | Frequency | Edge Function | Purpose |
+|------------|----------|-----------|---------------|---------|
+| 6:00 AM | Admin Daily Summary | Daily | `send-admin-daily-summary` | Platform health snapshot to admins (active subs, new signups, failed payments, pending apps) |
+| 7:00 AM | Weekly Coach Digest | Weekly (Mon) | `send-weekly-coach-digest` | Per-coach summary of active clients, workout activity, inactive clients |
+| 8:00 AM | Renewal Reminders | Daily | `process-renewal-reminders` | 3-day advance billing renewal notice to clients (monthly dedup) |
+| 8:30 AM | Coach Inactivity Monitor | Daily | `process-coach-inactivity-monitor` | Alert admins if active coach hasn't logged in 7+ days (weekly dedup per coach) |
+| 9:00 AM | Testimonial Request | Weekly | `process-testimonial-requests` | Request testimonials from clients after 4+ weeks active (lifetime dedup) |
+| 9:00 AM | Referral Reminders | Weekly | `process-referral-reminders` | Remind clients about referral program after 2+ weeks active (lifetime dedup) |
+| 9:30 AM | Payment Failure Recovery | Daily | `process-payment-failure-drip` | Escalating drip (day 1/2/5/9) for failed payments, day 5 notifies coach |
+| 10:00 AM | Abandoned Onboarding | Daily | `process-abandoned-onboarding` | Drip (day 1/3/7) for stale onboarding drafts with resume links |
+| 10:30 AM | Inactive Client Alert | Daily | `process-inactive-client-alerts` | Alert coach when client hasn't trained in 5+ days |
+| 11:00 AM | Lead Nurture | Daily | `process-lead-nurture` | Drip (day 1/3/7) for unconverted newsletter leads |
+
+**Deduplication**: All functions check `email_notifications` table before sending. Each uses a `notification_type` string (e.g., `abandoned_onboarding_day1`, `payment_failure_day2`) to prevent duplicate sends.
+
+**Testing**: Call any function directly via curl:
+```bash
+curl -X POST https://ghotrbotrywonaejlppg.supabase.co/functions/v1/<function-name> \
+  -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
+  -H "Content-Type: application/json"
+```
+
+---
+
 ## Edge Function Deployment Reference
 
 Quick reference for edge function JWT settings:
@@ -1510,6 +1567,16 @@ Quick reference for edge function JWT settings:
 | `tap-webhook` | **No** | Called by payment provider |
 | `create-tap-payment` | Yes | Authenticated users only |
 | `verify-payment` | Yes | Authenticated users only |
+| `process-abandoned-onboarding` | **No** | Called by n8n (service role key) |
+| `process-payment-failure-drip` | **No** | Called by n8n (service role key) |
+| `process-inactive-client-alerts` | **No** | Called by n8n (service role key) |
+| `process-lead-nurture` | **No** | Called by n8n (service role key) |
+| `process-testimonial-requests` | **No** | Called by n8n (service role key) |
+| `process-renewal-reminders` | **No** | Called by n8n (service role key) |
+| `process-referral-reminders` | **No** | Called by n8n (service role key) |
+| `process-coach-inactivity-monitor` | **No** | Called by n8n (service role key) |
+| `send-admin-daily-summary` | **No** | Called by n8n (service role key) |
+| `send-weekly-coach-digest` | **No** | Called by n8n (service role key) |
 
 Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
 
