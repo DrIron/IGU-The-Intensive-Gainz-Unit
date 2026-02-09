@@ -1,7 +1,7 @@
 // src/components/coach/programs/ColumnConfigDropdown.tsx
 // Dropdown for configuring exercise prescription columns
 
-import { useState } from "react";
+import { useState, useMemo, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -46,7 +46,7 @@ interface ColumnConfigDropdownProps {
   onLoadPreset?: (presetId: string) => void;
 }
 
-export function ColumnConfigDropdown({
+export const ColumnConfigDropdown = memo(function ColumnConfigDropdown({
   columns,
   onColumnsChange,
   onSavePreset,
@@ -61,12 +61,16 @@ export function ColumnConfigDropdown({
   const [customUnit, setCustomUnit] = useState("");
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
-  const visibleColumns = columns.filter((c) => c.visible);
-  const hiddenColumns = columns.filter((c) => !c.visible);
+  const visibleColumns = useMemo(() => columns.filter((c) => c.visible), [columns]);
+  const hiddenColumns = useMemo(() => columns.filter((c) => !c.visible), [columns]);
 
   // Get available columns that aren't already added
-  const availableToAdd = AVAILABLE_PRESCRIPTION_COLUMNS.filter(
-    (available) => !columns.some((c) => c.type === available.type && c.type !== 'custom')
+  const availableToAdd = useMemo(
+    () =>
+      AVAILABLE_PRESCRIPTION_COLUMNS.filter(
+        (available) => !columns.some((c) => c.type === available.type && c.type !== 'custom')
+      ),
+    [columns]
   );
 
   const addColumn = (type: PrescriptionColumnType, label: string, unit?: string) => {
@@ -366,6 +370,6 @@ export function ColumnConfigDropdown({
       </Dialog>
     </>
   );
-}
+});
 
 export default ColumnConfigDropdown;

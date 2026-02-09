@@ -1,7 +1,7 @@
 // src/components/coach/programs/EnhancedModuleExerciseEditor.tsx
 // V2 Exercise editor with per-set rows and dual column categories
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -62,13 +62,13 @@ export function EnhancedModuleExerciseEditor({
   const hasFetchedExercises = useRef(false);
   const { toast } = useToast();
 
-  // Group exercises by section
-  const groupedExercises: GroupedExercises = {
+  // Group exercises by section (memoized to avoid 4x filter + 4x sort on every render)
+  const groupedExercises: GroupedExercises = useMemo(() => ({
     warmup: exercises.filter((e) => e.section === "warmup").sort((a, b) => a.sort_order - b.sort_order),
     main: exercises.filter((e) => e.section === "main").sort((a, b) => a.sort_order - b.sort_order),
     accessory: exercises.filter((e) => e.section === "accessory").sort((a, b) => a.sort_order - b.sort_order),
     cooldown: exercises.filter((e) => e.section === "cooldown").sort((a, b) => a.sort_order - b.sort_order),
-  };
+  }), [exercises]);
 
   // Load exercises
   const loadExercises = useCallback(async () => {
@@ -267,13 +267,30 @@ export function EnhancedModuleExerciseEditor({
     }
   };
 
-  // Update exercise
-  const updateExercise = (exerciseId: string, updates: Partial<EnhancedExerciseDisplayV2>) => {
+  // Update exercise (stable callback — uses functional state update)
+  const updateExercise = useCallback((exerciseId: string, updates: Partial<EnhancedExerciseDisplayV2>) => {
     setExercises((prev) =>
       prev.map((ex) => (ex.id === exerciseId ? { ...ex, ...updates } : ex))
     );
     setHasUnsavedChanges(true);
-  };
+  }, []);
+
+  // Stable per-exercise callback maps
+  const exerciseChangeCallbacksRef = useRef<Map<string, (updates: Partial<EnhancedExerciseDisplayV2>) => void>>(new Map());
+  const exerciseDeleteCallbacksRef = useRef<Map<string, () => void>>(new Map());
+
+  // Clear callback caches when updateExercise changes (it won't since deps are [])
+  useMemo(() => {
+    exerciseChangeCallbacksRef.current = new Map();
+  }, [updateExercise]);
+
+  const getExerciseChangeCallback = useCallback((exerciseId: string) => {
+    const existing = exerciseChangeCallbacksRef.current.get(exerciseId);
+    if (existing) return existing;
+    const cb = (updates: Partial<EnhancedExerciseDisplayV2>) => updateExercise(exerciseId, updates);
+    exerciseChangeCallbacksRef.current.set(exerciseId, cb);
+    return cb;
+  }, [updateExercise]);
 
   // Delete exercise
   const deleteExercise = async (exerciseId: string) => {
@@ -295,6 +312,19 @@ export function EnhancedModuleExerciseEditor({
       });
     }
   };
+
+  const getExerciseDeleteCallback = useCallback((exerciseId: string) => {
+    const existing = exerciseDeleteCallbacksRef.current.get(exerciseId);
+    if (existing) return existing;
+    const cb = () => deleteExercise(exerciseId);
+    exerciseDeleteCallbacksRef.current.set(exerciseId, cb);
+    return cb;
+  }, []);
+
+  // Clear delete callback cache when exercises change (new IDs may appear)
+  useMemo(() => {
+    exerciseDeleteCallbacksRef.current = new Map();
+  }, [exercises]);
 
   // Save all changes
   const saveChanges = async () => {
@@ -415,6 +445,11 @@ export function EnhancedModuleExerciseEditor({
     setHasUnsavedChanges(true);
   };
 
+  const handleSelectExercise = useCallback(
+    (exerciseId: string) => addExercise(exerciseId, addToSection),
+    [addToSection]
+  );
+
   const renderSectionContent = (section: { value: ExerciseSection; label: string }) => {
     const sectionExercises = groupedExercises[section.value];
 
@@ -439,10 +474,8 @@ export function EnhancedModuleExerciseEditor({
                   >
                     <ExerciseCardV2
                       exercise={exercise}
-                      onExerciseChange={(updates) =>
-                        updateExercise(exercise.id, updates)
-                      }
-                      onDelete={() => deleteExercise(exercise.id)}
+                      onExerciseChange={getExerciseChangeCallback(exercise.id)}
+                      onDelete={getExerciseDeleteCallback(exercise.id)}
                       isDragging={snapshot.isDragging}
                       dragHandleProps={provided.dragHandleProps}
                       isReadOnly={isReadOnly}
@@ -575,7 +608,7 @@ export function EnhancedModuleExerciseEditor({
       <ExercisePickerDialog
         open={showExercisePicker}
         onOpenChange={setShowExercisePicker}
-        onSelectExercise={(exerciseId) => addExercise(exerciseId, addToSection)}
+        onSelectExercise={handleSelectExercise}
         coachUserId={coachUserId}
       />
     </div>

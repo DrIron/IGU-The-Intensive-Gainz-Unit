@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { TableHeader, TableRow, TableHead } from "@/components/ui/table";
 import { X, GripVertical } from "lucide-react";
@@ -16,7 +16,7 @@ interface ColumnCategoryHeaderProps {
   isReadOnly?: boolean;
 }
 
-export function ColumnCategoryHeader({
+export const ColumnCategoryHeader = memo(function ColumnCategoryHeader({
   prescriptionColumns,
   inputColumns,
   onAddPrescriptionColumn,
@@ -32,13 +32,21 @@ export function ColumnCategoryHeader({
   } | null>(null);
   const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
 
-  const visiblePrescriptionCols = prescriptionColumns
-    .filter((c) => c.visible && c.type !== "sets")
-    .sort((a, b) => a.order - b.order);
+  const visiblePrescriptionCols = useMemo(
+    () =>
+      prescriptionColumns
+        .filter((c) => c.visible && c.type !== "sets")
+        .sort((a, b) => a.order - b.order),
+    [prescriptionColumns]
+  );
 
-  const visibleInputCols = inputColumns
-    .filter((c) => c.visible)
-    .sort((a, b) => a.order - b.order);
+  const visibleInputCols = useMemo(
+    () =>
+      inputColumns
+        .filter((c) => c.visible)
+        .sort((a, b) => a.order - b.order),
+    [inputColumns]
+  );
 
   const handleDragStart = (
     e: React.DragEvent,
@@ -204,4 +212,4 @@ export function ColumnCategoryHeader({
       </TableRow>
     </TableHeader>
   );
-}
+});

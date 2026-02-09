@@ -1,7 +1,7 @@
 // src/components/coach/programs/ProgramCalendarBuilder.tsx
 // Week x Day grid view for building program templates
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -62,6 +62,176 @@ interface ProgramCalendarBuilderProps {
 }
 
 const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+// Memoized session card to prevent re-renders when other sessions/days change
+interface SessionCardProps {
+  session: CalendarSession;
+  onEditDay?: (dayId: string) => void;
+  onCopySession: (sessionId: string, title: string) => void;
+  onToggleStatus: (moduleId: string, currentStatus: string) => void;
+  onDeleteSession: (moduleId: string) => void;
+}
+
+const SessionCard = memo(function SessionCard({
+  session,
+  onEditDay,
+  onCopySession,
+  onToggleStatus,
+  onDeleteSession,
+}: SessionCardProps) {
+  const sessionTypeInfo = SESSION_TYPES.find((t) => t.value === session.sessionType);
+  return (
+    <div
+      className={`p-2 rounded-md text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+        session.status === "published"
+          ? "bg-primary/10 border border-primary/20"
+          : "bg-muted border border-dashed"
+      }`}
+      onClick={() => onEditDay?.(session.id)}
+    >
+      <div className="flex items-center justify-between gap-1">
+        <div className="flex items-center gap-1 min-w-0">
+          <div className={`w-2 h-2 rounded-full shrink-0 ${sessionTypeInfo?.color || "bg-gray-500"}`} />
+          <span className="font-medium truncate">{session.title}</span>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 shrink-0"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="h-3 w-3" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEditDay?.(session.id)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Session
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={(e) => {
+              e.stopPropagation();
+              onCopySession(session.id, session.title);
+            }}>
+              <Clipboard className="h-4 w-4 mr-2" />
+              Copy Session
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => onToggleStatus(session.id, session.status)}>
+              {session.status === "published" ? (
+                <>
+                  <EyeOff className="h-4 w-4 mr-2" />
+                  Unpublish
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Publish
+                </>
+              )}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem className="text-destructive" onClick={() => onDeleteSession(session.id)}>
+              <Trash2 className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+      <Badge
+        variant={session.status === "published" ? "default" : "secondary"}
+        className="text-[10px] h-4 px-1 mt-1"
+      >
+        {session.status}
+      </Badge>
+    </div>
+  );
+});
+
+// Memoized day cell to prevent all 7 cells from re-rendering on state changes
+interface DayCellProps {
+  day: CalendarDay;
+  copiedSessionId: string | null;
+  onPasteSession: (dayIndex: number) => void;
+  onAddSession: (dayIndex: number) => void;
+  onEditDay?: (dayId: string) => void;
+  onCopySession: (sessionId: string, title: string) => void;
+  onToggleStatus: (moduleId: string, currentStatus: string) => void;
+  onDeleteSession: (moduleId: string) => void;
+}
+
+const DayCell = memo(function DayCell({
+  day,
+  copiedSessionId,
+  onPasteSession,
+  onAddSession,
+  onEditDay,
+  onCopySession,
+  onToggleStatus,
+  onDeleteSession,
+}: DayCellProps) {
+  return (
+    <Card
+      className={`min-h-[140px] ${day.isRestDay ? "bg-muted/30" : ""} hover:shadow-md transition-shadow`}
+    >
+      <CardHeader className="p-2 pb-1">
+        <div className="flex items-center justify-between">
+          <span className="text-sm font-medium">Day {day.dayIndex}</span>
+          <div className="flex items-center gap-0.5">
+            {copiedSessionId && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-primary"
+                      onClick={() => onPasteSession(day.dayIndex)}
+                    >
+                      <ClipboardPaste className="h-3 w-3" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Paste session here</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-6 w-6"
+                    onClick={() => onAddSession(day.dayIndex)}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>Add session</TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="p-2 pt-0 space-y-1">
+        {day.sessions.length === 0 ? (
+          <div className="text-xs text-muted-foreground text-center py-4">Rest Day</div>
+        ) : (
+          day.sessions.map((session) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              onEditDay={onEditDay}
+              onCopySession={onCopySession}
+              onToggleStatus={onToggleStatus}
+              onDeleteSession={onDeleteSession}
+            />
+          ))
+        )}
+      </CardContent>
+    </Card>
+  );
+});
 
 export function ProgramCalendarBuilder({
   programId,
@@ -486,7 +656,20 @@ export function ProgramCalendarBuilder({
     }
   };
 
-  const currentWeek = weeks.find((w) => w.weekNumber === selectedWeek);
+  const handleCopySession = useCallback((sessionId: string, title: string) => {
+    setCopiedSessionId(sessionId);
+    toast({ title: "Session copied", description: `"${title}" ready to paste.` });
+  }, [toast]);
+
+  const handleAddSession = useCallback((dayIndex: number) => {
+    setAddDayIndex(dayIndex);
+    setShowAddDayDialog(true);
+  }, []);
+
+  const currentWeek = useMemo(
+    () => weeks.find((w) => w.weekNumber === selectedWeek),
+    [weeks, selectedWeek]
+  );
 
   if (loading) {
     return (
@@ -557,130 +740,17 @@ export function ProgramCalendarBuilder({
         ))}
 
         {currentWeek?.days.map((day) => (
-          <Card
+          <DayCell
             key={day.dayIndex}
-            className={`min-h-[140px] ${day.isRestDay ? "bg-muted/30" : ""} hover:shadow-md transition-shadow`}
-          >
-            <CardHeader className="p-2 pb-1">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Day {day.dayIndex}</span>
-                <div className="flex items-center gap-0.5">
-                  {copiedSessionId && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-6 w-6 text-primary"
-                            onClick={() => pasteSession(day.dayIndex)}
-                          >
-                            <ClipboardPaste className="h-3 w-3" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Paste session here</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6"
-                          onClick={() => {
-                            setAddDayIndex(day.dayIndex);
-                            setShowAddDayDialog(true);
-                          }}
-                        >
-                          <Plus className="h-3 w-3" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>Add session</TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="p-2 pt-0 space-y-1">
-              {day.sessions.length === 0 ? (
-                <div className="text-xs text-muted-foreground text-center py-4">Rest Day</div>
-              ) : (
-                day.sessions.map((session) => {
-                  const sessionTypeInfo = SESSION_TYPES.find((t) => t.value === session.sessionType);
-                  return (
-                    <div
-                      key={session.id}
-                      className={`p-2 rounded-md text-xs cursor-pointer hover:opacity-80 transition-opacity ${
-                        session.status === "published"
-                          ? "bg-primary/10 border border-primary/20"
-                          : "bg-muted border border-dashed"
-                      }`}
-                      onClick={() => onEditDay?.(session.id)}
-                    >
-                      <div className="flex items-center justify-between gap-1">
-                        <div className="flex items-center gap-1 min-w-0">
-                          <div className={`w-2 h-2 rounded-full shrink-0 ${sessionTypeInfo?.color || "bg-gray-500"}`} />
-                          <span className="font-medium truncate">{session.title}</span>
-                        </div>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-5 w-5 shrink-0"
-                              onClick={(e) => e.stopPropagation()}
-                            >
-                              <MoreVertical className="h-3 w-3" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => onEditDay?.(session.id)}>
-                              <Edit className="h-4 w-4 mr-2" />
-                              Edit Session
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={(e) => {
-                              e.stopPropagation();
-                              setCopiedSessionId(session.id);
-                              toast({ title: "Session copied", description: `"${session.title}" ready to paste.` });
-                            }}>
-                              <Clipboard className="h-4 w-4 mr-2" />
-                              Copy Session
-                            </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => toggleModuleStatus(session.id, session.status)}>
-                              {session.status === "published" ? (
-                                <>
-                                  <EyeOff className="h-4 w-4 mr-2" />
-                                  Unpublish
-                                </>
-                              ) : (
-                                <>
-                                  <Eye className="h-4 w-4 mr-2" />
-                                  Publish
-                                </>
-                              )}
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem className="text-destructive" onClick={() => deleteSession(session.id)}>
-                              <Trash2 className="h-4 w-4 mr-2" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      <Badge
-                        variant={session.status === "published" ? "default" : "secondary"}
-                        className="text-[10px] h-4 px-1 mt-1"
-                      >
-                        {session.status}
-                      </Badge>
-                    </div>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
+            day={day}
+            copiedSessionId={copiedSessionId}
+            onPasteSession={pasteSession}
+            onAddSession={handleAddSession}
+            onEditDay={onEditDay}
+            onCopySession={handleCopySession}
+            onToggleStatus={toggleModuleStatus}
+            onDeleteSession={deleteSession}
+          />
         ))}
       </div>
 

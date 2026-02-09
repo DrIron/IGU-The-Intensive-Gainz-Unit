@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo, useRef, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -30,7 +30,7 @@ interface ExerciseCardV2Props {
   isReadOnly?: boolean;
 }
 
-export function ExerciseCardV2({
+export const ExerciseCardV2 = memo(function ExerciseCardV2({
   exercise,
   onExerciseChange,
   onDelete,
@@ -39,6 +39,10 @@ export function ExerciseCardV2({
   dragHandleProps,
   isReadOnly,
 }: ExerciseCardV2Props) {
+  // Stable per-index callback maps to avoid creating new functions on every render
+  const setChangeCallbacksRef = useRef<Map<number, (updated: SetPrescription) => void>>(new Map());
+  const deleteSetCallbacksRef = useRef<Map<number, () => void>>(new Map());
+
   const handleSetChange = useCallback(
     (setIndex: number, updated: SetPrescription) => {
       const newSets = [...exercise.sets];
@@ -58,6 +62,39 @@ export function ExerciseCardV2({
     },
     [exercise.sets, onExerciseChange]
   );
+
+  // Get stable per-index callbacks
+  const getSetChangeCallback = useCallback(
+    (index: number) => {
+      // Invalidate cache when handleSetChange changes
+      const existing = setChangeCallbacksRef.current.get(index);
+      if (existing) return existing;
+      const cb = (updated: SetPrescription) => handleSetChange(index, updated);
+      setChangeCallbacksRef.current.set(index, cb);
+      return cb;
+    },
+    [handleSetChange]
+  );
+
+  const getDeleteSetCallback = useCallback(
+    (index: number) => {
+      const existing = deleteSetCallbacksRef.current.get(index);
+      if (existing) return existing;
+      const cb = () => handleDeleteSet(index);
+      deleteSetCallbacksRef.current.set(index, cb);
+      return cb;
+    },
+    [handleDeleteSet]
+  );
+
+  // Clear callback caches when the underlying handlers change
+  useMemo(() => {
+    setChangeCallbacksRef.current = new Map();
+  }, [handleSetChange]);
+
+  useMemo(() => {
+    deleteSetCallbacksRef.current = new Map();
+  }, [handleDeleteSet]);
 
   const handleAddSet = useCallback(() => {
     const lastSet = exercise.sets[exercise.sets.length - 1];
@@ -130,6 +167,14 @@ export function ExerciseCardV2({
   const handleColumnsChange = useCallback(
     (columns: ColumnConfig[]) => {
       onExerciseChange({ prescription_columns: columns });
+    },
+    [onExerciseChange]
+  );
+
+  // Stable callback for instructions textarea
+  const handleInstructionsChange = useCallback(
+    (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+      onExerciseChange({ instructions: e.target.value });
     },
     [onExerciseChange]
   );
@@ -229,7 +274,7 @@ export function ExerciseCardV2({
       <div className="px-3 py-2 border-b">
         <Textarea
           value={exercise.instructions || ""}
-          onChange={(e) => onExerciseChange({ instructions: e.target.value })}
+          onChange={handleInstructionsChange}
           placeholder="Add coaching notes..."
           rows={1}
           className="text-sm resize-none min-h-[32px]"
@@ -258,8 +303,8 @@ export function ExerciseCardV2({
                 setIndex={index}
                 prescriptionColumns={exercise.prescription_columns}
                 inputColumns={exercise.input_columns}
-                onSetChange={(updated) => handleSetChange(index, updated)}
-                onDeleteSet={() => handleDeleteSet(index)}
+                onSetChange={getSetChangeCallback(index)}
+                onDeleteSet={getDeleteSetCallback(index)}
                 isReadOnly={isReadOnly}
               />
             ))}
@@ -283,4 +328,21 @@ export function ExerciseCardV2({
       )}
     </div>
   );
-}
+}, (prevProps, nextProps) => {
+  return (
+    prevProps.exercise.id === nextProps.exercise.id &&
+    prevProps.exercise.sets === nextProps.exercise.sets &&
+    prevProps.exercise.instructions === nextProps.exercise.instructions &&
+    prevProps.exercise.prescription_columns === nextProps.exercise.prescription_columns &&
+    prevProps.exercise.input_columns === nextProps.exercise.input_columns &&
+    prevProps.isDragging === nextProps.isDragging &&
+    prevProps.isReadOnly === nextProps.isReadOnly &&
+    prevProps.onExerciseChange === nextProps.onExerciseChange &&
+    prevProps.onDelete === nextProps.onDelete &&
+    prevProps.onShowHistory === nextProps.onShowHistory &&
+    prevProps.exercise.last_performance === nextProps.exercise.last_performance &&
+    prevProps.exercise.exercise.name === nextProps.exercise.exercise.name &&
+    prevProps.exercise.exercise.primary_muscle === nextProps.exercise.exercise.primary_muscle &&
+    prevProps.exercise.exercise.default_video_url === nextProps.exercise.exercise.default_video_url
+  );
+});

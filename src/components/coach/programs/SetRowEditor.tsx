@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo, memo } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { TableRow, TableCell } from "@/components/ui/table";
@@ -21,7 +21,7 @@ interface SetRowEditorProps {
   isReadOnly?: boolean;
 }
 
-export function SetRowEditor({
+export const SetRowEditor = memo(function SetRowEditor({
   set,
   setIndex,
   prescriptionColumns,
@@ -110,13 +110,21 @@ export function SetRowEditor({
     );
   };
 
-  const visiblePrescriptionCols = prescriptionColumns
-    .filter((c) => c.visible && c.type !== "sets")
-    .sort((a, b) => a.order - b.order);
+  const visiblePrescriptionCols = useMemo(
+    () =>
+      prescriptionColumns
+        .filter((c) => c.visible && c.type !== "sets")
+        .sort((a, b) => a.order - b.order),
+    [prescriptionColumns]
+  );
 
-  const visibleInputCols = inputColumns
-    .filter((c) => c.visible)
-    .sort((a, b) => a.order - b.order);
+  const visibleInputCols = useMemo(
+    () =>
+      inputColumns
+        .filter((c) => c.visible)
+        .sort((a, b) => a.order - b.order),
+    [inputColumns]
+  );
 
   return (
     <TableRow className="hover:bg-muted/20">
@@ -165,4 +173,15 @@ export function SetRowEditor({
       )}
     </TableRow>
   );
-}
+}, (prevProps, nextProps) => {
+  // Custom comparator: skip re-render if these key values haven't changed
+  return (
+    prevProps.set.set_number === nextProps.set.set_number &&
+    prevProps.set === nextProps.set &&
+    prevProps.prescriptionColumns === nextProps.prescriptionColumns &&
+    prevProps.inputColumns === nextProps.inputColumns &&
+    prevProps.isReadOnly === nextProps.isReadOnly &&
+    prevProps.onSetChange === nextProps.onSetChange &&
+    prevProps.onDeleteSet === nextProps.onDeleteSet
+  );
+});

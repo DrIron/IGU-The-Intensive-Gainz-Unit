@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { ProgramLibrary } from "./ProgramLibrary";
 import { ProgramEditor } from "./ProgramEditor";
 import { ProgramCalendarBuilder } from "./ProgramCalendarBuilder";
@@ -15,25 +15,30 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
   const { canBuildPrograms, isLoading: permissionsLoading } = useSubrolePermissions(coachUserId);
 
-  const handleCreateProgram = () => {
+  const handleCreateProgram = useCallback(() => {
     setEditingProgramId(null);
     setView("create");
-  };
+  }, []);
 
-  const handleEditProgram = (programId: string) => {
+  const handleEditProgram = useCallback((programId: string) => {
     setEditingProgramId(programId);
     setView("edit");
-  };
+  }, []);
 
-  const handleCalendarView = (programId: string) => {
+  const handleCalendarView = useCallback((programId: string) => {
     setEditingProgramId(programId);
     setView("calendar");
-  };
+  }, []);
 
-  const handleBack = () => {
+  const handleBack = useCallback(() => {
     setEditingProgramId(null);
     setView("library");
-  };
+  }, []);
+
+  const handleEditDay = useCallback((dayId: string) => {
+    // Switch to edit view to edit the day's modules
+    setView("edit");
+  }, []);
 
   // Gate: only show program builder to users with canBuildPrograms capability
   if (!permissionsLoading && !canBuildPrograms) {
@@ -53,10 +58,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
         programId={editingProgramId}
         coachUserId={coachUserId}
         onBack={handleBack}
-        onEditDay={(dayId) => {
-          // Switch to edit view to edit the day's modules
-          setView("edit");
-        }}
+        onEditDay={handleEditDay}
       />
     );
   }
