@@ -127,6 +127,14 @@ export function SystemHealthView() {
 
       const activeProfilesNoSub: Issue[] = [];
       for (const profile of activeProfiles || []) {
+        // Skip admin/coach users — they have active profiles without client subscriptions
+        const { data: roles } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", profile.id);
+        const roleList = (roles || []).map(r => r.role);
+        if (roleList.includes("admin") || roleList.includes("coach")) continue;
+
         const { data: subs } = await supabase
           .from("subscriptions")
           .select("id, status")

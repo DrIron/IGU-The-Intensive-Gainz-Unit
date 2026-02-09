@@ -823,7 +823,7 @@ export function PreLaunchValidation() {
                   ) : (
                     <AlertTriangle className="h-4 w-4 text-amber-500" />
                   )}
-                  <span className="font-medium text-sm capitalize">{account.role.replace("_", " ")}</span>
+                  <span className="font-medium text-sm capitalize">{account.role.replace(/_/g, " ")}</span>
                 </div>
                 <p className="text-xs text-muted-foreground truncate">{account.email}</p>
               </div>

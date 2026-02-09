@@ -149,9 +149,12 @@ export function PlansServicesManager() {
   const formatServiceType = (type: string) => {
     const labels: Record<string, string> = {
       one_to_one: "1:1",
+      one_to_one_online: "1:1 Online",
+      one_to_one_in_person: "1:1 In-Person",
+      one_to_one_hybrid: "1:1 Hybrid",
       team: "Team",
     };
-    return labels[type] || type;
+    return labels[type] || type.replace(/_/g, " ");
   };
 
   if (loading) {

@@ -10,6 +10,7 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { getAdminNavItems } from "@/lib/routeConfig";
 
 interface AdminSidebarProps {
@@ -83,17 +84,31 @@ export function AdminSidebar({
                 {adminMenuItems.map((item) => {
                   const Icon = item.icon;
                   const isActive = getIsActive(item);
-                  
+
+                  const button = (
+                    <SidebarMenuButton
+                      onClick={() => handleNavigation(item.path)}
+                      className={isActive ? "bg-primary/10 text-primary font-medium" : ""}
+                    >
+                      {Icon && <Icon className="h-4 w-4" />}
+                      {!collapsed && <span>{item.label}</span>}
+                    </SidebarMenuButton>
+                  );
+
                   return (
                     <SidebarMenuItem key={item.id}>
-                      <SidebarMenuButton
-                        onClick={() => handleNavigation(item.path)}
-                        className={isActive ? "bg-primary/10 text-primary font-medium" : ""}
-                        title={collapsed ? item.label : undefined}
-                      >
-                        {Icon && <Icon className="h-4 w-4" />}
-                        {!collapsed && <span>{item.label}</span>}
-                      </SidebarMenuButton>
+                      {collapsed ? (
+                        <Tooltip delayDuration={0}>
+                          <TooltipTrigger asChild>
+                            {button}
+                          </TooltipTrigger>
+                          <TooltipContent side="right" sideOffset={8}>
+                            {item.label}
+                          </TooltipContent>
+                        </Tooltip>
+                      ) : (
+                        button
+                      )}
                     </SidebarMenuItem>
                   );
                 })}

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
 import { ClientDashboardLayout } from "@/components/client/ClientDashboardLayout";
+import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useRoleCache } from "@/hooks/useRoleCache";
 import { useAuthSession } from "@/hooks/useAuthSession";
@@ -73,6 +74,26 @@ function DashboardContent() {
     title: "Dashboard | Intensive Gainz Unit",
     description: "View your plan, coach, progress, and payments in your IGU dashboard.",
   });
+
+  // Instant redirect for admin/coach using cached roles (no async wait)
+  useEffect(() => {
+    if (!cachedRoles || cachedRoles.length === 0) return;
+    const section = searchParams.get("section") || "dashboard";
+    const filter = searchParams.get("filter");
+    const tab = searchParams.get("tab");
+    const newParams = new URLSearchParams();
+    if (filter) newParams.set("filter", filter);
+    if (tab) newParams.set("tab", tab);
+    const qs = newParams.toString();
+
+    if (cachedRoles.includes("admin")) {
+      const mapped = ADMIN_SECTION_MAP[section] || "dashboard";
+      navigate(`/admin/${mapped}${qs ? `?${qs}` : ""}`, { replace: true });
+    } else if (cachedRoles.includes("coach")) {
+      const mapped = COACH_SECTION_MAP[section] || "dashboard";
+      navigate(`/coach/${mapped}${qs ? `?${qs}` : ""}`, { replace: true });
+    }
+  }, [cachedRoles, navigate, searchParams]);
 
   const loadUserData = useCallback(async () => {
     try {
@@ -228,11 +249,7 @@ function DashboardContent() {
   };
 
   if (loading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="animate-pulse text-lg text-muted-foreground">Loading...</div>
-      </div>
-    );
+    return <LoadingSpinner />;
   }
 
   return (

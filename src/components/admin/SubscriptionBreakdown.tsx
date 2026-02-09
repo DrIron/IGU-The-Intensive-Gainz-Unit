@@ -102,7 +102,7 @@ export function SubscriptionBreakdown() {
       <CardContent className="space-y-4">
         {breakdown.length === 0 ? (
           <p className="text-sm text-muted-foreground text-center py-4">
-            No active subscriptions yet
+            No active subscriptions found
           </p>
         ) : (
           breakdown.map((service, index) => (

@@ -1318,30 +1318,29 @@ SQL function `generate_referral_code(first_name)`:
 
 ### Admin QA Results (Feb 3, 2026)
 
-10 known issues found across admin dashboard pages (updated Feb 7):
+10 known issues found across admin dashboard pages — **all fixed** (updated Feb 8):
 
 **Critical (0 remaining)**:
 1. ~~Testimonials page hangs on load~~ ✅ FIXED (Phase 24 - hasFetched guard + timeout wrapper)
 2. ~~"Error loading services" spam in console~~ ✅ FIXED (Phase 16 - was infinite loop)
 
-**Medium (3 remaining)**:
+**Medium (0 remaining)**:
 1. ~~Status shows "Unknown" briefly on page load~~ ✅ FIXED (related to auth cache)
-2. "One To_one" label instead of "1:1" in service names
-3. Empty state text inconsistencies
-4. Admin user flagged in system health checks
+2. ~~"One To_one" label instead of "1:1" in service names~~ ✅ FIXED (global regex replace, expanded formatServiceType)
+3. ~~Empty state text inconsistencies~~ ✅ FIXED (standardized to "found" for filtered views, "yet" for create-first)
+4. ~~Admin user flagged in system health checks~~ ✅ FIXED (skip admin/coach roles in active-profile-no-sub check)
 
-**Low (4)**:
-1. No sidebar tooltips when collapsed
-2. Stale build timestamp display
-3. /dashboard route shows loading state
-4. Sign-out flow doesn't redirect properly
+**Low (0 remaining)**:
+1. ~~No sidebar tooltips when collapsed~~ ✅ FIXED (Radix Tooltip on collapsed sidebar items)
+2. ~~Stale build timestamp display~~ ✅ FIXED (dynamic __BUILD_TIMESTAMP__ via Vite define)
+3. ~~/dashboard route shows loading state~~ ✅ FIXED (LoadingSpinner + instant cache-first role redirect)
+4. ~~Sign-out flow doesn't redirect properly~~ ✅ FIXED (clear igu_* + sb-* keys, window.location.replace)
 
 ### Known Limitations
 - No automated tests for components (only smoke tests)
 - No staging environment (production only)
-- Bundle size is large (~2.4MB) - needs code splitting
+- Bundle size: ~441KB initial (down from 2.8MB after React.lazy + vendor chunk splitting in Phase 28)
 - `getSession()` could hang on page refresh — mitigated by Navigator lock bypass + `initializePromise` timeout in `client.ts` + cache-first role pattern
-- Sign-out flow doesn't properly redirect to login page
 - Edge functions: Always handle OPTIONS before `req.json()` to avoid CORS preflight crashes
 - Resend emails must use `@mail.theigu.com` (only verified subdomain)
 - React useEffect with useCallback dependencies can cause infinite loops — always use `hasFetched` ref guards for data fetching

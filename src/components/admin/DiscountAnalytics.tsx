@@ -790,7 +790,7 @@ export function DiscountAnalytics() {
                 </CardHeader>
                 <CardContent>
                   {detailData.redemptions.length === 0 ? (
-                    <p className="text-center py-4 text-muted-foreground">No redemptions yet</p>
+                    <p className="text-center py-4 text-muted-foreground">No redemptions found</p>
                   ) : (
                     <div className="space-y-3 max-h-[300px] overflow-y-auto">
                       {detailData.redemptions.slice(0, 20).map(r => (

@@ -27,7 +27,9 @@ import { AdminQuickActions } from "@/components/admin/AdminQuickActions";
 import { SiteContentManager } from "@/components/admin/SiteContentManager";
 import { SubroleApprovalQueue } from "@/components/admin/SubroleApprovalQueue";
 
-const ADMIN_BUILD_VERSION = "Admin build 2025-12-13T10:30";
+const ADMIN_BUILD_TIMESTAMP = typeof __BUILD_TIMESTAMP__ !== 'undefined'
+  ? new Date(__BUILD_TIMESTAMP__).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
+  : "dev";
 
 interface AdminDashboardLayoutProps {
   user: any;
@@ -152,7 +154,7 @@ export function AdminDashboardLayout({
                 {renderContent()}
               </AdminErrorBoundary>
               <div className="mt-8 text-xs text-muted-foreground text-right">
-                {ADMIN_BUILD_VERSION}
+                Build: {ADMIN_BUILD_TIMESTAMP}
               </div>
             </div>
           </div>

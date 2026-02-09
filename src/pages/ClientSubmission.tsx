@@ -380,7 +380,7 @@ export default function ClientSubmission() {
                 <div className="space-y-3">
                   <div>
                     <p className="text-sm text-muted-foreground">Training Experience</p>
-                    <p className="font-medium capitalize">{submission.training_experience?.replace("_", " ")}</p>
+                    <p className="font-medium capitalize">{submission.training_experience?.replace(/_/g, " ")}</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Training Goals</p>
@@ -395,7 +395,7 @@ export default function ClientSubmission() {
                   {submission.gym_access_type && (
                     <div>
                       <p className="text-sm text-muted-foreground">Gym Access Type</p>
-                      <p className="font-medium capitalize">{submission.gym_access_type?.replace("_", " ")}</p>
+                      <p className="font-medium capitalize">{submission.gym_access_type?.replace(/_/g, " ")}</p>
                     </div>
                   )}
                   {submission.preferred_gym_location && (
@@ -419,7 +419,7 @@ export default function ClientSubmission() {
                   {submission.nutrition_approach && (
                     <div>
                       <p className="text-sm text-muted-foreground">Nutrition Approach</p>
-                      <p className="font-medium capitalize">{submission.nutrition_approach?.replace("_", " ")}</p>
+                      <p className="font-medium capitalize">{submission.nutrition_approach?.replace(/_/g, " ")}</p>
                     </div>
                   )}
                 </div>
@@ -505,7 +505,7 @@ export default function ClientSubmission() {
             {/* Referral Source */}
             <div>
               <h3 className="text-lg font-semibold mb-3">Referral Source</h3>
-              <p className="font-medium capitalize">{submission.heard_about_us?.replace("_", " ")}</p>
+              <p className="font-medium capitalize">{submission.heard_about_us?.replace(/_/g, " ")}</p>
               {submission.heard_about_us_other && (
                 <p className="text-sm text-muted-foreground mt-1">{submission.heard_about_us_other}</p>
               )}
