@@ -39,7 +39,6 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
   const [coach, setCoach] = useState<CoachInfo | null>(null);
   const [primaryCoach, setPrimaryCoach] = useState<PrimaryCoach | null>(null);
   const [activePhase, setActivePhase] = useState<any>(null);
-  const [formSubmission, setFormSubmission] = useState<any>(null);
   const [weeklyLogsCount, setWeeklyLogsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
 
@@ -94,17 +93,6 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
       
       if (phaseData) setActivePhase(phaseData);
 
-      // Load form submission status (safe table - no PHI)
-      const { data: formData } = await supabase
-        .from("form_submissions_safe")
-        .select("*")
-        .eq("user_id", user.id)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (formData) setFormSubmission(formData);
-
       // Count this week's weight logs
       if (phaseData) {
         const weekStart = new Date();
@@ -151,7 +139,6 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
       <AlertsCard
         profile={profile}
         subscription={subscription}
-        formSubmission={formSubmission}
         weeklyLogsCount={weeklyLogsCount}
       />
 

@@ -69,7 +69,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
         .select(`
           id,
           status,
-          programs (name),
+          program_id,
           client_program_days (
             id,
             title,
@@ -100,6 +100,17 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
         return;
       }
 
+      // Fetch program name separately (FK join from client_programs to programs is unreliable in PostgREST)
+      let programName = 'Your Program';
+      if (program.program_id) {
+        const { data: programData } = await supabase
+          .from("programs")
+          .select("name")
+          .eq("id", program.program_id)
+          .maybeSingle();
+        if (programData?.name) programName = programData.name;
+      }
+
       const days = program.client_program_days;
       let todayWorkout: TodayWorkout | null = null;
       let nextWorkout: UpcomingWorkout | null = null;
@@ -125,7 +136,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
             dayId: day.id,
             dayTitle: day.title || `Day ${day.day_number}`,
             dayNumber: day.day_number,
-            programName: (program.programs as any)?.name || 'Your Program',
+            programName,
             date: dayDate,
             modules,
           };

@@ -49,6 +49,7 @@ export function WelcomeModal({ userId, firstName, subscription }: WelcomeModalPr
   if (!open) return null;
 
   const serviceName = subscription?.services?.name || "your plan";
+  const isTeamPlan = subscription?.services?.type === "team";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -90,8 +91,17 @@ export function WelcomeModal({ userId, firstName, subscription }: WelcomeModalPr
                   <Dumbbell className="h-4 w-4" />
                 </div>
                 <div>
-                  <p className="font-medium text-sm">Your program is being prepared</p>
-                  <p className="text-xs text-muted-foreground">Your coach will build your personalized training program within 24-48 hours.</p>
+                  {isTeamPlan ? (
+                    <>
+                      <p className="font-medium text-sm">Your workouts are ready</p>
+                      <p className="text-xs text-muted-foreground">Head to your Workout Calendar to see your team training program.</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="font-medium text-sm">Your program is being prepared</p>
+                      <p className="text-xs text-muted-foreground">Your coach will build your personalized training program within 24-48 hours.</p>
+                    </>
+                  )}
                 </div>
               </li>
               <li className="flex items-start gap-3">

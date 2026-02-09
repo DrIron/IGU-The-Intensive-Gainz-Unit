@@ -1,16 +1,15 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, FileWarning, CreditCard, Calendar, Ban } from "lucide-react";
+import { AlertCircle, CreditCard, Calendar, Ban } from "lucide-react";
 import { differenceInDays, format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 
 interface AlertsCardProps {
   profile: any;
   subscription: any;
-  formSubmission?: any;
   weeklyLogsCount?: number;
 }
 
-export function AlertsCard({ profile, subscription, formSubmission, weeklyLogsCount }: AlertsCardProps) {
+export function AlertsCard({ profile, subscription, weeklyLogsCount }: AlertsCardProps) {
   const navigate = useNavigate();
   const alerts: {
     icon: typeof AlertCircle;
@@ -35,23 +34,6 @@ export function AlertsCard({ profile, subscription, formSubmission, weeklyLogsCo
         variant: "destructive" as const,
       });
     }
-  }
-
-  // Check for unsigned legal documents
-  const hasUnsignedLegal = formSubmission && (
-    !formSubmission.agreed_terms ||
-    !formSubmission.agreed_privacy ||
-    !formSubmission.agreed_refund_policy ||
-    !formSubmission.agreed_intellectual_property
-  );
-
-  if (hasUnsignedLegal) {
-    alerts.push({
-      icon: FileWarning,
-      title: "Legal Documents Required",
-      description: "Please review and sign all legal documents to activate your account.",
-      variant: "destructive" as const,
-    });
   }
 
   // Check for payment issues
