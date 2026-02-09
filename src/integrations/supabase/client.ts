@@ -117,6 +117,23 @@ supabase.auth.getSession().then(({ data, error }) => {
     console.log('[Supabase Client] Session initialized via getSession');
   } else {
     console.log('[Supabase Client] No session found');
+    // When initializePromise times out, getSession() returns null even though
+    // a valid session exists in localStorage. The internal onAuthStateChange
+    // listener that normally updates functions client headers never fires.
+    // Recover the access token from localStorage and set it on the functions
+    // client so that supabase.functions.invoke() attaches the correct JWT.
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (parsed?.access_token) {
+          console.log('[Supabase Client] Recovering functions auth from localStorage');
+          supabase.functions.setAuth(parsed.access_token);
+        }
+      }
+    } catch (e) {
+      // Ignore — localStorage may be unavailable
+    }
   }
   _sessionReadyResolve();
 }).catch(() => {
