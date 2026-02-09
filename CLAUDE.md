@@ -179,6 +179,8 @@ type ClientStatus =
 -- User profiles (split for security)
 profiles_public    -- id, first_name, display_name, status, avatar_url
 profiles_private   -- profile_id, email, last_name, phone, dob (PII)
+-- IMPORTANT: `profiles` is a VIEW joining profiles_public + profiles_private
+-- (see "Edge Function DB Query Fix" section for gotchas)
 
 -- Medical data (PHI - encrypted)
 parq_submissions   -- Health questionnaire responses
@@ -1360,6 +1362,9 @@ SQL function `generate_referral_code(first_name)`:
 - React useEffect with useCallback dependencies can cause infinite loops — always use `hasFetched` ref guards for data fetching
 - `coaches_public` is a VIEW (not a table) — auto-populated from coaches table, cannot INSERT directly
 - Edge functions calling other edge functions must use `--no-verify-jwt` on the called function
+- **`profiles` is a VIEW** (not a table) — joins `profiles_public` + `profiles_private`. You CANNOT use PostgREST FK joins like `profiles!subscriptions_user_id_fkey(...)` because the FK references `profiles_legacy`, not the view. Always use separate direct queries: `.from("profiles").select("email, first_name").eq("id", userId)`.
+- **`coaches` table columns**: `first_name`, `last_name`, `nickname` — there is NO `name` column. Use `first_name`/`last_name`.
+- **`services` table pricing column**: `price_kwd` — there is NO `price` column.
 - **All public-facing pages MUST be wrapped in `<PublicLayout>` in App.tsx** — this provides the consistent "IGU" navbar and footer. Never render a public page without PublicLayout, and never add `<Navigation />` or `<Footer />` inside a page component that is already wrapped in PublicLayout (causes duplicates). When creating a new public route, wrap it: `<Route path="/foo" element={<PublicLayout><Foo /></PublicLayout>} />`. When editing a page, check App.tsx first to see if it's already wrapped.
 
 ---
@@ -1451,6 +1456,7 @@ When asking for help:
   - Referral program reminders (2+ weeks active, lifetime dedup)
   - Coach inactivity alerts to admins (7+ days no login, weekly dedup)
 - Workout Builder INP performance fix — memoization across 7 component files ✅ (Feb 9, 2026)
+- Edge function DB query fix — repaired 7 n8n edge functions with broken FK joins and wrong column names ✅ (Feb 9, 2026)
 
 **Not launched yet**:
 - Backup/recovery procedures (operational, not code)
@@ -1623,6 +1629,76 @@ const getCallback = useCallback((index: number) => {
 // Usage in JSX:
 <SetRowEditor onSetChange={getCallback(index)} />
 ```
+
+---
+
+## Edge Function DB Query Fix (Feb 9, 2026)
+
+Fixed 7 n8n edge functions that were returning HTTP 500 due to incorrect database queries. 6 of 10 n8n workflows were failing in production.
+
+**Root Causes (3 issues):**
+
+1. **`profiles` is a VIEW, not a table.** The `profiles` view joins `profiles_public` + `profiles_private`. The FK `subscriptions_user_id_fkey` references `profiles_legacy` (a separate table), NOT the `profiles` view. PostgREST FK join syntax `profiles!subscriptions_user_id_fkey(...)` fails because it tries to join the view using an FK that doesn't reference it.
+
+2. **`coaches` table has no `name` column.** The actual columns are `first_name` and `last_name`. Queries like `coaches.select("user_id, name")` returned PostgREST errors.
+
+3. **`services` table has `price_kwd`, not `price`.** The renewal reminders function queried a non-existent column.
+
+**The `profiles` view definition:**
+```sql
+SELECT pp.id, priv.email, priv.full_name, priv.phone, pp.status,
+       pp.created_at, pp.updated_at, pp.first_name, priv.last_name, ...
+FROM profiles_public pp
+LEFT JOIN profiles_private priv ON pp.id = priv.profile_id;
+```
+
+**FK constraints on `subscriptions`:**
+| FK Name | Column | References |
+|---------|--------|------------|
+| `subscriptions_user_id_fkey` | `user_id` | `profiles_legacy.id` |
+| `subscriptions_user_id_profiles_public_fk` | `user_id` | `profiles_public.id` |
+| `subscriptions_coach_id_fkey` | `coach_id` | `coaches.user_id` |
+| `subscriptions_service_id_fkey` | `service_id` | `services.id` |
+
+**Fix applied:** Replaced all `profiles!subscriptions_user_id_fkey(...)` FK joins with separate direct queries to the `profiles` view:
+
+```typescript
+// BROKEN — FK references profiles_legacy, not the profiles view
+const { data } = await supabase
+  .from("subscriptions")
+  .select("id, user_id, profiles!subscriptions_user_id_fkey(email, first_name)")
+  .eq("status", "active");
+
+// FIXED — direct query to the profiles view
+const { data: subs } = await supabase
+  .from("subscriptions")
+  .select("id, user_id")
+  .eq("status", "active");
+
+for (const sub of subs) {
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("email, first_name")
+    .eq("id", sub.user_id)
+    .maybeSingle();
+}
+```
+
+**Files Fixed (7):**
+
+| File | Issues Fixed |
+|------|-------------|
+| `supabase/functions/send-weekly-coach-digest/index.ts` | `coaches.name` → `first_name, last_name`; removed FK join on subscriptions; separate profiles query per client |
+| `supabase/functions/process-referral-reminders/index.ts` | Removed FK join; separate profiles query per subscription |
+| `supabase/functions/process-inactive-client-alerts/index.ts` | Removed FK join; separate profiles query; removed redundant `coaches.name` query |
+| `supabase/functions/process-coach-inactivity-monitor/index.ts` | `coaches.name` → `first_name, last_name`; updated name display logic |
+| `supabase/functions/process-renewal-reminders/index.ts` | Removed FK join; `services(name, price)` → `services(name, price_kwd)`; separate profiles query |
+| `supabase/functions/process-testimonial-requests/index.ts` | Removed FK join; separate profiles query per subscription |
+| `supabase/functions/process-payment-failure-drip/index.ts` | Removed FK join (latent bug — only passed because 0 failed subscriptions existed) |
+
+**Result:** All 10/10 n8n edge functions return HTTP 200.
+
+**Rule for edge functions:** Never use PostgREST FK joins to the `profiles` view. Always query `.from("profiles")` directly with `.eq("id", userId)`.
 
 ---
 
