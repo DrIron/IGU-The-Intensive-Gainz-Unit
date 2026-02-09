@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dumbbell, Search, Plus, X, Youtube, Pencil, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useClientAccess, getAccessDeniedMessage } from "@/hooks/useClientAccess";
@@ -88,25 +89,50 @@ export default function WorkoutLibrary() {
   }, [access, navigate, toast]);
 
   const fetchExercises = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("exercises")
-      .select("*")
-      .order("created_at", { ascending: false });
+    // Read from both tables: exercise_library (107 seeded) and exercises (legacy coach-added)
+    const [libRes, legacyRes] = await Promise.all([
+      supabase
+        .from("exercise_library")
+        .select("*")
+        .eq("is_active", true)
+        .order("name", { ascending: true }),
+      supabase
+        .from("exercises")
+        .select("*")
+        .order("created_at", { ascending: false }),
+    ]);
 
-    if (error) {
+    if (libRes.error && legacyRes.error) {
       toast({
         title: "Error loading exercises",
-        description: error.message,
+        description: sanitizeErrorForUser(libRes.error),
         variant: "destructive",
       });
       return;
     }
 
-    setExercises((data || []).map(ex => ({
+    // Map exercise_library rows to the Exercise display interface
+    const libraryExercises: Exercise[] = (libRes.data || []).map(ex => ({
+      id: ex.id,
+      name: ex.name,
+      muscle_groups: [ex.primary_muscle, ...(ex.secondary_muscles || [])],
+      muscle_subdivisions: {} as Record<string, string[]>,
+      difficulty: ex.category === 'cardio' ? 'Beginner' : ex.category === 'mobility' ? 'Beginner' : 'Intermediate',
+      youtube_url: ex.default_video_url || null,
+      setup_instructions: [],
+      execution_instructions: [],
+      pitfalls: [],
+      created_at: ex.created_at,
+    }));
+
+    // Legacy exercises keep their original format
+    const legacyExercises: Exercise[] = (legacyRes.data || []).map(ex => ({
       ...ex,
       muscle_subdivisions: ex.muscle_subdivisions as Record<string, string[]>,
       youtube_url: ex.youtube_url || null,
-    })));
+    }));
+
+    setExercises([...libraryExercises, ...legacyExercises]);
   }, [toast]);
 
   // Load exercises when access is granted
@@ -155,7 +181,7 @@ export default function WorkoutLibrary() {
     if (error) {
       toast({
         title: editingExercise ? "Error updating exercise" : "Error adding exercise",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
       return;
