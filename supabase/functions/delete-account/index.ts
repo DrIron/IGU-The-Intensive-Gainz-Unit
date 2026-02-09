@@ -11,15 +11,52 @@ Deno.serve(async (req) => {
   }
 
   try {
+    // Verify caller is authenticated
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
     const supabaseClient = createClient(
-      Deno.env.get('SUPABASE_URL') ?? '',
+      supabaseUrl,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     );
+
+    // Verify the JWT resolves to a real user
+    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY') ?? '', {
+      global: { headers: { Authorization: authHeader } }
+    });
+    const { data: { user: caller }, error: authError } = await userClient.auth.getUser();
+    if (authError || !caller) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     const { userId } = await req.json();
 
     if (!userId) {
       throw new Error('User ID is required');
+    }
+
+    // Authorization: user can only delete their own account, unless they're an admin
+    if (caller.id !== userId) {
+      const { data: callerRoles } = await supabaseClient
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', caller.id);
+      const isAdmin = callerRoles?.some(r => r.role === 'admin');
+      if (!isAdmin) {
+        return new Response(
+          JSON.stringify({ error: 'You can only delete your own account' }),
+          { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     console.log('Deleting account for user:', userId);
