@@ -60,15 +60,15 @@ export default function CoachDashboard() {
         // 2. Session loading is complete AND
         // 3. No session user
         if (!sessionLoading && !sessionUser) {
-          console.log('[CoachDashboard] No user found (cache empty, session empty), redirecting to auth');
+          if (import.meta.env.DEV) console.log('[CoachDashboard] No user found (cache empty, session empty), redirecting to auth');
           navigate("/auth");
         } else if (sessionLoading) {
-          console.log('[CoachDashboard] No cache, waiting for session...');
+          if (import.meta.env.DEV) console.log('[CoachDashboard] No cache, waiting for session...');
         }
         return;
       }
 
-      console.log('[CoachDashboard] Using userId:', userId, '(from cache:', !!cachedUserId, ')');
+      if (import.meta.env.DEV) console.log('[CoachDashboard] Using userId:', userId, '(from cache:', !!cachedUserId, ')');
 
       const user = sessionUser || { id: userId, email: null };
       setCurrentUser(user);
@@ -112,14 +112,14 @@ export default function CoachDashboard() {
           return;
         }
       } catch (timeoutErr) {
-        console.warn("[CoachDashboard] Roles query timed out, using cached roles");
+        if (import.meta.env.DEV) console.warn("[CoachDashboard] Roles query timed out, using cached roles");
         if (cachedRoles && !cachedRoles.includes('coach')) {
           navigate("/dashboard");
           return;
         }
       }
     } catch (error: any) {
-      console.error("[CoachDashboard] Error loading user data:", error);
+      if (import.meta.env.DEV) console.error("[CoachDashboard] Error loading user data:", error);
     } finally {
       setLoading(false);
     }
@@ -134,7 +134,7 @@ export default function CoachDashboard() {
 
     const timeout = setTimeout(() => {
       if (loading) {
-        console.error("[CoachDashboard] Loading timeout - forcing render");
+        if (import.meta.env.DEV) console.error("[CoachDashboard] Loading timeout - forcing render");
         setLoading(false);
       }
     }, 5000);

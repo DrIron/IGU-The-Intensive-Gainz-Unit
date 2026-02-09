@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarIcon, Plus, Trash2, Percent, Info } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   type BodyFatLog,
   type BodyFatMethod,
@@ -124,10 +125,9 @@ export function BodyFatLogForm({ userId, currentWeight, onLogAdded }: BodyFatLog
       loadRecentLogs();
       onLogAdded?.();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -143,8 +143,7 @@ export function BodyFatLogForm({ userId, currentWeight, onLogAdded }: BodyFatLog
       hasFetched.current = false;
       loadRecentLogs();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      toast({ title: "Error", description: message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 

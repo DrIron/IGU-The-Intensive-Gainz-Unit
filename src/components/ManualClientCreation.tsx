@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { UserPlus } from "lucide-react";
 import { PersonalDetailsFields } from "@/components/forms/PersonalDetailsFields";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 const manualClientSchema = z.object({
   firstName: z.string().min(1, "First name is required").max(50, "First name too long").trim(),
@@ -111,7 +112,7 @@ export function ManualClientCreation({ onClientCreated }: ManualClientCreationPr
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

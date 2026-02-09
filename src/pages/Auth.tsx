@@ -13,6 +13,7 @@ import { z } from "zod";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { AUTH_REDIRECT_URLS } from "@/lib/config";
 import { useRoleCache } from "@/hooks/useRoleCache";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { TIMEOUTS } from "@/lib/constants";
 
 const signUpSchema = z.object({
@@ -101,14 +102,14 @@ export default function Auth() {
         ]) as { data: { role: string }[] | null; error: Error | null };
 
         if (rolesError) {
-          console.error('[Auth] Error fetching roles:', rolesError);
+          if (import.meta.env.DEV) console.error('[Auth] Error fetching roles:', rolesError);
         } else if (roles) {
           roleList = roles.map(r => r.role);
           // Cache the roles for RoleProtectedRoute
           setCachedRoles(roleList, userId);
         }
       } catch (timeoutError) {
-        console.warn('[Auth] Roles query timed out - checking cache before redirect');
+        if (import.meta.env.DEV) console.warn('[Auth] Roles query timed out - checking cache before redirect');
         // On timeout, check localStorage cache for roles before falling back
         try {
           const cachedRolesJson = localStorage.getItem('igu_user_roles');
@@ -117,37 +118,37 @@ export default function Auth() {
             const cachedRoles = JSON.parse(cachedRolesJson);
             if (Array.isArray(cachedRoles)) {
               if (cachedRoles.includes('admin')) {
-                console.log('[Auth] Timeout but cache has admin - redirecting to /admin');
+                if (import.meta.env.DEV) console.log('[Auth] Timeout but cache has admin - redirecting to /admin');
                 navigate("/admin");
                 return;
               }
               if (cachedRoles.includes('coach')) {
-                console.log('[Auth] Timeout but cache has coach - redirecting to /coach');
+                if (import.meta.env.DEV) console.log('[Auth] Timeout but cache has coach - redirecting to /coach');
                 navigate("/coach");
                 return;
               }
             }
           }
         } catch (e) {
-          console.warn('[Auth] Error reading role cache:', e);
+          if (import.meta.env.DEV) console.warn('[Auth] Error reading role cache:', e);
         }
         // No usable cache - redirect to dashboard
         navigate("/dashboard");
         return;
       }
 
-      console.log('[Auth] User roles:', roleList);
+      if (import.meta.env.DEV) console.log('[Auth] User roles:', roleList);
 
       // Admins go to /admin
       if (roleList.includes('admin')) {
-        console.log('[Auth] Redirecting to /admin');
+        if (import.meta.env.DEV) console.log('[Auth] Redirecting to /admin');
         navigate("/admin");
         return;
       }
 
       // Coaches go to /coach
       if (roleList.includes('coach') || isCoachAuth) {
-        console.log('[Auth] Redirecting to /coach');
+        if (import.meta.env.DEV) console.log('[Auth] Redirecting to /coach');
         navigate("/coach");
         return;
       }
@@ -171,19 +172,19 @@ export default function Auth() {
 
         const onboardingCompleted = !!profile?.onboarding_completed_at;
         if (!onboardingCompleted && profile?.status === 'pending') {
-          console.log('[Auth] Redirecting to /onboarding');
+          if (import.meta.env.DEV) console.log('[Auth] Redirecting to /onboarding');
           navigate("/onboarding");
           return;
         }
       } catch (profileError) {
-        console.warn('[Auth] Profile query timed out - redirecting to dashboard');
+        if (import.meta.env.DEV) console.warn('[Auth] Profile query timed out - redirecting to dashboard');
       }
 
       // Default to dashboard
-      console.log('[Auth] Redirecting to /dashboard');
+      if (import.meta.env.DEV) console.log('[Auth] Redirecting to /dashboard');
       navigate("/dashboard");
     } catch (error) {
-      console.error("[Auth] Error during redirect:", error);
+      if (import.meta.env.DEV) console.error("[Auth] Error during redirect:", error);
       // Fallback to dashboard on error
       navigate("/dashboard");
     }
@@ -228,7 +229,7 @@ export default function Auth() {
           await handleRedirectAfterAuth(session.user.id);
         }
       } catch (error) {
-        console.warn('[Auth] checkExistingSession failed:', error);
+        if (import.meta.env.DEV) console.warn('[Auth] checkExistingSession failed:', error);
         // Don't block - let user sign in manually
       }
     };
@@ -238,7 +239,7 @@ export default function Auth() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log('[Auth] onAuthStateChange:', event, session?.user?.email);
+      if (import.meta.env.DEV) console.log('[Auth] onAuthStateChange:', event, session?.user?.email);
 
       if (event === 'SIGNED_IN' && session && !redirectingRef.current) {
         redirectingRef.current = true;
@@ -263,13 +264,13 @@ export default function Auth() {
         .order("price_kwd");
 
       if (error) {
-        console.error("Error loading services:", error);
+        if (import.meta.env.DEV) console.error("Error loading services:", error);
         // Don't throw - services are optional for the auth page
         return;
       }
       setServices(data || []);
     } catch (error: any) {
-      console.error("Error loading services:", error);
+      if (import.meta.env.DEV) console.error("Error loading services:", error);
     }
   };
 
@@ -328,7 +329,7 @@ export default function Auth() {
             },
           });
         } catch (emailError) {
-          console.error("Error sending confirmation email:", emailError);
+          if (import.meta.env.DEV) console.error("Error sending confirmation email:", emailError);
         }
       }
 
@@ -339,7 +340,7 @@ export default function Auth() {
     } catch (error: any) {
       toast({
         title: "Sign Up Failed",
-        description: error.message || "Failed to create account. Please try again.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -353,7 +354,7 @@ export default function Auth() {
    */
   const fetchRolesWithRetry = useCallback(async (userId: string, maxRetries = 3): Promise<string[]> => {
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
-      console.log(`[Auth] Fetching roles, attempt ${attempt}/${maxRetries}`);
+      if (import.meta.env.DEV) console.log(`[Auth] Fetching roles, attempt ${attempt}/${maxRetries}`);
 
       try {
         const { data, error } = await supabase
@@ -362,27 +363,27 @@ export default function Auth() {
           .eq('user_id', userId);
 
         if (error) {
-          console.warn(`[Auth] Roles query error (attempt ${attempt}):`, error);
+          if (import.meta.env.DEV) console.warn(`[Auth] Roles query error (attempt ${attempt}):`, error);
         } else if (data && data.length > 0) {
           const roles = data.map(r => r.role);
-          console.log('[Auth] Roles fetched successfully:', roles);
+          if (import.meta.env.DEV) console.log('[Auth] Roles fetched successfully:', roles);
           return roles;
         } else {
-          console.log(`[Auth] No roles returned (attempt ${attempt})`);
+          if (import.meta.env.DEV) console.log(`[Auth] No roles returned (attempt ${attempt})`);
         }
       } catch (err) {
-        console.warn(`[Auth] Roles query exception (attempt ${attempt}):`, err);
+        if (import.meta.env.DEV) console.warn(`[Auth] Roles query exception (attempt ${attempt}):`, err);
       }
 
       // Wait before retry with exponential backoff (200ms, 400ms, 800ms)
       if (attempt < maxRetries) {
         const delay = 200 * Math.pow(2, attempt - 1);
-        console.log(`[Auth] Retrying in ${delay}ms...`);
+        if (import.meta.env.DEV) console.log(`[Auth] Retrying in ${delay}ms...`);
         await new Promise(r => setTimeout(r, delay));
       }
     }
 
-    console.warn('[Auth] All role fetch attempts failed');
+    if (import.meta.env.DEV) console.warn('[Auth] All role fetch attempts failed');
     return [];
   }, []);
 
@@ -428,7 +429,7 @@ export default function Auth() {
         throw new Error("Sign in succeeded but no session returned.");
       }
 
-      console.log('[Auth] Sign-in successful for:', user.email);
+      if (import.meta.env.DEV) console.log('[Auth] Sign-in successful for:', user.email);
 
       toast({
         title: "Welcome back!",
@@ -449,9 +450,9 @@ export default function Auth() {
       if (roleList.length > 0) {
         // Cache roles BEFORE redirect - this is the key fix
         setCachedRoles(roleList, user.id);
-        console.log('[Auth] Roles cached:', roleList);
+        if (import.meta.env.DEV) console.log('[Auth] Roles cached:', roleList);
       } else {
-        console.warn('[Auth] No roles fetched - user may see "No Access" temporarily');
+        if (import.meta.env.DEV) console.warn('[Auth] No roles fetched - user may see "No Access" temporarily');
       }
 
       // Now redirect based on roles
@@ -485,7 +486,7 @@ export default function Auth() {
       redirectingRef.current = false;
       toast({
         title: "Sign In Failed",
-        description: error.message || "Failed to sign in. Please try again.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -512,7 +513,7 @@ export default function Auth() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag } from "lucide-react";
 import {
   DropdownMenu,
@@ -48,7 +49,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
     } catch (error: any) {
       toast({
         title: "Error loading programs",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -183,7 +184,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
     } catch (error: any) {
       toast({
         title: "Error duplicating program",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

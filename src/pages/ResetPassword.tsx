@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Dumbbell, X } from "lucide-react";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -82,7 +83,7 @@ export default function ResetPassword() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

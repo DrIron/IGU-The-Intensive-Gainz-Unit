@@ -23,7 +23,7 @@ export function useAuthCleanup(): UseAuthCleanupReturn {
    * Clear all auth-related caches
    */
   const clearAllCaches = useCallback(() => {
-    console.log('[AuthCleanup] Clearing all auth caches');
+    if (import.meta.env.DEV) console.log('[AuthCleanup] Clearing all auth caches');
 
     // Clear role cache
     clearCache();
@@ -35,7 +35,7 @@ export function useAuthCleanup(): UseAuthCleanupReturn {
    * Sign out with full cleanup
    */
   const signOutWithCleanup = useCallback(async () => {
-    console.log('[AuthCleanup] Starting sign out with cleanup...');
+    if (import.meta.env.DEV) console.log('[AuthCleanup] Starting sign out with cleanup...');
 
     try {
       // Clear caches first (before sign out)
@@ -45,14 +45,14 @@ export function useAuthCleanup(): UseAuthCleanupReturn {
       const { error } = await supabase.auth.signOut();
 
       if (error) {
-        console.error('[AuthCleanup] Sign out error:', error);
+        if (import.meta.env.DEV) console.error('[AuthCleanup] Sign out error:', error);
         // Even if sign out fails, caches are already cleared
         // User will need to re-authenticate anyway
       }
 
-      console.log('[AuthCleanup] Sign out complete');
+      if (import.meta.env.DEV) console.log('[AuthCleanup] Sign out complete');
     } catch (error) {
-      console.error('[AuthCleanup] Sign out exception:', error);
+      if (import.meta.env.DEV) console.error('[AuthCleanup] Sign out exception:', error);
       // Rethrow so caller can handle
       throw error;
     }
@@ -63,7 +63,7 @@ export function useAuthCleanup(): UseAuthCleanupReturn {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event) => {
         if (event === 'SIGNED_OUT') {
-          console.log('[AuthCleanup] Detected SIGNED_OUT event - clearing caches');
+          if (import.meta.env.DEV) console.log('[AuthCleanup] Detected SIGNED_OUT event - clearing caches');
           clearAllCaches();
         }
       }

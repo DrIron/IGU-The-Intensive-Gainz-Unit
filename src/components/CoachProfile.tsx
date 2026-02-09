@@ -10,6 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Upload } from "lucide-react";
 import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface CoachData {
   id: string;
@@ -168,7 +169,7 @@ export default function CoachProfile() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -234,7 +235,7 @@ export default function CoachProfile() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

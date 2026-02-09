@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Target, Info, Plus, TrendingUp, TrendingDown, Minus, Loader2, History } from "lucide-react";
 import { format, subDays } from "date-fns";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   type StepLog,
   type StepRecommendation,
@@ -184,10 +185,9 @@ export function StepRecommendationCard({
       loadData();
       onRecommendationUpdated?.();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

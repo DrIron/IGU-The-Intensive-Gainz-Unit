@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Users, TrendingUp, AlertCircle, Calendar as CalendarIcon, Activity, CheckCircle2, Download, Filter, X, ChevronLeft, ChevronRight, ZoomIn } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -533,7 +534,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
       console.error("Error fetching coach metrics:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

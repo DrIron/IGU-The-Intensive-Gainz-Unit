@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface CoachNutritionGoalProps {
   clientUserId: string;
@@ -270,7 +271,7 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

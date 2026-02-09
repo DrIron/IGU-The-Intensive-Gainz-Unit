@@ -25,6 +25,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { DollarSign, AlertTriangle, Loader2, Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { 
   SubscriptionStatus, 
   PaymentStatus,
@@ -236,7 +237,7 @@ export function PaymentOverride({
       setOpen(false);
       resetForm();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : "Unknown error";
+      const message = sanitizeErrorForUser(error);
       console.error("Payment override error:", error);
       toast.error(`Override failed: ${message}`);
     } finally {

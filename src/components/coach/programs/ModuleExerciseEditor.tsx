@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Plus, Trash2, GripVertical, ChevronDown, ChevronRight } from "lucide-react";
 import {
   Select,
@@ -67,7 +68,7 @@ export function ModuleExerciseEditor({ moduleId, coachUserId }: ModuleExerciseEd
     } catch (error: any) {
       toast({
         title: "Error loading exercises",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -130,7 +131,7 @@ export function ModuleExerciseEditor({ moduleId, coachUserId }: ModuleExerciseEd
     } catch (error: any) {
       toast({
         title: "Error adding exercise",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -151,7 +152,7 @@ export function ModuleExerciseEditor({ moduleId, coachUserId }: ModuleExerciseEd
     } catch (error: any) {
       toast({
         title: "Error updating exercise",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -184,7 +185,7 @@ export function ModuleExerciseEditor({ moduleId, coachUserId }: ModuleExerciseEd
     } catch (error: any) {
       toast({
         title: "Error updating prescription",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -208,7 +209,7 @@ export function ModuleExerciseEditor({ moduleId, coachUserId }: ModuleExerciseEd
     } catch (error: any) {
       toast({
         title: "Error deleting exercise",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarIcon, Plus, Trash2, Footprints, Info } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { StepLog, StepSource } from "@/types/nutrition-phase22";
 
@@ -124,10 +125,9 @@ export function StepLogForm({ userId, onLogAdded }: StepLogFormProps) {
       loadRecentLogs();
       onLogAdded?.();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -143,8 +143,7 @@ export function StepLogForm({ userId, onLogAdded }: StepLogFormProps) {
       hasFetched.current = false;
       loadRecentLogs();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
-      toast({ title: "Error", description: message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 

@@ -12,6 +12,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -312,7 +313,7 @@ export function PayoutRatesManager() {
       console.error("Error updating payout rule:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -338,7 +339,7 @@ export function PayoutRatesManager() {
       console.error("Error calculating:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to calculate monthly payments",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

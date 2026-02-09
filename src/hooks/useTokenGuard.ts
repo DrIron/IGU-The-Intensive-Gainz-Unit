@@ -54,16 +54,16 @@ function getTokenExpiry(): { expired: boolean; expiresAt: number | null; seconds
  */
 async function attemptTokenRefresh(): Promise<boolean> {
   try {
-    console.log('[TokenGuard] Attempting token refresh...');
+    if (import.meta.env.DEV) console.log('[TokenGuard] Attempting token refresh...');
     const { data, error } = await supabase.auth.refreshSession();
 
     if (error) {
-      console.error('[TokenGuard] Token refresh failed:', error.message);
+      if (import.meta.env.DEV) console.error('[TokenGuard] Token refresh failed:', error.message);
       return false;
     }
 
     if (data.session) {
-      console.log('[TokenGuard] Token refreshed successfully, new expiry:', 
+      if (import.meta.env.DEV) console.log('[TokenGuard] Token refreshed successfully, new expiry:',
         new Date((data.session.expires_at || 0) * 1000).toISOString()
       );
       return true;
@@ -71,7 +71,7 @@ async function attemptTokenRefresh(): Promise<boolean> {
 
     return false;
   } catch (err) {
-    console.error('[TokenGuard] Token refresh exception:', err);
+    if (import.meta.env.DEV) console.error('[TokenGuard] Token refresh exception:', err);
     return false;
   }
 }
@@ -80,7 +80,7 @@ async function attemptTokenRefresh(): Promise<boolean> {
  * Clear all auth state and redirect to sign-in
  */
 function forceSignOut() {
-  console.log('[TokenGuard] Forcing sign-out due to unrecoverable auth state');
+  if (import.meta.env.DEV) console.log('[TokenGuard] Forcing sign-out due to unrecoverable auth state');
 
   // Clear role cache
   localStorage.removeItem(CACHE_KEYS.USER_ROLES);
@@ -112,15 +112,15 @@ export function useTokenGuard() {
     const { expired, secondsRemaining } = getTokenExpiry();
 
     if (expired) {
-      console.log('[TokenGuard] Token already expired on mount, refreshing...');
+      if (import.meta.env.DEV) console.log('[TokenGuard] Token already expired on mount, refreshing...');
       attemptTokenRefresh().then(success => {
         if (!success) {
-          console.warn('[TokenGuard] Could not refresh expired token on mount');
+          if (import.meta.env.DEV) console.warn('[TokenGuard] Could not refresh expired token on mount');
           forceSignOut();
         }
       });
     } else if (secondsRemaining < REFRESH_BUFFER_SECONDS && secondsRemaining > 0) {
-      console.log(`[TokenGuard] Token expiring in ${secondsRemaining}s, proactively refreshing...`);
+      if (import.meta.env.DEV) console.log(`[TokenGuard] Token expiring in ${secondsRemaining}s, proactively refreshing...`);
       attemptTokenRefresh();
     }
 
@@ -131,12 +131,12 @@ export function useTokenGuard() {
       const { expired: isExpired, secondsRemaining: remaining } = getTokenExpiry();
 
       if (isExpired) {
-        console.log('[TokenGuard] Token expired during session, refreshing...');
+        if (import.meta.env.DEV) console.log('[TokenGuard] Token expired during session, refreshing...');
         attemptTokenRefresh().then(success => {
           if (!success) forceSignOut();
         });
       } else if (remaining < REFRESH_BUFFER_SECONDS && remaining > 0) {
-        console.log(`[TokenGuard] Token expiring soon (${remaining}s), refreshing...`);
+        if (import.meta.env.DEV) console.log(`[TokenGuard] Token expiring soon (${remaining}s), refreshing...`);
         attemptTokenRefresh();
       }
     }, 60_000);
@@ -162,12 +162,12 @@ export function useTokenGuard() {
           lastRefreshAttempt.current = now;
           refreshInProgress.current = true;
 
-          console.warn('[TokenGuard] 401 detected on Supabase API call, attempting token refresh');
+          if (import.meta.env.DEV) console.warn('[TokenGuard] 401 detected on Supabase API call, attempting token refresh');
 
           try {
             const success = await attemptTokenRefresh();
             if (!success) {
-              console.error('[TokenGuard] Token refresh failed after 401 - session is invalid');
+              if (import.meta.env.DEV) console.error('[TokenGuard] Token refresh failed after 401 - session is invalid');
               forceSignOut();
             }
           } finally {
@@ -186,7 +186,7 @@ export function useTokenGuard() {
       if (document.visibilityState === 'visible') {
         const { expired: isExpired } = getTokenExpiry();
         if (isExpired) {
-          console.log('[TokenGuard] Tab became visible with expired token, refreshing...');
+          if (import.meta.env.DEV) console.log('[TokenGuard] Tab became visible with expired token, refreshing...');
           attemptTokenRefresh().then(success => {
             if (!success) forceSignOut();
           });

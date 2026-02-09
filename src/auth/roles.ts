@@ -292,17 +292,31 @@ export interface AccessViolation {
 
 /**
  * Log an access violation for security monitoring.
- * In production, this should send to a logging service.
+ * Sends to Sentry + Supabase audit log via captureMessage.
  */
 export function logAccessViolation(violation: AccessViolation): void {
-  console.error("[ACCESS VIOLATION]", {
+  const details = {
     timestamp: violation.timestamp.toISOString(),
     userId: violation.userId,
     attemptedRoute: violation.route,
     attemptedRole: violation.attemptedRole,
     actualRoles: violation.actualRoles,
     action: violation.action,
-  });
+    userAgent: violation.userAgent,
+  };
 
-  // TODO: In production, send to Supabase audit log or external service
+  console.error("[ACCESS VIOLATION]", details);
+
+  // Send to Sentry + Supabase security_audit_log (non-blocking)
+  import('@/lib/errorLogging').then(({ captureMessage }) => {
+    captureMessage(`Access violation: ${violation.action} at ${violation.route}`, {
+      source: 'access_violation',
+      severity: 'warning',
+      userId: violation.userId ?? undefined,
+      metadata: details,
+      tags: ['security', 'access_violation'],
+    });
+  }).catch(() => {
+    // Silently fail — console.error above is the fallback
+  });
 }

@@ -21,6 +21,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
@@ -162,7 +163,7 @@ export function CoachPaymentCalculator() {
       console.error('Error calculating monthly payments:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to calculate monthly payments",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

@@ -49,6 +49,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 // =============================================================================
 // TYPES
@@ -1102,7 +1103,7 @@ function WorkoutSessionV2Content() {
       console.error("Error loading session:", error);
       toast({
         title: "Error loading workout",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -1222,7 +1223,7 @@ function WorkoutSessionV2Content() {
     } catch (error: any) {
       toast({
         title: "Error swapping exercise",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -1275,7 +1276,7 @@ function WorkoutSessionV2Content() {
     } catch (error: any) {
       toast({
         title: "Error saving",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -1308,7 +1309,7 @@ function WorkoutSessionV2Content() {
     } catch (error: any) {
       toast({
         title: "Error completing workout",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

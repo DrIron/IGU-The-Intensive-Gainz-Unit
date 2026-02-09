@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AdminSidebar } from "./AdminSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -434,7 +435,7 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
       console.error('Error fetching metrics:', error);
       toast({
         title: "Error loading metrics",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -553,7 +554,7 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
       console.error('Error fetching work queue:', error);
       toast({
         title: "Error loading work queue",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

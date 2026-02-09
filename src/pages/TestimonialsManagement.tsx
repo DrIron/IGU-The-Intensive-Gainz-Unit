@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Search, Star, Check, X, Archive } from "lucide-react";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface Testimonial {
   id: string;
@@ -83,7 +84,7 @@ function TestimonialsManagementContent() {
     } catch (error: any) {
       toast({
         title: "Error loading testimonials",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -146,7 +147,7 @@ function TestimonialsManagementContent() {
     } catch (error: any) {
       toast({
         title: "Error updating testimonial",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -174,7 +175,7 @@ function TestimonialsManagementContent() {
     } catch (error: any) {
       toast({
         title: "Error updating testimonial",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

@@ -9,6 +9,7 @@ import { SpecializationTagPicker } from "@/components/ui/SpecializationTagPicker
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { z } from "zod";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 const coachProfileSchema = z.object({
   bio: z.string()
@@ -170,7 +171,7 @@ export default function CoachSignup() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to complete profile",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

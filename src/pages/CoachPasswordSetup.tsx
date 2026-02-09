@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Eye, EyeOff } from "lucide-react";
 import { z } from "zod";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 const passwordSchema = z.string()
   .min(8, "Password must be at least 8 characters")
@@ -100,7 +101,7 @@ export default function CoachPasswordSetup() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to set password",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
       setLoading(false);

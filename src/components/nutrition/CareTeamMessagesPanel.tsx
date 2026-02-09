@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { format, isToday, isYesterday, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   type CareTeamMessage,
   type CareTeamMessageType,
@@ -209,10 +210,9 @@ export function CareTeamMessagesPanel({
       hasFetched.current = false;
       loadData();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -236,10 +236,9 @@ export function CareTeamMessagesPanel({
       hasFetched.current = false;
       loadData();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

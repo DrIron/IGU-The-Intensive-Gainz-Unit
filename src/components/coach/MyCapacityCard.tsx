@@ -9,6 +9,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Users, AlertTriangle, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface ServiceCapacity {
   serviceId: string;
@@ -151,7 +152,7 @@ export function MyCapacityCard({ coachUserId, onNavigate }: MyCapacityCardProps)
       console.error('Error fetching capacity data:', error);
       toast({
         title: "Error loading capacity",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

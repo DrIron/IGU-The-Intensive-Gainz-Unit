@@ -22,6 +22,7 @@ import { useToast } from "@/hooks/use-toast";
 import { UtensilsCrossed, CalendarIcon, Plus, Loader2, CheckCircle, XCircle } from "lucide-react";
 import { format, isSameDay, startOfMonth, endOfMonth, eachDayOfInterval, isSameMonth, isToday, isPast } from "date-fns";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   type RefeedDay,
   type RefeedType,
@@ -142,10 +143,9 @@ export function RefeedDayScheduler({
       loadData();
       onRefeedUpdated?.();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -190,10 +190,9 @@ export function RefeedDayScheduler({
       loadData();
       onRefeedUpdated?.();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -218,10 +217,9 @@ export function RefeedDayScheduler({
       hasFetched.current = false;
       loadData();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

@@ -1,14 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { checkRateLimit, getClientIp, rateLimitResponse } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
-
-// Rate limit: max attempts per window
-const RATE_LIMIT_ATTEMPTS = 5;
-const RATE_LIMIT_WINDOW_SECONDS = 60;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -16,6 +13,13 @@ serve(async (req) => {
   }
 
   try {
+    // Rate limiting: 10 requests per minute per IP
+    const clientIp = getClientIp(req);
+    const rateCheck = checkRateLimit(clientIp, 10, 60_000);
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(corsHeaders, rateCheck.retryAfterMs);
+    }
+
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -57,50 +61,11 @@ serve(async (req) => {
       );
     }
 
-    // Get IP and user agent for logging/rate limiting
-    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() 
-      || req.headers.get('cf-connecting-ip') 
+    // Get IP and user agent for logging
+    const ipAddress = req.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      || req.headers.get('cf-connecting-ip')
       || 'unknown';
     const userAgent = req.headers.get('user-agent') || 'unknown';
-
-    // Rate limiting: check recent attempts
-    const windowStart = new Date(Date.now() - RATE_LIMIT_WINDOW_SECONDS * 1000).toISOString();
-    
-    // Check user-based rate limit
-    const { count: userAttempts } = await supabase
-      .from('discount_validation_log')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .gte('created_at', windowStart);
-
-    // Check IP-based rate limit (more generous)
-    const { count: ipAttempts } = await supabase
-      .from('discount_validation_log')
-      .select('*', { count: 'exact', head: true })
-      .eq('ip_address', ipAddress)
-      .gte('created_at', windowStart);
-
-    if ((userAttempts || 0) >= RATE_LIMIT_ATTEMPTS) {
-      console.log(`Rate limit exceeded for user ${user.id}`);
-      return new Response(
-        JSON.stringify({ 
-          valid: false, 
-          reason: 'Too many attempts. Please wait a minute before trying again.' 
-        }),
-        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
-
-    if ((ipAttempts || 0) >= RATE_LIMIT_ATTEMPTS * 2) {
-      console.log(`Rate limit exceeded for IP ${ipAddress}`);
-      return new Response(
-        JSON.stringify({ 
-          valid: false, 
-          reason: 'Too many attempts from this location. Please wait before trying again.' 
-        }),
-        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
 
     console.log(`Validating discount code for user ${user.id}, service ${service_id}`);
 

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface Profile {
   id: string;

@@ -12,6 +12,7 @@ import { ArrowLeft, History, Search, TrendingUp, Dumbbell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { format } from "date-fns";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface ExerciseOption {
   id: string;
@@ -85,7 +86,7 @@ function ExerciseHistoryContent() {
       console.error("Error loading exercises:", error);
       toast({
         title: "Error loading exercises",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -140,7 +141,7 @@ function ExerciseHistoryContent() {
       console.error("Error loading logs:", error);
       toast({
         title: "Error loading history",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

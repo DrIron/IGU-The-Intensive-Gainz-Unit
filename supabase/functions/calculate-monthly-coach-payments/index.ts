@@ -101,9 +101,7 @@ Deno.serve(async (req) => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    console.log('='.repeat(60));
-    console.log('Starting monthly coach payment calculation (NEW TABLES)');
-    console.log('='.repeat(60));
+    console.log(JSON.stringify({ fn: "calc-coach-payments", step: "start", ok: true }));
 
     // Get the first day of the current month
     const now = new Date();
@@ -114,7 +112,7 @@ Deno.serve(async (req) => {
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59);
 
-    console.log('Payment month:', paymentMonthStr);
+    console.log(JSON.stringify({ fn: "calc-coach-payments", step: "payment_month", month: paymentMonthStr }));
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 1: Load pricing & payout rules from NEW tables
@@ -127,14 +125,13 @@ Deno.serve(async (req) => {
       .eq('is_active', true);
 
     if (pricingError) {
-      console.error('Error fetching service_pricing:', pricingError);
+      console.error(JSON.stringify({ fn: "calc-coach-payments", step: "load_service_pricing", ok: false, error: "query_failed" }));
       throw new Error('Failed to load service pricing');
     }
 
     const servicePricingMap = new Map<string, number>(
       (servicePricingData || []).map((p: ServicePricing) => [p.service_id, Number(p.price_kwd)])
     );
-    console.log(`Loaded ${servicePricingMap.size} service pricing records`);
 
     // Load payout rules (replaces coach_payment_rates)
     const { data: payoutRulesData, error: rulesError } = await supabase
@@ -142,14 +139,13 @@ Deno.serve(async (req) => {
       .select('service_id, primary_payout_type, primary_payout_value, platform_fee_type, platform_fee_value');
 
     if (rulesError) {
-      console.error('Error fetching payout_rules:', rulesError);
+      console.error(JSON.stringify({ fn: "calc-coach-payments", step: "load_payout_rules", ok: false, error: "query_failed" }));
       throw new Error('Failed to load payout rules');
     }
 
     const payoutRulesMap = new Map<string, PayoutRule>(
       (payoutRulesData || []).map((r: PayoutRule) => [r.service_id, r])
     );
-    console.log(`Loaded ${payoutRulesMap.size} payout rules`);
 
     // Load addon pricing
     const { data: addonPricingData, error: addonPricingError } = await supabase
@@ -158,7 +154,7 @@ Deno.serve(async (req) => {
       .eq('is_active', true);
 
     if (addonPricingError) {
-      console.error('Error fetching addon_pricing:', addonPricingError);
+      console.error(JSON.stringify({ fn: "calc-coach-payments", step: "load_addon_pricing", ok: false, error: "query_failed" }));
       throw new Error('Failed to load addon pricing');
     }
 
@@ -169,7 +165,6 @@ Deno.serve(async (req) => {
     const addonPricingByCode = new Map<string, AddonPricing>(
       (addonPricingData || []).map((a: AddonPricing) => [a.code?.toLowerCase(), a])
     );
-    console.log(`Loaded ${addonPricingMap.size} addon pricing records`);
 
     // Load addon payout rules
     const { data: addonPayoutRulesData, error: addonRulesError } = await supabase
@@ -177,14 +172,15 @@ Deno.serve(async (req) => {
       .select('addon_id, payout_type, payout_value, payout_recipient_role');
 
     if (addonRulesError) {
-      console.error('Error fetching addon_payout_rules:', addonRulesError);
+      console.error(JSON.stringify({ fn: "calc-coach-payments", step: "load_addon_payout_rules", ok: false, error: "query_failed" }));
       throw new Error('Failed to load addon payout rules');
     }
 
     const addonPayoutRulesMap = new Map<string, AddonPayoutRule>(
       (addonPayoutRulesData || []).map((r: AddonPayoutRule) => [r.addon_id, r])
     );
-    console.log(`Loaded ${addonPayoutRulesMap.size} addon payout rules`);
+
+    console.log(JSON.stringify({ fn: "calc-coach-payments", step: "data_loaded", ok: true, service_pricing: servicePricingMap.size, payout_rules: payoutRulesMap.size, addon_pricing: addonPricingMap.size, addon_payout_rules: addonPayoutRulesMap.size }));
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 2: Load coaches
@@ -198,7 +194,7 @@ Deno.serve(async (req) => {
     const coachUserIds = coachRoles?.map(r => r.user_id) || [];
 
     if (coachUserIds.length === 0) {
-      console.log('No coaches found');
+      console.log(JSON.stringify({ fn: "calc-coach-payments", step: "no_coaches", ok: true }));
       return new Response(
         JSON.stringify({ success: true, message: 'No coaches to process' }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -308,7 +304,7 @@ Deno.serve(async (req) => {
       } else {
         // Fallback: 70% if no rule defined
         coachPayout = grossPrice * 0.70;
-        console.warn(`No payout rule for service ${sub.service_id}, using 70% fallback`);
+        console.warn(JSON.stringify({ fn: "calc-coach-payments", step: "payout_rule_fallback", ok: false, service_id: sub.service_id }));
       }
 
       // Track gross revenue (list price before discounts)
@@ -445,11 +441,7 @@ Deno.serve(async (req) => {
         net_collected_kwd: netCollected,
       });
 
-      console.log(`Coach ${coach.first_name} ${coach.last_name}:`);
-      console.log(`  Clients: ${totalClients} | Gross: ${metrics.grossRevenue.toFixed(2)} KWD`);
-      console.log(`  Discounts: ${metrics.discountsApplied.toFixed(2)} KWD | Net: ${netCollected.toFixed(2)} KWD`);
-      console.log(`  Base Payout: ${metrics.basePayout.toFixed(2)} KWD | Add-on: ${metrics.addonPayout.toFixed(2)} KWD`);
-      console.log(`  ➡️ Total Payout: ${totalPayment.toFixed(2)} KWD (from GROSS, discounts absorbed by IGU)`);
+      console.log(JSON.stringify({ fn: "calc-coach-payments", step: "coach_payout", ok: true, coach_id: coach.id, clients: totalClients, gross_kwd: metrics.grossRevenue, discounts_kwd: metrics.discountsApplied, net_kwd: netCollected, base_payout_kwd: metrics.basePayout, addon_payout_kwd: metrics.addonPayout, total_payout_kwd: totalPayment }));
     }
 
     // Upsert payment records
@@ -460,23 +452,14 @@ Deno.serve(async (req) => {
       });
 
     if (insertError) {
-      console.error('Error inserting payment records:', insertError);
+      console.error(JSON.stringify({ fn: "calc-coach-payments", step: "upsert_payments", ok: false, error: "insert_failed" }));
       throw insertError;
     }
 
     const netCollected = totalGrossRevenue - totalDiscountsApplied;
     const platformRetained = netCollected - totalCoachPayout;
 
-    console.log('='.repeat(60));
-    console.log('SUMMARY');
-    console.log('='.repeat(60));
-    console.log(`Coaches processed: ${paymentRecords.length}`);
-    console.log(`Gross Revenue:     ${totalGrossRevenue.toFixed(2)} KWD`);
-    console.log(`Discounts Given:   ${totalDiscountsApplied.toFixed(2)} KWD`);
-    console.log(`Net Collected:     ${netCollected.toFixed(2)} KWD`);
-    console.log(`Coach Payout:      ${totalCoachPayout.toFixed(2)} KWD (from GROSS)`);
-    console.log(`Platform Retained: ${platformRetained.toFixed(2)} KWD`);
-    console.log('='.repeat(60));
+    console.log(JSON.stringify({ fn: "calc-coach-payments", step: "summary", ok: true, coaches_processed: paymentRecords.length, gross_revenue_kwd: totalGrossRevenue, discounts_kwd: totalDiscountsApplied, net_collected_kwd: netCollected, coach_payout_kwd: totalCoachPayout, platform_retained_kwd: platformRetained }));
 
     // Send email notifications
     try {
@@ -488,9 +471,9 @@ Deno.serve(async (req) => {
         },
         body: JSON.stringify({ payment_month: paymentMonthStr }),
       });
-      console.log('Payment notification emails triggered');
+      console.log(JSON.stringify({ fn: "calc-coach-payments", step: "email_notifications", ok: true }));
     } catch (emailError) {
-      console.error('Failed to trigger email notifications:', emailError);
+      console.error(JSON.stringify({ fn: "calc-coach-payments", step: "email_notifications", ok: false, error: "trigger_failed" }));
     }
 
     return new Response(
@@ -515,7 +498,7 @@ Deno.serve(async (req) => {
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   } catch (error: any) {
-    console.error('Error calculating monthly payments:', error);
+    console.error(JSON.stringify({ fn: "calc-coach-payments", step: "fatal", ok: false, error: "calculation_failed" }));
     return new Response(
       JSON.stringify({ error: error.message }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

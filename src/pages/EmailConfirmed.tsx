@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Loader2 } from "lucide-react";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 export default function EmailConfirmed() {
   const navigate = useNavigate();
@@ -53,7 +54,7 @@ export default function EmailConfirmed() {
         setStatus("success");
       } catch (error: any) {
         console.error("Email confirmation error:", error);
-        setErrorMessage(error.message || "Something went wrong. Please try signing in.");
+        setErrorMessage(sanitizeErrorForUser(error));
         setStatus("error");
       }
     };

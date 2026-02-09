@@ -66,7 +66,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
         .maybeSingle();
 
       if (!serviceData) {
-        console.error('Service not found:', serviceName);
+        if (import.meta.env.DEV) console.error('Service not found:', serviceName);
         setNoCoachesAvailable(true);
         setLoading(false);
         return;
@@ -141,7 +141,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
 
         // Only include coaches with available capacity
         if (availableSpots <= 0) {
-          console.log(`Coach ${coach.first_name} is at capacity (${clientCount}/${maxClients})`);
+          if (import.meta.env.DEV) console.log(`Coach ${coach.first_name} is at capacity (${clientCount}/${maxClients})`);
           continue;
         }
 
@@ -170,7 +170,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
       setCoaches(sortedCoaches);
       setNoCoachesAvailable(sortedCoaches.length === 0);
     } catch (error) {
-      console.error('Error loading coaches:', error);
+      if (import.meta.env.DEV) console.error('Error loading coaches:', error);
       setNoCoachesAvailable(true);
     } finally {
       setLoading(false);

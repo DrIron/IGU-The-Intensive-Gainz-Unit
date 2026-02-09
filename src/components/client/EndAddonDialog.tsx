@@ -15,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { CalendarClock, Loader2 } from "lucide-react";
 import { format } from "date-fns";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface EndAddonDialogProps {
   open: boolean;
@@ -62,7 +63,7 @@ export function EndAddonDialog({
       console.error("Error ending addon:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to end add-on",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

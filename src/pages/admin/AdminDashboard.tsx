@@ -75,15 +75,15 @@ export default function AdminDashboard() {
         // 2. Session loading is complete AND
         // 3. No session user
         if (!sessionLoading && !sessionUser) {
-          console.log('[AdminDashboard] No user found (cache empty, session empty), redirecting to auth');
+          if (import.meta.env.DEV) console.log('[AdminDashboard] No user found (cache empty, session empty), redirecting to auth');
           navigate("/auth");
         } else if (sessionLoading) {
-          console.log('[AdminDashboard] No cache, waiting for session...');
+          if (import.meta.env.DEV) console.log('[AdminDashboard] No cache, waiting for session...');
         }
         return;
       }
 
-      console.log('[AdminDashboard] Using userId:', userId, '(from cache:', !!cachedUserId, ')');
+      if (import.meta.env.DEV) console.log('[AdminDashboard] Using userId:', userId, '(from cache:', !!cachedUserId, ')');
 
       const user = sessionUser || { id: userId, email: null };
       setCurrentUser(user);
@@ -105,7 +105,7 @@ export default function AdminDashboard() {
         ]) as { data: { role: string }[] | null; error: Error | null };
 
         if (rolesError) {
-          console.warn("[AdminDashboard] Error fetching roles, using cache:", rolesError);
+          if (import.meta.env.DEV) console.warn("[AdminDashboard] Error fetching roles, using cache:", rolesError);
         } else if (rolesData && rolesData.length > 0) {
           const roles = rolesData.map(r => r.role);
           setHasAdminRole(roles.includes('admin'));
@@ -113,10 +113,10 @@ export default function AdminDashboard() {
           setCachedRoles(roles, userId);
         }
       } catch (timeoutErr) {
-        console.warn("[AdminDashboard] Roles query timed out, using cached roles");
+        if (import.meta.env.DEV) console.warn("[AdminDashboard] Roles query timed out, using cached roles");
       }
     } catch (error: any) {
-      console.error("[AdminDashboard] Error loading user data:", error);
+      if (import.meta.env.DEV) console.error("[AdminDashboard] Error loading user data:", error);
     } finally {
       setLoading(false);
     }
@@ -131,7 +131,7 @@ export default function AdminDashboard() {
 
     const timeout = setTimeout(() => {
       if (loading) {
-        console.error("[AdminDashboard] Loading timeout - forcing render");
+        if (import.meta.env.DEV) console.error("[AdminDashboard] Loading timeout - forcing render");
         setLoading(false);
       }
     }, 5000);

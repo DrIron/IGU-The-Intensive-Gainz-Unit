@@ -7,6 +7,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Navigation } from "@/components/Navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { PaymentHistoryCard } from "@/components/client/PaymentHistoryCard";
 import { 
   CreditCard, 
@@ -112,7 +113,7 @@ export default function BillingPayment() {
       if (subError) throw subError;
       setSubscription(sub as SubscriptionData);
     } catch (error) {
-      console.error("Error loading billing data:", error);
+      if (import.meta.env.DEV) console.error("Error loading billing data:", error);
       toast({
         title: "Error",
         description: "Failed to load billing information",
@@ -129,7 +130,7 @@ export default function BillingPayment() {
 
   const handlePayment = useCallback(async () => {
     if (!subscription || !userId || processingPayment || isSubmittingRef.current) {
-      console.log('Payment already in progress or missing data');
+      if (import.meta.env.DEV) console.log('Payment already in progress or missing data');
       return;
     }
 
@@ -138,7 +139,7 @@ export default function BillingPayment() {
     setPaymentError(null);
 
     try {
-      console.log('Initiating TAP renewal payment...', { subscriptionId: subscription.id, userId });
+      if (import.meta.env.DEV) console.log('Initiating TAP renewal payment...', { subscriptionId: subscription.id, userId });
 
       const { data, error } = await supabase.functions.invoke("create-tap-payment", {
         body: {
@@ -167,10 +168,8 @@ export default function BillingPayment() {
         throw new Error(data?.error || "Failed to initiate payment");
       }
     } catch (error: any) {
-      console.error("Payment error:", error);
-      setPaymentError(
-        error.message || "We couldn't start your payment session. Please try again."
-      );
+      if (import.meta.env.DEV) console.error("Payment error:", error);
+      setPaymentError(sanitizeErrorForUser(error));
       setProcessingPayment(false);
       isSubmittingRef.current = false;
     }

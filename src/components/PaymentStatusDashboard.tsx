@@ -10,6 +10,7 @@ import { Clock, AlertTriangle, CheckCircle2, CreditCard, Tag, XCircle, Loader2 }
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface PaymentStatusProps {
   userId: string;
@@ -100,12 +101,12 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
             setBillingComponents(components);
           }
         } catch (compError) {
-          console.error('Error loading billing components:', compError);
+          if (import.meta.env.DEV) console.error('Error loading billing components:', compError);
           // Fallback gracefully - don't block payment page
         }
       }
     } catch (error: any) {
-      console.error('Error loading payment info:', error);
+      if (import.meta.env.DEV) console.error('Error loading payment info:', error);
       toast({
         title: "Error",
         description: "Failed to load payment information",
@@ -125,7 +126,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
       const urlParams = new URLSearchParams(window.location.search);
       const tapChargeId = urlParams.get('tap_id') || urlParams.get('charge_id');
 
-      console.log('Verifying payment status...', { userId, tapChargeId });
+      if (import.meta.env.DEV) console.log('Verifying payment status...', { userId, tapChargeId });
 
       const { data, error } = await supabase.functions.invoke('verify-payment', {
         body: {
@@ -135,13 +136,13 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
       });
 
       if (error) {
-        console.error('Error verifying payment:', error);
+        if (import.meta.env.DEV) console.error('Error verifying payment:', error);
         // Don't show error - just proceed to load payment info
         loadPaymentInfo();
         return;
       }
 
-      console.log('Verify payment response:', data);
+      if (import.meta.env.DEV) console.log('Verify payment response:', data);
 
       if (data?.status === 'active') {
         // Payment was successful! Show success message and redirect
@@ -178,7 +179,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
       // Continue loading payment info for other statuses
       loadPaymentInfo();
     } catch (err) {
-      console.error('Error in payment verification:', err);
+      if (import.meta.env.DEV) console.error('Error in payment verification:', err);
       loadPaymentInfo();
     } finally {
       setVerifyingPayment(false);
@@ -318,12 +319,12 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
         setDiscountedPrice(null);
       }
     } catch (error: any) {
-      console.error('Error validating discount code:', error);
+      if (import.meta.env.DEV) console.error('Error validating discount code:', error);
       // Handle rate limiting
       if (error.message?.includes('429') || error.message?.includes('Too many')) {
         setDiscountError("Too many attempts. Please wait a minute before trying again.");
       } else {
-        setDiscountError(error.message || "Failed to validate discount code. Please try again.");
+        setDiscountError(sanitizeErrorForUser(error));
       }
     } finally {
       setValidatingCode(false);
@@ -387,7 +388,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
       });
 
       if (payErr) {
-        console.error('Payment function error:', payErr);
+        if (import.meta.env.DEV) console.error('Payment function error:', payErr);
         setPaymentError("We couldn't start your payment session. Please check your connection and try again. If this keeps happening, contact support.");
         setProcessingPayment(false);
         return;
@@ -401,7 +402,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
         setProcessingPayment(false);
       }
     } catch (error: any) {
-      console.error('Payment error:', error);
+      if (import.meta.env.DEV) console.error('Payment error:', error);
       setPaymentError("We couldn't start your payment session. Please check your connection and try again. If this keeps happening, contact support.");
       setProcessingPayment(false);
     }

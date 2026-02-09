@@ -6,6 +6,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 const Testimonial = () => {
   const [searchParams] = useSearchParams();
@@ -102,7 +103,7 @@ const Testimonial = () => {
       console.error("Error submitting testimonial:", error);
       toast({
         title: "Submission Failed",
-        description: error.message || "Failed to submit testimonial. Please try again.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

@@ -15,6 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Plus, Pencil, Trash2, Pin, Video, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlaylistManager } from "./PlaylistManager";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface EducationalVideo {
   id: string;
@@ -154,7 +155,7 @@ export function EducationalVideosManager() {
       console.error('Error saving video:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save video",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

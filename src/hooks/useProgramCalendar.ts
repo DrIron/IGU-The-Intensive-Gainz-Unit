@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   CalendarWeek,
   CalendarDay,
@@ -107,7 +108,7 @@ export function useProgramCalendar({
     } catch (error: any) {
       toast({
         title: "Error loading program",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -204,7 +205,7 @@ export function useProgramCalendar({
       } catch (error: any) {
         toast({
           title: "Error adding session",
-          description: error.message,
+          description: sanitizeErrorForUser(error),
           variant: "destructive",
         });
         return null;
@@ -320,7 +321,7 @@ export function useProgramCalendar({
       } catch (error: any) {
         toast({
           title: "Error copying week",
-          description: error.message,
+          description: sanitizeErrorForUser(error),
           variant: "destructive",
         });
       }
@@ -339,7 +340,7 @@ export function useProgramCalendar({
       } catch (error: any) {
         toast({
           title: "Error deleting session",
-          description: error.message,
+          description: sanitizeErrorForUser(error),
           variant: "destructive",
         });
       }
@@ -364,7 +365,7 @@ export function useProgramCalendar({
       } catch (error: any) {
         toast({
           title: "Error updating status",
-          description: error.message,
+          description: sanitizeErrorForUser(error),
           variant: "destructive",
         });
       }

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { RefreshCw, User, Shield, CheckCircle, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface UserInfo {
   id: string;
@@ -78,9 +79,9 @@ export default function RolesDebug() {
         setLastBootstrapResult({
           success: false,
           bootstrapped: false,
-          message: error.message,
+          message: sanitizeErrorForUser(error),
         });
-        toast.error("Bootstrap failed", { description: error.message });
+        toast.error("Bootstrap failed", { description: sanitizeErrorForUser(error) });
         return;
       }
 
@@ -109,9 +110,9 @@ export default function RolesDebug() {
       setLastBootstrapResult({
         success: false,
         bootstrapped: false,
-        message: error.message,
+        message: sanitizeErrorForUser(error),
       });
-      toast.error("Bootstrap failed", { description: error.message });
+      toast.error("Bootstrap failed", { description: sanitizeErrorForUser(error) });
     } finally {
       setBootstrapping(false);
     }

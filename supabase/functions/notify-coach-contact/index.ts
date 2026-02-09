@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { EMAIL_FROM } from '../_shared/config.ts';
+import { checkRateLimit, getClientIp, rateLimitResponse } from '../_shared/rateLimit.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -20,6 +21,12 @@ Deno.serve(async (req) => {
   }
 
   try {
+    const clientIp = getClientIp(req);
+    const rateCheck = checkRateLimit(clientIp, 5, 60_000);
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(corsHeaders, rateCheck.retryAfterMs);
+    }
+
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 

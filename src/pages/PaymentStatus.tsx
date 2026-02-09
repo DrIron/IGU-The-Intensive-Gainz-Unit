@@ -22,7 +22,7 @@ export default function PaymentStatus() {
 
       setUserId(user.id);
     } catch (err) {
-      console.error("Auth error:", err);
+      if (import.meta.env.DEV) console.error("Auth error:", err);
       setError(true);
     } finally {
       setLoading(false);

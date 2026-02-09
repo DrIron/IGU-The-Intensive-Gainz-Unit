@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { format, addDays } from "date-fns";
 import {
@@ -94,7 +95,7 @@ export function AssignProgramDialog({
     } catch (error: any) {
       toast({
         title: "Error loading programs",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -282,7 +283,7 @@ export function AssignProgramDialog({
     } catch (error: any) {
       toast({
         title: "Error assigning program",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

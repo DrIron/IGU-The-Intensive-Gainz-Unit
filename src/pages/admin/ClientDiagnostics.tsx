@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { AdminPageLayout } from "@/components/admin/AdminPageLayout";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { 
   Search, 
   Copy, 
@@ -255,7 +256,7 @@ export default function ClientDiagnostics() {
       console.error("Search error:", error);
       toast({
         title: "Search failed",
-        description: error.message || "An error occurred while searching.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

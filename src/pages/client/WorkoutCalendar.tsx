@@ -8,6 +8,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Calendar, ArrowLeft, CheckCircle2, Clock, ChevronLeft, ChevronRight, Dumbbell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday } from "date-fns";
 
@@ -85,7 +86,7 @@ function WorkoutCalendarContent() {
       console.error("Error loading calendar:", error);
       toast({
         title: "Error loading calendar",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

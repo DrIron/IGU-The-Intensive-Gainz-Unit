@@ -4,6 +4,7 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   ColumnConfig,
   ColumnPreset,
@@ -182,7 +183,7 @@ export function useColumnConfig({
       } catch (error: any) {
         toast({
           title: "Error saving preset",
-          description: error.message,
+          description: sanitizeErrorForUser(error),
           variant: "destructive",
         });
       }
@@ -205,7 +206,7 @@ export function useColumnConfig({
       } catch (error: any) {
         toast({
           title: "Error deleting preset",
-          description: error.message,
+          description: sanitizeErrorForUser(error),
           variant: "destructive",
         });
       }
@@ -239,7 +240,7 @@ export function useColumnConfig({
       } catch (error: any) {
         toast({
           title: "Error setting default",
-          description: error.message,
+          description: sanitizeErrorForUser(error),
           variant: "destructive",
         });
       }

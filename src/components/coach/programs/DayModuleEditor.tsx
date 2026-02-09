@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Plus, Trash2, CheckCircle, AlertCircle, User } from "lucide-react";
 import {
   Select,
@@ -131,7 +132,7 @@ export function DayModuleEditor({
     } catch (error: any) {
       toast({
         title: "Error adding module",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -152,7 +153,7 @@ export function DayModuleEditor({
     } catch (error: any) {
       toast({
         title: "Error updating module",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -176,7 +177,7 @@ export function DayModuleEditor({
     } catch (error: any) {
       toast({
         title: "Error deleting module",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

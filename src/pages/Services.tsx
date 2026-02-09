@@ -9,6 +9,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { ComparisonTable } from "@/components/marketing/ComparisonTable";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface Service {
   id: string;
@@ -63,7 +64,7 @@ export default function Services() {
     } catch (error: any) {
       toast({
         title: "Error loading services",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

@@ -12,6 +12,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { Loader2, Tag, DollarSign, TrendingDown, Users, Search, Eye, BarChart3, HelpCircle } from "lucide-react";
 import { format, subDays, subMonths, startOfMonth, endOfMonth } from "date-fns";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface DiscountCodeSummary {
   id: string;
@@ -226,7 +227,7 @@ export function DiscountAnalytics() {
       console.error('Error fetching discount analytics:', error);
       toast({
         title: "Error loading analytics",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -346,7 +347,7 @@ export function DiscountAnalytics() {
       console.error('Error fetching code details:', error);
       toast({
         title: "Error loading details",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

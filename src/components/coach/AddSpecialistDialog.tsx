@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   Dialog,
   DialogContent,
@@ -279,7 +280,7 @@ export function AddSpecialistDialog({
       console.error("Error adding specialist:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to add specialist",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

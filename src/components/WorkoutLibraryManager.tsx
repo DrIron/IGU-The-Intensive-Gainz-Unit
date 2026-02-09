@@ -13,6 +13,7 @@ import { Search, Plus, X, Youtube, Pencil, Zap, Trash2, List } from "lucide-reac
 import { ExerciseQuickAdd } from "@/components/admin/ExerciseQuickAdd";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface QuickAddEntry {
   name: string;
@@ -85,7 +86,7 @@ export default function WorkoutLibraryManager() {
     if (error) {
       toast({
         title: "Error loading exercises",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
       return;
@@ -139,7 +140,7 @@ export default function WorkoutLibraryManager() {
     if (error) {
       toast({
         title: editingExercise ? "Error updating exercise" : "Error adding exercise",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
       return;
@@ -250,7 +251,7 @@ export default function WorkoutLibraryManager() {
     if (error) {
       toast({
         title: "Error adding exercises",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
       return;

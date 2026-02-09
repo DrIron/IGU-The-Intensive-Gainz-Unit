@@ -10,6 +10,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Loader2, Search, DollarSign, Users, ChevronDown, ChevronUp, Package, X, UserPlus } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import type { Database } from "@/integrations/supabase/types";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 type StaffSpecialty = Database["public"]["Enums"]["staff_specialty"];
 
@@ -171,7 +172,7 @@ export function ClientBillingManager() {
       console.error("Error loading subscriptions:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -213,7 +214,7 @@ export function ClientBillingManager() {
       console.error("Error cancelling addon:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

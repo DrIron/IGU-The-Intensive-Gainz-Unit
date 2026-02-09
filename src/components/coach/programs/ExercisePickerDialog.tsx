@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Search, Plus } from "lucide-react";
 import {
   Dialog,
@@ -66,7 +67,7 @@ export function ExercisePickerDialog({
     } catch (error: any) {
       toast({
         title: "Error loading exercises",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

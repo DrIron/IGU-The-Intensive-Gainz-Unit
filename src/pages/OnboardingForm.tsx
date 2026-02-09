@@ -17,6 +17,7 @@ import { Dumbbell, Loader2, Save, CheckCircle2, LogOut } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ErrorFallback } from "@/components/ui/error-fallback";
 import { getOnboardingRedirect, ClientStatus } from "@/auth/onboarding";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 const formSchema = z.object({
   // PAR-Q
@@ -133,7 +134,7 @@ export default function OnboardingForm() {
   const loadServiceName = useCallback(async () => {
     try {
       const serviceId = searchParams.get('service');
-      console.log('Service ID from URL:', serviceId);
+      if (import.meta.env.DEV) console.log('Service ID from URL:', serviceId);
       if (!serviceId) return;
 
       // First, try to resolve by ID
@@ -143,7 +144,7 @@ export default function OnboardingForm() {
         .eq('id', serviceId)
         .maybeSingle();
 
-      console.log('Service by ID:', data, 'Error:', error);
+      if (import.meta.env.DEV) console.log('Service by ID:', data, 'Error:', error);
 
       if (data?.name) {
         setSelectedServiceName(data.name);
@@ -158,13 +159,13 @@ export default function OnboardingForm() {
         .eq('name', serviceId)
         .maybeSingle();
 
-      console.log('Service by name:', byName, 'Error:', byNameError);
+      if (import.meta.env.DEV) console.log('Service by name:', byName, 'Error:', byNameError);
       if (byName?.name) {
         setSelectedServiceName(byName.name);
         form.setValue('plan_name', byName.name);
       }
     } catch (error) {
-      console.error('Error loading service:', error);
+      if (import.meta.env.DEV) console.error('Error loading service:', error);
     }
   }, [searchParams, form]);
 
@@ -279,7 +280,7 @@ export default function OnboardingForm() {
 
       setLoading(false);
     } catch (err) {
-      console.error("Error during auth check:", err);
+      if (import.meta.env.DEV) console.error("Error during auth check:", err);
       setFatalError(true);
       setLoading(false);
     }
@@ -316,7 +317,7 @@ export default function OnboardingForm() {
         });
       }
     } catch (error: any) {
-      console.error('Error loading draft:', error);
+      if (import.meta.env.DEV) console.error('Error loading draft:', error);
     }
   }, [userId, form, toast]);
 
@@ -341,7 +342,7 @@ export default function OnboardingForm() {
 
       setLastSaved(new Date());
     } catch (error: any) {
-      console.error('Error saving draft:', error);
+      if (import.meta.env.DEV) console.error('Error saving draft:', error);
     } finally {
       setAutoSaving(false);
     }
@@ -398,7 +399,7 @@ export default function OnboardingForm() {
         .delete()
         .eq('user_id', userId);
     } catch (error: any) {
-      console.error('Error deleting draft:', error);
+      if (import.meta.env.DEV) console.error('Error deleting draft:', error);
     }
   };
 
@@ -504,13 +505,13 @@ export default function OnboardingForm() {
   };
 
   const handleNext = async () => {
-    console.log("Validating step:", currentStep);
+    if (import.meta.env.DEV) console.log("Validating step:", currentStep);
     const isValid = await validateStep(currentStep);
-    console.log("Step valid:", isValid);
+    if (import.meta.env.DEV) console.log("Step valid:", isValid);
     if (isValid) {
       setCurrentStep((prev) => Math.min(prev + 1, steps.length - 1));
     } else {
-      console.log("Form errors:", form.formState.errors);
+      if (import.meta.env.DEV) console.log("Form errors:", form.formState.errors);
     }
   };
 
@@ -532,8 +533,8 @@ export default function OnboardingForm() {
 
     setSubmitting(true);
     try {
-      console.log("Submitting onboarding form via secure edge function...");
-      console.log("Form values:", values);
+      if (import.meta.env.DEV) console.log("Submitting onboarding form via secure edge function...");
+      if (import.meta.env.DEV) console.log("Form values:", values);
 
       // Submit through edge function for server-side validation
       const { data, error: functionError } = await supabase.functions.invoke('submit-onboarding', {
@@ -541,7 +542,7 @@ export default function OnboardingForm() {
       });
 
       if (functionError) {
-        console.error("Error submitting form:", functionError);
+        if (import.meta.env.DEV) console.error("Error submitting form:", functionError);
         throw functionError;
       }
 
@@ -573,7 +574,7 @@ export default function OnboardingForm() {
           },
         });
       } catch (emailError) {
-        console.error('Error sending welcome email:', emailError);
+        if (import.meta.env.DEV) console.error('Error sending welcome email:', emailError);
       }
 
       // Clear the draft after successful submission
@@ -585,10 +586,10 @@ export default function OnboardingForm() {
       }, 1000);
 
     } catch (error: any) {
-      console.error('Submission error:', error);
+      if (import.meta.env.DEV) console.error('Submission error:', error);
       toast({
         title: "Submission Failed",
-        description: error.message || "Failed to submit application. Please try again.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -685,7 +686,7 @@ export default function OnboardingForm() {
 
             <Form {...form}>
               <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
-                console.error('Form validation errors:', errors);
+                if (import.meta.env.DEV) console.error('Form validation errors:', errors);
                 // Don't show toast for legal step - it has inline helper text
                 if (currentStep !== 3) {
                   toast({

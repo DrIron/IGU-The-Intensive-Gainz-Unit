@@ -276,7 +276,7 @@ export interface StatusChangeEvent {
  * Log a status change event to the admin_audit_log table.
  */
 export async function logStatusChange(event: StatusChangeEvent): Promise<void> {
-  console.log("[OnboardingAudit]", {
+  if (import.meta.env.DEV) console.log("[OnboardingAudit]", {
     ...event,
     timestamp: event.timestamp.toISOString(),
   });
@@ -290,7 +290,7 @@ export async function logStatusChange(event: StatusChangeEvent): Promise<void> {
       event.reason
     );
   } catch (err) {
-    console.error("[OnboardingAudit] Failed to write audit log:", err);
+    if (import.meta.env.DEV) console.error("[OnboardingAudit] Failed to write audit log:", err);
   }
 }
 

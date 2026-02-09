@@ -18,6 +18,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { format, addDays, startOfWeek } from "date-fns";
 import { BodyFatProgressGraph } from "./BodyFatProgressGraph";
 import { TeamWeightProgressGraph } from "./TeamWeightProgressGraph";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 export function NutritionProgress() {
   const navigate = useNavigate();
@@ -447,7 +448,7 @@ function WeekCard({
       console.error('Error saving log:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save weight log",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -624,7 +625,7 @@ function WeekCard({
       console.error('Error saving week:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save progress",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

@@ -9,6 +9,7 @@ import { FileText, Upload, ExternalLink, Loader2, CheckCircle2, Clock } from "lu
 import { Badge } from "@/components/ui/badge";
 import { formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface LegalDocument {
   id: string;
@@ -52,7 +53,7 @@ export function LegalDocumentsManager() {
       console.error('Error loading legal documents:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -142,7 +143,7 @@ export function LegalDocumentsManager() {
       console.error('Error uploading document:', error);
       toast({
         title: "Upload failed",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

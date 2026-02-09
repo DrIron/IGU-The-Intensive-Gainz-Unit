@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Settings, Save } from "lucide-react";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface Service {
   id: string;
@@ -61,7 +62,7 @@ export function CoachServiceLimits({ coachId, coachName, open, onOpenChange }: C
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -138,7 +139,7 @@ export function CoachServiceLimits({ coachId, coachName, open, onOpenChange }: C
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

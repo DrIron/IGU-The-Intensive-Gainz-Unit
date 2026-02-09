@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   useAllSiteContent,
@@ -88,7 +89,7 @@ export function SiteContentManager() {
     onError: (error: any) => {
       toast({
         title: "Error saving",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
       setSavingIds(new Set());

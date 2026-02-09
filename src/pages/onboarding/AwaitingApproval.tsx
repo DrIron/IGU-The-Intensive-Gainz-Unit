@@ -73,7 +73,7 @@ export default function AwaitingApproval() {
         }
       }
     } catch (error) {
-      console.error("Error fetching status:", error);
+      if (import.meta.env.DEV) console.error("Error fetching status:", error);
     } finally {
       setLoading(false);
       if (isManual) setChecking(false);

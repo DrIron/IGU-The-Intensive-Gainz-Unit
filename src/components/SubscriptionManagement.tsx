@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, CreditCard, AlertTriangle, Tag } from "lucide-react";
 import { format } from "date-fns";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface SubscriptionManagementProps {
   subscription: {
@@ -122,7 +123,7 @@ export function SubscriptionManagement({ subscription, userId, isAdminView = fal
       console.error('Cancellation error:', error);
       toast({
         title: "Cancellation Failed",
-        description: error.message || "Failed to cancel subscription. Please try again.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -154,7 +155,7 @@ export function SubscriptionManagement({ subscription, userId, isAdminView = fal
       console.error('Reactivation error:', error);
       toast({
         title: "Reactivation Failed",
-        description: error.message || "Failed to reactivate subscription. Please try again.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

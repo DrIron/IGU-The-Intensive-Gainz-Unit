@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   Dialog,
   DialogContent,
@@ -71,7 +72,7 @@ export function DischargeSpecialistDialog({
       console.error("Error discharging specialist:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to discharge specialist",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -221,7 +222,7 @@ export function TerminateSpecialistDialog({
       console.error("Error terminating specialist:", error);
       toast({
         title: "Error",
-        description: error.message || "Failed to terminate specialist",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

@@ -55,7 +55,7 @@ export function useUserRole(): UserRoleState {
           });
         }
       } catch (error) {
-        console.error("Error checking user role:", error);
+        if (import.meta.env.DEV) console.error("Error checking user role:", error);
         if (isMounted) {
           setState(prev => ({ ...prev, loading: false }));
         }

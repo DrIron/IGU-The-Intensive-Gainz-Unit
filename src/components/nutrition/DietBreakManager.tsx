@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   type DietBreak,
   type DietBreakStatus,
@@ -210,10 +211,9 @@ export function DietBreakManager({
       loadData();
       onBreakUpdated?.();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -247,10 +247,9 @@ export function DietBreakManager({
       loadData();
       onBreakUpdated?.();
     } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : 'Unknown error';
       toast({
         title: "Error",
-        description: message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

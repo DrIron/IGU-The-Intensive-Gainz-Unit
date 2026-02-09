@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { CreditCard, FileText, Loader2, User, Lock, Trash2, AlertTriangle, Users } from "lucide-react";
 import { Footer } from "@/components/Footer";
 import {
@@ -285,7 +286,7 @@ export default function AccountManagement() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -325,7 +326,7 @@ export default function AccountManagement() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -364,7 +365,7 @@ export default function AccountManagement() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -393,7 +394,7 @@ export default function AccountManagement() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete account. Please contact support.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
       setDeletingAccount(false);
@@ -430,7 +431,7 @@ export default function AccountManagement() {
       console.error('Error cancelling subscription:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to cancel subscription. Please try again.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { ArrowLeft, Plus, Save, Trash2, GripVertical, ChevronDown, ChevronRight, Calendar } from "lucide-react";
 import {
   Select,
@@ -79,7 +80,7 @@ export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView }
     } catch (error: any) {
       toast({
         title: "Error loading program",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -151,7 +152,7 @@ export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView }
     } catch (error: any) {
       toast({
         title: "Error saving program",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -214,7 +215,7 @@ export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView }
     } catch (error: any) {
       toast({
         title: "Error adding day",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -235,7 +236,7 @@ export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView }
     } catch (error: any) {
       toast({
         title: "Error updating day",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -259,7 +260,7 @@ export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView }
     } catch (error: any) {
       toast({
         title: "Error deleting day",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

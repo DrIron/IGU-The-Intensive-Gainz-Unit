@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Loader2, Pencil, Plus, Copy } from "lucide-react";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 // Hash the code using SHA-256 (matching the database function)
 async function hashCode(code: string): Promise<string> {
@@ -116,7 +117,7 @@ export function DiscountCodeManager() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -202,7 +203,7 @@ export function DiscountCodeManager() {
     } catch (error: any) {
       toast({
         title: "Failed to save discount code",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -357,7 +358,7 @@ export function DiscountCodeManager() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

@@ -9,6 +9,7 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useRoleCache } from "@/hooks/useRoleCache";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { TIMEOUTS } from "@/lib/constants";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface Profile {
   status: string;
@@ -101,7 +102,7 @@ function DashboardContent() {
 
       if (!userId) {
         if (sessionLoading) {
-          console.log('[Dashboard] Session still loading, waiting...');
+          if (import.meta.env.DEV) console.log('[Dashboard] Session still loading, waiting...');
           return;
         }
         navigate("/auth");
@@ -130,7 +131,7 @@ function DashboardContent() {
 
         if (!error) setProfile(data);
       } catch (e) {
-        console.warn("[Dashboard] Profile query timed out");
+        if (import.meta.env.DEV) console.warn("[Dashboard] Profile query timed out");
       }
 
       // Check roles with timeout
@@ -155,7 +156,7 @@ function DashboardContent() {
           setCachedRoles(roles, userId);
         }
       } catch (e) {
-        console.warn("[Dashboard] Roles query timed out, using cached roles");
+        if (import.meta.env.DEV) console.warn("[Dashboard] Roles query timed out, using cached roles");
       }
 
       // Role-based redirects
@@ -209,11 +210,11 @@ function DashboardContent() {
 
         if (!error) setSubscription(data);
       } catch (e) {
-        console.warn("[Dashboard] Subscription query timed out");
+        if (import.meta.env.DEV) console.warn("[Dashboard] Subscription query timed out");
       }
     } catch (error: any) {
-      console.error("[Dashboard] Error loading data:", error);
-      toast({ title: "Error loading data", description: error.message, variant: "destructive" });
+      if (import.meta.env.DEV) console.error("[Dashboard] Error loading data:", error);
+      toast({ title: "Error loading data", description: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -228,7 +229,7 @@ function DashboardContent() {
 
     const timeout = setTimeout(() => {
       if (loading) {
-        console.error("[Dashboard] Loading timeout - forcing render");
+        if (import.meta.env.DEV) console.error("[Dashboard] Loading timeout - forcing render");
         setLoading(false);
       }
     }, 5000);

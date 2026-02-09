@@ -43,7 +43,7 @@ export default function PaymentReturn() {
         ]);
         user = result.data?.user;
       } catch {
-        console.warn('Auth getUser timed out, retrying after delay...');
+        if (import.meta.env.DEV) console.warn('Auth getUser timed out, retrying after delay...');
       }
 
       // If first attempt failed, wait for session and retry once
@@ -65,7 +65,7 @@ export default function PaymentReturn() {
       // Get TAP charge ID from URL params
       const tapChargeId = searchParams.get('tap_id') || searchParams.get('charge_id');
 
-      console.log('Verifying payment...', { userId: user.id, tapChargeId });
+      if (import.meta.env.DEV) console.log('Verifying payment...', { userId: user.id, tapChargeId });
 
       const { data, error } = await supabase.functions.invoke('verify-payment', {
         body: {
@@ -75,11 +75,11 @@ export default function PaymentReturn() {
       });
 
       if (error) {
-        console.error('Verification error:', error);
+        if (import.meta.env.DEV) console.error('Verification error:', error);
         throw error;
       }
 
-      console.log('Verification response:', data);
+      if (import.meta.env.DEV) console.log('Verification response:', data);
 
       if (data?.status === 'active') {
         // Payment successful!
@@ -102,7 +102,7 @@ export default function PaymentReturn() {
         // Payment still processing — auto-retry after delay
         if (autoRetryRef.current < maxAutoRetries) {
           autoRetryRef.current++;
-          console.log(`Payment pending, auto-retry ${autoRetryRef.current}/${maxAutoRetries} in 3s...`);
+          if (import.meta.env.DEV) console.log(`Payment pending, auto-retry ${autoRetryRef.current}/${maxAutoRetries} in 3s...`);
           setTimeout(() => verifyPayment(), 3000);
           return;
         }
@@ -123,11 +123,11 @@ export default function PaymentReturn() {
       setMessage("We're verifying your payment status. Please wait a moment.");
 
     } catch (err: any) {
-      console.error('Payment verification error:', err);
+      if (import.meta.env.DEV) console.error('Payment verification error:', err);
       // Auto-retry on error (auth not ready, network issues after redirect)
       if (autoRetryRef.current < maxAutoRetries) {
         autoRetryRef.current++;
-        console.log(`Verification error, auto-retry ${autoRetryRef.current}/${maxAutoRetries} in 2s...`);
+        if (import.meta.env.DEV) console.log(`Verification error, auto-retry ${autoRetryRef.current}/${maxAutoRetries} in 2s...`);
         setTimeout(() => verifyPayment(), 2000);
         return;
       }

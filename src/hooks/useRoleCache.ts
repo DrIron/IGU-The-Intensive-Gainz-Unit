@@ -48,7 +48,7 @@ function parseCachedRoles(): CachedRoles | null {
     const roles = JSON.parse(rolesJson);
 
     if (!Array.isArray(roles)) {
-      console.warn('[RoleCache] Invalid roles format in cache');
+      if (import.meta.env.DEV) console.warn('[RoleCache] Invalid roles format in cache');
       return null;
     }
 
@@ -58,7 +58,7 @@ function parseCachedRoles(): CachedRoles | null {
       timestamp: parseInt(timestamp, 10),
     };
   } catch (error) {
-    console.error('[RoleCache] Error parsing cached roles:', error);
+    if (import.meta.env.DEV) console.error('[RoleCache] Error parsing cached roles:', error);
     return null;
   }
 }
@@ -72,7 +72,7 @@ function isCacheExpired(timestamp: number): boolean {
   const expired = age > TIMEOUTS.CACHE_TTL;
 
   if (expired) {
-    console.log(`[RoleCache] Cache expired (age: ${Math.round(age / 1000)}s, TTL: ${TIMEOUTS.CACHE_TTL / 1000}s)`);
+    if (import.meta.env.DEV) console.log(`[RoleCache] Cache expired (age: ${Math.round(age / 1000)}s, TTL: ${TIMEOUTS.CACHE_TTL / 1000}s)`);
   }
 
   return expired;
@@ -90,7 +90,7 @@ function isUserMatch(cachedUserId: string, currentUserId?: string): boolean {
   const matches = cachedUserId === currentUserId;
 
   if (!matches) {
-    console.log(`[RoleCache] User mismatch: cached=${cachedUserId}, current=${currentUserId}`);
+    if (import.meta.env.DEV) console.log(`[RoleCache] User mismatch: cached=${cachedUserId}, current=${currentUserId}`);
   }
 
   return matches;
@@ -129,25 +129,25 @@ export function useRoleCache(): UseRoleCacheReturn {
     const cached = parseCachedRoles();
 
     if (!cached) {
-      console.log('[RoleCache] No cached roles found');
+      if (import.meta.env.DEV) console.log('[RoleCache] No cached roles found');
       return null;
     }
 
     // Check user match
     if (!isUserMatch(cached.userId, currentUserId)) {
-      console.log('[RoleCache] Clearing cache due to user mismatch');
+      if (import.meta.env.DEV) console.log('[RoleCache] Clearing cache due to user mismatch');
       clearCacheInternal();
       return null;
     }
 
     // Check expiration
     if (isCacheExpired(cached.timestamp)) {
-      console.log('[RoleCache] Cache expired, but returning stale data for immediate use');
+      if (import.meta.env.DEV) console.log('[RoleCache] Cache expired, but returning stale data for immediate use');
       // Return stale data - caller should verify in background
       return cached.roles;
     }
 
-    console.log('[RoleCache] Returning valid cached roles:', cached.roles);
+    if (import.meta.env.DEV) console.log('[RoleCache] Returning valid cached roles:', cached.roles);
     return cached.roles;
   }, []);
 
@@ -156,7 +156,7 @@ export function useRoleCache(): UseRoleCacheReturn {
    */
   const setCachedRoles = useCallback((roles: string[], userId: string): void => {
     try {
-      console.log('[RoleCache] Caching roles:', roles, 'for user:', userId);
+      if (import.meta.env.DEV) console.log('[RoleCache] Caching roles:', roles, 'for user:', userId);
 
       localStorage.setItem(CACHE_KEYS.USER_ROLES, JSON.stringify(roles));
       localStorage.setItem(CACHE_KEYS.ROLE_CACHE_TIMESTAMP, Date.now().toString());
@@ -165,7 +165,7 @@ export function useRoleCache(): UseRoleCacheReturn {
       setCachedRolesState(roles);
       setCachedUserIdState(userId);
     } catch (error) {
-      console.error('[RoleCache] Error saving roles to cache:', error);
+      if (import.meta.env.DEV) console.error('[RoleCache] Error saving roles to cache:', error);
     }
   }, []);
 
@@ -173,7 +173,7 @@ export function useRoleCache(): UseRoleCacheReturn {
    * Clear the role cache
    */
   const clearCache = useCallback((): void => {
-    console.log('[RoleCache] Clearing role cache');
+    if (import.meta.env.DEV) console.log('[RoleCache] Clearing role cache');
     clearCacheInternal();
     setCachedRolesState(null);
     setCachedUserIdState(null);

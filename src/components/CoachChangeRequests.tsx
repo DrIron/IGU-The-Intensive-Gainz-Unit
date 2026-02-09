@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { UserCheck } from "lucide-react";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface CoachChangeRequest {
   id: string;
@@ -116,7 +117,7 @@ export default function CoachChangeRequests({ coachUserId }: { coachUserId: stri
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

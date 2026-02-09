@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { CreditCard, Loader2 } from "lucide-react";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface PaymentButtonProps {
   serviceId: string;
@@ -30,7 +31,7 @@ export function PaymentButton({
   const handlePayment = useCallback(async () => {
     // Prevent double submission with ref check
     if (loading || isSubmittingRef.current) {
-      console.log('Payment already in progress, ignoring click');
+      if (import.meta.env.DEV) console.log('Payment already in progress, ignoring click');
       return;
     }
 
@@ -39,7 +40,7 @@ export function PaymentButton({
     onPaymentStart?.();
 
     try {
-      console.log('Initiating TAP payment...', { serviceId, userId, isRenewal });
+      if (import.meta.env.DEV) console.log('Initiating TAP payment...', { serviceId, userId, isRenewal });
 
       const { data, error } = await supabase.functions.invoke('create-tap-payment', {
         body: {
@@ -68,10 +69,10 @@ export function PaymentButton({
         throw new Error(data.error || 'Failed to create payment');
       }
     } catch (error: any) {
-      console.error('Payment error:', error);
+      if (import.meta.env.DEV) console.error('Payment error:', error);
       toast({
         title: "Payment Error",
-        description: error.message || "We couldn't start your payment session. Please try again.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
       setLoading(false);

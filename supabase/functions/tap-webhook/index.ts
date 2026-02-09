@@ -47,7 +47,7 @@ async function verifyWebhookSignature(
 ): Promise<{ valid: boolean; reason?: string }> {
   // If no signature header, log warning but continue (TAP API verification is the fallback)
   if (!receivedSignature) {
-    console.warn('No hashstring header received - will rely on TAP API verification');
+    console.warn(JSON.stringify({ fn: "tap-webhook", step: "no_hashstring_header", ok: true }));
     return { valid: true, reason: 'no_signature_header' };
   }
 
@@ -71,8 +71,6 @@ async function verifyWebhookSignature(
       'x_status' + status + 
       'x_created' + created;
 
-    console.log('Hashstring input:', toBeHashedString);
-
     // Create HMAC-SHA256 signature
     const encoder = new TextEncoder();
     const keyData = encoder.encode(secretKey);
@@ -92,9 +90,6 @@ async function verifyWebhookSignature(
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');
 
-    console.log('Computed hashstring:', computedSignature);
-    console.log('Received hashstring:', receivedSignature);
-
     // Compare signatures (case-insensitive)
     const signaturesMatch = computedSignature.toLowerCase() === receivedSignature.toLowerCase();
 
@@ -104,7 +99,7 @@ async function verifyWebhookSignature(
 
     return { valid: true };
   } catch (error) {
-    console.error('Signature verification error:', error);
+    console.error(JSON.stringify({ fn: "tap-webhook", step: "signature_verification_error", ok: false }));
     // Don't fail on verification error - TAP API verification is the authoritative check
     return { valid: true, reason: 'verification_error_bypassed' };
   }
@@ -337,7 +332,7 @@ async function applyCapturedPayment(
 ): Promise<{ success: boolean; result: string; error?: string }> {
   const { chargeId, charge, subscriptionId, userId, expectedAmount, subscription } = params;
 
-  console.log(`[${requestId}] applyCapturedPayment: ${chargeId}`);
+  console.log(JSON.stringify({ fn: "tap-webhook", step: "applyCapturedPayment", requestId, chargeId, ok: true }));
 
   // Validate status
   if (charge.status !== 'CAPTURED') {
@@ -363,7 +358,7 @@ async function applyCapturedPayment(
     .maybeSingle();
 
   if (existingPayment) {
-    console.log(`[${requestId}] Already paid (idempotent)`);
+    console.log(JSON.stringify({ fn: "tap-webhook", step: "already_paid_idempotent", requestId, chargeId, ok: true }));
     return { success: true, result: 'already_active' };
   }
 
@@ -394,11 +389,11 @@ async function applyCapturedPayment(
     .eq('id', subscriptionId);
 
   if (updateError) {
-    console.error(`[${requestId}] Activation failed:`, updateError);
+    console.error(JSON.stringify({ fn: "tap-webhook", step: "activation_failed", requestId, chargeId, ok: false }));
     return { success: false, result: 'activation_failed', error: updateError.message };
   }
 
-  console.log(`[${requestId}] Subscription activated`);
+  console.log(JSON.stringify({ fn: "tap-webhook", step: "subscription_activated", requestId, chargeId, ok: true }));
 
   // Update profile
   await supabase
@@ -442,7 +437,7 @@ async function applyCapturedPayment(
 
       await supabase.from('subscriptions').update({ discount_cycles_used: 1 }).eq('id', subscriptionId);
     } catch (e) {
-      console.error(`[${requestId}] Discount error:`, e);
+      console.error(JSON.stringify({ fn: "tap-webhook", step: "discount_error", requestId, chargeId, ok: false }));
     }
   }
 
@@ -490,7 +485,7 @@ serve(async (req) => {
   }
 
   const requestId = crypto.randomUUID();
-  console.log(`[${requestId}] TAP Webhook received`);
+  console.log(JSON.stringify({ fn: "tap-webhook", step: "webhook_received", requestId, ok: true }));
 
   const tapSecretKey = Deno.env.get('TAP_SECRET_KEY');
   const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
@@ -527,7 +522,7 @@ serve(async (req) => {
     const signatureResult = await verifyWebhookSignature(webhookData, receivedSignature, tapSecretKey);
     
     if (!signatureResult.valid) {
-      console.warn(`[${requestId}] Signature verification failed: ${signatureResult.reason}`);
+      console.warn(JSON.stringify({ fn: "tap-webhook", step: "signature_failed", requestId, ok: false }));
       
       // Log the failed attempt for security monitoring
       await logWebhookEvent(supabase, {
@@ -549,9 +544,9 @@ serve(async (req) => {
     }
 
     if (signatureResult.reason) {
-      console.log(`[${requestId}] Signature check: ${signatureResult.reason}`);
+      console.log(JSON.stringify({ fn: "tap-webhook", step: "signature_check", requestId, reason: signatureResult.reason, ok: true }));
     } else {
-      console.log(`[${requestId}] Signature verified successfully`);
+      console.log(JSON.stringify({ fn: "tap-webhook", step: "signature_verified", requestId, ok: true }));
     }
 
     const chargeId = webhookData.id || webhookData.charge_id;
@@ -569,7 +564,7 @@ serve(async (req) => {
     if (webhookStatus) {
       const { exists, event } = await checkIdempotency(supabase, chargeId, webhookStatus);
       if (exists && event?.processed_at) {
-        console.log(`[${requestId}] Duplicate event, already processed`);
+        console.log(JSON.stringify({ fn: "tap-webhook", step: "duplicate_event", requestId, chargeId, ok: true }));
         return new Response(
           JSON.stringify({ received: true, duplicate: true, previousResult: event.processing_result }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -580,7 +575,7 @@ serve(async (req) => {
     // Per-charge rate limiting
     const chargeRateCheck = checkChargeRateLimit(chargeId);
     if (!chargeRateCheck.allowed) {
-      console.log(`[${requestId}] Charge rate limited: ${chargeRateCheck.reason}`);
+      console.log(JSON.stringify({ fn: "tap-webhook", step: "charge_rate_limited", requestId, chargeId, ok: false }));
       await logWebhookEvent(supabase, {
         requestId,
         rawPayload: webhookData,
@@ -604,7 +599,7 @@ serve(async (req) => {
     });
 
     if (isDuplicate) {
-      console.log(`[${requestId}] Duplicate payment event`);
+      console.log(JSON.stringify({ fn: "tap-webhook", step: "duplicate_payment_event", requestId, chargeId, ok: true }));
       return new Response(
         JSON.stringify({ received: true, duplicate: true }),
         { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -612,11 +607,11 @@ serve(async (req) => {
     }
 
     // VERIFY WITH TAP API
-    console.log(`[${requestId}] Verifying charge ${chargeId}...`);
+    console.log(JSON.stringify({ fn: "tap-webhook", step: "verifying_charge", requestId, chargeId, ok: true }));
     const verifyResult = await verifyChargeWithTap(chargeId, tapSecretKey);
 
     if (!verifyResult.success) {
-      console.error(`[${requestId}] TAP verification failed:`, verifyResult.error);
+      console.error(JSON.stringify({ fn: "tap-webhook", step: "tap_verification_failed", requestId, chargeId, ok: false }));
       await updatePaymentEvent(supabase, chargeId, webhookStatus || 'UNKNOWN', {
         processingResult: 'verification_failed',
         errorDetails: verifyResult.error,
@@ -637,7 +632,7 @@ serve(async (req) => {
     }
 
     const charge = verifyResult.charge;
-    console.log(`[${requestId}] TAP verified: ${charge.status}`);
+    console.log(JSON.stringify({ fn: "tap-webhook", step: "tap_verified", requestId, chargeId, status: charge.status, ok: true }));
 
     // Update with verified data
     await updatePaymentEvent(supabase, chargeId, webhookStatus || 'UNKNOWN', {
@@ -674,7 +669,7 @@ serve(async (req) => {
     }
 
     if (!subscription) {
-      console.warn(`[${requestId}] No subscription found`);
+      console.warn(JSON.stringify({ fn: "tap-webhook", step: "no_subscription_found", requestId, chargeId, ok: false }));
       await updatePaymentEvent(supabase, chargeId, webhookStatus || 'UNKNOWN', {
         processingResult: 'subscription_not_found',
         processedAt: new Date().toISOString(),
@@ -743,7 +738,7 @@ serve(async (req) => {
 
   } catch (error: unknown) {
     const msg = error instanceof Error ? error.message : 'Unknown';
-    console.error(`[${requestId}] Error:`, error);
+    console.error(JSON.stringify({ fn: "tap-webhook", step: "unhandled_error", requestId, ok: false }));
     return new Response(
       JSON.stringify({ received: true, error: 'Internal error' }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { User, Shield } from "lucide-react";
 import { useUserRole } from "@/hooks/useUserRole";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface Coach {
   user_id: string;
@@ -172,7 +173,7 @@ export default function ProfileEditor({ userId }: { userId: string }) {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -211,7 +212,7 @@ export default function ProfileEditor({ userId }: { userId: string }) {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Plus, Trash2, Upload, CheckCircle2, Loader2 } from "lucide-react";
 
 interface QuickExercise {
@@ -134,7 +135,7 @@ export function ExerciseQuickAdd() {
           e.id === exercise.id ? { ...e, status: "saved" as const } : e
         ));
       } catch (error: unknown) {
-        const errorMessage = error instanceof Error ? error.message : "Unknown error";
+        const errorMessage = sanitizeErrorForUser(error);
         console.error("Error saving exercise:", error);
         setExercises(prev => prev.map(e =>
           e.id === exercise.id ? { ...e, status: "error" as const, error: errorMessage } : e

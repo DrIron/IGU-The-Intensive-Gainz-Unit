@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, AlertCircle, Check, X, Pause, Coffee } from "lucide-react";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { shouldApplyAdjustment } from "@/utils/nutritionCalculations";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface CoachNutritionProgressProps {
   phase: any;
@@ -182,7 +183,7 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
       loadAllData();
       onAdjustmentMade();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -218,7 +219,7 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
       loadAllData();
       onAdjustmentMade();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -236,7 +237,7 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
       toast({ title: "Success", description: "Adjustment rejected" });
       loadAllData();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 
@@ -263,7 +264,7 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
       toast({ title: "Success", description: "Adjustment delayed for this week" });
       loadAllData();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }

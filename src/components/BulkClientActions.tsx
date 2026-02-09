@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { CheckSquare, Mail, UserCheck } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface BulkClientActionsProps {
   clients: Array<{ id: string; full_name: string; email: string }>;
@@ -81,7 +82,7 @@ export function BulkClientActions({ clients, onRefresh }: BulkClientActionsProps
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -124,7 +125,7 @@ export function BulkClientActions({ clients, onRefresh }: BulkClientActionsProps
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

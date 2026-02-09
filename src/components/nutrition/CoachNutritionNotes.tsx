@@ -12,6 +12,7 @@ import { Plus, Trash2, Edit2, CalendarIcon, Bell, StickyNote, Check, X } from "l
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface CoachNutritionNotesProps {
@@ -88,7 +89,7 @@ export function CoachNutritionNotes({ phase }: CoachNutritionNotesProps) {
       setReminderDate(undefined);
       loadNotes();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -136,7 +137,7 @@ export function CoachNutritionNotes({ phase }: CoachNutritionNotesProps) {
       handleCancelEdit();
       loadNotes();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -156,7 +157,7 @@ export function CoachNutritionNotes({ phase }: CoachNutritionNotesProps) {
       toast({ title: "Success", description: "Note deleted" });
       loadNotes();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 

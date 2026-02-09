@@ -9,6 +9,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, AlertTriangle, Settings, Users, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 import { CoachServiceLimits } from "@/components/CoachServiceLimits";
 
 interface ServiceLoad {
@@ -215,7 +216,7 @@ export function CoachLoadOverview() {
       console.error('Error fetching coach load data:', error);
       toast({
         title: "Error loading coach data",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

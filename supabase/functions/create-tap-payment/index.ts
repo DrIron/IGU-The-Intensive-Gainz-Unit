@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { AUTH_REDIRECT_URLS } from "../_shared/config.ts";
+import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -26,7 +27,7 @@ serve(async (req) => {
 
     const tapSecretKey = Deno.env.get('TAP_SECRET_KEY');
     if (!tapSecretKey) {
-      console.error('TAP_SECRET_KEY is not configured');
+      console.error(JSON.stringify({ fn: "create-tap-payment", step: "config", ok: false, error: "tap_key_missing" }));
       return new Response(
         JSON.stringify({ success: false, error: 'Payment system configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -49,6 +50,12 @@ serve(async (req) => {
       );
     }
 
+    // Rate limiting: 10 requests per minute per user
+    const rateCheck = checkRateLimit(`user:${user.id}`, 10, 60_000);
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(corsHeaders, rateCheck.retryAfterMs);
+    }
+
     // Get and validate request body with comprehensive schema validation
     const paymentSchema = z.object({
       serviceId: z.string().uuid(),
@@ -66,7 +73,7 @@ serve(async (req) => {
     try {
       validatedData = paymentSchema.parse(requestBody);
     } catch (validationError) {
-      console.error('Validation error:', validationError);
+      console.error(JSON.stringify({ fn: "create-tap-payment", step: "validation", ok: false, error: "invalid_input" }));
       return new Response(
         JSON.stringify({ success: false, error: 'Invalid payment information' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -83,7 +90,7 @@ serve(async (req) => {
       );
     }
 
-    console.log('Creating TAP one-time payment for:', { serviceId, userId, discountCode, isRenewal });
+    console.log(JSON.stringify({ fn: "create-tap-payment", step: "init", ok: true, service_id: serviceId, user_id: userId, is_renewal: isRenewal || false }));
 
     // Get service details
     const { data: service, error: serviceError } = await supabase
@@ -101,7 +108,7 @@ serve(async (req) => {
     let billingAmount = basePrice;
 
     if (discountCode) {
-      console.log('Server-side discount validation for service:', serviceId);
+      console.log(JSON.stringify({ fn: "create-tap-payment", step: "discount_validation", ok: true, service_id: serviceId }));
 
       // First check for a valid pending discount application (not expired, not consumed)
       const { data: pendingApp } = await supabase
@@ -114,7 +121,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (pendingApp) {
-        console.log('Found valid pending discount application:', pendingApp.code_id);
+        console.log(JSON.stringify({ fn: "create-tap-payment", step: "pending_discount_found", ok: true, code_id: pendingApp.code_id }));
       }
 
       // Always re-validate the code server-side (defense in depth)
@@ -126,7 +133,7 @@ serve(async (req) => {
         });
 
       if (validationError) {
-        console.error('Discount validation RPC error:', validationError);
+        console.error(JSON.stringify({ fn: "create-tap-payment", step: "discount_rpc", ok: false, error: "rpc_failed" }));
       } else {
         const result = validationResult?.[0];
         
@@ -157,16 +164,10 @@ serve(async (req) => {
             billingAmount = Math.max(0, billingAmount);
             
             discountCodeData = codeData;
-            console.log('Discount validated and applied server-side:', { 
-              basePrice, 
-              billingAmount, 
-              code_id: codeData.id,
-              code_prefix: codeData.code_prefix,
-              duration_type: codeData.duration_type 
-            });
+            console.log(JSON.stringify({ fn: "create-tap-payment", step: "discount_applied", ok: true, code_id: codeData.id }));
           }
         } else {
-          console.log('Discount code validation failed server-side:', result?.reason);
+          console.log(JSON.stringify({ fn: "create-tap-payment", step: "discount_invalid", ok: false, error: "validation_failed" }));
           // Continue without discount - don't fail the payment
         }
       }
@@ -238,13 +239,13 @@ serve(async (req) => {
     });
 
     if (!chargeResponse.ok) {
-      const errorTxt = await chargeResponse.text();
-      console.error('TAP charge creation failed:', errorTxt);
+      await chargeResponse.text();
+      console.error(JSON.stringify({ fn: "create-tap-payment", step: "tap_charge", ok: false, error: "charge_creation_failed" }));
       throw new Error('Failed to create payment. Please try again or contact support.');
     }
 
     const tapCharge = await chargeResponse.json();
-    console.log('TAP one-time charge created:', tapCharge.id);
+    console.log(JSON.stringify({ fn: "create-tap-payment", step: "tap_charge", ok: true, charge_id: tapCharge.id }));
     
     const paymentUrl = tapCharge.transaction?.url || tapCharge.redirect_url || null;
     const tapChargeId = tapCharge.id;
@@ -268,7 +269,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (findSubError) {
-      console.error('Failed to check existing subscription:', findSubError);
+      console.error(JSON.stringify({ fn: "create-tap-payment", step: "check_existing_sub", ok: false, error: "query_failed" }));
     }
 
     // Only store charge-related info, no card tokens or payment agreements
@@ -301,7 +302,7 @@ serve(async (req) => {
         .single();
       
       if (insertError) {
-        console.error('Failed to create subscription:', insertError);
+        console.error(JSON.stringify({ fn: "create-tap-payment", step: "create_subscription", ok: false, error: "insert_failed" }));
         throw insertError;
       }
       subscriptionId = newSub.id;
@@ -311,7 +312,7 @@ serve(async (req) => {
         .update(updatePayload)
         .eq('id', existingSub.id);
       if (updateError) {
-        console.error('Failed to update subscription:', updateError);
+        console.error(JSON.stringify({ fn: "create-tap-payment", step: "update_subscription", ok: false, error: "update_failed" }));
       }
       subscriptionId = existingSub.id;
     }
@@ -331,9 +332,9 @@ serve(async (req) => {
         .is('consumed_at', null);
 
       if (consumeError) {
-        console.error('Failed to mark pending discount as consumed:', consumeError);
+        console.error(JSON.stringify({ fn: "create-tap-payment", step: "consume_discount", ok: false, error: "consume_failed" }));
       } else {
-        console.log('Pending discount application marked as consumed for charge:', tapChargeId);
+        console.log(JSON.stringify({ fn: "create-tap-payment", step: "consume_discount", ok: true, charge_id: tapChargeId }));
       }
     }
 
@@ -361,13 +362,13 @@ serve(async (req) => {
         });
 
       if (paymentLogError) {
-        console.error('Failed to log payment attempt:', paymentLogError);
+        console.error(JSON.stringify({ fn: "create-tap-payment", step: "log_payment", ok: false, error: "log_insert_failed" }));
         // Don't fail the payment initiation for logging issues
       } else {
-        console.log('Payment attempt logged to subscription_payments');
+        console.log(JSON.stringify({ fn: "create-tap-payment", step: "log_payment", ok: true }));
       }
     } catch (logError) {
-      console.error('Error logging payment:', logError);
+      console.error(JSON.stringify({ fn: "create-tap-payment", step: "log_payment", ok: false, error: "log_exception" }));
     }
 
     return new Response(
@@ -382,7 +383,7 @@ serve(async (req) => {
       }
     );
   } catch (error) {
-    console.error('Error in create-tap-payment:', error);
+    console.error(JSON.stringify({ fn: "create-tap-payment", step: "fatal", ok: false, error: "unhandled_exception" }));
     
     // Return generic error to client, log details server-side only
     return new Response(

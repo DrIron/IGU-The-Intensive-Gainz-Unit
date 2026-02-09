@@ -79,7 +79,7 @@ if (auth.initializePromise) {
     original,
     new Promise((resolve) =>
       setTimeout(() => {
-        console.warn(`[Supabase Client] initializePromise timed out after ${INIT_TIMEOUT_MS}ms — unblocking`);
+        if (import.meta.env.DEV) console.warn(`[Supabase Client] initializePromise timed out after ${INIT_TIMEOUT_MS}ms — unblocking`);
         // Reset internal lock state so subsequent _acquireLock calls don't
         // chain onto the deadlocked pendingInLock queue.
         auth.lockAcquired = false;
@@ -112,11 +112,11 @@ export const sessionReady: Promise<void> = new Promise((resolve) => {
 // and triggers auto-refresh if the token is expired
 supabase.auth.getSession().then(({ data, error }) => {
   if (error) {
-    console.warn('[Supabase Client] getSession error:', error.message);
+    if (import.meta.env.DEV) console.warn('[Supabase Client] getSession error:', error.message);
   } else if (data.session) {
-    console.log('[Supabase Client] Session initialized via getSession');
+    if (import.meta.env.DEV) console.log('[Supabase Client] Session initialized via getSession');
   } else {
-    console.log('[Supabase Client] No session found');
+    if (import.meta.env.DEV) console.log('[Supabase Client] No session found');
     // When initializePromise times out, getSession() returns null even though
     // a valid session exists in localStorage. The internal onAuthStateChange
     // listener that normally updates functions client headers never fires.
@@ -127,7 +127,7 @@ supabase.auth.getSession().then(({ data, error }) => {
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed?.access_token) {
-          console.log('[Supabase Client] Recovering functions auth from localStorage');
+          if (import.meta.env.DEV) console.log('[Supabase Client] Recovering functions auth from localStorage');
           supabase.functions.setAuth(parsed.access_token);
         }
       }

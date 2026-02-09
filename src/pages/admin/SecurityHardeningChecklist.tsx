@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ArrowLeft, Shield, AlertTriangle, CheckCircle, RefreshCw, Loader2 } from "lucide-react";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface ChecklistResults {
   tablesWithoutRLS: Array<{ table_name: string }>;
@@ -53,10 +54,10 @@ export default function SecurityHardeningChecklist() {
       });
     } catch (err: any) {
       console.error("Security check error:", err);
-      setError(err.message || "Failed to run security checks");
+      setError(sanitizeErrorForUser(err));
       toast({
         title: "Error",
-        description: err.message || "Failed to run security checks",
+        description: sanitizeErrorForUser(err),
         variant: "destructive",
       });
     } finally {

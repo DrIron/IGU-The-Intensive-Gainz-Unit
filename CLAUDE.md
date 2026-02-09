@@ -1368,6 +1368,8 @@ SQL function `generate_referral_code(first_name)`:
 - **`account_status` enum values**: pending, active, suspended, approved, needs_medical_review, pending_payment, cancelled, expired, pending_coach_approval, inactive — there is NO `'new'` value.
 - **`app_role` enum values**: member, coach, admin, dietitian — there is NO `'client'` value. The client role is `'member'`.
 - **`form_submissions` table columns**: Does NOT have `red_flags_count`, `service_id`, or `notes_summary` — those columns exist only on `form_submissions_safe`. Triggers on `form_submissions` must not reference `NEW.red_flags_count`.
+- **Two exercise tables**: `exercises` (legacy, mostly empty) and `exercise_library` (107 seeded exercises from Phase 28). The `WorkoutLibrary` page reads from BOTH. The workout builder's exercise picker reads from `exercise_library`. When adding exercises programmatically, use `exercise_library`.
+- **`client_programs` FK join to `programs` is unreliable** — PostgREST may not find the relationship in the schema cache. Use a separate query: `.from("programs").select("name").eq("id", programId).maybeSingle()` instead of embedding `programs (name)` in the select.
 - **All public-facing pages MUST be wrapped in `<PublicLayout>` in App.tsx** — this provides the consistent "IGU" navbar and footer. Never render a public page without PublicLayout, and never add `<Navigation />` or `<Footer />` inside a page component that is already wrapped in PublicLayout (causes duplicates). When creating a new public route, wrap it: `<Route path="/foo" element={<PublicLayout><Foo /></PublicLayout>} />`. When editing a page, check App.tsx first to see if it's already wrapped.
 
 ---

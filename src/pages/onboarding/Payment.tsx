@@ -58,7 +58,7 @@ export default function Payment() {
           setPaymentDeadline(new Date(profile.payment_deadline));
         }
       } catch (error) {
-        console.error("Error fetching payment data:", error);
+        if (import.meta.env.DEV) console.error("Error fetching payment data:", error);
       } finally {
         setLoading(false);
       }
@@ -95,7 +95,7 @@ export default function Payment() {
         setDiscountError(data?.error || "Invalid discount code");
       }
     } catch (error: any) {
-      console.error("Error applying discount:", error);
+      if (import.meta.env.DEV) console.error("Error applying discount:", error);
       setDiscountError("Failed to apply discount code. Please try again.");
     } finally {
       setApplyingDiscount(false);

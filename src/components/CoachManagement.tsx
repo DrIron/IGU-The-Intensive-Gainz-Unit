@@ -35,6 +35,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
 import { CoachServiceLimits } from "./CoachServiceLimits";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface Coach {
   id: string;
@@ -137,7 +138,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -220,7 +221,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -261,7 +262,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -322,7 +323,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
       setClients([]);
@@ -356,7 +357,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
       console.error('Error cancelling subscription:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to cancel subscription",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

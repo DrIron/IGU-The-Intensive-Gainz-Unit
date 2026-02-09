@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   Dialog,
   DialogContent,
@@ -306,7 +307,7 @@ export function ProgramCalendarBuilder({
     } catch (error: any) {
       toast({
         title: "Error loading program",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -399,7 +400,7 @@ export function ProgramCalendarBuilder({
 
       toast({ title: "Session added", description: `${newSessionTitle} added to Day ${addDayIndex}.` });
     } catch (error: any) {
-      toast({ title: "Error adding session", description: error.message, variant: "destructive" });
+      toast({ title: "Error adding session", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 
@@ -512,7 +513,7 @@ export function ProgramCalendarBuilder({
 
       toast({ title: "Week copied", description: `Week ${copyFromWeek} copied to Week ${copyToWeek}.` });
     } catch (error: any) {
-      toast({ title: "Error copying week", description: error.message, variant: "destructive" });
+      toast({ title: "Error copying week", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 
@@ -525,7 +526,7 @@ export function ProgramCalendarBuilder({
       hasFetched.current = true;
       toast({ title: newStatus === "published" ? "Module published" : "Module unpublished" });
     } catch (error: any) {
-      toast({ title: "Error updating status", description: error.message, variant: "destructive" });
+      toast({ title: "Error updating status", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 
@@ -537,7 +538,7 @@ export function ProgramCalendarBuilder({
       hasFetched.current = true;
       toast({ title: "Session deleted" });
     } catch (error: any) {
-      toast({ title: "Error deleting session", description: error.message, variant: "destructive" });
+      toast({ title: "Error deleting session", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 
@@ -650,7 +651,7 @@ export function ProgramCalendarBuilder({
     } catch (error: any) {
       toast({
         title: "Error pasting session",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

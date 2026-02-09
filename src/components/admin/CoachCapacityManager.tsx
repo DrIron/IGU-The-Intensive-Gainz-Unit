@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Save, Plus, Trash2 } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface Coach {
   id: string;
@@ -127,7 +128,7 @@ export function CoachCapacityManager() {
     } catch (error: any) {
       toast({
         title: "Error loading data",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -160,7 +161,7 @@ export function CoachCapacityManager() {
     } catch (error: any) {
       toast({
         title: "Error updating limit",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -193,7 +194,7 @@ export function CoachCapacityManager() {
     } catch (error: any) {
       toast({
         title: "Error adding limit",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -221,7 +222,7 @@ export function CoachCapacityManager() {
     } catch (error: any) {
       toast({
         title: "Error deleting limit",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

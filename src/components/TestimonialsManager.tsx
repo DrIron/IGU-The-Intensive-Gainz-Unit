@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Search, Star, Check, X, Archive, TrendingDown, TrendingUp, Clock, Target } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 // Timeout wrapper to prevent infinite hangs on RPC calls
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
@@ -113,7 +114,7 @@ export default function TestimonialsManager() {
     } catch (error: any) {
       toast({
         title: "Error loading testimonials",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -177,7 +178,7 @@ export default function TestimonialsManager() {
     } catch (error: any) {
       toast({
         title: "Error updating testimonial",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -205,7 +206,7 @@ export default function TestimonialsManager() {
     } catch (error: any) {
       toast({
         title: "Error updating testimonial",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -240,7 +241,7 @@ export default function TestimonialsManager() {
     } catch (error: any) {
       toast({
         title: "Error updating testimonial",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

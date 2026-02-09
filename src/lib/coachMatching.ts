@@ -75,7 +75,7 @@ export async function autoMatchCoachForClient(
 ): Promise<string | null> {
   const { planType, goals, serviceId } = input;
   
-  console.log('[CoachMatching] Starting auto-match for:', { planType, goals, serviceId });
+  if (import.meta.env.DEV) console.log('[CoachMatching] Starting auto-match for:', { planType, goals, serviceId });
 
   try {
     // Get the service ID if not provided
@@ -83,7 +83,7 @@ export async function autoMatchCoachForClient(
     if (!targetServiceId) {
       const serviceName = PLAN_TYPE_TO_SERVICE_NAME[planType];
       if (!serviceName) {
-        console.error('[CoachMatching] Unknown plan type:', planType);
+        if (import.meta.env.DEV) console.error('[CoachMatching] Unknown plan type:', planType);
         return null;
       }
 
@@ -94,7 +94,7 @@ export async function autoMatchCoachForClient(
         .maybeSingle();
 
       if (serviceError || !serviceData) {
-        console.error('[CoachMatching] Could not find service:', serviceName, serviceError);
+        if (import.meta.env.DEV) console.error('[CoachMatching] Could not find service:', serviceName, serviceError);
         return null;
       }
       targetServiceId = serviceData.id;
@@ -113,11 +113,11 @@ export async function autoMatchCoachForClient(
       .eq('status', 'active');
 
     if (coachError || !coaches || coaches.length === 0) {
-      console.error('[CoachMatching] No active coaches found:', coachError);
+      if (import.meta.env.DEV) console.error('[CoachMatching] No active coaches found:', coachError);
       return null;
     }
 
-    console.log('[CoachMatching] Found', coaches.length, 'active coaches');
+    if (import.meta.env.DEV) console.log('[CoachMatching] Found', coaches.length, 'active coaches');
 
     // Get service limits for all coaches for this specific service
     const { data: serviceLimits, error: limitsError } = await supabaseClient
@@ -126,7 +126,7 @@ export async function autoMatchCoachForClient(
       .eq('service_id', targetServiceId);
 
     if (limitsError) {
-      console.error('[CoachMatching] Error fetching service limits:', limitsError);
+      if (import.meta.env.DEV) console.error('[CoachMatching] Error fetching service limits:', limitsError);
     }
 
     // Create a map of coach_id to max_clients
@@ -146,7 +146,7 @@ export async function autoMatchCoachForClient(
       .in('status', ['pending', 'active']);
 
     if (subsError) {
-      console.error('[CoachMatching] Error fetching subscriptions:', subsError);
+      if (import.meta.env.DEV) console.error('[CoachMatching] Error fetching subscriptions:', subsError);
     }
 
     // Count active clients per coach (by user_id)
@@ -168,7 +168,7 @@ export async function autoMatchCoachForClient(
       
       // Skip coaches without a limit set for this service (they don't offer it)
       if (maxClients === undefined || maxClients === 0) {
-        console.log('[CoachMatching] Skipping coach without capacity for service:', coach.first_name);
+        if (import.meta.env.DEV) console.log('[CoachMatching] Skipping coach without capacity for service:', coach.first_name);
         continue;
       }
 
@@ -176,7 +176,7 @@ export async function autoMatchCoachForClient(
       
       // Skip coaches at capacity
       if (activeClientCount >= maxClients) {
-        console.log('[CoachMatching] Skipping coach at capacity:', coach.first_name, activeClientCount, '/', maxClients);
+        if (import.meta.env.DEV) console.log('[CoachMatching] Skipping coach at capacity:', coach.first_name, activeClientCount, '/', maxClients);
         continue;
       }
 
@@ -195,11 +195,11 @@ export async function autoMatchCoachForClient(
     }
 
     if (candidates.length === 0) {
-      console.log('[CoachMatching] No available coaches with capacity');
+      if (import.meta.env.DEV) console.log('[CoachMatching] No available coaches with capacity');
       return null;
     }
 
-    console.log('[CoachMatching] Found', candidates.length, 'available coaches');
+    if (import.meta.env.DEV) console.log('[CoachMatching] Found', candidates.length, 'available coaches');
 
     // Sort candidates:
     // 1. Primary: Higher match score is better
@@ -212,13 +212,13 @@ export async function autoMatchCoachForClient(
     });
 
     const bestMatch = candidates[0];
-    console.log('[CoachMatching] Best match:', bestMatch.first_name, bestMatch.last_name, 
+    if (import.meta.env.DEV) console.log('[CoachMatching] Best match:', bestMatch.first_name, bestMatch.last_name,
       'Score:', bestMatch.matchScore, 'Clients:', bestMatch.activeClientCount);
 
     // Return the user_id (not coach.id) as that's what subscriptions reference
     return bestMatch.user_id;
   } catch (error) {
-    console.error('[CoachMatching] Unexpected error:', error);
+    if (import.meta.env.DEV) console.error('[CoachMatching] Unexpected error:', error);
     return null;
   }
 }
@@ -273,7 +273,7 @@ export async function validateCoachSelection(
       .in('status', ['pending', 'active']);
 
     if (countError) {
-      console.error('[CoachMatching] Error counting clients:', countError);
+      if (import.meta.env.DEV) console.error('[CoachMatching] Error counting clients:', countError);
       return { valid: false, reason: 'Could not verify coach capacity' };
     }
 
@@ -284,7 +284,7 @@ export async function validateCoachSelection(
 
     return { valid: true, coachUserId: coach.user_id };
   } catch (error) {
-    console.error('[CoachMatching] Validation error:', error);
+    if (import.meta.env.DEV) console.error('[CoachMatching] Validation error:', error);
     return { valid: false, reason: 'An error occurred while validating coach selection' };
   }
 }

@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { toast } from "sonner";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 import type { SubroleStatus } from "@/auth/roles";
 
 interface SubroleRequest {
@@ -161,7 +162,7 @@ export function SubroleApprovalQueue() {
       setAdminNotes("");
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to update subrole request");
+      toast.error(sanitizeErrorForUser(error));
     },
   });
 

@@ -1,4 +1,5 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
+import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -48,6 +49,12 @@ Deno.serve(async (req) => {
     }
 
     const userId = claimsData.user.id;
+
+    // Rate limiting: 10 requests per minute per user
+    const rateCheck = checkRateLimit(`user:${userId}`, 10, 60_000);
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(corsHeaders, rateCheck.retryAfterMs);
+    }
 
     // Service role client for privileged operations
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceRoleKey, {

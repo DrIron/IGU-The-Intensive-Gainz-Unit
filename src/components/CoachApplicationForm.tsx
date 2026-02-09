@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 import { useQuery } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 
@@ -132,7 +133,7 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
       onOpenChange(false);
     } catch (error: any) {
       console.error("Error submitting application:", error);
-      toast.error(error.message || "Failed to submit application. Please try again.");
+      toast.error(sanitizeErrorForUser(error));
     } finally {
       setIsSubmitting(false);
     }

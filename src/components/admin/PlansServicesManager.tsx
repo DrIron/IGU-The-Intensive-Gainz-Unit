@@ -16,6 +16,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Checkbox } from "@/components/ui/checkbox";
 import { Settings, Package, Loader2, ChevronDown, ChevronUp, Edit, DollarSign, ExternalLink, Info } from "lucide-react";
 import { ServiceBillingComponentsEditor } from "./ServiceBillingComponentsEditor";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface Service {
   id: string;
@@ -63,7 +64,7 @@ export function PlansServicesManager() {
       console.error("Error loading services:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -134,7 +135,7 @@ export function PlansServicesManager() {
       console.error("Error saving service:", error);
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

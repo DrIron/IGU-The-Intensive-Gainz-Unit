@@ -11,6 +11,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { Form } from "@/components/ui/form";
 import { PersonalDetailsFields } from "@/components/forms/PersonalDetailsFields";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 const clientEditSchema = z.object({
   firstName: z.string().min(1, { message: "First name is required" }),
@@ -204,7 +205,7 @@ export function ClientAccountEditor() {
       console.error("Error searching clients:", error);
       toast({
         title: "Search Failed",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -266,7 +267,7 @@ export function ClientAccountEditor() {
       console.error("Error updating client:", error);
       toast({
         title: "Update Failed",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

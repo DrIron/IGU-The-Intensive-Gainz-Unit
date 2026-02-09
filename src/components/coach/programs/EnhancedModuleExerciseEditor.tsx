@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Plus, Loader2, AlertCircle } from "lucide-react";
 import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 import { ExerciseCardV2 } from "./ExerciseCardV2";
@@ -144,7 +145,7 @@ export function EnhancedModuleExerciseEditor({
     } catch (error: any) {
       toast({
         title: "Error loading exercises",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -261,7 +262,7 @@ export function EnhancedModuleExerciseEditor({
     } catch (error: any) {
       toast({
         title: "Error adding exercise",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -307,7 +308,7 @@ export function EnhancedModuleExerciseEditor({
     } catch (error: any) {
       toast({
         title: "Error removing exercise",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -404,7 +405,7 @@ export function EnhancedModuleExerciseEditor({
     } catch (error: any) {
       toast({
         title: "Error saving changes",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

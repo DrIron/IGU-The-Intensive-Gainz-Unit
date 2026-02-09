@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Calendar, RefreshCw } from "lucide-react";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 export function TeamPlanSettings() {
   const [loading, setLoading] = useState(false);
@@ -88,7 +89,7 @@ export function TeamPlanSettings() {
       console.error('Error saving settings:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save settings",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

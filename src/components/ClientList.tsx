@@ -42,6 +42,7 @@ import { CoachReassignmentSection } from "@/components/admin/CoachReassignmentSe
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface Client {
   id: string;
@@ -173,7 +174,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -305,7 +306,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -339,7 +340,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -369,7 +370,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -428,7 +429,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -458,7 +459,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -488,7 +489,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -525,7 +526,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -548,7 +549,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

@@ -103,7 +103,7 @@ export function useRoleGate(options: UseRoleGateOptions = {}): RoleGateState {
 
     const checkAuthorization = async () => {
       if (hasFetchedRoles.current) {
-        console.log('[useRoleGate] Already fetched roles, skipping');
+        if (import.meta.env.DEV) console.log('[useRoleGate] Already fetched roles, skipping');
         return;
       }
 
@@ -231,7 +231,7 @@ export function useRoleGate(options: UseRoleGateOptions = {}): RoleGateState {
           });
         }
       } catch (error) {
-        console.error("Error in useRoleGate:", error);
+        if (import.meta.env.DEV) console.error("Error in useRoleGate:", error);
         if (mounted) {
           setState(prev => ({
             ...prev,

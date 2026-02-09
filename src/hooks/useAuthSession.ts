@@ -37,7 +37,7 @@ export function useAuthSession(): UseAuthSessionReturn {
       setSession(data.session);
       setUser(data.session?.user ?? null);
     } catch (err) {
-      console.error('[AuthSession] Refresh error:', err);
+      if (import.meta.env.DEV) console.error('[AuthSession] Refresh error:', err);
       setError(err instanceof Error ? err : new Error('Session refresh failed'));
       setSession(null);
       setUser(null);
@@ -53,7 +53,7 @@ export function useAuthSession(): UseAuthSessionReturn {
     // onAuthStateChange fires INITIAL_SESSION immediately on subscribe
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, newSession) => {
-        console.log('[AuthSession] Auth event:', event, {
+        if (import.meta.env.DEV) console.log('[AuthSession] Auth event:', event, {
           hasSession: !!newSession,
           userId: newSession?.user?.id,
         });
@@ -77,7 +77,7 @@ export function useAuthSession(): UseAuthSessionReturn {
     const safetyTimer = setTimeout(() => {
       setIsLoading(prev => {
         if (prev) {
-          console.warn('[AuthSession] Safety timeout - no auth event received');
+          if (import.meta.env.DEV) console.warn('[AuthSession] Safety timeout - no auth event received');
           return false;
         }
         return prev;

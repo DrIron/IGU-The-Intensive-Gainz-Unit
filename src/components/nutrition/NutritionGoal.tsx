@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Edit } from "lucide-react";
 import { StepWizardGoalSetting } from "@/components/calculator/StepWizardGoalSetting";
 import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 export function NutritionGoal() {
   const { toast } = useToast();
@@ -327,7 +328,7 @@ export function NutritionGoal() {
       console.error('Error saving goal:', error);
       toast({
         title: "Error",
-        description: error.message || "Failed to save goal",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

@@ -23,6 +23,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Settings, AlertTriangle, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { 
   ClientStatus, 
   CLIENT_STATUS_TRANSITIONS, 
@@ -128,7 +129,7 @@ export function ClientStatusOverride({
       setReason("");
     } catch (error: any) {
       console.error("Error updating status:", error);
-      toast.error(error.message || "Failed to update status");
+      toast.error(sanitizeErrorForUser(error));
     } finally {
       setLoading(false);
     }

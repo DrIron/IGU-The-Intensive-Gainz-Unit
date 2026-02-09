@@ -1,5 +1,6 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
+import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -148,7 +149,7 @@ Deno.serve(async (req) => {
     const supabaseAnonKey = Deno.env.get('SUPABASE_ANON_KEY');
 
     if (!supabaseUrl || !supabaseAnonKey) {
-      console.error('Missing Supabase configuration');
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "config_check", ok: false, error: "missing_supabase_config" }));
       return new Response(
         JSON.stringify({ error: 'Configuration error' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -174,11 +175,17 @@ Deno.serve(async (req) => {
     // Verify user is authenticated
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) {
-      console.error('Authentication error:', userError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "auth", ok: false, error: "auth_error" }));
       return new Response(
         JSON.stringify({ error: 'Unauthorized' }),
         { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Rate limiting: 5 requests per minute per user
+    const rateCheck = checkRateLimit(`user:${user.id}`, 5, 60_000);
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(corsHeaders, rateCheck.retryAfterMs);
     }
 
     // SECURITY: Check user roles - admins and coaches cannot sign up for services
@@ -188,7 +195,7 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id);
 
     if (rolesError) {
-      console.error('Error checking user roles:', rolesError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "check_roles", ok: false, error: "db_error" }));
     }
 
     if (userRoles && userRoles.length > 0) {
@@ -209,7 +216,7 @@ Deno.serve(async (req) => {
       .eq('status', 'active');
 
     if (subscriptionError) {
-      console.error('Error checking active subscriptions:', subscriptionError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "check_active_subs", ok: false, error: "db_error" }));
     }
 
     if (activeSubscriptions && activeSubscriptions.length > 0) {
@@ -238,7 +245,7 @@ Deno.serve(async (req) => {
       .eq('user_id', user.id);
     
     if (roleDeleteError) {
-      console.error('Error deleting existing roles:', roleDeleteError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "delete_existing_roles", ok: false, error: "db_error" }));
     }
 
     // Parse and validate request body
@@ -248,7 +255,7 @@ Deno.serve(async (req) => {
     try {
       validatedData = schema.parse(body);
     } catch (validationError) {
-      console.error('Validation error:', validationError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "validation", ok: false, error: "validation_error" }));
       return new Response(
         JSON.stringify({ 
           error: 'Invalid input data',
@@ -347,7 +354,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (submissionError) {
-      console.error('Error creating form submission:', submissionError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "create_form_submission", ok: false, error: "db_error" }));
       return new Response(
         JSON.stringify({ error: 'Failed to submit form' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -387,7 +394,7 @@ Deno.serve(async (req) => {
       .eq('id', user.id);
 
     if (profilePublicError) {
-      console.error('Error updating profiles_public:', profilePublicError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "update_profiles_public", ok: false, error: "db_error" }));
       return new Response(
         JSON.stringify({ error: 'Failed to update profile' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -409,7 +416,7 @@ Deno.serve(async (req) => {
       .eq('profile_id', user.id);
 
     if (profilePrivateError) {
-      console.error('Error updating profiles_private:', profilePrivateError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "update_profiles_private", ok: false, error: "db_error" }));
       // Non-critical - continue
     }
     
@@ -422,7 +429,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     
     if (serviceError || !serviceData) {
-      console.error('Error finding service:', serviceError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "find_service", ok: false, error: "db_error" }));
       return new Response(
         JSON.stringify({ error: 'Service not found for the selected plan' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -455,7 +462,7 @@ Deno.serve(async (req) => {
       
       // If user selected a specific coach, validate and use that coach
       if (coachPreferenceType === 'specific' && requestedCoachId) {
-        console.log('User requested specific coach:', requestedCoachId);
+        console.log(JSON.stringify({ fn: "submit-onboarding", step: "coach_preference", ok: true, coach_id: requestedCoachId }));
         
         // Get the coach's user_id from the coaches table
         const { data: requestedCoach, error: coachError } = await supabaseServiceRole
@@ -465,18 +472,18 @@ Deno.serve(async (req) => {
           .maybeSingle();
         
         if (coachError || !requestedCoach) {
-          console.warn('Requested coach not found:', requestedCoachId, coachError);
+          console.warn(JSON.stringify({ fn: "submit-onboarding", step: "coach_preference", ok: false, error: "coach_not_found", coach_id: requestedCoachId }));
         } else if (requestedCoach.status !== 'active') {
-          console.warn('Requested coach is not active:', requestedCoach.status);
+          console.warn(JSON.stringify({ fn: "submit-onboarding", step: "coach_preference", ok: false, error: "coach_not_active", status: requestedCoach.status }));
         } else {
           // Check if coach has capacity
           const capacityCheck = await checkCoachCapacity(requestedCoachId, requestedCoach.user_id);
           
           if (capacityCheck.hasCapacity) {
             coachUserId = requestedCoach.user_id;
-            console.log(`Assigned to requested coach: ${requestedCoach.first_name} ${requestedCoach.last_name}`);
+            console.log(JSON.stringify({ fn: "submit-onboarding", step: "coach_assigned_preferred", ok: true, coach_user_id: requestedCoach.user_id }));
           } else {
-            console.warn(`Requested coach ${requestedCoach.first_name} is at capacity (${capacityCheck.activeCount}/${capacityCheck.maxClients}). Falling back to auto-assignment.`);
+            console.warn(JSON.stringify({ fn: "submit-onboarding", step: "coach_preference_at_capacity", ok: false, active_count: capacityCheck.activeCount, max_clients: capacityCheck.maxClients }));
           }
         }
       }
@@ -536,7 +543,7 @@ Deno.serve(async (req) => {
           .eq('service_id', serviceData.id);
         
         if (!coachLimits || coachLimits.length === 0) {
-          console.error('No coaches have service limits configured for this service. Cannot assign coach.');
+          console.error(JSON.stringify({ fn: "submit-onboarding", step: "auto_assign", ok: false, error: "no_coach_service_limits", service_id: serviceData.id }));
         } else {
           // Build candidate list with capacity and scoring
           const candidates: CoachCandidate[] = [];
@@ -563,7 +570,7 @@ Deno.serve(async (req) => {
             
             // Skip if at capacity
             if (currentCount >= limit.max_clients) {
-              console.log(`Coach ${coach.user_id} at capacity for service ${serviceData.id} (${currentCount}/${limit.max_clients})`);
+              console.log(JSON.stringify({ fn: "submit-onboarding", step: "auto_assign_skip", ok: true, coach_user_id: coach.user_id, service_id: serviceData.id, active_count: currentCount, max_clients: limit.max_clients }));
               continue;
             }
             
@@ -584,11 +591,11 @@ Deno.serve(async (req) => {
               score
             });
             
-            console.log(`Candidate: ${coach.first_name} ${coach.last_name} - Score: ${score} (focusMatches: ${specializationMatches}, clients: ${currentCount}, specs: ${JSON.stringify(coach.specializations)})`);
+            console.log(JSON.stringify({ fn: "submit-onboarding", step: "auto_assign_candidate", ok: true, coach_user_id: coach.user_id, score, focus_matches: specializationMatches, active_count: currentCount }));
           }
           
           if (candidates.length === 0) {
-            console.warn(`No coaches with available capacity found for service_id ${serviceData.id}. Subscription will have coach_id = null.`);
+            console.warn(JSON.stringify({ fn: "submit-onboarding", step: "auto_assign", ok: false, error: "no_capacity", service_id: serviceData.id }));
           } else {
             // Sort by: score DESC, active_client_count ASC, last_assigned_at ASC (oldest first for round-robin)
             candidates.sort((a, b) => {
@@ -602,7 +609,7 @@ Deno.serve(async (req) => {
             
             const selectedCoach = candidates[0];
             coachUserId = selectedCoach.user_id;
-            console.log(`Auto-assigned to coach: ${selectedCoach.first_name} ${selectedCoach.last_name} (score: ${selectedCoach.score}, clients: ${selectedCoach.active_client_count}, lastAssigned: ${selectedCoach.last_assigned_at})`);
+            console.log(JSON.stringify({ fn: "submit-onboarding", step: "auto_assign_selected", ok: true, coach_user_id: selectedCoach.user_id, score: selectedCoach.score, active_count: selectedCoach.active_client_count }));
           }
         }
       }
@@ -624,7 +631,7 @@ Deno.serve(async (req) => {
       // Flag if no coach could be assigned (needs manual intervention)
       if (!coachUserId && !isTeamPlan) {
         needsCoachAssignment = true;
-        console.warn(`[NEEDS_MANUAL_ASSIGNMENT] No coach could be assigned for user ${user.id}. Service: ${validatedData.plan_name}`);
+        console.warn(JSON.stringify({ fn: "submit-onboarding", step: "needs_manual_assignment", ok: false, user_id: user.id, service: validatedData.plan_name }));
       }
     }
     
@@ -653,14 +660,14 @@ Deno.serve(async (req) => {
       .single();
     
     if (subscriptionCreateError) {
-      console.error('Error creating subscription:', subscriptionCreateError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "create_subscription", ok: false, error: "db_error" }));
       return new Response(
         JSON.stringify({ error: 'Failed to create subscription' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
     
-    console.log('Created subscription:', subscription.id, 'with coach:', coachUserId, 'and status: pending', wasAutoAssigned ? '(auto-assigned)' : '(preferred)');
+    console.log(JSON.stringify({ fn: "submit-onboarding", step: "create_subscription", ok: true, subscription_id: subscription.id, coach_user_id: coachUserId, auto_assigned: wasAutoAssigned }));
 
     // Update coach's last_assigned_at for round-robin fairness tracking
     if (coachUserId && !isTeamPlan) {
@@ -669,13 +676,13 @@ Deno.serve(async (req) => {
           .from('coaches')
           .update({ last_assigned_at: new Date().toISOString() })
           .eq('user_id', coachUserId);
-        console.log('Updated last_assigned_at for coach:', coachUserId);
+        console.log(JSON.stringify({ fn: "submit-onboarding", step: "update_last_assigned", ok: true }));
       } catch (updateError) {
-        console.error('Failed to update last_assigned_at (non-critical):', updateError);
+        console.error(JSON.stringify({ fn: "submit-onboarding", step: "update_last_assigned", ok: false, error: "db_error" }));
       }
     }
 
-    console.log('Form submission successful for user:', user.id, 'Status:', newStatus);
+    console.log(JSON.stringify({ fn: "submit-onboarding", step: "submission_complete", ok: true, user_id: user.id, status: newStatus }));
 
     // ============================
     // ZAPIER NOTIFICATION (NON-BLOCKING)
@@ -714,9 +721,9 @@ Deno.serve(async (req) => {
           },
         },
       });
-      console.log('Zapier notification sent for onboarding_submitted');
+      console.log(JSON.stringify({ fn: "submit-onboarding", step: "zapier_notify", ok: true }));
     } catch (zapierError) {
-      console.error('Zapier notification failed (non-critical):', zapierError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "zapier_notify", ok: false, error: "zapier_failed" }));
     }
 
     // ============================
@@ -733,7 +740,7 @@ Deno.serve(async (req) => {
             sent_at: new Date().toISOString()
           });
       } catch (logError) {
-        console.error('Failed to log email notification:', logError);
+        console.error(JSON.stringify({ fn: "submit-onboarding", step: "log_email_notification", ok: false, error: "db_error" }));
       }
     };
     
@@ -788,9 +795,9 @@ Deno.serve(async (req) => {
           });
           await logEmail(user.id, 'medical_review_required', 'sent');
         }
-        console.log('Sent medical review notification to client');
+        console.log(JSON.stringify({ fn: "submit-onboarding", step: "email_medical_review_client", ok: true }));
       } catch (emailError) {
-        console.error('Error sending medical review notification to client:', emailError);
+        console.error(JSON.stringify({ fn: "submit-onboarding", step: "email_medical_review_client", ok: false, error: "send_failed" }));
         await logEmail(user.id, 'medical_review_required', 'failed');
       }
 
@@ -805,9 +812,9 @@ Deno.serve(async (req) => {
             planName: validatedData.plan_name,
           },
         });
-        console.log('Sent medical review notification to admin');
+        console.log(JSON.stringify({ fn: "submit-onboarding", step: "email_medical_review_admin", ok: true }));
       } catch (emailError) {
-        console.error('Error sending medical review notification to admin:', emailError);
+        console.error(JSON.stringify({ fn: "submit-onboarding", step: "email_medical_review_admin", ok: false, error: "send_failed" }));
       }
     }
     
@@ -862,9 +869,9 @@ Deno.serve(async (req) => {
           });
           await logEmail(user.id, 'onboarding_received', 'sent');
         }
-        console.log('Sent 1:1 application received notification to client');
+        console.log(JSON.stringify({ fn: "submit-onboarding", step: "email_application_received", ok: true }));
       } catch (emailError) {
-        console.error('Error sending application received notification:', emailError);
+        console.error(JSON.stringify({ fn: "submit-onboarding", step: "email_application_received", ok: false, error: "send_failed" }));
         await logEmail(user.id, 'onboarding_received', 'failed');
       }
     }
@@ -899,13 +906,13 @@ Deno.serve(async (req) => {
                 serviceName: validatedData.plan_name,
               },
             });
-            console.log('Sent pending client notification to coach');
+            console.log(JSON.stringify({ fn: "submit-onboarding", step: "email_pending_client_to_coach", ok: true }));
           } else {
-            console.warn('Coach email not found in coaches_private for coach:', coachData.id);
+            console.warn(JSON.stringify({ fn: "submit-onboarding", step: "email_pending_client_to_coach", ok: false, error: "coach_email_not_found" }));
           }
         }
       } catch (emailError) {
-        console.error('Error sending coach notification:', emailError);
+        console.error(JSON.stringify({ fn: "submit-onboarding", step: "email_pending_client_to_coach", ok: false, error: "send_failed" }));
       }
     }
 
@@ -919,9 +926,9 @@ Deno.serve(async (req) => {
           status: newStatus,
         },
       });
-      console.log('Sent welcome email to client');
+      console.log(JSON.stringify({ fn: "submit-onboarding", step: "email_welcome", ok: true }));
     } catch (emailError) {
-      console.error('Error sending welcome email (non-critical):', emailError);
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "email_welcome", ok: false, error: "send_failed" }));
     }
 
     return new Response(
@@ -936,7 +943,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Unexpected error:', error);
+    console.error(JSON.stringify({ fn: "submit-onboarding", step: "unhandled", ok: false, error: "unexpected_error" }));
     return new Response(
       JSON.stringify({ error: 'An error occurred while processing your request' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

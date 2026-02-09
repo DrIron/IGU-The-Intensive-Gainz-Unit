@@ -38,6 +38,7 @@ import {
   CheckCircle2,
 } from "lucide-react";
 import { format } from "date-fns";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   ColumnConfig,
   ExercisePrescription,
@@ -255,7 +256,7 @@ export function EnhancedWorkoutLogger({
     } catch (error: any) {
       toast({
         title: "Error loading workout",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -337,7 +338,7 @@ export function EnhancedWorkoutLogger({
     } catch (error: any) {
       toast({
         title: "Error saving",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -367,7 +368,7 @@ export function EnhancedWorkoutLogger({
     } catch (error: any) {
       toast({
         title: "Error completing workout",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

@@ -10,6 +10,7 @@ import { ArrowLeft, Loader2, Shield, Info } from "lucide-react";
 import { useUserRole, canViewPHI, canEditMedicalData } from "@/hooks/useUserRole";
 import { PHIRestrictedField, MedicalSectionHeader } from "@/components/phi/PHIRestrictedField";
 import { usePHIAuditLog } from "@/hooks/usePHIAuditLog";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 // Public form data that coaches can see
 interface FormSubmissionPublic {
@@ -191,7 +192,7 @@ export default function ClientSubmission() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

@@ -12,6 +12,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { supabase } from "@/integrations/supabase/client";
 import { DollarSign, Percent, Edit2, X, Check, Plus, Package, Wallet, Calculator, Info, History } from "lucide-react";
 import { format } from "date-fns";
@@ -205,7 +206,7 @@ function ServicePricingSection() {
     } catch (error: any) {
       toast({
         title: "Error loading services",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -304,7 +305,7 @@ function ServicePricingSection() {
     } catch (error: any) {
       toast({
         title: "Error saving",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -345,7 +346,7 @@ function ServicePricingSection() {
     } catch (error: any) {
       toast({
         title: "Error updating",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -584,7 +585,7 @@ function AddonCatalogSection() {
     } catch (error: any) {
       toast({
         title: "Error loading add-ons",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -699,7 +700,7 @@ function AddonCatalogSection() {
     } catch (error: any) {
       toast({
         title: "Error saving",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -719,7 +720,7 @@ function AddonCatalogSection() {
     } catch (error: any) {
       toast({
         title: "Error updating",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -1048,7 +1049,7 @@ function CareTeamPricingSection() {
     } catch (error: any) {
       toast({
         title: "Error loading care team catalog",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -1116,7 +1117,7 @@ function CareTeamPricingSection() {
     } catch (error: any) {
       toast({
         title: "Error saving",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

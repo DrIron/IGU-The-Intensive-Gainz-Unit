@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
+import { checkRateLimit, getClientIp, rateLimitResponse } from '../_shared/rateLimit.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -23,6 +24,12 @@ serve(async (req) => {
   }
 
   try {
+    const clientIp = getClientIp(req);
+    const rateCheck = checkRateLimit(clientIp, 5, 60_000);
+    if (!rateCheck.allowed) {
+      return rateLimitResponse(corsHeaders, rateCheck.retryAfterMs);
+    }
+
     const supabaseAdmin = createClient(
       Deno.env.get('SUPABASE_URL') ?? '',
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
@@ -61,14 +68,14 @@ serve(async (req) => {
         const found = pageData?.users?.find((u: any) => (u.email || '').toLowerCase() === email.toLowerCase());
         if (found) {
           userId = found.id;
-          console.log('User already exists (auth):', userId);
+          console.log(JSON.stringify({ fn: "create-manual-client", step: "user_exists_auth", ok: true, user_id: userId }));
           break;
         }
         if (!pageData || pageData.users.length < perPage) break;
         page += 1;
       }
     } catch (e) {
-      console.log('listUsers failed, will try profile lookup');
+      console.log(JSON.stringify({ fn: "create-manual-client", step: "list_users_fallback", ok: false, error: "list_users_failed" }));
     }
 
     if (!userId) {
@@ -78,7 +85,7 @@ serve(async (req) => {
         .ilike('email', email)
         .maybeSingle();
       userId = existingProfile?.id || null;
-      if (userId) console.log('User already exists (profile):', userId);
+      if (userId) console.log(JSON.stringify({ fn: "create-manual-client", step: "user_exists_profile", ok: true, user_id: userId }));
     }
 
     // Additional recovery: check if this email belongs to a coach record
@@ -89,11 +96,11 @@ serve(async (req) => {
         .ilike('email', email)
         .maybeSingle();
       if (coachLookupErr) {
-        console.log('Coach lookup error (non-fatal):', coachLookupErr);
+        console.log(JSON.stringify({ fn: "create-manual-client", step: "coach_lookup", ok: false, error: "query_failed" }));
       }
       if (coachUser?.user_id) {
         userId = coachUser.user_id;
-        console.log('User exists as coach, reusing auth user id:', userId);
+        console.log(JSON.stringify({ fn: "create-manual-client", step: "user_exists_coach", ok: true, user_id: userId }));
       }
     }
 
@@ -109,7 +116,7 @@ serve(async (req) => {
       });
 
       if (authError) {
-        console.error('Auth error on createUser, attempting recovery:', authError);
+        console.error(JSON.stringify({ fn: "create-manual-client", step: "create_user", ok: false, error: "auth_create_failed" }));
         // 1) Try to find existing auth user by email (case-insensitive)
         try {
           let page = 1;
@@ -120,14 +127,14 @@ serve(async (req) => {
             const found = pageData?.users?.find((u: any) => (u.email || '').toLowerCase() === email.toLowerCase());
             if (found) {
               userId = found.id;
-              console.log('Recovered existing auth user:', userId);
+              console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_auth", ok: true, user_id: userId }));
               break;
             }
             if (!pageData || pageData.users.length < perPage) break;
             page += 1;
           }
         } catch (_e) {
-          console.log('Recovery listUsers failed');
+          console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_list_users", ok: false, error: "list_users_failed" }));
         }
 
         // 2) If still not found, try profile (case-insensitive)
@@ -139,7 +146,7 @@ serve(async (req) => {
             .maybeSingle();
           if (recoveredProfile?.id) {
             userId = recoveredProfile.id;
-            console.log('Recovered existing user via profile:', userId);
+            console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_profile", ok: true, user_id: userId }));
           }
         }
 
@@ -152,7 +159,7 @@ serve(async (req) => {
             .maybeSingle();
           if (coachUser2?.user_id) {
             userId = coachUser2.user_id;
-            console.log('Recovered existing user via coach record:', userId);
+            console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_coach", ok: true, user_id: userId }));
           }
         }
 
@@ -165,13 +172,13 @@ serve(async (req) => {
               { redirectTo, data: { first_name: firstName, last_name: lastName } }
             );
             if (inviteError) {
-              console.log('Invite failed:', inviteError);
+              console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_invite", ok: false, error: "invite_failed" }));
             } else if (inviteData?.user?.id) {
               userId = inviteData.user.id;
-              console.log('Recovered via invite flow, user id:', userId);
+              console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_invite", ok: true, user_id: userId }));
             }
           } catch (invErr) {
-            console.log('Invite flow exception:', invErr);
+            console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_invite", ok: false, error: "invite_exception" }));
           }
         }
 
@@ -186,13 +193,13 @@ serve(async (req) => {
               options: { redirectTo: 'https://theigu.com/reset-password', data: { first_name: firstName, last_name: lastName } }
             });
             if (signupLinkError) {
-              console.log('Signup link generation failed:', signupLinkError);
+              console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_signup_link", ok: false, error: "link_gen_failed" }));
             } else if (signupLinkData?.user?.id) {
               userId = signupLinkData.user.id;
-              console.log('Recovered via signup link, user id:', userId);
+              console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_signup_link", ok: true, user_id: userId }));
             }
           } catch (sgErr) {
-            console.log('Signup link exception:', sgErr);
+            console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_signup_link", ok: false, error: "link_gen_exception" }));
           }
         }
 
@@ -202,7 +209,7 @@ serve(async (req) => {
       } else {
         if (!authData.user) throw new Error("Failed to create user");
         userId = authData.user.id;
-        console.log('Created new user:', userId);
+        console.log(JSON.stringify({ fn: "create-manual-client", step: "user_created", ok: true, user_id: userId }));
       }
     }
 
@@ -221,7 +228,7 @@ serve(async (req) => {
       );
     
     if (profilePublicError) {
-      console.error('profiles_public upsert error:', profilePublicError);
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "upsert_profiles_public", ok: false, error: "upsert_failed" }));
     }
 
     const { error: profilePrivateError } = await supabaseAdmin
@@ -240,7 +247,7 @@ serve(async (req) => {
       );
     
     if (profilePrivateError) {
-      console.error('profiles_private upsert error:', profilePrivateError);
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "upsert_profiles_private", ok: false, error: "upsert_failed" }));
     }
 
     // Find the IGU admin coach account
@@ -252,11 +259,11 @@ serve(async (req) => {
       .maybeSingle();
 
     if (coachError) {
-      console.error('Error finding admin coach:', coachError);
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "find_admin_coach", ok: false, error: "query_failed" }));
     }
 
     const coachId = adminCoach?.user_id || null;
-    console.log('Assigning client to coach:', coachId);
+    console.log(JSON.stringify({ fn: "create-manual-client", step: "assign_coach", ok: true, coach_id: coachId }));
 
     // Create active subscription (no payment needed for manual clients)
     // Idempotency: skip if an active/pending subscription for same service already exists
@@ -269,7 +276,7 @@ serve(async (req) => {
       .maybeSingle();
 
     if (existingSubErr) {
-      console.error('Check existing subscription error:', existingSubErr);
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "check_existing_sub", ok: false, error: "query_failed" }));
     }
 
     if (!existingSub) {
@@ -284,11 +291,11 @@ serve(async (req) => {
         });
 
       if (subError) {
-        console.error('Subscription error:', subError);
+        console.error(JSON.stringify({ fn: "create-manual-client", step: "create_subscription", ok: false, error: "insert_failed" }));
         throw subError;
       }
     } else {
-      console.log('Subscription already exists, skipping creation');
+      console.log(JSON.stringify({ fn: "create-manual-client", step: "subscription_exists", ok: true }));
     }
 
     // Update profile status to active (write to profiles_public)
@@ -298,7 +305,7 @@ serve(async (req) => {
       .eq("id", userId);
 
     if (statusError) {
-      console.error('Status update error:', statusError);
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "update_status", ok: false, error: "update_failed" }));
     }
 
     // Generate password reset link
@@ -312,9 +319,9 @@ serve(async (req) => {
       });
       if (linkError) throw linkError;
       passwordResetLink = linkData?.properties?.action_link || null;
-      console.log('Generated password reset link');
+      console.log(JSON.stringify({ fn: "create-manual-client", step: "password_reset_link", ok: true }));
     } catch (linkError) {
-      console.error('Error generating password reset link:', linkError);
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "password_reset_link", ok: false, error: "link_gen_failed" }));
     }
 
     // Send signup confirmation email with password setup link
@@ -328,9 +335,9 @@ serve(async (req) => {
             isManualClient: true,
           },
         });
-        console.log('Sent signup confirmation email');
+        console.log(JSON.stringify({ fn: "create-manual-client", step: "signup_email", ok: true }));
       } catch (emailError) {
-        console.error('Error sending signup email:', emailError);
+        console.error(JSON.stringify({ fn: "create-manual-client", step: "signup_email", ok: false, error: "send_failed" }));
         // Don't fail the whole operation if email fails
       }
     }
@@ -343,7 +350,7 @@ serve(async (req) => {
       }
     );
   } catch (error: any) {
-    console.error('Error in create-manual-client:', error);
+    console.error(JSON.stringify({ fn: "create-manual-client", step: "fatal", ok: false, error: "unhandled_exception" }));
     
     // Check if it's a validation error
     if (error.name === 'ZodError') {

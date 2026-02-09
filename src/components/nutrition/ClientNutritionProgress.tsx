@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { StepLogForm } from "./StepLogForm";
 import { BodyFatLogForm } from "./BodyFatLogForm";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface ClientNutritionProgressProps {
   phase: any;
@@ -137,7 +138,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -152,7 +153,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
       toast({ title: "Success", description: "Weight log deleted" });
       loadProgressData();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 
@@ -188,7 +189,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
       setThighs("");
       loadProgressData();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -222,7 +223,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
       setBodyFat("");
       loadProgressData();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -294,7 +295,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
       setNotes("");
       loadProgressData();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
       setLoading(false);
     }

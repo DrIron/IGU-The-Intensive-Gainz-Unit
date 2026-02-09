@@ -148,7 +148,7 @@ async function applyCapturedPayment(
 ): Promise<{ success: boolean; result: string; error?: string }> {
   const { chargeId, charge, subscriptionId, userId, serviceId, expectedAmount, subscription } = params;
 
-  console.log(`[${requestId}] applyCapturedPayment: chargeId=${chargeId}, status=${charge.status}`);
+  console.log(JSON.stringify({ fn: "verify-payment", step: "apply_captured", requestId, chargeId }));
 
   // VALIDATION 1: Status must be CAPTURED
   if (charge.status !== 'CAPTURED') {
@@ -161,7 +161,7 @@ async function applyCapturedPayment(
 
   // VALIDATION 2: Amount validation (if expected amount provided)
   if (expectedAmount && Math.abs(charge.amount - expectedAmount) > 0.01) {
-    console.error(`[${requestId}] Amount mismatch: expected ${expectedAmount}, got ${charge.amount}`);
+    console.log(JSON.stringify({ fn: "verify-payment", step: "amount_mismatch", requestId, chargeId, ok: false }));
     return { 
       success: false, 
       result: 'amount_mismatch', 
@@ -171,7 +171,7 @@ async function applyCapturedPayment(
 
   // VALIDATION 3: Currency must be KWD
   if (charge.currency && charge.currency.toUpperCase() !== 'KWD') {
-    console.error(`[${requestId}] Currency mismatch: expected KWD, got ${charge.currency}`);
+    console.log(JSON.stringify({ fn: "verify-payment", step: "currency_mismatch", requestId, chargeId, ok: false }));
     return { 
       success: false, 
       result: 'currency_mismatch', 
@@ -188,7 +188,7 @@ async function applyCapturedPayment(
     .maybeSingle();
 
   if (existingPayment) {
-    console.log(`[${requestId}] Charge ${chargeId} already paid (idempotent)`);
+    console.log(JSON.stringify({ fn: "verify-payment", step: "already_paid", requestId, chargeId, ok: true }));
     return { success: true, result: 'already_active' };
   }
 
@@ -223,7 +223,7 @@ async function applyCapturedPayment(
     .eq('id', subscriptionId);
 
   if (updateError) {
-    console.error(`[${requestId}] Failed to activate subscription:`, updateError);
+    console.log(JSON.stringify({ fn: "verify-payment", step: "activation_failed", requestId, chargeId, ok: false }));
     return { 
       success: false, 
       result: 'activation_failed', 
@@ -231,7 +231,7 @@ async function applyCapturedPayment(
     };
   }
 
-  console.log(`[${requestId}] Subscription ${subscriptionId} activated successfully`);
+  console.log(JSON.stringify({ fn: "verify-payment", step: "subscription_activated", requestId, chargeId, subscriptionId, ok: true }));
 
   // Update profile status
   await supabase
@@ -301,9 +301,9 @@ async function applyCapturedPayment(
         p_user_id: userId,
       });
 
-      console.log(`[${requestId}] Discount redemption recorded: code_id=${discountCodeId}, saved=${savedAmount} KWD`);
+      console.log(JSON.stringify({ fn: "verify-payment", step: "discount_redeemed", requestId, chargeId, ok: true }));
     } catch (e) {
-      console.error(`[${requestId}] Discount redemption error:`, e);
+      console.log(JSON.stringify({ fn: "verify-payment", step: "discount_redemption_error", requestId, chargeId, ok: false }));
     }
   }
 
@@ -329,7 +329,7 @@ async function applyFailedPayment(
   const { chargeId, charge, subscriptionId } = params;
   const status = charge.status;
 
-  console.log(`[${requestId}] applyFailedPayment: chargeId=${chargeId}, status=${status}`);
+  console.log(JSON.stringify({ fn: "verify-payment", step: "apply_failed", requestId, chargeId, status }));
 
   await supabase
     .from('subscriptions')
@@ -411,9 +411,9 @@ async function sendConfirmationEmail(
       }),
     });
 
-    console.log(`[${requestId}] Confirmation email sent`);
+    console.log(JSON.stringify({ fn: "verify-payment", step: "confirmation_email_sent", requestId, ok: true }));
   } catch (error) {
-    console.error(`[${requestId}] Email error:`, error);
+    console.log(JSON.stringify({ fn: "verify-payment", step: "confirmation_email_error", requestId, ok: false }));
   }
 }
 
@@ -451,7 +451,7 @@ serve(async (req) => {
   }
 
   const requestId = crypto.randomUUID();
-  console.log(`[${requestId}] Verify payment request`);
+  console.log(JSON.stringify({ fn: "verify-payment", step: "request_received", requestId }));
 
   try {
     // Verify caller is authenticated
@@ -505,7 +505,7 @@ serve(async (req) => {
       );
     }
 
-    console.log(`[${requestId}] User: ${userId}, Source: ${source}`);
+    console.log(JSON.stringify({ fn: "verify-payment", step: "authenticated", requestId, userId }));
 
     // Find charge ID
     let targetChargeId = providedChargeId;
@@ -546,7 +546,7 @@ serve(async (req) => {
     // Rate limiting
     const rateCheck = checkChargeRateLimit(targetChargeId);
     if (!rateCheck.allowed) {
-      console.log(`[${requestId}] Rate limited: ${rateCheck.reason}`);
+      console.log(JSON.stringify({ fn: "verify-payment", step: "rate_limited", requestId, ok: false }));
       
       const { exists, event } = await checkIdempotency(supabase, targetChargeId, 'CAPTURED');
       if (exists && event?.processed_at) {
@@ -587,7 +587,7 @@ serve(async (req) => {
     if (subscription.status === 'active' && 
         subscription.last_verified_charge_id === targetChargeId && 
         !subscription.past_due_since) {
-      console.log(`[${requestId}] Already active with same charge (fast-path)`);
+      console.log(JSON.stringify({ fn: "verify-payment", step: "already_active_fast_path", requestId, chargeId: targetChargeId, ok: true }));
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -600,11 +600,11 @@ serve(async (req) => {
     }
 
     // Verify with TAP API
-    console.log(`[${requestId}] Verifying charge ${targetChargeId} with TAP...`);
+    console.log(JSON.stringify({ fn: "verify-payment", step: "verifying_charge", requestId, chargeId: targetChargeId }));
     const verifyResult = await verifyChargeWithTap(targetChargeId, tapSecretKey);
 
     if (!verifyResult.success) {
-      console.error(`[${requestId}] TAP verification failed:`, verifyResult.error);
+      console.log(JSON.stringify({ fn: "verify-payment", step: "tap_verification_failed", requestId, chargeId: targetChargeId, ok: false }));
       return new Response(
         JSON.stringify({ success: false, error: 'Failed to verify with payment provider' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -612,7 +612,7 @@ serve(async (req) => {
     }
 
     const charge = verifyResult.charge;
-    console.log(`[${requestId}] TAP status: ${charge.status}`);
+    console.log(JSON.stringify({ fn: "verify-payment", step: "tap_status", requestId, chargeId: targetChargeId, status: charge.status }));
 
     // Check idempotency for this status
     const { exists: alreadyProcessed, event: existingEvent } = await checkIdempotency(
@@ -620,7 +620,7 @@ serve(async (req) => {
     );
 
     if (alreadyProcessed && existingEvent?.processed_at && charge.status === 'CAPTURED') {
-      console.log(`[${requestId}] Already processed (idempotent)`);
+      console.log(JSON.stringify({ fn: "verify-payment", step: "already_processed", requestId, chargeId: targetChargeId, ok: true }));
       return new Response(
         JSON.stringify({ 
           success: true, 
@@ -734,7 +734,7 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error(`[${requestId}] Error:`, error);
+    console.log(JSON.stringify({ fn: "verify-payment", step: "unhandled_error", requestId, ok: false }));
     return new Response(
       JSON.stringify({ success: false, error: 'Internal error' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }

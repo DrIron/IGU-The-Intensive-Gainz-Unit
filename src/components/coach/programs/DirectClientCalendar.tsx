@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   Dialog,
   DialogContent,
@@ -102,7 +103,7 @@ export function DirectClientCalendar({
     } catch (error: any) {
       toast({
         title: "Error loading sessions",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -165,7 +166,7 @@ export function DirectClientCalendar({
     } catch (error: any) {
       toast({
         title: "Error creating session",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -189,7 +190,7 @@ export function DirectClientCalendar({
     } catch (error: any) {
       toast({
         title: "Error updating session",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }
@@ -213,7 +214,7 @@ export function DirectClientCalendar({
     } catch (error: any) {
       toast({
         title: "Error deleting session",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     }

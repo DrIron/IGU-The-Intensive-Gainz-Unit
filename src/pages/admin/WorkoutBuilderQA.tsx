@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -218,7 +219,7 @@ export default function WorkoutBuilderQA() {
       console.error("Seed error:", error);
       toast({
         title: "Seed Failed",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -385,7 +386,7 @@ export default function WorkoutBuilderQA() {
 
       toast({ title: "Test data cleaned up" });
     } catch (error: any) {
-      toast({ title: "Cleanup failed", description: error.message, variant: "destructive" });
+      toast({ title: "Cleanup failed", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 

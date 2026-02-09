@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Settings, Save, Loader2 } from "lucide-react";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface Service {
   id: string;
@@ -43,7 +44,7 @@ export function ServiceConfiguration() {
       console.error('Error loading services:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -82,7 +83,7 @@ export function ServiceConfiguration() {
       console.error('Error saving:', error);
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

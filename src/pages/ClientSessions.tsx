@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Calendar as CalendarIcon, Clock, MapPin, User, AlertCircle, Check, X, Loader2 } from "lucide-react";
 import { format, parseISO, startOfWeek, addDays, isSameDay } from "date-fns";
 
@@ -256,7 +257,7 @@ function ClientSessionsContent() {
       console.error("Error booking session:", error);
       toast({
         title: "Booking Failed",
-        description: error.message || "Failed to book session. Please try again.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -316,7 +317,7 @@ function ClientSessionsContent() {
       console.error("Error cancelling session:", error);
       toast({
         title: "Cancellation Failed",
-        description: error.message || "Failed to cancel session. Please try again.",
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

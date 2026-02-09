@@ -6,12 +6,15 @@ verify_jwt = false
 [functions.security-smoke-tests]
 verify_jwt = false
 
+# User-facing: internal auth (getUser + userId match)
 [functions.create-tap-payment]
-verify_jwt = true
+verify_jwt = false
 
+# User-facing: internal auth (getUser + userId match)
 [functions.verify-payment]
-verify_jwt = true
+verify_jwt = false
 
+# Webhook: called by payment provider
 [functions.tap-webhook]
 verify_jwt = false
 
@@ -21,11 +24,13 @@ verify_jwt = true
 [functions.create-airtable-client]
 verify_jwt = true
 
+# User-facing: internal auth (getUser + userId match)
 [functions.submit-onboarding]
-verify_jwt = true
+verify_jwt = false
 
+# Edge-to-edge: called by other edge functions
 [functions.send-signup-confirmation]
-verify_jwt = true
+verify_jwt = false
 
 [functions.send-testimonial-request]
 verify_jwt = true
@@ -33,35 +38,43 @@ verify_jwt = true
 [functions.send-truecoach-notification]
 verify_jwt = true
 
+# Edge-to-edge: called by admin approval flow
 [functions.send-coach-invitation]
-verify_jwt = true
+verify_jwt = false
 
+# Edge-to-edge: called by process functions
 [functions.send-payment-reminder]
-verify_jwt = true
+verify_jwt = false
 
 [functions.check-payment-deadlines]
 verify_jwt = false
 
+# User-facing: internal auth (getUser + userId match)
 [functions.cancel-subscription]
-verify_jwt = true
+verify_jwt = false
 
+# User-facing: internal auth (getUser + userId match + admin fallback)
 [functions.delete-account]
 verify_jwt = false
 
+# Edge-to-edge: called from cancel-subscription
 [functions.manage-discord-roles]
-verify_jwt = true
+verify_jwt = false
 
+# Edge-to-edge: called from admin approval
 [functions.create-coach-account]
 verify_jwt = false
 
 [functions.create-manual-client]
 verify_jwt = true
 
+# Edge-to-edge: called from other edge functions
 [functions.send-welcome-email]
-verify_jwt = true
+verify_jwt = false
 
+# Edge-to-edge: called from create-manual-client
 [functions.send-client-approval-notification]
-verify_jwt = true
+verify_jwt = false
 
 [functions.notify-zapier]
 verify_jwt = false
@@ -72,8 +85,9 @@ verify_jwt = false
 [functions.cancel-session]
 verify_jwt = false
 
+# User-facing: internal auth (getUser + userId match)
 [functions.notify-coach-contact]
-verify_jwt = true
+verify_jwt = false
 
 [functions.process-billing-reminders]
 verify_jwt = false
@@ -94,4 +108,39 @@ verify_jwt = false
 verify_jwt = false
 
 [functions.security-hardening-checklist]
+verify_jwt = false
+
+# Anonymous endpoint: Turnstile-protected
+[functions.send-coach-application-emails]
+verify_jwt = false
+
+# n8n automation functions: service role key auth
+[functions.process-abandoned-onboarding]
+verify_jwt = false
+
+[functions.process-payment-failure-drip]
+verify_jwt = false
+
+[functions.process-inactive-client-alerts]
+verify_jwt = false
+
+[functions.process-lead-nurture]
+verify_jwt = false
+
+[functions.process-testimonial-requests]
+verify_jwt = false
+
+[functions.process-renewal-reminders]
+verify_jwt = false
+
+[functions.process-referral-reminders]
+verify_jwt = false
+
+[functions.process-coach-inactivity-monitor]
+verify_jwt = false
+
+[functions.send-admin-daily-summary]
+verify_jwt = false
+
+[functions.send-weekly-coach-digest]
 verify_jwt = false

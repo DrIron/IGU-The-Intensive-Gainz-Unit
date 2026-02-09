@@ -24,6 +24,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { format } from "date-fns";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 interface Exercise {
@@ -217,7 +218,7 @@ function WorkoutSessionContent() {
       console.error("Error loading session:", error);
       toast({
         title: "Error loading workout",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -280,7 +281,7 @@ function WorkoutSessionContent() {
     } catch (error: any) {
       toast({
         title: "Error saving",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -312,7 +313,7 @@ function WorkoutSessionContent() {
     } catch (error: any) {
       toast({
         title: "Error",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {

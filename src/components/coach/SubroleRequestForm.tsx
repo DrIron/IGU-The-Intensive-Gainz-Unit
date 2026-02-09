@@ -25,6 +25,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import type { SubroleStatus } from "@/auth/roles";
 
 interface SubroleDefinition {
@@ -110,7 +111,7 @@ export function SubroleRequestForm({ userId }: SubroleRequestFormProps) {
       setIsReRequest(false);
     },
     onError: (error: Error) => {
-      toast.error(error.message || "Failed to submit request");
+      toast.error(sanitizeErrorForUser(error));
     },
   });
 

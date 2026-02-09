@@ -36,7 +36,7 @@ export default function MedicalReview() {
         navigate(redirect || "/dashboard", { replace: true });
       }
     } catch (error) {
-      console.error("Error checking status:", error);
+      if (import.meta.env.DEV) console.error("Error checking status:", error);
     } finally {
       if (isManual) setChecking(false);
     }

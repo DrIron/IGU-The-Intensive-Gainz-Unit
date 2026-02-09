@@ -29,6 +29,7 @@ import {
   Clock
 } from "lucide-react";
 import { format } from "date-fns";
+import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
 interface CoachApplication {
   id: string;
@@ -189,8 +190,8 @@ export function CoachApplicationsManager() {
       console.error('Error approving application:', error);
       toast({ 
         title: "Error", 
-        description: error.message || "Failed to approve application", 
-        variant: "destructive" 
+        description: sanitizeErrorForUser(error),
+        variant: "destructive"
       });
     } finally {
       setProcessing(false);
@@ -240,8 +241,8 @@ export function CoachApplicationsManager() {
       console.error('Error rejecting application:', error);
       toast({ 
         title: "Error", 
-        description: error.message || "Failed to reject application", 
-        variant: "destructive" 
+        description: sanitizeErrorForUser(error),
+        variant: "destructive"
       });
     } finally {
       setProcessing(false);
