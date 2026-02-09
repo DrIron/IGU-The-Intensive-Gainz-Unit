@@ -15,6 +15,15 @@ serve(async (req) => {
   }
 
   try {
+    // Verify caller is authenticated
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const tapSecretKey = Deno.env.get('TAP_SECRET_KEY');
     if (!tapSecretKey) {
       console.error('TAP_SECRET_KEY is not configured');
@@ -27,6 +36,18 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+    // Verify the JWT resolves to a real user
+    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Get and validate request body with comprehensive schema validation
     const paymentSchema = z.object({
@@ -53,6 +74,14 @@ serve(async (req) => {
     }
 
     const { serviceId, userId, customerEmail, customerName, discountCode, isRenewal } = validatedData;
+
+    // Verify authenticated user matches the userId in the request
+    if (user.id !== userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'User mismatch' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     console.log('Creating TAP one-time payment for:', { serviceId, userId, discountCode, isRenewal });
 

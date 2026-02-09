@@ -1577,8 +1577,8 @@ Quick reference for edge function JWT settings:
 | `send-coach-invitation` | **No** | Called by other edge functions |
 | `send-coach-application-emails` | **No** | Called by anonymous users |
 | `tap-webhook` | **No** | Called by payment provider |
-| `create-tap-payment` | Yes | Authenticated users only |
-| `verify-payment` | Yes | Authenticated users only |
+| `create-tap-payment` | **No** | Gateway rejects ES256 JWTs; has internal auth checks |
+| `verify-payment` | **No** | Gateway rejects ES256 JWTs; has internal auth checks |
 | `process-abandoned-onboarding` | **No** | Called by n8n (service role key) |
 | `process-payment-failure-drip` | **No** | Called by n8n (service role key) |
 | `process-inactive-client-alerts` | **No** | Called by n8n (service role key) |

@@ -454,6 +454,15 @@ serve(async (req) => {
   console.log(`[${requestId}] Verify payment request`);
 
   try {
+    // Verify caller is authenticated
+    const authHeader = req.headers.get('Authorization');
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Authentication required' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const tapSecretKey = Deno.env.get('TAP_SECRET_KEY');
     if (!tapSecretKey) {
       return new Response(
@@ -466,6 +475,18 @@ serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
+    // Verify the JWT resolves to a real user
+    const userClient = createClient(supabaseUrl, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: authHeader } }
+    });
+    const { data: { user }, error: authError } = await userClient.auth.getUser();
+    if (authError || !user) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'Invalid authentication' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const body = await req.json();
     const { userId, chargeId: providedChargeId, source = 'client' } = body;
 
@@ -473,6 +494,14 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ success: false, error: 'Missing userId' }),
         { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify authenticated user matches the userId in the request
+    if (user.id !== userId) {
+      return new Response(
+        JSON.stringify({ success: false, error: 'User mismatch' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
