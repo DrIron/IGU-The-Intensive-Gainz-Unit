@@ -20,9 +20,11 @@ export default defineConfig({
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-supabase': ['@supabase/supabase-js'],
           'vendor-query': ['@tanstack/react-query'],
-          'vendor-forms': ['react-hook-form', '@hookform/resolvers', 'zod'],
-          'vendor-dnd': ['@hello-pangea/dnd'],
-          'vendor-charts': ['recharts'],
+          // vendor-forms also removed — only needed on auth/onboarding pages
+          // vendor-dnd and vendor-charts removed from manualChunks —
+          // they were being modulepreloaded on every page (384KB + 98KB)
+          // even though they're only needed on coach/workout routes.
+          // Rollup's automatic splitting handles them as async chunks now.
           'vendor-ui': [
             '@radix-ui/react-dialog',
             '@radix-ui/react-dropdown-menu',

@@ -13,6 +13,7 @@ import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { useSiteContent, parseJsonField } from "@/hooks/useSiteContent";
 import { useFadeUp } from "@/hooks/useFadeUp";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { FAQSection } from "@/components/marketing/FAQSection";
 import { HowItWorksSection } from "@/components/marketing/HowItWorksSection";
 
@@ -202,7 +203,7 @@ export default function Index() {
     } catch (error: any) {
       toast({
         title: "Error loading services",
-        description: error.message,
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
