@@ -1,14 +1,18 @@
 
 /**
  * Global 401 Interceptor & Token Refresh Guard
- * 
+ *
  * Monitors Supabase API responses for 401 errors caused by expired JWTs.
  * When detected:
  * 1. Attempts to refresh the token via supabase.auth.refreshSession()
  * 2. If refresh succeeds, the next retry (by react-query or user) will work
- * 3. If refresh fails, clears the session and redirects to /auth
- * 
- * Also proactively checks token expiry on mount and refreshes if needed.
+ * 3. If refresh fails AND no refresh token exists → signs out
+ *
+ * IMPORTANT: Supabase's built-in autoRefreshToken handles most refresh cases.
+ * This guard is a safety net, NOT the primary mechanism. We must not race
+ * against Supabase and sign users out on transient failures (network hiccups,
+ * race conditions). Only sign out when the session is genuinely unrecoverable
+ * (no refresh token in storage).
  */
 
 import { useEffect, useRef } from 'react';
@@ -20,6 +24,26 @@ const REFRESH_BUFFER_SECONDS = 300; // 5 minutes before expiry
 
 /** Minimum time between refresh attempts to prevent loops */
 const MIN_REFRESH_INTERVAL_MS = 10_000; // 10 seconds
+
+/** How many consecutive refresh failures before signing out */
+const MAX_CONSECUTIVE_FAILURES = 3;
+
+/**
+ * Check if a refresh token exists in localStorage.
+ * If there's no refresh token, the session is truly unrecoverable.
+ */
+function hasRefreshToken(): boolean {
+  try {
+    const key = Object.keys(localStorage).find(k => k.startsWith('sb-') && k.endsWith('-auth-token'));
+    if (!key) return false;
+    const stored = localStorage.getItem(key);
+    if (!stored) return false;
+    const parsed = JSON.parse(stored);
+    return !!parsed?.refresh_token;
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Check if stored JWT is expired or about to expire
@@ -77,7 +101,8 @@ async function attemptTokenRefresh(): Promise<boolean> {
 }
 
 /**
- * Clear all auth state and redirect to sign-in
+ * Clear all auth state and redirect to sign-in.
+ * Only called when the session is genuinely unrecoverable.
  */
 function forceSignOut() {
   if (import.meta.env.DEV) console.log('[TokenGuard] Forcing sign-out due to unrecoverable auth state');
@@ -97,13 +122,43 @@ function forceSignOut() {
 }
 
 /**
+ * Handle a refresh failure: only sign out if the session is truly unrecoverable.
+ * Returns true if the user was signed out.
+ */
+function handleRefreshFailure(consecutiveFailures: { current: number }): boolean {
+  consecutiveFailures.current++;
+
+  // If no refresh token exists at all, the session is gone — sign out immediately
+  if (!hasRefreshToken()) {
+    if (import.meta.env.DEV) console.warn('[TokenGuard] No refresh token in storage — session unrecoverable');
+    forceSignOut();
+    return true;
+  }
+
+  // If we've failed multiple consecutive times, sign out
+  if (consecutiveFailures.current >= MAX_CONSECUTIVE_FAILURES) {
+    if (import.meta.env.DEV) console.warn(`[TokenGuard] ${MAX_CONSECUTIVE_FAILURES} consecutive refresh failures — signing out`);
+    forceSignOut();
+    return true;
+  }
+
+  // Otherwise, let Supabase's built-in autoRefreshToken handle it
+  if (import.meta.env.DEV) console.log(
+    `[TokenGuard] Refresh failed (${consecutiveFailures.current}/${MAX_CONSECUTIVE_FAILURES}), ` +
+    `deferring to Supabase auto-refresh`
+  );
+  return false;
+}
+
+/**
  * Hook: Install global 401 interceptor and proactive token refresh
- * 
+ *
  * Place this once in your App component.
  */
 export function useTokenGuard() {
   const lastRefreshAttempt = useRef(0);
   const refreshInProgress = useRef(false);
+  const consecutiveFailures = useRef(0);
 
   useEffect(() => {
     // ============================================
@@ -114,14 +169,18 @@ export function useTokenGuard() {
     if (expired) {
       if (import.meta.env.DEV) console.log('[TokenGuard] Token already expired on mount, refreshing...');
       attemptTokenRefresh().then(success => {
-        if (!success) {
+        if (success) {
+          consecutiveFailures.current = 0;
+        } else {
           if (import.meta.env.DEV) console.warn('[TokenGuard] Could not refresh expired token on mount');
-          forceSignOut();
+          handleRefreshFailure(consecutiveFailures);
         }
       });
     } else if (secondsRemaining < REFRESH_BUFFER_SECONDS && secondsRemaining > 0) {
       if (import.meta.env.DEV) console.log(`[TokenGuard] Token expiring in ${secondsRemaining}s, proactively refreshing...`);
-      attemptTokenRefresh();
+      attemptTokenRefresh().then(success => {
+        if (success) consecutiveFailures.current = 0;
+      });
     }
 
     // ============================================
@@ -133,11 +192,17 @@ export function useTokenGuard() {
       if (isExpired) {
         if (import.meta.env.DEV) console.log('[TokenGuard] Token expired during session, refreshing...');
         attemptTokenRefresh().then(success => {
-          if (!success) forceSignOut();
+          if (success) {
+            consecutiveFailures.current = 0;
+          } else {
+            handleRefreshFailure(consecutiveFailures);
+          }
         });
       } else if (remaining < REFRESH_BUFFER_SECONDS && remaining > 0) {
         if (import.meta.env.DEV) console.log(`[TokenGuard] Token expiring soon (${remaining}s), refreshing...`);
-        attemptTokenRefresh();
+        attemptTokenRefresh().then(success => {
+          if (success) consecutiveFailures.current = 0;
+        });
       }
     }, 60_000);
 
@@ -166,9 +231,11 @@ export function useTokenGuard() {
 
           try {
             const success = await attemptTokenRefresh();
-            if (!success) {
-              if (import.meta.env.DEV) console.error('[TokenGuard] Token refresh failed after 401 - session is invalid');
-              forceSignOut();
+            if (success) {
+              consecutiveFailures.current = 0;
+            } else {
+              if (import.meta.env.DEV) console.error('[TokenGuard] Token refresh failed after 401');
+              handleRefreshFailure(consecutiveFailures);
             }
           } finally {
             refreshInProgress.current = false;
@@ -188,7 +255,11 @@ export function useTokenGuard() {
         if (isExpired) {
           if (import.meta.env.DEV) console.log('[TokenGuard] Tab became visible with expired token, refreshing...');
           attemptTokenRefresh().then(success => {
-            if (!success) forceSignOut();
+            if (success) {
+              consecutiveFailures.current = 0;
+            } else {
+              handleRefreshFailure(consecutiveFailures);
+            }
           });
         }
       }
@@ -196,10 +267,20 @@ export function useTokenGuard() {
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
+    // ============================================
+    // 5. Listen for Supabase auth state changes — reset failure counter on success
+    // ============================================
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'TOKEN_REFRESHED' || event === 'SIGNED_IN') {
+        consecutiveFailures.current = 0;
+      }
+    });
+
     return () => {
       clearInterval(intervalId);
       window.fetch = originalFetch;
       document.removeEventListener('visibilitychange', handleVisibilityChange);
+      subscription.unsubscribe();
     };
   }, []);
 }
