@@ -14,6 +14,7 @@ import { RoutesDebugPanel } from "./components/admin/RoutesDebugPanel";
 import { OnboardingGuard } from "@/components/OnboardingGuard";
 import { useTokenGuard } from "@/hooks/useTokenGuard";
 import { captureUTMParams } from "@/lib/utm";
+import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
 
 // Lazy-loaded page components
 const Index = lazy(() => import("./pages/Index"));
@@ -85,6 +86,7 @@ const App = () => {
           <Sonner position="bottom-center" className="md:!bottom-4 md:!right-4 md:!left-auto" />
           <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
             <TokenGuard />
+            <PWAUpdatePrompt />
             <TestEnvironmentBanner />
             {/* Routes Debug Panel - only shows in non-production */}
             <RoutesDebugPanel show={!window.location.hostname.includes('theigu.com')} />
