@@ -93,7 +93,7 @@ export default function PaymentReturn() {
 
         // Redirect to dashboard after showing success
         setTimeout(() => {
-          navigate('/dashboard', { replace: true });
+          navigate('/dashboard', { replace: true, state: { paymentVerified: true } });
         }, 3000);
         return;
       }
@@ -154,7 +154,7 @@ export default function PaymentReturn() {
   };
 
   const handleGoToDashboard = () => {
-    navigate('/dashboard', { replace: true });
+    navigate('/dashboard', { replace: true, state: { paymentVerified: true } });
   };
 
   const handleRetryPayment = () => {

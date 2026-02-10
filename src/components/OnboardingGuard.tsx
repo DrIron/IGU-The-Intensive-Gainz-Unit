@@ -125,6 +125,13 @@ export function OnboardingGuard({
 
     // Check if onboarding is incomplete
     if (isOnboardingIncomplete(status)) {
+      // Skip redirect if user just completed payment verification — DB status
+      // may still be stale (pending_payment) due to replication lag
+      const navState = location.state as { paymentVerified?: boolean } | null;
+      if (navState?.paymentVerified && status === "pending_payment") {
+        return;
+      }
+
       const redirectUrl = getOnboardingRedirect(status);
 
       // Don't redirect if we're already on the correct onboarding page
@@ -140,7 +147,7 @@ export function OnboardingGuard({
       navigate("/dashboard?restricted=true", { replace: true });
       return;
     }
-  }, [loading, profileStatus, allowIncomplete, allowLimited, navigate, location.pathname]);
+  }, [loading, profileStatus, allowIncomplete, allowLimited, navigate, location.pathname, location.state]);
 
   if (loading) {
     return <PageLoadingSkeleton />;
@@ -148,8 +155,12 @@ export function OnboardingGuard({
 
   // If onboarding incomplete and not allowing, don't render children
   // (redirect should happen via useEffect)
+  // Exception: paymentVerified state means DB is just lagging behind
+  const navState = location.state as { paymentVerified?: boolean } | null;
   if (!allowIncomplete && profileStatus && isOnboardingIncomplete(profileStatus.status)) {
-    return <PageLoadingSkeleton />;
+    if (!(navState?.paymentVerified && profileStatus.status === "pending_payment")) {
+      return <PageLoadingSkeleton />;
+    }
   }
 
   return <>{children}</>;
