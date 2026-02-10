@@ -54,7 +54,6 @@ const SiteMapDiagnostics = lazy(() => import("./pages/admin/SiteMapDiagnostics")
 const DiagnosticsIndex = lazy(() => import("./pages/admin/DiagnosticsIndex"));
 const SystemHealth = lazy(() => import("./pages/admin/SystemHealth"));
 const Unauthorized = lazy(() => import("./pages/Unauthorized"));
-const WorkoutSession = lazy(() => import("./pages/client/WorkoutSession"));
 const WorkoutSessionV2 = lazy(() => import("./pages/client/WorkoutSessionV2"));
 const WorkoutCalendar = lazy(() => import("./pages/client/WorkoutCalendar"));
 const ExerciseHistory = lazy(() => import("./pages/client/ExerciseHistory"));

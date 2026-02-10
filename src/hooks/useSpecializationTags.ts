@@ -34,6 +34,8 @@ interface UseSpecializationTagsOptions {
   includeInactive?: boolean;
 }
 
+import { withTimeout } from '@/lib/withTimeout';
+
 interface UseSpecializationTagsReturn {
   tags: SpecializationTag[];
   loading: boolean;
@@ -43,24 +45,6 @@ interface UseSpecializationTagsReturn {
 }
 
 const QUERY_TIMEOUT_MS = 5000;
-
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
-  return new Promise((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${ms}ms`));
-    }, ms);
-
-    promise
-      .then((result) => {
-        clearTimeout(timer);
-        resolve(result);
-      })
-      .catch((error) => {
-        clearTimeout(timer);
-        reject(error);
-      });
-  });
-}
 
 /**
  * Hook to fetch specialization tags from the database.

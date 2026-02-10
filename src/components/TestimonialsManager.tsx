@@ -9,16 +9,7 @@ import { Search, Star, Check, X, Archive, TrendingDown, TrendingUp, Clock, Targe
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
-
-// Timeout wrapper to prevent infinite hangs on RPC calls
-function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`Request timed out after ${ms}ms`)), ms)
-    ),
-  ]);
-}
+import { withTimeout } from '@/lib/withTimeout';
 
 interface Testimonial {
   id: string;

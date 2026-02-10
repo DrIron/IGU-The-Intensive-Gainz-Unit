@@ -15,6 +15,5 @@ export { useRoleGate, useFeatureAccess } from './useRoleGate';
 export { useAuthNavigation } from './useAuthNavigation';
 export { useClientAccess } from './useClientAccess';
 export { useDocumentTitle } from './useDocumentTitle';
-export { useGracePeriodAccess } from './useGracePeriodAccess';
 export { useToast, toast } from './use-toast';
 export { useIsMobile } from './use-mobile';

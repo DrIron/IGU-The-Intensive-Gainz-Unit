@@ -405,7 +405,6 @@ export function DiscountCodeManager() {
             onClick={(event) => {
               event.preventDefault();
               event.stopPropagation();
-              console.log("Create Code clicked");
               toast({ title: "Opening Create Code dialog…", description: "Loading discount code form." });
               setIsDialogOpen(true);
             }}
