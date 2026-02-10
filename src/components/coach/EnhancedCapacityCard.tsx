@@ -8,6 +8,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Users, AlertTriangle, ArrowRight, Settings } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { getLoadColor } from "@/lib/statusUtils";
 import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
@@ -162,13 +163,6 @@ export function EnhancedCapacityCard({ coachUserId, onNavigate, onMetricsLoaded 
       fetchCapacityData();
     }
   }, [coachUserId, fetchCapacityData]);
-
-  const getLoadColor = (loadPercent: number | null): string => {
-    if (loadPercent === null) return 'bg-muted';
-    if (loadPercent > 100) return 'bg-destructive';
-    if (loadPercent >= 70) return 'bg-amber-500';
-    return 'bg-green-500';
-  };
 
   const getRemainingBadge = (active: number, max: number | null) => {
     if (max === null) {

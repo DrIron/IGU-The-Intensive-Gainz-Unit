@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Settings, Package, Loader2, ChevronDown, ChevronUp, Edit, DollarSign, ExternalLink, Info } from "lucide-react";
 import { ServiceBillingComponentsEditor } from "./ServiceBillingComponentsEditor";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
+import { formatServiceType } from '@/lib/statusUtils';
 
 interface Service {
   id: string;
@@ -145,17 +146,6 @@ export function PlansServicesManager() {
 
   const toggleExpanded = (serviceId: string) => {
     setExpandedServiceId(expandedServiceId === serviceId ? null : serviceId);
-  };
-
-  const formatServiceType = (type: string) => {
-    const labels: Record<string, string> = {
-      one_to_one: "1:1",
-      one_to_one_online: "1:1 Online",
-      one_to_one_in_person: "1:1 In-Person",
-      one_to_one_hybrid: "1:1 Hybrid",
-      team: "Team",
-    };
-    return labels[type] || type.replace(/_/g, " ");
   };
 
   if (loading) {

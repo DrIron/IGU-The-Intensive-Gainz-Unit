@@ -114,3 +114,19 @@ export function getSubscriptionStatusVariant(status: string | null | undefined):
       return 'outline';
   }
 }
+
+// Coach load percentage → Tailwind background color class
+export function getLoadColor(loadPercent: number | null): string {
+  if (loadPercent === null) return 'bg-muted';
+  if (loadPercent > 100) return 'bg-destructive';
+  if (loadPercent >= 70) return 'bg-amber-500';
+  return 'bg-green-500';
+}
+
+// Coach load percentage → Tailwind text color class
+export function getLoadTextColor(loadPercent: number | null): string {
+  if (loadPercent === null) return 'text-muted-foreground';
+  if (loadPercent > 100) return 'text-destructive';
+  if (loadPercent >= 70) return 'text-amber-600';
+  return 'text-green-600';
+}

@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, AlertTriangle, Settings, Users, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
+import { getLoadColor } from "@/lib/statusUtils";
 import { CoachServiceLimits } from "@/components/CoachServiceLimits";
 
 interface ServiceLoad {
@@ -238,13 +239,6 @@ export function CoachLoadOverview() {
       }
       return next;
     });
-  };
-
-  const getLoadColor = (loadPercent: number | null): string => {
-    if (loadPercent === null) return 'bg-muted';
-    if (loadPercent > 100) return 'bg-destructive';
-    if (loadPercent >= 70) return 'bg-amber-500';
-    return 'bg-green-500';
   };
 
   const getLoadBadgeVariant = (loadPercent: number | null): "default" | "secondary" | "destructive" | "outline" => {

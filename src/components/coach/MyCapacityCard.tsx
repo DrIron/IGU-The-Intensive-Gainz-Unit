@@ -10,6 +10,7 @@ import { Loader2, Users, AlertTriangle, ArrowRight } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { getLoadColor, getLoadTextColor } from "@/lib/statusUtils";
 
 interface ServiceCapacity {
   serviceId: string;
@@ -165,20 +166,6 @@ export function MyCapacityCard({ coachUserId, onNavigate }: MyCapacityCardProps)
       fetchCapacityData();
     }
   }, [coachUserId, fetchCapacityData]);
-
-  const getLoadColor = (loadPercent: number | null): string => {
-    if (loadPercent === null) return 'bg-muted';
-    if (loadPercent > 100) return 'bg-destructive';
-    if (loadPercent >= 70) return 'bg-amber-500';
-    return 'bg-green-500';
-  };
-
-  const getLoadTextColor = (loadPercent: number | null): string => {
-    if (loadPercent === null) return 'text-muted-foreground';
-    if (loadPercent > 100) return 'text-destructive';
-    if (loadPercent >= 70) return 'text-amber-600';
-    return 'text-green-600';
-  };
 
   const handleViewClients = () => {
     if (onNavigate) {
