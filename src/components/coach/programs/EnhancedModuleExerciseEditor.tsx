@@ -138,6 +138,8 @@ export function EnhancedModuleExerciseEditor({
             primary_muscle: ex.exercise_library?.primary_muscle || "",
             default_video_url: ex.exercise_library?.default_video_url,
           },
+          linear_progression_enabled: (prescription as any).linear_progression_enabled ?? false,
+          progression_config: (prescription as any).progression_config ?? null,
         };
       });
 
@@ -380,6 +382,10 @@ export function EnhancedModuleExerciseEditor({
 
           // Recombine columns for storage
           column_config: [...exercise.prescription_columns, ...exercise.input_columns],
+
+          // Linear Progression
+          linear_progression_enabled: exercise.linear_progression_enabled ?? false,
+          progression_config: exercise.progression_config ?? null,
         };
 
         if (existingPrescription) {

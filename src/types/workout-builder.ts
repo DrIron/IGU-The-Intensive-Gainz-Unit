@@ -421,6 +421,8 @@ export interface EnhancedExerciseDisplayV2 extends Omit<EnhancedExerciseDisplay,
   sets: SetPrescription[]; // per-set array
   prescription_columns: ColumnConfig[]; // coach instruction columns
   input_columns: ColumnConfig[]; // client input columns
+  linear_progression_enabled?: boolean;
+  progression_config?: ProgressionConfig | null;
 }
 
 export const DEFAULT_INPUT_COLUMNS: ColumnConfig[] = [
@@ -597,4 +599,56 @@ export function getYouTubeThumbnailUrl(videoUrl: string): string | null {
   }
 
   return null;
+}
+
+// ============================================================
+// Linear Progression Types
+// ============================================================
+
+export interface ProgressionConfig {
+  load_increment_kg: number;
+  load_increment_lb: number;
+  unit: 'kg' | 'lb';
+  rir_threshold: number;
+  rep_range_check: boolean;
+  suggestion_style: 'gentle' | 'direct' | 'data_only';
+}
+
+export const DEFAULT_PROGRESSION_CONFIG: ProgressionConfig = {
+  load_increment_kg: 2.5,
+  load_increment_lb: 5,
+  unit: 'kg',
+  rir_threshold: 2,
+  rep_range_check: true,
+  suggestion_style: 'gentle',
+};
+
+export type SuggestionType =
+  | 'increase_load'
+  | 'hold_steady'
+  | 'reduce_load'
+  | 'increase_reps'
+  | 'none';
+
+export interface ProgressionSuggestion {
+  id: string;
+  client_id: string;
+  client_module_exercise_id: string;
+  exercise_library_id: string;
+  session_date: string;
+  set_number: number;
+  prescribed_weight: number | null;
+  prescribed_rep_min: number | null;
+  prescribed_rep_max: number | null;
+  prescribed_rir: number | null;
+  performed_weight: number | null;
+  performed_reps: number | null;
+  performed_rir: number | null;
+  performed_rpe: number | null;
+  suggestion_type: SuggestionType;
+  suggestion_text: string;
+  suggested_increment: number | null;
+  client_response: 'accepted' | 'dismissed' | 'ignored' | null;
+  client_response_at: string | null;
+  created_at: string;
 }

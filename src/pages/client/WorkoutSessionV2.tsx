@@ -50,6 +50,10 @@ import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { useProgressionSuggestions } from "@/hooks/useProgressionSuggestions";
+import { ProgressionSuggestionBanner } from "@/components/workout/ProgressionSuggestionBanner";
+import type { ProgressionConfig } from "@/types/workout-builder";
+import { DEFAULT_PROGRESSION_CONFIG } from "@/types/workout-builder";
 
 // =============================================================================
 // TYPES
@@ -92,6 +96,8 @@ interface Exercise {
     intensity_type?: string;
     intensity_value?: number;
     sets_json?: SetPrescription[];
+    linear_progression_enabled?: boolean;
+    progression_config?: ProgressionConfig;
   };
   // V2: Per-set prescriptions (if available)
   sets_json?: SetPrescription[];
@@ -519,6 +525,8 @@ function ExerciseCard({
   onSwapExercise,
   isExpanded,
   onToggle,
+  activeSuggestionForSet,
+  onDismissSuggestion,
 }: {
   exercise: Exercise;
   exerciseIndex: number;
@@ -528,6 +536,8 @@ function ExerciseCard({
   onSwapExercise: () => void;
   isExpanded: boolean;
   onToggle: () => void;
+  activeSuggestionForSet: Map<number, { id: string; type: string; text: string }>;
+  onDismissSuggestion: (suggestionId: string) => void;
 }) {
   // Get per-set prescriptions: V2 from prescription_snapshot_json.sets_json, or convert from legacy
   const prescriptions: SetPrescription[] =
@@ -637,29 +647,40 @@ function ExerciseCard({
 
             {/* Per-set rows */}
             <div className="space-y-2">
-              {prescriptions.map((prescription, i) => (
-                <SetRow
-                  key={i}
-                  prescription={prescription}
-                  historySet={exercise.history?.sets[i]}
-                  log={
-                    logs[i] || {
-                      set_index: i + 1,
-                      performed_reps: null,
-                      performed_load: null,
-                      performed_rir: null,
-                      performed_rpe: null,
-                      notes: "",
-                      completed: false,
-                    }
-                  }
-                  onUpdate={(field, value) => onUpdateLog(i, field, value)}
-                  onComplete={() =>
-                    onCompleteSet(i, prescription.rest_seconds)
-                  }
-                  isActive={activeSetIndex === i}
-                />
-              ))}
+              {prescriptions.map((prescription, i) => {
+                const suggestion = activeSuggestionForSet.get(i + 1);
+                return (
+                  <div key={i} className="space-y-1">
+                    <SetRow
+                      prescription={prescription}
+                      historySet={exercise.history?.sets[i]}
+                      log={
+                        logs[i] || {
+                          set_index: i + 1,
+                          performed_reps: null,
+                          performed_load: null,
+                          performed_rir: null,
+                          performed_rpe: null,
+                          notes: "",
+                          completed: false,
+                        }
+                      }
+                      onUpdate={(field, value) => onUpdateLog(i, field, value)}
+                      onComplete={() =>
+                        onCompleteSet(i, prescription.rest_seconds)
+                      }
+                      isActive={activeSetIndex === i}
+                    />
+                    {suggestion && (
+                      <ProgressionSuggestionBanner
+                        suggestionType={suggestion.type as any}
+                        suggestionText={suggestion.text}
+                        onDismiss={() => onDismissSuggestion(suggestion.id)}
+                      />
+                    )}
+                  </div>
+                );
+              })}
             </div>
           </CardContent>
         </CollapsibleContent>
@@ -895,6 +916,13 @@ function WorkoutSessionV2Content() {
   const [showSwapPicker, setShowSwapPicker] = useState(false);
 
   const hasFetched = useRef(false);
+
+  // Progression suggestions
+  const {
+    evaluate: evaluateProgression,
+    logResponse: logProgressionResponse,
+    activeSuggestions,
+  } = useProgressionSuggestions();
 
   // Fix #1: useDocumentTitle API — use { title, description } not { title, suffix }
   useDocumentTitle({
@@ -1133,7 +1161,7 @@ function WorkoutSessionV2Content() {
     }));
   };
 
-  // Complete a set (mark as done + start rest timer)
+  // Complete a set (mark as done + start rest timer + evaluate progression)
   const completeSet = (
     exerciseId: string,
     setIndex: number,
@@ -1158,6 +1186,42 @@ function WorkoutSessionV2Content() {
       setIndex < prescriptions.length - 1
     ) {
       setRestTimer({ active: true, duration: restSeconds });
+    }
+
+    // Evaluate progression suggestion if enabled
+    if (exercise && user) {
+      const snapshot = exercise.prescription_snapshot_json;
+      if (snapshot.linear_progression_enabled) {
+        const config: ProgressionConfig =
+          snapshot.progression_config ?? DEFAULT_PROGRESSION_CONFIG;
+        const prescription = prescriptions[setIndex];
+        const log = setLogs[exerciseId]?.[setIndex];
+
+        if (log && log.performed_reps !== null && log.performed_load !== null) {
+          evaluateProgression(
+            {
+              set_number: setIndex + 1,
+              prescribed_weight: prescription?.weight_suggestion
+                ? parseFloat(prescription.weight_suggestion)
+                : null,
+              prescribed_rep_min: prescription?.rep_range_min ?? null,
+              prescribed_rep_max: prescription?.rep_range_max ?? null,
+              prescribed_rir: prescription?.rir ?? null,
+              performed_weight: log.performed_load,
+              performed_reps: log.performed_reps,
+              performed_rir: log.performed_rir,
+              performed_rpe: log.performed_rpe,
+            },
+            config,
+            {
+              clientId: user.id,
+              clientModuleExerciseId: exerciseId,
+              exerciseLibraryId: exercise.exercise_id,
+              sessionDate: new Date().toISOString().split("T")[0],
+            }
+          );
+        }
+      }
     }
   };
 
@@ -1405,30 +1469,51 @@ function WorkoutSessionV2Content() {
 
         {/* Exercise list */}
         <main className="container max-w-3xl mx-auto px-4 py-4 space-y-3 pb-28">
-          {module.exercises.map((exercise, index) => (
-            <ExerciseCard
-              key={exercise.id}
-              exercise={exercise}
-              exerciseIndex={index}
-              logs={setLogs[exercise.id] || []}
-              onUpdateLog={(setIndex, field, value) =>
-                updateSetLog(exercise.id, setIndex, field, value)
+          {module.exercises.map((exercise, index) => {
+            // Build a map of active suggestions for this exercise (setNumber → suggestion)
+            const suggestionsForExercise = new Map<
+              number,
+              { id: string; type: string; text: string }
+            >();
+            for (const s of activeSuggestions) {
+              if (s.exerciseId === exercise.id) {
+                suggestionsForExercise.set(s.setNumber, {
+                  id: s.id,
+                  type: s.result.type,
+                  text: s.result.text,
+                });
               }
-              onCompleteSet={(setIndex, restSeconds) =>
-                completeSet(exercise.id, setIndex, restSeconds)
-              }
-              onSwapExercise={() => {
-                setSwapExerciseId(exercise.id);
-                setShowSwapPicker(true);
-              }}
-              isExpanded={expandedExercise === exercise.id}
-              onToggle={() =>
-                setExpandedExercise(
-                  expandedExercise === exercise.id ? null : exercise.id
-                )
-              }
-            />
-          ))}
+            }
+
+            return (
+              <ExerciseCard
+                key={exercise.id}
+                exercise={exercise}
+                exerciseIndex={index}
+                logs={setLogs[exercise.id] || []}
+                onUpdateLog={(setIndex, field, value) =>
+                  updateSetLog(exercise.id, setIndex, field, value)
+                }
+                onCompleteSet={(setIndex, restSeconds) =>
+                  completeSet(exercise.id, setIndex, restSeconds)
+                }
+                onSwapExercise={() => {
+                  setSwapExerciseId(exercise.id);
+                  setShowSwapPicker(true);
+                }}
+                isExpanded={expandedExercise === exercise.id}
+                onToggle={() =>
+                  setExpandedExercise(
+                    expandedExercise === exercise.id ? null : exercise.id
+                  )
+                }
+                activeSuggestionForSet={suggestionsForExercise}
+                onDismissSuggestion={(id) =>
+                  logProgressionResponse(id, "dismissed")
+                }
+              />
+            );
+          })}
         </main>
 
         {/* Rest timer */}

@@ -1,19 +1,30 @@
-import { useCallback, useMemo, useRef, memo } from "react";
+import { useCallback, useMemo, useRef, useState, memo } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody } from "@/components/ui/table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { GripVertical, Trash2, History, Plus } from "lucide-react";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { GripVertical, Trash2, History, Plus, TrendingUp, Settings2 } from "lucide-react";
 import {
   ColumnConfig,
   EnhancedExerciseDisplayV2,
   SetPrescription,
+  ProgressionConfig,
+  DEFAULT_PROGRESSION_CONFIG,
 } from "@/types/workout-builder";
 import { VideoThumbnail } from "./VideoThumbnail";
 import { SetRowEditor } from "./SetRowEditor";
@@ -176,6 +187,35 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
     [onExerciseChange]
   );
 
+  // Linear Progression config state (popover open)
+  const [progressionPopoverOpen, setProgressionPopoverOpen] = useState(false);
+
+  const hasRirOrRpe = exercise.prescription_columns.some(
+    (c) => c.visible && (c.type === "rir" || c.type === "rpe")
+  );
+
+  const handleToggleProgression = useCallback(
+    (enabled: boolean) => {
+      onExerciseChange({
+        linear_progression_enabled: enabled,
+        progression_config: enabled
+          ? (exercise.progression_config ?? DEFAULT_PROGRESSION_CONFIG)
+          : exercise.progression_config,
+      });
+    },
+    [onExerciseChange, exercise.progression_config]
+  );
+
+  const handleProgressionConfigChange = useCallback(
+    (updates: Partial<ProgressionConfig>) => {
+      const current = exercise.progression_config ?? DEFAULT_PROGRESSION_CONFIG;
+      onExerciseChange({
+        progression_config: { ...current, ...updates },
+      });
+    },
+    [onExerciseChange, exercise.progression_config]
+  );
+
   return (
     <div
       className={`border rounded-lg transition-shadow bg-card ${
@@ -279,6 +319,190 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
         />
       </div>
 
+      {/* Linear Progression Toggle */}
+      {!isReadOnly && (
+        <div className="px-3 py-2 border-b flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <span className="text-sm font-medium">Linear Progression</span>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Switch
+                    checked={exercise.linear_progression_enabled ?? false}
+                    onCheckedChange={handleToggleProgression}
+                    disabled={!hasRirOrRpe}
+                    className="data-[state=checked]:bg-emerald-500"
+                  />
+                </TooltipTrigger>
+                {!hasRirOrRpe && (
+                  <TooltipContent>
+                    Enable RIR or RPE columns first
+                  </TooltipContent>
+                )}
+              </Tooltip>
+            </TooltipProvider>
+          </div>
+          {exercise.linear_progression_enabled && (
+            <Popover
+              open={progressionPopoverOpen}
+              onOpenChange={setProgressionPopoverOpen}
+            >
+              <PopoverTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                  <Settings2 className="h-4 w-4" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-72" align="end">
+                <div className="space-y-4">
+                  <h4 className="font-medium text-sm">Progression Settings</h4>
+
+                  {/* Unit toggle */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Unit</Label>
+                    <div className="flex gap-1">
+                      {(["kg", "lb"] as const).map((u) => (
+                        <Button
+                          key={u}
+                          variant={
+                            (exercise.progression_config?.unit ??
+                              DEFAULT_PROGRESSION_CONFIG.unit) === u
+                              ? "default"
+                              : "outline"
+                          }
+                          size="sm"
+                          className="flex-1 h-7 text-xs"
+                          onClick={() =>
+                            handleProgressionConfigChange({ unit: u })
+                          }
+                        >
+                          {u}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Load increment */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">
+                      Load Increment (
+                      {(exercise.progression_config?.unit ??
+                        DEFAULT_PROGRESSION_CONFIG.unit) === "kg"
+                        ? "kg"
+                        : "lb"}
+                      )
+                    </Label>
+                    <Input
+                      type="number"
+                      step="0.5"
+                      min="0"
+                      className="h-8 text-sm"
+                      value={
+                        (exercise.progression_config?.unit ??
+                          DEFAULT_PROGRESSION_CONFIG.unit) === "kg"
+                          ? (exercise.progression_config?.load_increment_kg ??
+                              DEFAULT_PROGRESSION_CONFIG.load_increment_kg)
+                          : (exercise.progression_config?.load_increment_lb ??
+                              DEFAULT_PROGRESSION_CONFIG.load_increment_lb)
+                      }
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value) || 0;
+                        const unit =
+                          exercise.progression_config?.unit ??
+                          DEFAULT_PROGRESSION_CONFIG.unit;
+                        handleProgressionConfigChange(
+                          unit === "kg"
+                            ? { load_increment_kg: val }
+                            : { load_increment_lb: val }
+                        );
+                      }}
+                    />
+                  </div>
+
+                  {/* RIR threshold */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">
+                      RIR Surplus Threshold
+                    </Label>
+                    <Input
+                      type="number"
+                      min="1"
+                      max="5"
+                      className="h-8 text-sm"
+                      value={
+                        exercise.progression_config?.rir_threshold ??
+                        DEFAULT_PROGRESSION_CONFIG.rir_threshold
+                      }
+                      onChange={(e) =>
+                        handleProgressionConfigChange({
+                          rir_threshold: parseInt(e.target.value) || 2,
+                        })
+                      }
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Suggest increase when RIR surplus is at least this value
+                    </p>
+                  </div>
+
+                  {/* Rep range check */}
+                  <div className="flex items-center gap-2">
+                    <Checkbox
+                      id="rep-range-check"
+                      checked={
+                        exercise.progression_config?.rep_range_check ??
+                        DEFAULT_PROGRESSION_CONFIG.rep_range_check
+                      }
+                      onCheckedChange={(checked) =>
+                        handleProgressionConfigChange({
+                          rep_range_check: !!checked,
+                        })
+                      }
+                    />
+                    <Label htmlFor="rep-range-check" className="text-xs">
+                      Require hitting top of rep range before load increase
+                    </Label>
+                  </div>
+
+                  {/* Suggestion style */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Suggestion Style</Label>
+                    <div className="flex gap-1">
+                      {(
+                        [
+                          { value: "gentle", label: "Gentle" },
+                          { value: "direct", label: "Direct" },
+                          { value: "data_only", label: "Data" },
+                        ] as const
+                      ).map((s) => (
+                        <Button
+                          key={s.value}
+                          variant={
+                            (exercise.progression_config?.suggestion_style ??
+                              DEFAULT_PROGRESSION_CONFIG.suggestion_style) ===
+                            s.value
+                              ? "default"
+                              : "outline"
+                          }
+                          size="sm"
+                          className="flex-1 h-7 text-xs"
+                          onClick={() =>
+                            handleProgressionConfigChange({
+                              suggestion_style: s.value,
+                            })
+                          }
+                        >
+                          {s.label}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+      )}
+
       {/* Sets Table */}
       <div className="overflow-x-auto">
         <Table>
@@ -332,6 +556,8 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
     prevProps.exercise.instructions === nextProps.exercise.instructions &&
     prevProps.exercise.prescription_columns === nextProps.exercise.prescription_columns &&
     prevProps.exercise.input_columns === nextProps.exercise.input_columns &&
+    prevProps.exercise.linear_progression_enabled === nextProps.exercise.linear_progression_enabled &&
+    prevProps.exercise.progression_config === nextProps.exercise.progression_config &&
     prevProps.isDragging === nextProps.isDragging &&
     prevProps.isReadOnly === nextProps.isReadOnly &&
     prevProps.onExerciseChange === nextProps.onExerciseChange &&

@@ -15,6 +15,7 @@ import { logPHIAccess } from "@/hooks/usePHIAuditLog";
 import { AssignProgramDialog } from "./programs/AssignProgramDialog";
 import { DirectClientCalendar } from "./programs/DirectClientCalendar";
 import { VolumeChart } from "./VolumeChart";
+import { ProgressionLog } from "./clients/ProgressionLog";
 import { CareTeamMessagesPanel } from "@/components/nutrition/CareTeamMessagesPanel";
 import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 
@@ -301,6 +302,9 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
 
       {/* Weekly Volume Tracking */}
       <VolumeChart clientUserId={clientUserId} />
+
+      {/* Progression Suggestions Log */}
+      <ProgressionLog clientUserId={clientUserId} />
 
       <Card>
         <CardHeader>

@@ -227,6 +227,9 @@ export function AssignProgramDialog({
                       warmup_sets_json: prescription.warmup_sets_json,
                       custom_fields_json: prescription.custom_fields_json,
                       progression_notes: prescription.progression_notes,
+                      sets_json: (prescription as any).sets_json ?? null,
+                      linear_progression_enabled: (prescription as any).linear_progression_enabled ?? false,
+                      progression_config: (prescription as any).progression_config ?? null,
                     }
                   : {},
               });
