@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { Menu, X } from "lucide-react";
 import { useState } from "react";
+import { IguLogo } from "@/components/IguLogo";
 import { WhatsAppButton } from "@/components/marketing/WhatsAppButton";
 import { Footer } from "@/components/Footer";
 
@@ -42,8 +43,8 @@ export function PublicLayout({ children, minimal = false }: PublicLayoutProps) {
       <div className="min-h-screen bg-background">
         <header className="border-b border-border/50 bg-background/70 backdrop-blur-xl">
           <div className="container flex h-14 items-center justify-center">
-            <Link to="/" className="font-display text-2xl tracking-wide text-foreground hover:text-primary transition-colors">
-              IGU
+            <Link to="/" className="hover:opacity-80 transition-opacity">
+              <IguLogo height={24} variant="light" />
             </Link>
           </div>
         </header>
@@ -58,8 +59,8 @@ export function PublicLayout({ children, minimal = false }: PublicLayoutProps) {
       <header className="sticky top-0 z-50 border-b border-border/50 bg-background/70 backdrop-blur-xl">
         <div className="container flex h-16 items-center justify-between">
           {/* Logo */}
-          <Link to="/" className="font-display text-2xl tracking-wide text-foreground hover:text-primary transition-colors">
-            IGU
+          <Link to="/" className="hover:opacity-80 transition-opacity">
+            <IguLogo height={28} variant="light" />
           </Link>
 
           {/* Desktop Nav */}

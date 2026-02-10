@@ -10,6 +10,7 @@ import {
   UserCheck, UsersRound
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { IguLogo } from "@/components/IguLogo";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthNavigation } from "@/hooks/useAuthNavigation";
@@ -362,11 +363,8 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
         <div className="container mx-auto px-4">
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
-            <Link to="/" className="flex items-center gap-2">
-              <div className="p-2 rounded-full bg-gradient-to-r from-primary to-accent">
-                <Dumbbell className="h-6 w-6 text-white" />
-              </div>
-              <span className="font-bold text-xl">IGU</span>
+            <Link to="/" className="flex items-center">
+              <IguLogo height={28} variant="light" />
             </Link>
 
             {/* Desktop Navigation */}
@@ -527,11 +525,8 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
           >
             {/* Header with logo and close button */}
             <div className="flex items-center justify-between p-4 border-b border-border bg-background shrink-0">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-full bg-gradient-to-r from-primary to-accent">
-                  <Dumbbell className="h-4 w-4 text-white" />
-                </div>
-                <span className="font-semibold">IGU</span>
+              <div className="flex items-center">
+                <IguLogo height={22} variant="light" />
               </div>
               <button
                 onClick={() => setMobileMenuOpen(false)}
