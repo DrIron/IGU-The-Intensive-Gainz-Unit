@@ -24,6 +24,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 - **Forms**: React Hook Form + Zod validation
 - **Drag & Drop**: @hello-pangea/dnd (exercise reordering)
 - **SEO**: react-helmet-async (meta tags)
+- **i18n**: i18next + react-i18next + i18next-browser-languagedetector
 
 ### Backend
 - **Database**: Supabase (PostgreSQL)
@@ -60,6 +61,10 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── OnboardingGuard.tsx     # Onboarding flow enforcement
 │   │   ├── PermissionGate.tsx      # Feature-level permission checks
 │   │   └── GlobalErrorBoundary.tsx # Error boundary with Sentry
+│   ├── i18n/                 # Internationalization
+│   │   ├── config.ts         # i18next init + language detector + dir/lang handler
+│   │   ├── types.ts          # TypeScript augmentation for t() key autocomplete
+│   │   └── locales/          # Translation files (en/, ar/)
 │   ├── hooks/                # Custom React hooks (incl. useColumnConfig, useProgramCalendar, useExerciseHistory, useSiteContent, useFadeUp)
 │   ├── integrations/
 │   │   └── supabase/         # Supabase client and generated types
@@ -75,7 +80,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── client/           # Client pages
 │   │   └── onboarding/       # Onboarding flow pages
 │   ├── App.tsx               # Main app with route definitions
-│   └── main.tsx              # Entry point (Sentry init)
+│   └── main.tsx              # Entry point (Sentry init, i18n init)
 ├── supabase/
 │   ├── functions/            # Edge Functions
 │   │   ├── create-tap-payment/
@@ -318,6 +323,29 @@ toast.success('Saved successfully');
 toast.error('Something went wrong');
 ```
 
+### 5. Internationalization (i18n)
+```typescript
+import { useTranslation } from 'react-i18next';
+
+// Use the namespace matching your component area
+const { t } = useTranslation('nav');       // Navigation/Footer strings
+const { t } = useTranslation('common');    // Shared buttons/labels (default)
+
+// Basic usage
+<Button>{t('signIn')}</Button>
+
+// Cross-namespace access
+<Button>{t('common:signOut')}</Button>
+
+// Interpolation
+t('statusActiveWith', { serviceName })     // "Active: {{serviceName}}"
+t('copyright', { year: 2026 })
+
+// Add new namespaces as components get converted (e.g., 'onboarding', 'dashboard')
+// Translation files: src/i18n/locales/{en,ar}/{namespace}.json
+// Language stored in localStorage('igu_language'), dir/lang auto-flip on change
+```
+
 ---
 
 ## Development Workflow
@@ -398,6 +426,7 @@ When understanding this codebase, read in this order:
 - Fix: Supabase getSession() hang — custom lock timeout prevents infinite lock waits from freezing all data queries (Feb 8, 2026) ✅
 - Phase 29: n8n Automation Workflows — 10 scheduled workflows for email drips, admin alerts, and platform operations (Feb 9, 2026) ✅
 - Fix: Workout Builder INP Performance — React.memo, useMemo, useCallback across 7 component files to eliminate 4-51s UI freezes (Feb 9, 2026) ✅
+- i18n Scaffolding — react-i18next setup, en/ar locales, Navigation + Footer converted, LanguageSwitcher (Feb 10, 2026) ✅
 
 ### Phase 26: Roles, Subroles & Tags System (Complete - Feb 7, 2026)
 
