@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { Users, Dumbbell, TrendingUp } from "lucide-react";
@@ -20,12 +20,9 @@ export function CoachStatsCards({ coachId }: CoachStatsCardsProps) {
     workoutsCompletedThisWeek: 0,
   });
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
-  useEffect(() => {
-    if (coachId) loadStats();
-  }, [coachId]);
-
-  const loadStats = async () => {
+  const loadStats = useCallback(async () => {
     try {
       // Active clients count
       const { count: activeClients } = await supabase
@@ -74,7 +71,13 @@ export function CoachStatsCards({ coachId }: CoachStatsCardsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachId]);
+
+  useEffect(() => {
+    if (!coachId || hasFetched.current) return;
+    hasFetched.current = true;
+    loadStats();
+  }, [coachId, loadStats]);
 
   const statCards = [
     {

@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -151,21 +151,9 @@ export default function Index() {
     setLoading(false);
   }, [navigate]);
 
-  useEffect(() => {
-    // Timeout to prevent hanging
-    const timeout = setTimeout(() => {
-      setLoading(false);
-    }, 3000);
+  const hasFetched = useRef(false);
 
-    checkUserAndRedirect();
-    loadTeamPlanSettings();
-    loadTestimonials();
-    loadServices(); // Load services for all users (pricing is public)
-
-    return () => clearTimeout(timeout);
-  }, [checkUserAndRedirect]);
-
-  const loadTeamPlanSettings = async () => {
+  const loadTeamPlanSettings = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('team_plan_settings')
@@ -187,9 +175,9 @@ export default function Index() {
     } catch (error: any) {
       console.error('Error loading team plan settings:', error);
     }
-  };
+  }, []);
 
-  const loadServices = async () => {
+  const loadServices = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("services")
@@ -209,9 +197,9 @@ export default function Index() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [toast]);
 
-  const loadTestimonials = async () => {
+  const loadTestimonials = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("testimonials")
@@ -256,7 +244,24 @@ export default function Index() {
     } catch (error: any) {
       console.error("Error loading testimonials:", error);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+
+    // Timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      setLoading(false);
+    }, 3000);
+
+    checkUserAndRedirect();
+    loadTeamPlanSettings();
+    loadTestimonials();
+    loadServices(); // Load services for all users (pricing is public)
+
+    return () => clearTimeout(timeout);
+  }, [checkUserAndRedirect, loadTeamPlanSettings, loadTestimonials, loadServices]);
 
   const handleServiceSelect = async (serviceId: string) => {
     const { data: { user } } = await supabase.auth.getUser();

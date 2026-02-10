@@ -88,13 +88,10 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
   );
 
   // Clear callback caches when the underlying handlers change
-  useMemo(() => {
-    setChangeCallbacksRef.current = new Map();
-  }, [handleSetChange]);
-
-  useMemo(() => {
-    deleteSetCallbacksRef.current = new Map();
-  }, [handleDeleteSet]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: clear cache when handler changes
+  useMemo(() => { setChangeCallbacksRef.current = new Map(); }, [handleSetChange]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: clear cache when handler changes
+  useMemo(() => { deleteSetCallbacksRef.current = new Map(); }, [handleDeleteSet]);
 
   const handleAddSet = useCallback(() => {
     const lastSet = exercise.sets[exercise.sets.length - 1];

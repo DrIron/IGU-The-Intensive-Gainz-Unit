@@ -281,9 +281,8 @@ export function EnhancedModuleExerciseEditor({
   const exerciseDeleteCallbacksRef = useRef<Map<string, () => void>>(new Map());
 
   // Clear callback caches when updateExercise changes (it won't since deps are [])
-  useMemo(() => {
-    exerciseChangeCallbacksRef.current = new Map();
-  }, [updateExercise]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: clear cache when handler changes
+  useMemo(() => { exerciseChangeCallbacksRef.current = new Map(); }, [updateExercise]);
 
   const getExerciseChangeCallback = useCallback((exerciseId: string) => {
     const existing = exerciseChangeCallbacksRef.current.get(exerciseId);
@@ -293,8 +292,8 @@ export function EnhancedModuleExerciseEditor({
     return cb;
   }, [updateExercise]);
 
-  // Delete exercise
-  const deleteExercise = async (exerciseId: string) => {
+  // Delete exercise (stable callback — uses functional state update)
+  const deleteExercise = useCallback(async (exerciseId: string) => {
     try {
       const { error } = await supabase.from("module_exercises").delete().eq("id", exerciseId);
 
@@ -312,7 +311,7 @@ export function EnhancedModuleExerciseEditor({
         variant: "destructive",
       });
     }
-  };
+  }, [toast]);
 
   const getExerciseDeleteCallback = useCallback((exerciseId: string) => {
     const existing = exerciseDeleteCallbacksRef.current.get(exerciseId);
@@ -320,12 +319,11 @@ export function EnhancedModuleExerciseEditor({
     const cb = () => deleteExercise(exerciseId);
     exerciseDeleteCallbacksRef.current.set(exerciseId, cb);
     return cb;
-  }, []);
+  }, [deleteExercise]);
 
-  // Clear delete callback cache when exercises change (new IDs may appear)
-  useMemo(() => {
-    exerciseDeleteCallbacksRef.current = new Map();
-  }, [exercises]);
+  // Clear delete callback cache when deleteExercise changes
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: clear cache when handler changes
+  useMemo(() => { exerciseDeleteCallbacksRef.current = new Map(); }, [deleteExercise]);
 
   // Save all changes
   const saveChanges = async () => {
@@ -448,6 +446,7 @@ export function EnhancedModuleExerciseEditor({
 
   const handleSelectExercise = useCallback(
     (exerciseId: string) => addExercise(exerciseId, addToSection),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- addExercise reads current exercises state directly; adding it would recreate callback on every state change
     [addToSection]
   );
 

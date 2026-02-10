@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -29,12 +29,9 @@ export function ClientActivityFeed({ coachId, limit = 10 }: ClientActivityFeedPr
   const navigate = useNavigate();
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
-  useEffect(() => {
-    if (coachId) loadActivities();
-  }, [coachId]);
-
-  const loadActivities = async () => {
+  const loadActivities = useCallback(async () => {
     try {
       // Get my clients
       const { data: myClients } = await supabase
@@ -122,7 +119,13 @@ export function ClientActivityFeed({ coachId, limit = 10 }: ClientActivityFeedPr
     } finally {
       setLoading(false);
     }
-  };
+  }, [coachId, limit]);
+
+  useEffect(() => {
+    if (!coachId || hasFetched.current) return;
+    hasFetched.current = true;
+    loadActivities();
+  }, [coachId, loadActivities]);
 
   const getActivityIcon = (type: string) => {
     switch (type) {

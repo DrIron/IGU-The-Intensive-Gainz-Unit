@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,12 +21,9 @@ export function NutritionTargetsCard({ userId }: NutritionTargetsCardProps) {
   const navigate = useNavigate();
   const [targets, setTargets] = useState<NutritionTargets | null>(null);
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
-  useEffect(() => {
-    if (userId) loadNutritionTargets();
-  }, [userId]);
-
-  const loadNutritionTargets = async () => {
+  const loadNutritionTargets = useCallback(async () => {
     try {
       // First try nutrition_phases (for 1:1 clients with coach-managed phases)
       const { data: phase } = await supabase
@@ -68,7 +65,13 @@ export function NutritionTargetsCard({ userId }: NutritionTargetsCardProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || hasFetched.current) return;
+    hasFetched.current = true;
+    loadNutritionTargets();
+  }, [userId, loadNutritionTargets]);
 
   const getGoalLabel = (goal: string) => {
     switch (goal) {

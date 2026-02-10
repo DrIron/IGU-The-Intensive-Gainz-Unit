@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
@@ -26,12 +26,9 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
     weightChange: null,
   });
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
-  useEffect(() => {
-    if (userId) loadWeeklyStats();
-  }, [userId]);
-
-  const loadWeeklyStats = async () => {
+  const loadWeeklyStats = useCallback(async () => {
     try {
       const now = new Date();
       const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
@@ -118,7 +115,13 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [userId]);
+
+  useEffect(() => {
+    if (!userId || hasFetched.current) return;
+    hasFetched.current = true;
+    loadWeeklyStats();
+  }, [userId, loadWeeklyStats]);
 
   const getTrendIcon = () => {
     if (stats.weightTrend === "up") return <TrendingUp className="h-4 w-4 text-orange-500" />;

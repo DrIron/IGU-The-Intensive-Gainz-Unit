@@ -81,55 +81,41 @@ export function DietBreakManager({
       setDietBreaks((data as DietBreak[]) || []);
 
       // Calculate average intake and weight change for maintenance calculation
-      await calculateMaintenanceData();
+      if (clientUserId) {
+        try {
+          const fourWeeksAgo = format(addDays(new Date(), -28), 'yyyy-MM-dd');
+
+          const { data: weightLogs } = await supabase
+            .from('weight_logs')
+            .select('weight_kg, log_date')
+            .eq('phase_id', phase.id)
+            .gte('log_date', fourWeeksAgo)
+            .order('log_date', { ascending: true });
+
+          if (weightLogs && weightLogs.length >= 2) {
+            const firstWeight = weightLogs[0].weight_kg;
+            const lastWeight = weightLogs[weightLogs.length - 1].weight_kg;
+            const days = differenceInDays(
+              new Date(weightLogs[weightLogs.length - 1].log_date),
+              new Date(weightLogs[0].log_date)
+            );
+            const weeks = days / 7;
+            const weeklyChange = weeks > 0 ? (lastWeight - firstWeight) / weeks : 0;
+            setWeeklyWeightChange(Math.round(weeklyChange * 100) / 100);
+          }
+
+          // Use phase daily calories as average intake (simplified)
+          setAvgIntake(phase.daily_calories);
+        } catch (calcError) {
+          console.error('Error calculating maintenance data:', calcError);
+        }
+      }
     } catch (error) {
       console.error('Error loading diet breaks:', error);
     } finally {
       setLoading(false);
     }
-  }, [phase?.id]);
-
-  const calculateMaintenanceData = async () => {
-    if (!phase?.id || !clientUserId) return;
-
-    try {
-      // Get weight logs for last 4 weeks
-      const fourWeeksAgo = format(addDays(new Date(), -28), 'yyyy-MM-dd');
-
-      const { data: weightLogs } = await supabase
-        .from('weight_logs')
-        .select('weight_kg, log_date')
-        .eq('phase_id', phase.id)
-        .gte('log_date', fourWeeksAgo)
-        .order('log_date', { ascending: true });
-
-      if (weightLogs && weightLogs.length >= 2) {
-        // Calculate weekly weight change
-        const firstWeight = weightLogs[0].weight_kg;
-        const lastWeight = weightLogs[weightLogs.length - 1].weight_kg;
-        const days = differenceInDays(
-          new Date(weightLogs[weightLogs.length - 1].log_date),
-          new Date(weightLogs[0].log_date)
-        );
-        const weeks = days / 7;
-        const weeklyChange = weeks > 0 ? (lastWeight - firstWeight) / weeks : 0;
-        setWeeklyWeightChange(Math.round(weeklyChange * 100) / 100);
-      }
-
-      // Use phase daily calories as average intake (simplified)
-      // In a full implementation, this would query adherence_logs for actual intake
-      const intake = phase.daily_calories;
-      setAvgIntake(intake);
-
-      // Calculate maintenance
-      if (weeklyWeightChange !== null) {
-        const maintenance = calculateMaintenanceCalories(intake, weeklyWeightChange);
-        setCalculatedMaintenance(maintenance);
-      }
-    } catch (error) {
-      console.error('Error calculating maintenance data:', error);
-    }
-  };
+  }, [phase?.id, clientUserId, phase?.daily_calories]);
 
   useEffect(() => {
     if (hasFetched.current) return;
