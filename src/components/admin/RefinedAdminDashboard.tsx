@@ -494,8 +494,7 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
           user_id,
           status,
           payment_failed_at,
-          next_billing_date,
-          profiles!inner(email, first_name, last_name, full_name)
+          next_billing_date
         `)
         .not('payment_failed_at', 'is', null)
         .order('payment_failed_at', { ascending: false })
@@ -512,7 +511,6 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
           user_id,
           next_billing_date,
           status,
-          profiles!inner(email, first_name, last_name, full_name),
           services!inner(name, price_kwd)
         `)
         .eq('status', 'active')
@@ -523,6 +521,17 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
         .limit(5);
 
       if (renewalsError) throw renewalsError;
+
+      // Fetch profiles separately for payment problems + renewals (profiles is a VIEW, FK joins fail)
+      const wqUserIds = [...new Set([
+        ...(paymentProblems || []).map(p => p.user_id),
+        ...(upcomingRenewals || []).map(r => r.user_id),
+      ])];
+      const { data: wqProfiles } = await supabase
+        .from("profiles")
+        .select("id, email, first_name, last_name, full_name")
+        .in("id", wqUserIds);
+      const wqProfileMap = new Map((wqProfiles || []).map(p => [p.id, p]));
 
       setWorkQueue({
         pendingApprovals: pendingProfiles?.map(p => ({
@@ -537,18 +546,24 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
           email: l.email,
           subtitle: getMissingLegalDocs(l),
         })) || [],
-        paymentProblems: paymentProblems?.map((p: any) => ({
-          id: p.id,
-          name: p.profiles?.full_name || `${p.profiles?.first_name || ''} ${p.profiles?.last_name || ''}`.trim() || p.profiles?.email,
-          email: p.profiles?.email,
-          subtitle: `Failed ${formatDate(new Date(p.payment_failed_at), 'MMM d')}`,
-        })) || [],
-        upcomingRenewals: upcomingRenewals?.map((r: any) => ({
-          id: r.id,
-          name: r.profiles?.full_name || `${r.profiles?.first_name || ''} ${r.profiles?.last_name || ''}`.trim() || r.profiles?.email,
-          email: r.profiles?.email,
-          subtitle: `Renews ${formatDate(new Date(r.next_billing_date), 'MMM d')} - ${r.services?.price_kwd} KWD`,
-        })) || [],
+        paymentProblems: paymentProblems?.map((p: any) => {
+          const prof = wqProfileMap.get(p.user_id);
+          return {
+            id: p.id,
+            name: prof?.full_name || `${prof?.first_name || ''} ${prof?.last_name || ''}`.trim() || prof?.email,
+            email: prof?.email,
+            subtitle: `Failed ${formatDate(new Date(p.payment_failed_at), 'MMM d')}`,
+          };
+        }) || [],
+        upcomingRenewals: upcomingRenewals?.map((r: any) => {
+          const prof = wqProfileMap.get(r.user_id);
+          return {
+            id: r.id,
+            name: prof?.full_name || `${prof?.first_name || ''} ${prof?.last_name || ''}`.trim() || prof?.email,
+            email: prof?.email,
+            subtitle: `Renews ${formatDate(new Date(r.next_billing_date), 'MMM d')} - ${r.services?.price_kwd} KWD`,
+          };
+        }) || [],
       });
     } catch (error: any) {
       console.error('Error fetching work queue:', error);

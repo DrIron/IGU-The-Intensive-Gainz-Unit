@@ -180,15 +180,19 @@ export function PayoutRatesManager() {
 
       const serviceMap = new Map(services?.map(s => [s.id, { type: s.type, name: s.name }]) || []);
 
-      // Get active subscriptions with non-exempt profiles
+      // Get active subscriptions
       const { data: subscriptions } = await supabase
         .from("subscriptions")
-        .select(`
-          coach_id,
-          service_id,
-          profiles!inner(payment_exempt)
-        `)
+        .select("coach_id, service_id, user_id")
         .eq("status", "active");
+
+      // Fetch payment_exempt separately (profiles is a VIEW, FK joins fail)
+      const payoutUserIds = [...new Set((subscriptions || []).map(s => s.user_id))];
+      const { data: payoutProfiles } = await supabase
+        .from("profiles")
+        .select("id, payment_exempt")
+        .in("id", payoutUserIds);
+      const payoutExemptMap = new Map((payoutProfiles || []).map(p => [p.id, p.payment_exempt]));
 
       // Get active add-ons for staff payout
       const { data: addons } = await supabase
@@ -210,7 +214,7 @@ export function PayoutRatesManager() {
 
       // Count clients and calculate payouts using NEW formula
       subscriptions?.forEach(sub => {
-        if (!sub.coach_id || (sub.profiles as any)?.payment_exempt) return;
+        if (!sub.coach_id || payoutExemptMap.get(sub.user_id)) return;
 
         const stats = coachStats.get(sub.coach_id);
         if (!stats) return;

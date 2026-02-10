@@ -260,15 +260,23 @@ export function CoachPaymentCalculator() {
 
       const { data: subscriptions } = await supabase
         .from('subscriptions')
-        .select('coach_id, service_id, user_id, profiles!inner(payment_exempt)')
+        .select('coach_id, service_id, user_id')
         .eq('status', 'active');
+
+      // Fetch payment_exempt separately (profiles is a VIEW, FK joins fail)
+      const subUserIds = [...new Set((subscriptions || []).map(s => s.user_id))];
+      const { data: exemptProfiles } = await supabase
+        .from("profiles")
+        .select("id, payment_exempt")
+        .in("id", subUserIds);
+      const exemptMap = new Map((exemptProfiles || []).map(p => [p.id, p.payment_exempt]));
 
       const coachClientCounts = new Map<string, ServiceBreakdown>();
       const coachGrossRevenue = new Map<string, number>();
       const coachPayout = new Map<string, number>();
 
       subscriptions?.forEach(sub => {
-        const isPaymentExempt = (sub.profiles as any)?.payment_exempt;
+        const isPaymentExempt = exemptMap.get(sub.user_id);
         
         if (!sub.coach_id || isPaymentExempt) return;
 

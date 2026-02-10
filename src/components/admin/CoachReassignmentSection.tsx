@@ -79,16 +79,22 @@ export function CoachReassignmentSection({
         // Using the correct definition: profiles.status='active' AND subscriptions.status='active'
         const { data: activeSubs } = await supabase
           .from('subscriptions')
-          .select(`
-            id,
-            profiles!inner(status)
-          `)
+          .select('id, user_id')
           .eq('coach_id', coach.user_id)
           .eq('service_id', serviceId)
-          .eq('status', 'active')
-          .eq('profiles.status', 'active');
+          .eq('status', 'active');
 
-        const currentClients = activeSubs?.length || 0;
+        // Filter to only clients with active profiles (profiles is a VIEW, FK joins fail)
+        let currentClients = 0;
+        if (activeSubs && activeSubs.length > 0) {
+          const reassignUserIds = activeSubs.map(s => s.user_id);
+          const { data: reassignProfiles } = await supabase
+            .from("profiles")
+            .select("id, status")
+            .in("id", reassignUserIds)
+            .eq("status", "active");
+          currentClients = reassignProfiles?.length || 0;
+        }
         const isCurrent = coach.user_id === currentCoachId;
 
         if (isCurrent) {

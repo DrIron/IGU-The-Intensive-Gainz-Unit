@@ -58,14 +58,22 @@ export function CoachEarningsSummary() {
       // Get current client count
       const { data: subscriptions } = await supabase
         .from("subscriptions")
-        .select("id, profiles!inner(payment_exempt)")
+        .select("id, user_id")
         .eq("coach_id", user.id)
         .eq("status", "active");
+
+      // Fetch payment_exempt separately (profiles is a VIEW, FK joins fail)
+      const earningsUserIds = [...new Set((subscriptions || []).map(s => s.user_id))];
+      const { data: earningsProfiles } = await supabase
+        .from("profiles")
+        .select("id, payment_exempt")
+        .in("id", earningsUserIds);
+      const earningsExemptMap = new Map((earningsProfiles || []).map(p => [p.id, p.payment_exempt]));
 
       const paidTotal = payments?.filter(p => p.is_paid).reduce((sum, p) => sum + p.total_payment, 0) || 0;
       const pendingTotal = payments?.filter(p => !p.is_paid).reduce((sum, p) => sum + p.total_payment, 0) || 0;
       const addonEarnings = addons?.reduce((sum, a) => sum + (a.payout_kwd || 0), 0) || 0;
-      const clientCount = subscriptions?.filter(s => !(s.profiles as any)?.payment_exempt).length || 0;
+      const clientCount = subscriptions?.filter(s => !earningsExemptMap.get(s.user_id)).length || 0;
 
       // Current month estimate is the most recent payment record (pending)
       const currentEstimate = payments?.length ? payments[0]?.total_payment || 0 : 0;

@@ -161,22 +161,36 @@ export function SystemHealthView() {
         .from("subscriptions")
         .select(`
           id, user_id, status, start_date,
-          services (name),
-          profiles!inner (id, email, full_name, first_name, last_name, status)
+          services (name)
         `)
-        .eq("status", "active")
-        .neq("profiles.status", "active");
+        .eq("status", "active");
 
-      const activeSubNoProfileArr: Issue[] = (activeSubs || []).map((sub: any) => ({
-        id: sub.id,
-        severity: "critical" as Severity, // Always critical - status mismatch
-        name: sub.profiles?.full_name || `${sub.profiles?.first_name || ""} ${sub.profiles?.last_name || ""}`.trim() || "Unknown",
-        email: sub.profiles?.email,
-        profileStatus: sub.profiles?.status,
-        serviceName: sub.services?.name || "Unknown",
-        subscriptionStatus: sub.status,
-        startDate: sub.start_date,
-      }));
+      // Fetch profiles separately (profiles is a VIEW, FK joins fail)
+      const activeSubUserIds = [...new Set((activeSubs || []).map(s => s.user_id))];
+      const { data: activeSubProfiles } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, first_name, last_name, status")
+        .in("id", activeSubUserIds);
+      const activeSubProfileMap = new Map((activeSubProfiles || []).map(p => [p.id, p]));
+
+      const activeSubNoProfileArr: Issue[] = (activeSubs || [])
+        .filter((sub: any) => {
+          const profile = activeSubProfileMap.get(sub.user_id);
+          return profile && profile.status !== "active";
+        })
+        .map((sub: any) => {
+          const profile = activeSubProfileMap.get(sub.user_id);
+          return {
+            id: sub.id,
+            severity: "critical" as Severity,
+            name: profile?.full_name || `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "Unknown",
+            email: profile?.email,
+            profileStatus: profile?.status,
+            serviceName: sub.services?.name || "Unknown",
+            subscriptionStatus: sub.status,
+            startDate: sub.start_date,
+          };
+        });
       setActiveSubNoProfile(activeSubNoProfileArr);
 
       // 3. Pending payment - now with severity based on days (3-7 = warning, >7 = critical)
@@ -227,24 +241,38 @@ export function SystemHealthView() {
         .from("subscriptions")
         .select(`
           id, user_id, status, start_date, tap_customer_id, tap_card_id,
-          services (name),
-          profiles!inner (id, email, full_name, first_name, last_name, payment_exempt)
+          services (name)
         `)
         .eq("status", "active")
-        .is("next_billing_date", null)
-        .eq("profiles.payment_exempt", false);
+        .is("next_billing_date", null);
 
-      const noNextBillingArr: Issue[] = (noNextBilling || []).map((sub: any) => ({
-        id: sub.id,
-        severity: "critical" as Severity, // Billing will break
-        userId: sub.user_id,
-        name: sub.profiles?.full_name || `${sub.profiles?.first_name || ""} ${sub.profiles?.last_name || ""}`.trim() || "Unknown",
-        email: sub.profiles?.email,
-        serviceName: sub.services?.name || "Unknown",
-        startDate: sub.start_date,
-        tapCustomerId: sub.tap_customer_id || "Not set",
-        tapCardId: sub.tap_card_id || "Not set",
-      }));
+      // Fetch profiles separately and filter out payment_exempt
+      const noBillingUserIds = [...new Set((noNextBilling || []).map(s => s.user_id))];
+      const { data: noBillingProfiles } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, first_name, last_name, payment_exempt")
+        .in("id", noBillingUserIds);
+      const noBillingProfileMap = new Map((noBillingProfiles || []).map(p => [p.id, p]));
+
+      const noNextBillingArr: Issue[] = (noNextBilling || [])
+        .filter((sub: any) => {
+          const profile = noBillingProfileMap.get(sub.user_id);
+          return !profile?.payment_exempt;
+        })
+        .map((sub: any) => {
+          const profile = noBillingProfileMap.get(sub.user_id);
+          return {
+            id: sub.id,
+            severity: "critical" as Severity,
+            userId: sub.user_id,
+            name: profile?.full_name || `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || "Unknown",
+            email: profile?.email,
+            serviceName: sub.services?.name || "Unknown",
+            startDate: sub.start_date,
+            tapCustomerId: sub.tap_customer_id || "Not set",
+            tapCardId: sub.tap_card_id || "Not set",
+          };
+        });
       setActiveNoNextBilling(noNextBillingArr);
 
     } catch (error) {
@@ -262,12 +290,19 @@ export function SystemHealthView() {
         .from("subscriptions")
         .select(`
           id, user_id, status, created_at, start_date,
-          services!inner (id, name, type),
-          profiles!inner (id, email, full_name, first_name, last_name)
+          services!inner (id, name, type)
         `)
         .eq("services.type", "one_to_one")
         .in("status", ["pending", "active"])
         .is("coach_id", null);
+
+      // Fetch profiles separately for no-coach subs
+      const noCoachUserIds = [...new Set((noCoachSubs || []).map(s => s.user_id))];
+      const { data: noCoachProfiles } = await supabase
+        .from("profiles")
+        .select("id, email, full_name, first_name, last_name")
+        .in("id", noCoachUserIds);
+      const noCoachProfileMap = new Map((noCoachProfiles || []).map(p => [p.id, p]));
 
       const noCoachArr: Issue[] = [];
       for (const sub of noCoachSubs || []) {
@@ -282,16 +317,17 @@ export function SystemHealthView() {
         // Active 1:1 without coach is critical, pending is warning
         const severity: Severity = (sub as any).status === "active" ? "critical" : "warning";
 
+        const ncProfile = noCoachProfileMap.get((sub as any).user_id);
         noCoachArr.push({
           id: (sub as any).id,
           severity,
-          name: (sub as any).profiles?.full_name || `${(sub as any).profiles?.first_name || ""} ${(sub as any).profiles?.last_name || ""}`.trim() || "Unknown",
-          email: (sub as any).profiles?.email,
+          name: ncProfile?.full_name || `${ncProfile?.first_name || ""} ${ncProfile?.last_name || ""}`.trim() || "Unknown",
+          email: ncProfile?.email,
           serviceName: (sub as any).services?.name || "Unknown",
           subscriptionStatus: (sub as any).status,
           createdAt: (sub as any).created_at,
-          preferredCoach: formSubmission?.coaches 
-            ? `${(formSubmission.coaches as any).first_name || ""} ${(formSubmission.coaches as any).last_name || ""}`.trim() 
+          preferredCoach: formSubmission?.coaches
+            ? `${(formSubmission.coaches as any).first_name || ""} ${(formSubmission.coaches as any).last_name || ""}`.trim()
             : "None specified",
         });
       }

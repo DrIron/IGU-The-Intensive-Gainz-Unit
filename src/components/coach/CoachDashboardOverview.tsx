@@ -219,21 +219,27 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
           nutrition_phases!inner(
             id,
             user_id,
-            coach_id,
-            profiles!inner(first_name, last_name, full_name)
+            coach_id
           )
         `)
         .eq("nutrition_phases.coach_id", coachUserId)
         .order("created_at", { ascending: false })
         .limit(5);
 
-      recentAdjustments?.forEach(adj => {
-        const profile = (adj.nutrition_phases as any)?.profiles;
-        const clientName = profile?.full_name || 
-          (profile?.first_name && profile?.last_name 
-            ? `${profile.first_name} ${profile.last_name}` 
-            : 'Unknown');
-        
+      for (const adj of recentAdjustments || []) {
+        const userId = (adj.nutrition_phases as any)?.user_id;
+        let clientName = 'Unknown';
+        if (userId) {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("first_name, last_name, full_name")
+            .eq("id", userId)
+            .maybeSingle();
+          clientName = profile?.full_name ||
+            (profile?.first_name && profile?.last_name
+              ? `${profile.first_name} ${profile.last_name}`
+              : 'Unknown');
+        }
         recentActivity.push({
           id: adj.id,
           type: 'nutrition_update',
@@ -241,7 +247,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
           timestamp: adj.created_at,
           description: `Nutrition adjustment ${adj.status}`,
         });
-      });
+      }
 
       // Sort by timestamp
       recentActivity.sort((a, b) => 

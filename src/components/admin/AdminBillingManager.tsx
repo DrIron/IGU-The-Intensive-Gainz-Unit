@@ -118,7 +118,6 @@ export function AdminBillingManager() {
           past_due_since,
           grace_period_days,
           billing_amount_kwd,
-          profiles!inner (id, first_name, email, status, payment_exempt),
           services (name, price_kwd)
         `)
         .in("status", ["active", "past_due", "pending", "inactive"])
@@ -126,10 +125,17 @@ export function AdminBillingManager() {
 
       if (error) throw error;
 
-      // Handle the join result properly
+      // Fetch profiles separately (profiles is a VIEW, FK joins fail)
+      const userIds = [...new Set((data || []).map(s => s.user_id))];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, first_name, email, status, payment_exempt")
+        .in("id", userIds);
+      const profileMap = new Map((profilesData || []).map(p => [p.id, p]));
+
       const processedData = (data || []).map(sub => ({
         ...sub,
-        profiles: Array.isArray(sub.profiles) ? sub.profiles[0] : sub.profiles,
+        profiles: profileMap.get(sub.user_id) || null,
         services: Array.isArray(sub.services) ? sub.services[0] : sub.services,
       })) as BillingClient[];
 

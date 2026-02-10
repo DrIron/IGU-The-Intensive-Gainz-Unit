@@ -93,12 +93,6 @@ export function ClientBillingManager() {
           total_price_kwd,
           billing_amount_kwd,
           next_billing_date,
-          profile:profiles!subscriptions_user_id_fkey(
-            first_name,
-            last_name,
-            email,
-            payment_exempt
-          ),
           service:services!subscriptions_service_id_fkey(
             name,
             price_kwd,
@@ -109,6 +103,19 @@ export function ClientBillingManager() {
         .order("created_at", { ascending: false });
 
       if (subsError) throw subsError;
+
+      // Fetch profiles separately (profiles is a VIEW, FK joins fail)
+      const subsUserIds = [...new Set((subsData || []).map(s => s.user_id))];
+      const { data: profilesData } = await supabase
+        .from("profiles")
+        .select("id, first_name, last_name, email, payment_exempt")
+        .in("id", subsUserIds);
+      const profileMap = new Map((profilesData || []).map(p => [p.id, p]));
+
+      // Attach profiles to subscriptions
+      subsData?.forEach((sub: any) => {
+        sub.profile = profileMap.get(sub.user_id) || null;
+      });
 
       // Load addons for all subscriptions
       const subIds = subsData?.map(s => s.id) || [];
