@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +12,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { IguLogo } from "@/components/IguLogo";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthNavigation } from "@/hooks/useAuthNavigation";
@@ -42,6 +44,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const { toast } = useToast();
   const { goToAuthOrDashboard } = useAuthNavigation();
   const { signOutWithCleanup } = useAuthCleanup();
+  const { t } = useTranslation('nav');
 
   // Use the same auth hooks as RoleProtectedRoute for consistency
   const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
@@ -169,16 +172,16 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
     ? [] // Admin and coach use sidebar navigation, not top nav
     : user
     ? [
-        { label: "Home", path: "/" },
-        { label: "Services", path: "/services" },
-        { label: "Nutrition", path: "/nutrition" },
-        { label: "Our Team", path: "/meet-our-team" },
+        { label: t('home'), path: "/" },
+        { label: t('services'), path: "/services" },
+        { label: t('nutrition'), path: "/nutrition" },
+        { label: t('ourTeam'), path: "/meet-our-team" },
       ]
     : [
-        { label: "Home", path: "/" },
-        { label: "Services", path: "/services" },
-        { label: "Calculator", path: "/calorie-calculator" },
-        { label: "Our Team", path: "/meet-our-team" },
+        { label: t('home'), path: "/" },
+        { label: t('services'), path: "/services" },
+        { label: t('calculator'), path: "/calorie-calculator" },
+        { label: t('ourTeam'), path: "/meet-our-team" },
       ];
 
   // Mobile menu items by role
@@ -186,10 +189,10 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
     if (!user) {
       // Logged out
       return [
-        { label: "Home", path: "/", icon: Home },
-        { label: "Services", path: "/services", icon: FileText },
-        { label: "Calculator", path: "/calorie-calculator", icon: Calculator },
-        { label: "Our Team", path: "/meet-our-team", icon: Users },
+        { label: t('home'), path: "/", icon: Home },
+        { label: t('services'), path: "/services", icon: FileText },
+        { label: t('calorieCalculator'), path: "/calorie-calculator", icon: Calculator },
+        { label: t('ourTeam'), path: "/meet-our-team", icon: Users },
       ];
     }
 
@@ -197,13 +200,13 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
       // Admin menu - admin pages only, no coach pages in admin nav
       return {
         admin: [
-          { label: "Overview", path: "/admin/dashboard", icon: LayoutDashboard },
-          { label: "Client Directory", path: "/admin/clients", icon: Users },
-          { label: "Coaches", path: "/admin/coaches", icon: UserCog },
-          { label: "Testimonials", path: "/admin/testimonials", icon: MessageSquare },
-          { label: "Content Library", path: "/admin/exercises", icon: Library },
-          { label: "Discounts", path: "/admin/discount-codes", icon: DollarSign },
-          { label: "Discord & Legal", path: "/admin/discord-legal", icon: Shield },
+          { label: t('overview'), path: "/admin/dashboard", icon: LayoutDashboard },
+          { label: t('clientDirectory'), path: "/admin/clients", icon: Users },
+          { label: t('coaches'), path: "/admin/coaches", icon: UserCog },
+          { label: t('testimonials'), path: "/admin/testimonials", icon: MessageSquare },
+          { label: t('contentLibrary'), path: "/admin/exercises", icon: Library },
+          { label: t('discounts'), path: "/admin/discount-codes", icon: DollarSign },
+          { label: t('discordLegal'), path: "/admin/discord-legal", icon: Shield },
         ],
       };
     }
@@ -212,11 +215,11 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
       // Coach menu - coach pages only, NO admin pages
       return {
         coach: [
-          { label: "Dashboard", path: "/coach/dashboard", icon: LayoutDashboard },
-          { label: "My Clients", path: "/coach/clients", icon: Users },
-          { label: "Pending Approvals", path: "/coach/clients?filter=pending", icon: UserCheck },
-          { label: "Programs", path: "/coach/programs", icon: Shield },
-          { label: "My Profile", path: "/coach/profile", icon: UserCog },
+          { label: t('dashboard'), path: "/coach/dashboard", icon: LayoutDashboard },
+          { label: t('myClients'), path: "/coach/clients", icon: Users },
+          { label: t('pendingApprovals'), path: "/coach/clients?filter=pending", icon: UserCheck },
+          { label: t('programs'), path: "/coach/programs", icon: Shield },
+          { label: t('myProfile'), path: "/coach/profile", icon: UserCog },
         ],
       };
     }
@@ -224,12 +227,12 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
     // Client - use direct paths to avoid double navigation
     return {
       client: [
-        { label: "Dashboard", path: "/dashboard", section: "overview", icon: LayoutDashboard },
-        { label: "My Subscription", path: "/dashboard", section: "subscription", icon: CreditCard },
-        { label: "Nutrition", path: "/nutrition", icon: Apple },
-        { label: "Exercise Library", path: "/workout-library", icon: Library },
-        { label: "Videos", path: "/educational-videos", icon: Video },
-        { label: "Profile", path: "/dashboard", section: "profile", icon: User },
+        { label: t('dashboard'), path: "/dashboard", section: "overview", icon: LayoutDashboard },
+        { label: t('mySubscription'), path: "/dashboard", section: "subscription", icon: CreditCard },
+        { label: t('nutrition'), path: "/nutrition", icon: Apple },
+        { label: t('exerciseLibrary'), path: "/workout-library", icon: Library },
+        { label: t('videos'), path: "/educational-videos", icon: Video },
+        { label: t('profile'), path: "/dashboard", section: "profile", icon: User },
       ],
     };
   };
@@ -241,10 +244,10 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
       // Admin sections - admin pages only
       return {
         admin: [
-          { label: "Overview", path: "/admin/dashboard" },
-          { label: "Client Directory", path: "/admin/clients" },
-          { label: "Coaches", path: "/admin/coaches" },
-          { label: "Pricing & Payouts", path: "/admin/pricing-payouts" },
+          { label: t('overview'), path: "/admin/dashboard" },
+          { label: t('clientDirectory'), path: "/admin/clients" },
+          { label: t('coaches'), path: "/admin/coaches" },
+          { label: t('pricingPayouts'), path: "/admin/pricing-payouts" },
         ],
         coach: [], // STRICT: Admins must use separate coach account to access coach routes
         client: []
@@ -256,10 +259,10 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
       return {
         admin: [], // Coach cannot see admin pages
         coach: [
-          { label: "Overview", path: "/coach/dashboard" },
-          { label: "My Clients", path: "/coach/clients" },
-          { label: "Sessions", path: "/coach/sessions" },
-          { label: "My Profile", path: "/coach/profile" },
+          { label: t('overview'), path: "/coach/dashboard" },
+          { label: t('myClients'), path: "/coach/clients" },
+          { label: t('sessions'), path: "/coach/sessions" },
+          { label: t('myProfile'), path: "/coach/profile" },
         ],
         client: []
       };
@@ -270,15 +273,15 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
       admin: [],
       coach: [],
       client: [
-        { label: "Overview", section: "overview" },
-        { label: "Nutrition", section: "nutrition" },
+        { label: t('overview'), section: "overview" },
+        { label: t('nutrition'), section: "nutrition" },
       ]
     };
   };
 
   const userLinks = [
-    { label: "Workout Library", path: "/workout-library" },
-    { label: "Account", path: "/account" }
+    { label: t('workoutLibrary'), path: "/workout-library" },
+    { label: t('account'), path: "/account" }
   ];
 
   const mobileMenuItems = getMobileMenuItems();
@@ -287,7 +290,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   // Derive member status badge and tone
   const getMemberStatus = () => {
     if (!profile) return null;
-    
+
     // Admin and coach roles don't have client subscriptions - no status badge needed
     if (activeRole === 'admin' || activeRole === 'coach') return null;
 
@@ -297,32 +300,32 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
     const serviceType = subscription?.services?.type;
     const hasSubscription = !!subscription;
 
-    let label = "Status: Unknown";
+    let label = t('statusUnknown');
     let tone: "pending" | "active" | "danger" | "info" = "info";
 
     if (profileStatus === "pending" && !hasSubscription) {
-      label = "Pending Onboarding";
+      label = t('statusPendingOnboarding');
       tone = "pending";
     } else if (profileStatus === "needs_medical_review") {
-      label = "Medical Review";
+      label = t('statusMedicalReview');
       tone = "pending";
     } else if (profileStatus === "pending_coach_approval") {
-      label = "Pending Coach Approval";
+      label = t('statusPendingCoachApproval');
       tone = "pending";
     } else if (profileStatus === "pending_payment") {
-      label = "Pending Payment";
+      label = t('statusPendingPayment');
       tone = "pending";
     } else if (profileStatus === "active" && subStatus === "active") {
-      label = serviceName ? `Active: ${serviceName}` : "Active";
+      label = serviceName ? t('statusActiveWith', { serviceName }) : t('statusActive');
       tone = "active";
     } else if (profileStatus === "inactive" || subStatus === "inactive") {
-      label = "Inactive";
+      label = t('statusInactive');
       tone = "danger";
     } else if (profileStatus === "cancelled" || profileStatus === "expired") {
-      label = "Ended";
+      label = t('statusEnded');
       tone = "danger";
     } else if (profileStatus === "suspended") {
-      label = "Suspended";
+      label = t('statusSuspended');
       tone = "danger";
     }
 
@@ -334,12 +337,12 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   // Get user roles for display
   const getRoleLabel = () => {
     if (!detectedRole) return null;
-    
+
     const roles = [];
-    if (activeRole === 'admin') roles.push('Admin');
-    if (activeRole === 'coach') roles.push('Coach');
-    if (roles.length === 0) roles.push('Member');
-    
+    if (activeRole === 'admin') roles.push(t('admin'));
+    if (activeRole === 'coach') roles.push(t('coach'));
+    if (roles.length === 0) roles.push(t('member'));
+
     return roles.join(' & ');
   };
 
@@ -378,14 +381,15 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                   {link.label}
                 </Link>
               ))}
+              <LanguageSwitcher />
               {user ? (
                 <>
                   {memberStatus && (
-                    <Badge 
+                    <Badge
                       variant={
-                        memberStatus.tone === "active" ? "default" : 
-                        memberStatus.tone === "pending" ? "outline" : 
-                        memberStatus.tone === "danger" ? "destructive" : 
+                        memberStatus.tone === "active" ? "default" :
+                        memberStatus.tone === "pending" ? "outline" :
+                        memberStatus.tone === "danger" ? "destructive" :
                         "secondary"
                       }
                       className="text-xs px-2 py-1"
@@ -397,7 +401,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="gap-1">
                         <User className="h-4 w-4" />
-                        Menu
+                        {t('common:menu')}
                         <ChevronDown className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -405,16 +409,16 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                       {roleLabel && (
                         <>
                           <DropdownMenuLabel className="text-muted-foreground text-xs">
-                            Role: <span className="font-semibold text-foreground">{roleLabel}</span>
+                            {t('role')}: <span className="font-semibold text-foreground">{roleLabel}</span>
                           </DropdownMenuLabel>
                           <DropdownMenuSeparator />
                         </>
                       )}
                       {dashboardSections.admin.length > 0 && (
                         <>
-                          <DropdownMenuLabel className="text-muted-foreground text-xs uppercase tracking-wider">Admin Pages</DropdownMenuLabel>
+                          <DropdownMenuLabel className="text-muted-foreground text-xs uppercase tracking-wider">{t('adminPages')}</DropdownMenuLabel>
                           {dashboardSections.admin.map((item: any) => (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               key={item.path}
                               onClick={() => navigate(item.path)}
                               className="cursor-pointer"
@@ -427,9 +431,9 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                       )}
                       {dashboardSections.coach.length > 0 && (
                         <>
-                          <DropdownMenuLabel className="text-muted-foreground text-xs uppercase tracking-wider">Coach Pages</DropdownMenuLabel>
+                          <DropdownMenuLabel className="text-muted-foreground text-xs uppercase tracking-wider">{t('coachPages')}</DropdownMenuLabel>
                           {dashboardSections.coach.map((item: any) => (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               key={item.path}
                               onClick={() => navigate(item.path)}
                               className="cursor-pointer"
@@ -442,14 +446,14 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                       )}
                       {dashboardSections.client.length > 0 && (
                         <>
-                          <DropdownMenuLabel className="text-muted-foreground text-xs uppercase tracking-wider">Dashboard</DropdownMenuLabel>
+                          <DropdownMenuLabel className="text-muted-foreground text-xs uppercase tracking-wider">{t('dashboard')}</DropdownMenuLabel>
                           <DropdownMenuItem asChild>
                             <Link to="/dashboard" className="cursor-pointer">
-                              Dashboard
+                              {t('dashboard')}
                             </Link>
                           </DropdownMenuItem>
                           {dashboardSections.client.map((item) => (
-                            <DropdownMenuItem 
+                            <DropdownMenuItem
                               key={item.section}
                               onClick={() => {
                                 if (onSectionChange) {
@@ -460,8 +464,8 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                                 }
                               }}
                               className={`cursor-pointer ${
-                                activeSection === item.section 
-                                  ? 'bg-primary/10 text-primary font-medium' 
+                                activeSection === item.section
+                                  ? 'bg-primary/10 text-primary font-medium'
                                   : ''
                               }`}
                             >
@@ -480,33 +484,36 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                       ))}
                       <DropdownMenuSeparator />
                       <DropdownMenuItem onClick={handleSignOut} className="cursor-pointer">
-                        Sign Out
+                        {t('common:signOut')}
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </>
               ) : (
                 <Button onClick={() => goToAuthOrDashboard(user)} variant="default">
-                  Sign In
+                  {t('common:signIn')}
                 </Button>
               )}
             </div>
 
             {/* Mobile Menu Button - Only visible on mobile */}
-            <button
-              className="md:hidden p-2 rounded-lg hover:bg-muted transition-colors"
-              onClick={() => setMobileMenuOpen(true)}
-              aria-label="Open menu"
-            >
-              <Menu className="h-6 w-6" />
-            </button>
+            <div className="flex items-center gap-2 md:hidden">
+              <LanguageSwitcher />
+              <button
+                className="p-2 rounded-lg hover:bg-muted transition-colors"
+                onClick={() => setMobileMenuOpen(true)}
+                aria-label={t('openMenu')}
+              >
+                <Menu className="h-6 w-6" />
+              </button>
+            </div>
           </div>
         </div>
       </nav>
 
       {/* Mobile Menu - Full screen overlay with proper z-index */}
       {mobileMenuOpen && (
-        <div 
+        <div
           className="fixed inset-0 z-[9999] md:hidden"
           role="dialog"
           aria-modal="true"
@@ -517,9 +524,9 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
             onClick={() => setMobileMenuOpen(false)}
             aria-hidden="true"
           />
-          
+
           {/* Slide-in panel from right */}
-          <div 
+          <div
             className="absolute top-0 right-0 h-full w-[85vw] max-w-[320px] bg-background shadow-2xl flex flex-col animate-slide-in-right"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
@@ -531,7 +538,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
               <button
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2 hover:bg-muted rounded-lg transition-colors"
-                aria-label="Close menu"
+                aria-label={t('closeMenu')}
               >
                 <X className="h-5 w-5" />
               </button>
@@ -549,7 +556,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Home className="h-5 w-5 text-muted-foreground" />
-                      Home
+                      {t('home')}
                     </Link>
                     <Link
                       to="/services"
@@ -557,7 +564,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <FileText className="h-5 w-5 text-muted-foreground" />
-                      Services
+                      {t('services')}
                     </Link>
                     <Link
                       to="/calorie-calculator"
@@ -565,7 +572,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Calculator className="h-5 w-5 text-muted-foreground" />
-                      Calorie Calculator
+                      {t('calorieCalculator')}
                     </Link>
                     <Link
                       to="/meet-our-team"
@@ -573,22 +580,22 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                       onClick={() => setMobileMenuOpen(false)}
                     >
                       <Users className="h-5 w-5 text-muted-foreground" />
-                      Our Team
+                      {t('ourTeam')}
                     </Link>
                   </>
                 )}
-                
+
                 {/* Logged in menu */}
                 {user && (
                   <>
                     {/* Status badge */}
                     {memberStatus && (
                       <div className="px-5 py-3 border-b border-border">
-                        <Badge 
+                        <Badge
                           variant={
-                            memberStatus.tone === "active" ? "default" : 
-                            memberStatus.tone === "pending" ? "outline" : 
-                            memberStatus.tone === "danger" ? "destructive" : 
+                            memberStatus.tone === "active" ? "default" :
+                            memberStatus.tone === "pending" ? "outline" :
+                            memberStatus.tone === "danger" ? "destructive" :
                             "secondary"
                           }
                           className="text-xs px-2 py-1"
@@ -607,7 +614,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                     {!Array.isArray(mobileMenuItems) && mobileMenuItems.admin && (
                       <>
                         <div className="px-5 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/30">
-                          Admin
+                          {t('admin')}
                         </div>
                         {mobileMenuItems.admin.map((item: any) => {
                           const Icon = item.icon;
@@ -636,7 +643,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                     {!Array.isArray(mobileMenuItems) && mobileMenuItems.coach && (
                       <>
                         <div className="px-5 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/30 mt-1">
-                          Coach
+                          {t('coach')}
                         </div>
                         {mobileMenuItems.coach.map((item: any) => {
                           const Icon = item.icon;
@@ -665,15 +672,15 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                     {!Array.isArray(mobileMenuItems) && mobileMenuItems.client && (
                       <>
                         <div className="px-5 py-2 text-xs font-semibold text-muted-foreground uppercase tracking-wider border-b border-border/50 bg-muted/30">
-                          Dashboard
+                          {t('dashboard')}
                         </div>
                         {mobileMenuItems.client.map((item: any) => {
                           const Icon = item.icon;
                           // Build the final URL - single navigation target
-                          const targetUrl = item.section 
-                            ? `${item.path}?section=${item.section}` 
+                          const targetUrl = item.section
+                            ? `${item.path}?section=${item.section}`
                             : item.path;
-                          
+
                           return (
                             <Link
                               key={item.label}
@@ -698,7 +705,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                         })}
                       </>
                     )}
-                    
+
                     {/* Settings links */}
                     <div className="border-t border-border mt-2 pt-2">
                       <Link
@@ -707,7 +714,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         <Dumbbell className="h-4 w-4 text-muted-foreground" />
-                        Workout Library
+                        {t('workoutLibrary')}
                       </Link>
                       <Link
                         to="/account"
@@ -715,19 +722,19 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                         onClick={() => setMobileMenuOpen(false)}
                       >
                         <Settings className="h-4 w-4 text-muted-foreground" />
-                        Account
+                        {t('account')}
                       </Link>
                     </div>
                   </>
                 )}
               </div>
             </div>
-            
+
             {/* Fixed bottom section with auth CTA */}
             <div className="shrink-0 px-5 py-4 border-t border-border bg-background">
               {user ? (
                 <div className="space-y-3">
-                  <Button 
+                  <Button
                     onClick={() => {
                       navigate("/dashboard");
                       setMobileMenuOpen(false);
@@ -736,10 +743,10 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                     className="w-full"
                   >
                     <LayoutDashboard className="h-4 w-4 mr-2" />
-                    Go to Dashboard
+                    {t('goToDashboard')}
                   </Button>
                   <Button onClick={handleSignOut} variant="outline" className="w-full">
-                    Sign Out
+                    {t('common:signOut')}
                   </Button>
                 </div>
               ) : (
@@ -752,7 +759,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                     variant="default"
                     className="w-full"
                   >
-                    Log In / Client Dashboard
+                    {t('logInDashboard')}
                   </Button>
                   <button
                     onClick={() => {
@@ -761,7 +768,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                     }}
                     className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors text-center py-2"
                   >
-                    Become a Client
+                    {t('becomeClient')}
                   </button>
                 </div>
               )}

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { Instagram, Youtube, Music2, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +14,7 @@ export function Footer() {
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterLoading, setNewsletterLoading] = useState(false);
   const { toast } = useToast();
+  const { t } = useTranslation('nav');
 
   const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -31,23 +33,23 @@ export function Footer() {
         if (error.code === "23505") {
           // Duplicate email
           toast({
-            title: "Already subscribed",
-            description: "This email is already on our newsletter list.",
+            title: t('common:alreadySubscribed'),
+            description: t('common:alreadySubscribedDesc'),
           });
         } else {
           throw error;
         }
       } else {
         toast({
-          title: "Subscribed!",
-          description: "Thanks for signing up. You'll hear from us soon!",
+          title: t('common:subscribed'),
+          description: t('common:subscribedDesc'),
         });
         setNewsletterEmail("");
       }
     } catch (error: any) {
       toast({
-        title: "Error",
-        description: "Failed to subscribe. Please try again.",
+        title: t('common:error'),
+        description: t('common:failedToSubscribe'),
         variant: "destructive",
       });
     } finally {
@@ -62,34 +64,34 @@ export function Footer() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
             {/* About Section */}
             <div className="space-y-4">
-              <h3 className="text-lg font-bold">About IGU</h3>
+              <h3 className="text-lg font-bold">{t('aboutIGU')}</h3>
               <p className="text-sm text-muted-foreground">
-                Intensive Gainz Unit (IGU) is a multidisciplinary coaching and education brand under Dr. Iron International Sports Consultancy. Led by Dr. Hasan Dashti, we integrate medicine, science, and performance to deliver evidence-based training and nutrition systems.
+                {t('aboutIGUDescription')}
               </p>
             </div>
 
             {/* Quick Links */}
             <div className="space-y-4">
-              <h3 className="text-lg font-bold">Quick Links</h3>
+              <h3 className="text-lg font-bold">{t('quickLinks')}</h3>
               <ul className="space-y-2 text-sm">
                 <li>
                   <Link to="/services" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Our Programs
+                    {t('ourPrograms')}
                   </Link>
                 </li>
                 <li>
                   <Link to="/meet-our-team" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Meet Our Team
+                    {t('meetOurTeam')}
                   </Link>
                 </li>
                 <li>
                   <Link to="/calorie-calculator" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Calorie Calculator
+                    {t('calorieCalculator')}
                   </Link>
                 </li>
                 <li>
                   <Link to="/testimonial" className="text-muted-foreground hover:text-foreground transition-colors">
-                    Client Success Stories
+                    {t('clientSuccessStories')}
                   </Link>
                 </li>
               </ul>
@@ -97,18 +99,18 @@ export function Footer() {
 
             {/* Contact & Social */}
             <div className="space-y-4">
-              <h3 className="text-lg font-bold">Connect With Us</h3>
+              <h3 className="text-lg font-bold">{t('connectWithUs')}</h3>
               <div className="space-y-2 text-sm">
                 <p className="text-muted-foreground">
-                  <strong>Email:</strong>{" "}
-                  <a 
-                    href="mailto:Dr.Ironofficial@gmail.com" 
+                  <strong>{t('common:email')}:</strong>{" "}
+                  <a
+                    href="mailto:Dr.Ironofficial@gmail.com"
                     className="hover:text-foreground transition-colors"
                   >
                     Dr.Ironofficial@gmail.com
                   </a>
                 </p>
-                
+
                 <div className="flex gap-4 pt-2">
                   <a
                     href="https://www.instagram.com/dr.irontraining/?hl=en"
@@ -143,25 +145,25 @@ export function Footer() {
 
             {/* Join Our Team */}
             <div className="space-y-4">
-              <h3 className="text-lg font-bold">Join Our Team</h3>
+              <h3 className="text-lg font-bold">{t('joinOurTeam')}</h3>
               <p className="text-sm text-muted-foreground">
-                Are you a passionate fitness professional? Apply to become an IGU coach and help elevate coaching standards.
+                {t('joinOurTeamDescription')}
               </p>
-              <Button 
+              <Button
                 onClick={() => setShowCoachApplication(true)}
                 className="w-full"
               >
-                Apply as Coach
+                {t('applyAsCoach')}
               </Button>
-              
+
               <div className="pt-4 border-t">
                 <p className="text-sm text-muted-foreground mb-2">
-                  Get training tips & updates:
+                  {t('trainingTipsUpdates')}
                 </p>
                 <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
                   <Input
                     type="email"
-                    placeholder="Your email"
+                    placeholder={t('common:yourEmail')}
                     value={newsletterEmail}
                     onChange={(e) => setNewsletterEmail(e.target.value)}
                     className="flex-1"
@@ -171,7 +173,7 @@ export function Footer() {
                     {newsletterLoading ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
-                      "Subscribe"
+                      t('common:subscribe')
                     )}
                   </Button>
                 </form>
@@ -182,13 +184,13 @@ export function Footer() {
           {/* Bottom Bar */}
           <div className="border-t mt-8 pt-8 text-center text-sm text-muted-foreground">
             <p>
-              © {new Date().getFullYear()} Dr. Iron International Sports Consultancy (شركة دكتور آيرون العالمية للاستشارات الرياضية). All rights reserved.
+              {t('copyright', { year: new Date().getFullYear() })}
             </p>
           </div>
         </div>
       </footer>
 
-      <CoachApplicationForm 
+      <CoachApplicationForm
         open={showCoachApplication}
         onOpenChange={setShowCoachApplication}
       />
