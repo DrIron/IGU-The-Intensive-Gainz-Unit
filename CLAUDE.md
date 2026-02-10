@@ -1370,6 +1370,7 @@ SQL function `generate_referral_code(first_name)`:
 - **`form_submissions` table columns**: Does NOT have `red_flags_count`, `service_id`, or `notes_summary` — those columns exist only on `form_submissions_safe`. Triggers on `form_submissions` must not reference `NEW.red_flags_count`.
 - **Two exercise tables**: `exercises` (legacy, mostly empty) and `exercise_library` (107 seeded exercises from Phase 28). The `WorkoutLibrary` page reads from BOTH. The workout builder's exercise picker reads from `exercise_library`. When adding exercises programmatically, use `exercise_library`.
 - **`client_programs` FK join to `programs` is unreliable** — PostgREST may not find the relationship in the schema cache. Use a separate query: `.from("programs").select("name").eq("id", programId).maybeSingle()` instead of embedding `programs (name)` in the select.
+- **Post-action navigation + OnboardingGuard race condition**: When navigating to `/dashboard` after a server-side status change (e.g., payment verification), pass `{ state: { paymentVerified: true } }` so OnboardingGuard doesn't redirect based on stale `profiles_public.status`. See `PaymentReturn.tsx` for the pattern.
 - **All public-facing pages MUST be wrapped in `<PublicLayout>` in App.tsx** — this provides the consistent "IGU" navbar and footer. Never render a public page without PublicLayout, and never add `<Navigation />` or `<Footer />` inside a page component that is already wrapped in PublicLayout (causes duplicates). When creating a new public route, wrap it: `<Route path="/foo" element={<PublicLayout><Foo /></PublicLayout>} />`. When editing a page, check App.tsx first to see if it's already wrapped.
 
 ---
@@ -1706,6 +1707,24 @@ for (const sub of subs) {
 **Result:** All 10/10 n8n edge functions return HTTP 200.
 
 **Rule for edge functions:** Never use PostgREST FK joins to the `profiles` view. Always query `.from("profiles")` directly with `.eq("id", userId)`.
+
+---
+
+## Post-Payment Dashboard Navigation Fix (Feb 10, 2026)
+
+Fixed a race condition where the "Go to Dashboard" button on the payment success page didn't work — clients had to refresh the page manually.
+
+**Root Cause:** `PaymentReturn.tsx` navigates to `/dashboard` after `verify-payment` confirms `active`, but `OnboardingGuard` immediately re-queries `profiles_public.status` which can still return `pending_payment` due to DB replication lag. The guard then redirects back to the onboarding/payment page.
+
+**Fix:** Pass `{ state: { paymentVerified: true } }` via React Router navigation from PaymentReturn. OnboardingGuard checks this state and skips the redirect specifically when status is `pending_payment` and `paymentVerified` is true.
+
+**Files Modified:**
+| File | Change |
+|------|--------|
+| `src/pages/PaymentReturn.tsx` | Both auto-redirect (3s timer) and "Go to Dashboard Now" button pass `paymentVerified` state |
+| `src/components/OnboardingGuard.tsx` | Skip onboarding redirect when `paymentVerified` + `pending_payment` (both useEffect and render guard) |
+
+**Pattern — Post-action navigation with stale DB:** When navigating after a server-side status change, pass confirmation state via React Router `navigate()` so guards don't bounce the user back due to stale reads. Only bypass the specific stale status, not all statuses.
 
 ---
 
