@@ -11,11 +11,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText, Sliders, Tag } from "lucide-react";
+import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText, Sliders, Tag, Award } from "lucide-react";
 import { CoachCapacityManager } from "@/components/admin/CoachCapacityManager";
 import { CoachLoadOverview } from "@/components/admin/CoachLoadOverview";
 import { CoachApplicationsManager } from "@/components/CoachApplicationsManager";
 import { SpecializationTagManager } from "@/components/admin/SpecializationTagManager";
+import { ProfessionalLevelManager } from "@/components/admin/ProfessionalLevelManager";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -587,7 +588,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     <div className="space-y-6">
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
           <TabsTrigger value="load-capacity" className="gap-2">
             <BarChart3 className="h-4 w-4 hidden sm:block" />
             Load & Capacity
@@ -595,6 +596,10 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
           <TabsTrigger value="service-limits" className="gap-2">
             <Sliders className="h-4 w-4 hidden sm:block" />
             Service Limits
+          </TabsTrigger>
+          <TabsTrigger value="levels" className="gap-2">
+            <Award className="h-4 w-4 hidden sm:block" />
+            Levels
           </TabsTrigger>
           <TabsTrigger value="applications" className="gap-2">
             <FileText className="h-4 w-4 hidden sm:block" />
@@ -756,6 +761,11 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
         {/* Service Limits Tab */}
         <TabsContent value="service-limits">
           <ServiceLimitsTab />
+        </TabsContent>
+
+        {/* Levels Tab */}
+        <TabsContent value="levels">
+          <ProfessionalLevelManager />
         </TabsContent>
 
         {/* Applications Tab */}

@@ -13,6 +13,7 @@ import { CoachQuickActions } from "./CoachQuickActions";
 import { NeedsAttentionAlerts } from "./NeedsAttentionAlerts";
 import { CoachStatsCards } from "./CoachStatsCards";
 import { ClientActivityFeed } from "./ClientActivityFeed";
+import { CoachCompensationCard } from "./CoachCompensationCard";
 
 interface CoachDashboardOverviewProps {
   coachUserId: string;
@@ -369,6 +370,9 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
           onNavigate={handleNavigate}
         />
       </div>
+
+      {/* Compensation Card */}
+      <CoachCompensationCard coachUserId={coachUserId} />
     </div>
   );
 }

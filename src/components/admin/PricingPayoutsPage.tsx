@@ -14,11 +14,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { supabase } from "@/integrations/supabase/client";
-import { DollarSign, Percent, Edit2, X, Check, Plus, Package, Wallet, Calculator, Info, History } from "lucide-react";
+import { DollarSign, Percent, Edit2, X, Check, Plus, Package, Wallet, Calculator, Info, History, Eye } from "lucide-react";
 import { format } from "date-fns";
 import { PayoutRatesManager } from "./PayoutRatesManager";
 import { CoachPaymentCalculator } from "./CoachPaymentCalculator";
 import { PricingAuditLogDialog } from "./PricingAuditLogDialog";
+import { SubscriptionPayoutPreview } from "./SubscriptionPayoutPreview";
+import { AddonServicesManager } from "./AddonServicesManager";
 import { logPricingChange, logCreateAction } from "@/lib/auditLog";
 
 interface ServicePricingRow {
@@ -97,7 +99,7 @@ export function PricingPayoutsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="pricing" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-3xl">
+        <TabsList className="grid w-full grid-cols-6 max-w-4xl">
           <TabsTrigger value="pricing" className="gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Services</span>
@@ -113,6 +115,10 @@ export function PricingPayoutsPage() {
           <TabsTrigger value="payouts" className="gap-2">
             <Wallet className="h-4 w-4" />
             <span className="hidden sm:inline">Payouts</span>
+          </TabsTrigger>
+          <TabsTrigger value="preview" className="gap-2">
+            <Eye className="h-4 w-4" />
+            <span className="hidden sm:inline">Preview</span>
           </TabsTrigger>
           <TabsTrigger value="monthly" className="gap-2">
             <Calculator className="h-4 w-4" />
@@ -130,10 +136,15 @@ export function PricingPayoutsPage() {
 
         <TabsContent value="addons" className="mt-6">
           <AddonCatalogSection />
+          <AddonServicesManager />
         </TabsContent>
 
         <TabsContent value="payouts" className="mt-6">
           <PayoutRatesManager />
+        </TabsContent>
+
+        <TabsContent value="preview" className="mt-6">
+          <SubscriptionPayoutPreview />
         </TabsContent>
 
         <TabsContent value="monthly" className="mt-6">

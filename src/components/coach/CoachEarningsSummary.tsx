@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, DollarSign, Clock, TrendingUp, Users } from "lucide-react";
+import { COACH_RATES, LEVEL_LABELS, type ProfessionalLevel } from "@/auth/roles";
 
 interface EarningsSummary {
   currentMonthEstimate: number;
@@ -10,6 +11,8 @@ interface EarningsSummary {
   pendingAmount: number;
   totalClients: number;
   addonEarnings: number;
+  coachLevel: ProfessionalLevel;
+  isHeadCoach: boolean;
 }
 
 export function CoachEarningsSummary() {
@@ -20,6 +23,8 @@ export function CoachEarningsSummary() {
     pendingAmount: 0,
     totalClients: 0,
     addonEarnings: 0,
+    coachLevel: "junior",
+    isHeadCoach: false,
   });
 
   useEffect(() => {
@@ -41,6 +46,16 @@ export function CoachEarningsSummary() {
         .maybeSingle();
 
       if (!coach) return;
+
+      // Get coach level and head coach flag
+      const { data: coachPublic } = await supabase
+        .from("coaches_public")
+        .select("coach_level, is_head_coach")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      const coachLevel = (coachPublic?.coach_level as ProfessionalLevel) || "junior";
+      const isHeadCoach = coachPublic?.is_head_coach || false;
 
       // Get payment history
       const { data: payments } = await supabase
@@ -84,6 +99,8 @@ export function CoachEarningsSummary() {
         pendingAmount: pendingTotal,
         totalClients: clientCount,
         addonEarnings,
+        coachLevel,
+        isHeadCoach,
       });
     } catch (error) {
       console.error("Error loading earnings:", error);
@@ -109,8 +126,14 @@ export function CoachEarningsSummary() {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-lg">Earnings Summary</CardTitle>
-            <CardDescription>Your monthly payout overview</CardDescription>
+            <div className="flex items-center gap-2">
+              <CardTitle className="text-lg">Earnings Summary</CardTitle>
+              <Badge variant="default">{LEVEL_LABELS[summary.coachLevel]}</Badge>
+              {summary.isHeadCoach && <Badge variant="secondary">Head Coach</Badge>}
+            </div>
+            <CardDescription className="mt-1">
+              Your monthly payout overview &middot; {COACH_RATES[summary.coachLevel].online} KWD/hr online &middot; {COACH_RATES[summary.coachLevel].in_person} KWD/hr in-person
+            </CardDescription>
           </div>
           <Badge variant="secondary" className="gap-1">
             <Users className="h-3 w-3" />

@@ -121,6 +121,145 @@ export type Database = {
         }
         Relationships: []
       }
+      addon_purchases: {
+        Row: {
+          addon_service_id: string
+          client_id: string
+          created_at: string
+          discount_percentage: number
+          expires_at: string | null
+          id: string
+          professional_id: string | null
+          purchased_at: string
+          quantity: number
+          sessions_remaining: number | null
+          total_paid_kwd: number
+        }
+        Insert: {
+          addon_service_id: string
+          client_id: string
+          created_at?: string
+          discount_percentage?: number
+          expires_at?: string | null
+          id?: string
+          professional_id?: string | null
+          purchased_at?: string
+          quantity?: number
+          sessions_remaining?: number | null
+          total_paid_kwd: number
+        }
+        Update: {
+          addon_service_id?: string
+          client_id?: string
+          created_at?: string
+          discount_percentage?: number
+          expires_at?: string | null
+          id?: string
+          professional_id?: string | null
+          purchased_at?: string
+          quantity?: number
+          sessions_remaining?: number | null
+          total_paid_kwd?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addon_purchases_addon_service_id_fkey"
+            columns: ["addon_service_id"]
+            isOneToOne: false
+            referencedRelation: "addon_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      addon_services: {
+        Row: {
+          base_price_kwd: number
+          created_at: string
+          id: string
+          igu_take_kwd: number
+          is_active: boolean
+          name: string
+          pack_expiry_months: number | null
+          pack_price_kwd: number | null
+          pack_size: number | null
+          professional_payout_kwd: number
+          tier_restrictions: string[] | null
+          type: Database["public"]["Enums"]["addon_service_type"]
+          updated_at: string
+        }
+        Insert: {
+          base_price_kwd: number
+          created_at?: string
+          id?: string
+          igu_take_kwd?: number
+          is_active?: boolean
+          name: string
+          pack_expiry_months?: number | null
+          pack_price_kwd?: number | null
+          pack_size?: number | null
+          professional_payout_kwd?: number
+          tier_restrictions?: string[] | null
+          type: Database["public"]["Enums"]["addon_service_type"]
+          updated_at?: string
+        }
+        Update: {
+          base_price_kwd?: number
+          created_at?: string
+          id?: string
+          igu_take_kwd?: number
+          is_active?: boolean
+          name?: string
+          pack_expiry_months?: number | null
+          pack_price_kwd?: number | null
+          pack_size?: number | null
+          professional_payout_kwd?: number
+          tier_restrictions?: string[] | null
+          type?: Database["public"]["Enums"]["addon_service_type"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      addon_session_logs: {
+        Row: {
+          addon_purchase_id: string
+          created_at: string
+          id: string
+          igu_take_kwd: number
+          notes: string | null
+          professional_id: string
+          professional_payout_kwd: number
+          session_date: string
+        }
+        Insert: {
+          addon_purchase_id: string
+          created_at?: string
+          id?: string
+          igu_take_kwd: number
+          notes?: string | null
+          professional_id: string
+          professional_payout_kwd: number
+          session_date: string
+        }
+        Update: {
+          addon_purchase_id?: string
+          created_at?: string
+          id?: string
+          igu_take_kwd?: number
+          notes?: string | null
+          professional_id?: string
+          professional_payout_kwd?: number
+          session_date?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "addon_session_logs_addon_purchase_id_fkey"
+            columns: ["addon_purchase_id"]
+            isOneToOne: false
+            referencedRelation: "addon_purchases"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       adherence_logs: {
         Row: {
           created_at: string
@@ -910,6 +1049,7 @@ export type Database = {
           motivation: string | null
           notes: string | null
           phone_number: string | null
+          requested_subroles: string[] | null
           resume_url: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -929,6 +1069,7 @@ export type Database = {
           motivation?: string | null
           notes?: string | null
           phone_number?: string | null
+          requested_subroles?: string[] | null
           resume_url?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -948,6 +1089,7 @@ export type Database = {
           motivation?: string | null
           notes?: string | null
           phone_number?: string | null
+          requested_subroles?: string[] | null
           resume_url?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -1542,11 +1684,14 @@ export type Database = {
       coaches_public: {
         Row: {
           bio: string | null
+          coach_level: Database["public"]["Enums"]["professional_level"]
           created_at: string | null
           display_name: string | null
           first_name: string
+          head_coach_specialisation: string | null
           id: string
           instagram_url: string | null
+          is_head_coach: boolean
           last_assigned_at: string | null
           last_name: string | null
           location: string | null
@@ -1566,11 +1711,14 @@ export type Database = {
         }
         Insert: {
           bio?: string | null
+          coach_level?: Database["public"]["Enums"]["professional_level"]
           created_at?: string | null
           display_name?: string | null
           first_name: string
+          head_coach_specialisation?: string | null
           id: string
           instagram_url?: string | null
+          is_head_coach?: boolean
           last_assigned_at?: string | null
           last_name?: string | null
           location?: string | null
@@ -1590,11 +1738,14 @@ export type Database = {
         }
         Update: {
           bio?: string | null
+          coach_level?: Database["public"]["Enums"]["professional_level"]
           created_at?: string | null
           display_name?: string | null
           first_name?: string
+          head_coach_specialisation?: string | null
           id?: string
           instagram_url?: string | null
+          is_head_coach?: boolean
           last_assigned_at?: string | null
           last_name?: string | null
           location?: string | null
@@ -2409,7 +2560,9 @@ export type Database = {
           id: string
           intensity_type: Database["public"]["Enums"]["intensity_type"] | null
           intensity_value: number | null
+          linear_progression_enabled: boolean | null
           module_exercise_id: string
+          progression_config: Json | null
           progression_notes: string | null
           rep_range_max: number | null
           rep_range_min: number | null
@@ -2428,7 +2581,9 @@ export type Database = {
           id?: string
           intensity_type?: Database["public"]["Enums"]["intensity_type"] | null
           intensity_value?: number | null
+          linear_progression_enabled?: boolean | null
           module_exercise_id: string
+          progression_config?: Json | null
           progression_notes?: string | null
           rep_range_max?: number | null
           rep_range_min?: number | null
@@ -2447,7 +2602,9 @@ export type Database = {
           id?: string
           intensity_type?: Database["public"]["Enums"]["intensity_type"] | null
           intensity_value?: number | null
+          linear_progression_enabled?: boolean | null
           module_exercise_id?: string
+          progression_config?: Json | null
           progression_notes?: string | null
           rep_range_max?: number | null
           rep_range_min?: number | null
@@ -3165,6 +3322,89 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      igu_operations_costs: {
+        Row: {
+          admin_overhead_kwd: number
+          created_at: string
+          id: string
+          payment_processing_kwd: number
+          platform_cost_kwd: number
+          service_id: string
+          updated_at: string
+        }
+        Insert: {
+          admin_overhead_kwd?: number
+          created_at?: string
+          id?: string
+          payment_processing_kwd?: number
+          platform_cost_kwd?: number
+          service_id: string
+          updated_at?: string
+        }
+        Update: {
+          admin_overhead_kwd?: number
+          created_at?: string
+          id?: string
+          payment_processing_kwd?: number
+          platform_cost_kwd?: number
+          service_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "igu_operations_costs_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: true
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      leads: {
+        Row: {
+          converted_at: string | null
+          converted_to_user_id: string | null
+          created_at: string
+          email: string
+          id: string
+          name: string | null
+          source: string
+          utm_campaign: string | null
+          utm_content: string | null
+          utm_medium: string | null
+          utm_source: string | null
+          utm_term: string | null
+        }
+        Insert: {
+          converted_at?: string | null
+          converted_to_user_id?: string | null
+          created_at?: string
+          email: string
+          id?: string
+          name?: string | null
+          source?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Update: {
+          converted_at?: string | null
+          converted_to_user_id?: string | null
+          created_at?: string
+          email?: string
+          id?: string
+          name?: string | null
+          source?: string
+          utm_campaign?: string | null
+          utm_content?: string | null
+          utm_medium?: string | null
+          utm_source?: string | null
+          utm_term?: string | null
+        }
+        Relationships: []
       }
       legal_documents: {
         Row: {
@@ -4152,6 +4392,39 @@ export type Database = {
           },
         ]
       }
+      professional_levels: {
+        Row: {
+          created_at: string
+          hourly_rate_kwd: number
+          id: string
+          level: Database["public"]["Enums"]["professional_level"]
+          requirements: string | null
+          role: Database["public"]["Enums"]["professional_role"]
+          updated_at: string
+          work_type: Database["public"]["Enums"]["work_type_category"]
+        }
+        Insert: {
+          created_at?: string
+          hourly_rate_kwd: number
+          id?: string
+          level: Database["public"]["Enums"]["professional_level"]
+          requirements?: string | null
+          role: Database["public"]["Enums"]["professional_role"]
+          updated_at?: string
+          work_type: Database["public"]["Enums"]["work_type_category"]
+        }
+        Update: {
+          created_at?: string
+          hourly_rate_kwd?: number
+          id?: string
+          level?: Database["public"]["Enums"]["professional_level"]
+          requirements?: string | null
+          role?: Database["public"]["Enums"]["professional_role"]
+          updated_at?: string
+          work_type?: Database["public"]["Enums"]["work_type_category"]
+        }
+        Relationships: []
+      }
       profiles_legacy: {
         Row: {
           activation_completed_at: string | null
@@ -4394,6 +4667,104 @@ export type Database = {
           },
         ]
       }
+      progression_suggestions: {
+        Row: {
+          client_id: string
+          client_module_exercise_id: string
+          client_response: string | null
+          client_response_at: string | null
+          created_at: string | null
+          exercise_library_id: string
+          id: string
+          performed_reps: number | null
+          performed_rir: number | null
+          performed_rpe: number | null
+          performed_weight: number | null
+          prescribed_rep_max: number | null
+          prescribed_rep_min: number | null
+          prescribed_rir: number | null
+          prescribed_weight: number | null
+          session_date: string
+          set_number: number
+          suggested_increment: number | null
+          suggestion_text: string
+          suggestion_type: string
+        }
+        Insert: {
+          client_id: string
+          client_module_exercise_id: string
+          client_response?: string | null
+          client_response_at?: string | null
+          created_at?: string | null
+          exercise_library_id: string
+          id?: string
+          performed_reps?: number | null
+          performed_rir?: number | null
+          performed_rpe?: number | null
+          performed_weight?: number | null
+          prescribed_rep_max?: number | null
+          prescribed_rep_min?: number | null
+          prescribed_rir?: number | null
+          prescribed_weight?: number | null
+          session_date: string
+          set_number: number
+          suggested_increment?: number | null
+          suggestion_text: string
+          suggestion_type: string
+        }
+        Update: {
+          client_id?: string
+          client_module_exercise_id?: string
+          client_response?: string | null
+          client_response_at?: string | null
+          created_at?: string | null
+          exercise_library_id?: string
+          id?: string
+          performed_reps?: number | null
+          performed_rir?: number | null
+          performed_rpe?: number | null
+          performed_weight?: number | null
+          prescribed_rep_max?: number | null
+          prescribed_rep_min?: number | null
+          prescribed_rir?: number | null
+          prescribed_weight?: number | null
+          session_date?: string
+          set_number?: number
+          suggested_increment?: number | null
+          suggestion_text?: string
+          suggestion_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "progression_suggestions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progression_suggestions_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progression_suggestions_client_module_exercise_id_fkey"
+            columns: ["client_module_exercise_id"]
+            isOneToOne: false
+            referencedRelation: "client_module_exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progression_suggestions_exercise_library_id_fkey"
+            columns: ["exercise_library_id"]
+            isOneToOne: false
+            referencedRelation: "exercise_library"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       refeed_days: {
         Row: {
           actual_calories: number | null
@@ -4515,6 +4886,44 @@ export type Database = {
           },
         ]
       }
+      service_hour_estimates: {
+        Row: {
+          created_at: string
+          estimated_hours: number
+          id: string
+          role: Database["public"]["Enums"]["professional_role"]
+          service_id: string
+          updated_at: string
+          work_type: Database["public"]["Enums"]["work_type_category"]
+        }
+        Insert: {
+          created_at?: string
+          estimated_hours?: number
+          id?: string
+          role: Database["public"]["Enums"]["professional_role"]
+          service_id: string
+          updated_at?: string
+          work_type: Database["public"]["Enums"]["work_type_category"]
+        }
+        Update: {
+          created_at?: string
+          estimated_hours?: number
+          id?: string
+          role?: Database["public"]["Enums"]["professional_role"]
+          service_id?: string
+          updated_at?: string
+          work_type?: Database["public"]["Enums"]["work_type_category"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_hour_estimates_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_pricing: {
         Row: {
           billing_mode: Database["public"]["Enums"]["billing_mode"]
@@ -4570,6 +4979,7 @@ export type Database = {
           is_active: boolean | null
           name: string
           price_kwd: number
+          slug: string | null
           type: Database["public"]["Enums"]["service_type"]
           updated_at: string | null
         }
@@ -4589,6 +4999,7 @@ export type Database = {
           is_active?: boolean | null
           name: string
           price_kwd: number
+          slug?: string | null
           type: Database["public"]["Enums"]["service_type"]
           updated_at?: string | null
         }
@@ -4608,6 +5019,7 @@ export type Database = {
           is_active?: boolean | null
           name?: string
           price_kwd?: number
+          slug?: string | null
           type?: Database["public"]["Enums"]["service_type"]
           updated_at?: string | null
         }
@@ -4769,6 +5181,33 @@ export type Database = {
         }
         Relationships: []
       }
+      staff_professional_info: {
+        Row: {
+          created_at: string
+          id: string
+          level: Database["public"]["Enums"]["professional_level"]
+          role: Database["public"]["Enums"]["professional_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          level?: Database["public"]["Enums"]["professional_level"]
+          role: Database["public"]["Enums"]["professional_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          level?: Database["public"]["Enums"]["professional_level"]
+          role?: Database["public"]["Enums"]["professional_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       step_logs: {
         Row: {
           created_at: string
@@ -4847,6 +5286,42 @@ export type Database = {
           target_steps?: number
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      subrole_definitions: {
+        Row: {
+          created_at: string
+          description: string | null
+          display_name: string
+          id: string
+          is_active: boolean
+          requires_credentials: boolean
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean
+          requires_credentials?: boolean
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          requires_credentials?: boolean
+          slug?: string
+          sort_order?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -5205,35 +5680,44 @@ export type Database = {
         Row: {
           coach_id: string | null
           created_at: string | null
+          duration_weeks: number | null
           feedback: string
+          goal_type: string | null
           id: string
           is_approved: boolean | null
           is_archived: boolean
           rating: number
           updated_at: string | null
           user_id: string
+          weight_change_kg: number | null
         }
         Insert: {
           coach_id?: string | null
           created_at?: string | null
+          duration_weeks?: number | null
           feedback: string
+          goal_type?: string | null
           id?: string
           is_approved?: boolean | null
           is_archived?: boolean
           rating: number
           updated_at?: string | null
           user_id: string
+          weight_change_kg?: number | null
         }
         Update: {
           coach_id?: string | null
           created_at?: string | null
+          duration_weeks?: number | null
           feedback?: string
+          goal_type?: string | null
           id?: string
           is_approved?: boolean | null
           is_archived?: boolean
           rating?: number
           updated_at?: string | null
           user_id?: string
+          weight_change_kg?: number | null
         }
         Relationships: []
       }
@@ -5257,6 +5741,56 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_subroles: {
+        Row: {
+          admin_notes: string | null
+          created_at: string
+          credential_document_url: string | null
+          credential_notes: string | null
+          id: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: Database["public"]["Enums"]["subrole_status"]
+          subrole_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          admin_notes?: string | null
+          created_at?: string
+          credential_document_url?: string | null
+          credential_notes?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["subrole_status"]
+          subrole_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          admin_notes?: string | null
+          created_at?: string
+          credential_document_url?: string | null
+          credential_notes?: string | null
+          id?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: Database["public"]["Enums"]["subrole_status"]
+          subrole_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_subroles_subrole_id_fkey"
+            columns: ["subrole_id"]
+            isOneToOne: false
+            referencedRelation: "subrole_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       video_access_log: {
         Row: {
@@ -5579,8 +6113,11 @@ export type Database = {
       coaches_directory: {
         Row: {
           bio: string | null
+          coach_level: Database["public"]["Enums"]["professional_level"] | null
           display_name: string | null
           first_name: string | null
+          head_coach_specialisation: string | null
+          is_head_coach: boolean | null
           last_name: string | null
           location: string | null
           nickname: string | null
@@ -5594,8 +6131,11 @@ export type Database = {
         }
         Insert: {
           bio?: string | null
+          coach_level?: Database["public"]["Enums"]["professional_level"] | null
           display_name?: string | null
           first_name?: string | null
+          head_coach_specialisation?: string | null
+          is_head_coach?: boolean | null
           last_name?: string | null
           location?: string | null
           nickname?: string | null
@@ -5609,8 +6149,11 @@ export type Database = {
         }
         Update: {
           bio?: string | null
+          coach_level?: Database["public"]["Enums"]["professional_level"] | null
           display_name?: string | null
           first_name?: string | null
+          head_coach_specialisation?: string | null
+          is_head_coach?: boolean | null
           last_name?: string | null
           location?: string | null
           nickname?: string | null
@@ -5627,14 +6170,17 @@ export type Database = {
       coaches_directory_admin: {
         Row: {
           bio: string | null
+          coach_level: Database["public"]["Enums"]["professional_level"] | null
           created_at: string | null
           date_of_birth: string | null
           display_name: string | null
           email: string | null
           first_name: string | null
           gender: string | null
+          head_coach_specialisation: string | null
           id: string | null
           instagram_url: string | null
+          is_head_coach: boolean | null
           last_assigned_at: string | null
           last_name: string | null
           location: string | null
@@ -5660,14 +6206,17 @@ export type Database = {
       coaches_full: {
         Row: {
           bio: string | null
+          coach_level: Database["public"]["Enums"]["professional_level"] | null
           created_at: string | null
           date_of_birth: string | null
           display_name: string | null
           email: string | null
           first_name: string | null
           gender: string | null
+          head_coach_specialisation: string | null
           id: string | null
           instagram_url: string | null
+          is_head_coach: boolean | null
           last_assigned_at: string | null
           last_name: string | null
           location: string | null
@@ -5796,8 +6345,21 @@ export type Database = {
         }[]
       }
       bootstrap_admin: { Args: { admin_email: string }; Returns: string }
+      calculate_addon_session_payout: {
+        Args: {
+          p_addon_service_id: string
+          p_professional_level?: Database["public"]["Enums"]["professional_level"]
+        }
+        Returns: Json
+      }
       calculate_age: { Args: { birth_date: string }; Returns: number }
+      calculate_subscription_payout: {
+        Args: { p_discount_percentage?: number; p_subscription_id: string }
+        Returns: Json
+      }
       can_access_video: { Args: { p_video_id: string }; Returns: boolean }
+      can_assign_workouts: { Args: { p_user_id: string }; Returns: boolean }
+      can_build_programs: { Args: { p_user_id: string }; Returns: boolean }
       can_edit_nutrition: {
         Args: { p_actor_uid: string; p_client_uid: string }
         Returns: boolean
@@ -5806,6 +6368,8 @@ export type Database = {
         Args: { p_subscription_id: string; p_user_id: string }
         Returns: boolean
       }
+      can_write_injury_notes: { Args: { p_user_id: string }; Returns: boolean }
+      can_write_psych_notes: { Args: { p_user_id: string }; Returns: boolean }
       check_failed_payments: { Args: never; Returns: undefined }
       check_legacy_table_security: {
         Args: never
@@ -6056,6 +6620,7 @@ export type Database = {
           updated_at: string
         }[]
       }
+      get_my_roles: { Args: never; Returns: string[] }
       get_phi_encryption_key: { Args: never; Returns: string }
       get_policies_with_true_qual: {
         Args: never
@@ -6086,6 +6651,7 @@ export type Database = {
           table_name: string
         }[]
       }
+      get_user_subroles: { Args: { p_user_id: string }; Returns: string[] }
       get_views_without_security_invoker: {
         Args: never
         Returns: {
@@ -6103,6 +6669,10 @@ export type Database = {
       }
       has_active_coach_relationship: {
         Args: { p_client_uid: string; p_coach_uid: string; p_role?: string }
+        Returns: boolean
+      }
+      has_approved_subrole: {
+        Args: { p_slug: string; p_user_id: string }
         Returns: boolean
       }
       has_role: {
@@ -6298,6 +6868,11 @@ export type Database = {
         | "expired"
         | "pending_coach_approval"
         | "inactive"
+      addon_service_type:
+        | "session_pack"
+        | "specialist"
+        | "one_time"
+        | "monthly_addon"
       app_role: "member" | "coach" | "admin" | "dietitian"
       billing_mode: "manual" | "recurring"
       care_team_end_reason:
@@ -6354,6 +6929,8 @@ export type Database = {
       payment_status: "initiated" | "paid" | "failed" | "cancelled"
       payout_recipient: "primary_coach" | "addon_staff"
       payout_type: "percent" | "fixed"
+      professional_level: "junior" | "senior" | "lead"
+      professional_role: "coach" | "dietitian"
       program_level: "beginner" | "intermediate" | "advanced"
       program_visibility: "private" | "shared"
       referral_source: "instagram" | "tiktok" | "friend_referral" | "other"
@@ -6377,11 +6954,13 @@ export type Database = {
         | "mobility"
         | "physiotherapy"
         | "dietitian"
+      subrole_status: "pending" | "approved" | "rejected" | "revoked"
       thread_author_role: "client" | "coach"
       training_experience:
         | "beginner_0_6"
         | "intermediate_6_24"
         | "advanced_24_plus"
+      work_type_category: "online" | "in_person"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -6521,6 +7100,12 @@ export const Constants = {
         "pending_coach_approval",
         "inactive",
       ],
+      addon_service_type: [
+        "session_pack",
+        "specialist",
+        "one_time",
+        "monthly_addon",
+      ],
       app_role: ["member", "coach", "admin", "dietitian"],
       billing_mode: ["manual", "recurring"],
       care_team_end_reason: [
@@ -6587,6 +7172,8 @@ export const Constants = {
       payment_status: ["initiated", "paid", "failed", "cancelled"],
       payout_recipient: ["primary_coach", "addon_staff"],
       payout_type: ["percent", "fixed"],
+      professional_level: ["junior", "senior", "lead"],
+      professional_role: ["coach", "dietitian"],
       program_level: ["beginner", "intermediate", "advanced"],
       program_visibility: ["private", "shared"],
       referral_source: ["instagram", "tiktok", "friend_referral", "other"],
@@ -6612,12 +7199,14 @@ export const Constants = {
         "physiotherapy",
         "dietitian",
       ],
+      subrole_status: ["pending", "approved", "rejected", "revoked"],
       thread_author_role: ["client", "coach"],
       training_experience: [
         "beginner_0_6",
         "intermediate_6_24",
         "advanced_24_plus",
       ],
+      work_type_category: ["online", "in_person"],
     },
   },
 } as const
