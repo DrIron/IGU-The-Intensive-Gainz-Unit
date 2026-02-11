@@ -274,6 +274,112 @@ export function hasCapability(approvedSlugs: SubroleSlug[], capability: SubroleC
 }
 
 // ============================================================================
+// PROFESSIONAL LEVELS — Experience tiers within subroles (admin-assigned)
+// ============================================================================
+//
+// Hierarchy (4 layers + Head Coach flag):
+//   1. Core Role    — admin | coach | client — gates route access
+//   2. Subrole      — Coach, Dietitian, Physio, etc. — admin-approved credentials
+//   3. Level        — Junior | Senior | Lead — admin-assigned experience tier (NEW)
+//   4. Tags         — Bodybuilding, Powerlifting, etc. — self-service marketing labels
+//   + Head Coach    — boolean flag for team plan leadership (independent of all above)
+//
+// Key rules:
+//   - Levels are admin-set ONLY, never self-assigned, never automatic.
+//   - Default level for all newly approved professionals is Junior.
+//   - Promotion is based on admin performance review.
+//   - Levels affect payout calculations but NOT client-facing pricing.
+//
+
+/**
+ * Professional level enum — matches DB `professional_level` enum.
+ */
+export type ProfessionalLevel = "junior" | "senior" | "lead";
+
+/**
+ * Professional role enum — matches DB `professional_role` enum.
+ * Distinct from SubroleSlug: this is used for compensation calculations only.
+ */
+export type ProfessionalRole = "coach" | "dietitian";
+
+/**
+ * Work type category — matches DB `work_type_category` enum.
+ */
+export type WorkTypeCategory = "online" | "in_person";
+
+/**
+ * Coach hourly rates by level (KWD/hr).
+ * Source of truth is DB `professional_levels` table; this is for client-side reference.
+ */
+export const COACH_RATES: Record<ProfessionalLevel, { online: number; in_person: number }> = {
+  junior: { online: 4, in_person: 8 },
+  senior: { online: 6, in_person: 12 },
+  lead:   { online: 8, in_person: 15 },
+};
+
+/**
+ * Dietitian hourly rates by level (KWD/hr). Online only.
+ */
+export const DIETITIAN_RATES: Record<ProfessionalLevel, number> = {
+  junior: 5,
+  senior: 7,
+  lead:   9,
+};
+
+/**
+ * Professional level display labels.
+ */
+export const LEVEL_LABELS: Record<ProfessionalLevel, string> = {
+  junior: "Junior",
+  senior: "Senior",
+  lead: "Lead",
+};
+
+/**
+ * Service tier slugs — matches DB `services.slug` column.
+ */
+export type ServiceSlug =
+  | "team_fe_squad"
+  | "team_bunz"
+  | "one_to_one_online"
+  | "one_to_one_complete"
+  | "hybrid"
+  | "in_person";
+
+/**
+ * Level eligibility per tier.
+ * Some combinations are blocked because they'd push IGU profit below 5 KWD.
+ */
+export const LEVEL_ELIGIBILITY: Record<ServiceSlug, {
+  coach: ProfessionalLevel[];
+  maxDietitianWithLeadCoach?: ProfessionalLevel;
+  notes?: string;
+}> = {
+  team_fe_squad:       { coach: [], notes: "Team plans use Head Coach, not level system" },
+  team_bunz:           { coach: [], notes: "Team plans use Head Coach, not level system" },
+  one_to_one_online:   { coach: ["junior", "senior"], notes: "Lead Coach not eligible (budget too tight)" },
+  one_to_one_complete: { coach: ["junior", "senior", "lead"], maxDietitianWithLeadCoach: "senior", notes: "Lead+Lead blocked (exceeds budget)" },
+  hybrid:              { coach: ["junior", "senior", "lead"] },
+  in_person:           { coach: ["junior", "senior", "lead"] },
+};
+
+/**
+ * Minimum IGU profit guardrail (KWD).
+ * Assignments that would result in less than this are blocked.
+ */
+export const MIN_IGU_PROFIT_KWD = 5;
+
+/**
+ * Maximum discount percentage without admin override.
+ */
+export const MAX_DISCOUNT_PERCENT = 30;
+
+/**
+ * Head Coach fixed payout per team plan client (KWD/month).
+ */
+export const HEAD_COACH_TEAM_PAYOUT_KWD = 5;
+
+// ============================================================================
 // ACCESS VIOLATION LOGGING
 // ============================================================================
 
