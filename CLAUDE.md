@@ -238,7 +238,58 @@ site_content           -- CMS-driven content (page, section, key, value, value_t
 -- Marketing (Phase 24)
 leads                  -- Newsletter signups & lead tracking with UTM params
 referrals              -- Client referral codes and conversion tracking
+
+-- Compensation Model (Phase 30)
+professional_levels        -- Hourly rates: role × level × work_type (9 seeded rows)
+service_hour_estimates     -- Estimated monthly hours per service × role × work_type
+igu_operations_costs       -- Fixed IGU ops costs per service tier
+staff_professional_info    -- Level tracking for non-coach professionals (dietitians, etc.)
+addon_services             -- Catalog of add-on services (session packs, specialist, one-time)
+addon_purchases            -- Client purchases of add-on services
+addon_session_logs         -- Individual session consumption from packs
 ```
+
+### 5b. Service Tiers & Compensation
+
+Six service tiers, each with a `slug` for programmatic identification:
+
+| Tier | Slug | Price (KWD) | Coach | Dietitian |
+|------|------|-------------|-------|-----------|
+| Fe Squad | `team_fe_squad` | 12 | Head Coach (5 KWD flat) | — |
+| Bunz of Steel | `team_bunz` | 12 | Head Coach (5 KWD flat) | — |
+| 1:1 Online | `one_to_one_online` | 40 | Hourly | — |
+| 1:1 Complete | `one_to_one_complete` | 75 | Hourly | Hourly |
+| Hybrid | `hybrid` | 150 | Hourly (online + in-person) | Hourly |
+| In-Person | `in_person` | 250 | Hourly + profit split | Hourly + profit split |
+
+**Professional Levels** (admin-assigned, affects hourly rate, NOT client pricing):
+- Junior / Senior / Lead — for both coaches and dietitians
+- Defined in `src/auth/roles.ts`: `ProfessionalLevel`, `COACH_RATES`, `DIETITIAN_RATES`
+- DB: `coaches_public.coach_level`, `staff_professional_info.level`
+
+**Head Coach** — boolean flag on `coaches_public`, leads a team plan track. Fixed 5 KWD/client/month.
+
+**Payout Functions** (SECURITY DEFINER):
+```sql
+-- Calculate subscription payout for any tier
+calculate_subscription_payout(subscription_id UUID, discount_percentage NUMERIC DEFAULT 0)
+-- Returns JSONB: { coach_payout, dietitian_payout, igu_ops, igu_profit, total, blocked, block_reason }
+
+-- Calculate per-session payout for add-on session packs
+calculate_addon_session_payout(addon_service_id UUID, professional_level DEFAULT 'junior')
+-- Returns JSONB: { per_session_price, professional_payout, igu_take, note }
+```
+
+**Guardrails:**
+- 5 KWD minimum IGU profit per subscription (blocked if violated, admin can override)
+- 30% maximum discount (proportional across coach, dietitian, IGU — ops never discounted)
+- Lead Coach blocked from 1:1 Online; Lead+Lead blocked from 1:1 Complete
+
+**Role Hierarchy** (4 layers + Head Coach flag):
+1. Core Role — admin | coach | client — route access
+2. Subrole — Coach, Dietitian, Physio, etc. — admin-approved credentials
+3. Level — Junior | Senior | Lead — admin-assigned experience tier, determines hourly rate
+4. Tags — self-service marketing labels, no permissions
 
 ### 6. Row Level Security (RLS)
 
@@ -264,6 +315,10 @@ public.is_care_team_member_for_client(staff, client) -- Any care team role
 -- Permission checks
 public.can_edit_nutrition(actor, client)  -- Dietitian hierarchy: dietitian > coach > self
 public.client_has_dietitian(client)       -- Check if client has active dietitian
+
+-- Compensation calculations
+public.calculate_subscription_payout(sub_id, discount%)  -- Dynamic payout for any tier
+public.calculate_addon_session_payout(addon_id, level)    -- Session pack payout by coach level
 ```
 
 ---
@@ -427,6 +482,48 @@ When understanding this codebase, read in this order:
 - Phase 29: n8n Automation Workflows — 10 scheduled workflows for email drips, admin alerts, and platform operations (Feb 9, 2026) ✅
 - Fix: Workout Builder INP Performance — React.memo, useMemo, useCallback across 7 component files to eliminate 4-51s UI freezes (Feb 9, 2026) ✅
 - i18n Scaffolding — react-i18next setup, en/ar locales, Navigation + Footer converted, LanguageSwitcher (Feb 10, 2026) ✅
+- Phase 30: Compensation Model Schema — hourly-rate compensation, professional levels, add-on services, payout functions (Feb 11, 2026) ✅
+
+### Phase 30: Compensation Model (Complete - Feb 11, 2026)
+
+Restructured compensation from percentage-based splits (70/30) to an hourly-rate system with professional levels, per-service hour estimates, and IGU operations costs.
+
+**New Enums:** `professional_role`, `professional_level`, `work_type_category`, `addon_service_type`
+
+**New Tables:**
+| Table | Purpose |
+|-------|---------|
+| `professional_levels` | Hourly rates by role × level × work_type (9 seeded rows) |
+| `service_hour_estimates` | Monthly hours per service × role × work_type |
+| `igu_operations_costs` | Fixed IGU ops costs per service tier |
+| `staff_professional_info` | Level tracking for non-coach professionals |
+| `addon_services` | Catalog of purchasable add-ons (12 seeded: 3 session packs, 6 specialist, 2 one-time, 1 monthly) |
+| `addon_purchases` | Client purchases of add-on services |
+| `addon_session_logs` | Individual session consumption logs |
+
+**Modified Tables:**
+| Table | Changes |
+|-------|---------|
+| `coaches_public` | Added `coach_level` (professional_level, default junior), `is_head_coach` (boolean), `head_coach_specialisation` (text) |
+| `services` | Added `slug` (text, unique) — 6 slugs set for programmatic identification |
+| `service_pricing` | Updated: Online 50→40, Hybrid 175→150, added Complete at 75 |
+
+**New Service:** "1:1 Complete" — 75 KWD, slug `one_to_one_complete`, ID `a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d`
+
+**Frontend (`src/auth/roles.ts`):** Added `ProfessionalLevel`, `ProfessionalRole`, `WorkTypeCategory`, `ServiceSlug` types. `COACH_RATES`, `DIETITIAN_RATES`, `LEVEL_ELIGIBILITY`, `MIN_IGU_PROFIT_KWD`, `MAX_DISCOUNT_PERCENT`, `HEAD_COACH_TEAM_PAYOUT_KWD` constants.
+
+**Migrations (5 files):**
+```
+20260211073154_add_compensation_reference_tables.sql
+20260211073240_add_professional_level_tracking.sql
+20260211073308_add_addon_services_system.sql
+20260211073338_update_service_tiers.sql
+20260211073430_add_payout_calculation_function.sql
+```
+
+**Views Recreated:** `coaches_full`, `coaches_directory_admin`, `coaches_directory` — all with `security_invoker = on`.
+
+**Existing tables untouched:** `payout_rules` (legacy 70/30 splits), `addon_pricing` (recurring subscription add-ons).
 
 ### Phase 26: Roles, Subroles & Tags System (Complete - Feb 7, 2026)
 
