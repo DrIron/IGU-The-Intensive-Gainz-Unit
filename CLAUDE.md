@@ -483,6 +483,7 @@ When understanding this codebase, read in this order:
 - Fix: Workout Builder INP Performance — React.memo, useMemo, useCallback across 7 component files to eliminate 4-51s UI freezes (Feb 9, 2026) ✅
 - i18n Scaffolding — react-i18next setup, en/ar locales, Navigation + Footer converted, LanguageSwitcher (Feb 10, 2026) ✅
 - Phase 30: Compensation Model Schema — hourly-rate compensation, professional levels, add-on services, payout functions (Feb 11, 2026) ✅
+- Phase 30b: Compensation UI — admin level manager, payout preview, add-on services manager, coach compensation card (Feb 11, 2026) ✅
 
 ### Phase 30: Compensation Model (Complete - Feb 11, 2026)
 
@@ -524,6 +525,50 @@ Restructured compensation from percentage-based splits (70/30) to an hourly-rate
 **Views Recreated:** `coaches_full`, `coaches_directory_admin`, `coaches_directory` — all with `security_invoker = on`.
 
 **Existing tables untouched:** `payout_rules` (legacy 70/30 splits), `addon_pricing` (recurring subscription add-ons).
+
+### Phase 30b: Compensation UI (Complete - Feb 11, 2026)
+
+Built admin management pages and coach-facing dashboard integration for the Phase 30 compensation schema.
+
+**New Files (4):**
+| File | Purpose |
+|------|---------|
+| `src/components/admin/ProfessionalLevelManager.tsx` | Admin: Manage coach/specialist levels and head coach flags |
+| `src/components/admin/SubscriptionPayoutPreview.tsx` | Admin: Per-subscription payout breakdown using `calculate_subscription_payout()` RPC |
+| `src/components/admin/AddonServicesManager.tsx` | Admin: CRUD for `addon_services` catalog + view recent purchases |
+| `src/components/coach/CoachCompensationCard.tsx` | Coach: Level badge, hourly rates, per-client payout breakdown |
+
+**Modified Files (5):**
+| File | Changes |
+|------|---------|
+| `src/integrations/supabase/types.ts` | Regenerated with all Phase 30 tables/columns/RPCs |
+| `src/components/CoachManagement.tsx` | Added 5th tab "Levels" with `Award` icon → `ProfessionalLevelManager` |
+| `src/components/admin/PricingPayoutsPage.tsx` | Added 6th tab "Preview" with `Eye` icon → `SubscriptionPayoutPreview`; added `AddonServicesManager` below legacy addons in "Add-ons" tab |
+| `src/components/coach/CoachDashboardOverview.tsx` | Added `CoachCompensationCard` below capacity/tasks grid |
+| `src/components/coach/CoachEarningsSummary.tsx` | Added level Badge, head coach Badge, hourly rates in CardDescription |
+
+**Admin — Professional Level Manager:**
+- Coaches table: Level (Select), Head Coach (Switch), HC Specialisation (Input), Save per row
+- Specialists table: from `staff_professional_info`, Level (Select), Save per row
+- Rate Reference: read-only table from `professional_levels`
+- Reads from `coaches_full` view, mutates `coaches_public` and `staff_professional_info`
+
+**Admin — Subscription Payout Preview:**
+- Fetches active subscriptions, calls `supabase.rpc('calculate_subscription_payout')` for each
+- Displays: Client, Service, Coach (Level), Coach Payout, Diet Payout, IGU Ops, IGU Profit, Status
+- Blocked rows highlighted red with tooltip showing `block_reason`
+- Coach filter dropdown, summary totals row
+
+**Admin — Add-on Services Manager:**
+- Full CRUD for `addon_services` catalog (session_pack, specialist, one_time, monthly types)
+- Edit dialog with conditional pack-specific fields (pack_size, pack_price_kwd, pack_expiry_months)
+- Recent purchases section from `addon_purchases` (read-only)
+
+**Coach — Compensation Card:**
+- Level badge (Junior/Senior/Lead) + Head Coach badge
+- Hourly rates from `COACH_RATES[level]` (online + in-person)
+- Per-client payout breakdown table via `calculate_subscription_payout()` RPC
+- Estimated monthly total
 
 ### Phase 26: Roles, Subroles & Tags System (Complete - Feb 7, 2026)
 
