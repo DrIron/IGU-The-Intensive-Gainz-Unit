@@ -499,6 +499,43 @@ When understanding this codebase, read in this order:
 - Phase 32: Team Plan Builder — team CRUD, fan-out program assignment, readOnly calendar, dashboard integration (Feb 12, 2026) ✅
 - Phase 32b: Team Model Redesign — removed service_id, added tags, client team selection during onboarding, unified "Team Plan" service (Feb 12, 2026) ✅
 - Limited Dashboard for Incomplete Onboarding — OnboardingGuard allows dashboard paths through, ClientDashboardLayout shows limited UI (Feb 12, 2026) ✅
+- Phase 32c: Team Migration, Team Selection Prompt & Team Change — backfill old subs, choose-team prompt, change-team dialog, team RLS policies (Feb 12, 2026) ✅
+
+### Phase 32c: Team Migration, Selection Prompt & Team Change (Feb 12, 2026)
+
+Backfilled old Fe Squad/Bunz subscriptions to Team Plan service (team_id left NULL so clients get prompted). Added dashboard prompt for team selection, dialog for once-per-cycle team switching, and team display in subscription management.
+
+**Schema Changes:**
+- `subscriptions`: Added `last_team_change_at TIMESTAMPTZ` (once-per-cycle enforcement)
+- Backfill: old Fe Squad/Bunz subs updated to Team Plan service_id, team_id stays NULL
+
+**New RLS Policies (2):**
+- `subscriptions`: Coaches can read subscriptions for teams they own (`team_id IN (SELECT id FROM coach_teams WHERE coach_id = auth.uid())`)
+- `profiles_public`: Coaches can read profiles of members in their teams (via `subscriptions.team_id → coach_teams.coach_id` join)
+
+**Migrations (3):**
+```
+20260212160000_team_change_tracking.sql        -- last_team_change_at + backfill old subs
+20260212170000_team_subscriptions_rls.sql      -- Coach read subscriptions by team_id
+20260212180000_team_profiles_rls.sql           -- Coach read profiles of team members
+```
+
+**New Files (2):**
+| File | Purpose |
+|------|---------|
+| `src/components/client/ChooseTeamPrompt.tsx` | Full-width prompt (indigo alert + team cards RadioGroup) for active team clients with NULL team_id. Updates `subscriptions.team_id` on join. |
+| `src/components/client/ChangeTeamDialog.tsx` | Dialog to switch teams once per billing cycle. Current team highlighted/disabled, updates `team_id` + `last_team_change_at`. |
+
+**Modified Files (3):**
+| File | Changes |
+|------|---------|
+| `src/pages/Dashboard.tsx` | Added `team_id`, `last_team_change_at` to Subscription interface; added `type` to services query |
+| `src/components/client/ClientDashboardLayout.tsx` | New state 10a: active team plan + no team → shows `ChooseTeamPrompt` before full dashboard |
+| `src/components/SubscriptionManagement.tsx` | Team info row (name + "Change Team" button), once-per-cycle enforcement via `last_team_change_at` vs billing cycle start, `ChangeTeamDialog` integration |
+
+**Key patterns:** `hasFetched` ref guard, `memo` on new components, team card UI reused from `TeamSelectionSection.tsx`, `coaches_client_safe` for coach names, `sanitizeErrorForUser` for error toasts.
+
+**RLS lesson:** Team-based queries need dedicated policies — existing coach RLS only checks `coach_id` on subscriptions and `is_primary_coach_for_user` on profiles. Team coaches need separate paths via `coach_teams.coach_id → subscriptions.team_id` and `coach_teams.coach_id → subscriptions.team_id → profiles_public.id`.
 
 ### Limited Dashboard for Incomplete Onboarding (Feb 12, 2026)
 
@@ -1709,6 +1746,7 @@ SQL function `generate_referral_code(first_name)`:
 - **OnboardingGuard allows dashboard paths**: Clients with incomplete onboarding can visit `/dashboard`, `/client`, `/client/dashboard` — `ClientDashboardLayout` shows appropriate limited UI (registration alert, medical review, coach approval, payment status). Non-dashboard client routes redirect to `/dashboard`. The `paymentVerified` state bypass for post-payment navigation still works.
 - **Post-action navigation + OnboardingGuard race condition**: When navigating to `/dashboard` after a server-side status change (e.g., payment verification), pass `{ state: { paymentVerified: true } }` so OnboardingGuard doesn't redirect based on stale `profiles_public.status`. See `PaymentReturn.tsx` for the pattern.
 - **All public-facing pages MUST be wrapped in `<PublicLayout>` in App.tsx** — this provides the consistent "IGU" navbar and footer. Never render a public page without PublicLayout, and never add `<Navigation />` or `<Footer />` inside a page component that is already wrapped in PublicLayout (causes duplicates). When creating a new public route, wrap it: `<Route path="/foo" element={<PublicLayout><Foo /></PublicLayout>} />`. When editing a page, check App.tsx first to see if it's already wrapped.
+- **Team-based RLS requires dedicated policies.** Existing coach RLS checks `subscriptions.coach_id` and `is_primary_coach_for_user()`. For team queries (`WHERE team_id = X`), coaches need separate policies on both `subscriptions` (read by team_id) and `profiles_public` (read team member profiles). See migrations `20260212170000` and `20260212180000`.
 
 ---
 
