@@ -62,7 +62,7 @@ CREATE POLICY coach_teams_admin_all ON public.coach_teams FOR ALL
 CREATE TRIGGER set_coach_teams_updated_at
   BEFORE UPDATE ON public.coach_teams
   FOR EACH ROW
-  EXECUTE FUNCTION public.set_updated_at();
+  EXECUTE FUNCTION public.update_updated_at_column();
 
 -- 6. Index for team member queries via subscriptions.team_id
 CREATE INDEX idx_subscriptions_team_active ON public.subscriptions(team_id)
