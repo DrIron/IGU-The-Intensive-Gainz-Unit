@@ -52,7 +52,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   ├── components/
 │   │   ├── ui/               # shadcn/ui components
 │   │   ├── admin/            # Admin-specific components
-│   │   ├── coach/            # Coach-specific components (incl. programs/*)
+│   │   ├── coach/            # Coach-specific components (incl. programs/*, teams/*)
 │   │   ├── client/           # Client-specific components (incl. EnhancedWorkoutLogger)
 │   │   ├── marketing/        # Marketing components (FAQ, WhatsApp, ComparisonTable, HowItWorks)
 │   │   ├── layouts/          # Layout components (PublicLayout, etc.)
@@ -73,6 +73,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── payments.ts       # Payment utilities and types
 │   │   ├── errorLogging.ts   # Structured error logging (Sentry integration)
 │   │   ├── utm.ts            # UTM parameter tracking for leads
+│   │   ├── assignProgram.ts  # Shared program assignment logic (fan-out for teams)
 │   │   └── utils.ts          # General utilities (cn, etc.)
 │   ├── pages/                # Route page components
 │   │   ├── admin/            # Admin pages
@@ -250,6 +251,10 @@ addon_session_logs         -- Individual session consumption from packs
 
 -- Muscle-First Workout Builder (Phase 31)
 muscle_program_templates   -- Muscle planning templates (slot_config JSONB, is_preset, converted_program_id)
+
+-- Team Plan Builder (Phase 32)
+coach_teams                -- Head coach team management (name, service_id, max_members, current_program_template_id)
+-- client_programs.team_id -- Nullable FK to coach_teams (tracks which team assignment created the program)
 ```
 
 ### 5b. Service Tiers & Compensation
@@ -488,6 +493,74 @@ When understanding this codebase, read in this order:
 - Phase 30: Compensation Model Schema — hourly-rate compensation, professional levels, add-on services, payout functions (Feb 11, 2026) ✅
 - Phase 30b: Compensation UI — admin level manager, payout preview, add-on services manager, coach compensation card (Feb 11, 2026) ✅
 - Phase 31: Muscle-First Workout Builder — muscle-first planning, DnD calendar, volume analytics, preset system, program conversion (Feb 12, 2026) ✅
+- Phase 32: Team Plan Builder — team CRUD, fan-out program assignment, readOnly calendar, dashboard integration (Feb 12, 2026) ✅
+
+### Phase 32: Team Plan Builder (Complete - Feb 12, 2026)
+
+Head coaches manage team services (Fe Squad, Bunz of Steel). Create named teams linked to team service tiers, view members derived from subscriptions, assign program templates to all members at once (fan-out), and preview assigned programs in a read-only calendar.
+
+**New Table:** `coach_teams`
+| Column | Type | Purpose |
+|--------|------|---------|
+| `coach_id` | UUID FK auth.users | Owner (must be head coach for INSERT) |
+| `name` | TEXT | Team name |
+| `description` | TEXT | Optional description |
+| `service_id` | UUID FK services | Team service (Fe Squad / Bunz) |
+| `current_program_template_id` | UUID FK program_templates | Currently assigned template |
+| `max_members` | INT (default 30) | Member cap |
+| `is_active` | BOOLEAN | Soft delete flag |
+
+**Altered Table:** `client_programs` — added `team_id UUID` (nullable FK to `coach_teams`, tracks team-originated assignments)
+
+**Migration:** `supabase/migrations/20260212_team_plan_builder.sql`
+- RLS: coach SELECT own, INSERT with `coaches_public.is_head_coach` check, UPDATE/DELETE own, admin ALL
+- Index on `subscriptions(coach_id, service_id)` WHERE status IN ('pending','active')
+- Index on `client_programs(team_id)`
+
+**Shared Utility:** `src/lib/assignProgram.ts`
+- Extracted assignment logic from `AssignProgramDialog.tsx` (~155 lines) into reusable `assignProgramToClient()`
+- Handles: template loading, `client_programs` creation (with optional `team_id`), care team member fetching, day/module/exercise copying with prescription snapshots, module thread creation, specialist auto-creation
+- Used by both `AssignProgramDialog` (1:1 assignments) and `AssignTeamProgramDialog` (fan-out)
+
+**Component Tree:**
+```
+src/components/coach/teams/
+├── CoachTeamsPage.tsx           # Main page: list/detail views, head coach gate
+├── TeamCard.tsx                 # Card: name, service badge, member count, program name
+├── TeamDetailView.tsx           # Detail: member list, program section, edit/delete
+├── AssignTeamProgramDialog.tsx  # Fan-out: program selector, date picker, progress bar
+├── CreateTeamDialog.tsx         # Create/edit: name, description, service, max_members
+└── index.ts                    # Barrel export
+```
+
+**Key Design Decisions:**
+- **No separate members table** — team members derived from `subscriptions WHERE coach_id = X AND service_id = team_service AND status IN ('pending','active')`
+- **Max 3 teams per coach** — application-enforced validation
+- **Fan-out assignment** — loops `assignProgramToClient()` for each active subscriber, sets `team_id` on created `client_programs`, updates `coach_teams.current_program_template_id`
+- **Partial success handling** — if some assignments fail, shows error list with which clients failed
+- **Head coach gate** — non-head-coaches see a message instead of the teams UI (matches `canBuildPrograms` pattern)
+
+**ProgramCalendarBuilder readOnly Mode:**
+- Added `readOnly?: boolean` and `onBack?: () => void` props
+- When `readOnly`: hides Add Week, Copy Week, paste buttons, session dropdown menus, clipboard banner
+- SessionCard: no cursor-pointer/hover, no onClick, no dropdown
+- Used by TeamDetailView to preview the team's assigned program
+
+**Dashboard Integration:**
+- Route: `coach-teams` in `routeConfig.ts` (navOrder 2.5, between Clients and Assignments)
+- `CoachDashboard.tsx`: `teams: "teams"` in SECTION_MAP
+- `CoachDashboardLayout.tsx`: `CoachTeamsPage` case in renderContent, getSectionFromPath, titles
+- `CoachDashboardOverview.tsx`: `CoachTeamsSummaryCard` (memo'd, head-coach-only) — shows team count + total members, clickable navigation to teams section
+
+**Modified Files (6):**
+| File | Changes |
+|------|---------|
+| `src/components/coach/programs/AssignProgramDialog.tsx` | Replaced ~155 lines inline logic with `assignProgramToClient()` call |
+| `src/components/coach/programs/ProgramCalendarBuilder.tsx` | Added `readOnly` + `onBack` props, conditional rendering on all interactive elements |
+| `src/components/coach/CoachDashboardLayout.tsx` | Added teams route, import, renderContent case, titles |
+| `src/components/coach/CoachDashboardOverview.tsx` | Added `CoachTeamsSummaryCard` component |
+| `src/lib/routeConfig.ts` | Added `coach-teams` route with `Users2` icon |
+| `src/pages/coach/CoachDashboard.tsx` | Added `teams` to SECTION_MAP |
 
 ### Phase 31: Muscle-First Workout Builder (Complete - Feb 12, 2026)
 
@@ -1746,7 +1819,7 @@ When asking for help:
 | Workout logging | ✅ Routed (Phase 21) | WorkoutSessionV2 replaces old route |
 | Draft/Publish | ✅ Per-session toggle | |
 | Session copy/paste | ✅ Clipboard-based deep copy | Copy from dropdown, paste on any day |
-| Teams | ❌ | Deferred |
+| Teams | ✅ | Phase 32 — team CRUD, fan-out assignment, readOnly calendar |
 | Volume tracking | ✅ | Phase 28 |
 | Exercise swap | ✅ | Phase 28 |
 
@@ -1755,7 +1828,7 @@ When asking for help:
 - ✅ Direct calendar exercise editing (DirectSessionExerciseEditor)
 - ✅ Exercise swap functionality (SwapExercisePicker in WorkoutSessionV2)
 - ✅ Volume tracking / per-muscle analytics (useVolumeTracking + VolumeChart)
-- ❌ Team programs (synced group assignments) — deferred, not launch-critical
+- ✅ Team programs — Phase 32: team CRUD, fan-out program assignment, readOnly calendar preview
 - ❌ Exercise history sheet UI — deferred
 
 ---
