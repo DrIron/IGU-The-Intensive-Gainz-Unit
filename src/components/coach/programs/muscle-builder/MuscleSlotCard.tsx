@@ -1,0 +1,97 @@
+import { memo, useCallback } from "react";
+import { Draggable } from "@hello-pangea/dnd";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { X } from "lucide-react";
+import { MUSCLE_MAP } from "@/types/muscle-builder";
+
+interface MuscleSlotCardProps {
+  muscleId: string;
+  sets: number;
+  dayIndex: number;
+  draggableIndex: number;
+  onSetSets: (dayIndex: number, muscleId: string, sets: number) => void;
+  onRemove: (dayIndex: number, muscleId: string) => void;
+}
+
+export const MuscleSlotCard = memo(function MuscleSlotCard({
+  muscleId,
+  sets,
+  dayIndex,
+  draggableIndex,
+  onSetSets,
+  onRemove,
+}: MuscleSlotCardProps) {
+  const handleSetsChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = parseInt(e.target.value);
+      if (!isNaN(val)) {
+        onSetSets(dayIndex, muscleId, val);
+      }
+    },
+    [dayIndex, muscleId, onSetSets]
+  );
+
+  const handleRemove = useCallback(() => {
+    onRemove(dayIndex, muscleId);
+  }, [dayIndex, muscleId, onRemove]);
+
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent<HTMLInputElement>) => {
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        onSetSets(dayIndex, muscleId, sets + 1);
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        onSetSets(dayIndex, muscleId, sets - 1);
+      }
+    },
+    [dayIndex, muscleId, sets, onSetSets]
+  );
+
+  const muscle = MUSCLE_MAP.get(muscleId);
+  if (!muscle) return null;
+
+  return (
+    <Draggable draggableId={`slot-${dayIndex}-${muscleId}`} index={draggableIndex}>
+      {(provided, snapshot) => (
+        <div
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+          className={`group flex items-center gap-2 px-2 py-1.5 rounded-md border text-sm transition-all cursor-grab active:cursor-grabbing ${
+            snapshot.isDragging
+              ? 'shadow-lg ring-2 ring-primary/50 bg-card'
+              : 'bg-card/50 border-border/50 hover:border-border'
+          }`}
+          style={{
+            ...provided.draggableProps.style,
+            backgroundColor: snapshot.isDragging ? undefined : `${muscle.colorHex}08`,
+          }}
+        >
+          <div className={`w-2 h-2 rounded-full shrink-0 ${muscle.colorClass}`} />
+          <span className="font-medium truncate flex-1 text-foreground">{muscle.label}</span>
+          <Input
+            type="number"
+            min={1}
+            max={20}
+            value={sets}
+            onChange={handleSetsChange}
+            onKeyDown={handleKeyDown}
+            className="w-12 h-6 text-center text-xs px-1 bg-background/50"
+            onClick={e => e.stopPropagation()}
+          />
+          <span className="text-[10px] text-muted-foreground">sets</span>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+            onClick={handleRemove}
+          >
+            <X className="h-3 w-3" />
+          </Button>
+        </div>
+      )}
+    </Draggable>
+  );
+});

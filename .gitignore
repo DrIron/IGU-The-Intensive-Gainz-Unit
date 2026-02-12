@@ -36,3 +36,6 @@ supabase/.temp/
 
 # Cursor
 .cursor/
+
+# Agents
+.agents/

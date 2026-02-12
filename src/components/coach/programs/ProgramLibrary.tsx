@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag } from "lucide-react";
+import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag, Dumbbell } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,9 +24,10 @@ interface ProgramLibraryProps {
   coachUserId: string;
   onCreateProgram: () => void;
   onEditProgram: (programId: string) => void;
+  onMuscleBuilder?: () => void;
 }
 
-export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: ProgramLibraryProps) {
+export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, onMuscleBuilder }: ProgramLibraryProps) {
   const [programs, setPrograms] = useState<ProgramTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -225,10 +226,18 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
           <h2 className="text-2xl font-bold">Program Library</h2>
           <p className="text-muted-foreground">Create and manage your workout program templates</p>
         </div>
-        <Button onClick={onCreateProgram}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Program
-        </Button>
+        <div className="flex gap-2">
+          {onMuscleBuilder && (
+            <Button variant="outline" onClick={onMuscleBuilder}>
+              <Dumbbell className="h-4 w-4 mr-2" />
+              Muscle-First Plan
+            </Button>
+          )}
+          <Button onClick={onCreateProgram}>
+            <Plus className="h-4 w-4 mr-2" />
+            Create Program
+          </Button>
+        </div>
       </div>
 
       {/* Search and Filters */}

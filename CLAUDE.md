@@ -247,6 +247,9 @@ staff_professional_info    -- Level tracking for non-coach professionals (dietit
 addon_services             -- Catalog of add-on services (session packs, specialist, one-time)
 addon_purchases            -- Client purchases of add-on services
 addon_session_logs         -- Individual session consumption from packs
+
+-- Muscle-First Workout Builder (Phase 31)
+muscle_program_templates   -- Muscle planning templates (slot_config JSONB, is_preset, converted_program_id)
 ```
 
 ### 5b. Service Tiers & Compensation
@@ -484,6 +487,54 @@ When understanding this codebase, read in this order:
 - i18n Scaffolding — react-i18next setup, en/ar locales, Navigation + Footer converted, LanguageSwitcher (Feb 10, 2026) ✅
 - Phase 30: Compensation Model Schema — hourly-rate compensation, professional levels, add-on services, payout functions (Feb 11, 2026) ✅
 - Phase 30b: Compensation UI — admin level manager, payout preview, add-on services manager, coach compensation card (Feb 11, 2026) ✅
+- Phase 31: Muscle-First Workout Builder — muscle-first planning, DnD calendar, volume analytics, preset system, program conversion (Feb 12, 2026) ✅
+
+### Phase 31: Muscle-First Workout Builder (Complete - Feb 12, 2026)
+
+Coaches plan workouts starting from **muscles** instead of exercises. Drag muscle groups onto a 7-day calendar, configure sets per slot, view real-time volume analytics (MV/MEV/MAV/MRV landmarks), then convert the muscle template into a program scaffold.
+
+**New Table:** `muscle_program_templates`
+| Column | Type | Purpose |
+|--------|------|---------|
+| `coach_id` | UUID FK coaches | Owner |
+| `name` | TEXT | Plan name |
+| `description` | TEXT | Optional description |
+| `slot_config` | JSONB | Array of `{dayIndex, muscleId, sets, sortOrder}` |
+| `is_preset` | BOOLEAN | Coach-saved preset flag |
+| `is_system` | BOOLEAN | Built-in preset flag |
+| `converted_program_id` | UUID FK program_templates | Link to converted program |
+
+**Migration:** `supabase/migrations/20260212_muscle_program_templates.sql`
+
+**Types:** `src/types/muscle-builder.ts` — 17 muscle groups with evidence-based volume landmarks, 4 body regions (push/pull/legs/core), 4 built-in presets (PPL, Upper/Lower, Full Body 3x, Bro Split), landmark zone helpers.
+
+**Component Tree:**
+```
+src/components/coach/programs/muscle-builder/
+├── MuscleBuilderPage.tsx           # Entry: DragDropContext + header + 3-col layout
+├── MusclePalette.tsx               # Right panel: search + accordion by body region
+│   └── DraggableMuscleChip.tsx     # Draggable muscle badge with placement count
+├── WeeklyCalendar.tsx              # 7-column responsive grid (2-col mobile → 7-col desktop)
+│   ├── DayColumn.tsx               # Droppable day zone with slot list
+│   └── MuscleSlotCard.tsx          # Draggable slot: color dot + name + sets input + delete
+├── VolumeOverview.tsx              # Horizontal bars with MEV/MRV markers + zone badges
+├── FrequencyHeatmap.tsx            # Muscle × Day matrix with consecutive-day warnings
+├── PresetSelector.tsx              # 4 built-in + coach custom preset cards
+├── ConvertToProgramDialog.tsx      # Creates program_template + days + day_modules
+└── hooks/
+    ├── useMuscleBuilderState.ts    # useReducer (13 actions) + Supabase save/load
+    └── useMusclePlanVolume.ts      # Derived volume, summary, frequency, placement counts
+```
+
+**DnD (via @hello-pangea/dnd):**
+- Palette → Day: copy muscle (palette stays)
+- Day → Same Day: reorder
+- Day → Different Day: move
+- Duplicate check: toast if muscle already on target day
+
+**Conversion:** Creates `program_templates` + `program_template_days` (one per training day) + `day_modules` (one per muscle slot). Coach fills in exercises via ProgramCalendarBuilder afterward. (`module_exercises.exercise_id` is NOT NULL, so no placeholder exercises.)
+
+**Modified Files:** `CoachProgramsPage.tsx` (added `muscle-builder` view), `ProgramLibrary.tsx` (added "Muscle-First Plan" button), `index.ts` (export).
 
 ### Phase 30: Compensation Model (Complete - Feb 11, 2026)
 

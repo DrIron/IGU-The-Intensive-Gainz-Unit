@@ -2,6 +2,7 @@ import { useState, useCallback } from "react";
 import { ProgramLibrary } from "./ProgramLibrary";
 import { ProgramEditor } from "./ProgramEditor";
 import { ProgramCalendarBuilder } from "./ProgramCalendarBuilder";
+import { MuscleBuilderPage } from "./muscle-builder/MuscleBuilderPage";
 import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ShieldAlert } from "lucide-react";
@@ -11,7 +12,7 @@ interface CoachProgramsPageProps {
 }
 
 export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
-  const [view, setView] = useState<"library" | "create" | "edit" | "calendar">("library");
+  const [view, setView] = useState<"library" | "create" | "edit" | "calendar" | "muscle-builder">("library");
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
   const { canBuildPrograms, isLoading: permissionsLoading } = useSubrolePermissions(coachUserId);
 
@@ -40,6 +41,16 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
     setView("edit");
   }, []);
 
+  const handleMuscleBuilder = useCallback(() => {
+    setEditingProgramId(null);
+    setView("muscle-builder");
+  }, []);
+
+  const handleMuscleBuilderOpenProgram = useCallback((programId: string) => {
+    setEditingProgramId(programId);
+    setView("calendar");
+  }, []);
+
   // Gate: only show program builder to users with canBuildPrograms capability
   if (!permissionsLoading && !canBuildPrograms) {
     return (
@@ -49,6 +60,16 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
           You don't have the required subrole to build programs. Request the Coach, Physiotherapist, or Mobility Coach subrole from your profile settings.
         </AlertDescription>
       </Alert>
+    );
+  }
+
+  if (view === "muscle-builder") {
+    return (
+      <MuscleBuilderPage
+        coachUserId={coachUserId}
+        onBack={handleBack}
+        onOpenProgram={handleMuscleBuilderOpenProgram}
+      />
     );
   }
 
@@ -79,6 +100,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
       coachUserId={coachUserId}
       onCreateProgram={handleCreateProgram}
       onEditProgram={handleEditProgram}
+      onMuscleBuilder={handleMuscleBuilder}
     />
   );
 }
