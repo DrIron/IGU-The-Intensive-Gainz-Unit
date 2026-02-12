@@ -16,8 +16,10 @@ type Action =
   | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string }
   | { type: 'REMOVE_MUSCLE'; dayIndex: number; muscleId: string }
   | { type: 'SET_SETS'; dayIndex: number; muscleId: string; sets: number }
+  | { type: 'SET_ALL_SETS_FOR_MUSCLE'; muscleId: string; sets: number }
   | { type: 'REORDER'; dayIndex: number; fromIndex: number; toIndex: number }
   | { type: 'MOVE_MUSCLE'; fromDay: number; toDay: number; muscleId: string; toIndex: number }
+  | { type: 'PASTE_DAY'; fromDayIndex: number; toDayIndex: number }
   | { type: 'LOAD_PRESET'; slots: MuscleSlotData[]; name?: string }
   | { type: 'CLEAR_ALL' }
   | { type: 'MARK_SAVED'; templateId: string }
@@ -145,6 +147,36 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
 
       const otherSlots = withoutMoved.filter(s => s.dayIndex !== action.toDay);
       return { ...state, slots: [...otherSlots, ...reorderedTarget], isDirty: true };
+    }
+
+    case 'SET_ALL_SETS_FOR_MUSCLE':
+      return {
+        ...state,
+        slots: state.slots.map(s =>
+          s.muscleId === action.muscleId
+            ? { ...s, sets: Math.max(1, Math.min(20, action.sets)) }
+            : s
+        ),
+        isDirty: true,
+      };
+
+    case 'PASTE_DAY': {
+      const sourceSlots = state.slots
+        .filter(s => s.dayIndex === action.fromDayIndex)
+        .sort((a, b) => a.sortOrder - b.sortOrder);
+      const existingTargetMuscles = new Set(
+        state.slots.filter(s => s.dayIndex === action.toDayIndex).map(s => s.muscleId)
+      );
+      const maxOrder = getMaxSortOrder(state.slots, action.toDayIndex);
+      const newSlots = sourceSlots
+        .filter(s => !existingTargetMuscles.has(s.muscleId))
+        .map((s, i) => ({
+          ...s,
+          dayIndex: action.toDayIndex,
+          sortOrder: maxOrder + 1 + i,
+        }));
+      if (newSlots.length === 0) return state;
+      return { ...state, slots: [...state.slots, ...newSlots], isDirty: true };
     }
 
     case 'LOAD_PRESET':

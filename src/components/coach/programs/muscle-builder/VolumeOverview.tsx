@@ -17,11 +17,13 @@ import type { MuscleVolumeEntry, VolumeSummary } from "../muscle-builder/hooks/u
 interface VolumeOverviewProps {
   entries: MuscleVolumeEntry[];
   summary: VolumeSummary;
+  onMuscleClick?: (muscleId: string) => void;
 }
 
 export const VolumeOverview = memo(function VolumeOverview({
   entries,
   summary,
+  onMuscleClick,
 }: VolumeOverviewProps) {
   if (entries.length === 0) {
     return (
@@ -53,7 +55,10 @@ export const VolumeOverview = memo(function VolumeOverview({
             return (
               <Tooltip key={entry.muscle.id}>
                 <TooltipTrigger asChild>
-                  <div className="flex items-center gap-2 group cursor-default">
+                  <div
+                    className={`flex items-center gap-2 group ${onMuscleClick ? 'cursor-pointer hover:bg-muted/30 rounded-md px-1 -mx-1 transition-colors' : 'cursor-default'}`}
+                    onClick={() => onMuscleClick?.(entry.muscle.id)}
+                  >
                     {/* Muscle label */}
                     <div className="flex items-center gap-1.5 w-28 shrink-0">
                       <div className={`w-2 h-2 rounded-full ${entry.muscle.colorClass}`} />

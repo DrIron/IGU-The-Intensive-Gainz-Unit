@@ -1,8 +1,10 @@
-import { memo, useCallback } from "react";
+import { memo, useCallback, useState } from "react";
 import { Draggable } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { X } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { MUSCLE_MAP } from "@/types/muscle-builder";
 
 interface MuscleSlotCardProps {
@@ -12,6 +14,8 @@ interface MuscleSlotCardProps {
   draggableIndex: number;
   onSetSets: (dayIndex: number, muscleId: string, sets: number) => void;
   onRemove: (dayIndex: number, muscleId: string) => void;
+  isHighlighted?: boolean;
+  onSetAllSets?: (muscleId: string, sets: number) => void;
 }
 
 export const MuscleSlotCard = memo(function MuscleSlotCard({
@@ -21,7 +25,11 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   draggableIndex,
   onSetSets,
   onRemove,
+  isHighlighted,
+  onSetAllSets,
 }: MuscleSlotCardProps) {
+  const [bulkOpen, setBulkOpen] = useState(false);
+
   const handleSetsChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = parseInt(e.target.value);
@@ -49,6 +57,11 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
     [dayIndex, muscleId, sets, onSetSets]
   );
 
+  const handleBulkApply = useCallback(() => {
+    onSetAllSets?.(muscleId, sets);
+    setBulkOpen(false);
+  }, [muscleId, sets, onSetAllSets]);
+
   const muscle = MUSCLE_MAP.get(muscleId);
   if (!muscle) return null;
 
@@ -59,18 +72,41 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
           ref={provided.innerRef}
           {...provided.draggableProps}
           {...provided.dragHandleProps}
-          className={`group flex items-center gap-2 px-2 py-1.5 rounded-md border text-sm transition-all cursor-grab active:cursor-grabbing ${
+          className={cn(
+            `group flex items-center gap-2 px-2 py-1.5 rounded-md border text-sm transition-all cursor-grab active:cursor-grabbing`,
             snapshot.isDragging
               ? 'shadow-lg ring-2 ring-primary/50 bg-card'
-              : 'bg-card/50 border-border/50 hover:border-border'
-          }`}
+              : 'bg-card/50 border-border/50 hover:border-border',
+            isHighlighted && 'ring-2 ring-primary animate-pulse bg-primary/10',
+          )}
           style={{
             ...provided.draggableProps.style,
-            backgroundColor: snapshot.isDragging ? undefined : `${muscle.colorHex}08`,
+            backgroundColor: snapshot.isDragging || isHighlighted ? undefined : `${muscle.colorHex}08`,
           }}
         >
           <div className={`w-2 h-2 rounded-full shrink-0 ${muscle.colorClass}`} />
-          <span className="font-medium truncate flex-1 text-foreground">{muscle.label}</span>
+          {onSetAllSets ? (
+            <Popover open={bulkOpen} onOpenChange={setBulkOpen}>
+              <PopoverTrigger asChild>
+                <span
+                  className="font-medium truncate flex-1 text-foreground cursor-pointer hover:underline"
+                  onDoubleClick={e => { e.stopPropagation(); setBulkOpen(true); }}
+                >
+                  {muscle.label}
+                </span>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-3" onClick={e => e.stopPropagation()}>
+                <p className="text-sm mb-2">
+                  Set all <strong>{muscle.label}</strong> to {sets} sets?
+                </p>
+                <Button size="sm" onClick={handleBulkApply}>
+                  Apply to all days
+                </Button>
+              </PopoverContent>
+            </Popover>
+          ) : (
+            <span className="font-medium truncate flex-1 text-foreground">{muscle.label}</span>
+          )}
           <Input
             type="number"
             min={1}

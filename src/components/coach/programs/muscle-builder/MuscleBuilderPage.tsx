@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useRef } from "react";
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { ToastAction } from "@/components/ui/toast";
 import {
   ArrowLeft,
   Save,
@@ -26,9 +27,12 @@ import {
   Loader2,
   Bookmark,
   Palette,
+  ChevronRight,
+  X,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { MUSCLE_GROUPS } from "@/types/muscle-builder";
+import { MUSCLE_GROUPS, DAYS_OF_WEEK } from "@/types/muscle-builder";
+import type { MuscleSlotData } from "@/types/muscle-builder";
 
 import { useMuscleBuilderState } from "./hooks/useMuscleBuilderState";
 import { useMusclePlanVolume } from "./hooks/useMusclePlanVolume";
@@ -61,6 +65,16 @@ export function MuscleBuilderPage({
   const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
 
+  // #9 — Copy Day
+  const [copiedDayIndex, setCopiedDayIndex] = useState<number | null>(null);
+
+  // #6 — Volume bar click → scroll
+  const [highlightedMuscleId, setHighlightedMuscleId] = useState<string | null>(null);
+  const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // #2 — Delete undo ref
+  const lastDeletedSlotRef = useRef<{ dayIndex: number; muscleId: string; sets: number; sortOrder: number } | null>(null);
+
   // ── DnD Handler ──────────────────────────────────────────────
   const handleDragEnd = useCallback(
     (result: DropResult) => {
@@ -72,14 +86,13 @@ export function MuscleBuilderPage({
         const dayIndex = parseInt(destination.droppableId.replace('day-', ''));
         const muscleId = draggableId.replace('palette-', '');
 
-        // Duplicate check
         const exists = state.slots.some(
           s => s.dayIndex === dayIndex && s.muscleId === muscleId
         );
         if (exists) {
           const muscle = MUSCLE_GROUPS.find(m => m.id === muscleId);
           toast({
-            title: `${muscle?.label || muscleId} already on ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][dayIndex - 1]}`,
+            title: `${muscle?.label || muscleId} already on ${DAYS_OF_WEEK[dayIndex - 1]}`,
             variant: 'destructive',
           });
           return;
@@ -111,7 +124,6 @@ export function MuscleBuilderPage({
       ) {
         const fromDay = parseInt(source.droppableId.replace('day-', ''));
         const toDay = parseInt(destination.droppableId.replace('day-', ''));
-        // Extract muscleId from draggableId: "slot-{day}-{muscleId}"
         const muscleId = draggableId.replace(`slot-${fromDay}-`, '');
 
         const existsOnTarget = state.slots.some(
@@ -120,7 +132,7 @@ export function MuscleBuilderPage({
         if (existsOnTarget) {
           const muscle = MUSCLE_GROUPS.find(m => m.id === muscleId);
           toast({
-            title: `${muscle?.label || muscleId} already on ${['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][toDay - 1]}`,
+            title: `${muscle?.label || muscleId} already on ${DAYS_OF_WEEK[toDay - 1]}`,
             variant: 'destructive',
           });
           return;
@@ -150,14 +162,43 @@ export function MuscleBuilderPage({
     [dispatch]
   );
 
+  // #2 — Delete with undo
   const handleRemoveMuscle = useCallback(
-    (dayIndex: number, muscleId: string) =>
-      dispatch({ type: 'REMOVE_MUSCLE', dayIndex, muscleId }),
-    [dispatch]
+    (dayIndex: number, muscleId: string) => {
+      const slot = state.slots.find(s => s.dayIndex === dayIndex && s.muscleId === muscleId);
+      if (slot) {
+        lastDeletedSlotRef.current = {
+          dayIndex: slot.dayIndex,
+          muscleId: slot.muscleId,
+          sets: slot.sets,
+          sortOrder: slot.sortOrder,
+        };
+      }
+      dispatch({ type: 'REMOVE_MUSCLE', dayIndex, muscleId });
+      const muscle = MUSCLE_GROUPS.find(m => m.id === muscleId);
+      toast({
+        title: `Removed ${muscle?.label || muscleId} from ${DAYS_OF_WEEK[dayIndex - 1]}`,
+        action: (
+          <ToastAction
+            altText="Undo"
+            onClick={() => {
+              const deleted = lastDeletedSlotRef.current;
+              if (deleted) {
+                dispatch({ type: 'ADD_MUSCLE', dayIndex: deleted.dayIndex, muscleId: deleted.muscleId });
+                dispatch({ type: 'SET_SETS', dayIndex: deleted.dayIndex, muscleId: deleted.muscleId, sets: deleted.sets });
+              }
+            }}
+          >
+            Undo
+          </ToastAction>
+        ),
+      });
+    },
+    [state.slots, dispatch, toast]
   );
 
   const handleLoadPreset = useCallback(
-    (slots: import("@/types/muscle-builder").MuscleSlotData[], name?: string) => {
+    (slots: MuscleSlotData[], name?: string) => {
       dispatch({ type: 'LOAD_PRESET', slots, name });
     },
     [dispatch]
@@ -177,6 +218,49 @@ export function MuscleBuilderPage({
     dispatch({ type: 'CLEAR_ALL' });
     setShowClearDialog(false);
   }, [dispatch]);
+
+  // #9 — Copy / Paste day
+  const handleCopyDay = useCallback((dayIndex: number) => {
+    setCopiedDayIndex(dayIndex);
+    toast({ title: `${DAYS_OF_WEEK[dayIndex - 1]} copied — click Paste on target day` });
+  }, [toast]);
+
+  const handlePasteDay = useCallback((toDayIndex: number) => {
+    if (copiedDayIndex == null) return;
+    dispatch({ type: 'PASTE_DAY', fromDayIndex: copiedDayIndex, toDayIndex });
+    setCopiedDayIndex(null);
+    toast({ title: `Pasted to ${DAYS_OF_WEEK[toDayIndex - 1]}` });
+  }, [copiedDayIndex, dispatch, toast]);
+
+  // #8 — Bulk set all for muscle
+  const handleSetAllSets = useCallback(
+    (muscleId: string, sets: number) => {
+      dispatch({ type: 'SET_ALL_SETS_FOR_MUSCLE', muscleId, sets });
+      const muscle = MUSCLE_GROUPS.find(m => m.id === muscleId);
+      toast({ title: `Set all ${muscle?.label || muscleId} to ${sets} sets` });
+    },
+    [dispatch, toast]
+  );
+
+  // #6 — Volume bar click → scroll to first day with muscle
+  const handleMuscleClick = useCallback(
+    (muscleId: string) => {
+      const slot = state.slots.find(s => s.muscleId === muscleId);
+      if (!slot) return;
+
+      dispatch({ type: 'SELECT_DAY', dayIndex: slot.dayIndex });
+
+      const dayEl = document.querySelector(`[data-day-index="${slot.dayIndex}"]`);
+      if (dayEl) {
+        dayEl.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'nearest' });
+      }
+
+      if (highlightTimeoutRef.current) clearTimeout(highlightTimeoutRef.current);
+      setHighlightedMuscleId(muscleId);
+      highlightTimeoutRef.current = setTimeout(() => setHighlightedMuscleId(null), 1500);
+    },
+    [state.slots, dispatch]
+  );
 
   const isEmpty = state.slots.length === 0;
 
@@ -258,6 +342,34 @@ export function MuscleBuilderPage({
           </div>
         </div>
 
+        {/* ── Breadcrumb ──────────────────────────────────────── */}
+        <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
+          <button onClick={onBack} className="hover:text-foreground transition-colors">
+            Programs
+          </button>
+          <ChevronRight className="h-3.5 w-3.5" />
+          <span className="text-foreground font-medium truncate">
+            {state.name || 'Muscle Plan'}
+          </span>
+        </nav>
+
+        {/* #9 — Clipboard banner */}
+        {copiedDayIndex != null && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+            <span>
+              <strong>{DAYS_OF_WEEK[copiedDayIndex - 1]}</strong> copied — click Paste on target day
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 shrink-0"
+              onClick={() => setCopiedDayIndex(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        )}
+
         {/* ── Main Layout ─────────────────────────────────────── */}
         <div className="flex gap-4">
           {/* Left: Calendar + Analytics */}
@@ -274,11 +386,39 @@ export function MuscleBuilderPage({
               onSelectDay={handleSelectDay}
               onSetSets={handleSetSets}
               onRemove={handleRemoveMuscle}
+              copiedDayIndex={copiedDayIndex}
+              onCopyDay={handleCopyDay}
+              onPasteDay={handlePasteDay}
+              highlightedMuscleId={highlightedMuscleId}
+              onSetAllSets={handleSetAllSets}
             />
 
+            {/* #4 — First-time onboarding guide */}
             {isEmpty && (
-              <div className="text-center py-6 text-sm text-muted-foreground">
-                Drag muscles from the palette to start planning your week
+              <div className="rounded-lg border-2 border-dashed border-border/60 bg-muted/10 p-6">
+                <h3 className="text-sm font-semibold mb-4">How to build a muscle plan</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {[
+                    { step: 1, title: 'Pick a preset', desc: 'Start from a template above, or drag muscles manually' },
+                    { step: 2, title: 'Adjust sets', desc: 'Use the number input on each muscle card' },
+                    { step: 3, title: 'Check volume', desc: 'Review analytics below to stay in productive range' },
+                    { step: 4, title: 'Convert', desc: 'Turn your plan into a program with exercises' },
+                  ].map(s => (
+                    <div key={s.step} className="space-y-1.5">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center justify-center w-6 h-6 rounded-full bg-primary/10 text-primary text-xs font-bold shrink-0">
+                          {s.step}
+                        </span>
+                        <span className="text-sm font-medium">{s.title}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground pl-8">{s.desc}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/30 text-xs text-muted-foreground">
+                  <Palette className="h-3.5 w-3.5" />
+                  <span>Drag muscles from the palette on the right (or tap "Muscles" on mobile)</span>
+                </div>
               </div>
             )}
 
@@ -290,7 +430,11 @@ export function MuscleBuilderPage({
                   <TabsTrigger value="frequency">Frequency</TabsTrigger>
                 </TabsList>
                 <TabsContent value="volume" className="mt-3">
-                  <VolumeOverview entries={volumeEntries} summary={summary} />
+                  <VolumeOverview
+                    entries={volumeEntries}
+                    summary={summary}
+                    onMuscleClick={handleMuscleClick}
+                  />
                 </TabsContent>
                 <TabsContent value="frequency" className="mt-3">
                   <FrequencyHeatmap

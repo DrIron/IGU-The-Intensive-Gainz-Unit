@@ -1,10 +1,20 @@
-import { memo, useState, useEffect, useCallback, useRef } from "react";
+import { memo, useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  HoverCard,
+  HoverCardContent,
+  HoverCardTrigger,
+} from "@/components/ui/hover-card";
 import { Loader2, Sparkles, User } from "lucide-react";
-import { SYSTEM_PRESETS, MUSCLE_MAP, type MuscleSlotData, type SystemPreset } from "@/types/muscle-builder";
+import {
+  SYSTEM_PRESETS,
+  MUSCLE_MAP,
+  DAYS_OF_WEEK,
+  type MuscleSlotData,
+} from "@/types/muscle-builder";
 
 interface PresetSelectorProps {
   coachUserId: string;
@@ -61,14 +71,22 @@ export const PresetSelector = memo(function PresetSelector({
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
         {SYSTEM_PRESETS.map(preset => (
-          <PresetCard
-            key={preset.name}
-            name={preset.name}
-            description={preset.description}
-            slots={preset.slots}
-            isSystem
-            onSelect={() => onSelectPreset(preset.slots, preset.name)}
-          />
+          <HoverCard key={preset.name} openDelay={300}>
+            <HoverCardTrigger asChild>
+              <div>
+                <PresetCard
+                  name={preset.name}
+                  description={preset.description}
+                  slots={preset.slots}
+                  isSystem
+                  onSelect={() => onSelectPreset(preset.slots, preset.name)}
+                />
+              </div>
+            </HoverCardTrigger>
+            <HoverCardContent className="w-auto p-3" side="right">
+              <MiniPresetPreview slots={preset.slots} />
+            </HoverCardContent>
+          </HoverCard>
         ))}
       </div>
 
@@ -82,13 +100,21 @@ export const PresetSelector = memo(function PresetSelector({
           <h4 className="text-xs font-medium text-muted-foreground mb-2 uppercase tracking-wider">Your Presets</h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
             {coachPresets.map(preset => (
-              <PresetCard
-                key={preset.id}
-                name={preset.name}
-                description={preset.description || ''}
-                slots={preset.slot_config}
-                onSelect={() => onSelectPreset(preset.slot_config, preset.name)}
-              />
+              <HoverCard key={preset.id} openDelay={300}>
+                <HoverCardTrigger asChild>
+                  <div>
+                    <PresetCard
+                      name={preset.name}
+                      description={preset.description || ''}
+                      slots={preset.slot_config}
+                      onSelect={() => onSelectPreset(preset.slot_config, preset.name)}
+                    />
+                  </div>
+                </HoverCardTrigger>
+                <HoverCardContent className="w-auto p-3" side="right">
+                  <MiniPresetPreview slots={preset.slot_config} />
+                </HoverCardContent>
+              </HoverCard>
             ))}
           </div>
         </div>
@@ -136,5 +162,40 @@ function PresetCard({
         </div>
       </CardContent>
     </Card>
+  );
+}
+
+function MiniPresetPreview({ slots }: { slots: MuscleSlotData[] }) {
+  return (
+    <div>
+      <p className="text-xs font-medium mb-2">Weekly layout</p>
+      <div className="grid grid-cols-7 gap-1">
+        {DAYS_OF_WEEK.map((day, i) => {
+          const dayIndex = i + 1;
+          const daySlots = slots.filter(s => s.dayIndex === dayIndex);
+          return (
+            <div key={day} className="text-center">
+              <span className="text-[9px] text-muted-foreground font-medium">{day}</span>
+              <div className="flex flex-col items-center gap-0.5 mt-1 min-h-[20px]">
+                {daySlots.length === 0 ? (
+                  <span className="text-[9px] text-muted-foreground/40">-</span>
+                ) : (
+                  daySlots.map(slot => {
+                    const muscle = MUSCLE_MAP.get(slot.muscleId);
+                    return (
+                      <div
+                        key={slot.muscleId}
+                        className={`w-3 h-3 rounded-sm ${muscle?.colorClass || 'bg-muted'}`}
+                        title={`${muscle?.label || slot.muscleId}: ${slot.sets} sets`}
+                      />
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }

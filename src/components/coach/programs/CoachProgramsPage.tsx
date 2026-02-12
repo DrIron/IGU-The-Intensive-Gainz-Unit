@@ -14,6 +14,7 @@ interface CoachProgramsPageProps {
 export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   const [view, setView] = useState<"library" | "create" | "edit" | "calendar" | "muscle-builder">("library");
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
+  const [previousView, setPreviousView] = useState<string | null>(null);
   const { canBuildPrograms, isLoading: permissionsLoading } = useSubrolePermissions(coachUserId);
 
   const handleCreateProgram = useCallback(() => {
@@ -33,8 +34,13 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
 
   const handleBack = useCallback(() => {
     setEditingProgramId(null);
-    setView("library");
-  }, []);
+    if (previousView) {
+      setView(previousView as any);
+      setPreviousView(null);
+    } else {
+      setView("library");
+    }
+  }, [previousView]);
 
   const handleEditDay = useCallback((dayId: string) => {
     // Switch to edit view to edit the day's modules
@@ -47,6 +53,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   }, []);
 
   const handleMuscleBuilderOpenProgram = useCallback((programId: string) => {
+    setPreviousView("muscle-builder");
     setEditingProgramId(programId);
     setView("calendar");
   }, []);
