@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag, Dumbbell } from "lucide-react";
+import { SimplePagination, usePagination } from "@/components/ui/simple-pagination";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -32,7 +33,9 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
   const { toast } = useToast();
+  const PAGE_SIZE = 12;
 
   const loadPrograms = useCallback(async () => {
     try {
@@ -210,6 +213,28 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
     return matchesSearch && matchesTags;
   });
 
+  // Paginate filtered results
+  const { paginate } = usePagination(filteredPrograms, PAGE_SIZE);
+  const { paginatedItems: pagePrograms, totalPages, totalItems, pageSize } = paginate(currentPage);
+
+  // Reset to page 1 when filters change
+  const handleSearch = (value: string) => {
+    setSearchQuery(value);
+    setCurrentPage(1);
+  };
+
+  const handleTagToggle = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
+    setCurrentPage(1);
+  };
+
+  const handleClearTags = () => {
+    setSelectedTags([]);
+    setCurrentPage(1);
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -247,7 +272,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
           <Input
             placeholder="Search programs..."
             value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
+            onChange={(e) => handleSearch(e.target.value)}
             className="pl-10"
           />
         </div>
@@ -261,13 +286,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
               key={tag}
               variant={selectedTags.includes(tag) ? "default" : "outline"}
               className="cursor-pointer"
-              onClick={() =>
-                setSelectedTags((prev) =>
-                  prev.includes(tag)
-                    ? prev.filter((t) => t !== tag)
-                    : [...prev, tag]
-                )
-              }
+              onClick={() => handleTagToggle(tag)}
             >
               <Tag className="h-3 w-3 mr-1" />
               {tag}
@@ -277,7 +296,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
             <Button
               variant="ghost"
               size="sm"
-              onClick={() => setSelectedTags([])}
+              onClick={handleClearTags}
             >
               Clear
             </Button>
@@ -299,8 +318,9 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
           }
         />
       ) : (
+        <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          {filteredPrograms.map((program) => (
+          {pagePrograms.map((program) => (
             <Card key={program.id} className="group hover:shadow-md transition-shadow">
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
@@ -373,6 +393,14 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
             </Card>
           ))}
         </div>
+        <SimplePagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          onPageChange={setCurrentPage}
+          totalItems={totalItems}
+          pageSize={pageSize}
+        />
+        </>
       )}
     </div>
   );

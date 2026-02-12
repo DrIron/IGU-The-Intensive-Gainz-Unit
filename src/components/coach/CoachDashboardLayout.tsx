@@ -12,6 +12,7 @@ import { CoachClientDetail } from "./CoachClientDetail";
 import { CoachSessions } from "./CoachSessions";
 import { MyAssignmentsPanel } from "./MyAssignmentsPanel";
 import { CoachTeamsPage } from "./teams";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 
 interface CoachDashboardLayoutProps {
   user: any;
@@ -137,7 +138,9 @@ export function CoachDashboardLayout({
           
           <div className="p-4 md:p-6 pb-8 safe-area-bottom">
             <div className="max-w-7xl mx-auto">
-              {renderContent()}
+              <SectionErrorBoundary name="Dashboard">
+                {renderContent()}
+              </SectionErrorBoundary>
             </div>
           </div>
         </main>

@@ -9,6 +9,7 @@ import { calculateAge } from "@/lib/dateUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { calculateNutritionGoals } from "@/utils/nutritionCalculations";
 import { useSiteContent } from "@/hooks/useSiteContent";
+import { SEOHead } from "@/components/SEOHead";
 
 export default function CalorieCalculator() {
   const navigate = useNavigate();
@@ -102,6 +103,11 @@ export default function CalorieCalculator() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead
+        page="calorie-calculator"
+        title="Calorie Calculator | Intensive Gainz Unit"
+        description="Calculate your daily calorie needs and macros. Free evidence-based nutrition tool by IGU."
+      />
       <main className="container mx-auto px-4 pt-24 pb-12 max-w-4xl">
         <div className="text-center mb-12">
           <div className="flex justify-center mb-4">

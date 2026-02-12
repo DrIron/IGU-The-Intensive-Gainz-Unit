@@ -43,6 +43,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
+import { SimplePagination, usePagination } from "@/components/ui/simple-pagination";
 
 interface Client {
   id: string;
@@ -114,6 +115,8 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
   const [activeTab, setActiveTab] = useState<string>(initialTab || "active");
   const [editingClient, setEditingClient] = useState<Client | null>(null);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [tabPages, setTabPages] = useState<Record<string, number>>({});
+  const CLIENTS_PER_PAGE = 25;
   // Note: isReviewPendingOpen removed - coach approvals handled in CoachMyClientsPage
 
   const form = useForm<ClientEditFormData>({
@@ -559,6 +562,22 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
   // All coach approvals are handled exclusively in CoachMyClientsPage.
   // This component is ADMIN-ONLY.
 
+  const paginateTab = (tabKey: string, clientList: Client[]) => {
+    const page = tabPages[tabKey] || 1;
+    const { paginate } = usePagination(clientList, CLIENTS_PER_PAGE);
+    return { ...paginate(page), tabKey };
+  };
+
+  const renderPaginationForTab = (tabKey: string, totalPages: number, currentPage: number, totalItems: number) => (
+    <SimplePagination
+      currentPage={currentPage}
+      totalPages={totalPages}
+      onPageChange={(p) => setTabPages(prev => ({ ...prev, [tabKey]: p }))}
+      totalItems={totalItems}
+      pageSize={CLIENTS_PER_PAGE}
+    />
+  );
+
   const renderClientTable = (clientList: Client[], showDocumentVerification: boolean = false) => (
     <div className="overflow-x-auto">
       <Table>
@@ -834,46 +853,70 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
             </TabsTrigger>
           </TabsList>
           <TabsContent value="pending" className="mt-6 space-y-6">
-            <div className="md:hidden">
-              <ClientCardView 
-                clients={pendingClients} 
-                onViewDetails={(id) => handleViewSubmission(id)}
-              />
-            </div>
-            <div className="hidden md:block">
-              {viewMode === 'cards' ? (
-                <ClientCardView 
-                  clients={pendingClients} 
-                  onViewDetails={(id) => handleViewSubmission(id)}
-                />
-              ) : (
-                renderClientTable(pendingClients, true)
-              )}
-            </div>
+            {(() => {
+              const pg = paginateTab("pending", pendingClients);
+              return (
+                <>
+                  <div className="md:hidden">
+                    <ClientCardView
+                      clients={pg.paginatedItems}
+                      onViewDetails={(id) => handleViewSubmission(id)}
+                    />
+                  </div>
+                  <div className="hidden md:block">
+                    {viewMode === 'cards' ? (
+                      <ClientCardView
+                        clients={pg.paginatedItems}
+                        onViewDetails={(id) => handleViewSubmission(id)}
+                      />
+                    ) : (
+                      renderClientTable(pg.paginatedItems, true)
+                    )}
+                  </div>
+                  {renderPaginationForTab("pending", pg.totalPages, pg.currentPage, pg.totalItems)}
+                </>
+              );
+            })()}
           </TabsContent>
           <TabsContent value="active" className="mt-6 space-y-4">
-            <div className="md:hidden">
-              <ClientCardView clients={activeClients} />
-            </div>
-            <div className="hidden md:block">
-              {viewMode === 'cards' ? (
-                <ClientCardView clients={activeClients} />
-              ) : (
-                renderClientTable(activeClients, false)
-              )}
-            </div>
+            {(() => {
+              const pg = paginateTab("active", activeClients);
+              return (
+                <>
+                  <div className="md:hidden">
+                    <ClientCardView clients={pg.paginatedItems} />
+                  </div>
+                  <div className="hidden md:block">
+                    {viewMode === 'cards' ? (
+                      <ClientCardView clients={pg.paginatedItems} />
+                    ) : (
+                      renderClientTable(pg.paginatedItems, false)
+                    )}
+                  </div>
+                  {renderPaginationForTab("active", pg.totalPages, pg.currentPage, pg.totalItems)}
+                </>
+              );
+            })()}
           </TabsContent>
           <TabsContent value="old" className="mt-6">
-            <div className="md:hidden">
-              <ClientCardView clients={oldClients} />
-            </div>
-            <div className="hidden md:block">
-              {viewMode === 'cards' ? (
-                <ClientCardView clients={oldClients} />
-              ) : (
-                renderClientTable(oldClients, false)
-              )}
-            </div>
+            {(() => {
+              const pg = paginateTab("old", oldClients);
+              return (
+                <>
+                  <div className="md:hidden">
+                    <ClientCardView clients={pg.paginatedItems} />
+                  </div>
+                  <div className="hidden md:block">
+                    {viewMode === 'cards' ? (
+                      <ClientCardView clients={pg.paginatedItems} />
+                    ) : (
+                      renderClientTable(pg.paginatedItems, false)
+                    )}
+                  </div>
+                  {renderPaginationForTab("old", pg.totalPages, pg.currentPage, pg.totalItems)}
+                </>
+              );
+            })()}
           </TabsContent>
         </Tabs>
       </CardContent>

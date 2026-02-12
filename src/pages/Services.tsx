@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Sparkles } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { SEOHead } from "@/components/SEOHead";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { ComparisonTable } from "@/components/marketing/ComparisonTable";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -28,10 +28,7 @@ export default function Services() {
   const [teamPlansOpen, setTeamPlansOpen] = useState(true);
   const isMobile = useIsMobile();
 
-  useDocumentTitle({
-    title: "Coaching Services | Intensive Gainz Unit",
-    description: "Browse 1:1 coaching and team programs, including online coaching and Fe Squad.",
-  });
+  // SEOHead rendered in JSX below
 
   // CMS content
   const { data: cmsContent } = useSiteContent("services");
@@ -131,6 +128,11 @@ export default function Services() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead
+        page="services"
+        title="Coaching Services | Intensive Gainz Unit"
+        description="Browse 1:1 coaching and team programs. Online, hybrid, and in-person options available."
+      />
       <main className="container mx-auto px-4 pt-24 pb-12 max-w-7xl">
         <div className="text-center mb-16">
           <div className="flex justify-center mb-4">

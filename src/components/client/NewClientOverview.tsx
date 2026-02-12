@@ -1,4 +1,5 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { QuickActionsGrid } from "./QuickActionsGrid";
 import { CoachCard } from "./CoachCard";
 import { PlanBillingCard } from "./PlanBillingCard";
@@ -41,6 +42,8 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
   const [activePhase, setActivePhase] = useState<any>(null);
   const [weeklyLogsCount, setWeeklyLogsCount] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
+  const navigate = useNavigate();
 
   const loadDashboardData = useCallback(async () => {
     if (!user?.id) return;
@@ -115,6 +118,8 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
   }, [user?.id, subscription?.coach_id]);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     loadDashboardData();
   }, [loadDashboardData]);
 
@@ -181,7 +186,7 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
           <PlanBillingCard
             subscription={subscription}
             onManageBilling={() => {
-              window.location.href = "/billing/pay";
+              navigate("/billing/pay");
             }}
           />
         </div>

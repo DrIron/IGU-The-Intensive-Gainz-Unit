@@ -282,8 +282,8 @@ export function OnboardingStatus() {
                 <p className="font-medium text-green-900 dark:text-green-100">Account Active</p>
                 <p className="text-sm text-green-800 dark:text-green-200 mt-1">
                   {isTeamPlan 
-                    ? "Your account is active! You'll be added to TrueCoach within 48 hours. Please download the TrueCoach app from the App Store. If you're not added within 48 hours, contact Dr. Iron."
-                    : "Your account has been activated! You will be added to TrueCoach within 48 hours. Please download the TrueCoach app from the App Store. If you're not added within 48 hours, contact Dr. Iron."
+                    ? "Your account is active! Your workouts will be ready within 48 hours. If you need help, contact us at info@theigu.com."
+                    : "Your account has been activated! Your workouts will be ready within 48 hours. If you need help, contact us at info@theigu.com."
                   }
                 </p>
               </div>

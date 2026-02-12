@@ -104,16 +104,16 @@ export function Footer() {
                 <p className="text-muted-foreground">
                   <strong>{t('common:email')}:</strong>{" "}
                   <a
-                    href="mailto:Dr.Ironofficial@gmail.com"
+                    href="mailto:info@theigu.com"
                     className="hover:text-foreground transition-colors"
                   >
-                    Dr.Ironofficial@gmail.com
+                    info@theigu.com
                   </a>
                 </p>
 
                 <div className="flex gap-4 pt-2">
                   <a
-                    href="https://www.instagram.com/dr.irontraining/?hl=en"
+                    href="https://www.instagram.com/theigu.kw/"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hover:text-primary transition-colors"
@@ -122,7 +122,7 @@ export function Footer() {
                     <Instagram className="h-6 w-6" />
                   </a>
                   <a
-                    href="https://www.tiktok.com/@dr.irontraining?lang=en"
+                    href="https://www.tiktok.com/@theigu.kw"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hover:text-primary transition-colors"
@@ -131,7 +131,7 @@ export function Footer() {
                     <Music2 className="h-6 w-6" />
                   </a>
                   <a
-                    href="https://www.youtube.com/@dr.irontraining"
+                    href="https://www.youtube.com/@theigu"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="hover:text-primary transition-colors"

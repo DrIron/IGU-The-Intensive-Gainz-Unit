@@ -48,7 +48,7 @@
   "statusSuspended": "Suspended",
   "statusUnknown": "Status: Unknown",
   "aboutIGU": "About IGU",
-  "aboutIGUDescription": "Intensive Gainz Unit (IGU) is a multidisciplinary coaching and education brand under Dr. Iron International Sports Consultancy. Led by Dr. Hasan Dashti, we integrate medicine, science, and performance to deliver evidence-based training and nutrition systems.",
+  "aboutIGUDescription": "Intensive Gainz Unit (IGU) is a multidisciplinary coaching and education brand. Led by Dr. Hasan Dashti, we integrate medicine, science, and performance to deliver evidence-based training and nutrition systems.",
   "quickLinks": "Quick Links",
   "ourPrograms": "Our Programs",
   "meetOurTeam": "Meet Our Team",
@@ -57,5 +57,5 @@
   "joinOurTeam": "Join Our Team",
   "joinOurTeamDescription": "Are you a passionate fitness professional? Apply to become an IGU coach and help elevate coaching standards.",
   "trainingTipsUpdates": "Get training tips & updates:",
-  "copyright": "© {{year}} Dr. Iron International Sports Consultancy (شركة دكتور آيرون العالمية للاستشارات الرياضية). All rights reserved."
+  "copyright": "© {{year}} IGU — Intensive Gainz Unit. All rights reserved."
 }

@@ -20,6 +20,7 @@ import { User, CreditCard, Calendar, AlertCircle, Dumbbell, Calculator, Apple, L
 import { formatProfileStatus, getProfileStatusVariant } from "@/lib/statusUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 
 interface ClientDashboardLayoutProps {
   user: any;
@@ -529,7 +530,9 @@ export function ClientDashboardLayout({
                 {isInGracePeriod && (
                   <GracePeriodBanner subscription={subscription} profile={profile} />
                 )}
-                {renderContent()}
+                <SectionErrorBoundary name="Dashboard">
+                  {renderContent()}
+                </SectionErrorBoundary>
               </div>
             </div>
           </main>

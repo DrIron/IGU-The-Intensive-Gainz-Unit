@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { SEOHead } from "@/components/SEOHead";
 
 const Testimonial = () => {
   const [searchParams] = useSearchParams();
@@ -121,6 +122,10 @@ const Testimonial = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 pt-24 pb-12 px-4">
+      <SEOHead
+        title="Client Success Stories | Intensive Gainz Unit"
+        description="Share your experience and read client success stories from IGU coaching."
+      />
       <div className="max-w-2xl mx-auto">
         <Card>
           <CardHeader>

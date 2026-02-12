@@ -28,6 +28,7 @@ import {
 import { TeamMemberNutritionDialog } from "./TeamMemberNutritionDialog";
 import { CoachEarningsSummary } from "./CoachEarningsSummary";
 import { RoleBreadcrumb } from "./RoleBreadcrumb";
+import { SimplePagination, usePagination } from "@/components/ui/simple-pagination";
 
 interface CoachClient {
   id: string;
@@ -80,6 +81,10 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   const [processingApproval, setProcessingApproval] = useState<string | null>(null);
   const [processingDecline, setProcessingDecline] = useState<string | null>(null);
 
+  // Per-section pagination
+  const [sectionPages, setSectionPages] = useState<Record<string, number>>({});
+  const CLIENTS_PER_PAGE = 20;
+
   // Ref for pending section (auto-scroll when needed)
   const pendingRef = useRef<HTMLDivElement>(null);
   const hasFetchedClients = useRef(false);
@@ -104,38 +109,52 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
         .eq("coach_id", coachUserId);
 
       if (subsError) throw subsError;
+      if (!subscriptions || subscriptions.length === 0) {
+        setClients([]);
+        return;
+      }
 
-      // Build client list by fetching profiles_public separately
-      const clientList: CoachClient[] = [];
+      // Batch: fetch all profiles in one query using .in()
+      const userIds = subscriptions.map(s => s.user_id);
+      const { data: profiles } = await supabase
+        .from("profiles_public")
+        .select("id, first_name, display_name, status, payment_deadline")
+        .in("id", userIds);
 
-      for (const sub of subscriptions || []) {
-        // Fetch profile from profiles_public (non-sensitive data only)
-        const { data: profile } = await supabase
-          .from("profiles_public")
-          .select("id, first_name, display_name, status, payment_deadline")
-          .eq("id", sub.user_id)
-          .single();
+      const profileMap = new Map(
+        (profiles || []).map(p => [p.id, p])
+      );
 
-        // Get last weight log for check-in info
-        const { data: weightLogs } = await supabase
-          .from("weight_logs")
-          .select("log_date")
-          .eq("user_id", sub.user_id)
-          .order("log_date", { ascending: false })
-          .limit(1);
+      // Batch: fetch most recent weight log per user using RPC or grouped query
+      // We fetch all recent weight logs for these users, then pick the latest per user
+      const { data: allWeightLogs } = await supabase
+        .from("weight_logs")
+        .select("user_id, log_date")
+        .in("user_id", userIds)
+        .order("log_date", { ascending: false });
 
-        const lastCheckIn = weightLogs?.[0]?.log_date || null;
+      const lastCheckInMap = new Map<string, string>();
+      for (const log of allWeightLogs || []) {
+        if (!lastCheckInMap.has(log.user_id)) {
+          lastCheckInMap.set(log.user_id, log.log_date);
+        }
+      }
+
+      // Build client list from batched data
+      const clientList: CoachClient[] = subscriptions.map(sub => {
+        const profile = profileMap.get(sub.user_id);
+        const lastCheckIn = lastCheckInMap.get(sub.user_id) || null;
         const daysSinceCheckIn = lastCheckIn
           ? Math.floor((Date.now() - new Date(lastCheckIn).getTime()) / (1000 * 60 * 60 * 24))
           : null;
 
-        clientList.push({
+        return {
           id: sub.user_id,
           display_name: profile?.display_name || null,
           first_name: profile?.first_name || null,
           profile_status: profile?.status || null,
           payment_deadline: profile?.payment_deadline || null,
-          payment_failed_at: null, // Not available from profiles_public
+          payment_failed_at: null,
           subscription_id: sub.id,
           subscription_status: sub.status,
           service_name: (sub.services as any)?.name,
@@ -144,8 +163,8 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           next_billing_date: sub.next_billing_date,
           last_check_in: lastCheckIn,
           days_since_check_in: daysSinceCheckIn,
-        });
-      }
+        };
+      });
 
       setClients(clientList);
     } catch (error: any) {
@@ -451,17 +470,19 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   const uniquePlans = [...new Set(clients.map(c => c.service_name).filter(Boolean))];
 
   // ========== SECTION CARD COMPONENT ==========
-  const QueueSectionCard = ({ 
-    title, 
-    icon: Icon, 
-    clients: sectionClients, 
-    variant, 
+  const QueueSectionCard = ({
+    title,
+    sectionKey,
+    icon: Icon,
+    clients: sectionClients,
+    variant,
     emptyText,
     showActions = false,
     showPaymentInfo = false,
     sectionRef
-  }: { 
+  }: {
     title: string;
+    sectionKey: string;
     icon: any;
     clients: CoachClient[];
     variant: 'amber' | 'blue' | 'green' | 'red' | 'default';
@@ -471,6 +492,9 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
     sectionRef?: React.RefObject<HTMLDivElement>;
   }) => {
     const filteredClients = applyFilters(sectionClients);
+    const page = sectionPages[sectionKey] || 1;
+    const { paginate } = usePagination(filteredClients, CLIENTS_PER_PAGE);
+    const { paginatedItems: pageClients, totalPages, totalItems, pageSize } = paginate(page);
     const variantStyles = {
       amber: 'border-amber-200 bg-amber-50/50',
       blue: 'border-blue-200 bg-blue-50/50',
@@ -508,8 +532,9 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
               className="py-6"
             />
           ) : (
+            <>
             <div className="space-y-3">
-              {filteredClients.map((client) => {
+              {pageClients.map((client) => {
                 const isProcessing = processingApproval === client.id || processingDecline === client.id;
                 
                 return (
@@ -616,6 +641,14 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                 );
               })}
             </div>
+            <SimplePagination
+              currentPage={page}
+              totalPages={totalPages}
+              onPageChange={(p) => setSectionPages(prev => ({ ...prev, [sectionKey]: p }))}
+              totalItems={totalItems}
+              pageSize={pageSize}
+            />
+            </>
           )}
         </CardContent>
       </Card>
@@ -691,6 +724,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
               {/* A) Pending Approvals - Always visible at top, no scrolling needed */}
               <QueueSectionCard
                 sectionRef={pendingRef}
+                sectionKey="pending"
                 title="Pending Approvals"
                 icon={UserCheck}
                 clients={pendingApprovals}
@@ -701,6 +735,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
 
               {/* B) Approved - Awaiting Payment (read-only) */}
               <QueueSectionCard
+                sectionKey="awaiting_payment"
                 title="Awaiting Payment"
                 icon={CreditCard}
                 clients={awaitingPayment}
@@ -711,6 +746,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
 
               {/* C) Active Clients */}
               <QueueSectionCard
+                sectionKey="active"
                 title="Active Clients"
                 icon={Users}
                 clients={activeClients}
@@ -721,6 +757,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
               {/* D) At-Risk Clients */}
               {atRiskClients.length > 0 && (
                 <QueueSectionCard
+                  sectionKey="at_risk"
                   title="At-Risk"
                   icon={AlertTriangle}
                   clients={atRiskClients}

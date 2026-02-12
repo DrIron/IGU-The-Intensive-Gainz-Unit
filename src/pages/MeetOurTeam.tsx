@@ -5,7 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CoachDetailDialog } from "@/components/CoachDetailDialog";
 import { MapPin } from "lucide-react";
-import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { SEOHead } from "@/components/SEOHead";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 import { useSiteContent } from "@/hooks/useSiteContent";
 
@@ -30,10 +30,7 @@ export default function MeetOurTeam() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const { getLabel } = useSpecializationTags();
 
-  useDocumentTitle({
-    title: "Coaching Team | Intensive Gainz Unit",
-    description: "Meet the IGU coaching team, their qualifications, and specializations.",
-  });
+  // SEOHead rendered in JSX below
 
   // CMS content
   const { data: cmsContent } = useSiteContent("meet-our-team");
@@ -81,6 +78,11 @@ export default function MeetOurTeam() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead
+        page="meet-our-team"
+        title="Coaching Team | Intensive Gainz Unit"
+        description="Meet the IGU coaching team, their qualifications, and specializations."
+      />
       <div className="container mx-auto px-4 pt-24 pb-16">
         <div className="text-center mb-12">
           <h1 className="font-display text-5xl md:text-6xl tracking-tight mb-4">
@@ -91,6 +93,13 @@ export default function MeetOurTeam() {
           </p>
         </div>
 
+        {coaches.length === 0 ? (
+          <div className="text-center py-16 max-w-md mx-auto">
+            <p className="text-lg text-muted-foreground">
+              Our coaching team is being assembled. Check back soon!
+            </p>
+          </div>
+        ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
           {coaches.map((coach) => (
             <Card
@@ -150,7 +159,8 @@ export default function MeetOurTeam() {
             </Card>
           ))}
         </div>
-        
+        )}
+
         <CoachDetailDialog 
           coach={selectedCoach}
           open={dialogOpen}

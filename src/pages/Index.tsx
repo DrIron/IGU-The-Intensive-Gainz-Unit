@@ -10,7 +10,7 @@ import { Dumbbell, Star, ChevronLeft, ChevronRight, Target, MessageSquare, Apple
 const gymHeroBg = "/gym-hero-bg.jpg";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
-import { useDocumentTitle } from "@/hooks/useDocumentTitle";
+import { SEOHead } from "@/components/SEOHead";
 import { useSiteContent, parseJsonField } from "@/hooks/useSiteContent";
 import { useFadeUp } from "@/hooks/useFadeUp";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -92,10 +92,7 @@ export default function Index() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const isMobile = useIsMobile();
 
-  useDocumentTitle({
-    title: "Intensive Gainz Unit | Coaching for Serious Lifters",
-    description: "Evidence-based online coaching, team programs, and performance tracking for serious lifters. Built by Dr. Iron.",
-  });
+  // SEOHead rendered in JSX below
 
   // CMS content
   const { data: cmsContent, isLoading: cmsLoading } = useSiteContent("homepage");
@@ -379,6 +376,11 @@ export default function Index() {
 
   return (
     <div className="min-h-screen bg-background">
+      <SEOHead
+        page="homepage"
+        title="Intensive Gainz Unit | Coaching for Serious Lifters"
+        description="Evidence-based online coaching, team programs, and performance tracking for serious lifters. Powered by IGU."
+      />
       {/* Hero Section with CTA */}
       <section className="relative min-h-screen flex items-center justify-center overflow-hidden">
         {/* Background Image — <img> for faster LCP discovery + preloaded from index.html */}
