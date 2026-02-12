@@ -12,8 +12,8 @@ interface DayColumnProps {
   slots: MuscleSlotData[];
   isSelected: boolean;
   onSelectDay: (dayIndex: number) => void;
-  onSetSets: (dayIndex: number, muscleId: string, sets: number) => void;
-  onRemove: (dayIndex: number, muscleId: string) => void;
+  onSetSets: (slotId: string, sets: number) => void;
+  onRemove: (slotId: string) => void;
   className?: string;
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
@@ -117,10 +117,10 @@ export const DayColumn = memo(function DayColumn({
               )}
               {daySlots.map((slot, i) => (
                 <MuscleSlotCard
-                  key={`${slot.dayIndex}-${slot.muscleId}`}
+                  key={slot.id}
+                  slotId={slot.id}
                   muscleId={slot.muscleId}
                   sets={slot.sets}
-                  dayIndex={slot.dayIndex}
                   draggableIndex={i}
                   onSetSets={onSetSets}
                   onRemove={onRemove}

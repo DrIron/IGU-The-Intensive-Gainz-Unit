@@ -6,8 +6,8 @@ interface WeeklyCalendarProps {
   slots: MuscleSlotData[];
   selectedDayIndex: number;
   onSelectDay: (dayIndex: number) => void;
-  onSetSets: (dayIndex: number, muscleId: string, sets: number) => void;
-  onRemove: (dayIndex: number, muscleId: string) => void;
+  onSetSets: (slotId: string, sets: number) => void;
+  onRemove: (slotId: string) => void;
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
   onPasteDay?: (dayIndex: number) => void;

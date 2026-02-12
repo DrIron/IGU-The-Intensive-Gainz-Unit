@@ -8,20 +8,20 @@ import { cn } from "@/lib/utils";
 import { MUSCLE_MAP } from "@/types/muscle-builder";
 
 interface MuscleSlotCardProps {
+  slotId: string;
   muscleId: string;
   sets: number;
-  dayIndex: number;
   draggableIndex: number;
-  onSetSets: (dayIndex: number, muscleId: string, sets: number) => void;
-  onRemove: (dayIndex: number, muscleId: string) => void;
+  onSetSets: (slotId: string, sets: number) => void;
+  onRemove: (slotId: string) => void;
   isHighlighted?: boolean;
   onSetAllSets?: (muscleId: string, sets: number) => void;
 }
 
 export const MuscleSlotCard = memo(function MuscleSlotCard({
+  slotId,
   muscleId,
   sets,
-  dayIndex,
   draggableIndex,
   onSetSets,
   onRemove,
@@ -34,27 +34,27 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
     (e: React.ChangeEvent<HTMLInputElement>) => {
       const val = parseInt(e.target.value);
       if (!isNaN(val)) {
-        onSetSets(dayIndex, muscleId, val);
+        onSetSets(slotId, val);
       }
     },
-    [dayIndex, muscleId, onSetSets]
+    [slotId, onSetSets]
   );
 
   const handleRemove = useCallback(() => {
-    onRemove(dayIndex, muscleId);
-  }, [dayIndex, muscleId, onRemove]);
+    onRemove(slotId);
+  }, [slotId, onRemove]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
       if (e.key === 'ArrowUp') {
         e.preventDefault();
-        onSetSets(dayIndex, muscleId, sets + 1);
+        onSetSets(slotId, sets + 1);
       } else if (e.key === 'ArrowDown') {
         e.preventDefault();
-        onSetSets(dayIndex, muscleId, sets - 1);
+        onSetSets(slotId, sets - 1);
       }
     },
-    [dayIndex, muscleId, sets, onSetSets]
+    [slotId, sets, onSetSets]
   );
 
   const handleBulkApply = useCallback(() => {
@@ -66,7 +66,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   if (!muscle) return null;
 
   return (
-    <Draggable draggableId={`slot-${dayIndex}-${muscleId}`} index={draggableIndex}>
+    <Draggable draggableId={`slot-${slotId}`} index={draggableIndex}>
       {(provided, snapshot) => (
         <div
           ref={provided.innerRef}

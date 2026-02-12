@@ -85,19 +85,6 @@ export function MuscleBuilderPage({
       if (source.droppableId === 'palette' && destination.droppableId.startsWith('day-')) {
         const dayIndex = parseInt(destination.droppableId.replace('day-', ''));
         const muscleId = draggableId.replace('palette-', '');
-
-        const exists = state.slots.some(
-          s => s.dayIndex === dayIndex && s.muscleId === muscleId
-        );
-        if (exists) {
-          const muscle = MUSCLE_GROUPS.find(m => m.id === muscleId);
-          toast({
-            title: `${muscle?.label || muscleId} already on ${DAYS_OF_WEEK[dayIndex - 1]}`,
-            variant: 'destructive',
-          });
-          return;
-        }
-
         dispatch({ type: 'ADD_MUSCLE', dayIndex, muscleId });
         return;
       }
@@ -122,32 +109,18 @@ export function MuscleBuilderPage({
         source.droppableId.startsWith('day-') &&
         destination.droppableId.startsWith('day-')
       ) {
-        const fromDay = parseInt(source.droppableId.replace('day-', ''));
         const toDay = parseInt(destination.droppableId.replace('day-', ''));
-        const muscleId = draggableId.replace(`slot-${fromDay}-`, '');
-
-        const existsOnTarget = state.slots.some(
-          s => s.dayIndex === toDay && s.muscleId === muscleId
-        );
-        if (existsOnTarget) {
-          const muscle = MUSCLE_GROUPS.find(m => m.id === muscleId);
-          toast({
-            title: `${muscle?.label || muscleId} already on ${DAYS_OF_WEEK[toDay - 1]}`,
-            variant: 'destructive',
-          });
-          return;
-        }
+        const slotId = draggableId.replace('slot-', '');
 
         dispatch({
           type: 'MOVE_MUSCLE',
-          fromDay,
+          slotId,
           toDay,
-          muscleId,
           toIndex: destination.index,
         });
       }
     },
-    [state.slots, dispatch, toast]
+    [state.slots, dispatch]
   );
 
   // ── Memoized callbacks for child components ──────────────────
@@ -157,15 +130,15 @@ export function MuscleBuilderPage({
   );
 
   const handleSetSets = useCallback(
-    (dayIndex: number, muscleId: string, sets: number) =>
-      dispatch({ type: 'SET_SETS', dayIndex, muscleId, sets }),
+    (slotId: string, sets: number) =>
+      dispatch({ type: 'SET_SETS', slotId, sets }),
     [dispatch]
   );
 
   // #2 — Delete with undo
   const handleRemoveMuscle = useCallback(
-    (dayIndex: number, muscleId: string) => {
-      const slot = state.slots.find(s => s.dayIndex === dayIndex && s.muscleId === muscleId);
+    (slotId: string) => {
+      const slot = state.slots.find(s => s.id === slotId);
       if (slot) {
         lastDeletedSlotRef.current = {
           dayIndex: slot.dayIndex,
@@ -174,18 +147,18 @@ export function MuscleBuilderPage({
           sortOrder: slot.sortOrder,
         };
       }
-      dispatch({ type: 'REMOVE_MUSCLE', dayIndex, muscleId });
-      const muscle = MUSCLE_GROUPS.find(m => m.id === muscleId);
+      dispatch({ type: 'REMOVE_MUSCLE', slotId });
+      const muscle = slot ? MUSCLE_GROUPS.find(m => m.id === slot.muscleId) : null;
+      const dayName = slot ? DAYS_OF_WEEK[slot.dayIndex - 1] : '';
       toast({
-        title: `Removed ${muscle?.label || muscleId} from ${DAYS_OF_WEEK[dayIndex - 1]}`,
+        title: `Removed ${muscle?.label || 'muscle'} from ${dayName}`,
         action: (
           <ToastAction
             altText="Undo"
             onClick={() => {
               const deleted = lastDeletedSlotRef.current;
               if (deleted) {
-                dispatch({ type: 'ADD_MUSCLE', dayIndex: deleted.dayIndex, muscleId: deleted.muscleId });
-                dispatch({ type: 'SET_SETS', dayIndex: deleted.dayIndex, muscleId: deleted.muscleId, sets: deleted.sets });
+                dispatch({ type: 'ADD_MUSCLE', dayIndex: deleted.dayIndex, muscleId: deleted.muscleId, sets: deleted.sets });
               }
             }}
           >

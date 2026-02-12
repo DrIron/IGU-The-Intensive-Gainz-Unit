@@ -13,12 +13,12 @@ type Action =
   | { type: 'SET_NAME'; name: string }
   | { type: 'SET_DESCRIPTION'; description: string }
   | { type: 'SELECT_DAY'; dayIndex: number }
-  | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string }
-  | { type: 'REMOVE_MUSCLE'; dayIndex: number; muscleId: string }
-  | { type: 'SET_SETS'; dayIndex: number; muscleId: string; sets: number }
+  | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string; sets?: number }
+  | { type: 'REMOVE_MUSCLE'; slotId: string }
+  | { type: 'SET_SETS'; slotId: string; sets: number }
   | { type: 'SET_ALL_SETS_FOR_MUSCLE'; muscleId: string; sets: number }
   | { type: 'REORDER'; dayIndex: number; fromIndex: number; toIndex: number }
-  | { type: 'MOVE_MUSCLE'; fromDay: number; toDay: number; muscleId: string; toIndex: number }
+  | { type: 'MOVE_MUSCLE'; slotId: string; toDay: number; toIndex: number }
   | { type: 'PASTE_DAY'; fromDayIndex: number; toDayIndex: number }
   | { type: 'LOAD_PRESET'; slots: MuscleSlotData[]; name?: string }
   | { type: 'CLEAR_ALL' }
@@ -46,6 +46,11 @@ function getMaxSortOrder(slots: MuscleSlotData[], dayIndex: number): number {
   return Math.max(...daySlots.map(s => s.sortOrder));
 }
 
+/** Ensure every slot has a unique id (backward compat for saved data without ids) */
+function hydrateSlotIds(slots: MuscleSlotData[]): MuscleSlotData[] {
+  return slots.map(s => (s.id ? s : { ...s, id: crypto.randomUUID() }));
+}
+
 function reducer(state: MusclePlanState, action: Action): MusclePlanState {
   switch (action.type) {
     case 'LOAD_TEMPLATE':
@@ -54,7 +59,7 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         templateId: action.payload.templateId,
         name: action.payload.name,
         description: action.payload.description,
-        slots: action.payload.slots,
+        slots: hydrateSlotIds(action.payload.slots),
         isDirty: false,
         isSaving: false,
       };
@@ -69,14 +74,11 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       return { ...state, selectedDayIndex: action.dayIndex };
 
     case 'ADD_MUSCLE': {
-      const exists = state.slots.some(
-        s => s.dayIndex === action.dayIndex && s.muscleId === action.muscleId
-      );
-      if (exists) return state;
       const newSlot: MuscleSlotData = {
+        id: crypto.randomUUID(),
         dayIndex: action.dayIndex,
         muscleId: action.muscleId,
-        sets: 3,
+        sets: action.sets ?? 3,
         sortOrder: getMaxSortOrder(state.slots, action.dayIndex) + 1,
       };
       return { ...state, slots: [...state.slots, newSlot], isDirty: true };
@@ -85,9 +87,7 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
     case 'REMOVE_MUSCLE':
       return {
         ...state,
-        slots: state.slots.filter(
-          s => !(s.dayIndex === action.dayIndex && s.muscleId === action.muscleId)
-        ),
+        slots: state.slots.filter(s => s.id !== action.slotId),
         isDirty: true,
       };
 
@@ -95,7 +95,7 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       return {
         ...state,
         slots: state.slots.map(s =>
-          s.dayIndex === action.dayIndex && s.muscleId === action.muscleId
+          s.id === action.slotId
             ? { ...s, sets: Math.max(1, Math.min(20, action.sets)) }
             : s
         ),
@@ -116,20 +116,10 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
     }
 
     case 'MOVE_MUSCLE': {
-      const slot = state.slots.find(
-        s => s.dayIndex === action.fromDay && s.muscleId === action.muscleId
-      );
+      const slot = state.slots.find(s => s.id === action.slotId);
       if (!slot) return state;
 
-      // Check if muscle already exists on target day
-      const existsOnTarget = state.slots.some(
-        s => s.dayIndex === action.toDay && s.muscleId === action.muscleId
-      );
-      if (existsOnTarget) return state;
-
-      const withoutMoved = state.slots.filter(
-        s => !(s.dayIndex === action.fromDay && s.muscleId === action.muscleId)
-      );
+      const withoutMoved = state.slots.filter(s => s.id !== action.slotId);
 
       // Get target day slots sorted
       const targetSlots = withoutMoved
@@ -164,25 +154,21 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       const sourceSlots = state.slots
         .filter(s => s.dayIndex === action.fromDayIndex)
         .sort((a, b) => a.sortOrder - b.sortOrder);
-      const existingTargetMuscles = new Set(
-        state.slots.filter(s => s.dayIndex === action.toDayIndex).map(s => s.muscleId)
-      );
+      if (sourceSlots.length === 0) return state;
       const maxOrder = getMaxSortOrder(state.slots, action.toDayIndex);
-      const newSlots = sourceSlots
-        .filter(s => !existingTargetMuscles.has(s.muscleId))
-        .map((s, i) => ({
-          ...s,
-          dayIndex: action.toDayIndex,
-          sortOrder: maxOrder + 1 + i,
-        }));
-      if (newSlots.length === 0) return state;
+      const newSlots = sourceSlots.map((s, i) => ({
+        ...s,
+        id: crypto.randomUUID(),
+        dayIndex: action.toDayIndex,
+        sortOrder: maxOrder + 1 + i,
+      }));
       return { ...state, slots: [...state.slots, ...newSlots], isDirty: true };
     }
 
     case 'LOAD_PRESET':
       return {
         ...state,
-        slots: action.slots,
+        slots: hydrateSlotIds(action.slots),
         name: action.name ?? state.name,
         isDirty: true,
       };

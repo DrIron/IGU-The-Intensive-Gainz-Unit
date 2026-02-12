@@ -24,6 +24,7 @@ export interface MuscleGroupDef {
 }
 
 export interface MuscleSlotData {
+  id: string;           // Unique slot identifier
   dayIndex: number;     // 1-7 (Mon-Sun)
   muscleId: string;
   sets: number;
@@ -138,7 +139,7 @@ function makeSlots(dayMuscles: Record<number, { id: string; sets: number }[]>): 
   const slots: MuscleSlotData[] = [];
   for (const [day, muscles] of Object.entries(dayMuscles)) {
     muscles.forEach((m, i) => {
-      slots.push({ dayIndex: Number(day), muscleId: m.id, sets: m.sets, sortOrder: i });
+      slots.push({ id: crypto.randomUUID(), dayIndex: Number(day), muscleId: m.id, sets: m.sets, sortOrder: i });
     });
   }
   return slots;
