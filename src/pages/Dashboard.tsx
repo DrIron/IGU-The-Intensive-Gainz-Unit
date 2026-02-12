@@ -27,9 +27,12 @@ interface Subscription {
   start_date: string;
   next_billing_date: string;
   cancel_at_period_end: boolean;
+  team_id: string | null;
+  last_team_change_at: string | null;
   services: {
     name: string;
     price_kwd: number;
+    type: string;
   };
 }
 
@@ -193,7 +196,7 @@ function DashboardContent() {
       try {
         const subPromise = supabase
           .from("subscriptions")
-          .select(`*, services (name, price_kwd)`)
+          .select(`*, services (name, price_kwd, type)`)
           .eq("user_id", userId)
           .order("created_at", { ascending: false })
           .limit(1)

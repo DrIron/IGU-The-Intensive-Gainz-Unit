@@ -8,7 +8,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Calendar, CreditCard, AlertTriangle, Tag } from "lucide-react";
+import { Calendar, CreditCard, AlertTriangle, Tag, Users, ArrowRightLeft } from "lucide-react";
+import { ChangeTeamDialog } from "@/components/client/ChangeTeamDialog";
 import { format } from "date-fns";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
@@ -19,9 +20,12 @@ interface SubscriptionManagementProps {
     next_billing_date: string | null;
     cancel_at_period_end: boolean;
     discount_code_id?: string | null;
+    team_id?: string | null;
+    last_team_change_at?: string | null;
     services: {
       name: string;
       price_kwd: number;
+      type?: string;
     };
   };
   userId: string;
@@ -51,7 +55,21 @@ export function SubscriptionManagement({ subscription, userId, isAdminView = fal
   const [cancellationInfo, setCancellationInfo] = useState<any>(null);
   const [discountInfo, setDiscountInfo] = useState<DiscountInfo | null>(null);
   const [redemptionInfo, setRedemptionInfo] = useState<RedemptionInfo | null>(null);
+  const [teamName, setTeamName] = useState<string | null>(null);
+  const [changeTeamOpen, setChangeTeamOpen] = useState(false);
   const { toast } = useToast();
+
+  const isTeamPlan = subscription.services.type === "team";
+
+  // Once-per-cycle: can change if never changed, or last change is before billing cycle start
+  const canChangeTeam = (() => {
+    if (!subscription.last_team_change_at) return true;
+    if (!subscription.next_billing_date) return true;
+    const nextBilling = new Date(subscription.next_billing_date);
+    const cycleStart = new Date(nextBilling);
+    cycleStart.setMonth(cycleStart.getMonth() - 1);
+    return new Date(subscription.last_team_change_at) < cycleStart;
+  })();
 
   useEffect(() => {
     const fetchCancellationInfo = async () => {
@@ -67,6 +85,20 @@ export function SubscriptionManagement({ subscription, userId, isAdminView = fal
     };
     fetchCancellationInfo();
   }, [subscription.cancel_at_period_end, userId]);
+
+  // Load team name for team plan subscriptions
+  useEffect(() => {
+    const fetchTeamName = async () => {
+      if (!isTeamPlan || !subscription.team_id) return;
+      const { data } = await supabase
+        .from("coach_teams")
+        .select("name")
+        .eq("id", subscription.team_id)
+        .maybeSingle();
+      if (data) setTeamName(data.name);
+    };
+    fetchTeamName();
+  }, [isTeamPlan, subscription.team_id]);
 
   // Load discount info for admin view
   useEffect(() => {
@@ -214,6 +246,50 @@ export function SubscriptionManagement({ subscription, userId, isAdminView = fal
               </p>
             </div>
           </div>
+        )}
+
+        {/* Team Info - Team plan subscriptions */}
+        {isTeamPlan && subscription.team_id && (
+          <div className="flex items-center gap-3 p-4 rounded-lg bg-muted">
+            <Users className="h-5 w-5 text-muted-foreground" />
+            <div className="flex-1">
+              <p className="font-medium">{teamName || "Loading team..."}</p>
+              <p className="text-sm text-muted-foreground">Your team</p>
+            </div>
+            {!isAdminView && (
+              <div className="flex items-center gap-2">
+                {!canChangeTeam && (
+                  <Badge variant="secondary" className="text-xs">
+                    Changed this cycle
+                  </Badge>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!canChangeTeam}
+                  onClick={() => setChangeTeamOpen(true)}
+                >
+                  <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" />
+                  Change Team
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Change Team Dialog */}
+        {isTeamPlan && !isAdminView && (
+          <ChangeTeamDialog
+            open={changeTeamOpen}
+            onOpenChange={setChangeTeamOpen}
+            subscription={{
+              id: subscription.id,
+              team_id: subscription.team_id || null,
+              last_team_change_at: subscription.last_team_change_at || null,
+              next_billing_date: subscription.next_billing_date,
+            }}
+            userId={userId}
+          />
         )}
 
         {/* Discount Info - Admin View Only */}

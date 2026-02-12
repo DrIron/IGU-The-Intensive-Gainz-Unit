@@ -15,6 +15,7 @@ import { PaymentStatusDashboard } from "@/components/PaymentStatusDashboard";
 import { CancelledSubscriptionCard } from "./CancelledSubscriptionCard";
 import { GracePeriodBanner } from "./GracePeriodBanner";
 import { WelcomeModal } from "./WelcomeModal";
+import { ChooseTeamPrompt } from "./ChooseTeamPrompt";
 import { User, CreditCard, Calendar, AlertCircle, Dumbbell, Calculator, Apple, Loader2, Lock } from "lucide-react";
 import { formatProfileStatus, getProfileStatusVariant } from "@/lib/statusUtils";
 import { supabase } from "@/integrations/supabase/client";
@@ -410,7 +411,27 @@ export function ClientDashboardLayout({
     );
   }
 
-  // 10. isActive OR isInGracePeriod → Full client dashboard (with banner during grace)
+  // 10a. Active team plan but no team selected → Choose team prompt
+  const isTeamPlan = subscription?.services?.type === "team";
+  const needsTeamSelection = isTeamPlan && !subscription?.team_id;
+  if (isActive && needsTeamSelection) {
+    return (
+      <SidebarProvider defaultOpen={false}>
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+          <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
+          <main className="flex-1 overflow-auto">
+            <div className="p-4 md:p-6">
+              <div className="max-w-7xl mx-auto">
+                <ChooseTeamPrompt subscription={subscription} userId={user.id} />
+              </div>
+            </div>
+          </main>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  // 10b. isActive OR isInGracePeriod → Full client dashboard (with banner during grace)
   // Grace period allows full viewing access but restricts some actions
   if (isActive || isInGracePeriod) {
     const renderContent = () => {
