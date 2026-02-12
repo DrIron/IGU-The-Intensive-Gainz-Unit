@@ -3628,6 +3628,67 @@ export type Database = {
           },
         ]
       }
+      muscle_program_templates: {
+        Row: {
+          coach_id: string
+          converted_program_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_preset: boolean
+          is_system: boolean
+          name: string
+          slot_config: Json
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          converted_program_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_preset?: boolean
+          is_system?: boolean
+          name?: string
+          slot_config?: Json
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          converted_program_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_preset?: boolean
+          is_system?: boolean
+          name?: string
+          slot_config?: Json
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "muscle_program_templates_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "muscle_program_templates_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches_client_safe"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "muscle_program_templates_converted_program_id_fkey"
+            columns: ["converted_program_id"]
+            isOneToOne: false
+            referencedRelation: "program_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nutrition_adjustments: {
         Row: {
           actual_weight_change_percentage: number | null
@@ -7210,3 +7271,5 @@ export const Constants = {
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.75.0 (currently installed v2.72.7)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
