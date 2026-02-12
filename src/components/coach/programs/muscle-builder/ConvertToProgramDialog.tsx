@@ -12,6 +12,7 @@ import {
 import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { withTimeout } from "@/lib/withTimeout";
 import { MUSCLE_MAP, DAYS_OF_WEEK, type MuscleSlotData } from "@/types/muscle-builder";
 import type { VolumeSummary } from "./hooks/useMusclePlanVolume";
 
@@ -43,16 +44,20 @@ export const ConvertToProgramDialog = memo(function ConvertToProgramDialog({
     setConverting(true);
     try {
       // 1. Create program template
-      const { data: program, error: progErr } = await supabase
-        .from('program_templates')
-        .insert({
-          owner_coach_id: coachUserId,
-          title: planName,
-          description: `Converted from muscle plan. ${summary.musclesTargeted} muscles, ${summary.totalSets} total sets.`,
-          visibility: 'private',
-        })
-        .select('id')
-        .single();
+      const { data: program, error: progErr } = await withTimeout(
+        supabase
+          .from('program_templates')
+          .insert({
+            owner_coach_id: coachUserId,
+            title: planName,
+            description: `Converted from muscle plan. ${summary.musclesTargeted} muscles, ${summary.totalSets} total sets.`,
+            visibility: 'private',
+          })
+          .select('id')
+          .single(),
+        15000,
+        'Create program template',
+      );
 
       if (progErr) throw progErr;
 
@@ -73,31 +78,39 @@ export const ConvertToProgramDialog = memo(function ConvertToProgramDialog({
           .join(', ');
 
         // Create the day
-        const { data: dayData, error: dayErr } = await supabase
-          .from('program_template_days')
-          .insert({
-            program_template_id: program.id,
-            day_index: dayIndex,
-            day_title: `${DAYS_OF_WEEK[dayIndex - 1]} — ${muscleNames}`,
-          })
-          .select('id')
-          .single();
+        const { data: dayData, error: dayErr } = await withTimeout(
+          supabase
+            .from('program_template_days')
+            .insert({
+              program_template_id: program.id,
+              day_index: dayIndex,
+              day_title: `${DAYS_OF_WEEK[dayIndex - 1]} — ${muscleNames}`,
+            })
+            .select('id')
+            .single(),
+          15000,
+          'Create program day',
+        );
 
         if (dayErr) throw dayErr;
 
         // Create one day_module per muscle slot (session per muscle group)
         for (const slot of sortedSlots) {
           const muscle = MUSCLE_MAP.get(slot.muscleId);
-          const { error: modErr } = await supabase
-            .from('day_modules')
-            .insert({
-              program_template_day_id: dayData.id,
-              module_owner_coach_id: coachUserId,
-              module_type: 'strength',
-              title: `${muscle?.label || slot.muscleId} — ${slot.sets} sets`,
-              sort_order: slot.sortOrder,
-              status: 'draft',
-            });
+          const { error: modErr } = await withTimeout(
+            supabase
+              .from('day_modules')
+              .insert({
+                program_template_day_id: dayData.id,
+                module_owner_coach_id: coachUserId,
+                module_type: 'strength',
+                title: `${muscle?.label || slot.muscleId} — ${slot.sets} sets`,
+                sort_order: slot.sortOrder,
+                status: 'draft',
+              }),
+            15000,
+            'Create day module',
+          );
 
           if (modErr) throw modErr;
           totalModules++;
@@ -106,10 +119,14 @@ export const ConvertToProgramDialog = memo(function ConvertToProgramDialog({
 
       // 4. Link template to program
       if (templateId) {
-        await supabase
-          .from('muscle_program_templates')
-          .update({ converted_program_id: program.id })
-          .eq('id', templateId);
+        await withTimeout(
+          supabase
+            .from('muscle_program_templates')
+            .update({ converted_program_id: program.id })
+            .eq('id', templateId),
+          15000,
+          'Link template to program',
+        );
       }
 
       toast({

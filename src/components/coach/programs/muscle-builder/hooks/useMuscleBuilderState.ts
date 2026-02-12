@@ -2,6 +2,7 @@ import { useReducer, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { withTimeout } from "@/lib/withTimeout";
 import type { MusclePlanState, MuscleSlotData } from "@/types/muscle-builder";
 
 // ============================================================
@@ -234,29 +235,37 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
 
     try {
       if (state.templateId) {
-        const { error } = await supabase
-          .from('muscle_program_templates')
-          .update({
-            name: state.name,
-            description: state.description || null,
-            slot_config: state.slots as unknown as Record<string, unknown>,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', state.templateId);
+        const { error } = await withTimeout(
+          supabase
+            .from('muscle_program_templates')
+            .update({
+              name: state.name,
+              description: state.description || null,
+              slot_config: state.slots as unknown as Record<string, unknown>,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', state.templateId),
+          15000,
+          'Save muscle plan',
+        );
 
         if (error) throw error;
         dispatch({ type: 'MARK_SAVED', templateId: state.templateId });
       } else {
-        const { data, error } = await supabase
-          .from('muscle_program_templates')
-          .insert({
-            coach_id: coachUserId,
-            name: state.name,
-            description: state.description || null,
-            slot_config: state.slots as unknown as Record<string, unknown>,
-          })
-          .select('id')
-          .single();
+        const { data, error } = await withTimeout(
+          supabase
+            .from('muscle_program_templates')
+            .insert({
+              coach_id: coachUserId,
+              name: state.name,
+              description: state.description || null,
+              slot_config: state.slots as unknown as Record<string, unknown>,
+            })
+            .select('id')
+            .single(),
+          15000,
+          'Save muscle plan',
+        );
 
         if (error) throw error;
         dispatch({ type: 'MARK_SAVED', templateId: data.id });
@@ -273,17 +282,21 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
   const saveAsPreset = useCallback(async () => {
     dispatch({ type: 'SAVING' });
     try {
-      const { data, error } = await supabase
-        .from('muscle_program_templates')
-        .insert({
-          coach_id: coachUserId,
-          name: state.name,
-          description: state.description || null,
-          slot_config: state.slots as unknown as Record<string, unknown>,
-          is_preset: true,
-        })
-        .select('id')
-        .single();
+      const { data, error } = await withTimeout(
+        supabase
+          .from('muscle_program_templates')
+          .insert({
+            coach_id: coachUserId,
+            name: state.name,
+            description: state.description || null,
+            slot_config: state.slots as unknown as Record<string, unknown>,
+            is_preset: true,
+          })
+          .select('id')
+          .single(),
+        15000,
+        'Save preset',
+      );
 
       if (error) throw error;
       dispatch({ type: 'SAVE_ERROR' }); // just stop isSaving — don't change templateId
