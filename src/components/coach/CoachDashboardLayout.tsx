@@ -11,6 +11,7 @@ import { CoachProgramsPage } from "./programs/CoachProgramsPage";
 import { CoachClientDetail } from "./CoachClientDetail";
 import { CoachSessions } from "./CoachSessions";
 import { MyAssignmentsPanel } from "./MyAssignmentsPanel";
+import { CoachTeamsPage } from "./teams";
 
 interface CoachDashboardLayoutProps {
   user: any;
@@ -31,6 +32,7 @@ export function CoachDashboardLayout({
   const getSectionFromPath = useCallback((): string => {
     const path = location.pathname;
     if (path.includes('/coach/clients')) return 'clients';
+    if (path.includes('/coach/teams')) return 'teams';
     if (path.includes('/coach/assignments')) return 'assignments';
     if (path.includes('/coach/sessions')) return 'sessions';
     if (path.includes('/coach/programs')) return 'programs';
@@ -89,6 +91,8 @@ export function CoachDashboardLayout({
             onViewClient={handleViewClientDetail}
           />
         );
+      case "teams":
+        return user && <CoachTeamsPage coachUserId={user.id} />;
       case "assignments":
         return <MyAssignmentsPanel onClientSelect={handleViewClientDetail} />;
       case "sessions":
@@ -146,6 +150,7 @@ function getPageTitle(section: string): string {
   const titles: Record<string, string> = {
     overview: "Dashboard",
     clients: "My Clients",
+    teams: "My Teams",
     assignments: "My Assignments",
     sessions: "Sessions & Time Slots",
     "pending-clients": "Pending Clients",
@@ -162,6 +167,7 @@ function getSectionSubtitle(section: string): string {
   const titles: Record<string, string> = {
     overview: "Here's what needs attention today",
     clients: "View and manage all your clients",
+    teams: "Manage your team plans and members",
     assignments: "Clients you're assigned to as a specialist",
     sessions: "Manage your availability and view booked sessions",
     "pending-clients": "Review pending client approvals",

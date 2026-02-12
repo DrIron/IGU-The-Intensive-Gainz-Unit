@@ -17,7 +17,7 @@
 import { LucideIcon, LayoutDashboard, Users, UserCog, Shield, ShieldCheck,
   Library, Tag, Activity, CreditCard, Wallet, ClipboardCheck, Bug,
   Stethoscope, CalendarDays, BookOpen, UsersRound, Dumbbell, Apple,
-  User, Video, Calendar, History, Home, MessageSquare, FileText } from "lucide-react";
+  User, Video, Calendar, History, Home, MessageSquare, FileText, Users2 } from "lucide-react";
 import { Role, getDashboardForRole, isRouteBlocked } from "@/auth/roles";
 
 // Re-export Role as AppRole for backward compatibility
@@ -110,6 +110,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "coach-root", path: "/coach", label: "Coach Dashboard", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: false },
   { id: "coach-dashboard", path: "/coach/dashboard", label: "Dashboard", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: LayoutDashboard, navOrder: 1 },
   { id: "coach-clients", path: "/coach/clients", label: "My Clients", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: Users, navOrder: 2, description: "Coach's assigned clients only" },
+  { id: "coach-teams", path: "/coach/teams", label: "My Teams", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: Users2, navOrder: 2.5 },
   { id: "coach-assignments", path: "/coach/assignments", label: "My Assignments", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: UsersRound, navOrder: 3 },
   { id: "coach-sessions", path: "/coach/sessions", label: "Sessions", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: CalendarDays, navOrder: 4 },
   { id: "coach-programs", path: "/coach/programs", label: "Program Library", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: BookOpen, navOrder: 5 },

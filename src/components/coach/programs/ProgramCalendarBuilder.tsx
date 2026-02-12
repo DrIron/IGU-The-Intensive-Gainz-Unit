@@ -60,6 +60,8 @@ interface ProgramCalendarBuilderProps {
   programId: string;
   coachUserId: string;
   onEditDay?: (dayId: string) => void;
+  onBack?: () => void;
+  readOnly?: boolean;
 }
 
 const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -67,6 +69,7 @@ const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 // Memoized session card to prevent re-renders when other sessions/days change
 interface SessionCardProps {
   session: CalendarSession;
+  readOnly?: boolean;
   onEditDay?: (dayId: string) => void;
   onCopySession: (sessionId: string, title: string) => void;
   onToggleStatus: (moduleId: string, currentStatus: string) => void;
@@ -75,6 +78,7 @@ interface SessionCardProps {
 
 const SessionCard = memo(function SessionCard({
   session,
+  readOnly,
   onEditDay,
   onCopySession,
   onToggleStatus,
@@ -83,61 +87,63 @@ const SessionCard = memo(function SessionCard({
   const sessionTypeInfo = SESSION_TYPES.find((t) => t.value === session.sessionType);
   return (
     <div
-      className={`p-2 rounded-md text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+      className={`p-2 rounded-md text-xs transition-opacity ${
         session.status === "published"
           ? "bg-primary/10 border border-primary/20"
           : "bg-muted border border-dashed"
-      }`}
-      onClick={() => onEditDay?.(session.id)}
+      } ${readOnly ? "" : "cursor-pointer hover:opacity-80"}`}
+      onClick={readOnly ? undefined : () => onEditDay?.(session.id)}
     >
       <div className="flex items-center justify-between gap-1">
         <div className="flex items-center gap-1 min-w-0">
           <div className={`w-2 h-2 rounded-full shrink-0 ${sessionTypeInfo?.color || "bg-gray-500"}`} />
           <span className="font-medium truncate">{session.title}</span>
         </div>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-5 w-5 shrink-0"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <MoreVertical className="h-3 w-3" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => onEditDay?.(session.id)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Session
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={(e) => {
-              e.stopPropagation();
-              onCopySession(session.id, session.title);
-            }}>
-              <Clipboard className="h-4 w-4 mr-2" />
-              Copy Session
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => onToggleStatus(session.id, session.status)}>
-              {session.status === "published" ? (
-                <>
-                  <EyeOff className="h-4 w-4 mr-2" />
-                  Unpublish
-                </>
-              ) : (
-                <>
-                  <Eye className="h-4 w-4 mr-2" />
-                  Publish
-                </>
-              )}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive" onClick={() => onDeleteSession(session.id)}>
-              <Trash2 className="h-4 w-4 mr-2" />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        {!readOnly && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 shrink-0"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEditDay?.(session.id)}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit Session
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={(e) => {
+                e.stopPropagation();
+                onCopySession(session.id, session.title);
+              }}>
+                <Clipboard className="h-4 w-4 mr-2" />
+                Copy Session
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onToggleStatus(session.id, session.status)}>
+                {session.status === "published" ? (
+                  <>
+                    <EyeOff className="h-4 w-4 mr-2" />
+                    Unpublish
+                  </>
+                ) : (
+                  <>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Publish
+                  </>
+                )}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem className="text-destructive" onClick={() => onDeleteSession(session.id)}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
       </div>
       <Badge
         variant={session.status === "published" ? "default" : "secondary"}
@@ -152,6 +158,7 @@ const SessionCard = memo(function SessionCard({
 // Memoized day cell to prevent all 7 cells from re-rendering on state changes
 interface DayCellProps {
   day: CalendarDay;
+  readOnly?: boolean;
   copiedSessionId: string | null;
   onPasteSession: (dayIndex: number) => void;
   onAddSession: (dayIndex: number) => void;
@@ -163,6 +170,7 @@ interface DayCellProps {
 
 const DayCell = memo(function DayCell({
   day,
+  readOnly,
   copiedSessionId,
   onPasteSession,
   onAddSession,
@@ -178,40 +186,42 @@ const DayCell = memo(function DayCell({
       <CardHeader className="p-2 pb-1">
         <div className="flex items-center justify-between">
           <span className="text-sm font-medium">Day {day.dayIndex}</span>
-          <div className="flex items-center gap-0.5">
-            {copiedSessionId && (
+          {!readOnly && (
+            <div className="flex items-center gap-0.5">
+              {copiedSessionId && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-primary"
+                        onClick={() => onPasteSession(day.dayIndex)}
+                      >
+                        <ClipboardPaste className="h-3 w-3" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Paste session here</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
                     <Button
                       variant="ghost"
                       size="icon"
-                      className="h-6 w-6 text-primary"
-                      onClick={() => onPasteSession(day.dayIndex)}
+                      className="h-6 w-6"
+                      onClick={() => onAddSession(day.dayIndex)}
                     >
-                      <ClipboardPaste className="h-3 w-3" />
+                      <Plus className="h-3 w-3" />
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Paste session here</TooltipContent>
+                  <TooltipContent>Add session</TooltipContent>
                 </Tooltip>
               </TooltipProvider>
-            )}
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-6 w-6"
-                    onClick={() => onAddSession(day.dayIndex)}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Add session</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
+            </div>
+          )}
         </div>
       </CardHeader>
       <CardContent className="p-2 pt-0 space-y-1">
@@ -222,6 +232,7 @@ const DayCell = memo(function DayCell({
             <SessionCard
               key={session.id}
               session={session}
+              readOnly={readOnly}
               onEditDay={onEditDay}
               onCopySession={onCopySession}
               onToggleStatus={onToggleStatus}
@@ -238,6 +249,8 @@ export function ProgramCalendarBuilder({
   programId,
   coachUserId,
   onEditDay,
+  onBack,
+  readOnly,
 }: ProgramCalendarBuilderProps) {
   const [loading, setLoading] = useState(true);
   const [weeks, setWeeks] = useState<CalendarWeek[]>([]);
@@ -685,6 +698,12 @@ export function ProgramCalendarBuilder({
       {/* Week Navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
+          {onBack && (
+            <Button variant="ghost" size="sm" onClick={onBack}>
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              Back
+            </Button>
+          )}
           <Button
             variant="outline"
             size="icon"
@@ -708,20 +727,22 @@ export function ProgramCalendarBuilder({
           </Button>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setShowCopyWeekDialog(true)}>
-            <Copy className="h-4 w-4 mr-2" />
-            Copy Week
-          </Button>
-          <Button onClick={addWeek}>
-            <Plus className="h-4 w-4 mr-2" />
-            Add Week
-          </Button>
-        </div>
+        {!readOnly && (
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => setShowCopyWeekDialog(true)}>
+              <Copy className="h-4 w-4 mr-2" />
+              Copy Week
+            </Button>
+            <Button onClick={addWeek}>
+              <Plus className="h-4 w-4 mr-2" />
+              Add Week
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Clipboard Banner */}
-      {copiedSessionId && (
+      {!readOnly && copiedSessionId && (
         <div className="flex items-center gap-2 px-3 py-2 bg-primary/10 border border-primary/20 rounded-md text-sm">
           <ClipboardPaste className="h-4 w-4 text-primary" />
           <span>Session copied — click paste on any day</span>
@@ -744,6 +765,7 @@ export function ProgramCalendarBuilder({
           <DayCell
             key={day.dayIndex}
             day={day}
+            readOnly={readOnly}
             copiedSessionId={copiedSessionId}
             onPasteSession={pasteSession}
             onAddSession={handleAddSession}

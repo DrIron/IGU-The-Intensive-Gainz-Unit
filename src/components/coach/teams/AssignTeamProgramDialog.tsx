@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { Tables } from "@/integrations/supabase/types";
 
@@ -41,30 +42,40 @@ type ProgramTemplate = Tables<"program_templates"> & {
   }[];
 };
 
-interface AssignProgramDialogProps {
+interface AssignTeamProgramDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   coachUserId: string;
-  clientUserId: string;
-  clientName: string;
-  subscriptionId: string;
+  team: {
+    id: string;
+    name: string;
+    service_id: string;
+  };
+  members: {
+    subscriptionId: string;
+    userId: string;
+    firstName: string;
+    displayName: string | null;
+    status: string;
+  }[];
   onAssigned?: () => void;
 }
 
-export function AssignProgramDialog({
+export const AssignTeamProgramDialog = memo(function AssignTeamProgramDialog({
   open,
   onOpenChange,
   coachUserId,
-  clientUserId,
-  clientName,
-  subscriptionId,
+  team,
+  members,
   onAssigned,
-}: AssignProgramDialogProps) {
+}: AssignTeamProgramDialogProps) {
   const [programs, setPrograms] = useState<ProgramTemplate[]>([]);
   const [selectedProgramId, setSelectedProgramId] = useState<string>("");
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
+  const [progress, setProgress] = useState({ current: 0, total: 0 });
+  const [errors, setErrors] = useState<string[]>([]);
   const { toast } = useToast();
 
   const loadPrograms = useCallback(async () => {
@@ -106,75 +117,106 @@ export function AssignProgramDialog({
 
   useEffect(() => {
     if (open) {
+      setLoading(true);
+      setSelectedProgramId("");
+      setErrors([]);
+      setProgress({ current: 0, total: 0 });
       loadPrograms();
     }
-  }, [open, coachUserId, loadPrograms]);
+  }, [open, loadPrograms]);
 
-  const assignProgram = async () => {
-    if (!selectedProgramId) {
+  const assignToAll = async () => {
+    if (!selectedProgramId) return;
+
+    const activeMembers = members.filter((m) => m.status === "active");
+    if (activeMembers.length === 0) {
       toast({
-        title: "Select a program",
-        description: "Please select a program to assign.",
+        title: "No active members",
+        description: "There are no active members to assign the program to.",
         variant: "destructive",
       });
       return;
     }
 
     setAssigning(true);
-    try {
-      const selectedProgram = programs.find((p) => p.id === selectedProgramId);
-      if (!selectedProgram) throw new Error("Program not found");
+    setProgress({ current: 0, total: activeMembers.length });
+    setErrors([]);
+
+    const assignmentErrors: string[] = [];
+    let successCount = 0;
+
+    for (let i = 0; i < activeMembers.length; i++) {
+      const member = activeMembers[i];
+      setProgress({ current: i + 1, total: activeMembers.length });
 
       const result = await assignProgramToClient({
         coachUserId,
-        clientUserId,
-        subscriptionId,
+        clientUserId: member.userId,
+        subscriptionId: member.subscriptionId,
         programTemplateId: selectedProgramId,
         startDate,
+        teamId: team.id,
       });
 
-      if (!result.success) {
-        throw new Error(result.error || "Assignment failed");
+      if (result.success) {
+        successCount++;
+      } else {
+        assignmentErrors.push(
+          `${member.displayName || member.firstName}: ${result.error}`
+        );
       }
+    }
 
+    // Update team's current program template
+    if (successCount > 0) {
+      await supabase
+        .from("coach_teams")
+        .update({ current_program_template_id: selectedProgramId })
+        .eq("id", team.id);
+    }
+
+    setErrors(assignmentErrors);
+
+    if (assignmentErrors.length === 0) {
       toast({
         title: "Program assigned",
-        description: `${selectedProgram.title} has been assigned to ${clientName}.`,
+        description: `Program assigned to ${successCount} team members.`,
       });
-
       onOpenChange(false);
       onAssigned?.();
-    } catch (error: any) {
+    } else if (successCount > 0) {
       toast({
-        title: "Error assigning program",
-        description: sanitizeErrorForUser(error),
+        title: "Partial success",
+        description: `Program assigned to ${successCount} of ${activeMembers.length} members. ${assignmentErrors.length} failed.`,
         variant: "destructive",
       });
-    } finally {
-      setAssigning(false);
+    } else {
+      toast({
+        title: "Assignment failed",
+        description: "Failed to assign program to any team members.",
+        variant: "destructive",
+      });
     }
+
+    setAssigning(false);
   };
 
   const selectedProgram = programs.find((p) => p.id === selectedProgramId);
+  const activeMembers = members.filter((m) => m.status === "active");
   const publishedModulesCount = selectedProgram?.program_template_days?.reduce(
     (acc, day) =>
       acc + (day.day_modules?.filter((m) => m.status === "published").length || 0),
     0
   );
-  const draftModulesCount = selectedProgram?.program_template_days?.reduce(
-    (acc, day) =>
-      acc + (day.day_modules?.filter((m) => m.status === "draft").length || 0),
-    0
-  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent>
+      <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Assign Program</DialogTitle>
+          <DialogTitle>Assign Program to Team</DialogTitle>
           <DialogDescription>
-            Assign a workout program to {clientName}. Only published modules will be
-            delivered to the client.
+            Assign a program to all active members of {team.name}. Each member
+            gets their own individual copy.
           </DialogDescription>
         </DialogHeader>
 
@@ -185,8 +227,7 @@ export function AssignProgramDialog({
               <div className="text-sm text-muted-foreground">Loading programs...</div>
             ) : programs.length === 0 ? (
               <div className="text-sm text-muted-foreground">
-                No programs with published modules available. Create and publish a
-                program first.
+                No programs with published modules available.
               </div>
             ) : (
               <Select value={selectedProgramId} onValueChange={setSelectedProgramId}>
@@ -196,8 +237,7 @@ export function AssignProgramDialog({
                 <SelectContent>
                   {programs.map((program) => (
                     <SelectItem key={program.id} value={program.id}>
-                      {program.title} ({program.program_template_days?.length || 0}{" "}
-                      days)
+                      {program.title} ({program.program_template_days?.length || 0} days)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -215,13 +255,11 @@ export function AssignProgramDialog({
               )}
               <div className="flex gap-2">
                 <Badge variant="default">
-                  {publishedModulesCount} published
+                  {publishedModulesCount} published modules
                 </Badge>
-                {(draftModulesCount ?? 0) > 0 && (
-                  <Badge variant="secondary">
-                    {draftModulesCount} draft (not delivered)
-                  </Badge>
-                )}
+                <Badge variant="secondary">
+                  {selectedProgram.program_template_days?.length || 0} days
+                </Badge>
               </div>
             </div>
           )}
@@ -251,20 +289,48 @@ export function AssignProgramDialog({
                 />
               </PopoverContent>
             </Popover>
-            <p className="text-xs text-muted-foreground">
-              Day 1 will be scheduled for this date. Subsequent days will follow in
-              order.
-            </p>
           </div>
+
+          {/* Member preview */}
+          <div className="p-3 bg-muted rounded-md">
+            <p className="text-sm font-medium mb-1">
+              Will assign to {activeMembers.length} active member{activeMembers.length !== 1 ? "s" : ""}
+            </p>
+            {members.filter((m) => m.status === "pending").length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                {members.filter((m) => m.status === "pending").length} pending members will not be assigned
+              </p>
+            )}
+          </div>
+
+          {/* Progress bar during assignment */}
+          {assigning && (
+            <div className="space-y-2">
+              <Progress value={(progress.current / progress.total) * 100} />
+              <p className="text-sm text-center text-muted-foreground">
+                Assigning {progress.current} / {progress.total}...
+              </p>
+            </div>
+          )}
+
+          {/* Error list */}
+          {errors.length > 0 && (
+            <div className="p-3 bg-destructive/10 border border-destructive/20 rounded-md space-y-1">
+              <p className="text-sm font-medium text-destructive">Failed assignments:</p>
+              {errors.map((err, i) => (
+                <p key={i} className="text-xs text-destructive/80">{err}</p>
+              ))}
+            </div>
+          )}
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={assigning}>
             Cancel
           </Button>
           <Button
-            onClick={assignProgram}
-            disabled={!selectedProgramId || assigning}
+            onClick={assignToAll}
+            disabled={!selectedProgramId || assigning || activeMembers.length === 0}
           >
             {assigning ? (
               <>
@@ -272,11 +338,11 @@ export function AssignProgramDialog({
                 Assigning...
               </>
             ) : (
-              "Assign Program"
+              `Assign to ${activeMembers.length} Members`
             )}
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
   );
-}
+});

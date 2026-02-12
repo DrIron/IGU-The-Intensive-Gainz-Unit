@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { Loader2 } from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Loader2, Users2, BookOpen, ChevronRight } from "lucide-react";
 import { startOfWeek, endOfWeek } from "date-fns";
 
 import { CoachKPIRow } from "./CoachKPIRow";
@@ -373,6 +374,107 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
 
       {/* Compensation Card */}
       <CoachCompensationCard coachUserId={coachUserId} />
+
+      {/* Teams Summary Card (head coaches only) */}
+      <CoachTeamsSummaryCard coachUserId={coachUserId} onNavigate={handleNavigate} />
     </div>
   );
 }
+
+// Teams summary card — only renders for head coaches
+interface CoachTeamsSummaryCardProps {
+  coachUserId: string;
+  onNavigate: (section: string) => void;
+}
+
+const CoachTeamsSummaryCard = memo(function CoachTeamsSummaryCard({
+  coachUserId,
+  onNavigate,
+}: CoachTeamsSummaryCardProps) {
+  const [isHeadCoach, setIsHeadCoach] = useState(false);
+  const [teamCount, setTeamCount] = useState(0);
+  const [totalMembers, setTotalMembers] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
+
+  const loadData = useCallback(async () => {
+    try {
+      const { data: coachProfile } = await supabase
+        .from("coaches_public")
+        .select("is_head_coach")
+        .eq("user_id", coachUserId)
+        .maybeSingle();
+
+      if (!coachProfile?.is_head_coach) {
+        setIsHeadCoach(false);
+        setLoading(false);
+        return;
+      }
+
+      setIsHeadCoach(true);
+
+      const { data: teams } = await supabase
+        .from("coach_teams")
+        .select("id, service_id")
+        .eq("coach_id", coachUserId)
+        .eq("is_active", true);
+
+      setTeamCount(teams?.length || 0);
+
+      // Count total members across all team services
+      if (teams && teams.length > 0) {
+        const serviceIds = [...new Set(teams.map((t) => t.service_id))];
+        const { count } = await supabase
+          .from("subscriptions")
+          .select("id", { count: "exact", head: true })
+          .eq("coach_id", coachUserId)
+          .in("service_id", serviceIds)
+          .in("status", ["pending", "active"]);
+
+        setTotalMembers(count || 0);
+      }
+    } catch {
+      // Silently fail — card is supplementary
+    } finally {
+      setLoading(false);
+    }
+  }, [coachUserId]);
+
+  useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    loadData();
+  }, [loadData]);
+
+  if (!isHeadCoach || loading) return null;
+
+  return (
+    <Card
+      className="cursor-pointer hover:shadow-md transition-shadow"
+      onClick={() => onNavigate("teams")}
+    >
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Users2 className="h-4 w-4" />
+            My Teams
+          </CardTitle>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </div>
+        <CardDescription>Team plan management</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="flex items-center gap-6">
+          <div>
+            <p className="text-2xl font-bold">{teamCount}</p>
+            <p className="text-xs text-muted-foreground">Teams</p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold">{totalMembers}</p>
+            <p className="text-xs text-muted-foreground">Total Members</p>
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+});

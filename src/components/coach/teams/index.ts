@@ -1,0 +1,1 @@
+export { CoachTeamsPage } from "./CoachTeamsPage";
