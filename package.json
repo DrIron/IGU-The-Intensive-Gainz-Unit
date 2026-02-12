@@ -79,6 +79,7 @@
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@babel/plugin-transform-modules-systemjs": "^7.29.0",
     "@eslint/js": "^9.32.0",
     "@sentry/vite-plugin": "^4.8.0",
     "@tailwindcss/typography": "^0.5.16",

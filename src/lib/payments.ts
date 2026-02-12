@@ -221,8 +221,10 @@ export interface PaymentOverrideEvent {
  * Log a manual payment override event.
  */
 export function logPaymentOverride(event: PaymentOverrideEvent): void {
-  console.log("[PaymentOverride]", {
-    ...event,
-    timestamp: event.timestamp.toISOString(),
-  });
+  if (import.meta.env.DEV) {
+    console.log("[PaymentOverride]", {
+      ...event,
+      timestamp: event.timestamp.toISOString(),
+    });
+  }
 }

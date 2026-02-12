@@ -172,7 +172,7 @@ export function CoachApplicationsManager() {
             }
           }
         } catch (subroleErr) {
-          console.warn('Could not create subrole requests:', subroleErr);
+          if (import.meta.env.DEV) console.warn('Could not create subrole requests:', subroleErr);
           // Non-fatal: coach account was still created successfully
         }
       }

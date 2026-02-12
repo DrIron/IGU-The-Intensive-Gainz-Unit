@@ -625,9 +625,6 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                               to={item.path}
                               className="flex items-center gap-3 text-foreground hover:bg-muted transition-colors px-5 py-3 text-sm"
                               onClick={() => {
-                                if (process.env.NODE_ENV === 'development') {
-                                  console.log('[MobileNav] Single navigation:', item.path);
-                                }
                                 setMobileMenuOpen(false);
                               }}
                             >
@@ -654,9 +651,6 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                               to={item.path}
                               className="flex items-center gap-3 text-foreground hover:bg-muted transition-colors px-5 py-3 text-sm"
                               onClick={() => {
-                                if (process.env.NODE_ENV === 'development') {
-                                  console.log('[MobileNav] Single navigation:', item.path);
-                                }
                                 setMobileMenuOpen(false);
                               }}
                             >
@@ -689,12 +683,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                                 "flex items-center gap-3 text-foreground hover:bg-muted transition-colors px-5 py-3 text-sm",
                                 activeSection === item.section && "bg-primary/10 text-primary font-medium"
                               )}
-                              onClick={(e) => {
-                                // DEV: Log single navigation trigger
-                                if (process.env.NODE_ENV === 'development') {
-                                  console.log('[MobileNav] Single navigation:', targetUrl);
-                                }
-                                // Close drawer AFTER Link handles navigation
+                              onClick={() => {
                                 setMobileMenuOpen(false);
                               }}
                             >
