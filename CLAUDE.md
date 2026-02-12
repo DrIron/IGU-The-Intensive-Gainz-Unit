@@ -252,7 +252,7 @@ addon_services             -- Catalog of add-on services (session packs, special
 addon_purchases            -- Client purchases of add-on services
 addon_session_logs         -- Individual session consumption from packs
 
--- Muscle-First Workout Builder (Phase 31)
+-- Planning Board / Muscle Workout Builder (Phase 31)
 muscle_program_templates   -- Muscle planning templates (slot_config JSONB, is_preset, converted_program_id)
 
 -- Team Plan Builder (Phase 32)
@@ -495,7 +495,7 @@ When understanding this codebase, read in this order:
 - i18n Scaffolding — react-i18next setup, en/ar locales, Navigation + Footer converted, LanguageSwitcher (Feb 10, 2026) ✅
 - Phase 30: Compensation Model Schema — hourly-rate compensation, professional levels, add-on services, payout functions (Feb 11, 2026) ✅
 - Phase 30b: Compensation UI — admin level manager, payout preview, add-on services manager, coach compensation card (Feb 11, 2026) ✅
-- Phase 31: Muscle-First Workout Builder — muscle-first planning, DnD calendar, volume analytics, preset system, program conversion (Feb 12, 2026) ✅
+- Phase 31: Planning Board (Muscle Workout Builder) — muscle-first planning, DnD calendar, volume analytics, preset system, program conversion (Feb 12, 2026) ✅
 - Phase 32: Team Plan Builder — team CRUD, fan-out program assignment, readOnly calendar, dashboard integration (Feb 12, 2026) ✅
 - Phase 32b: Team Model Redesign — removed service_id, added tags, client team selection during onboarding, unified "Team Plan" service (Feb 12, 2026) ✅
 - Limited Dashboard for Incomplete Onboarding — OnboardingGuard allows dashboard paths through, ClientDashboardLayout shows limited UI (Feb 12, 2026) ✅
@@ -640,9 +640,9 @@ src/components/coach/teams/
 | `src/lib/routeConfig.ts` | Added `coach-teams` route with `Users2` icon |
 | `src/pages/coach/CoachDashboard.tsx` | Added `teams` to SECTION_MAP |
 
-### Phase 31: Muscle-First Workout Builder (Complete - Feb 12, 2026)
+### Phase 31: Planning Board — Muscle Workout Builder (Complete - Feb 12, 2026)
 
-Coaches plan workouts starting from **muscles** instead of exercises. Drag muscle groups onto a 7-day calendar, configure sets per slot, view real-time volume analytics (MV/MEV/MAV/MRV landmarks), then convert the muscle template into a program scaffold.
+Coaches plan workouts starting from **muscles** instead of exercises. Drag muscle groups onto a 7-day calendar, configure sets per slot, view real-time volume analytics (MV/MEV/MAV/MRV landmarks), then convert the muscle template into a program scaffold. UI label: "Planning Board" (renamed from "Muscle-First Plan").
 
 **New Table:** `muscle_program_templates`
 | Column | Type | Purpose |
@@ -685,7 +685,9 @@ src/components/coach/programs/muscle-builder/
 
 **Conversion:** Creates `program_templates` + `program_template_days` (one per training day) + `day_modules` (one per muscle slot). Coach fills in exercises via ProgramCalendarBuilder afterward. (`module_exercises.exercise_id` is NOT NULL, so no placeholder exercises.)
 
-**Modified Files:** `CoachProgramsPage.tsx` (added `muscle-builder` view), `ProgramLibrary.tsx` (added "Muscle-First Plan" button), `index.ts` (export).
+**Modified Files:** `CoachProgramsPage.tsx` (added `muscle-builder` view), `ProgramLibrary.tsx` (added "Planning Board" button), `index.ts` (export).
+
+**DnD Fix (Feb 12, 2026):** Palette `Droppable` was missing `type="MUSCLE_SLOT"` — drops from palette to day columns were silently rejected because `@hello-pangea/dnd` requires matching types between source and destination droppables. Fixed in `MusclePalette.tsx`.
 
 ### Phase 30: Compensation Model (Complete - Feb 11, 2026)
 

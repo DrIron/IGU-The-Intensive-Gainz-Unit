@@ -255,7 +255,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
           {onMuscleBuilder && (
             <Button variant="outline" onClick={onMuscleBuilder}>
               <Dumbbell className="h-4 w-4 mr-2" />
-              Muscle-First Plan
+              Planning Board
             </Button>
           )}
           <Button onClick={onCreateProgram}>

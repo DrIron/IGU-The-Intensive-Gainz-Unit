@@ -1,5 +1,5 @@
 // src/types/muscle-builder.ts
-// Type definitions and constants for the Muscle-First Workout Builder
+// Type definitions and constants for the Planning Board (Muscle Workout Builder)
 
 // ============================================================
 // Body Region + Muscle Group Definitions

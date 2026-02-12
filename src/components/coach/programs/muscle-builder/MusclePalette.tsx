@@ -55,7 +55,7 @@ export const MusclePalette = memo(function MusclePalette({ placementCounts }: Mu
         />
       </div>
 
-      <Droppable droppableId="palette" isDropDisabled={true}>
+      <Droppable droppableId="palette" isDropDisabled={true} type="MUSCLE_SLOT">
         {(provided) => (
           <div ref={provided.innerRef} {...provided.droppableProps}>
             {filteredGroups ? (
