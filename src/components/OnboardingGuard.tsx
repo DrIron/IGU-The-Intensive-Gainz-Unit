@@ -4,7 +4,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuthGuardSession } from "@/components/AuthGuard";
 import {
   isOnboardingIncomplete,
-  getOnboardingRedirect,
   hasLimitedAccess,
   ClientStatus
 } from "@/auth/onboarding";
@@ -132,13 +131,15 @@ export function OnboardingGuard({
         return;
       }
 
-      const redirectUrl = getOnboardingRedirect(status);
-
-      // Don't redirect if we're already on the correct onboarding page
-      if (redirectUrl && !location.pathname.startsWith(redirectUrl.split("?")[0])) {
-        navigate(redirectUrl, { replace: true });
+      // Allow dashboard paths — ClientDashboardLayout handles limited UI
+      const isDashboardPath = ["/dashboard", "/client", "/client/dashboard"].includes(location.pathname);
+      if (isDashboardPath) {
         return;
       }
+
+      // For non-dashboard routes, redirect TO dashboard (not to onboarding)
+      navigate("/dashboard", { replace: true });
+      return;
     }
 
     // Check limited access
@@ -155,10 +156,11 @@ export function OnboardingGuard({
 
   // If onboarding incomplete and not allowing, don't render children
   // (redirect should happen via useEffect)
-  // Exception: paymentVerified state means DB is just lagging behind
+  // Exceptions: paymentVerified state (DB lag) or dashboard paths (limited UI)
   const navState = location.state as { paymentVerified?: boolean } | null;
+  const isDashboardPath = ["/dashboard", "/client", "/client/dashboard"].includes(location.pathname);
   if (!allowIncomplete && profileStatus && isOnboardingIncomplete(profileStatus.status)) {
-    if (!(navState?.paymentVerified && profileStatus.status === "pending_payment")) {
+    if (!(navState?.paymentVerified && profileStatus.status === "pending_payment") && !isDashboardPath) {
       return <PageLoadingSkeleton />;
     }
   }
