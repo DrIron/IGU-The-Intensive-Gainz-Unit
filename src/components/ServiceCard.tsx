@@ -7,11 +7,11 @@ interface ServiceCardProps {
   type: string;
   price: number;
   description: string;
-  features: string[];
+  features: string[] | null;
   onSelect: () => void;
 }
 
-export const ServiceCard = ({ name, type, price, description, features, onSelect }: ServiceCardProps) => {
+export const ServiceCard = ({ name, type, price, description, features = [], onSelect }: ServiceCardProps) => {
   return (
     <Card className="relative overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/20">
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5" />
