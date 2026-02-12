@@ -144,6 +144,9 @@ Three-layer protection system:
 </RoleProtectedRoute>
 
 // 3. OnboardingGuard - enforces onboarding completion for clients
+// Dashboard paths (/dashboard, /client, /client/dashboard) are allowed through
+// even with incomplete onboarding — ClientDashboardLayout shows limited UI.
+// Non-dashboard paths redirect TO /dashboard (not to onboarding pages).
 <OnboardingGuard>
   <ClientDashboard />
 </OnboardingGuard>
@@ -495,6 +498,16 @@ When understanding this codebase, read in this order:
 - Phase 31: Muscle-First Workout Builder — muscle-first planning, DnD calendar, volume analytics, preset system, program conversion (Feb 12, 2026) ✅
 - Phase 32: Team Plan Builder — team CRUD, fan-out program assignment, readOnly calendar, dashboard integration (Feb 12, 2026) ✅
 - Phase 32b: Team Model Redesign — removed service_id, added tags, client team selection during onboarding, unified "Team Plan" service (Feb 12, 2026) ✅
+- Limited Dashboard for Incomplete Onboarding — OnboardingGuard allows dashboard paths through, ClientDashboardLayout shows limited UI (Feb 12, 2026) ✅
+
+### Limited Dashboard for Incomplete Onboarding (Feb 12, 2026)
+
+OnboardingGuard no longer force-redirects clients to onboarding pages. Dashboard paths (`/dashboard`, `/client`, `/client/dashboard`) are allowed through so `ClientDashboardLayout`'s existing limited-state UI renders (registration alerts, medical review, coach approval, payment status). Non-dashboard paths redirect to `/dashboard` instead of onboarding. The `paymentVerified` state bypass still works.
+
+**File Modified:** `src/components/OnboardingGuard.tsx`
+- Redirect useEffect: dashboard paths skip redirect; non-dashboard paths redirect to `/dashboard`
+- Render guard: dashboard paths allowed through (not blocked by `PageLoadingSkeleton`)
+- Removed unused `getOnboardingRedirect` import
 
 ### Phase 32b: Team Model Redesign (Complete - Feb 12, 2026)
 
@@ -1693,6 +1706,7 @@ SQL function `generate_referral_code(first_name)`:
 - **`form_submissions` table columns**: Does NOT have `red_flags_count`, `service_id`, or `notes_summary` — those columns exist only on `form_submissions_safe`. Triggers on `form_submissions` must not reference `NEW.red_flags_count`.
 - **Two exercise tables**: `exercises` (legacy, mostly empty) and `exercise_library` (107 seeded exercises from Phase 28). The `WorkoutLibrary` page reads from BOTH. The workout builder's exercise picker reads from `exercise_library`. When adding exercises programmatically, use `exercise_library`.
 - **`client_programs` FK join to `programs` is unreliable** — PostgREST may not find the relationship in the schema cache. Use a separate query: `.from("programs").select("name").eq("id", programId).maybeSingle()` instead of embedding `programs (name)` in the select.
+- **OnboardingGuard allows dashboard paths**: Clients with incomplete onboarding can visit `/dashboard`, `/client`, `/client/dashboard` — `ClientDashboardLayout` shows appropriate limited UI (registration alert, medical review, coach approval, payment status). Non-dashboard client routes redirect to `/dashboard`. The `paymentVerified` state bypass for post-payment navigation still works.
 - **Post-action navigation + OnboardingGuard race condition**: When navigating to `/dashboard` after a server-side status change (e.g., payment verification), pass `{ state: { paymentVerified: true } }` so OnboardingGuard doesn't redirect based on stale `profiles_public.status`. See `PaymentReturn.tsx` for the pattern.
 - **All public-facing pages MUST be wrapped in `<PublicLayout>` in App.tsx** — this provides the consistent "IGU" navbar and footer. Never render a public page without PublicLayout, and never add `<Navigation />` or `<Footer />` inside a page component that is already wrapped in PublicLayout (causes duplicates). When creating a new public route, wrap it: `<Route path="/foo" element={<PublicLayout><Foo /></PublicLayout>} />`. When editing a page, check App.tsx first to see if it's already wrapped.
 
@@ -2041,11 +2055,13 @@ Fixed a race condition where the "Go to Dashboard" button on the payment success
 
 **Fix:** Pass `{ state: { paymentVerified: true } }` via React Router navigation from PaymentReturn. OnboardingGuard checks this state and skips the redirect specifically when status is `pending_payment` and `paymentVerified` is true.
 
+**Update (Feb 12, 2026):** OnboardingGuard now allows all dashboard paths through for incomplete onboarding (see "Limited Dashboard for Incomplete Onboarding" section). The `paymentVerified` bypass is still needed specifically for `pending_payment` status where the DB is stale but the client should see a fully active dashboard, not the limited payment-status UI.
+
 **Files Modified:**
 | File | Change |
 |------|--------|
 | `src/pages/PaymentReturn.tsx` | Both auto-redirect (3s timer) and "Go to Dashboard Now" button pass `paymentVerified` state |
-| `src/components/OnboardingGuard.tsx` | Skip onboarding redirect when `paymentVerified` + `pending_payment` (both useEffect and render guard) |
+| `src/components/OnboardingGuard.tsx` | Skip onboarding redirect when `paymentVerified` + `pending_payment` (both useEffect and render guard); allow dashboard paths for incomplete onboarding |
 
 **Pattern — Post-action navigation with stale DB:** When navigating after a server-side status change, pass confirmation state via React Router `navigate()` so guards don't bounce the user back due to stale reads. Only bypass the specific stale status, not all statuses.
 
