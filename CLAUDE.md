@@ -650,7 +650,7 @@ Coaches plan workouts starting from **muscles** instead of exercises. Drag muscl
 | `coach_id` | UUID FK coaches | Owner |
 | `name` | TEXT | Plan name |
 | `description` | TEXT | Optional description |
-| `slot_config` | JSONB | Array of `{dayIndex, muscleId, sets, sortOrder}` |
+| `slot_config` | JSONB | Array of `{id, dayIndex, muscleId, sets, sortOrder}` |
 | `is_preset` | BOOLEAN | Coach-saved preset flag |
 | `is_system` | BOOLEAN | Built-in preset flag |
 | `converted_program_id` | UUID FK program_templates | Link to converted program |
@@ -678,16 +678,18 @@ src/components/coach/programs/muscle-builder/
 ```
 
 **DnD (via @hello-pangea/dnd):**
-- Palette → Day: copy muscle (palette stays)
+- Palette → Day: copy muscle (palette stays) — same muscle can be added multiple times per day
 - Day → Same Day: reorder
 - Day → Different Day: move
-- Duplicate check: toast if muscle already on target day
+- No per-day muscle limit — each slot has a unique `id` for identification
 
 **Conversion:** Creates `program_templates` + `program_template_days` (one per training day) + `day_modules` (one per muscle slot). Coach fills in exercises via ProgramCalendarBuilder afterward. (`module_exercises.exercise_id` is NOT NULL, so no placeholder exercises.)
 
 **Modified Files:** `CoachProgramsPage.tsx` (added `muscle-builder` view), `ProgramLibrary.tsx` (added "Planning Board" button), `index.ts` (export).
 
 **DnD Fix (Feb 12, 2026):** Palette `Droppable` was missing `type="MUSCLE_SLOT"` — drops from palette to day columns were silently rejected because `@hello-pangea/dnd` requires matching types between source and destination droppables. Fixed in `MusclePalette.tsx`.
+
+**Muscle Limit Removal (Feb 12, 2026):** Removed per-day muscle deduplication — each muscle can now appear multiple times per day, per session, and on unlimited days. Added unique `id: string` (UUID) to `MuscleSlotData` to replace the `dayIndex+muscleId` composite key. Reducer actions (`REMOVE_MUSCLE`, `SET_SETS`, `MOVE_MUSCLE`) now use `slotId`. Backward-compatible: `hydrateSlotIds()` adds UUIDs to saved data loaded without ids. PASTE_DAY generates fresh UUIDs for pasted slots.
 
 ### Phase 30: Compensation Model (Complete - Feb 11, 2026)
 
