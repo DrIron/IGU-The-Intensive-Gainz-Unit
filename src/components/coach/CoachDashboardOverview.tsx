@@ -415,20 +415,19 @@ const CoachTeamsSummaryCard = memo(function CoachTeamsSummaryCard({
 
       const { data: teams } = await supabase
         .from("coach_teams")
-        .select("id, service_id")
+        .select("id")
         .eq("coach_id", coachUserId)
         .eq("is_active", true);
 
       setTeamCount(teams?.length || 0);
 
-      // Count total members across all team services
+      // Count total members across all teams via subscriptions.team_id
       if (teams && teams.length > 0) {
-        const serviceIds = [...new Set(teams.map((t) => t.service_id))];
+        const teamIds = teams.map((t) => t.id);
         const { count } = await supabase
           .from("subscriptions")
           .select("id", { count: "exact", head: true })
-          .eq("coach_id", coachUserId)
-          .in("service_id", serviceIds)
+          .in("team_id", teamIds)
           .in("status", ["pending", "active"]);
 
         setTotalMembers(count || 0);

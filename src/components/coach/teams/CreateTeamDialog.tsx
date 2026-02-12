@@ -4,9 +4,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { Loader2 } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -15,18 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-
-interface Service {
-  id: string;
-  name: string;
-}
 
 interface CreateTeamDialogProps {
   open: boolean;
@@ -38,7 +27,7 @@ interface CreateTeamDialogProps {
     id: string;
     name: string;
     description: string;
-    service_id: string;
+    tags: string[];
     max_members: number;
   };
 }
@@ -55,63 +44,57 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
 }: CreateTeamDialogProps) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
-  const [serviceId, setServiceId] = useState("");
+  const [tags, setTags] = useState<string[]>([]);
+  const [tagInput, setTagInput] = useState("");
   const [maxMembers, setMaxMembers] = useState(30);
-  const [services, setServices] = useState<Service[]>([]);
-  const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const { toast } = useToast();
 
-  const loadServices = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from("services")
-        .select("id, name")
-        .eq("type", "team")
-        .eq("is_active", true);
-
-      if (error) throw error;
-      setServices(data || []);
-    } catch (error: any) {
-      toast({
-        title: "Error loading services",
-        description: sanitizeErrorForUser(error),
-        variant: "destructive",
-      });
-    }
-  }, [toast]);
-
   useEffect(() => {
     if (open) {
-      setLoading(true);
-      loadServices().then(() => setLoading(false));
-
-      // Pre-fill for edit mode
       if (editTeam) {
         setName(editTeam.name);
         setDescription(editTeam.description);
-        setServiceId(editTeam.service_id);
+        setTags(editTeam.tags);
         setMaxMembers(editTeam.max_members);
       } else {
         setName("");
         setDescription("");
-        setServiceId("");
+        setTags([]);
         setMaxMembers(30);
       }
+      setTagInput("");
     }
-  }, [open, editTeam, loadServices]);
+  }, [open, editTeam]);
+
+  const addTag = useCallback(() => {
+    const trimmed = tagInput.trim();
+    if (trimmed && !tags.includes(trimmed)) {
+      setTags((prev) => [...prev, trimmed]);
+    }
+    setTagInput("");
+  }, [tagInput, tags]);
+
+  const removeTag = useCallback((tag: string) => {
+    setTags((prev) => prev.filter((t) => t !== tag));
+  }, []);
+
+  const handleTagKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        addTag();
+      }
+    },
+    [addTag]
+  );
 
   const handleSave = async () => {
     if (!name.trim()) {
       toast({ title: "Name required", variant: "destructive" });
       return;
     }
-    if (!serviceId) {
-      toast({ title: "Service required", description: "Select a team service.", variant: "destructive" });
-      return;
-    }
 
-    // Validate max teams for new teams
     if (!editTeam && existingTeamCount >= MAX_TEAMS) {
       toast({
         title: "Team limit reached",
@@ -129,7 +112,7 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
           .update({
             name: name.trim(),
             description: description.trim() || null,
-            service_id: serviceId,
+            tags,
             max_members: maxMembers,
           })
           .eq("id", editTeam.id);
@@ -141,7 +124,7 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
           coach_id: coachUserId,
           name: name.trim(),
           description: description.trim() || null,
-          service_id: serviceId,
+          tags,
           max_members: maxMembers,
         });
 
@@ -171,7 +154,7 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
           <DialogDescription>
             {isEdit
               ? "Update your team details."
-              : "Create a new team linked to a team service."}
+              : "Create a new team for your clients."}
           </DialogDescription>
         </DialogHeader>
 
@@ -181,7 +164,7 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
             <Input
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="e.g., Fe Squad Morning Group"
+              placeholder="e.g., Hypertrophy Squad"
             />
           </div>
 
@@ -196,28 +179,44 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
           </div>
 
           <div className="space-y-2">
-            <Label>Team Service</Label>
-            {loading ? (
-              <p className="text-sm text-muted-foreground">Loading services...</p>
-            ) : (
-              <Select value={serviceId} onValueChange={setServiceId} disabled={isEdit}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a team service" />
-                </SelectTrigger>
-                <SelectContent>
-                  {services.map((s) => (
-                    <SelectItem key={s.id} value={s.id}>
-                      {s.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+            <Label>Tags</Label>
+            <div className="flex gap-2">
+              <Input
+                value={tagInput}
+                onChange={(e) => setTagInput(e.target.value)}
+                onKeyDown={handleTagKeyDown}
+                placeholder="e.g., Hypertrophy"
+                className="flex-1"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={addTag}
+                disabled={!tagInput.trim()}
+              >
+                Add
+              </Button>
+            </div>
+            {tags.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {tags.map((tag) => (
+                  <Badge key={tag} variant="secondary" className="gap-1">
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => removeTag(tag)}
+                      className="ml-0.5 hover:text-destructive"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </Badge>
+                ))}
+              </div>
             )}
-            {isEdit && (
-              <p className="text-xs text-muted-foreground">
-                Service cannot be changed after creation.
-              </p>
-            )}
+            <p className="text-xs text-muted-foreground">
+              Tags help clients find your team (e.g., Hypertrophy, Lower Body, Strength)
+            </p>
           </div>
 
           <div className="space-y-2">
@@ -236,7 +235,7 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button onClick={handleSave} disabled={saving || !name.trim() || !serviceId}>
+          <Button onClick={handleSave} disabled={saving || !name.trim()}>
             {saving ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />

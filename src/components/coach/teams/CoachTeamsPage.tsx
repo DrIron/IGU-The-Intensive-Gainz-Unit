@@ -17,12 +17,11 @@ interface Team {
   id: string;
   name: string;
   description: string | null;
-  service_id: string;
+  tags: string[];
   current_program_template_id: string | null;
   max_members: number;
   is_active: boolean;
   created_at: string;
-  serviceName: string;
   memberCount: number;
   programName: string | null;
 }
@@ -65,22 +64,14 @@ export const CoachTeamsPage = memo(function CoachTeamsPage({ coachUserId }: Coac
 
       if (error) throw error;
 
-      // Enrich each team with service name, member count, program name
+      // Enrich each team with member count and program name
       const enrichedTeams: Team[] = await Promise.all(
         (teamsData || []).map(async (team) => {
-          // Service name
-          const { data: service } = await supabase
-            .from("services")
-            .select("name")
-            .eq("id", team.service_id)
-            .maybeSingle();
-
-          // Member count from subscriptions
+          // Member count from subscriptions by team_id
           const { count } = await supabase
             .from("subscriptions")
             .select("id", { count: "exact", head: true })
-            .eq("coach_id", coachUserId)
-            .eq("service_id", team.service_id)
+            .eq("team_id", team.id)
             .in("status", ["pending", "active"]);
 
           // Program template name
@@ -98,12 +89,11 @@ export const CoachTeamsPage = memo(function CoachTeamsPage({ coachUserId }: Coac
             id: team.id,
             name: team.name,
             description: team.description,
-            service_id: team.service_id,
+            tags: team.tags || [],
             current_program_template_id: team.current_program_template_id,
             max_members: team.max_members,
             is_active: team.is_active,
             created_at: team.created_at,
-            serviceName: service?.name || "Unknown Service",
             memberCount: count || 0,
             programName,
           };

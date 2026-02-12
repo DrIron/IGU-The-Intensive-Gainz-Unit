@@ -1,19 +1,18 @@
 -- ============================================================================
--- Phase 32: Team Plan Builder
+-- Phase 32: Team Plan Builder (Redesigned)
 -- ============================================================================
--- New table: coach_teams
--- Alter: client_programs + team_id
--- RLS policies on coach_teams
--- Index for team member queries
+-- Teams are service-agnostic — all share one "Team Plan" service at 12 KWD
+-- Clients pick a specific team during onboarding
+-- Membership tracked via subscriptions.team_id (not derived from coach+service)
 -- ============================================================================
 
--- 1. Create coach_teams table
+-- 1. Create coach_teams table (no service_id)
 CREATE TABLE public.coach_teams (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   coach_id UUID NOT NULL REFERENCES auth.users(id),
   name TEXT NOT NULL,
   description TEXT,
-  service_id UUID NOT NULL REFERENCES public.services(id),
+  tags TEXT[] DEFAULT '{}',
   current_program_template_id UUID REFERENCES public.program_templates(id),
   max_members INT DEFAULT 30,
   is_active BOOLEAN DEFAULT true,
@@ -25,14 +24,18 @@ CREATE TABLE public.coach_teams (
 ALTER TABLE public.client_programs ADD COLUMN team_id UUID REFERENCES public.coach_teams(id);
 CREATE INDEX idx_client_programs_team_id ON public.client_programs(team_id);
 
--- 3. RLS on coach_teams
+-- 3. Add team_id to subscriptions (direct team membership tracking)
+ALTER TABLE public.subscriptions ADD COLUMN team_id UUID REFERENCES public.coach_teams(id);
+CREATE INDEX idx_subscriptions_team_id ON public.subscriptions(team_id);
+
+-- 4. RLS on coach_teams
 ALTER TABLE public.coach_teams ENABLE ROW LEVEL SECURITY;
 
--- Coach can SELECT their own teams
-CREATE POLICY coach_teams_coach_select ON public.coach_teams FOR SELECT
-  USING (auth.uid() = coach_id);
+-- Authenticated users can read active teams (clients need this for onboarding)
+CREATE POLICY coach_teams_read_active ON public.coach_teams FOR SELECT
+  USING (is_active = true);
 
--- Coach can INSERT only if they are a head coach
+-- Head coach INSERT
 CREATE POLICY coach_teams_coach_insert ON public.coach_teams FOR INSERT
   WITH CHECK (
     auth.uid() = coach_id
@@ -42,12 +45,12 @@ CREATE POLICY coach_teams_coach_insert ON public.coach_teams FOR INSERT
     )
   );
 
--- Coach can UPDATE their own teams
+-- Coach UPDATE own
 CREATE POLICY coach_teams_coach_update ON public.coach_teams FOR UPDATE
   USING (auth.uid() = coach_id)
   WITH CHECK (auth.uid() = coach_id);
 
--- Coach can DELETE their own teams
+-- Coach DELETE own
 CREATE POLICY coach_teams_coach_delete ON public.coach_teams FOR DELETE
   USING (auth.uid() = coach_id);
 
@@ -55,13 +58,26 @@ CREATE POLICY coach_teams_coach_delete ON public.coach_teams FOR DELETE
 CREATE POLICY coach_teams_admin_all ON public.coach_teams FOR ALL
   USING (public.is_admin(auth.uid()));
 
--- 4. Index for team member queries (subscriptions by coach + service)
-CREATE INDEX idx_subscriptions_coach_service_active
-  ON public.subscriptions(coach_id, service_id)
-  WHERE status IN ('pending', 'active');
-
 -- 5. updated_at trigger
 CREATE TRIGGER set_coach_teams_updated_at
   BEFORE UPDATE ON public.coach_teams
   FOR EACH ROW
   EXECUTE FUNCTION public.set_updated_at();
+
+-- 6. Index for team member queries via subscriptions.team_id
+CREATE INDEX idx_subscriptions_team_active ON public.subscriptions(team_id)
+  WHERE status IN ('pending', 'active');
+
+-- 7. Consolidate team services into one generic "Team Plan"
+INSERT INTO public.services (name, description, price_kwd, type, slug, is_active)
+VALUES ('Team Plan', 'Group coaching under a head coach — hypertrophy, strength, and more.', 12, 'team', 'team_plan', true)
+ON CONFLICT DO NOTHING;
+
+-- Deactivate old team-specific services
+UPDATE public.services SET is_active = false WHERE slug IN ('team_fe_squad', 'team_bunz');
+
+-- 8. Add team_plan to form_type enum
+ALTER TYPE public.form_type ADD VALUE IF NOT EXISTS 'team_plan';
+
+-- 9. Add selected_team_id to form_submissions for audit
+ALTER TABLE public.form_submissions ADD COLUMN IF NOT EXISTS selected_team_id UUID REFERENCES public.coach_teams(id);

@@ -253,8 +253,9 @@ addon_session_logs         -- Individual session consumption from packs
 muscle_program_templates   -- Muscle planning templates (slot_config JSONB, is_preset, converted_program_id)
 
 -- Team Plan Builder (Phase 32)
-coach_teams                -- Head coach team management (name, service_id, max_members, current_program_template_id)
+coach_teams                -- Head coach team management (name, tags[], max_members, current_program_template_id)
 -- client_programs.team_id -- Nullable FK to coach_teams (tracks which team assignment created the program)
+-- subscriptions.team_id   -- Nullable FK to coach_teams (direct team membership)
 ```
 
 ### 5b. Service Tiers & Compensation
@@ -263,8 +264,7 @@ Six service tiers, each with a `slug` for programmatic identification:
 
 | Tier | Slug | Price (KWD) | Coach | Dietitian |
 |------|------|-------------|-------|-----------|
-| Fe Squad | `team_fe_squad` | 12 | Head Coach (5 KWD flat) | — |
-| Bunz of Steel | `team_bunz` | 12 | Head Coach (5 KWD flat) | — |
+| Team Plan | `team_plan` | 12 | Head Coach (5 KWD flat) | — |
 | 1:1 Online | `one_to_one_online` | 40 | Hourly | — |
 | 1:1 Complete | `one_to_one_complete` | 75 | Hourly | Hourly |
 | Hybrid | `hybrid` | 150 | Hourly (online + in-person) | Hourly |
@@ -494,10 +494,35 @@ When understanding this codebase, read in this order:
 - Phase 30b: Compensation UI — admin level manager, payout preview, add-on services manager, coach compensation card (Feb 11, 2026) ✅
 - Phase 31: Muscle-First Workout Builder — muscle-first planning, DnD calendar, volume analytics, preset system, program conversion (Feb 12, 2026) ✅
 - Phase 32: Team Plan Builder — team CRUD, fan-out program assignment, readOnly calendar, dashboard integration (Feb 12, 2026) ✅
+- Phase 32b: Team Model Redesign — removed service_id, added tags, client team selection during onboarding, unified "Team Plan" service (Feb 12, 2026) ✅
+
+### Phase 32b: Team Model Redesign (Complete - Feb 12, 2026)
+
+Removed `service_id` from `coach_teams` — teams are now service-agnostic. All teams share one "Team Plan" service (12 KWD). Added `tags TEXT[]` for client discovery. Added `subscriptions.team_id` for direct team membership tracking. Clients selecting "Team Plan" during onboarding now see available teams and pick one. Old Fe Squad/Bunz services deactivated.
+
+**Schema Changes:**
+- `coach_teams`: Removed `service_id`, added `tags TEXT[] DEFAULT '{}'`
+- `subscriptions`: Added `team_id UUID` (FK to coach_teams)
+- `form_submissions`: Added `selected_team_id UUID` (FK to coach_teams)
+- New service: "Team Plan" (12 KWD, slug `team_plan`, type `team`)
+- Old services deactivated: `team_fe_squad`, `team_bunz`
+- New form_type enum value: `team_plan`
+
+**New File:** `src/components/onboarding/TeamSelectionSection.tsx` — RadioGroup of team cards (name, description, tags, coach name, member count, capacity check)
+
+**Modified Files (8):**
+- `CreateTeamDialog.tsx` — Removed service selector, added tags pill input
+- `CoachTeamsPage.tsx` — Removed serviceName, query members by team_id
+- `TeamCard.tsx` — Tags badges instead of service badge
+- `TeamDetailView.tsx` — Members by team_id, tags badges, updated empty state
+- `AssignTeamProgramDialog.tsx` — Removed service_id from team interface
+- `CoachDashboardOverview.tsx` — Count members by team_id
+- `ServiceStep.tsx` — Added TeamSelectionSection for team services
+- `submit-onboarding/index.ts` — selected_team_id in Zod schema, Team Plan in formTypeMap, coach from selected team, team_id in subscription
 
 ### Phase 32: Team Plan Builder (Complete - Feb 12, 2026)
 
-Head coaches manage team services (Fe Squad, Bunz of Steel). Create named teams linked to team service tiers, view members derived from subscriptions, assign program templates to all members at once (fan-out), and preview assigned programs in a read-only calendar.
+Head coaches manage teams freely (no service picker). Teams have tags for client discovery. Assign program templates to all members at once (fan-out), and preview assigned programs in a read-only calendar.
 
 **New Table:** `coach_teams`
 | Column | Type | Purpose |
@@ -505,16 +530,19 @@ Head coaches manage team services (Fe Squad, Bunz of Steel). Create named teams 
 | `coach_id` | UUID FK auth.users | Owner (must be head coach for INSERT) |
 | `name` | TEXT | Team name |
 | `description` | TEXT | Optional description |
-| `service_id` | UUID FK services | Team service (Fe Squad / Bunz) |
+| `tags` | TEXT[] | Free-form tags for client discovery |
 | `current_program_template_id` | UUID FK program_templates | Currently assigned template |
 | `max_members` | INT (default 30) | Member cap |
 | `is_active` | BOOLEAN | Soft delete flag |
 
-**Altered Table:** `client_programs` — added `team_id UUID` (nullable FK to `coach_teams`, tracks team-originated assignments)
+**Altered Tables:**
+- `client_programs` — added `team_id UUID` (nullable FK to `coach_teams`, tracks team-originated assignments)
+- `subscriptions` — added `team_id UUID` (nullable FK to `coach_teams`, direct team membership)
+- `form_submissions` — added `selected_team_id UUID` (nullable FK to `coach_teams`, audit trail)
 
 **Migration:** `supabase/migrations/20260212_team_plan_builder.sql`
-- RLS: coach SELECT own, INSERT with `coaches_public.is_head_coach` check, UPDATE/DELETE own, admin ALL
-- Index on `subscriptions(coach_id, service_id)` WHERE status IN ('pending','active')
+- RLS: authenticated SELECT active teams, INSERT with `coaches_public.is_head_coach` check, UPDATE/DELETE own, admin ALL
+- Index on `subscriptions(team_id)` WHERE status IN ('pending','active')
 - Index on `client_programs(team_id)`
 
 **Shared Utility:** `src/lib/assignProgram.ts`
@@ -534,7 +562,7 @@ src/components/coach/teams/
 ```
 
 **Key Design Decisions:**
-- **No separate members table** — team members derived from `subscriptions WHERE coach_id = X AND service_id = team_service AND status IN ('pending','active')`
+- **Team membership via `subscriptions.team_id`** — members tracked directly by `subscriptions WHERE team_id = X AND status IN ('pending','active')`
 - **Max 3 teams per coach** — application-enforced validation
 - **Fan-out assignment** — loops `assignProgramToClient()` for each active subscriber, sets `team_id` on created `client_programs`, updates `coach_teams.current_program_template_id`
 - **Partial success handling** — if some assignments fail, shows error list with which clients failed

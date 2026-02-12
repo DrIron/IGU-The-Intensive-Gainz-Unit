@@ -16,11 +16,10 @@ interface TeamDetailViewProps {
     id: string;
     name: string;
     description: string | null;
-    service_id: string;
+    tags: string[];
     current_program_template_id: string | null;
     max_members: number;
     is_active: boolean;
-    serviceName: string;
     memberCount: number;
     programName: string | null;
   };
@@ -55,12 +54,11 @@ export const TeamDetailView = memo(function TeamDetailView({
 
   const loadMembers = useCallback(async () => {
     try {
-      // Get subscriptions for this coach + service
+      // Get subscriptions for this team by team_id
       const { data: subs, error } = await supabase
         .from("subscriptions")
         .select("id, user_id, status, created_at")
-        .eq("coach_id", coachUserId)
-        .eq("service_id", team.service_id)
+        .eq("team_id", team.id)
         .in("status", ["pending", "active"])
         .order("created_at");
 
@@ -96,7 +94,7 @@ export const TeamDetailView = memo(function TeamDetailView({
     } finally {
       setLoadingMembers(false);
     }
-  }, [coachUserId, team.service_id, toast]);
+  }, [team.id, toast]);
 
   useEffect(() => {
     if (hasFetched.current) return;
@@ -170,7 +168,15 @@ export const TeamDetailView = memo(function TeamDetailView({
           <div>
             <h2 className="text-xl font-bold">{team.name}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline">{team.serviceName}</Badge>
+              {team.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {team.tags.map((tag) => (
+                    <Badge key={tag} variant="outline" className="text-xs">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
               <span className="text-sm text-muted-foreground">
                 {members.length} / {team.max_members} members
               </span>
@@ -244,7 +250,7 @@ export const TeamDetailView = memo(function TeamDetailView({
             Team Members
           </CardTitle>
           <CardDescription>
-            Derived from active subscriptions for this team service
+            Members who selected this team during onboarding
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -254,7 +260,7 @@ export const TeamDetailView = memo(function TeamDetailView({
             </div>
           ) : members.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">
-              No active subscribers for this team service yet.
+              No members in this team yet.
             </p>
           ) : (
             <div className="space-y-2">
@@ -307,7 +313,7 @@ export const TeamDetailView = memo(function TeamDetailView({
           id: team.id,
           name: team.name,
           description: team.description || "",
-          service_id: team.service_id,
+          tags: team.tags,
           max_members: team.max_members,
         }}
       />

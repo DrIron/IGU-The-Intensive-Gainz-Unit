@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { PersonalDetailsFields } from "@/components/forms/PersonalDetailsFields";
 import { CoachPreferenceSection } from "@/components/onboarding/CoachPreferenceSection";
+import { TeamSelectionSection } from "@/components/onboarding/TeamSelectionSection";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 
 interface ServiceStepProps {
@@ -78,6 +79,11 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
   const isOneToOneService = () => {
     const selectedService = services.find(s => s.name === selectedPlanName);
     return selectedService?.type === 'one_to_one';
+  };
+
+  const isTeamService = () => {
+    const selectedService = services.find(s => s.name === selectedPlanName);
+    return selectedService?.type === 'team';
   };
 
   // Derive plan type for coach matching
@@ -244,12 +250,15 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
 
       {/* Coach Preference - Only for 1:1 services */}
       {isOneToOneService() && getPlanType() && (
-        <CoachPreferenceSection 
-          form={form} 
-          planType={getPlanType()!} 
+        <CoachPreferenceSection
+          form={form}
+          planType={getPlanType()!}
           focusAreas={focusAreas}
         />
       )}
+
+      {/* Team Selection - Only for team services */}
+      {isTeamService() && <TeamSelectionSection form={form} />}
 
       {/* Referral Source */}
       <FormField

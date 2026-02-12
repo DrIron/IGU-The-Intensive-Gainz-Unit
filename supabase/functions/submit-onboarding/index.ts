@@ -59,12 +59,14 @@ const formSchema = z.object({
   // Coach preference fields (1:1 plans only)
   coach_preference_type: z.enum(['auto', 'specific']).default('auto'),
   requested_coach_id: z.string().uuid().nullable().optional(),
+  // Team selection (team plans only)
+  selected_team_id: z.string().uuid().optional(),
 });
 
 // Conditional validations based on selected plan
 const schema = formSchema.superRefine((data, ctx) => {
   const isOneToOne = data.plan_name === '1:1 Online' || data.plan_name === '1:1 In-Person' || data.plan_name === '1:1 Hybrid';
-  const isTeam = data.plan_name === 'Fe Squad' || data.plan_name === 'Bunz of Steel';
+  const isTeam = data.plan_name === 'Fe Squad' || data.plan_name === 'Bunz of Steel' || data.plan_name === 'Team Plan';
 
   if (isOneToOne) {
     if (!data.training_experience || data.training_experience.trim().length === 0) {
@@ -277,6 +279,7 @@ Deno.serve(async (req) => {
 
     // Map plan_name to enum form_type
     const formTypeMap: Record<string, string> = {
+      'Team Plan': 'team_plan',
       'Fe Squad': 'fe_squad',
       'Bunz of Steel': 'buns_of_steel',
       '1:1 Online': 'one_to_one_online',
@@ -302,7 +305,7 @@ Deno.serve(async (req) => {
       intermediate: 'intermediate_6_24',
       advanced: 'advanced_24_plus',
     };
-    const isTeamPlan = validatedData.plan_name === 'Fe Squad' || validatedData.plan_name === 'Bunz of Steel';
+    let isTeamPlan = validatedData.plan_name === 'Fe Squad' || validatedData.plan_name === 'Bunz of Steel' || validatedData.plan_name === 'Team Plan';
     let mappedExp = validatedData.training_experience ? (expMap[validatedData.training_experience] || validatedData.training_experience) : undefined;
     if (isTeamPlan && !mappedExp) mappedExp = 'beginner_0_6';
 
@@ -328,6 +331,8 @@ Deno.serve(async (req) => {
     // Coach preference fields
     coach_preference_type: validatedData.coach_preference_type || 'auto',
     requested_coach_id: validatedData.requested_coach_id || null,
+    // Team selection
+    selected_team_id: validatedData.selected_team_id || null,
     // Add timestamps for legal agreement acceptances
     agreed_terms_at: validatedData.agreed_terms ? agreementTimestamp : null,
     agreed_privacy_at: validatedData.agreed_privacy ? agreementTimestamp : null,
@@ -436,6 +441,9 @@ Deno.serve(async (req) => {
       );
     }
     
+    // Re-derive isTeamPlan from service type (authoritative check)
+    isTeamPlan = serviceData.type === 'team';
+
     // ============================================
     // COACH ASSIGNMENT LOGIC
     // ============================================
@@ -444,8 +452,21 @@ Deno.serve(async (req) => {
     // Note: preferred_coach_id is no longer collected - coach assignment is now automatic based on focus_areas
     const currentServiceId = serviceData.id; // Capture for use in nested functions
 
-    // For team plans, always assign to admin
-    if (isTeamPlan) {
+    // For team plans, assign to the head coach of the selected team
+    if (isTeamPlan && validatedData.selected_team_id) {
+      const { data: selectedTeam } = await supabaseServiceRole
+        .from('coach_teams')
+        .select('coach_id')
+        .eq('id', validatedData.selected_team_id)
+        .eq('is_active', true)
+        .maybeSingle();
+
+      if (selectedTeam?.coach_id) {
+        coachUserId = selectedTeam.coach_id;
+        console.log(JSON.stringify({ fn: "submit-onboarding", step: "team_coach_assigned", ok: true, team_id: validatedData.selected_team_id, coach_user_id: selectedTeam.coach_id }));
+      }
+    } else if (isTeamPlan) {
+      // Fallback: no team selected — assign to admin (shouldn't happen with new UI)
       const { data: adminRole } = await supabaseServiceRole
         .from('user_roles')
         .select('user_id')
@@ -644,6 +665,7 @@ Deno.serve(async (req) => {
       status: 'pending',
       coach_assignment_method: coachAssignmentMethod,
       needs_coach_assignment: needsCoachAssignment,
+      team_id: validatedData.selected_team_id || null,
     };
     
     // If service has session booking enabled, copy settings to subscription

@@ -49,7 +49,6 @@ interface AssignTeamProgramDialogProps {
   team: {
     id: string;
     name: string;
-    service_id: string;
   };
   members: {
     subscriptionId: string;

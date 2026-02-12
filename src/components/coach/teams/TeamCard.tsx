@@ -8,7 +8,7 @@ interface TeamCardProps {
     id: string;
     name: string;
     description: string | null;
-    serviceName: string;
+    tags: string[];
     memberCount: number;
     max_members: number;
     programName: string | null;
@@ -23,12 +23,16 @@ export const TeamCard = memo(function TeamCard({ team, onClick }: TeamCardProps)
       onClick={() => onClick(team.id)}
     >
       <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-lg truncate">{team.name}</CardTitle>
-          <Badge variant="outline" className="shrink-0">
-            {team.serviceName}
-          </Badge>
-        </div>
+        <CardTitle className="text-lg truncate">{team.name}</CardTitle>
+        {team.tags.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            {team.tags.map((tag) => (
+              <Badge key={tag} variant="outline" className="text-xs">
+                {tag}
+              </Badge>
+            ))}
+          </div>
+        )}
         {team.description && (
           <p className="text-sm text-muted-foreground line-clamp-2">
             {team.description}
