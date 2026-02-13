@@ -12,6 +12,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { ExerciseCardV2 } from "./ExerciseCardV2";
 import { WarmupSection } from "./WarmupSection";
 import { ExercisePickerDialog } from "./ExercisePickerDialog";
+import { MUSCLE_MAP } from "@/types/muscle-builder";
 import {
   ColumnConfig,
   EnhancedExerciseDisplayV2,
@@ -39,6 +40,7 @@ interface EnhancedModuleExerciseEditorProps {
   moduleId: string;
   coachUserId: string;
   isReadOnly?: boolean;
+  sourceMuscleId?: string | null;
 }
 
 interface GroupedExercises {
@@ -52,6 +54,7 @@ export function EnhancedModuleExerciseEditor({
   moduleId,
   coachUserId,
   isReadOnly = false,
+  sourceMuscleId,
 }: EnhancedModuleExerciseEditorProps) {
   const [exercises, setExercises] = useState<EnhancedExerciseDisplayV2[]>([]);
   const [loading, setLoading] = useState(true);
@@ -169,7 +172,7 @@ export function EnhancedModuleExerciseEditor({
         .select("column_config")
         .eq("coach_id", coachUserId)
         .eq("is_default", true)
-        .single();
+        .maybeSingle();
 
       if (data?.column_config) {
         setDefaultColumns(data.column_config as ColumnConfig[]);
@@ -451,9 +454,9 @@ export function EnhancedModuleExerciseEditor({
   };
 
   const handleSelectExercise = useCallback(
-    (exerciseId: string) => addExercise(exerciseId, addToSection),
+    (exerciseId: string, section: ExerciseSection) => addExercise(exerciseId, section),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- addExercise reads current exercises state directly; adding it would recreate callback on every state change
-    [addToSection]
+    []
   );
 
   const renderSectionContent = (section: { value: ExerciseSection; label: string }) => {
@@ -493,7 +496,9 @@ export function EnhancedModuleExerciseEditor({
             {provided.placeholder}
             {sectionExercises.length === 0 && (
               <div className="text-center py-4 text-sm text-muted-foreground">
-                No exercises in {section.label.toLowerCase()}. Drag exercises here or add new ones.
+                {sourceMuscleId && section.value === "main"
+                  ? `No exercises yet. Click "Add Exercise" to browse ${MUSCLE_MAP.get(sourceMuscleId)?.label || sourceMuscleId} exercises.`
+                  : `No exercises in ${section.label.toLowerCase()}. Drag exercises here or add new ones.`}
               </div>
             )}
           </div>
@@ -537,18 +542,20 @@ export function EnhancedModuleExerciseEditor({
           )}
           {!isReadOnly && (
             <div className="flex items-center gap-2">
-              <Select value={addToSection} onValueChange={(v) => setAddToSection(v as ExerciseSection)}>
-                <SelectTrigger className="w-32 h-8">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {EXERCISE_SECTIONS.map((section) => (
-                    <SelectItem key={section.value} value={section.value}>
-                      {section.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {!sourceMuscleId && (
+                <Select value={addToSection} onValueChange={(v) => setAddToSection(v as ExerciseSection)}>
+                  <SelectTrigger className="w-32 h-8">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {EXERCISE_SECTIONS.map((section) => (
+                      <SelectItem key={section.value} value={section.value}>
+                        {section.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
               <Button onClick={() => setShowExercisePicker(true)} size="sm">
                 <Plus className="h-4 w-4 mr-1" />
                 Add Exercise
@@ -616,6 +623,7 @@ export function EnhancedModuleExerciseEditor({
         onOpenChange={setShowExercisePicker}
         onSelectExercise={handleSelectExercise}
         coachUserId={coachUserId}
+        sourceMuscleId={sourceMuscleId}
       />
     </div>
   );

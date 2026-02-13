@@ -15,6 +15,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   const [view, setView] = useState<"library" | "create" | "edit" | "calendar" | "muscle-builder">("library");
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
   const [previousView, setPreviousView] = useState<string | null>(null);
+  const [focusModuleId, setFocusModuleId] = useState<string | null>(null);
   const { canBuildPrograms, isLoading: permissionsLoading } = useSubrolePermissions(coachUserId);
 
   const handleCreateProgram = useCallback(() => {
@@ -42,8 +43,8 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
     }
   }, [previousView]);
 
-  const handleEditDay = useCallback((dayId: string) => {
-    // Switch to edit view to edit the day's modules
+  const handleEditDay = useCallback((moduleId: string) => {
+    setFocusModuleId(moduleId);
     setView("edit");
   }, []);
 
@@ -98,6 +99,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
         programId={editingProgramId || undefined}
         onBack={handleBack}
         onCalendarView={editingProgramId ? () => handleCalendarView(editingProgramId) : undefined}
+        focusModuleId={focusModuleId}
       />
     );
   }

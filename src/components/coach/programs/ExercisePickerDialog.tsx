@@ -1,11 +1,11 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +23,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tables, Enums } from "@/integrations/supabase/types";
+import { MUSCLE_TO_EXERCISE_FILTER, MUSCLE_MAP } from "@/types/muscle-builder";
 
 type Exercise = Tables<"exercise_library">;
 
@@ -31,6 +32,7 @@ interface ExercisePickerDialogProps {
   onOpenChange: (open: boolean) => void;
   onSelectExercise: (exerciseId: string, section: Enums<"exercise_section">) => void;
   coachUserId: string;
+  sourceMuscleId?: string | null;
 }
 
 const SECTIONS: { value: Enums<"exercise_section">; label: string }[] = [
@@ -45,13 +47,18 @@ export function ExercisePickerDialog({
   onOpenChange,
   onSelectExercise,
   coachUserId,
+  sourceMuscleId,
 }: ExercisePickerDialogProps) {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSection, setSelectedSection] = useState<Enums<"exercise_section">>("main");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [muscleFilterActive, setMuscleFilterActive] = useState(true);
   const { toast } = useToast();
+
+  const muscleLabel = sourceMuscleId ? MUSCLE_MAP.get(sourceMuscleId)?.label : null;
+  const muscleFilterValues = sourceMuscleId ? MUSCLE_TO_EXERCISE_FILTER[sourceMuscleId] : null;
 
   const loadExercises = useCallback(async () => {
     try {
@@ -78,10 +85,11 @@ export function ExercisePickerDialog({
   useEffect(() => {
     if (open) {
       loadExercises();
+      setMuscleFilterActive(true);
     }
   }, [open, loadExercises]);
 
-  const filteredExercises = exercises.filter((exercise) => {
+  const filteredExercises = useMemo(() => exercises.filter((exercise) => {
     const matchesSearch =
       searchQuery === "" ||
       exercise.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -91,11 +99,17 @@ export function ExercisePickerDialog({
     const matchesCategory =
       selectedCategory === "all" || exercise.category === selectedCategory;
 
-    return matchesSearch && matchesCategory;
-  });
+    const matchesMuscle =
+      !muscleFilterActive || !muscleFilterValues ||
+      muscleFilterValues.some(m => m.toLowerCase() === (exercise.primary_muscle || "").toLowerCase());
+
+    return matchesSearch && matchesCategory && matchesMuscle;
+  }), [exercises, searchQuery, selectedCategory, muscleFilterActive, muscleFilterValues]);
 
   // Get unique categories
   const categories = Array.from(new Set(exercises.map((e) => e.category))).filter(Boolean);
+
+  const isMuscleMode = !!sourceMuscleId;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -108,25 +122,61 @@ export function ExercisePickerDialog({
         </DialogHeader>
 
         <div className="space-y-4">
-          {/* Section selector */}
-          <div className="space-y-2">
-            <Label>Add to Section</Label>
-            <Select
-              value={selectedSection}
-              onValueChange={(v) => setSelectedSection(v as Enums<"exercise_section">)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {SECTIONS.map((section) => (
-                  <SelectItem key={section.value} value={section.value}>
-                    {section.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          {/* Muscle filter banner */}
+          {isMuscleMode && muscleFilterActive && muscleLabel && (
+            <div className="flex items-center justify-between rounded-md border border-primary/30 bg-primary/5 px-3 py-2">
+              <span className="text-sm">
+                Showing exercises for <strong>{muscleLabel}</strong>
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setMuscleFilterActive(false)}
+              >
+                Show All
+                <X className="h-3 w-3 ml-1" />
+              </Button>
+            </div>
+          )}
+
+          {isMuscleMode && !muscleFilterActive && muscleLabel && (
+            <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
+              <span className="text-sm text-muted-foreground">
+                Showing all exercises
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs"
+                onClick={() => setMuscleFilterActive(true)}
+              >
+                Filter to {muscleLabel}
+              </Button>
+            </div>
+          )}
+
+          {/* Section selector — hidden for muscle modules */}
+          {!isMuscleMode && (
+            <div className="space-y-2">
+              <Label>Add to Section</Label>
+              <Select
+                value={selectedSection}
+                onValueChange={(v) => setSelectedSection(v as Enums<"exercise_section">)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {SECTIONS.map((section) => (
+                    <SelectItem key={section.value} value={section.value}>
+                      {section.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Filters */}
           <div className="flex gap-3">
@@ -162,7 +212,9 @@ export function ExercisePickerDialog({
               </div>
             ) : filteredExercises.length === 0 ? (
               <div className="flex items-center justify-center h-full">
-                <span className="text-muted-foreground">No exercises found</span>
+                <span className="text-muted-foreground">
+                  {searchQuery ? `No exercises found matching "${searchQuery}"` : "No exercises found"}
+                </span>
               </div>
             ) : (
               <div className="divide-y">
@@ -172,11 +224,11 @@ export function ExercisePickerDialog({
                     role="button"
                     tabIndex={0}
                     className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => onSelectExercise(exercise.id, selectedSection)}
+                    onClick={() => onSelectExercise(exercise.id, isMuscleMode ? "main" : selectedSection)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        onSelectExercise(exercise.id, selectedSection);
+                        onSelectExercise(exercise.id, isMuscleMode ? "main" : selectedSection);
                       }
                     }}
                   >

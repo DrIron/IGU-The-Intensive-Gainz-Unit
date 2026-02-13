@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { EnhancedModuleExerciseEditor } from "./EnhancedModuleExerciseEditor";
 import { Tables, Enums } from "@/integrations/supabase/types";
+import { MUSCLE_MAP } from "@/types/muscle-builder";
 
 type DayModule = Tables<"day_modules">;
 
@@ -33,6 +34,7 @@ interface DayModuleEditorProps {
   modules: DayModule[];
   coachUserId: string;
   onModulesChange: (modules: DayModule[]) => void;
+  focusModuleId?: string | null;
 }
 
 const MODULE_TYPES = [
@@ -56,6 +58,7 @@ export function DayModuleEditor({
   modules,
   coachUserId,
   onModulesChange,
+  focusModuleId,
 }: DayModuleEditorProps) {
   const [showAddModuleDialog, setShowAddModuleDialog] = useState(false);
   const [newModuleType, setNewModuleType] = useState("strength");
@@ -65,9 +68,19 @@ export function DayModuleEditor({
   const [expandedModule, setExpandedModule] = useState<string | null>(null);
   const { toast } = useToast();
 
+  const hasFocused = useRef(false);
+
   useEffect(() => {
     loadCareTeamCoaches();
   }, []);
+
+  // Auto-expand module when focusModuleId is set
+  useEffect(() => {
+    if (focusModuleId && !hasFocused.current && modules.some(m => m.id === focusModuleId)) {
+      hasFocused.current = true;
+      setExpandedModule(focusModuleId);
+    }
+  }, [focusModuleId, modules]);
 
   const loadCareTeamCoaches = async () => {
     try {
@@ -250,6 +263,17 @@ export function DayModuleEditor({
                       <Badge variant="outline" className="text-xs capitalize">
                         {module.module_type}
                       </Badge>
+                      {module.source_muscle_id && (() => {
+                        const muscle = MUSCLE_MAP.get(module.source_muscle_id);
+                        return muscle ? (
+                          <Badge
+                            className="text-xs text-white"
+                            style={{ backgroundColor: muscle.colorHex }}
+                          >
+                            {muscle.label}
+                          </Badge>
+                        ) : null;
+                      })()}
                       <span className="flex items-center gap-1">
                         <User className="h-3 w-3" />
                         {getOwnerName(module.module_owner_coach_id)}
@@ -316,6 +340,7 @@ export function DayModuleEditor({
                     <EnhancedModuleExerciseEditor
                       moduleId={module.id}
                       coachUserId={coachUserId}
+                      sourceMuscleId={module.source_muscle_id}
                     />
                   </div>
                 )}

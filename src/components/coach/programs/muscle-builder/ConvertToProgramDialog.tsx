@@ -107,6 +107,7 @@ export const ConvertToProgramDialog = memo(function ConvertToProgramDialog({
                 title: `${muscle?.label || slot.muscleId} — ${slot.sets} sets`,
                 sort_order: slot.sortOrder,
                 status: 'draft',
+                source_muscle_id: slot.muscleId,
               }),
             15000,
             'Create day module',

@@ -151,6 +151,31 @@ export interface SystemPreset {
   slots: MuscleSlotData[];
 }
 
+// ============================================================
+// Mapping: Planning Board muscle IDs → exercise_library.primary_muscle values
+// Used by ExercisePickerDialog to auto-filter when editing muscle-converted modules.
+// ============================================================
+
+export const MUSCLE_TO_EXERCISE_FILTER: Record<string, string[]> = {
+  pecs:          ['Chest', 'Upper Chest'],
+  shoulders:     ['Shoulders', 'Side Delts', 'Front Delts', 'Rear Delts'],
+  triceps:       ['Triceps'],
+  lats:          ['Lats'],
+  mid_back:      ['Upper Back'],
+  upper_back:    ['Upper Back', 'Traps'],
+  elbow_flexors: ['Biceps', 'Brachialis'],
+  forearm:       ['Forearms'],
+  quads:         ['Quadriceps'],
+  hamstrings:    ['Hamstrings'],
+  glutes:        ['Glutes'],
+  calves:        ['Calves'],
+  adductors:     ['Adductors'],
+  abductors:     ['Abductors'],
+  hip_flexors:   ['Hip Flexors', 'Glutes'],
+  core:          ['Core', 'Obliques'],
+  neck:          ['Traps'],
+};
+
 export const SYSTEM_PRESETS: SystemPreset[] = [
   {
     name: 'Push / Pull / Legs',

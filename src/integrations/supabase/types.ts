@@ -1775,6 +1775,7 @@ export type Database = {
           session_timing: string | null
           session_type: string | null
           sort_order: number
+          source_muscle_id: string | null
           status: Database["public"]["Enums"]["module_status"]
           title: string
           updated_at: string
@@ -1788,6 +1789,7 @@ export type Database = {
           session_timing?: string | null
           session_type?: string | null
           sort_order?: number
+          source_muscle_id?: string | null
           status?: Database["public"]["Enums"]["module_status"]
           title: string
           updated_at?: string
@@ -1801,6 +1803,7 @@ export type Database = {
           session_timing?: string | null
           session_type?: string | null
           sort_order?: number
+          source_muscle_id?: string | null
           status?: Database["public"]["Enums"]["module_status"]
           title?: string
           updated_at?: string

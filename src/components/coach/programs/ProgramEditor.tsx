@@ -33,9 +33,10 @@ interface ProgramEditorProps {
   programId?: string;
   onBack: () => void;
   onCalendarView?: () => void;
+  focusModuleId?: string | null;
 }
 
-export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView }: ProgramEditorProps) {
+export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView, focusModuleId }: ProgramEditorProps) {
   const [loading, setLoading] = useState(!!programId);
   const [saving, setSaving] = useState(false);
   const [program, setProgram] = useState<Partial<ProgramTemplate>>({
@@ -73,9 +74,20 @@ export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView }
       if (daysError) throw daysError;
       setDays(daysData || []);
 
-      // Expand first day by default
+      // Auto-expand day containing focusModuleId, or first day by default
       if (daysData && daysData.length > 0) {
-        setExpandedDays(new Set([daysData[0].id]));
+        if (focusModuleId) {
+          const targetDay = daysData.find(d =>
+            d.day_modules?.some((m: DayModule) => m.id === focusModuleId)
+          );
+          if (targetDay) {
+            setExpandedDays(new Set([targetDay.id]));
+          } else {
+            setExpandedDays(new Set([daysData[0].id]));
+          }
+        } else {
+          setExpandedDays(new Set([daysData[0].id]));
+        }
       }
     } catch (error: any) {
       toast({
@@ -86,7 +98,7 @@ export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView }
     } finally {
       setLoading(false);
     }
-  }, [programId, toast]);
+  }, [programId, toast, focusModuleId]);
 
   useEffect(() => {
     if (programId) {
@@ -531,6 +543,7 @@ export function ProgramEditor({ coachUserId, programId, onBack, onCalendarView }
                             modules={day.day_modules || []}
                             coachUserId={coachUserId}
                             onModulesChange={(modules) => onModulesChange(day.id, modules)}
+                            focusModuleId={focusModuleId}
                           />
                         </div>
                       </CardContent>
