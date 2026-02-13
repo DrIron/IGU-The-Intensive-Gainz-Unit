@@ -500,8 +500,43 @@ When understanding this codebase, read in this order:
 - Phase 32b: Team Model Redesign — removed service_id, added tags, client team selection during onboarding, unified "Team Plan" service (Feb 12, 2026) ✅
 - Limited Dashboard for Incomplete Onboarding — OnboardingGuard allows dashboard paths through, ClientDashboardLayout shows limited UI (Feb 12, 2026) ✅
 - Phase 32c: Team Migration, Team Selection Prompt & Team Change — backfill old subs, choose-team prompt, change-team dialog, team RLS policies (Feb 12, 2026) ✅
+- Phase 33: Planning Board → Program Conversion — source_muscle_id on day_modules, auto-filter exercise picker by muscle, muscle badges, focusModuleId navigation (Feb 13, 2026) ✅
+- Pre-Launch QA Sweep — 15 bugs found across 3 roles, 8 code fixes + 1 DB migration, RLS index performance (Feb 13, 2026) ✅
 
-### Phase 32c: Team Migration, Selection Prompt & Team Change (Feb 12, 2026)
+### Pre-Launch QA Sweep (Feb 13, 2026)
+
+Comprehensive QA across Coach, Client, Admin roles and public pages. Found 15 bugs, fixed 8 via code + 4 via DB migration.
+
+**Code Fixes (8):**
+| Bug | File | Fix |
+|-----|------|-----|
+| Sign out hangs (GoTrueClient deadlock) | `Navigation.tsx` | 2s timeout + pre-clear caches |
+| day_number → day_index | `TodaysWorkoutHero.tsx` | Correct column for workout matching |
+| .single() crash on empty | `AccountManagement.tsx` | `.maybeSingle()` for coach_change_requests |
+| Missing discount_percentage col | `CoachCompensationCard.tsx` | Removed from SELECT |
+| Missing discount_percentage col | `SubscriptionPayoutPreview.tsx` | Removed from interface + SELECT |
+| Admin tabs reset loop | `ClientList.tsx` | `hasAutoSwitchedTab` ref guard |
+| Exercise library empty | `WorkoutLibraryManager.tsx` | Query both `exercises` + `exercise_library` tables |
+| CMS prices mismatch | Migration | UPDATE site_content (online 50→40, hybrid 175→150) |
+
+**Migration `20260213110000_fix_data_and_rls_indexes.sql`:**
+- 6 indexes on RLS-critical columns (fixes module_exercises timeout):
+  - `program_templates(owner_coach_id)`, `program_templates(visibility)` partial
+  - `program_template_days(program_template_id)`
+  - `client_program_days(client_program_id)`
+  - `subscriptions(coach_id, status)` composite
+  - `care_team_assignments(staff_user_id, client_id)` partial WHERE active
+- Team Plan price: 0 → 12 KWD
+- Deactivate old Bunz/Fe Squad services
+- CMS price corrections
+
+**Remaining Known Issues:**
+- Bug #3: session_bookings FK join — latent, only for in-person clients (none exist yet)
+- Bug #6: Preloaded resources warnings — cosmetic, browser-level
+- Bug #9: Fe Squad branding in nutrition — needs CMS content update
+- Bug #12: Deactivated services in coach limits UI — cosmetic
+
+### Phase 33: Team Migration, Selection Prompt & Team Change (Feb 12, 2026)
 
 Backfilled old Fe Squad/Bunz subscriptions to Team Plan service (team_id left NULL so clients get prompted). Added dashboard prompt for team selection, dialog for once-per-cycle team switching, and team display in subscription management.
 
@@ -1751,6 +1786,7 @@ SQL function `generate_referral_code(first_name)`:
 - **Post-action navigation + OnboardingGuard race condition**: When navigating to `/dashboard` after a server-side status change (e.g., payment verification), pass `{ state: { paymentVerified: true } }` so OnboardingGuard doesn't redirect based on stale `profiles_public.status`. See `PaymentReturn.tsx` for the pattern.
 - **All public-facing pages MUST be wrapped in `<PublicLayout>` in App.tsx** — this provides the consistent "IGU" navbar and footer. Never render a public page without PublicLayout, and never add `<Navigation />` or `<Footer />` inside a page component that is already wrapped in PublicLayout (causes duplicates). When creating a new public route, wrap it: `<Route path="/foo" element={<PublicLayout><Foo /></PublicLayout>} />`. When editing a page, check App.tsx first to see if it's already wrapped.
 - **Team-based RLS requires dedicated policies.** Existing coach RLS checks `subscriptions.coach_id` and `is_primary_coach_for_user()`. For team queries (`WHERE team_id = X`), coaches need separate policies on both `subscriptions` (read by team_id) and `profiles_public` (read team member profiles). See migrations `20260212170000` and `20260212180000`.
+- **Use `.maybeSingle()` instead of `.single()` for optional rows.** `.single()` throws an error when zero rows are returned (PostgREST 406). Use `.maybeSingle()` when the row may not exist (e.g., user presets, optional config, first-time setup). Only use `.single()` when you are certain exactly one row exists (e.g., after an INSERT...RETURNING, or querying by primary key that you know is present).
 
 ---
 
