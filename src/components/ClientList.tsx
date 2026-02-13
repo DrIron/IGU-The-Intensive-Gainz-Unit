@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -242,9 +242,11 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     client.status === 'cancelled' || client.status === 'expired'
   );
 
-  // Default to pending tab if there are pending clients on initial load
+  // Default to pending tab if there are pending clients on initial load (once only)
+  const hasAutoSwitchedTab = useRef(false);
   useEffect(() => {
-    if (!loading && pendingClients.length > 0 && activeTab === "active") {
+    if (!loading && !hasAutoSwitchedTab.current && pendingClients.length > 0 && activeTab === "active") {
+      hasAutoSwitchedTab.current = true;
       setActiveTab("pending");
     }
   }, [loading, pendingClients.length, activeTab]);

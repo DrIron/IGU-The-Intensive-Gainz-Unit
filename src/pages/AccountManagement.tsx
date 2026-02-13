@@ -222,9 +222,9 @@ export default function AccountManagement() {
         `)
         .eq("user_id", userId)
         .eq("status", "pending")
-        .single();
+        .maybeSingle();
 
-      if (error && error.code !== "PGRST116") throw error;
+      if (error) throw error;
       setPendingRequest(data);
     } catch (error: any) {
       console.error("Error fetching pending request:", error);

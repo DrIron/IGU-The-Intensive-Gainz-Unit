@@ -26,7 +26,7 @@ interface TodaysWorkoutHeroProps {
 interface TodayWorkout {
   dayId: string;
   dayTitle: string;
-  dayNumber: number;
+  dayIndex: number;
   programName: string;
   date: Date;
   modules: {
@@ -73,7 +73,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
           client_program_days (
             id,
             title,
-            day_number,
+            day_index,
             date,
             client_day_modules (
               id,
@@ -134,8 +134,8 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
         if (isToday(dayDate)) {
           todayWorkout = {
             dayId: day.id,
-            dayTitle: day.title || `Day ${day.day_number}`,
-            dayNumber: day.day_number,
+            dayTitle: day.title || `Day ${day.day_index}`,
+            dayIndex: day.day_index,
             programName,
             date: dayDate,
             modules,
@@ -147,7 +147,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
           if (!nextWorkout || dayDate < nextWorkout.date) {
             nextWorkout = {
               dayId: day.id,
-              dayTitle: day.title || `Day ${day.day_number}`,
+              dayTitle: day.title || `Day ${day.day_index}`,
               date: dayDate,
               moduleCount: modules.length,
             };

@@ -143,25 +143,26 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const user = currentUser;
 
   const handleSignOut = async () => {
+    // Clear all auth-related localStorage keys immediately (before async work)
+    Object.keys(localStorage).forEach(key => {
+      if (key.startsWith('sb-') || key.startsWith('igu_') || key.includes('supabase')) {
+        localStorage.removeItem(key);
+      }
+    });
+    sessionStorage.clear();
+
+    // Race signOut against a 2s timeout — signOut can hang due to auth lock deadlock
     try {
-      // Use signOutWithCleanup to clear role cache and sign out
-      await signOutWithCleanup();
+      await Promise.race([
+        signOutWithCleanup(),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('Sign out timeout')), 2000)),
+      ]);
     } catch (error) {
-      console.error('[Navigation] Sign out failed:', error);
-    } finally {
-      // Clear all auth-related localStorage keys (belt + suspenders)
-      Object.keys(localStorage).forEach(key => {
-        if (key.startsWith('sb-') || key.startsWith('igu_') || key.includes('supabase')) {
-          localStorage.removeItem(key);
-        }
-      });
-
-      // Clear sessionStorage
-      sessionStorage.clear();
-
-      // Hard redirect to auth page (full page reload clears in-memory state)
-      window.location.replace("/auth");
+      console.error('[Navigation] Sign out failed or timed out:', error);
     }
+
+    // Hard redirect to auth page (full page reload clears in-memory state)
+    window.location.replace("/auth");
   };
 
   // Public links for header navigation

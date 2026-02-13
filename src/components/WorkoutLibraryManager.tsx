@@ -78,25 +78,42 @@ export default function WorkoutLibraryManager() {
   const [isSubmittingQuickAdd, setIsSubmittingQuickAdd] = useState(false);
 
   const fetchExercises = useCallback(async () => {
-    const { data, error } = await supabase
-      .from("exercises")
-      .select("*")
-      .order("created_at", { ascending: false });
+    // Fetch from both legacy `exercises` and main `exercise_library` tables
+    const [legacyResult, libraryResult] = await Promise.all([
+      supabase.from("exercises").select("*").order("created_at", { ascending: false }),
+      supabase.from("exercise_library").select("*").order("name"),
+    ]);
 
-    if (error) {
+    if (legacyResult.error && libraryResult.error) {
       toast({
         title: "Error loading exercises",
-        description: sanitizeErrorForUser(error),
+        description: sanitizeErrorForUser(legacyResult.error),
         variant: "destructive",
       });
       return;
     }
 
-    setExercises((data || []).map(ex => ({
+    const legacyExercises: Exercise[] = (legacyResult.data || []).map(ex => ({
       ...ex,
       muscle_subdivisions: ex.muscle_subdivisions as Record<string, string[]>,
       youtube_url: ex.youtube_url || null,
-    })));
+    }));
+
+    // Map exercise_library rows to the Exercise interface
+    const libraryExercises: Exercise[] = (libraryResult.data || []).map(ex => ({
+      id: ex.id,
+      name: ex.name,
+      muscle_groups: [ex.primary_muscle, ...(ex.secondary_muscles || [])],
+      muscle_subdivisions: {},
+      difficulty: "Intermediate",
+      youtube_url: ex.default_video_url || null,
+      setup_instructions: [],
+      execution_instructions: ex.description ? [ex.description] : [],
+      pitfalls: [],
+      created_at: ex.created_at,
+    }));
+
+    setExercises([...legacyExercises, ...libraryExercises]);
   }, [toast]);
 
   useEffect(() => {

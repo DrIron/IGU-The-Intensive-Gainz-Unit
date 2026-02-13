@@ -44,7 +44,7 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
       // Get active subscriptions for this coach
       const { data: subs } = await supabase
         .from("subscriptions")
-        .select("id, user_id, service_id, discount_percentage")
+        .select("id, user_id, service_id")
         .eq("coach_id", coachUserId)
         .eq("status", "active");
 
@@ -83,7 +83,7 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
         try {
           const { data } = await supabase.rpc("calculate_subscription_payout", {
             p_subscription_id: sub.id,
-            p_discount_percentage: sub.discount_percentage || 0,
+            p_discount_percentage: 0,
           });
 
           const result = data as any;

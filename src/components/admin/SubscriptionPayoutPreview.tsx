@@ -23,7 +23,6 @@ interface Subscription {
   coach_id: string;
   service_id: string;
   status: string;
-  discount_percentage?: number;
 }
 
 interface PayoutResult {
@@ -63,7 +62,7 @@ export function SubscriptionPayoutPreview() {
       // Fetch active subscriptions
       const { data: subs, error: subsError } = await supabase
         .from("subscriptions")
-        .select("id, user_id, coach_id, service_id, status, discount_percentage")
+        .select("id, user_id, coach_id, service_id, status")
         .in("status", ["active", "pending"]);
 
       if (subsError) throw subsError;
@@ -127,7 +126,7 @@ export function SubscriptionPayoutPreview() {
             "calculate_subscription_payout",
             {
               p_subscription_id: sub.id,
-              p_discount_percentage: sub.discount_percentage || 0,
+              p_discount_percentage: 0,
             }
           );
           if (rpcError) throw rpcError;
