@@ -28,6 +28,7 @@ import {
   Palette,
   ChevronRight,
   X,
+  Zap,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MUSCLE_GROUPS, DAYS_OF_WEEK } from "@/types/muscle-builder";
@@ -61,6 +62,7 @@ export function MuscleBuilderPage({
   const { toast } = useToast();
 
   const [showClearDialog, setShowClearDialog] = useState(false);
+  const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
 
   // #9 — Copy Day
@@ -289,7 +291,7 @@ export function MuscleBuilderPage({
                 </Button>
               </>
             )}
-            <Button size="sm" onClick={save} disabled={state.isSaving || !state.isDirty}>
+            <Button variant="outline" size="sm" onClick={save} disabled={state.isSaving || !state.isDirty}>
               {state.isSaving ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
               ) : (
@@ -300,6 +302,12 @@ export function MuscleBuilderPage({
                 <span className="ml-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
               )}
             </Button>
+            {!isEmpty && (
+              <Button size="sm" onClick={() => setShowConvertDialog(true)}>
+                <Zap className="h-4 w-4 mr-1" />
+                Create Program
+              </Button>
+            )}
           </div>
         </div>
 
@@ -409,17 +417,19 @@ export function MuscleBuilderPage({
               </Tabs>
             )}
 
-            {/* Inline Conversion Panel */}
-            {!isEmpty && (
-              <ConvertToProgram
-                slots={state.slots}
-                summary={summary}
-                planName={state.name}
-                coachUserId={coachUserId}
-                templateId={state.templateId}
-                onOpenProgram={onOpenProgram}
-              />
-            )}
+            {/* Convert to Program Dialog */}
+            <ConvertToProgram
+              slots={state.slots}
+              summary={summary}
+              planName={state.name}
+              coachUserId={coachUserId}
+              templateId={state.templateId}
+              isDirty={state.isDirty}
+              onSave={save}
+              onOpenProgram={onOpenProgram}
+              open={showConvertDialog}
+              onOpenChange={setShowConvertDialog}
+            />
           </div>
 
           {/* Right: Muscle Palette (desktop) */}

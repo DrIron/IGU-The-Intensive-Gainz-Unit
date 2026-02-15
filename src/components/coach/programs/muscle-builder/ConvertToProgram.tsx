@@ -1,21 +1,20 @@
 import { memo, useState, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "@/components/ui/collapsible";
-import { ChevronDown, Loader2, CheckCircle2, ArrowRightLeft } from "lucide-react";
-import { cn } from "@/lib/utils";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { withTimeout } from "@/lib/withTimeout";
 import { MUSCLE_MAP, DAYS_OF_WEEK, type MuscleSlotData } from "@/types/muscle-builder";
 import type { VolumeSummary } from "./hooks/useMusclePlanVolume";
-
-type PanelState = "collapsed" | "expanded" | "success";
 
 interface ConvertToProgramProps {
   slots: MuscleSlotData[];
@@ -23,7 +22,11 @@ interface ConvertToProgramProps {
   planName: string;
   coachUserId: string;
   templateId: string | null;
+  isDirty?: boolean;
+  onSave?: () => Promise<void>;
   onOpenProgram?: (programId: string) => void;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 export const ConvertToProgram = memo(function ConvertToProgram({
@@ -32,11 +35,13 @@ export const ConvertToProgram = memo(function ConvertToProgram({
   planName,
   coachUserId,
   templateId,
+  isDirty,
+  onSave,
   onOpenProgram,
+  open,
+  onOpenChange,
 }: ConvertToProgramProps) {
-  const [panelState, setPanelState] = useState<PanelState>("collapsed");
   const [converting, setConverting] = useState(false);
-  const [createdProgramId, setCreatedProgramId] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Group slots by training day for the preview
@@ -60,6 +65,11 @@ export const ConvertToProgram = memo(function ConvertToProgram({
   const handleConvert = useCallback(async () => {
     setConverting(true);
     try {
+      // Auto-save if dirty
+      if (isDirty && onSave) {
+        await onSave();
+      }
+
       // 1. Create program template
       const { data: program, error: progErr } = await withTimeout(
         supabase
@@ -111,6 +121,8 @@ export const ConvertToProgram = memo(function ConvertToProgram({
                 program_template_day_id: dayData.id,
                 module_owner_coach_id: coachUserId,
                 module_type: "strength",
+                session_type: "strength",
+                session_timing: "anytime",
                 title: `${muscle?.label || slot.muscleId} \u2014 ${slot.sets} sets`,
                 sort_order: slot.sortOrder,
                 status: "draft",
@@ -137,12 +149,14 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         );
       }
 
-      setCreatedProgramId(program.id);
-      setPanelState("success");
       toast({
         title: "Program created",
         description: `${dayBreakdown.length} training days with ${totalModules} muscle modules.`,
       });
+
+      // Close dialog and navigate immediately
+      onOpenChange(false);
+      onOpenProgram?.(program.id);
     } catch (error: any) {
       toast({
         title: "Conversion failed",
@@ -152,113 +166,62 @@ export const ConvertToProgram = memo(function ConvertToProgram({
     } finally {
       setConverting(false);
     }
-  }, [slots, summary, planName, coachUserId, templateId, dayBreakdown, toast]);
-
-  const isOpen = panelState !== "collapsed";
+  }, [slots, summary, planName, coachUserId, templateId, isDirty, onSave, dayBreakdown, toast, onOpenChange, onOpenProgram]);
 
   return (
-    <Collapsible open={isOpen} onOpenChange={open => setPanelState(open ? "expanded" : "collapsed")}>
-      <Card className="border-border/50">
-        <CollapsibleTrigger asChild>
-          <CardHeader className="p-3 cursor-pointer hover:bg-muted/20 transition-colors">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                {panelState === "success" ? (
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
-                ) : (
-                  <ArrowRightLeft className="h-4 w-4 text-muted-foreground" />
-                )}
-                <span className="text-sm font-semibold">
-                  {panelState === "success" ? "Program Created" : "Convert to Program"}
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create Program</DialogTitle>
+          <DialogDescription>
+            Convert your muscle plan into a program with {summary.trainingDays} training days
+            and {slots.length} modules.
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Day-by-day breakdown */}
+        <div className="space-y-2 max-h-[50vh] overflow-y-auto">
+          {dayBreakdown.map(({ dayIndex, daySlots, totalSets }) => (
+            <div key={dayIndex} className="rounded-md border border-border/30 bg-muted/10 px-3 py-2">
+              <div className="flex items-center justify-between mb-1">
+                <span className="text-xs font-semibold">
+                  {DAYS_OF_WEEK[dayIndex - 1]}
+                </span>
+                <span className="text-[10px] font-mono text-muted-foreground">
+                  {daySlots.length} modules, {totalSets} sets
                 </span>
               </div>
-              <ChevronDown
-                className={cn(
-                  "h-4 w-4 text-muted-foreground transition-transform",
-                  isOpen && "rotate-180",
-                )}
-              />
-            </div>
-          </CardHeader>
-        </CollapsibleTrigger>
-
-        <CollapsibleContent>
-          <CardContent className="p-3 pt-0">
-            {panelState === "success" && createdProgramId ? (
-              /* ── Success State ──────────────────────────── */
-              <div className="space-y-3">
-                <p className="text-sm text-muted-foreground">
-                  <strong>&ldquo;{planName}&rdquo;</strong> &mdash; {dayBreakdown.length} days,{" "}
-                  {slots.length} modules. Each module is ready for exercises.
-                </p>
-                <div className="flex gap-2">
-                  <Button
-                    size="sm"
-                    onClick={() => onOpenProgram?.(createdProgramId)}
-                  >
-                    Open Program Editor
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPanelState("collapsed")}
-                  >
-                    Stay Here
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              /* ── Preview State ──────────────────────────── */
-              <div className="space-y-3">
-                {/* Day-by-day breakdown */}
-                <div className="space-y-2">
-                  {dayBreakdown.map(({ dayIndex, daySlots, totalSets }) => (
-                    <div key={dayIndex} className="rounded-md border border-border/30 bg-muted/10 px-3 py-2">
-                      <div className="flex items-center justify-between mb-1">
-                        <span className="text-xs font-semibold">
-                          {DAYS_OF_WEEK[dayIndex - 1]}
-                        </span>
-                        <span className="text-[10px] font-mono text-muted-foreground">
-                          {daySlots.length} modules, {totalSets} sets
-                        </span>
-                      </div>
-                      <div className="space-y-0.5">
-                        {daySlots.map(slot => {
-                          const muscle = MUSCLE_MAP.get(slot.muscleId);
-                          if (!muscle) return null;
-                          return (
-                            <div key={slot.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                              <div className={`w-1.5 h-1.5 rounded-full ${muscle.colorClass}`} />
-                              <span>{muscle.label}</span>
-                              <span className="ml-auto font-mono">{slot.sets} sets</span>
-                            </div>
-                          );
-                        })}
-                      </div>
+              <div className="space-y-0.5">
+                {daySlots.map(slot => {
+                  const muscle = MUSCLE_MAP.get(slot.muscleId);
+                  if (!muscle) return null;
+                  return (
+                    <div key={slot.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <div className={`w-1.5 h-1.5 rounded-full ${muscle.colorClass}`} />
+                      <span>{muscle.label}</span>
+                      <span className="ml-auto font-mono">{slot.sets} sets</span>
                     </div>
-                  ))}
-                </div>
-
-                {/* Summary */}
-                <p className="text-xs text-muted-foreground">
-                  {summary.trainingDays} training days, {slots.length} modules.
-                  Each muscle slot becomes a day module &mdash; add exercises in the program editor.
-                </p>
-
-                <Button
-                  size="sm"
-                  className="w-full"
-                  onClick={handleConvert}
-                  disabled={converting}
-                >
-                  {converting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Create Program
-                </Button>
+                  );
+                })}
               </div>
-            )}
-          </CardContent>
-        </CollapsibleContent>
-      </Card>
-    </Collapsible>
+            </div>
+          ))}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          Each muscle slot becomes a day module &mdash; add exercises in the program editor.
+        </p>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)} disabled={converting}>
+            Cancel
+          </Button>
+          <Button onClick={handleConvert} disabled={converting}>
+            {converting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+            Create Program
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 });

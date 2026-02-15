@@ -473,6 +473,7 @@ export function ProgramCalendarBuilder({
               title: sourceModule.title,
               sort_order: sourceModule.sort_order,
               status: "draft",
+              source_muscle_id: sourceModule.source_muscle_id,
             })
             .select()
             .single();
@@ -612,6 +613,7 @@ export function ProgramCalendarBuilder({
           title: sourceModule.title,
           sort_order: maxOrder + 1,
           status: "draft",
+          source_muscle_id: sourceModule.source_muscle_id,
         })
         .select()
         .single();

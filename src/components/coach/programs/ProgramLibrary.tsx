@@ -119,9 +119,12 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
               program_template_day_id: createdDays[i].id,
               module_owner_coach_id: mod.module_owner_coach_id,
               module_type: mod.module_type,
+              session_type: mod.session_type,
+              session_timing: mod.session_timing,
               title: mod.title,
               sort_order: mod.sort_order,
               status: "draft" as const,
+              source_muscle_id: mod.source_muscle_id,
             }));
 
             const { data: createdModules, error: modError } = await supabase
@@ -167,6 +170,8 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
                         rest_seconds: prescription.rest_seconds,
                         intensity_type: prescription.intensity_type,
                         intensity_value: prescription.intensity_value,
+                        column_config: prescription.column_config,
+                        sets_json: prescription.sets_json,
                         warmup_sets_json: prescription.warmup_sets_json,
                         custom_fields_json: prescription.custom_fields_json,
                         progression_notes: prescription.progression_notes,

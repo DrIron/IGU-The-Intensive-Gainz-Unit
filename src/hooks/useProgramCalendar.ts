@@ -272,6 +272,7 @@ export function useProgramCalendar({
                 title: sourceModule.title,
                 sort_order: sourceModule.sort_order,
                 status: "draft",
+                source_muscle_id: sourceModule.source_muscle_id,
               })
               .select()
               .single();

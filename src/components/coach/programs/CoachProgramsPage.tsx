@@ -45,6 +45,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
 
   const handleEditDay = useCallback((moduleId: string) => {
     setFocusModuleId(moduleId);
+    setPreviousView("calendar");
     setView("edit");
   }, []);
 
@@ -56,7 +57,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   const handleMuscleBuilderOpenProgram = useCallback((programId: string) => {
     setPreviousView("muscle-builder");
     setEditingProgramId(programId);
-    setView("calendar");
+    setView("edit");
   }, []);
 
   // Gate: only show program builder to users with canBuildPrograms capability
