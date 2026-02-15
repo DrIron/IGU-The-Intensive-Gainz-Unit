@@ -22,7 +22,6 @@ import { ToastAction } from "@/components/ui/toast";
 import {
   ArrowLeft,
   Save,
-  ArrowRightLeft,
   Trash2,
   Loader2,
   Bookmark,
@@ -41,7 +40,7 @@ import { MusclePalette } from "./MusclePalette";
 import { VolumeOverview } from "./VolumeOverview";
 import { FrequencyHeatmap } from "./FrequencyHeatmap";
 import { PresetSelector } from "./PresetSelector";
-import { ConvertToProgramDialog } from "./ConvertToProgramDialog";
+import { ConvertToProgram } from "./ConvertToProgram";
 
 interface MuscleBuilderPageProps {
   coachUserId: string;
@@ -62,7 +61,6 @@ export function MuscleBuilderPage({
   const { toast } = useToast();
 
   const [showClearDialog, setShowClearDialog] = useState(false);
-  const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
 
   // #9 — Copy Day
@@ -135,6 +133,14 @@ export function MuscleBuilderPage({
     [dispatch]
   );
 
+  // Click/tap to add muscle (mobile inline picker + desktop popover)
+  const handleAddMuscle = useCallback(
+    (dayIndex: number, muscleId: string) => {
+      dispatch({ type: 'ADD_MUSCLE', dayIndex, muscleId });
+    },
+    [dispatch]
+  );
+
   // #2 — Delete with undo
   const handleRemoveMuscle = useCallback(
     (slotId: string) => {
@@ -175,16 +181,6 @@ export function MuscleBuilderPage({
       dispatch({ type: 'LOAD_PRESET', slots, name });
     },
     [dispatch]
-  );
-
-  const handleConverted = useCallback(
-    (programId: string) => {
-      setShowConvertDialog(false);
-      if (onOpenProgram) {
-        onOpenProgram(programId);
-      }
-    },
-    [onOpenProgram]
   );
 
   const handleClearAll = useCallback(() => {
@@ -263,10 +259,10 @@ export function MuscleBuilderPage({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Mobile palette trigger */}
+            {/* Palette trigger — hidden on mobile (inline picker replaces it), visible on tablet */}
             <Sheet open={mobilePaletteOpen} onOpenChange={setMobilePaletteOpen}>
               <SheetTrigger asChild>
-                <Button variant="outline" size="sm" className="lg:hidden">
+                <Button variant="outline" size="sm" className="hidden sm:inline-flex lg:hidden">
                   <Palette className="h-4 w-4 mr-2" />
                   Muscles
                 </Button>
@@ -290,14 +286,6 @@ export function MuscleBuilderPage({
                 <Button variant="outline" size="sm" onClick={saveAsPreset} disabled={state.isSaving}>
                   <Bookmark className="h-4 w-4 mr-1" />
                   Save Preset
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowConvertDialog(true)}
-                >
-                  <ArrowRightLeft className="h-4 w-4 mr-1" />
-                  Convert
                 </Button>
               </>
             )}
@@ -359,6 +347,7 @@ export function MuscleBuilderPage({
               onSelectDay={handleSelectDay}
               onSetSets={handleSetSets}
               onRemove={handleRemoveMuscle}
+              onAddMuscle={handleAddMuscle}
               copiedDayIndex={copiedDayIndex}
               onCopyDay={handleCopyDay}
               onPasteDay={handlePasteDay}
@@ -390,7 +379,8 @@ export function MuscleBuilderPage({
                 </div>
                 <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/30 text-xs text-muted-foreground">
                   <Palette className="h-3.5 w-3.5" />
-                  <span>Drag muscles from the palette on the right (or tap "Muscles" on mobile)</span>
+                  <span className="hidden sm:inline">Drag muscles from the palette on the right, or click + on any day</span>
+                  <span className="sm:hidden">Tap a day, then tap + Add Muscle</span>
                 </div>
               </div>
             )}
@@ -418,6 +408,18 @@ export function MuscleBuilderPage({
                 </TabsContent>
               </Tabs>
             )}
+
+            {/* Inline Conversion Panel */}
+            {!isEmpty && (
+              <ConvertToProgram
+                slots={state.slots}
+                summary={summary}
+                planName={state.name}
+                coachUserId={coachUserId}
+                templateId={state.templateId}
+                onOpenProgram={onOpenProgram}
+              />
+            )}
           </div>
 
           {/* Right: Muscle Palette (desktop) */}
@@ -442,18 +444,6 @@ export function MuscleBuilderPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
-      {/* ── Convert Dialog ────────────────────────────────────── */}
-      <ConvertToProgramDialog
-        open={showConvertDialog}
-        onOpenChange={setShowConvertDialog}
-        slots={state.slots}
-        summary={summary}
-        planName={state.name}
-        coachUserId={coachUserId}
-        templateId={state.templateId}
-        onConverted={handleConverted}
-      />
     </DragDropContext>
   );
 }

@@ -1,5 +1,7 @@
-import { memo } from "react";
+import { memo, useCallback } from "react";
 import { DayColumn } from "./DayColumn";
+import { MobileWeekStrip } from "./MobileWeekStrip";
+import { MobileDayDetail } from "./MobileDayDetail";
 import type { MuscleSlotData } from "@/types/muscle-builder";
 
 interface WeeklyCalendarProps {
@@ -8,6 +10,7 @@ interface WeeklyCalendarProps {
   onSelectDay: (dayIndex: number) => void;
   onSetSets: (slotId: string, sets: number) => void;
   onRemove: (slotId: string) => void;
+  onAddMuscle?: (dayIndex: number, muscleId: string) => void;
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
   onPasteDay?: (dayIndex: number) => void;
@@ -21,6 +24,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onSelectDay,
   onSetSets,
   onRemove,
+  onAddMuscle,
   copiedDayIndex,
   onCopyDay,
   onPasteDay,
@@ -29,27 +33,34 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
 }: WeeklyCalendarProps) {
   const days = [1, 2, 3, 4, 5, 6, 7];
 
+  const handleAddMuscle = useCallback(
+    (dayIndex: number, muscleId: string) => {
+      onAddMuscle?.(dayIndex, muscleId);
+    },
+    [onAddMuscle],
+  );
+
   return (
     <>
-      {/* Mobile: horizontal snap scroll */}
-      <div className="flex gap-2 overflow-x-auto snap-x snap-mandatory pb-2 sm:hidden">
-        {days.map(dayIndex => (
-          <DayColumn
-            key={dayIndex}
-            dayIndex={dayIndex}
-            slots={slots}
-            isSelected={selectedDayIndex === dayIndex}
-            onSelectDay={onSelectDay}
-            onSetSets={onSetSets}
-            onRemove={onRemove}
-            className="snap-start w-[75vw] max-w-[280px] shrink-0"
-            copiedDayIndex={copiedDayIndex}
-            onCopyDay={onCopyDay}
-            onPasteDay={onPasteDay}
-            highlightedMuscleId={highlightedMuscleId}
-            onSetAllSets={onSetAllSets}
-          />
-        ))}
+      {/* Mobile: compact week strip + inline day detail */}
+      <div className="sm:hidden space-y-2">
+        <MobileWeekStrip
+          slots={slots}
+          selectedDayIndex={selectedDayIndex}
+          onSelectDay={onSelectDay}
+        />
+        <MobileDayDetail
+          slots={slots}
+          selectedDayIndex={selectedDayIndex}
+          onSetSets={onSetSets}
+          onRemove={onRemove}
+          onAddMuscle={handleAddMuscle}
+          copiedDayIndex={copiedDayIndex}
+          onCopyDay={onCopyDay}
+          onPasteDay={onPasteDay}
+          highlightedMuscleId={highlightedMuscleId}
+          onSetAllSets={onSetAllSets}
+        />
       </div>
       {/* Desktop: responsive grid */}
       <div className="hidden sm:grid sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
@@ -62,6 +73,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onSelectDay={onSelectDay}
             onSetSets={onSetSets}
             onRemove={onRemove}
+            onAddMuscle={onAddMuscle}
             copiedDayIndex={copiedDayIndex}
             onCopyDay={onCopyDay}
             onPasteDay={onPasteDay}

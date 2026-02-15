@@ -16,6 +16,7 @@ interface MuscleSlotCardProps {
   onRemove: (slotId: string) => void;
   isHighlighted?: boolean;
   onSetAllSets?: (muscleId: string, sets: number) => void;
+  alwaysShowControls?: boolean;
 }
 
 export const MuscleSlotCard = memo(function MuscleSlotCard({
@@ -27,6 +28,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   onRemove,
   isHighlighted,
   onSetAllSets,
+  alwaysShowControls,
 }: MuscleSlotCardProps) {
   const [bulkOpen, setBulkOpen] = useState(false);
 
@@ -121,7 +123,10 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
           <Button
             variant="ghost"
             size="icon"
-            className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
+            className={cn(
+              "h-5 w-5 transition-opacity shrink-0",
+              alwaysShowControls ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+            )}
             onClick={handleRemove}
           >
             <X className="h-3 w-3" />

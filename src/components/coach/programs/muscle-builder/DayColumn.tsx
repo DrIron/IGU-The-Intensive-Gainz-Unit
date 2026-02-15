@@ -1,11 +1,18 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useCallback } from "react";
 import { Droppable } from "@hello-pangea/dnd";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Copy, ClipboardPaste } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Copy, ClipboardPaste, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MuscleSlotCard } from "./MuscleSlotCard";
-import { DAYS_OF_WEEK, type MuscleSlotData } from "@/types/muscle-builder";
+import {
+  DAYS_OF_WEEK,
+  MUSCLE_GROUPS,
+  BODY_REGIONS,
+  BODY_REGION_LABELS,
+  type MuscleSlotData,
+} from "@/types/muscle-builder";
 
 interface DayColumnProps {
   dayIndex: number;
@@ -14,6 +21,7 @@ interface DayColumnProps {
   onSelectDay: (dayIndex: number) => void;
   onSetSets: (slotId: string, sets: number) => void;
   onRemove: (slotId: string) => void;
+  onAddMuscle?: (dayIndex: number, muscleId: string) => void;
   className?: string;
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
@@ -29,6 +37,7 @@ export const DayColumn = memo(function DayColumn({
   onSelectDay,
   onSetSets,
   onRemove,
+  onAddMuscle,
   className,
   copiedDayIndex,
   onCopyDay,
@@ -36,6 +45,8 @@ export const DayColumn = memo(function DayColumn({
   highlightedMuscleId,
   onSetAllSets,
 }: DayColumnProps) {
+  const [addOpen, setAddOpen] = useState(false);
+
   const daySlots = useMemo(
     () => slots.filter(s => s.dayIndex === dayIndex).sort((a, b) => a.sortOrder - b.sortOrder),
     [slots, dayIndex]
@@ -44,6 +55,13 @@ export const DayColumn = memo(function DayColumn({
   const totalSets = useMemo(
     () => daySlots.reduce((sum, s) => sum + s.sets, 0),
     [daySlots]
+  );
+
+  const handleAddMuscle = useCallback(
+    (muscleId: string) => {
+      onAddMuscle?.(dayIndex, muscleId);
+    },
+    [onAddMuscle, dayIndex],
   );
 
   const hasCopied = copiedDayIndex != null;
@@ -65,6 +83,53 @@ export const DayColumn = memo(function DayColumn({
             {DAYS_OF_WEEK[dayIndex - 1]}
           </span>
           <div className="flex items-center gap-1">
+            {/* Add muscle button (desktop click-to-add) */}
+            {onAddMuscle && (
+              <Popover open={addOpen} onOpenChange={setAddOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={e => e.stopPropagation()}
+                    title="Add muscle"
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-48 p-2 max-h-72 overflow-y-auto"
+                  onClick={e => e.stopPropagation()}
+                  align="start"
+                >
+                  {BODY_REGIONS.map(region => {
+                    const muscles = MUSCLE_GROUPS.filter(m => m.bodyRegion === region);
+                    return (
+                      <div key={region} className="mb-2 last:mb-0">
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 px-1">
+                          {BODY_REGION_LABELS[region]}
+                        </p>
+                        <div className="flex flex-col gap-0.5">
+                          {muscles.map(muscle => (
+                            <button
+                              key={muscle.id}
+                              className="flex items-center gap-1.5 px-1.5 py-1 rounded text-xs hover:bg-muted/50 transition-colors text-left"
+                              onClick={() => {
+                                handleAddMuscle(muscle.id);
+                                setAddOpen(false);
+                              }}
+                            >
+                              <div className={`w-2 h-2 rounded-full shrink-0 ${muscle.colorClass}`} />
+                              <span>{muscle.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </PopoverContent>
+              </Popover>
+            )}
             {/* Copy button — visible on hover when day has slots */}
             {daySlots.length > 0 && onCopyDay && (
               <Button
