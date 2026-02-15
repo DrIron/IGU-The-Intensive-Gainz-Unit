@@ -3,6 +3,7 @@ import { ProgramLibrary } from "./ProgramLibrary";
 import { ProgramEditor } from "./ProgramEditor";
 import { ProgramCalendarBuilder } from "./ProgramCalendarBuilder";
 import { MuscleBuilderPage } from "./muscle-builder/MuscleBuilderPage";
+import { MusclePlanLibrary } from "./muscle-builder/MusclePlanLibrary";
 import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ShieldAlert } from "lucide-react";
@@ -12,8 +13,9 @@ interface CoachProgramsPageProps {
 }
 
 export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
-  const [view, setView] = useState<"library" | "create" | "edit" | "calendar" | "muscle-builder">("library");
+  const [view, setView] = useState<"library" | "create" | "edit" | "calendar" | "muscle-library" | "muscle-builder">("library");
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
+  const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [previousView, setPreviousView] = useState<string | null>(null);
   const [focusModuleId, setFocusModuleId] = useState<string | null>(null);
   const { canBuildPrograms, isLoading: permissionsLoading } = useSubrolePermissions(coachUserId);
@@ -35,6 +37,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
 
   const handleBack = useCallback(() => {
     setEditingProgramId(null);
+    setEditingTemplateId(null);
     if (previousView) {
       setView(previousView as any);
       setPreviousView(null);
@@ -49,13 +52,33 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
     setView("edit");
   }, []);
 
-  const handleMuscleBuilder = useCallback(() => {
-    setEditingProgramId(null);
+  // Muscle plan library: list all plans
+  const handleMuscleLibrary = useCallback(() => {
+    setView("muscle-library");
+  }, []);
+
+  // New blank muscle plan
+  const handleNewMusclePlan = useCallback(() => {
+    setEditingTemplateId(null);
+    setPreviousView("muscle-library");
     setView("muscle-builder");
   }, []);
 
+  // Edit existing muscle plan
+  const handleEditMusclePlan = useCallback((templateId: string) => {
+    setEditingTemplateId(templateId);
+    setPreviousView("muscle-library");
+    setView("muscle-builder");
+  }, []);
+
+  // Legacy: direct "Planning Board" from ProgramLibrary opens blank builder
+  const handleMuscleBuilder = useCallback(() => {
+    setEditingTemplateId(null);
+    setView("muscle-library");
+  }, []);
+
   const handleMuscleBuilderOpenProgram = useCallback((programId: string) => {
-    setPreviousView("muscle-builder");
+    setPreviousView("muscle-library");
     setEditingProgramId(programId);
     setView("edit");
   }, []);
@@ -72,10 +95,22 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
     );
   }
 
+  if (view === "muscle-library") {
+    return (
+      <MusclePlanLibrary
+        coachUserId={coachUserId}
+        onNewPlan={handleNewMusclePlan}
+        onEditPlan={handleEditMusclePlan}
+        onBack={() => setView("library")}
+      />
+    );
+  }
+
   if (view === "muscle-builder") {
     return (
       <MuscleBuilderPage
         coachUserId={coachUserId}
+        existingTemplateId={editingTemplateId || undefined}
         onBack={handleBack}
         onOpenProgram={handleMuscleBuilderOpenProgram}
       />

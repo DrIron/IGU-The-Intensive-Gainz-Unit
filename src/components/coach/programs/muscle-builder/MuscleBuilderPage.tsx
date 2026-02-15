@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -29,6 +29,8 @@ import {
   ChevronRight,
   X,
   Zap,
+  Undo2,
+  Redo2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MUSCLE_GROUPS, DAYS_OF_WEEK } from "@/types/muscle-builder";
@@ -56,7 +58,7 @@ export function MuscleBuilderPage({
   onBack,
   onOpenProgram,
 }: MuscleBuilderPageProps) {
-  const { state, dispatch, save, saveAsPreset } = useMuscleBuilderState(coachUserId, existingTemplateId);
+  const { state, dispatch, save, saveAsPreset, canUndo, canRedo } = useMuscleBuilderState(coachUserId, existingTemplateId);
   const { volumeEntries, summary, frequencyMatrix, placementCounts, consecutiveDayWarnings } =
     useMusclePlanVolume(state.slots);
   const { toast } = useToast();
@@ -74,6 +76,26 @@ export function MuscleBuilderPage({
 
   // #2 — Delete undo ref
   const lastDeletedSlotRef = useRef<{ dayIndex: number; muscleId: string; sets: number; sortOrder: number } | null>(null);
+
+  // ── Undo/Redo keyboard shortcuts ─────────────────────────────
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const mod = e.metaKey || e.ctrlKey;
+      if (!mod || e.key.toLowerCase() !== 'z') return;
+      // Don't intercept when focus is in an input/textarea
+      const tag = (e.target as HTMLElement)?.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+
+      e.preventDefault();
+      if (e.shiftKey) {
+        dispatch({ type: 'REDO' });
+      } else {
+        dispatch({ type: 'UNDO' });
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [dispatch]);
 
   // ── DnD Handler ──────────────────────────────────────────────
   const handleDragEnd = useCallback(
@@ -261,6 +283,30 @@ export function MuscleBuilderPage({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Undo / Redo */}
+            <div className="flex items-center gap-0.5">
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => dispatch({ type: 'UNDO' })}
+                disabled={!canUndo}
+                title="Undo (Ctrl+Z)"
+              >
+                <Undo2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8"
+                onClick={() => dispatch({ type: 'REDO' })}
+                disabled={!canRedo}
+                title="Redo (Ctrl+Shift+Z)"
+              >
+                <Redo2 className="h-4 w-4" />
+              </Button>
+            </div>
+
             {/* Palette trigger — hidden on mobile (inline picker replaces it), visible on tablet */}
             <Sheet open={mobilePaletteOpen} onOpenChange={setMobilePaletteOpen}>
               <SheetTrigger asChild>

@@ -25,7 +25,9 @@ type Action =
   | { type: 'CLEAR_ALL' }
   | { type: 'MARK_SAVED'; templateId: string }
   | { type: 'SAVING' }
-  | { type: 'SAVE_ERROR' };
+  | { type: 'SAVE_ERROR' }
+  | { type: 'UNDO' }
+  | { type: 'REDO' };
 
 // ============================================================
 // Reducer
@@ -192,13 +194,72 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
 }
 
 // ============================================================
+// Undo/Redo wrapper
+// ============================================================
+
+const MAX_HISTORY = 50;
+
+/** Actions that don't mutate plan content — skip history for these */
+const NON_UNDOABLE: Set<string> = new Set([
+  'SELECT_DAY', 'SAVING', 'MARK_SAVED', 'SAVE_ERROR', 'LOAD_TEMPLATE', 'UNDO', 'REDO',
+]);
+
+interface UndoableState {
+  current: MusclePlanState;
+  past: MusclePlanState[];
+  future: MusclePlanState[];
+}
+
+function undoableReducer(state: UndoableState, action: Action): UndoableState {
+  if (action.type === 'UNDO') {
+    if (state.past.length === 0) return state;
+    const previous = state.past[state.past.length - 1];
+    return {
+      past: state.past.slice(0, -1),
+      current: { ...previous, isSaving: state.current.isSaving, templateId: state.current.templateId },
+      future: [state.current, ...state.future].slice(0, MAX_HISTORY),
+    };
+  }
+
+  if (action.type === 'REDO') {
+    if (state.future.length === 0) return state;
+    const next = state.future[0];
+    return {
+      past: [...state.past, state.current].slice(-MAX_HISTORY),
+      current: { ...next, isSaving: state.current.isSaving, templateId: state.current.templateId },
+      future: state.future.slice(1),
+    };
+  }
+
+  const newCurrent = reducer(state.current, action);
+
+  // Don't push to history for non-undoable actions or no-op
+  if (NON_UNDOABLE.has(action.type) || newCurrent === state.current) {
+    return { ...state, current: newCurrent };
+  }
+
+  return {
+    past: [...state.past, state.current].slice(-MAX_HISTORY),
+    current: newCurrent,
+    future: [], // clear redo stack on new action
+  };
+}
+
+// ============================================================
 // Hook
 // ============================================================
 
 export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: string) {
-  const [state, dispatch] = useReducer(reducer, initialState);
+  const [{ current: state, past, future }, dispatch] = useReducer(undoableReducer, {
+    current: initialState,
+    past: [],
+    future: [],
+  });
   const { toast } = useToast();
   const hasFetched = useRef(false);
+
+  const canUndo = past.length > 0;
+  const canRedo = future.length > 0;
 
   // Load existing template
   useEffect(() => {
@@ -228,6 +289,43 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
       });
     })();
   }, [existingTemplateId, toast]);
+
+  // Auto-save: debounce 2s after changes when template already exists
+  const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  useEffect(() => {
+    if (!state.isDirty || !state.templateId || state.isSaving) return;
+
+    autoSaveTimerRef.current = setTimeout(async () => {
+      const s = stateRef.current;
+      if (!s.isDirty || !s.templateId || s.isSaving) return;
+
+      dispatch({ type: 'SAVING' });
+      try {
+        const { error } = await withTimeout(
+          supabase
+            .from('muscle_program_templates')
+            .update({
+              name: s.name,
+              description: s.description || null,
+              slot_config: s.slots as unknown as Record<string, unknown>,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', s.templateId),
+          15000,
+          'Auto-save muscle plan',
+        );
+        if (error) throw error;
+        dispatch({ type: 'MARK_SAVED', templateId: s.templateId! });
+      } catch {
+        dispatch({ type: 'SAVE_ERROR' });
+      }
+    }, 2000);
+
+    return () => clearTimeout(autoSaveTimerRef.current);
+  }, [state.isDirty, state.templateId, state.isSaving, state.slots, state.name, state.description]);
 
   // Save
   const save = useCallback(async () => {
@@ -309,5 +407,5 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
     }
   }, [coachUserId, state.name, state.description, state.slots, toast]);
 
-  return { state, dispatch, save, saveAsPreset };
+  return { state, dispatch, save, saveAsPreset, canUndo, canRedo };
 }

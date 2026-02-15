@@ -70,93 +70,39 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         await onSave();
       }
 
-      // 1. Create program template
-      const { data: program, error: progErr } = await withTimeout(
-        supabase
-          .from("program_templates")
-          .insert({
-            owner_coach_id: coachUserId,
-            title: planName,
-            description: `Converted from muscle plan. ${summary.musclesTargeted} muscles, ${summary.totalSets} total sets.`,
-            visibility: "private",
-          })
-          .select("id")
-          .single(),
-        15000,
-        "Create program template",
+      // Build the slot array with muscle labels for the RPC
+      const rpcSlots = slots.map(s => ({
+        dayIndex: s.dayIndex,
+        muscleId: s.muscleId,
+        sets: s.sets,
+        sortOrder: s.sortOrder,
+        muscleLabel: MUSCLE_MAP.get(s.muscleId)?.label || s.muscleId,
+      }));
+
+      const { data, error } = await withTimeout(
+        supabase.rpc("convert_muscle_plan_to_program", {
+          p_coach_id: coachUserId,
+          p_plan_name: planName,
+          p_plan_description: `Converted from muscle plan. ${summary.musclesTargeted} muscles, ${summary.totalSets} total sets.`,
+          p_muscle_template_id: templateId,
+          p_day_slots: rpcSlots,
+        }),
+        30000,
+        "Convert muscle plan to program",
       );
 
-      if (progErr) throw progErr;
+      if (error) throw error;
 
-      // 2. Create days + day_modules for each training day
-      let totalModules = 0;
-      for (const { dayIndex, daySlots } of dayBreakdown) {
-        const sortedSlots = daySlots;
-        const muscleNames = sortedSlots
-          .map(s => MUSCLE_MAP.get(s.muscleId)?.label || s.muscleId)
-          .join(", ");
-
-        const { data: dayData, error: dayErr } = await withTimeout(
-          supabase
-            .from("program_template_days")
-            .insert({
-              program_template_id: program.id,
-              day_index: dayIndex,
-              day_title: `${DAYS_OF_WEEK[dayIndex - 1]} \u2014 ${muscleNames}`,
-            })
-            .select("id")
-            .single(),
-          15000,
-          "Create program day",
-        );
-
-        if (dayErr) throw dayErr;
-
-        for (const slot of sortedSlots) {
-          const muscle = MUSCLE_MAP.get(slot.muscleId);
-          const { error: modErr } = await withTimeout(
-            supabase
-              .from("day_modules")
-              .insert({
-                program_template_day_id: dayData.id,
-                module_owner_coach_id: coachUserId,
-                module_type: "strength",
-                session_type: "strength",
-                session_timing: "anytime",
-                title: `${muscle?.label || slot.muscleId} \u2014 ${slot.sets} sets`,
-                sort_order: slot.sortOrder,
-                status: "draft",
-                source_muscle_id: slot.muscleId,
-              }),
-            15000,
-            "Create day module",
-          );
-
-          if (modErr) throw modErr;
-          totalModules++;
-        }
-      }
-
-      // 3. Link template to program
-      if (templateId) {
-        await withTimeout(
-          supabase
-            .from("muscle_program_templates")
-            .update({ converted_program_id: program.id })
-            .eq("id", templateId),
-          15000,
-          "Link template to program",
-        );
-      }
+      const result = data as { program_id: string; total_days: number; total_modules: number };
 
       toast({
         title: "Program created",
-        description: `${dayBreakdown.length} training days with ${totalModules} muscle modules.`,
+        description: `${result.total_days} training days with ${result.total_modules} muscle modules.`,
       });
 
       // Close dialog and navigate immediately
       onOpenChange(false);
-      onOpenProgram?.(program.id);
+      onOpenProgram?.(result.program_id);
     } catch (error: any) {
       toast({
         title: "Conversion failed",
@@ -166,7 +112,7 @@ export const ConvertToProgram = memo(function ConvertToProgram({
     } finally {
       setConverting(false);
     }
-  }, [slots, summary, planName, coachUserId, templateId, isDirty, onSave, dayBreakdown, toast, onOpenChange, onOpenProgram]);
+  }, [slots, summary, planName, coachUserId, templateId, isDirty, onSave, toast, onOpenChange, onOpenProgram]);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
