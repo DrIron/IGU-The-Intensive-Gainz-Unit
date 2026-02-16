@@ -10,7 +10,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Search, Plus, X, Youtube, Pencil, Zap, Trash2, List, Eye, EyeOff, Power } from "lucide-react";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ExerciseQuickAdd } from "@/components/admin/ExerciseQuickAdd";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
