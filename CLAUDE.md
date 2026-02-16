@@ -502,6 +502,69 @@ When understanding this codebase, read in this order:
 - Phase 32c: Team Migration, Team Selection Prompt & Team Change — backfill old subs, choose-team prompt, change-team dialog, team RLS policies (Feb 12, 2026) ✅
 - Phase 33: Planning Board → Program Conversion — source_muscle_id on day_modules, auto-filter exercise picker by muscle, muscle badges, focusModuleId navigation (Feb 13, 2026) ✅
 - Pre-Launch QA Sweep — 15 bugs found across 3 roles, 8 code fixes + 1 DB migration, RLS index performance (Feb 13, 2026) ✅
+- Planning Board Architecture Improvements — undo/redo, auto-save, plan library, batch RPCs for conversion + assignment (Feb 15, 2026) ✅
+- Phase 34: Muscle Subdivisions + Exercise Auto-Fill — 42 anatomical subdivisions, hierarchical palette, exercise auto-fill on conversion (Feb 16, 2026) ✅
+
+### Phase 34: Muscle Subdivisions + Exercise Auto-Fill (Feb 16, 2026)
+
+Added 42 anatomically specific muscle subdivisions to the Planning Board's 17 coarse muscle groups, plus automatic exercise population when converting muscle plans to programs. No DB migration needed — subdivision IDs are stored in existing JSONB (`slot_config`) and TEXT (`source_muscle_id`) columns.
+
+**Type System (`src/types/muscle-builder.ts`):**
+- `SubdivisionDef` interface: `{ id, label, parentId }`
+- `SUBDIVISIONS` array (42 entries across 13 parent groups: Pecs, Shoulders, Triceps, Lats, Mid-back, Upper Back, Elbow Flexors, Forearm, Quads, Glutes, Hip Flexors, Core, Neck)
+- `SUBDIVISION_MAP` — `Map<string, SubdivisionDef>` for direct lookup
+- `SUBDIVISIONS_BY_PARENT` — `Map<string, SubdivisionDef[]>` for parent→children
+- `resolveParentMuscleId(muscleId)` — returns parentId if subdivision, muscleId if parent
+- `getMuscleDisplay(muscleId)` — unified lookup (checks MUSCLE_MAP first, then SUBDIVISION_MAP inheriting parent color)
+- `MUSCLE_TO_EXERCISE_FILTER` extended with ~42 subdivision entries mapping to `exercise_library.primary_muscle` values
+
+**Volume Aggregation (`useMusclePlanVolume.ts`):**
+- All metrics aggregate subdivisions to parent level: volumeEntries, frequencyMatrix, consecutiveDayWarnings
+- `placementCounts` tracks both exact IDs and parent IDs (for palette badges)
+- `subdivisionBreakdown` on each `MuscleVolumeEntry` — per-subdivision set counts for tooltip detail
+
+**UI Changes:**
+- `MusclePalette.tsx` — two-level hierarchy: parent chips + indented subdivision chips (smaller, dashed border)
+- `DraggableMuscleChip.tsx` — `isSubdivision` prop for smaller/indented styling
+- `DayColumn.tsx` — expandable chevron in "Add Muscle" popover for subdivision selection
+- `MobileDayDetail.tsx` — inline subdivision picker with search, body region display shows subdivision chips
+- `VolumeOverview.tsx` — tooltip shows subdivision breakdown when subdivisions are used
+- `FrequencyHeatmap.tsx` — unchanged (already correct via parent-level aggregated frequencyMatrix)
+
+**Exercise Auto-Fill on Conversion (`ConvertToProgram.tsx`):**
+After RPC creates program structure, a best-effort auto-fill step:
+1. Queries `program_template_days` → `day_modules` with `source_muscle_id`
+2. Looks up `MUSCLE_TO_EXERCISE_FILTER[source_muscle_id]` for each module
+3. Batch-queries `exercise_library` for matching exercises (sorted by name)
+4. Picks up to 3 exercises per module, batch-inserts `module_exercises` + `exercise_prescriptions` (3×8-12, RIR 2, 90s rest)
+5. Auto-fill failure doesn't block program creation (wrapped in try/catch)
+
+**Replaced `MUSCLE_MAP.get()` calls** with `getMuscleDisplay()` across 10 files: MuscleSlotCard, MobileDayDetail, ConvertToProgram, DayModuleEditor, ExercisePickerDialog, EnhancedModuleExerciseEditor, PresetSelector, MusclePlanLibrary, FrequencyHeatmap, useMusclePlanVolume.
+
+**Backward Compatibility:**
+- Existing plans with parent IDs (e.g., `pecs`) work unchanged
+- `resolveParentMuscleId('pecs')` returns `'pecs'` (no-op for parents)
+- System presets use parent IDs (unchanged)
+- No DB migration needed
+
+**Files Modified (15):**
+| File | Changes |
+|------|---------|
+| `src/types/muscle-builder.ts` | SubdivisionDef, SUBDIVISIONS, maps, helpers, MUSCLE_TO_EXERCISE_FILTER extensions |
+| `src/components/coach/programs/muscle-builder/hooks/useMusclePlanVolume.ts` | Parent-level aggregation, subdivisionBreakdown, dual placementCounts |
+| `src/components/coach/programs/muscle-builder/MusclePalette.tsx` | Two-level hierarchy with subdivision chips |
+| `src/components/coach/programs/muscle-builder/DraggableMuscleChip.tsx` | isSubdivision prop |
+| `src/components/coach/programs/muscle-builder/DayColumn.tsx` | Expandable subdivision popover |
+| `src/components/coach/programs/muscle-builder/MobileDayDetail.tsx` | Inline subdivision picker |
+| `src/components/coach/programs/muscle-builder/VolumeOverview.tsx` | Subdivision tooltip |
+| `src/components/coach/programs/muscle-builder/ConvertToProgram.tsx` | Exercise auto-fill post-RPC |
+| `src/components/coach/programs/muscle-builder/MuscleSlotCard.tsx` | getMuscleDisplay() |
+| `src/components/coach/programs/muscle-builder/FrequencyHeatmap.tsx` | getMuscleDisplay() import |
+| `src/components/coach/programs/muscle-builder/PresetSelector.tsx` | getMuscleDisplay() |
+| `src/components/coach/programs/muscle-builder/MusclePlanLibrary.tsx` | getMuscleDisplay() |
+| `src/components/coach/programs/DayModuleEditor.tsx` | getMuscleDisplay() |
+| `src/components/coach/programs/ExercisePickerDialog.tsx` | getMuscleDisplay() |
+| `src/components/coach/programs/EnhancedModuleExerciseEditor.tsx` | getMuscleDisplay() |
 
 ### Pre-Launch QA Sweep (Feb 13, 2026)
 
@@ -692,7 +755,7 @@ Coaches plan workouts starting from **muscles** instead of exercises. Drag muscl
 
 **Migration:** `supabase/migrations/20260212_muscle_program_templates.sql`
 
-**Types:** `src/types/muscle-builder.ts` — 17 muscle groups with evidence-based volume landmarks, 4 body regions (push/pull/legs/core), 4 built-in presets (PPL, Upper/Lower, Full Body 3x, Bro Split), landmark zone helpers.
+**Types:** `src/types/muscle-builder.ts` — 17 muscle groups with evidence-based volume landmarks, 42 anatomical subdivisions, 4 body regions (push/pull/legs/core), 4 built-in presets (PPL, Upper/Lower, Full Body 3x, Bro Split), landmark zone helpers, `getMuscleDisplay()` unified lookup, `resolveParentMuscleId()` for subdivision→parent resolution.
 
 **Component Tree:**
 ```
@@ -718,7 +781,7 @@ src/components/coach/programs/muscle-builder/
 - Day → Different Day: move
 - No per-day muscle limit — each slot has a unique `id` for identification
 
-**Conversion:** Creates `program_templates` + `program_template_days` (one per training day) + `day_modules` (one per muscle slot). Coach fills in exercises via ProgramCalendarBuilder afterward. (`module_exercises.exercise_id` is NOT NULL, so no placeholder exercises.)
+**Conversion:** Creates `program_templates` + `program_template_days` (one per training day) + `day_modules` (one per muscle slot, with `source_muscle_id`). Exercises are auto-filled from `exercise_library` based on `MUSCLE_TO_EXERCISE_FILTER` (up to 3 per module, defaults: 3×8-12, RIR 2, 90s rest). Coach can edit in ProgramCalendarBuilder afterward.
 
 **Modified Files:** `CoachProgramsPage.tsx` (added `muscle-builder` view), `ProgramLibrary.tsx` (added "Planning Board" button), `index.ts` (export).
 
