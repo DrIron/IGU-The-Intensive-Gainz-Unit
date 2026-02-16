@@ -1,5 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { APP_BASE_URL, EMAIL_FROM_BILLING, SUPPORT_EMAIL } from "../_shared/config.ts";
+import { wrapInLayout } from "../_shared/emailTemplate.ts";
+import { greeting, paragraph, alertBox, detailCard, ctaButton, signOff } from "../_shared/emailComponents.ts";
+import { sendEmail } from "../_shared/sendEmail.ts";
 
 /**
  * CANONICAL PAYMENT VERIFICATION ENDPOINT
@@ -360,9 +364,6 @@ async function sendConfirmationEmail(
   nextBillingDate: Date
 ) {
   try {
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    if (!resendApiKey) return;
-
     const { data: service } = await supabase
       .from('services')
       .select('name, type')
@@ -380,36 +381,44 @@ async function sendConfirmationEmail(
     const fullName = profile.full_name?.trim() || 'Valued Client';
     const isTeamPlan = service.type === 'team';
 
-    await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: 'IGU Coaching <noreply@mail.theigu.com>',
-        to: [profile.email],
-        subject: `Welcome to ${service.name} - Payment Confirmed!`,
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h1 style="color: #333;">Welcome to IGU Coaching!</h1>
-            <p style="color: #666;">Hi ${fullName},</p>
-            <p style="color: #666;">Your <strong>${service.name}</strong> subscription is now active.</p>
-            <div style="background-color: #f5f5f5; border-radius: 8px; padding: 20px; margin: 20px 0;">
-              <p style="margin: 5px 0;"><strong>Plan:</strong> ${service.name}</p>
-              <p style="margin: 5px 0;"><strong>Renewal due:</strong> ${nextBillingDate.toLocaleDateString()}</p>
-            </div>
-            <h3>What's Next?</h3>
-            <ul>
-              ${isTeamPlan 
-                ? '<li>Access your team training plan in your dashboard</li><li>Join our Discord community</li>'
-                : '<li>Your coach will reach out with instructions</li><li>You\'ll be added to TrueCoach within 48 hours</li>'}
-            </ul>
-            <p>Log in at <a href="https://theigu.com/dashboard">https://theigu.com</a></p>
-          </div>
-        `,
-      }),
+    const formattedRenewal = nextBillingDate.toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
     });
+
+    const nextSteps = isTeamPlan
+      ? '<strong>Access your team training plan</strong> in your dashboard<br><strong>Join our Discord community</strong> for team updates'
+      : '<strong>Your coach will reach out</strong> with instructions within 24-48 hours<br><strong>Check your dashboard</strong> for program updates';
+
+    const content = [
+      greeting(fullName),
+      alertBox(`<strong>Payment Confirmed!</strong><br>Your <strong>${service.name}</strong> subscription is now active.`, 'success'),
+      detailCard('Subscription Details', [
+        { label: 'Plan', value: service.name },
+        { label: 'Renewal Date', value: formattedRenewal },
+      ]),
+      paragraph(`<strong>What's Next?</strong><br>${nextSteps}`),
+      ctaButton('Go to Dashboard', `${APP_BASE_URL}/dashboard`),
+      signOff(),
+    ].join('');
+
+    const html = wrapInLayout({
+      content,
+      preheader: `Your ${service.name} subscription is now active!`,
+    });
+
+    const result = await sendEmail({
+      from: EMAIL_FROM_BILLING,
+      to: profile.email,
+      subject: `Welcome to ${service.name} -- Payment Confirmed!`,
+      html,
+    });
+
+    if (!result.success) {
+      console.log(JSON.stringify({ fn: "verify-payment", step: "confirmation_email_error", requestId, ok: false, error: result.error }));
+      return;
+    }
 
     console.log(JSON.stringify({ fn: "verify-payment", step: "confirmation_email_sent", requestId, ok: true }));
   } catch (error) {
