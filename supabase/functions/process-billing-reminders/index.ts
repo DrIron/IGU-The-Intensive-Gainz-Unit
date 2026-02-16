@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { APP_BASE_URL, EMAIL_FROM } from '../_shared/config.ts';
+import { APP_BASE_URL, EMAIL_FROM_BILLING } from '../_shared/config.ts';
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, ctaButton, alertBox, detailCard, banner, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -9,7 +12,7 @@ const corsHeaders = {
 
 /**
  * Process billing reminders for manual renewal subscriptions.
- * 
+ *
  * Sends reminders at:
  * - 7 days before due
  * - 3 days before due
@@ -17,7 +20,7 @@ const corsHeaders = {
  * - 1 day past due (past due notice)
  * - 3 days past due (urgent warning)
  * - 7 days past due (final warning before lock)
- * 
+ *
  * Also handles:
  * - Setting subscriptions to past_due status when next_billing_date passes
  * - Setting subscriptions to inactive after grace period expires
@@ -52,7 +55,6 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
     const now = new Date();
@@ -97,7 +99,7 @@ serve(async (req) => {
         // Handle Supabase join results (may be object or array)
         const profileData = Array.isArray(sub.profiles) ? sub.profiles[0] : sub.profiles;
         const serviceData = Array.isArray(sub.services) ? sub.services[0] : sub.services;
-        
+
         if (!profileData?.email) continue;
 
         const nextBillingDate = new Date(sub.next_billing_date!);
@@ -111,22 +113,21 @@ serve(async (req) => {
         // CRITICAL: Profile status remains 'active' during grace period (soft lock)
         if (sub.status === 'active' && daysUntilDue < 0) {
           console.log(`Marking subscription ${sub.id} as past_due (Day 0 - grace period starts)`);
-          
+
           // Update ONLY subscription status to past_due
           // Profile remains active for soft lock (allows viewing content)
           await supabase
             .from('subscriptions')
-            .update({ 
+            .update({
               status: 'past_due',
               past_due_since: now.toISOString(),
             })
             .eq('id', sub.id);
 
           results.marked_past_due++;
-          
+
           // Send past due notification (day 1)
           await sendPastDueEmail(
-            resendApiKey!,
             profileData.email,
             fullName,
             serviceName,
@@ -134,7 +135,7 @@ serve(async (req) => {
             1,
             gracePeriodDays
           );
-          
+
           await logEmailNotification(supabase, profileData.id, 'billing_past_due_1', 'sent');
           results.past_due_1_day++;
           continue;
@@ -148,7 +149,7 @@ serve(async (req) => {
           // Check if grace period has expired (Day 8+ - hard lock)
           if (daysPastDue >= gracePeriodDays) {
             console.log(`Grace period expired for subscription ${sub.id}, marking BOTH subscription AND profile inactive (hard lock)`);
-            
+
             // CRITICAL: Now set BOTH subscription AND profile to inactive (hard lock)
             await supabase
               .from('subscriptions')
@@ -162,7 +163,6 @@ serve(async (req) => {
 
             // Send account locked email
             await sendAccountLockedEmail(
-              resendApiKey!,
               profileData.email,
               fullName,
               serviceName
@@ -179,12 +179,12 @@ serve(async (req) => {
 
           if (!alreadySent) {
             if (daysPastDue === 3) {
-              await sendPastDueEmail(resendApiKey!, profileData.email, fullName, serviceName, amount, 3, gracePeriodDays);
+              await sendPastDueEmail(profileData.email, fullName, serviceName, amount, 3, gracePeriodDays);
               await logEmailNotification(supabase, profileData.id, 'billing_past_due_3', 'sent');
               results.past_due_3_days++;
             } else if (daysPastDue === gracePeriodDays - 1) {
               // Final warning (1 day before lock)
-              await sendFinalWarningEmail(resendApiKey!, profileData.email, fullName, serviceName, amount);
+              await sendFinalWarningEmail(profileData.email, fullName, serviceName, amount);
               await logEmailNotification(supabase, profileData.id, 'billing_final_warning', 'sent');
               results.past_due_7_days++;
             }
@@ -213,7 +213,6 @@ serve(async (req) => {
 
             if (!alreadySent) {
               await sendUpcomingPaymentEmail(
-                resendApiKey!,
                 profileData.email,
                 fullName,
                 serviceName,
@@ -257,7 +256,7 @@ async function checkRecentNotification(
   hoursAgo: number
 ): Promise<boolean> {
   const cutoff = new Date(Date.now() - hoursAgo * 60 * 60 * 1000).toISOString();
-  
+
   const { data } = await supabase
     .from('email_notifications')
     .select('id')
@@ -290,7 +289,6 @@ async function logEmailNotification(
 
 // Email: Upcoming payment reminder
 async function sendUpcomingPaymentEmail(
-  apiKey: string,
   email: string,
   name: string,
   serviceName: string,
@@ -300,70 +298,50 @@ async function sendUpcomingPaymentEmail(
 ): Promise<void> {
   const payUrl = `${APP_BASE_URL}/billing/pay`;
   const isUrgent = daysUntilDue <= 1;
-  const dueDateStr = dueDate.toLocaleDateString('en-US', { 
-    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' 
+  const dueDateStr = dueDate.toLocaleDateString('en-US', {
+    weekday: 'long', month: 'long', day: 'numeric', year: 'numeric'
   });
 
   const subject = isUrgent
-    ? `⏰ Final Reminder: Payment Due Tomorrow – ${serviceName}`
+    ? `Payment Due Tomorrow -- ${serviceName}`
     : `Payment Reminder: ${serviceName} due in ${daysUntilDue} days`;
 
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-      <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <div style="text-align: center; margin-bottom: 24px;">
-          <h1 style="color: #2d3748; font-size: 26px; margin: 0 0 8px 0;">
-            ${isUrgent ? '⏰ Payment Due Tomorrow!' : '📅 Upcoming Payment'}
-          </h1>
-        </div>
-        
-        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-          Hi ${name},
-        </p>
-        
-        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-          ${isUrgent 
-            ? `This is a reminder that your payment for <strong>${serviceName}</strong> is due tomorrow.`
-            : `Your next payment for <strong>${serviceName}</strong> is coming up in ${daysUntilDue} days.`
-          }
-        </p>
-        
-        <div style="background: ${isUrgent ? '#FEF3CD' : '#E8F4FD'}; border-radius: 8px; padding: 20px; margin: 24px 0;">
-          <p style="color: ${isUrgent ? '#856404' : '#1E40AF'}; font-size: 16px; margin: 0 0 8px 0;">
-            <strong>Payment Details</strong>
-          </p>
-          <p style="color: #4a5568; font-size: 14px; margin: 4px 0;">Plan: ${serviceName}</p>
-          <p style="color: #4a5568; font-size: 14px; margin: 4px 0;">Amount: <strong>${amount} KWD</strong></p>
-          <p style="color: #4a5568; font-size: 14px; margin: 4px 0;">Due Date: ${dueDateStr}</p>
-        </div>
-        
-        <div style="text-align: center; margin: 32px 0;">
-          <a href="${payUrl}" 
-             style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-            Pay Now →
-          </a>
-        </div>
-        
-        <p style="color: #718096; font-size: 14px; text-align: center;">
-          Pay early to ensure uninterrupted access to your coaching services.
-        </p>
-        
-        <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px;">
-          <p style="color: #4a5568; font-size: 16px; margin: 0;">
-            Best regards,<br>
-            <strong style="color: #2d3748;">The IGU Team</strong>
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
+  const preheader = isUrgent
+    ? `Your payment for ${serviceName} is due tomorrow.`
+    : `Your payment for ${serviceName} is due in ${daysUntilDue} days.`;
 
-  await sendEmail(apiKey, email, subject, html);
+  const content = [
+    greeting(name),
+    paragraph(isUrgent
+      ? `This is a reminder that your payment for <strong>${serviceName}</strong> is due tomorrow.`
+      : `Your next payment for <strong>${serviceName}</strong> is coming up in ${daysUntilDue} days.`
+    ),
+    detailCard('Payment Details', [
+      { label: 'Plan', value: serviceName },
+      { label: 'Amount', value: `${amount} KWD` },
+      { label: 'Due Date', value: dueDateStr },
+    ]),
+    ctaButton('Pay Now', payUrl),
+    paragraph('Pay early to ensure uninterrupted access to your coaching services.'),
+    signOff(),
+  ].join('');
+
+  const html = wrapInLayout({ content, preheader });
+
+  const result = await sendEmail({
+    from: EMAIL_FROM_BILLING,
+    to: email,
+    subject,
+    html,
+  });
+
+  if (result.success) {
+    console.log(`Email sent successfully to ${email}: ${subject}`);
+  }
 }
 
 // Email: Past due notice
 async function sendPastDueEmail(
-  apiKey: string,
   email: string,
   name: string,
   serviceName: string,
@@ -375,62 +353,36 @@ async function sendPastDueEmail(
   const daysRemaining = gracePeriodDays - daysPastDue;
 
   const subject = daysPastDue === 1
-    ? `⚠️ Payment Past Due – ${serviceName}`
-    : `🚨 Urgent: Payment ${daysPastDue} Days Overdue – Action Required`;
+    ? `Payment Past Due -- ${serviceName}`
+    : `Urgent: Payment ${daysPastDue} Days Overdue -- Action Required`;
 
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-      <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <div style="text-align: center; margin-bottom: 24px;">
-          <h1 style="color: #DC2626; font-size: 26px; margin: 0 0 8px 0;">
-            ⚠️ Payment Past Due
-          </h1>
-        </div>
-        
-        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-          Hi ${name},
-        </p>
-        
-        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-          Your payment for <strong>${serviceName}</strong> is now <strong>${daysPastDue} ${daysPastDue === 1 ? 'day' : 'days'}</strong> past due.
-        </p>
-        
-        <div style="background: #FEE2E2; border-left: 4px solid #DC2626; border-radius: 4px; padding: 20px; margin: 24px 0;">
-          <p style="color: #991B1B; font-size: 16px; font-weight: bold; margin: 0 0 8px 0;">
-            ${daysRemaining} days remaining to avoid service interruption
-          </p>
-          <p style="color: #991B1B; font-size: 14px; margin: 0;">
-            Amount due: <strong>${amount} KWD</strong>
-          </p>
-        </div>
-        
-        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-          To continue enjoying uninterrupted access to your coaching services, please complete your payment as soon as possible.
-        </p>
-        
-        <div style="text-align: center; margin: 32px 0;">
-          <a href="${payUrl}" 
-             style="display: inline-block; background-color: #DC2626; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);">
-            Pay ${amount} KWD Now →
-          </a>
-        </div>
-        
-        <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px;">
-          <p style="color: #4a5568; font-size: 16px; margin: 0;">
-            Best regards,<br>
-            <strong style="color: #2d3748;">The IGU Team</strong>
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
+  const preheader = `Your payment for ${serviceName} is ${daysPastDue} ${daysPastDue === 1 ? 'day' : 'days'} past due. ${daysRemaining} days remaining.`;
 
-  await sendEmail(apiKey, email, subject, html);
+  const content = [
+    greeting(name),
+    paragraph(`Your payment for <strong>${serviceName}</strong> is now <strong>${daysPastDue} ${daysPastDue === 1 ? 'day' : 'days'}</strong> past due.`),
+    alertBox(`${daysRemaining} days remaining to avoid service interruption. Amount due: <strong>${amount} KWD</strong>`, 'error'),
+    paragraph('To continue enjoying uninterrupted access to your coaching services, please complete your payment as soon as possible.'),
+    ctaButton(`Pay ${amount} KWD Now`, payUrl, 'danger'),
+    signOff(),
+  ].join('');
+
+  const html = wrapInLayout({ content, preheader });
+
+  const result = await sendEmail({
+    from: EMAIL_FROM_BILLING,
+    to: email,
+    subject,
+    html,
+  });
+
+  if (result.success) {
+    console.log(`Email sent successfully to ${email}: ${subject}`);
+  }
 }
 
 // Email: Final warning before lock
 async function sendFinalWarningEmail(
-  apiKey: string,
   email: string,
   name: string,
   serviceName: string,
@@ -438,74 +390,43 @@ async function sendFinalWarningEmail(
 ): Promise<void> {
   const payUrl = `${APP_BASE_URL}/billing/pay`;
 
-  const subject = `🚨 FINAL WARNING: Your ${serviceName} access will be suspended tomorrow`;
+  const subject = `FINAL WARNING: Your ${serviceName} access will be suspended tomorrow`;
 
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-      <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); border-top: 4px solid #DC2626;">
-        <div style="text-align: center; margin-bottom: 24px;">
-          <h1 style="color: #DC2626; font-size: 26px; margin: 0 0 8px 0;">
-            🚨 FINAL WARNING
-          </h1>
-          <p style="color: #DC2626; font-size: 18px; margin: 0;">
-            Your access will be suspended tomorrow
-          </p>
-        </div>
-        
-        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-          Hi ${name},
-        </p>
-        
-        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-          This is your <strong>final warning</strong>. Your payment for <strong>${serviceName}</strong> is significantly overdue, and your access will be <strong>suspended tomorrow</strong> unless payment is received.
-        </p>
-        
-        <div style="background: #7F1D1D; border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
-          <p style="color: white; font-size: 20px; font-weight: bold; margin: 0 0 8px 0;">
-            PAY NOW TO AVOID SUSPENSION
-          </p>
-          <p style="color: rgba(255,255,255,0.9); font-size: 16px; margin: 0;">
-            Amount due: ${amount} KWD
-          </p>
-        </div>
-        
-        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-          Once suspended, you will lose access to:
-        </p>
-        <ul style="color: #4a5568; font-size: 14px; line-height: 1.8;">
-          <li>Your personalized nutrition plans</li>
-          <li>Workout library access</li>
-          <li>Coach messaging</li>
-          <li>All premium features</li>
-        </ul>
-        
-        <div style="text-align: center; margin: 32px 0;">
-          <a href="${payUrl}" 
-             style="display: inline-block; background-color: #DC2626; color: white; padding: 16px 40px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 18px; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);">
-            Pay ${amount} KWD Now →
-          </a>
-        </div>
-        
-        <p style="color: #718096; font-size: 14px; text-align: center;">
-          Questions? Reply to this email or contact support@theigu.com
-        </p>
-        
-        <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px;">
-          <p style="color: #4a5568; font-size: 16px; margin: 0;">
-            Best regards,<br>
-            <strong style="color: #2d3748;">The IGU Team</strong>
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
+  const preheader = `This is your final warning -- your access will be suspended tomorrow unless payment is received.`;
 
-  await sendEmail(apiKey, email, subject, html);
+  const content = [
+    banner('FINAL WARNING', 'Your access will be suspended tomorrow'),
+    greeting(name),
+    paragraph(`This is your <strong>final warning</strong>. Your payment for <strong>${serviceName}</strong> is significantly overdue, and your access will be <strong>suspended tomorrow</strong> unless payment is received.`),
+    alertBox(`PAY NOW TO AVOID SUSPENSION -- Amount due: ${amount} KWD`, 'error'),
+    paragraph('Once suspended, you will lose access to:'),
+    `<ul style="color: #4a5568; font-size: 15px; line-height: 1.8; margin: 0 0 16px 0; padding-left: 20px;">
+      <li>Your personalized nutrition plans</li>
+      <li>Workout library access</li>
+      <li>Coach messaging</li>
+      <li>All premium features</li>
+    </ul>`,
+    ctaButton(`Pay ${amount} KWD Now`, payUrl, 'danger'),
+    paragraph('Questions? Contact us at support@theigu.com'),
+    signOff(),
+  ].join('');
+
+  const html = wrapInLayout({ content, preheader });
+
+  const result = await sendEmail({
+    from: EMAIL_FROM_BILLING,
+    to: email,
+    subject,
+    html,
+  });
+
+  if (result.success) {
+    console.log(`Email sent successfully to ${email}: ${subject}`);
+  }
 }
 
 // Email: Account locked
 async function sendAccountLockedEmail(
-  apiKey: string,
   email: string,
   name: string,
   serviceName: string
@@ -514,87 +435,27 @@ async function sendAccountLockedEmail(
 
   const subject = `Your ${serviceName} subscription has been suspended`;
 
-  const html = `
-    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-      <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-        <div style="text-align: center; margin-bottom: 24px;">
-          <h1 style="color: #4a5568; font-size: 26px; margin: 0 0 8px 0;">
-            Subscription Suspended
-          </h1>
-        </div>
-        
-        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-          Hi ${name},
-        </p>
-        
-        <p style="color: #4a5568; font-size: 16px; line-height: 1.6;">
-          Your <strong>${serviceName}</strong> subscription has been suspended due to non-payment. Your access to coaching features has been temporarily disabled.
-        </p>
-        
-        <div style="background: #F3F4F6; border-radius: 8px; padding: 20px; margin: 24px 0;">
-          <p style="color: #4a5568; font-size: 16px; margin: 0 0 8px 0;">
-            <strong>Want to reactivate?</strong>
-          </p>
-          <p style="color: #6B7280; font-size: 14px; margin: 0;">
-            You can restore your access at any time by completing your payment. All your data and progress will be preserved.
-          </p>
-        </div>
-        
-        <div style="text-align: center; margin: 32px 0;">
-          <a href="${payUrl}" 
-             style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-            Reactivate My Account →
-          </a>
-        </div>
-        
-        <p style="color: #718096; font-size: 14px; text-align: center;">
-          Questions? Contact us at support@theigu.com
-        </p>
-        
-        <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px;">
-          <p style="color: #4a5568; font-size: 16px; margin: 0;">
-            Best regards,<br>
-            <strong style="color: #2d3748;">The IGU Team</strong>
-          </p>
-        </div>
-      </div>
-    </div>
-  `;
+  const preheader = `Your ${serviceName} subscription has been suspended due to non-payment.`;
 
-  await sendEmail(apiKey, email, subject, html);
-}
+  const content = [
+    greeting(name),
+    paragraph(`Your <strong>${serviceName}</strong> subscription has been suspended due to non-payment. Your access to coaching features has been temporarily disabled.`),
+    alertBox('<strong>Want to reactivate?</strong> You can restore your access at any time by completing your payment. All your data and progress will be preserved.', 'info'),
+    ctaButton('Reactivate My Account', payUrl),
+    paragraph('Questions? Contact us at support@theigu.com'),
+    signOff(),
+  ].join('');
 
-// Helper: Send email via Resend
-async function sendEmail(apiKey: string, to: string, subject: string, html: string): Promise<void> {
-  if (!apiKey) {
-    console.log(`[DRY RUN] Would send email to ${to}: ${subject}`);
-    return;
-  }
+  const html = wrapInLayout({ content, preheader });
 
-  try {
-    const response = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: EMAIL_FROM,
-        to: [to],
-        subject,
-        html,
-      }),
-    });
+  const result = await sendEmail({
+    from: EMAIL_FROM_BILLING,
+    to: email,
+    subject,
+    html,
+  });
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Failed to send email to ${to}:`, errorText);
-      throw new Error(`Email send failed: ${errorText}`);
-    }
-
-    console.log(`Email sent successfully to ${to}: ${subject}`);
-  } catch (error) {
-    console.error('Error sending email:', error);
-    // Don't throw - emails are non-blocking per project rules
+  if (result.success) {
+    console.log(`Email sent successfully to ${email}: ${subject}`);
   }
 }
