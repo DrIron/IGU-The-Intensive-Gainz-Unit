@@ -1,6 +1,10 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 import { z } from 'https://deno.land/x/zod@v3.22.4/mod.ts';
 import { checkRateLimit, rateLimitResponse } from "../_shared/rateLimit.ts";
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, alertBox, orderedList, ctaButton, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
+import { EMAIL_FROM_COACHING, APP_BASE_URL } from '../_shared/config.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -769,53 +773,38 @@ Deno.serve(async (req) => {
     // FLOW 2: MEDICAL REVIEW REQUIRED - notify client
     if (needs_medical_review) {
       try {
-        const resendApiKey = Deno.env.get('RESEND_API_KEY');
-        if (resendApiKey) {
-          await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: 'IGU Coaching <noreply@mail.theigu.com>',
-              to: [validatedData.email],
-              subject: '[IGU] Your application is under medical review',
-              html: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">Your Application is Under Medical Review</h1>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                    Hi ${validatedData.first_name},
-                  </p>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                    Thank you for completing your application for <strong>${validatedData.plan_name}</strong>. Based on your PAR-Q responses, we need to conduct a medical review to ensure your safety and success with our program.
-                  </p>
-                  
-                  <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 30px 0; border-radius: 4px;">
-                    <p style="color: #856404; font-size: 14px; margin: 0; line-height: 1.6;">
-                      <strong>What happens next:</strong><br>
-                      • Our team will review your application and PAR-Q responses<br>
-                      • We may reach out for additional information if needed<br>
-                      • We'll either clear you to proceed or advise you to consult your physician<br>
-                      • You'll receive an email once the review is complete
-                    </p>
-                  </div>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                    This process typically takes 1-2 business days. You can log in at <a href="https://theigu.com" style="color: #667eea;">https://theigu.com</a> to check your application status.
-                  </p>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5;">
-                    Best regards,<br>
-                    <strong>The IGU Team</strong>
-                  </p>
-                </div>
-              `,
-            }),
-          });
+        const medicalReviewContent = [
+          greeting(validatedData.first_name),
+          paragraph(`Thank you for completing your application for <strong>${validatedData.plan_name}</strong>. Based on your PAR-Q responses, we need to conduct a medical review to ensure your safety and success with our program.`),
+          alertBox('<strong>Medical Review Required</strong><br>Our team will review your PAR-Q responses to ensure your safety before proceeding.', 'warning'),
+          paragraph('<strong>What happens next:</strong>'),
+          orderedList([
+            'Our team will review your application and PAR-Q responses',
+            'We may reach out for additional information if needed',
+            'We\'ll either clear you to proceed or advise you to consult your physician',
+            'You\'ll receive an email once the review is complete',
+          ]),
+          paragraph('This process typically takes 1-2 business days. You can check your application status anytime on your dashboard.'),
+          ctaButton('Check Application Status', `${APP_BASE_URL}/dashboard`),
+          signOff(),
+        ].join('');
+
+        const medicalReviewHtml = wrapInLayout({
+          content: medicalReviewContent,
+          preheader: 'Your application is under medical review -- we will be in touch shortly.',
+        });
+
+        const result = await sendEmail({
+          from: EMAIL_FROM_COACHING,
+          to: validatedData.email,
+          subject: 'Your Application is Under Medical Review',
+          html: medicalReviewHtml,
+        });
+
+        if (result.success) {
           await logEmail(user.id, 'medical_review_required', 'sent');
+        } else {
+          await logEmail(user.id, 'medical_review_required', 'failed');
         }
         console.log(JSON.stringify({ fn: "submit-onboarding", step: "email_medical_review_client", ok: true }));
       } catch (emailError) {
@@ -843,53 +832,38 @@ Deno.serve(async (req) => {
     // FLOW 1: 1:1 APPLICATION RECEIVED - notify client
     if (isOneToOne && !needs_medical_review && newStatus === 'pending_coach_approval') {
       try {
-        const resendApiKey = Deno.env.get('RESEND_API_KEY');
-        if (resendApiKey) {
-          await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: 'IGU Coaching <noreply@mail.theigu.com>',
-              to: [validatedData.email],
-              subject: '[IGU] We\'ve received your 1:1 coaching application',
-              html: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">Application Received!</h1>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                    Hi ${validatedData.first_name},
-                  </p>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                    Thank you for applying for <strong>${validatedData.plan_name}</strong>! We've received your application and it's now with your assigned coach for review.
-                  </p>
-                  
-                  <div style="background-color: #e8f4f8; border-left: 4px solid #4CAF50; padding: 20px; margin: 30px 0; border-radius: 4px;">
-                    <p style="color: #1c5d7d; font-size: 14px; margin: 0; line-height: 1.6;">
-                      <strong>What's next:</strong><br>
-                      • Your coach will review your application and training goals<br>
-                      • They may reach out if they need any clarifications<br>
-                      • Once approved, you'll receive an email to complete payment<br>
-                      • After payment, your coach will get you started on your program
-                    </p>
-                  </div>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                    You can log in at <a href="https://theigu.com" style="color: #667eea;">https://theigu.com</a> anytime to check your application status.
-                  </p>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5;">
-                    Best regards,<br>
-                    <strong>The IGU Team</strong>
-                  </p>
-                </div>
-              `,
-            }),
-          });
+        const applicationReceivedContent = [
+          greeting(validatedData.first_name),
+          paragraph(`Thank you for applying for <strong>${validatedData.plan_name}</strong>! We've received your application and it's now with your assigned coach for review.`),
+          alertBox('<strong>Application Submitted Successfully</strong><br>Your coach will review your application and reach out shortly.', 'success'),
+          paragraph('<strong>What\'s next:</strong>'),
+          orderedList([
+            'Your coach will review your application and training goals',
+            'They may reach out if they need any clarifications',
+            'Once approved, you\'ll receive an email to complete payment',
+            'After payment, your coach will get you started on your program',
+          ]),
+          paragraph('You can check your application status anytime on your dashboard.'),
+          ctaButton('Check Application Status', `${APP_BASE_URL}/dashboard`),
+          signOff(),
+        ].join('');
+
+        const applicationReceivedHtml = wrapInLayout({
+          content: applicationReceivedContent,
+          preheader: 'Your coaching application has been received -- your coach will review it shortly.',
+        });
+
+        const result = await sendEmail({
+          from: EMAIL_FROM_COACHING,
+          to: validatedData.email,
+          subject: 'We\'ve Received Your Coaching Application',
+          html: applicationReceivedHtml,
+        });
+
+        if (result.success) {
           await logEmail(user.id, 'onboarding_received', 'sent');
+        } else {
+          await logEmail(user.id, 'onboarding_received', 'failed');
         }
         console.log(JSON.stringify({ fn: "submit-onboarding", step: "email_application_received", ok: true }));
       } catch (emailError) {
