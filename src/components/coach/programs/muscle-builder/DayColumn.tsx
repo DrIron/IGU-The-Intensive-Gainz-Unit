@@ -3,7 +3,7 @@ import { Droppable } from "@hello-pangea/dnd";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Copy, ClipboardPaste, Plus } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MuscleSlotCard } from "./MuscleSlotCard";
 import {
@@ -11,6 +11,7 @@ import {
   MUSCLE_GROUPS,
   BODY_REGIONS,
   BODY_REGION_LABELS,
+  SUBDIVISIONS_BY_PARENT,
   type MuscleSlotData,
 } from "@/types/muscle-builder";
 
@@ -46,6 +47,7 @@ export const DayColumn = memo(function DayColumn({
   onSetAllSets,
 }: DayColumnProps) {
   const [addOpen, setAddOpen] = useState(false);
+  const [expandedParent, setExpandedParent] = useState<string | null>(null);
 
   const daySlots = useMemo(
     () => slots.filter(s => s.dayIndex === dayIndex).sort((a, b) => a.sortOrder - b.sortOrder),
@@ -98,7 +100,7 @@ export const DayColumn = memo(function DayColumn({
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent
-                  className="w-48 p-2 max-h-72 overflow-y-auto"
+                  className="w-52 p-2 max-h-80 overflow-y-auto"
                   onClick={e => e.stopPropagation()}
                   align="start"
                 >
@@ -110,19 +112,53 @@ export const DayColumn = memo(function DayColumn({
                           {BODY_REGION_LABELS[region]}
                         </p>
                         <div className="flex flex-col gap-0.5">
-                          {muscles.map(muscle => (
-                            <button
-                              key={muscle.id}
-                              className="flex items-center gap-1.5 px-1.5 py-1 rounded text-xs hover:bg-muted/50 transition-colors text-left"
-                              onClick={() => {
-                                handleAddMuscle(muscle.id);
-                                setAddOpen(false);
-                              }}
-                            >
-                              <div className={`w-2 h-2 rounded-full shrink-0 ${muscle.colorClass}`} />
-                              <span>{muscle.label}</span>
-                            </button>
-                          ))}
+                          {muscles.map(muscle => {
+                            const subs = SUBDIVISIONS_BY_PARENT.get(muscle.id);
+                            const isExpanded = expandedParent === muscle.id;
+                            return (
+                              <div key={muscle.id}>
+                                <div className="flex items-center gap-0.5">
+                                  <button
+                                    className="flex-1 flex items-center gap-1.5 px-1.5 py-1 rounded text-xs hover:bg-muted/50 transition-colors text-left"
+                                    onClick={() => {
+                                      handleAddMuscle(muscle.id);
+                                      setAddOpen(false);
+                                      setExpandedParent(null);
+                                    }}
+                                  >
+                                    <div className={`w-2 h-2 rounded-full shrink-0 ${muscle.colorClass}`} />
+                                    <span>{muscle.label}</span>
+                                  </button>
+                                  {subs && subs.length > 0 && (
+                                    <button
+                                      className="p-0.5 rounded hover:bg-muted/50 transition-colors"
+                                      onClick={() => setExpandedParent(isExpanded ? null : muscle.id)}
+                                    >
+                                      <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />
+                                    </button>
+                                  )}
+                                </div>
+                                {isExpanded && subs && (
+                                  <div className="ml-4 flex flex-col gap-0.5 mt-0.5">
+                                    {subs.map(sub => (
+                                      <button
+                                        key={sub.id}
+                                        className="flex items-center gap-1.5 px-1.5 py-1 rounded text-[11px] hover:bg-muted/50 transition-colors text-left text-muted-foreground"
+                                        onClick={() => {
+                                          handleAddMuscle(sub.id);
+                                          setAddOpen(false);
+                                          setExpandedParent(null);
+                                        }}
+                                      >
+                                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${muscle.colorClass} opacity-70`} />
+                                        <span>{sub.label}</span>
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     );

@@ -78,6 +78,103 @@ export const MUSCLE_GROUPS: MuscleGroupDef[] = [
 
 export const MUSCLE_MAP = new Map(MUSCLE_GROUPS.map(m => [m.id, m]));
 
+// ============================================================
+// Muscle Subdivisions (anatomically specific sub-groups)
+// ============================================================
+
+export interface SubdivisionDef {
+  id: string;        // e.g. 'pecs_clavicular'
+  label: string;     // e.g. 'Clavicular (Upper)'
+  parentId: string;  // e.g. 'pecs'
+}
+
+export const SUBDIVISIONS: SubdivisionDef[] = [
+  // Pecs
+  { id: 'pecs_clavicular', label: 'Clavicular (Upper)', parentId: 'pecs' },
+  { id: 'pecs_sternal', label: 'Sternal (Mid)', parentId: 'pecs' },
+  { id: 'pecs_costal', label: 'Costal (Lower)', parentId: 'pecs' },
+  // Shoulders
+  { id: 'shoulders_anterior', label: 'Anterior Delt', parentId: 'shoulders' },
+  { id: 'shoulders_lateral', label: 'Lateral Delt', parentId: 'shoulders' },
+  { id: 'shoulders_posterior', label: 'Posterior Delt', parentId: 'shoulders' },
+  // Triceps
+  { id: 'triceps_long', label: 'Long Head', parentId: 'triceps' },
+  { id: 'triceps_lateral', label: 'Lateral Head', parentId: 'triceps' },
+  { id: 'triceps_medial', label: 'Medial Head', parentId: 'triceps' },
+  // Lats
+  { id: 'lats_iliac', label: 'Iliac', parentId: 'lats' },
+  { id: 'lats_thoracic', label: 'Thoracic', parentId: 'lats' },
+  { id: 'lats_lumbar', label: 'Lumbar', parentId: 'lats' },
+  // Mid-back
+  { id: 'mid_back_rhomboids', label: 'Rhomboids', parentId: 'mid_back' },
+  { id: 'mid_back_mid_traps', label: 'Middle Trapezius', parentId: 'mid_back' },
+  { id: 'mid_back_low_traps', label: 'Lower Trapezius', parentId: 'mid_back' },
+  // Upper Back
+  { id: 'upper_back_upper_traps', label: 'Upper Trapezius', parentId: 'upper_back' },
+  { id: 'upper_back_teres_major', label: 'Teres Major', parentId: 'upper_back' },
+  // Elbow Flexors
+  { id: 'elbow_flexors_biceps_short', label: 'Biceps Short Head', parentId: 'elbow_flexors' },
+  { id: 'elbow_flexors_biceps_long', label: 'Biceps Long Head', parentId: 'elbow_flexors' },
+  { id: 'elbow_flexors_brachialis', label: 'Brachialis', parentId: 'elbow_flexors' },
+  { id: 'elbow_flexors_brachioradialis', label: 'Brachioradialis', parentId: 'elbow_flexors' },
+  // Forearm
+  { id: 'forearm_flexors', label: 'Wrist Flexors', parentId: 'forearm' },
+  { id: 'forearm_extensors', label: 'Wrist Extensors', parentId: 'forearm' },
+  // Quads
+  { id: 'quads_rectus_femoris', label: 'Rectus Femoris', parentId: 'quads' },
+  { id: 'quads_vastus_lateralis', label: 'Vastus Lateralis', parentId: 'quads' },
+  { id: 'quads_vastus_medialis', label: 'Vastus Medialis', parentId: 'quads' },
+  { id: 'quads_vastus_intermedius', label: 'Vastus Intermedius', parentId: 'quads' },
+  // Glutes
+  { id: 'glutes_max', label: 'Glute Max', parentId: 'glutes' },
+  { id: 'glutes_med', label: 'Glute Med', parentId: 'glutes' },
+  { id: 'glutes_min', label: 'Glute Min', parentId: 'glutes' },
+  // Hip Flexors
+  { id: 'hip_flexors_rec_fem', label: 'Rec Fem', parentId: 'hip_flexors' },
+  { id: 'hip_flexors_sartorius', label: 'Sartorius', parentId: 'hip_flexors' },
+  { id: 'hip_flexors_iliacus', label: 'Iliacus', parentId: 'hip_flexors' },
+  // Core
+  { id: 'core_rectus_abdominis', label: 'Rectus Abdominis', parentId: 'core' },
+  { id: 'core_internal_obliques', label: 'Internal Obliques', parentId: 'core' },
+  { id: 'core_external_obliques', label: 'External Obliques', parentId: 'core' },
+  { id: 'core_transversus', label: 'Transversus Abdominis', parentId: 'core' },
+  { id: 'core_erectors', label: 'Spinal Erectors', parentId: 'core' },
+  { id: 'core_pelvic_floor', label: 'Pelvic Floor', parentId: 'core' },
+  // Neck
+  { id: 'neck_scm', label: 'SCM', parentId: 'neck' },
+  { id: 'neck_upper_traps', label: 'Upper Trapezius', parentId: 'neck' },
+  { id: 'neck_scalenes', label: 'Scalenes', parentId: 'neck' },
+  { id: 'neck_splenius', label: 'Splenius', parentId: 'neck' },
+];
+
+/** Lookup by subdivision ID */
+export const SUBDIVISION_MAP = new Map(SUBDIVISIONS.map(s => [s.id, s]));
+
+/** Parent muscle ID → its subdivisions */
+export const SUBDIVISIONS_BY_PARENT = new Map<string, SubdivisionDef[]>();
+for (const sub of SUBDIVISIONS) {
+  const existing = SUBDIVISIONS_BY_PARENT.get(sub.parentId) || [];
+  existing.push(sub);
+  SUBDIVISIONS_BY_PARENT.set(sub.parentId, existing);
+}
+
+/** Returns parentId if muscleId is a subdivision, or muscleId itself if it's already a parent */
+export function resolveParentMuscleId(muscleId: string): string {
+  const sub = SUBDIVISION_MAP.get(muscleId);
+  return sub ? sub.parentId : muscleId;
+}
+
+/** Unified display lookup — checks MUSCLE_MAP first, then SUBDIVISION_MAP (inherits parent color) */
+export function getMuscleDisplay(muscleId: string): { label: string; colorClass: string; colorHex: string } | null {
+  const parent = MUSCLE_MAP.get(muscleId);
+  if (parent) return { label: parent.label, colorClass: parent.colorClass, colorHex: parent.colorHex };
+  const sub = SUBDIVISION_MAP.get(muscleId);
+  if (!sub) return null;
+  const parentDef = MUSCLE_MAP.get(sub.parentId);
+  if (!parentDef) return null;
+  return { label: sub.label, colorClass: parentDef.colorClass, colorHex: parentDef.colorHex };
+}
+
 export const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 export const BODY_REGION_LABELS: Record<BodyRegion, string> = {
@@ -157,6 +254,7 @@ export interface SystemPreset {
 // ============================================================
 
 export const MUSCLE_TO_EXERCISE_FILTER: Record<string, string[]> = {
+  // Parent groups (unchanged)
   pecs:          ['Chest', 'Upper Chest'],
   shoulders:     ['Shoulders', 'Side Delts', 'Front Delts', 'Rear Delts'],
   triceps:       ['Triceps'],
@@ -174,6 +272,62 @@ export const MUSCLE_TO_EXERCISE_FILTER: Record<string, string[]> = {
   hip_flexors:   ['Hip Flexors', 'Glutes'],
   core:          ['Core', 'Obliques'],
   neck:          ['Traps'],
+  // Pecs subdivisions
+  pecs_clavicular:  ['Upper Chest', 'Chest'],
+  pecs_sternal:     ['Chest'],
+  pecs_costal:      ['Chest'],
+  // Shoulders subdivisions
+  shoulders_anterior:  ['Front Delts', 'Shoulders'],
+  shoulders_lateral:   ['Side Delts', 'Shoulders'],
+  shoulders_posterior: ['Rear Delts'],
+  // Triceps subdivisions
+  triceps_long:    ['Triceps'],
+  triceps_lateral: ['Triceps'],
+  triceps_medial:  ['Triceps'],
+  // Lats subdivisions
+  lats_iliac:    ['Lats'],
+  lats_thoracic: ['Lats'],
+  lats_lumbar:   ['Lats'],
+  // Mid-back subdivisions
+  mid_back_rhomboids:  ['Upper Back'],
+  mid_back_mid_traps:  ['Upper Back', 'Traps'],
+  mid_back_low_traps:  ['Upper Back', 'Traps'],
+  // Upper Back subdivisions
+  upper_back_upper_traps: ['Traps'],
+  upper_back_teres_major: ['Upper Back', 'Lats'],
+  // Elbow Flexors subdivisions
+  elbow_flexors_biceps_short:    ['Biceps'],
+  elbow_flexors_biceps_long:     ['Biceps'],
+  elbow_flexors_brachialis:      ['Brachialis', 'Biceps'],
+  elbow_flexors_brachioradialis: ['Forearms', 'Biceps'],
+  // Forearm subdivisions
+  forearm_flexors:   ['Forearms'],
+  forearm_extensors: ['Forearms'],
+  // Quads subdivisions
+  quads_rectus_femoris:    ['Quadriceps'],
+  quads_vastus_lateralis:  ['Quadriceps'],
+  quads_vastus_medialis:   ['Quadriceps'],
+  quads_vastus_intermedius: ['Quadriceps'],
+  // Glutes subdivisions
+  glutes_max: ['Glutes'],
+  glutes_med: ['Glutes'],
+  glutes_min: ['Glutes'],
+  // Hip Flexors subdivisions
+  hip_flexors_rec_fem:   ['Hip Flexors', 'Quadriceps'],
+  hip_flexors_sartorius: ['Hip Flexors'],
+  hip_flexors_iliacus:   ['Hip Flexors'],
+  // Core subdivisions
+  core_rectus_abdominis:  ['Core'],
+  core_internal_obliques: ['Obliques', 'Core'],
+  core_external_obliques: ['Obliques', 'Core'],
+  core_transversus:       ['Core'],
+  core_erectors:          ['Core'],
+  core_pelvic_floor:      ['Core'],
+  // Neck subdivisions
+  neck_scm:         ['Traps'],
+  neck_upper_traps: ['Traps'],
+  neck_scalenes:    ['Traps'],
+  neck_splenius:    ['Traps'],
 };
 
 export const SYSTEM_PRESETS: SystemPreset[] = [

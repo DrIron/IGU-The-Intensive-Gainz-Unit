@@ -23,7 +23,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tables, Enums } from "@/integrations/supabase/types";
-import { MUSCLE_TO_EXERCISE_FILTER, MUSCLE_MAP } from "@/types/muscle-builder";
+import { MUSCLE_TO_EXERCISE_FILTER, getMuscleDisplay } from "@/types/muscle-builder";
 
 type Exercise = Tables<"exercise_library">;
 
@@ -57,7 +57,7 @@ export function ExercisePickerDialog({
   const [muscleFilterActive, setMuscleFilterActive] = useState(true);
   const { toast } = useToast();
 
-  const muscleLabel = sourceMuscleId ? MUSCLE_MAP.get(sourceMuscleId)?.label : null;
+  const muscleLabel = sourceMuscleId ? getMuscleDisplay(sourceMuscleId)?.label : null;
   const muscleFilterValues = sourceMuscleId ? MUSCLE_TO_EXERCISE_FILTER[sourceMuscleId] : null;
 
   const loadExercises = useCallback(async () => {

@@ -33,7 +33,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { MUSCLE_MAP, type MuscleSlotData } from "@/types/muscle-builder";
+import { getMuscleDisplay, type MuscleSlotData } from "@/types/muscle-builder";
 
 interface MusclePlan {
   id: string;
@@ -221,7 +221,7 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
             const topMuscles = [...muscleCounts.entries()]
               .sort((a, b) => b[1] - a[1])
               .slice(0, 4)
-              .map(([id]) => MUSCLE_MAP.get(id));
+              .map(([id]) => getMuscleDisplay(id));
 
             return (
               <Card key={plan.id} className="group hover:shadow-md transition-shadow">

@@ -2,11 +2,19 @@ import { useMemo } from "react";
 import {
   MUSCLE_GROUPS,
   MUSCLE_MAP,
+  getMuscleDisplay,
+  resolveParentMuscleId,
   getVolumeLandmarkZone,
   type MuscleSlotData,
   type LandmarkZone,
   type MuscleGroupDef,
 } from "@/types/muscle-builder";
+
+export interface SubdivisionVolume {
+  muscleId: string;
+  label: string;
+  sets: number;
+}
 
 export interface MuscleVolumeEntry {
   muscle: MuscleGroupDef;
@@ -14,6 +22,7 @@ export interface MuscleVolumeEntry {
   frequency: number;
   zone: LandmarkZone;
   dayBreakdown: { dayIndex: number; sets: number }[];
+  subdivisionBreakdown: SubdivisionVolume[];
 }
 
 export interface VolumeSummary {
@@ -24,29 +33,42 @@ export interface VolumeSummary {
 }
 
 export function useMusclePlanVolume(slots: MuscleSlotData[]) {
+  // Volume entries — aggregate subdivisions to parent level
   const volumeEntries = useMemo<MuscleVolumeEntry[]>(() => {
-    const map = new Map<string, { totalSets: number; days: Map<number, number> }>();
+    const map = new Map<string, { totalSets: number; days: Map<number, number>; subs: Map<string, number> }>();
 
     for (const slot of slots) {
-      let entry = map.get(slot.muscleId);
+      const parentId = resolveParentMuscleId(slot.muscleId);
+      let entry = map.get(parentId);
       if (!entry) {
-        entry = { totalSets: 0, days: new Map() };
-        map.set(slot.muscleId, entry);
+        entry = { totalSets: 0, days: new Map(), subs: new Map() };
+        map.set(parentId, entry);
       }
       entry.totalSets += slot.sets;
       entry.days.set(slot.dayIndex, (entry.days.get(slot.dayIndex) || 0) + slot.sets);
+      // Track subdivision-level sets (only if slot is a subdivision)
+      if (parentId !== slot.muscleId) {
+        entry.subs.set(slot.muscleId, (entry.subs.get(slot.muscleId) || 0) + slot.sets);
+      }
     }
 
     const entries: MuscleVolumeEntry[] = [];
     for (const muscle of MUSCLE_GROUPS) {
       const data = map.get(muscle.id);
       if (!data) continue;
+      const subdivisionBreakdown: SubdivisionVolume[] = [];
+      for (const [subId, sets] of data.subs) {
+        const display = getMuscleDisplay(subId);
+        if (display) subdivisionBreakdown.push({ muscleId: subId, label: display.label, sets });
+      }
+      subdivisionBreakdown.sort((a, b) => b.sets - a.sets);
       entries.push({
         muscle,
         totalSets: data.totalSets,
         frequency: data.days.size,
         zone: getVolumeLandmarkZone(data.totalSets, muscle.landmarks),
         dayBreakdown: Array.from(data.days.entries()).map(([dayIndex, sets]) => ({ dayIndex, sets })),
+        subdivisionBreakdown,
       });
     }
 
@@ -65,39 +87,47 @@ export function useMusclePlanVolume(slots: MuscleSlotData[]) {
     };
   }, [slots, volumeEntries]);
 
-  // Frequency heatmap: muscle × day matrix
+  // Frequency heatmap — aggregate by parent for the matrix
   const frequencyMatrix = useMemo(() => {
     const matrix = new Map<string, Map<number, number>>();
     for (const slot of slots) {
-      let row = matrix.get(slot.muscleId);
+      const parentId = resolveParentMuscleId(slot.muscleId);
+      let row = matrix.get(parentId);
       if (!row) {
         row = new Map();
-        matrix.set(slot.muscleId, row);
+        matrix.set(parentId, row);
       }
       row.set(slot.dayIndex, (row.get(slot.dayIndex) || 0) + slot.sets);
     }
     return matrix;
   }, [slots]);
 
-  // Muscle placement counts (for palette badges)
+  // Placement counts — track both raw muscle IDs and parent IDs for palette badges
   const placementCounts = useMemo(() => {
     const counts = new Map<string, number>();
     for (const slot of slots) {
+      // Count the exact ID (parent or subdivision)
       counts.set(slot.muscleId, (counts.get(slot.muscleId) || 0) + 1);
+      // Also count at parent level if this is a subdivision
+      const parentId = resolveParentMuscleId(slot.muscleId);
+      if (parentId !== slot.muscleId) {
+        counts.set(parentId, (counts.get(parentId) || 0) + 1);
+      }
     }
     return counts;
   }, [slots]);
 
-  // Consecutive day warnings
+  // Consecutive day warnings — aggregate by parent
   const consecutiveDayWarnings = useMemo(() => {
     const warnings = new Set<string>();
     const musclesByDay = new Map<string, Set<number>>();
 
     for (const slot of slots) {
-      let days = musclesByDay.get(slot.muscleId);
+      const parentId = resolveParentMuscleId(slot.muscleId);
+      let days = musclesByDay.get(parentId);
       if (!days) {
         days = new Set();
-        musclesByDay.set(slot.muscleId, days);
+        musclesByDay.set(parentId, days);
       }
       days.add(slot.dayIndex);
     }
@@ -106,7 +136,7 @@ export function useMusclePlanVolume(slots: MuscleSlotData[]) {
       const sorted = Array.from(days).sort((a, b) => a - b);
       for (let i = 0; i < sorted.length - 1; i++) {
         if (sorted[i + 1] - sorted[i] === 1) {
-          const muscle = MUSCLE_MAP.get(muscleId);
+          const muscle = getMuscleDisplay(muscleId);
           if (muscle) {
             warnings.add(`${muscle.label} on consecutive days (${sorted[i]} & ${sorted[i + 1]})`);
           }

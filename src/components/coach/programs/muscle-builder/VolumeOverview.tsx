@@ -108,6 +108,15 @@ export const VolumeOverview = memo(function VolumeOverview({
                     <p className="font-medium">{entry.muscle.label}: {entry.totalSets} sets/week</p>
                     <p>MV: {entry.muscle.landmarks.MV} | MEV: {entry.muscle.landmarks.MEV} | MAV: {entry.muscle.landmarks.MAV} | MRV: {entry.muscle.landmarks.MRV}</p>
                     <p>Frequency: {entry.frequency}× per week</p>
+                    {entry.subdivisionBreakdown.length > 0 && (
+                      <div className="pt-1 mt-1 border-t border-border/30">
+                        {entry.subdivisionBreakdown.map(sub => (
+                          <p key={sub.muscleId} className="text-muted-foreground">
+                            {sub.label}: {sub.sets} sets
+                          </p>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 </TooltipContent>
               </Tooltip>

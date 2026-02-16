@@ -12,7 +12,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { ExerciseCardV2 } from "./ExerciseCardV2";
 import { WarmupSection } from "./WarmupSection";
 import { ExercisePickerDialog } from "./ExercisePickerDialog";
-import { MUSCLE_MAP } from "@/types/muscle-builder";
+import { getMuscleDisplay } from "@/types/muscle-builder";
 import {
   ColumnConfig,
   EnhancedExerciseDisplayV2,
@@ -497,7 +497,7 @@ export function EnhancedModuleExerciseEditor({
             {sectionExercises.length === 0 && (
               <div className="text-center py-4 text-sm text-muted-foreground">
                 {sourceMuscleId && section.value === "main"
-                  ? `No exercises yet. Click "Add Exercise" to browse ${MUSCLE_MAP.get(sourceMuscleId)?.label || sourceMuscleId} exercises.`
+                  ? `No exercises yet. Click "Add Exercise" to browse ${getMuscleDisplay(sourceMuscleId)?.label || sourceMuscleId} exercises.`
                   : `No exercises in ${section.label.toLowerCase()}. Drag exercises here or add new ones.`}
               </div>
             )}

@@ -11,7 +11,7 @@ import {
 import { Loader2, Sparkles, User } from "lucide-react";
 import {
   SYSTEM_PRESETS,
-  MUSCLE_MAP,
+  getMuscleDisplay,
   DAYS_OF_WEEK,
   type MuscleSlotData,
 } from "@/types/muscle-builder";
@@ -181,7 +181,7 @@ function MiniPresetPreview({ slots }: { slots: MuscleSlotData[] }) {
                   <span className="text-[9px] text-muted-foreground/40">-</span>
                 ) : (
                   daySlots.map(slot => {
-                    const muscle = MUSCLE_MAP.get(slot.muscleId);
+                    const muscle = getMuscleDisplay(slot.muscleId);
                     return (
                       <div
                         key={slot.muscleId}

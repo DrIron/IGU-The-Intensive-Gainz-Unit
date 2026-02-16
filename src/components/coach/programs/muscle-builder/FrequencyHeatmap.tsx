@@ -3,8 +3,8 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle } from "lucide-react";
 import {
   MUSCLE_GROUPS,
-  MUSCLE_MAP,
   DAYS_OF_WEEK,
+  getMuscleDisplay,
   type MuscleSlotData,
 } from "@/types/muscle-builder";
 

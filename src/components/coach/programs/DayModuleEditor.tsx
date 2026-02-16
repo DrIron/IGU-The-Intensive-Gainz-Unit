@@ -25,7 +25,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { EnhancedModuleExerciseEditor } from "./EnhancedModuleExerciseEditor";
 import { Tables, Enums } from "@/integrations/supabase/types";
-import { MUSCLE_MAP } from "@/types/muscle-builder";
+import { getMuscleDisplay } from "@/types/muscle-builder";
 
 type DayModule = Tables<"day_modules">;
 
@@ -264,7 +264,7 @@ export function DayModuleEditor({
                         {module.module_type}
                       </Badge>
                       {module.source_muscle_id && (() => {
-                        const muscle = MUSCLE_MAP.get(module.source_muscle_id);
+                        const muscle = getMuscleDisplay(module.source_muscle_id);
                         return muscle ? (
                           <Badge
                             className="text-xs text-white"

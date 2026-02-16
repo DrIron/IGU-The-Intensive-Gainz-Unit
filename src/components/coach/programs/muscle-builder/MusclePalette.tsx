@@ -11,6 +11,9 @@ import { Search } from "lucide-react";
 import { DraggableMuscleChip } from "./DraggableMuscleChip";
 import {
   MUSCLE_GROUPS,
+  MUSCLE_MAP,
+  SUBDIVISIONS,
+  SUBDIVISIONS_BY_PARENT,
   BODY_REGIONS,
   BODY_REGION_LABELS,
   type BodyRegion,
@@ -20,15 +23,34 @@ interface MusclePaletteProps {
   placementCounts: Map<string, number>;
 }
 
+// Build a flat ordered list of all chips (parents + subdivisions) for DnD indexing
+const ALL_PALETTE_ITEMS: { id: string; parentId?: string }[] = [];
+for (const m of MUSCLE_GROUPS) {
+  ALL_PALETTE_ITEMS.push({ id: m.id });
+  const subs = SUBDIVISIONS_BY_PARENT.get(m.id);
+  if (subs) {
+    for (const s of subs) {
+      ALL_PALETTE_ITEMS.push({ id: s.id, parentId: s.parentId });
+    }
+  }
+}
+const PALETTE_INDEX = new Map(ALL_PALETTE_ITEMS.map((item, i) => [item.id, i]));
+
 export const MusclePalette = memo(function MusclePalette({ placementCounts }: MusclePaletteProps) {
   const [search, setSearch] = useState("");
 
-  const filteredGroups = useMemo(() => {
+  const filteredItems = useMemo(() => {
     if (!search.trim()) return null;
     const q = search.toLowerCase();
-    return MUSCLE_GROUPS.filter(
+    // Search parents
+    const matchedParents = MUSCLE_GROUPS.filter(
       m => m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q)
     );
+    // Search subdivisions
+    const matchedSubs = SUBDIVISIONS.filter(
+      s => s.label.toLowerCase().includes(q) || s.id.toLowerCase().includes(q)
+    );
+    return { parents: matchedParents, subs: matchedSubs };
   }, [search]);
 
   const musclesByRegion = useMemo(() => {
@@ -58,21 +80,31 @@ export const MusclePalette = memo(function MusclePalette({ placementCounts }: Mu
       <Droppable droppableId="palette" isDropDisabled={true} type="MUSCLE_SLOT">
         {(provided) => (
           <div ref={provided.innerRef} {...provided.droppableProps}>
-            {filteredGroups ? (
-              // Search results — flat list
+            {filteredItems ? (
+              // Search results — flat list of matching parents + subdivisions
               <div className="flex flex-wrap gap-1.5">
-                {filteredGroups.map((muscle) => {
-                  const idx = MUSCLE_GROUPS.indexOf(muscle);
+                {filteredItems.parents.map((muscle) => (
+                  <DraggableMuscleChip
+                    key={muscle.id}
+                    muscle={muscle}
+                    index={PALETTE_INDEX.get(muscle.id)!}
+                    placementCount={placementCounts.get(muscle.id) || 0}
+                  />
+                ))}
+                {filteredItems.subs.map((sub) => {
+                  const parent = MUSCLE_MAP.get(sub.parentId);
+                  if (!parent) return null;
                   return (
                     <DraggableMuscleChip
-                      key={muscle.id}
-                      muscle={muscle}
-                      index={idx}
-                      placementCount={placementCounts.get(muscle.id) || 0}
+                      key={sub.id}
+                      muscle={{ id: sub.id, label: sub.label, colorClass: parent.colorClass, colorHex: parent.colorHex }}
+                      index={PALETTE_INDEX.get(sub.id)!}
+                      placementCount={placementCounts.get(sub.id) || 0}
+                      isSubdivision
                     />
                   );
                 })}
-                {filteredGroups.length === 0 && (
+                {filteredItems.parents.length === 0 && filteredItems.subs.length === 0 && (
                   <p className="text-xs text-muted-foreground py-2">No muscles match "{search}"</p>
                 )}
               </div>
@@ -90,16 +122,32 @@ export const MusclePalette = memo(function MusclePalette({ placementCounts }: Mu
                         </span>
                       </AccordionTrigger>
                       <AccordionContent className="pb-2">
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="space-y-1">
                           {muscles.map(muscle => {
-                            const idx = MUSCLE_GROUPS.indexOf(muscle);
+                            const subs = SUBDIVISIONS_BY_PARENT.get(muscle.id);
                             return (
-                              <DraggableMuscleChip
-                                key={muscle.id}
-                                muscle={muscle}
-                                index={idx}
-                                placementCount={placementCounts.get(muscle.id) || 0}
-                              />
+                              <div key={muscle.id}>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <DraggableMuscleChip
+                                    muscle={muscle}
+                                    index={PALETTE_INDEX.get(muscle.id)!}
+                                    placementCount={placementCounts.get(muscle.id) || 0}
+                                  />
+                                </div>
+                                {subs && subs.length > 0 && (
+                                  <div className="flex flex-wrap gap-1 mt-1">
+                                    {subs.map(sub => (
+                                      <DraggableMuscleChip
+                                        key={sub.id}
+                                        muscle={{ id: sub.id, label: sub.label, colorClass: muscle.colorClass, colorHex: muscle.colorHex }}
+                                        index={PALETTE_INDEX.get(sub.id)!}
+                                        placementCount={placementCounts.get(sub.id) || 0}
+                                        isSubdivision
+                                      />
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
                             );
                           })}
                         </div>

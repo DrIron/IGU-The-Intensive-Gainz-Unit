@@ -8,8 +8,11 @@ import {
   DAYS_OF_WEEK,
   MUSCLE_GROUPS,
   MUSCLE_MAP,
+  SUBDIVISIONS,
   BODY_REGIONS,
   BODY_REGION_LABELS,
+  getMuscleDisplay,
+  SUBDIVISIONS_BY_PARENT,
   type MuscleSlotData,
   type BodyRegion,
 } from "@/types/muscle-builder";
@@ -66,12 +69,16 @@ export const MobileDayDetail = memo(function MobileDayDetail({
     [onAddMuscle, selectedDayIndex],
   );
 
-  const filteredMuscles = useMemo(() => {
+  const filteredItems = useMemo(() => {
     if (!search.trim()) return null;
     const q = search.toLowerCase();
-    return MUSCLE_GROUPS.filter(
+    const parents = MUSCLE_GROUPS.filter(
       m => m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q),
     );
+    const subs = SUBDIVISIONS.filter(
+      s => s.label.toLowerCase().includes(q) || s.id.toLowerCase().includes(q),
+    );
+    return { parents, subs };
   }, [search]);
 
   return (
@@ -140,9 +147,9 @@ export const MobileDayDetail = memo(function MobileDayDetail({
               />
             </div>
 
-            {filteredMuscles ? (
+            {filteredItems ? (
               <div className="flex flex-wrap gap-1.5">
-                {filteredMuscles.map(muscle => (
+                {filteredItems.parents.map(muscle => (
                   <MuscleChip
                     key={muscle.id}
                     muscleId={muscle.id}
@@ -151,7 +158,21 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                     onTap={handleAddMuscle}
                   />
                 ))}
-                {filteredMuscles.length === 0 && (
+                {filteredItems.subs.map(sub => {
+                  const parent = MUSCLE_MAP.get(sub.parentId);
+                  if (!parent) return null;
+                  return (
+                    <MuscleChip
+                      key={sub.id}
+                      muscleId={sub.id}
+                      label={sub.label}
+                      colorClass={parent.colorClass}
+                      onTap={handleAddMuscle}
+                      isSubdivision
+                    />
+                  );
+                })}
+                {filteredItems.parents.length === 0 && filteredItems.subs.length === 0 && (
                   <p className="text-xs text-muted-foreground py-2">
                     {search ? `No muscles match "${search}"` : "No muscles found"}
                   </p>
@@ -177,6 +198,25 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                           />
                         ))}
                       </div>
+                      {/* Subdivisions under each parent */}
+                      {muscles.map(muscle => {
+                        const subs = SUBDIVISIONS_BY_PARENT.get(muscle.id);
+                        if (!subs || subs.length === 0) return null;
+                        return (
+                          <div key={`${muscle.id}-subs`} className="flex flex-wrap gap-1 mt-1 ml-2">
+                            {subs.map(sub => (
+                              <MuscleChip
+                                key={sub.id}
+                                muscleId={sub.id}
+                                label={sub.label}
+                                colorClass={muscle.colorClass}
+                                onTap={handleAddMuscle}
+                                isSubdivision
+                              />
+                            ))}
+                          </div>
+                        );
+                      })}
                     </div>
                   );
                 })}
@@ -193,7 +233,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
             ) : (
               <div className="space-y-1.5">
                 {daySlots.map(slot => {
-                  const muscle = MUSCLE_MAP.get(slot.muscleId);
+                  const muscle = getMuscleDisplay(slot.muscleId);
                   if (!muscle) return null;
                   return (
                     <MobileSlotRow
@@ -233,16 +273,21 @@ interface MuscleChipProps {
   label: string;
   colorClass: string;
   onTap: (muscleId: string) => void;
+  isSubdivision?: boolean;
 }
 
-const MuscleChip = memo(function MuscleChip({ muscleId, label, colorClass, onTap }: MuscleChipProps) {
+const MuscleChip = memo(function MuscleChip({ muscleId, label, colorClass, onTap, isSubdivision }: MuscleChipProps) {
   return (
     <button
       onClick={() => onTap(muscleId)}
-      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-sm bg-card/50 hover:bg-card border border-border/50 active:scale-95 transition-all"
+      className={`inline-flex items-center gap-1.5 rounded-md bg-card/50 hover:bg-card border active:scale-95 transition-all ${
+        isSubdivision
+          ? 'px-2 py-1 text-xs border-dashed border-border/40'
+          : 'px-2.5 py-1.5 text-sm border-border/50'
+      }`}
     >
-      <div className={`w-2 h-2 rounded-full shrink-0 ${colorClass}`} />
-      <span className="text-foreground">{label}</span>
+      <div className={`w-2 h-2 rounded-full shrink-0 ${colorClass}`} style={isSubdivision ? { opacity: 0.7 } : undefined} />
+      <span className={isSubdivision ? 'text-muted-foreground' : 'text-foreground'}>{label}</span>
     </button>
   );
 });

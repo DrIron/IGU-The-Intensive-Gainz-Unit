@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MUSCLE_MAP } from "@/types/muscle-builder";
+import { getMuscleDisplay } from "@/types/muscle-builder";
 
 interface MuscleSlotCardProps {
   slotId: string;
@@ -64,7 +64,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
     setBulkOpen(false);
   }, [muscleId, sets, onSetAllSets]);
 
-  const muscle = MUSCLE_MAP.get(muscleId);
+  const muscle = getMuscleDisplay(muscleId);
   if (!muscle) return null;
 
   return (
