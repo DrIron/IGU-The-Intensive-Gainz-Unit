@@ -1,5 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
-import { EMAIL_FROM } from '../_shared/config.ts';
+import { APP_BASE_URL, EMAIL_FROM } from '../_shared/config.ts';
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, ctaButton, alertBox, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -99,83 +102,55 @@ Deno.serve(async (req) => {
 
       // FLOW 3: Medical review approved - send email
       if (profile?.email) {
-        const resendApiKey = Deno.env.get('RESEND_API_KEY');
-        if (resendApiKey) {
-          try {
-            const subject = isOneToOne
-              ? '[IGU] Medical review cleared – next step: coach approval'
-              : '[IGU] Medical review cleared – next step: complete payment';
-            
-            const nextStepHtml = isOneToOne
-              ? `
-                <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                  <strong>Next step:</strong> Your coach will review your application. You'll receive another email once they accept you, then you can proceed to payment.
-                </p>
-              `
-              : `
-                <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                  <strong>Next step:</strong> You can now proceed to complete your payment. You'll see the payment screen when you log in.
-                </p>
-              `;
+        try {
+          const subject = isOneToOne
+            ? '[IGU] Medical review cleared -- next step: coach approval'
+            : '[IGU] Medical review cleared -- next step: complete payment';
 
-            await fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${resendApiKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                from: EMAIL_FROM,
-                to: [profile.email],
-                subject,
-                html: `
-                  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">✅ Medical Review Cleared!</h1>
+          const nextStepText = isOneToOne
+            ? '<strong>Next step:</strong> Your coach will review your application. You\'ll receive another email once they accept you, then you can proceed to payment.'
+            : '<strong>Next step:</strong> You can now proceed to complete your payment. You\'ll see the payment screen when you log in.';
 
-                    <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                      Hi ${publicProfile?.first_name || 'there'},
-                    </p>
+          const content = [
+            greeting(publicProfile?.first_name || 'there'),
+            paragraph(`Great news! Your medical review for <strong>${serviceName}</strong> has been cleared. You're all set to continue with your application.`),
+            paragraph(nextStepText),
+            ctaButton('Log In to Continue', APP_BASE_URL),
+            signOff(),
+          ].join('');
 
-                    <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                      Great news! Your medical review for <strong>${serviceName}</strong> has been cleared. You're all set to continue with your application.
-                    </p>
+          const html = wrapInLayout({
+            content,
+            preheader: `Your medical review for ${serviceName} has been cleared.`,
+          });
 
-                    ${nextStepHtml}
+          const result = await sendEmail({
+            from: EMAIL_FROM,
+            to: profile.email,
+            subject,
+            html,
+          });
 
-                    <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                      Log in at <a href="https://theigu.com" style="color: #667eea;">https://theigu.com</a> to check your status and proceed.
-                    </p>
-
-                    <p style="color: #666; font-size: 16px; line-height: 1.5;">
-                      Best regards,<br>
-                      <strong>The IGU Team</strong>
-                    </p>
-                  </div>
-                `,
-              }),
+          // Log email
+          await supabaseServiceRole
+            .from('email_notifications')
+            .insert({
+              user_id: userId,
+              notification_type: 'medical_review_approved',
+              status: result.success ? 'sent' : 'failed',
+              sent_at: new Date().toISOString()
             });
-
-            // Log email
-            await supabaseServiceRole
-              .from('email_notifications')
-              .insert({
-                user_id: userId,
-                notification_type: 'medical_review_approved',
-                status: 'sent',
-                sent_at: new Date().toISOString()
-              });
-          } catch (emailError) {
-            console.error('Error sending medical review approved email:', emailError);
-            // Don't fail - log as failed
-            await supabaseServiceRole
-              .from('email_notifications')
-              .insert({
-                user_id: userId,
-                notification_type: 'medical_review_approved',
-                status: 'failed',
-                sent_at: new Date().toISOString()
-              });
-          }
+        } catch (emailError) {
+          console.error('Error sending medical review approved email:', emailError);
+          // Don't fail - log as failed
+          await supabaseServiceRole
+            .from('email_notifications')
+            .insert({
+              user_id: userId,
+              notification_type: 'medical_review_approved',
+              status: 'failed',
+              sent_at: new Date().toISOString()
+            });
         }
       }
 
@@ -207,48 +182,28 @@ Deno.serve(async (req) => {
         .single();
 
       if (rejectPrivate?.email) {
-        const resendApiKey = Deno.env.get('RESEND_API_KEY');
-        if (resendApiKey) {
-          await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${resendApiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              from: EMAIL_FROM,
-              to: [rejectPrivate.email],
-              subject: 'Application Update Required',
-              html: `
-                <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                  <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">Application Status Update</h1>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                    Hi ${rejectPublic?.first_name || 'there'},
-                  </p>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                    Thank you for your interest in IGU. After reviewing your medical information, we need to discuss some important details before proceeding.
-                  </p>
-                  
-                  ${rejectionReason ? `
-                  <div style="background-color: #f5f5f5; border-radius: 8px; padding: 20px; margin: 30px 0;">
-                    <p style="color: #666; font-size: 14px; margin: 0;"><strong>Reason:</strong> ${rejectionReason}</p>
-                  </div>
-                  ` : ''}
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                    Please reach out to us directly so we can discuss the next steps and ensure your safety and success with our program.
-                  </p>
-                  
-                  <p style="color: #666; font-size: 16px; line-height: 1.5;">
-                    Best regards,<br>
-                    <strong>The IGU Team</strong>
-                  </p>
-                </div>
-              `,
-            }),
+        try {
+          const content = [
+            greeting(rejectPublic?.first_name || 'there'),
+            paragraph('Thank you for your interest in IGU. After reviewing your medical information, we need to discuss some important details before proceeding.'),
+            ...(rejectionReason ? [alertBox(`<strong>Reason:</strong> ${rejectionReason}`, 'warning')] : []),
+            paragraph('Please reach out to us directly so we can discuss the next steps and ensure your safety and success with our program.'),
+            signOff(),
+          ].join('');
+
+          const html = wrapInLayout({
+            content,
+            preheader: 'We need to discuss some details about your application.',
           });
+
+          await sendEmail({
+            from: EMAIL_FROM,
+            to: rejectPrivate.email,
+            subject: 'Application Update Required',
+            html,
+          });
+        } catch (emailError) {
+          console.error('Error sending rejection email:', emailError);
         }
       }
 

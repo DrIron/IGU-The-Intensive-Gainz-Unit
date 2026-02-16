@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { APP_BASE_URL, AUTH_REDIRECT_URLS, EMAIL_FROM } from '../_shared/config.ts';
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, ctaButton, alertBox, detailCard, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -73,54 +76,33 @@ serve(async (req) => {
           .eq('user_id', profile.id)
           .eq('status', 'pending');
 
-        const resendApiKey = Deno.env.get('RESEND_API_KEY');
-        if (resendApiKey && profile.email) {
+        if (profile.email) {
           try {
-            await fetch('https://api.resend.com/emails', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${resendApiKey}`,
-                'Content-Type': 'application/json',
-              },
-              body: JSON.stringify({
-                from: EMAIL_FROM,
-                to: [profile.email],
-                subject: '[IGU] Your subscription request has expired',
-                html: `
-                  <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                    <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">Subscription Request Expired</h1>
-                    
-                    <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                      Hi ${fullName || 'there'},
-                    </p>
-                    
-                    <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                      Your payment deadline for <strong>${serviceName}</strong> has passed, and we haven't received your payment. Your spot has been released to allow others to join.
-                    </p>
-                    
-                    <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 30px 0; border-radius: 4px;">
-                      <p style="color: #856404; font-size: 14px; margin: 0; line-height: 1.6;">
-                        <strong>Want to join?</strong><br>
-                        If you still want to be part of IGU Coaching, you can restart your application at any time.
-                      </p>
-                    </div>
-                    
-                    <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                      Simply visit <a href="${AUTH_REDIRECT_URLS.services}" style="color: #667eea;">${AUTH_REDIRECT_URLS.services}</a> to get started again. We'd love to have you!
-                    </p>
-                    
-                    <p style="color: #666; font-size: 16px; line-height: 1.5;">
-                      Best regards,<br>
-                      <strong>The IGU Team</strong>
-                    </p>
-                  </div>
-                `,
-              }),
+            const content = [
+              greeting(fullName || 'there'),
+              paragraph(`Your payment deadline for <strong>${serviceName}</strong> has passed, and we haven't received your payment. Your spot has been released to allow others to join.`),
+              alertBox('<strong>Want to join?</strong><br>If you still want to be part of IGU Coaching, you can restart your application at any time.', 'warning'),
+              paragraph('Simply visit our services page to get started again. We\'d love to have you!'),
+              ctaButton('Browse Services', AUTH_REDIRECT_URLS.services),
+              signOff(),
+            ].join('');
+
+            const html = wrapInLayout({
+              content,
+              preheader: `Your payment deadline for ${serviceName} has passed.`,
             });
+
+            const result = await sendEmail({
+              from: EMAIL_FROM,
+              to: profile.email,
+              subject: '[IGU] Your subscription request has expired',
+              html,
+            });
+
             await supabase.from('email_notifications').insert({
               user_id: profile.id,
               notification_type: 'subscription_inactive',
-              status: 'sent',
+              status: result.success ? 'sent' : 'failed',
               sent_at: new Date().toISOString()
             });
           } catch (emailError) {
@@ -148,68 +130,43 @@ serve(async (req) => {
           .maybeSingle();
 
         if (!recentReminder) {
-          const resendApiKey = Deno.env.get('RESEND_API_KEY');
-          if (resendApiKey && profile.email) {
+          if (profile.email) {
             try {
               const daysUntilDeadline = Math.ceil(hoursUntilDeadline / 24);
-              await fetch('https://api.resend.com/emails', {
-                method: 'POST',
-                headers: {
-                  'Authorization': `Bearer ${resendApiKey}`,
-                  'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                  from: EMAIL_FROM,
-                  to: [profile.email],
-                  subject: '[IGU] Reminder – complete your payment to secure your spot',
-                  html: `
-                    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-                      <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">⏰ Payment Reminder</h1>
-                      
-                      <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                        Hi ${fullName || 'there'},
-                      </p>
-                      
-                      <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                        This is a friendly reminder that your payment for <strong>${serviceName}</strong> is due soon.
-                      </p>
-                      
-                      <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 30px 0; border-radius: 4px;">
-                        <p style="color: #856404; font-size: 14px; margin: 0; line-height: 1.6;">
-                          <strong>Payment Details:</strong><br>
-                          • Service: ${serviceName}<br>
-                          • Amount: ${servicePrice} KWD/month<br>
-                          • Deadline: ${deadline.toLocaleDateString()} at ${deadline.toLocaleTimeString()}<br>
-                          • Time remaining: ~${daysUntilDeadline} day${daysUntilDeadline !== 1 ? 's' : ''}
-                        </p>
-                      </div>
-                      
-                      <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                        Please complete your payment soon to secure your spot. After the deadline, your reservation will be released.
-                      </p>
-                      
-                      <div style="text-align: center; margin: 30px 0;">
-                        <a href="${AUTH_REDIRECT_URLS.dashboard}" 
-                           style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px;">
-                          Complete Payment Now
-                        </a>
-                      </div>
-                      
-                      <p style="color: #666; font-size: 16px; line-height: 1.5;">
-                        Best regards,<br>
-                        <strong>The IGU Team</strong>
-                      </p>
-                    </div>
-                  `,
-                }),
+
+              const content = [
+                greeting(fullName || 'there'),
+                paragraph(`This is a friendly reminder that your payment for <strong>${serviceName}</strong> is due soon.`),
+                detailCard('Payment Details', [
+                  { label: 'Service', value: serviceName },
+                  { label: 'Amount', value: `${servicePrice} KWD/month` },
+                  { label: 'Deadline', value: `${deadline.toLocaleDateString()} at ${deadline.toLocaleTimeString()}` },
+                  { label: 'Time remaining', value: `~${daysUntilDeadline} day${daysUntilDeadline !== 1 ? 's' : ''}` },
+                ]),
+                paragraph('Please complete your payment soon to secure your spot. After the deadline, your reservation will be released.'),
+                ctaButton('Complete Payment Now', AUTH_REDIRECT_URLS.dashboard),
+                signOff(),
+              ].join('');
+
+              const html = wrapInLayout({
+                content,
+                preheader: `Payment reminder: ~${daysUntilDeadline} day${daysUntilDeadline !== 1 ? 's' : ''} left to complete your payment.`,
               });
+
+              const result = await sendEmail({
+                from: EMAIL_FROM,
+                to: profile.email,
+                subject: '[IGU] Reminder -- complete your payment to secure your spot',
+                html,
+              });
+
               await supabase.from('email_notifications').insert({
                 user_id: profile.id,
                 notification_type: 'payment_reminder',
-                status: 'sent',
+                status: result.success ? 'sent' : 'failed',
                 sent_at: new Date().toISOString()
               });
-              results.pending_payment_reminders++;
+              if (result.success) results.pending_payment_reminders++;
             } catch (emailError) {
               console.error('Error sending payment reminder:', emailError);
               await supabase.from('email_notifications').insert({
