@@ -7,14 +7,24 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag, Dumbbell } from "lucide-react";
+import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag, Dumbbell, Trash2, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { SimplePagination, usePagination } from "@/components/ui/simple-pagination";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Tables } from "@/integrations/supabase/types";
 
 type ProgramTemplate = Tables<"program_templates"> & {
@@ -34,6 +44,9 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [currentPage, setCurrentPage] = useState(1);
+  const [deleteTarget, setDeleteTarget] = useState<ProgramTemplate | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const { toast } = useToast();
   const PAGE_SIZE = 12;
 
@@ -199,6 +212,73 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
     }
   };
 
+  const deleteProgram = async () => {
+    if (!deleteTarget) return;
+    try {
+      const { error } = await supabase
+        .from("program_templates")
+        .delete()
+        .eq("id", deleteTarget.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Program deleted",
+        description: `"${deleteTarget.title}" has been deleted.`,
+      });
+      setDeleteTarget(null);
+      loadPrograms();
+    } catch (error: any) {
+      toast({
+        title: "Error deleting program",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === pagePrograms.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(pagePrograms.map(p => p.id)));
+    }
+  };
+
+  const bulkDeletePrograms = async () => {
+    try {
+      const { error } = await supabase
+        .from("program_templates")
+        .delete()
+        .in("id", Array.from(selectedIds));
+
+      if (error) throw error;
+
+      toast({
+        title: "Programs deleted",
+        description: `${selectedIds.size} program${selectedIds.size > 1 ? "s" : ""} deleted.`,
+      });
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+      loadPrograms();
+    } catch (error: any) {
+      toast({
+        title: "Error deleting programs",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    }
+  };
+
   // Get all unique tags
   const allTags = Array.from(
     new Set(programs.flatMap((p) => p.tags || []))
@@ -309,6 +389,35 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
         </div>
       )}
 
+      {/* Bulk selection bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
+          <Checkbox
+            checked={selectedIds.size === pagePrograms.length}
+            onCheckedChange={toggleSelectAll}
+          />
+          <span className="text-sm font-medium">
+            {selectedIds.size} selected
+          </span>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setBulkDeleteOpen(true)}
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Selected
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Clear
+          </Button>
+        </div>
+      )}
+
       {/* Programs Grid */}
       {filteredPrograms.length === 0 ? (
         <EmptyState
@@ -326,10 +435,17 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
         <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {pagePrograms.map((program) => (
-            <Card key={program.id} className="group hover:shadow-md transition-shadow">
+            <Card key={program.id} className={`group hover:shadow-md transition-shadow ${selectedIds.has(program.id) ? "ring-2 ring-primary" : ""}`}>
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">
-                  <CardTitle className="text-lg line-clamp-1">{program.title}</CardTitle>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Checkbox
+                      checked={selectedIds.has(program.id)}
+                      onCheckedChange={() => toggleSelect(program.id)}
+                      className="shrink-0"
+                    />
+                    <CardTitle className="text-lg line-clamp-1">{program.title}</CardTitle>
+                  </div>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" size="icon" className="h-8 w-8">
@@ -344,6 +460,14 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
                       <DropdownMenuItem onClick={() => duplicateProgram(program)}>
                         <Copy className="h-4 w-4 mr-2" />
                         Duplicate
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem
+                        className="text-destructive focus:text-destructive"
+                        onClick={() => setDeleteTarget(program)}
+                      >
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Delete
                       </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
@@ -407,6 +531,48 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
         />
         </>
       )}
+      {/* Bulk delete confirmation */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedIds.size} program{selectedIds.size > 1 ? "s" : ""}?</DialogTitle>
+            <DialogDescription>
+              This cannot be undone. All days, modules, and exercises in the selected programs will be deleted.
+              Client copies will not be affected.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={bulkDeletePrograms}>
+              Delete {selectedIds.size} Program{selectedIds.size > 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete program?</DialogTitle>
+            <DialogDescription>
+              &ldquo;{deleteTarget?.title}&rdquo; will be permanently deleted. This cannot be undone.
+              All days, modules, and exercises in this program will be deleted.
+              Client copies will not be affected.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={deleteProgram}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

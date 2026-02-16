@@ -3,13 +3,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, X, Youtube, Pencil, Zap, Trash2, List } from "lucide-react";
+import { Search, Plus, X, Youtube, Pencil, Zap, Trash2, List, Eye, EyeOff, Power } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ExerciseQuickAdd } from "@/components/admin/ExerciseQuickAdd";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +34,8 @@ interface Exercise {
   execution_instructions: string[];
   pitfalls: string[];
   created_at: string;
+  is_active: boolean;
+  source_table: "exercises" | "exercise_library";
 }
 
 const MUSCLE_GROUPS = {
@@ -58,6 +61,10 @@ export default function WorkoutLibraryManager() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Exercise | null>(null);
+  const [showInactive, setShowInactive] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeactivateOpen, setBulkDeactivateOpen] = useState(false);
   const { toast } = useToast();
 
   // Form state
@@ -97,6 +104,8 @@ export default function WorkoutLibraryManager() {
       ...ex,
       muscle_subdivisions: ex.muscle_subdivisions as Record<string, string[]>,
       youtube_url: ex.youtube_url || null,
+      is_active: true,
+      source_table: "exercises" as const,
     }));
 
     // Map exercise_library rows to the Exercise interface
@@ -111,6 +120,8 @@ export default function WorkoutLibraryManager() {
       execution_instructions: ex.description ? [ex.description] : [],
       pitfalls: [],
       created_at: ex.created_at,
+      is_active: ex.is_active,
+      source_table: "exercise_library" as const,
     }));
 
     setExercises([...legacyExercises, ...libraryExercises]);
@@ -199,6 +210,89 @@ export default function WorkoutLibraryManager() {
       pitfalls: [""],
     });
     setEditingExercise(null);
+  };
+
+  const toggleExerciseActive = async (exercise: Exercise, activate: boolean) => {
+    try {
+      const { error } = await supabase
+        .from(exercise.source_table)
+        .update({ is_active: activate })
+        .eq("id", exercise.id);
+
+      if (error) throw error;
+
+      toast({
+        title: activate ? "Exercise reactivated" : "Exercise deactivated",
+        description: `"${exercise.name}" has been ${activate ? "reactivated" : "deactivated"}.`,
+      });
+      fetchExercises();
+    } catch (error: any) {
+      toast({
+        title: "Error updating exercise",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    }
+  };
+
+  const confirmDeactivate = async () => {
+    if (!deleteTarget) return;
+    await toggleExerciseActive(deleteTarget, false);
+    setDeleteTarget(null);
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredExercises.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredExercises.map(e => e.id)));
+    }
+  };
+
+  const bulkDeactivateExercises = async () => {
+    try {
+      const selected = exercises.filter(e => selectedIds.has(e.id));
+      const libraryIds = selected.filter(e => e.source_table === "exercise_library").map(e => e.id);
+      const legacyIds = selected.filter(e => e.source_table === "exercises").map(e => e.id);
+
+      if (libraryIds.length > 0) {
+        const { error } = await supabase
+          .from("exercise_library")
+          .update({ is_active: false })
+          .in("id", libraryIds);
+        if (error) throw error;
+      }
+      if (legacyIds.length > 0) {
+        const { error } = await supabase
+          .from("exercises")
+          .update({ is_active: false } as any)
+          .in("id", legacyIds);
+        if (error) throw error;
+      }
+
+      toast({
+        title: "Exercises deactivated",
+        description: `${selectedIds.size} exercise${selectedIds.size > 1 ? "s" : ""} deactivated.`,
+      });
+      setSelectedIds(new Set());
+      setBulkDeactivateOpen(false);
+      fetchExercises();
+    } catch (error: any) {
+      toast({
+        title: "Error deactivating exercises",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    }
   };
 
   // Quick Add functions
@@ -334,6 +428,7 @@ export default function WorkoutLibraryManager() {
   };
 
   const filteredExercises = exercises.filter((exercise) => {
+    if (!showInactive && !exercise.is_active) return false;
     const search = searchTerm.toLowerCase();
     return (
       exercise.name.toLowerCase().includes(search) ||
@@ -371,7 +466,7 @@ export default function WorkoutLibraryManager() {
       </TabsList>
 
       <TabsContent value="library" className="space-y-6">
-        <div className="flex gap-4 items-center">
+        <div className="flex gap-4 items-center flex-wrap">
           <div className="relative flex-1 max-w-md">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
             <Input
@@ -382,6 +477,15 @@ export default function WorkoutLibraryManager() {
               className="pl-10"
             />
           </div>
+
+          <Button
+            variant={showInactive ? "secondary" : "outline"}
+            size="sm"
+            onClick={() => setShowInactive(!showInactive)}
+          >
+            {showInactive ? <Eye className="h-4 w-4 mr-2" /> : <EyeOff className="h-4 w-4 mr-2" />}
+            {showInactive ? "Showing Inactive" : "Show Inactive"}
+          </Button>
 
           <Dialog open={isDialogOpen} onOpenChange={(open) => {
           setIsDialogOpen(open);
@@ -894,25 +998,88 @@ export default function WorkoutLibraryManager() {
         </Dialog>
       </div>
 
+      {/* Bulk selection bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 p-3 rounded-lg border bg-muted/50">
+          <Checkbox
+            checked={selectedIds.size === filteredExercises.length}
+            onCheckedChange={toggleSelectAll}
+          />
+          <span className="text-sm font-medium">
+            {selectedIds.size} selected
+          </span>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => setBulkDeactivateOpen(true)}
+          >
+            <Power className="h-4 w-4 mr-2" />
+            Deactivate Selected
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            <X className="h-4 w-4 mr-1" />
+            Clear
+          </Button>
+        </div>
+      )}
+
       <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredExercises.map((exercise) => (
-          <Card key={exercise.id} className="border-border/50 hover:border-primary/50 transition-all duration-300">
+          <Card key={exercise.id} className={`border-border/50 hover:border-primary/50 transition-all duration-300 ${selectedIds.has(exercise.id) ? "ring-2 ring-primary" : ""}`}>
             <CardHeader>
               <div className="flex items-start justify-between mb-2">
                 <div className="flex items-center gap-2">
-                  <CardTitle className="text-xl">{exercise.name}</CardTitle>
+                  <Checkbox
+                    checked={selectedIds.has(exercise.id)}
+                    onCheckedChange={() => toggleSelect(exercise.id)}
+                    className="shrink-0"
+                  />
+                  <CardTitle className={`text-xl ${!exercise.is_active ? "opacity-50" : ""}`}>{exercise.name}</CardTitle>
+                  {!exercise.is_active && (
+                    <Badge variant="outline" className="bg-muted text-muted-foreground">
+                      Inactive
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Badge variant="outline" className={getDifficultyColor(exercise.difficulty)}>
+                    {exercise.difficulty}
+                  </Badge>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => handleEdit(exercise)}
                     className="h-8 w-8"
+                    title="Edit"
                   >
                     <Pencil className="h-4 w-4" />
                   </Button>
+                  {exercise.is_active ? (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setDeleteTarget(exercise)}
+                      className="h-8 w-8"
+                      title="Deactivate"
+                    >
+                      <Power className="h-4 w-4 text-destructive" />
+                    </Button>
+                  ) : (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => toggleExerciseActive(exercise, true)}
+                      className="h-8 w-8"
+                      title="Reactivate"
+                    >
+                      <Power className="h-4 w-4 text-green-500" />
+                    </Button>
+                  )}
                 </div>
-                <Badge variant="outline" className={getDifficultyColor(exercise.difficulty)}>
-                  {exercise.difficulty}
-                </Badge>
               </div>
               <div className="flex gap-2 flex-wrap">
                 {exercise.muscle_groups.map(muscle => (
@@ -994,6 +1161,50 @@ export default function WorkoutLibraryManager() {
       <TabsContent value="quick-add">
         <ExerciseQuickAdd />
       </TabsContent>
+
+      {/* Bulk deactivate confirmation */}
+      <Dialog open={bulkDeactivateOpen} onOpenChange={setBulkDeactivateOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate {selectedIds.size} exercise{selectedIds.size > 1 ? "s" : ""}?</DialogTitle>
+            <DialogDescription>
+              The selected exercises will be hidden from coaches.
+              Exercises already assigned to client programs will not be affected.
+              You can reactivate them later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeactivateOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={bulkDeactivateExercises}>
+              Deactivate {selectedIds.size} Exercise{selectedIds.size > 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Deactivate confirmation */}
+      <Dialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Deactivate exercise?</DialogTitle>
+            <DialogDescription>
+              &ldquo;{deleteTarget?.name}&rdquo; will be deactivated and hidden from coaches.
+              Exercises already assigned to client programs will not be affected.
+              You can reactivate it later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDeactivate}>
+              Deactivate
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   );
 }

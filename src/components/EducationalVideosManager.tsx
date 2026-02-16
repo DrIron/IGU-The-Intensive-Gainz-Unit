@@ -8,11 +8,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Pin, Video, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, Pin, Video, ExternalLink, X } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlaylistManager } from "./PlaylistManager";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
@@ -46,7 +47,10 @@ export function EducationalVideosManager() {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingVideo, setEditingVideo] = useState<EducationalVideo | null>(null);
-  
+  const [deleteTarget, setDeleteTarget] = useState<EducationalVideo | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+
   // Form state
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -161,14 +165,14 @@ export function EducationalVideosManager() {
     }
   };
 
-  const handleDelete = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this video?")) return;
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
 
     try {
       const { error } = await supabase
         .from('educational_videos')
         .delete()
-        .eq('id', id);
+        .eq('id', deleteTarget.id);
 
       if (error) throw error;
 
@@ -177,6 +181,7 @@ export function EducationalVideosManager() {
         description: "Video deleted successfully",
       });
 
+      setDeleteTarget(null);
       loadVideos();
     } catch (error: any) {
       console.error('Error deleting video:', error);
@@ -208,6 +213,49 @@ export function EducationalVideosManager() {
       toast({
         title: "Error",
         description: "Failed to update video",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === videos.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(videos.map(v => v.id)));
+    }
+  };
+
+  const bulkDeleteVideos = async () => {
+    try {
+      const { error } = await supabase
+        .from('educational_videos')
+        .delete()
+        .in('id', Array.from(selectedIds));
+
+      if (error) throw error;
+
+      toast({
+        title: "Success",
+        description: `${selectedIds.size} video${selectedIds.size > 1 ? "s" : ""} deleted.`,
+      });
+      setSelectedIds(new Set());
+      setBulkDeleteOpen(false);
+      loadVideos();
+    } catch (error: any) {
+      console.error('Error deleting videos:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete videos",
         variant: "destructive",
       });
     }
@@ -354,9 +402,43 @@ export function EducationalVideosManager() {
             <p className="text-sm">Click "Add Video" to get started</p>
           </div>
         ) : (
+          <>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-3 p-3 mb-4 rounded-lg border bg-muted/50">
+              <Checkbox
+                checked={selectedIds.size === videos.length}
+                onCheckedChange={toggleSelectAll}
+              />
+              <span className="text-sm font-medium">
+                {selectedIds.size} selected
+              </span>
+              <Button
+                variant="destructive"
+                size="sm"
+                onClick={() => setBulkDeleteOpen(true)}
+              >
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete Selected
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSelectedIds(new Set())}
+              >
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            </div>
+          )}
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-10">
+                  <Checkbox
+                    checked={videos.length > 0 && selectedIds.size === videos.length}
+                    onCheckedChange={toggleSelectAll}
+                  />
+                </TableHead>
                 <TableHead>Title</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Type</TableHead>
@@ -367,7 +449,13 @@ export function EducationalVideosManager() {
             </TableHeader>
             <TableBody>
               {videos.map((video) => (
-                <TableRow key={video.id}>
+                <TableRow key={video.id} className={selectedIds.has(video.id) ? "bg-muted/30" : ""}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(video.id)}
+                      onCheckedChange={() => toggleSelect(video.id)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       {video.is_pinned && <Pin className="h-4 w-4 text-primary" />}
@@ -425,7 +513,7 @@ export function EducationalVideosManager() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => handleDelete(video.id)}
+                        onClick={() => setDeleteTarget(video)}
                       >
                         <Trash2 className="h-4 w-4 text-destructive" />
                       </Button>
@@ -435,6 +523,7 @@ export function EducationalVideosManager() {
               ))}
             </TableBody>
           </Table>
+          </>
         )}
       </CardContent>
     </Card>
@@ -443,6 +532,48 @@ export function EducationalVideosManager() {
       <TabsContent value="playlists">
         <PlaylistManager />
       </TabsContent>
+
+      {/* Bulk delete confirmation */}
+      <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete {selectedIds.size} video{selectedIds.size > 1 ? "s" : ""}?</DialogTitle>
+            <DialogDescription>
+              The selected videos will be permanently deleted.
+              This cannot be undone. All access rules and progress tracking will also be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkDeleteOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={bulkDeleteVideos}>
+              Delete {selectedIds.size} Video{selectedIds.size > 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete confirmation */}
+      <Dialog open={!!deleteTarget} onOpenChange={open => !open && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete video?</DialogTitle>
+            <DialogDescription>
+              &ldquo;{deleteTarget?.title}&rdquo; will be permanently deleted.
+              This cannot be undone. All access rules and progress tracking for this video will also be removed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Tabs>
   );
 }
