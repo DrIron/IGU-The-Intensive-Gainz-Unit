@@ -4,6 +4,9 @@ import {
   REPLY_TO_SUPPORT,
   AUTH_REDIRECT_URLS,
 } from "../_shared/config.ts";
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, banner, ctaButton, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,11 +34,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY not configured");
-    }
 
     const now = new Date();
     const results = {
@@ -105,10 +103,10 @@ Deno.serve(async (req) => {
         if (sub.coach_id) {
           const { data: coach } = await supabase
             .from("coaches")
-            .select("name")
+            .select("first_name")
             .eq("user_id", sub.coach_id)
             .maybeSingle();
-          if (coach?.name) coachName = coach.name;
+          if (coach?.first_name) coachName = coach.first_name;
         }
 
         const firstName = profile.first_name || "there";
@@ -118,45 +116,38 @@ Deno.serve(async (req) => {
           ? AUTH_REDIRECT_URLS.testimonial(sub.coach_id)
           : `${AUTH_REDIRECT_URLS.dashboard}`;
 
-        const { subject, html } = buildEmail(
-          firstName,
-          coachName,
-          serviceName,
-          testimonialUrl
-        );
+        const content = [
+          greeting(firstName),
+          paragraph(`You've been training with <strong>${coachName}</strong> on the <strong>${serviceName}</strong> program for about a month now -- congratulations on your dedication!`),
+          paragraph("We'd love to hear about your experience so far. Your feedback helps us improve and helps others discover IGU."),
+          banner('Share Your Transformation Story', 'It only takes 2 minutes'),
+          ctaButton('Share Your Experience', testimonialUrl),
+          paragraph("Whether it's about your progress, your coach, or the platform -- we want to hear it all. Every review makes a difference!"),
+          signOff(),
+        ].join('');
 
-        const emailResponse = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: EMAIL_FROM_COACHING,
-            to: [profile.email],
-            subject,
-            html,
-            reply_to: REPLY_TO_SUPPORT,
-          }),
+        const html = wrapInLayout({
+          content,
+          preheader: `How's your IGU experience so far? We'd love to hear from you.`,
+          showUnsubscribe: true,
         });
 
-        const emailOk = emailResponse.ok;
-        if (!emailOk) {
-          const errorText = await emailResponse.text();
-          console.error(
-            `Failed to send testimonial request to ${profile.email}:`,
-            errorText
-          );
-        }
+        const result = await sendEmail({
+          from: EMAIL_FROM_COACHING,
+          to: profile.email,
+          subject: "How's your IGU experience so far?",
+          html,
+          replyTo: REPLY_TO_SUPPORT,
+        });
 
         await supabase.from("email_notifications").insert({
           user_id: sub.user_id,
           notification_type: "testimonial_request",
-          status: emailOk ? "sent" : "failed",
+          status: result.success ? "sent" : "failed",
           sent_at: new Date().toISOString(),
         });
 
-        if (emailOk) {
+        if (result.success) {
           results.requests_sent++;
           console.log(`Sent testimonial request to ${profile.email}`);
         } else {
@@ -184,55 +175,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-function buildEmail(
-  firstName: string,
-  coachName: string,
-  serviceName: string,
-  testimonialUrl: string
-): { subject: string; html: string } {
-  return {
-    subject: "How's your IGU experience so far?",
-    html: `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-        <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Hi ${firstName},</h1>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-            You've been training with <strong>${coachName}</strong> on the <strong>${serviceName}</strong> program for about a month now — congratulations on your dedication!
-          </p>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-            We'd love to hear about your experience so far. Your feedback helps us improve and helps others discover IGU Coaching.
-          </p>
-
-          <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
-            <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0 0 8px 0;">IT ONLY TAKES 2 MINUTES</p>
-            <p style="color: white; font-size: 18px; font-weight: bold; margin: 0;">Share your transformation story</p>
-          </div>
-
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${testimonialUrl}"
-               style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-              Share Your Experience
-            </a>
-          </div>
-
-          <p style="color: #718096; font-size: 14px; line-height: 1.6;">
-            Whether it's about your progress, your coach, or the platform — we want to hear it all. Every review makes a difference!
-          </p>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-            Keep crushing it,<br>
-            <strong>The IGU Team</strong>
-          </p>
-        </div>
-        <div style="text-align: center; margin-top: 16px;">
-          <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-            This is an automated message from IGU Coaching
-          </p>
-        </div>
-      </div>
-    `,
-  };
-}

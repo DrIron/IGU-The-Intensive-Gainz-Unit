@@ -1,10 +1,52 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.0';
 import { EMAIL_FROM } from '../_shared/config.ts';
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { EMAIL_BRAND } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, sectionHeading, signOff, divider } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+function paymentTable(breakdown: any, rates: any, totalClients: number, totalPayment: number): string {
+  const rows = [
+    { label: 'Team Plans', count: breakdown.team || 0, rate: rates.team },
+    { label: '1:1 In-Person', count: breakdown.onetoone_inperson || 0, rate: rates.onetoone_inperson },
+    { label: '1:1 Hybrid', count: breakdown.onetoone_hybrid || 0, rate: rates.onetoone_hybrid },
+    { label: '1:1 Online', count: breakdown.onetoone_online || 0, rate: rates.onetoone_online },
+  ];
+
+  const bodyRows = rows.map(r => `
+    <tr>
+      <td style="padding: 10px 12px; border-bottom: 1px solid ${EMAIL_BRAND.gray200}; color: ${EMAIL_BRAND.body}; font-size: 14px;">${r.label}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid ${EMAIL_BRAND.gray200}; text-align: right; color: ${EMAIL_BRAND.body}; font-size: 14px;">${r.count}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid ${EMAIL_BRAND.gray200}; text-align: right; color: ${EMAIL_BRAND.body}; font-size: 14px;">${r.rate.toFixed(2)}</td>
+      <td style="padding: 10px 12px; border-bottom: 1px solid ${EMAIL_BRAND.gray200}; text-align: right; color: ${EMAIL_BRAND.body}; font-size: 14px;">${(r.count * r.rate).toFixed(2)}</td>
+    </tr>`).join('');
+
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border: 1px solid ${EMAIL_BRAND.gray200}; border-radius: 8px; overflow: hidden;">
+      <thead>
+        <tr style="background-color: ${EMAIL_BRAND.gray100};">
+          <th style="padding: 12px; text-align: left; font-size: 12px; text-transform: uppercase; color: ${EMAIL_BRAND.muted}; letter-spacing: 0.5px;">Service</th>
+          <th style="padding: 12px; text-align: right; font-size: 12px; text-transform: uppercase; color: ${EMAIL_BRAND.muted}; letter-spacing: 0.5px;">Clients</th>
+          <th style="padding: 12px; text-align: right; font-size: 12px; text-transform: uppercase; color: ${EMAIL_BRAND.muted}; letter-spacing: 0.5px;">Rate (KWD)</th>
+          <th style="padding: 12px; text-align: right; font-size: 12px; text-transform: uppercase; color: ${EMAIL_BRAND.muted}; letter-spacing: 0.5px;">Amount (KWD)</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${bodyRows}
+        <tr style="background-color: ${EMAIL_BRAND.gray100};">
+          <td style="padding: 12px; font-weight: bold; color: ${EMAIL_BRAND.heading}; font-size: 14px;">Total</td>
+          <td style="padding: 12px; text-align: right; font-weight: bold; color: ${EMAIL_BRAND.heading}; font-size: 14px;">${totalClients}</td>
+          <td style="padding: 12px;"></td>
+          <td style="padding: 12px; text-align: right; font-weight: bold; color: ${EMAIL_BRAND.red}; font-size: 16px;">${totalPayment.toFixed(2)}</td>
+        </tr>
+      </tbody>
+    </table>`;
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -12,11 +54,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    if (!resendApiKey) {
-      throw new Error('RESEND_API_KEY not configured');
-    }
-    
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -29,7 +66,6 @@ Deno.serve(async (req) => {
 
     console.log('Sending payment notifications for month:', payment_month);
 
-    // Get all payments for this month with coach basic info
     const { data: payments, error: paymentsError } = await supabase
       .from('monthly_coach_payments')
       .select('*, coaches(id, first_name, last_name, user_id)')
@@ -44,13 +80,13 @@ Deno.serve(async (req) => {
       );
     }
 
+    const monthName = new Date(payment_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const emailResults = [];
 
     for (const payment of payments) {
       const coach = payment.coaches;
       const breakdown = payment.client_breakdown;
-      
-      // Fetch coach email from coaches_private table (server-side access)
+
       const { data: contactInfo, error: contactError } = await supabase
         .from('coaches_private')
         .select('email')
@@ -63,91 +99,33 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const coachEmail = contactInfo.email;
-      
-      const emailHtml = `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #333;">Monthly Payment Summary</h1>
-          <p>Hello ${coach.first_name},</p>
-          
-          <p>Your payment breakdown for <strong>${new Date(payment_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</strong>:</p>
-          
-          <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
-            <thead>
-              <tr style="background-color: #f4f4f4;">
-                <th style="padding: 12px; text-align: left; border: 1px solid #ddd;">Service Type</th>
-                <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">Clients</th>
-                <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">Rate (KWD)</th>
-                <th style="padding: 12px; text-align: right; border: 1px solid #ddd;">Amount (KWD)</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td style="padding: 10px; border: 1px solid #ddd;">Team Plans</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${breakdown.team || 0}</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${payment.payment_rates.team.toFixed(2)}</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${((breakdown.team || 0) * payment.payment_rates.team).toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px; border: 1px solid #ddd;">1:1 In-Person</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${breakdown.onetoone_inperson || 0}</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${payment.payment_rates.onetoone_inperson.toFixed(2)}</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${((breakdown.onetoone_inperson || 0) * payment.payment_rates.onetoone_inperson).toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px; border: 1px solid #ddd;">1:1 Hybrid</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${breakdown.onetoone_hybrid || 0}</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${payment.payment_rates.onetoone_hybrid.toFixed(2)}</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${((breakdown.onetoone_hybrid || 0) * payment.payment_rates.onetoone_hybrid).toFixed(2)}</td>
-              </tr>
-              <tr>
-                <td style="padding: 10px; border: 1px solid #ddd;">1:1 Online</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${breakdown.onetoone_online || 0}</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${payment.payment_rates.onetoone_online.toFixed(2)}</td>
-                <td style="padding: 10px; text-align: right; border: 1px solid #ddd;">${((breakdown.onetoone_online || 0) * payment.payment_rates.onetoone_online).toFixed(2)}</td>
-              </tr>
-              <tr style="background-color: #f9f9f9; font-weight: bold;">
-                <td style="padding: 12px; border: 1px solid #ddd;">Total</td>
-                <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">${payment.total_clients}</td>
-                <td style="padding: 12px; border: 1px solid #ddd;"></td>
-                <td style="padding: 12px; text-align: right; border: 1px solid #ddd;">${payment.total_payment.toFixed(2)}</td>
-              </tr>
-            </tbody>
-          </table>
-          
-          <p style="margin-top: 30px;">
-            <strong>Total Payment: ${payment.total_payment.toFixed(2)} KWD</strong>
-          </p>
-          
-          <p style="color: #666; font-size: 14px; margin-top: 30px;">
-            Payment will be processed according to the payment schedule. If you have any questions, please contact the admin team.
-          </p>
-          
-          <p style="color: #666; font-size: 12px; margin-top: 40px; border-top: 1px solid #ddd; padding-top: 20px;">
-            This is an automated email. Please do not reply directly to this message.
-          </p>
-        </div>
-      `;
+      const content = [
+        greeting(coach.first_name),
+        paragraph(`Here's your payment breakdown for <strong>${monthName}</strong>:`),
+        paymentTable(breakdown, payment.payment_rates, payment.total_clients, payment.total_payment),
+        sectionHeading('Total Payment'),
+        paragraph(`<strong style="font-size: 20px; color: ${EMAIL_BRAND.red};">${payment.total_payment.toFixed(2)} KWD</strong>`),
+        divider(),
+        paragraph('Payment will be processed according to the payment schedule. If you have any questions, please contact the admin team.'),
+        signOff(),
+      ].join('');
+
+      const html = wrapInLayout({
+        content,
+        preheader: `Your ${monthName} payment summary: ${payment.total_payment.toFixed(2)} KWD`,
+      });
 
       try {
-        const emailResponse = await fetch('https://api.resend.com/emails', {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${resendApiKey}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            from: EMAIL_FROM,
-            to: [coachEmail],
-            subject: `Monthly Payment Summary - ${new Date(payment_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}`,
-            html: emailHtml,
-          }),
+        const result = await sendEmail({
+          from: EMAIL_FROM,
+          to: contactInfo.email,
+          subject: `Monthly Payment Summary -- ${monthName}`,
+          html,
         });
 
-        if (!emailResponse.ok) {
-          const error = await emailResponse.text();
-          console.error(`Failed to send email to coach ${coach.id}:`, error);
-          emailResults.push({ coach_id: coach.id, coach_name: `${coach.first_name} ${coach.last_name}`, success: false, error });
+        if (!result.success) {
+          console.error(`Failed to send email to coach ${coach.id}:`, result.error);
+          emailResults.push({ coach_id: coach.id, coach_name: `${coach.first_name} ${coach.last_name}`, success: false, error: result.error });
         } else {
           console.log(`Email sent successfully to coach ${coach.id}`);
           emailResults.push({ coach_id: coach.id, coach_name: `${coach.first_name} ${coach.last_name}`, success: true });
@@ -162,14 +140,13 @@ Deno.serve(async (req) => {
     const successCount = emailResults.filter(r => r.success).length;
     const failCount = emailResults.filter(r => !r.success).length;
 
-    // Return success but do NOT include email addresses in response
     return new Response(
       JSON.stringify({
         success: true,
         total_emails: emailResults.length,
         successful: successCount,
         failed: failCount,
-        results: emailResults, // Only includes coach_id, coach_name, success, error - no email
+        results: emailResults,
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

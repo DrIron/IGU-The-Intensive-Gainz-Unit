@@ -1,6 +1,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { EMAIL_FROM } from '../_shared/config.ts';
 import { checkRateLimit, getClientIp, rateLimitResponse } from '../_shared/rateLimit.ts';
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { paragraph, detailCard, divider, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -147,43 +150,37 @@ Deno.serve(async (req) => {
     }
 
     if (message_type === "email") {
-      // Send email notification to coach via Resend
-      const resendApiKey = Deno.env.get("RESEND_API_KEY");
-      if (!resendApiKey) {
-        console.error("RESEND_API_KEY not configured");
-        return new Response(
-          JSON.stringify({ error: "Email service not configured" }),
-          { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+      const contactItems = [
+        { label: 'From', value: clientName },
+        { label: 'Email', value: clientProfile?.email || 'Not provided' },
+        { label: 'Phone', value: clientProfile?.phone || 'Not provided' },
+      ];
 
-      const emailResponse = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${resendApiKey}`,
-        },
-        body: JSON.stringify({
-          from: EMAIL_FROM,
-          to: [contactInfo.email],
-          subject: `Message from your IGU client: ${clientName}`,
-          html: `
-            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-              <h2>Client Message</h2>
-              <p><strong>From:</strong> ${clientName}</p>
-              <p><strong>Client Email:</strong> ${clientProfile?.email || "Not provided"}</p>
-              <p><strong>Client Phone:</strong> ${clientProfile?.phone || "Not provided"}</p>
-              ${client_message ? `<p><strong>Message:</strong></p><p>${client_message}</p>` : "<p>Your client would like to get in touch with you.</p>"}
-              <hr style="margin: 20px 0;">
-              <p style="color: #666; font-size: 12px;">This message was sent via the IGU platform.</p>
-            </div>
-          `,
-        }),
+      const emailContent = [
+        paragraph(client_message
+          ? `Your client sent you a message:`
+          : 'Your client would like to get in touch with you.'
+        ),
+        client_message ? paragraph(`<em>"${client_message}"</em>`) : '',
+        detailCard('Client Contact Info', contactItems),
+        divider(),
+        signOff(),
+      ].join('');
+
+      const html = wrapInLayout({
+        content: emailContent,
+        preheader: `Message from your IGU client: ${clientName}`,
       });
 
-      if (!emailResponse.ok) {
-        const errorText = await emailResponse.text();
-        console.error("Resend error:", errorText);
+      const result = await sendEmail({
+        from: EMAIL_FROM,
+        to: contactInfo.email,
+        subject: `Message from your IGU client: ${clientName}`,
+        html,
+      });
+
+      if (!result.success) {
+        console.error("Resend error:", result.error);
         return new Response(
           JSON.stringify({ error: "Failed to send email notification" }),
           { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -191,8 +188,8 @@ Deno.serve(async (req) => {
       }
 
       return new Response(
-        JSON.stringify({ 
-          success: true, 
+        JSON.stringify({
+          success: true,
           action: "email_sent",
           message: "Your coach has been notified"
         }),

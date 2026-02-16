@@ -4,6 +4,9 @@ import {
   REPLY_TO_SUPPORT,
   AUTH_REDIRECT_URLS,
 } from "../_shared/config.ts";
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, detailCard, ctaButton, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,11 +31,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY not configured");
-    }
 
     const now = new Date();
     const results = {
@@ -109,46 +107,46 @@ Deno.serve(async (req) => {
           month: "long",
           day: "numeric",
         });
+        const billingUrl = AUTH_REDIRECT_URLS.billingPay;
 
-        const { subject, html } = buildEmail(
-          firstName,
-          serviceName,
-          renewalDate,
-          price
-        );
+        const detailItems = [
+          { label: 'Program', value: serviceName },
+          { label: 'Renewal Date', value: renewalDate },
+        ];
+        if (price) {
+          detailItems.push({ label: 'Amount', value: `${price} KWD` });
+        }
 
-        const emailResponse = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: EMAIL_FROM_BILLING,
-            to: [profile.email],
-            subject,
-            html,
-            reply_to: REPLY_TO_SUPPORT,
-          }),
+        const content = [
+          greeting(firstName),
+          paragraph(`Just a heads-up -- your <strong>${serviceName}</strong> subscription will renew on <strong>${renewalDate}</strong>.`),
+          detailCard('Renewal Details', detailItems),
+          paragraph("No action is needed if you'd like to continue -- your payment will be processed automatically. If you need to update your payment method, you can do so from your billing page."),
+          ctaButton('View Billing Details', billingUrl),
+          signOff(),
+        ].join('');
+
+        const html = wrapInLayout({
+          content,
+          preheader: `Your ${serviceName} subscription renews on ${renewalDate}${price ? ` -- ${price} KWD` : ''}.`,
         });
 
-        const emailOk = emailResponse.ok;
-        if (!emailOk) {
-          const errorText = await emailResponse.text();
-          console.error(
-            `Failed to send renewal reminder to ${profile.email}:`,
-            errorText
-          );
-        }
+        const result = await sendEmail({
+          from: EMAIL_FROM_BILLING,
+          to: profile.email,
+          subject: `Upcoming renewal: ${serviceName}`,
+          html,
+          replyTo: REPLY_TO_SUPPORT,
+        });
 
         await supabase.from("email_notifications").insert({
           user_id: sub.user_id,
           notification_type: notificationType,
-          status: emailOk ? "sent" : "failed",
+          status: result.success ? "sent" : "failed",
           sent_at: new Date().toISOString(),
         });
 
-        if (emailOk) {
+        if (result.success) {
           results.reminders_sent++;
           console.log(
             `Sent renewal reminder to ${profile.email} (billing ${renewalDate})`
@@ -178,56 +176,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-function buildEmail(
-  firstName: string,
-  serviceName: string,
-  renewalDate: string,
-  price?: number
-): { subject: string; html: string } {
-  const billingUrl = AUTH_REDIRECT_URLS.billingPay;
-
-  return {
-    subject: `Upcoming renewal: ${serviceName}`,
-    html: `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-        <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Hi ${firstName},</h1>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-            Just a heads-up — your <strong>${serviceName}</strong> subscription will renew on <strong>${renewalDate}</strong>.
-          </p>
-
-          <div style="background-color: #f7fafc; border-radius: 8px; padding: 20px; margin: 24px 0;">
-            <div style="border-left: 3px solid #4CAF50; padding-left: 16px;">
-              <p style="color: #4a5568; font-size: 14px; margin: 8px 0;"><strong>Program:</strong> ${serviceName}</p>
-              <p style="color: #4a5568; font-size: 14px; margin: 8px 0;"><strong>Renewal Date:</strong> ${renewalDate}</p>
-              ${price ? `<p style="color: #4a5568; font-size: 14px; margin: 8px 0;"><strong>Amount:</strong> ${price} KWD</p>` : ""}
-            </div>
-          </div>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-            No action is needed if you'd like to continue — your payment will be processed automatically. If you need to update your payment method, you can do so from your billing page.
-          </p>
-
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${billingUrl}"
-               style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-              View Billing Details
-            </a>
-          </div>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-            Best regards,<br>
-            <strong>The IGU Team</strong>
-          </p>
-        </div>
-        <div style="text-align: center; margin-top: 16px;">
-          <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-            This is an automated billing notification from IGU
-          </p>
-        </div>
-      </div>
-    `,
-  };
-}

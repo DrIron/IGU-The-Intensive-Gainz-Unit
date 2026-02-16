@@ -1,5 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
-import { EMAIL_FROM } from '../_shared/config.ts';
+import { EMAIL_FROM, APP_BASE_URL } from '../_shared/config.ts';
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, detailCard, ctaButton, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,51 +58,30 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Send email notification
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    if (resendApiKey) {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          from: EMAIL_FROM,
-          to: [contactInfo.email],
-          subject: 'New Client Assigned',
-          html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">New Client Assigned</h1>
-              
-              <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                Hi ${coach.first_name},
-              </p>
-              
-              <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                You have been assigned a new client!
-              </p>
-              
-              <div style="background-color: #f5f5f5; border-radius: 8px; padding: 20px; margin: 30px 0;">
-                <h2 style="color: #333; font-size: 18px; margin-bottom: 15px;">Client Details</h2>
-                <p style="color: #666; font-size: 14px; margin: 5px 0;"><strong>Name:</strong> ${clientName}</p>
-                <p style="color: #666; font-size: 14px; margin: 5px 0;"><strong>Plan:</strong> ${planName}</p>
-                <p style="color: #666; font-size: 14px; margin: 5px 0;"><strong>Status:</strong> Active</p>
-              </div>
-              
-              <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                You can view and manage this client from your coach dashboard.
-              </p>
-              
-              <p style="color: #666; font-size: 16px; line-height: 1.5;">
-                Best regards,<br>
-                <strong>The IGU Team</strong>
-              </p>
-            </div>
-          `,
-        }),
-      });
-    }
+    const content = [
+      greeting(coach.first_name),
+      paragraph('You have been assigned a new client!'),
+      detailCard('Client Details', [
+        { label: 'Name', value: clientName },
+        { label: 'Plan', value: planName },
+        { label: 'Status', value: 'Active' },
+      ]),
+      paragraph('You can view and manage this client from your coach dashboard.'),
+      ctaButton('View Client', `${APP_BASE_URL}/dashboard`),
+      signOff(),
+    ].join('');
+
+    const html = wrapInLayout({
+      content,
+      preheader: `New client assigned: ${clientName} -- ${planName}`,
+    });
+
+    await sendEmail({
+      from: EMAIL_FROM,
+      to: contactInfo.email,
+      subject: `New Client: ${clientName} -- ${planName}`,
+      html,
+    });
 
     console.log(`Notification sent to coach ${coachUserId} for new client ${clientUserId}`);
 

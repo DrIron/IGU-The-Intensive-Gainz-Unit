@@ -1,5 +1,8 @@
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
-import { EMAIL_FROM } from '../_shared/config.ts';
+import { EMAIL_FROM, APP_BASE_URL } from '../_shared/config.ts';
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { paragraph, alertBox, detailCard, ctaButton, orderedList, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -55,61 +58,36 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Send email notification to admin
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    if (resendApiKey) {
-      await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${resendApiKey}`,
-          'Content-Type': 'application/json',
-        },
-          body: JSON.stringify({
-            from: EMAIL_FROM,
-            to: [adminProfile.email],
-            subject: '[IGU] Medical Review Required - New Client Signup',
-          html: `
-            <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-              <h1 style="color: #333; font-size: 24px; margin-bottom: 20px;">Medical Review Required</h1>
-              
-              <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                A new client signup requires medical review and approval.
-              </p>
-              
-              <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; margin: 30px 0;">
-                <h2 style="color: #333; font-size: 18px; margin-bottom: 15px;">Client Information</h2>
-                <p style="color: #666; font-size: 14px; margin: 5px 0;"><strong>Name:</strong> ${firstName} ${lastName}</p>
-                <p style="color: #666; font-size: 14px; margin: 5px 0;"><strong>Email:</strong> ${email}</p>
-                <p style="color: #666; font-size: 14px; margin: 5px 0;"><strong>Plan:</strong> ${planName}</p>
-                <p style="color: #666; font-size: 14px; margin: 5px 0;"><strong>Status:</strong> Pending Medical Review</p>
-              </div>
-              
-              <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                This client answered "Yes" to one or more PAR-Q questions and requires your approval before proceeding.
-              </p>
-              
-              <p style="color: #666; font-size: 16px; line-height: 1.5; margin-bottom: 20px;">
-                Please log in to the admin dashboard to review the PAR-Q responses and approve or reject this client.
-              </p>
-              
-              <div style="background-color: #f8f9fa; border-radius: 8px; padding: 20px; margin: 30px 0;">
-                <h3 style="color: #333; font-size: 16px; margin-bottom: 10px;">Next Steps</h3>
-                <ol style="color: #666; font-size: 14px; line-height: 1.8; margin: 0; padding-left: 20px;">
-                  <li>Review the client's PAR-Q responses in the admin dashboard</li>
-                  <li>Contact the client if necessary for additional information</li>
-                  <li>Approve to assign to a coach, or reject if medical clearance is needed</li>
-                </ol>
-              </div>
-              
-              <p style="color: #666; font-size: 16px; line-height: 1.5;">
-                Best regards,<br>
-                <strong>The IGU Team</strong>
-              </p>
-            </div>
-          `,
-        }),
-      });
-    }
+    const content = [
+      alertBox('<strong>Medical Review Required</strong><br>A new client signup requires medical review and approval based on their PAR-Q responses.', 'warning'),
+      paragraph('A client answered "Yes" to one or more PAR-Q questions and requires your approval before proceeding.'),
+      detailCard('Client Information', [
+        { label: 'Name', value: `${firstName} ${lastName}` },
+        { label: 'Email', value: email },
+        { label: 'Plan', value: planName },
+        { label: 'Status', value: 'Pending Medical Review' },
+      ]),
+      paragraph('<strong>Next Steps:</strong>'),
+      orderedList([
+        "Review the client's PAR-Q responses in the admin dashboard",
+        'Contact the client if necessary for additional information',
+        'Approve to assign to a coach, or reject if medical clearance is needed',
+      ]),
+      ctaButton('Review in Admin Dashboard', `${APP_BASE_URL}/admin/dashboard`),
+      signOff(),
+    ].join('');
+
+    const html = wrapInLayout({
+      content,
+      preheader: `Medical review required for ${firstName} ${lastName} -- PAR-Q flagged`,
+    });
+
+    await sendEmail({
+      from: EMAIL_FROM,
+      to: adminProfile.email,
+      subject: `Medical Review Required: ${firstName} ${lastName}`,
+      html,
+    });
 
     console.log(`Medical review notification sent to admin for user ${userId}`);
 

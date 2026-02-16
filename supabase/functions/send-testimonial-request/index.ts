@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { AUTH_REDIRECT_URLS, EMAIL_FROM_COACHING } from '../_shared/config.ts';
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, banner, ctaButton, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,44 +25,42 @@ serve(async (req) => {
   try {
     const body = await req.json();
     const { clientEmail, clientName, coachId, coachName } = requestSchema.parse(body);
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-
-    if (!resendApiKey) {
-      throw new Error('RESEND_API_KEY is not configured');
-    }
 
     // Always use production URL for testimonial links
     const testimonialUrl = AUTH_REDIRECT_URLS.testimonial(coachId);
 
-    const html = `
-      <h1>Share Your Fitness Journey!</h1>
-      <p>Hi ${clientName},</p>
-      <p>We hope you're enjoying your training with ${coachName}! We'd love to hear about your experience.</p>
-      <p>Your testimonial will help inspire others on their fitness journey and appear on our website.</p>
-      <p>Please take a moment to share your thoughts:</p>
-      <a href="${testimonialUrl}" style="display: inline-block; padding: 12px 24px; background-color: #2563eb; color: white; text-decoration: none; border-radius: 6px; margin: 20px 0;">
-        Leave Your Testimonial
-      </a>
-      <p>Thank you for being part of our fitness community!</p>
-      <p>Best regards,<br>${coachName}<br>IGU Coaching</p>
-    `;
+    const content = [
+      greeting(clientName.split(' ')[0] || clientName),
+      paragraph(`We hope you're enjoying your training with <strong>${coachName}</strong>! We'd love to hear about your experience.`),
+      paragraph('Your testimonial will help inspire others on their fitness journey and appear on our website.'),
+      banner('Share Your Fitness Journey', 'It only takes 2 minutes'),
+      ctaButton('Leave Your Testimonial', testimonialUrl),
+      paragraph('Thank you for being part of the IGU community!'),
+      signOff(),
+    ].join('');
 
-    const emailResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: EMAIL_FROM_COACHING,
-        to: [clientEmail],
-        subject: `Share Your Fitness Journey with ${coachName}`,
-        html,
-      }),
+    const html = wrapInLayout({
+      content,
+      preheader: `How's training going with ${coachName}? We'd love to hear from you.`,
+      showUnsubscribe: true,
     });
 
-    const emailData = await emailResponse.json();
-    console.log('Testimonial request email sent:', emailData);
+    const result = await sendEmail({
+      from: EMAIL_FROM_COACHING,
+      to: clientEmail,
+      subject: `How's training going? We'd love to hear`,
+      html,
+    });
+
+    if (!result.success) {
+      console.error('Failed to send testimonial request:', result.error);
+      return new Response(
+        JSON.stringify({ error: "Failed to send testimonial request" }),
+        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    console.log('Testimonial request email sent:', result.id);
 
     return new Response(
       JSON.stringify({ success: true }),
@@ -69,7 +70,7 @@ serve(async (req) => {
     console.error('Error sending testimonial request:', error);
     return new Response(
       JSON.stringify({ error: "Failed to send testimonial request" }),
-      { 
+      {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }

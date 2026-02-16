@@ -4,6 +4,10 @@ import {
   REPLY_TO_ADMIN,
   APP_BASE_URL,
 } from "../_shared/config.ts";
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { EMAIL_BRAND } from '../_shared/emailTemplate.ts';
+import { paragraph, alertBox, ctaButton, sectionHeading } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,11 +33,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY not configured");
-    }
 
     const now = new Date();
     const results = {
@@ -164,7 +163,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { subject, html } = buildEmail(inactiveCoaches);
+    const { subject, preheader, content } = buildAdminAlert(inactiveCoaches);
+    const html = wrapInLayout({ content, preheader });
 
     for (const adminRole of adminRoles) {
       const { data: adminProfile } = await supabase
@@ -175,31 +175,23 @@ Deno.serve(async (req) => {
 
       if (!adminProfile?.email) continue;
 
-      const emailResponse = await fetch("https://api.resend.com/emails", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${resendApiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: EMAIL_FROM_ADMIN,
-          to: [adminProfile.email],
-          subject,
-          html,
-          reply_to: REPLY_TO_ADMIN,
-        }),
+      const result = await sendEmail({
+        from: EMAIL_FROM_ADMIN,
+        to: adminProfile.email,
+        subject,
+        html,
+        replyTo: REPLY_TO_ADMIN,
       });
 
-      if (emailResponse.ok) {
+      if (result.success) {
         results.alerts_sent++;
         console.log(
           `Sent coach inactivity alert to ${adminProfile.email} (${inactiveCoaches.length} coaches)`
         );
       } else {
-        const errorText = await emailResponse.text();
         console.error(
           `Failed to send alert to ${adminProfile.email}:`,
-          errorText
+          result.error
         );
         results.errors.push(`${adminProfile.email}: send failed`);
       }
@@ -229,90 +221,59 @@ interface InactiveCoach {
   clientCount: number;
 }
 
-function buildEmail(
+function buildAdminAlert(
   inactiveCoaches: InactiveCoach[]
-): { subject: string; html: string } {
+): { subject: string; preheader: string; content: string } {
   const adminUrl = `${APP_BASE_URL}/admin/dashboard`;
+  const highPriority = inactiveCoaches.filter((c) => c.clientCount > 0);
 
   const coachRows = inactiveCoaches
-    .sort((a, b) => b.clientCount - a.clientCount) // Sort by client count (most clients first)
+    .sort((a, b) => b.clientCount - a.clientCount)
     .map(
       (coach) => `
       <tr>
-        <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #2d3748; font-size: 14px;">
+        <td style="padding: 12px 16px; border-bottom: 1px solid ${EMAIL_BRAND.gray200}; color: ${EMAIL_BRAND.heading}; font-size: 14px;">
           <strong>${coach.name}</strong><br>
-          <span style="color: #718096; font-size: 12px;">${coach.email}</span>
+          <span style="color: ${EMAIL_BRAND.muted}; font-size: 12px;">${coach.email}</span>
         </td>
-        <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: ${coach.daysSinceLogin > 14 ? "#e53e3e" : "#d69e2e"}; font-size: 14px; text-align: center;">
+        <td style="padding: 12px 16px; border-bottom: 1px solid ${EMAIL_BRAND.gray200}; color: ${coach.daysSinceLogin > 14 ? EMAIL_BRAND.error : EMAIL_BRAND.warning}; font-size: 14px; text-align: center;">
           ${coach.daysSinceLogin === -1 ? "Never" : `${coach.daysSinceLogin} days`}
         </td>
-        <td style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; color: #2d3748; font-size: 14px; text-align: center;">
+        <td style="padding: 12px 16px; border-bottom: 1px solid ${EMAIL_BRAND.gray200}; color: ${EMAIL_BRAND.heading}; font-size: 14px; text-align: center;">
           ${coach.clientCount}
         </td>
-      </tr>
-    `
+      </tr>`
     )
     .join("");
 
-  const highPriority = inactiveCoaches.filter((c) => c.clientCount > 0);
+  const alertSection = highPriority.length > 0
+    ? alertBox(`<strong>${highPriority.length} of these ${highPriority.length > 1 ? "have" : "has"} active clients</strong> who may not be receiving programming updates.`, 'error')
+    : '';
+
+  const coachTable = `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin: 20px 0; border: 1px solid ${EMAIL_BRAND.gray200}; border-radius: 8px; overflow: hidden;">
+      <thead>
+        <tr style="background-color: ${EMAIL_BRAND.gray100};">
+          <th style="padding: 12px 16px; text-align: left; font-size: 12px; text-transform: uppercase; color: ${EMAIL_BRAND.muted}; letter-spacing: 0.5px;">Coach</th>
+          <th style="padding: 12px 16px; text-align: center; font-size: 12px; text-transform: uppercase; color: ${EMAIL_BRAND.muted}; letter-spacing: 0.5px;">Last Login</th>
+          <th style="padding: 12px 16px; text-align: center; font-size: 12px; text-transform: uppercase; color: ${EMAIL_BRAND.muted}; letter-spacing: 0.5px;">Clients</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${coachRows}
+      </tbody>
+    </table>`;
 
   return {
     subject: `Coach Inactivity Alert: ${inactiveCoaches.length} coach${inactiveCoaches.length > 1 ? "es" : ""} inactive`,
-    html: `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-        <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Coach Inactivity Alert</h1>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-            The following ${inactiveCoaches.length} coach${inactiveCoaches.length > 1 ? "es haven't" : " hasn't"} logged in for 7+ days:
-          </p>
-
-          ${
-            highPriority.length > 0
-              ? `
-            <div style="background-color: #fff5f5; border-left: 4px solid #e53e3e; padding: 16px; margin: 24px 0; border-radius: 4px;">
-              <p style="color: #742a2a; font-size: 14px; margin: 0;">
-                <strong>${highPriority.length} of these ${highPriority.length > 1 ? "have" : "has"} active clients</strong> who may not be receiving programming updates.
-              </p>
-            </div>
-          `
-              : ""
-          }
-
-          <table width="100%" cellpadding="0" cellspacing="0" style="margin: 24px 0; border-collapse: collapse;">
-            <thead>
-              <tr style="background-color: #f7fafc;">
-                <th style="padding: 12px 16px; text-align: left; color: #718096; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #e2e8f0;">Coach</th>
-                <th style="padding: 12px 16px; text-align: center; color: #718096; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #e2e8f0;">Last Login</th>
-                <th style="padding: 12px 16px; text-align: center; color: #718096; font-size: 12px; text-transform: uppercase; border-bottom: 2px solid #e2e8f0;">Clients</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${coachRows}
-            </tbody>
-          </table>
-
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${adminUrl}"
-               style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-              Open Admin Dashboard
-            </a>
-          </div>
-
-          <p style="color: #718096; font-size: 14px; line-height: 1.6;">
-            This alert is sent once per inactive coach per week.
-          </p>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-            <strong>IGU Platform Monitor</strong>
-          </p>
-        </div>
-        <div style="text-align: center; margin-top: 16px;">
-          <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-            This is an automated platform alert from IGU
-          </p>
-        </div>
-      </div>
-    `,
+    preheader: `${inactiveCoaches.length} coach${inactiveCoaches.length > 1 ? "es haven't" : " hasn't"} logged in for 7+ days${highPriority.length > 0 ? ` -- ${highPriority.length} with active clients` : ''}.`,
+    content: [
+      sectionHeading('Coach Inactivity Alert'),
+      paragraph(`The following ${inactiveCoaches.length} coach${inactiveCoaches.length > 1 ? "es haven't" : " hasn't"} logged in for 7+ days:`),
+      alertSection,
+      coachTable,
+      ctaButton('Open Admin Dashboard', adminUrl),
+      paragraph('This alert is sent once per inactive coach per week.'),
+    ].join(''),
   };
 }

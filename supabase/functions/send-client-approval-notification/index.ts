@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 import { APP_BASE_URL, AUTH_REDIRECT_URLS, EMAIL_FROM } from '../_shared/config.ts';
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, banner, detailCard, alertBox, ctaButton, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -89,111 +92,41 @@ const handler = async (req: Request): Promise<Response> => {
     const serviceName = (subscription as any)?.services?.name || 'your program';
     const servicePrice = (subscription as any)?.services?.price_kwd || 0;
     const coachName = `${coach.first_name} ${coach.last_name}`;
-    // Always use production URL for email links
     const dashboardUrl = AUTH_REDIRECT_URLS.dashboard;
 
-    // Send email notification
-    const resendApiKey = Deno.env.get('RESEND_API_KEY');
-    if (!resendApiKey) {
-      console.error('RESEND_API_KEY not configured');
-      return new Response(
-        JSON.stringify({ error: 'Email service not configured' }),
-        { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
-    }
+    const content = [
+      banner("You're Approved!", "You're one step closer to starting your fitness journey"),
+      greeting(clientName),
+      paragraph('Your coach has reviewed and approved your application. Complete your payment to get started!'),
+      detailCard('Your Details', [
+        { label: 'Coach', value: coachName },
+        { label: 'Program', value: serviceName },
+        { label: 'Monthly Fee', value: `${servicePrice} KWD` },
+      ]),
+      alertBox('<strong>Next Step: Complete Payment</strong><br>To secure your spot and begin training, please complete your payment within the next 7 days. After payment, your coach will reach out to get you started!', 'warning'),
+      ctaButton('Complete Payment Now', dashboardUrl),
+      signOff(),
+    ].join('');
 
-    const emailResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: EMAIL_FROM,
-        to: [profile.email],
-        subject: '🎉 Your Coach Has Approved Your Application!',
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <div style="text-align: center; margin-bottom: 24px;">
-                <h1 style="color: #2d3748; font-size: 28px; margin: 0 0 8px 0;">🎉 Great News!</h1>
-                <div style="width: 60px; height: 4px; background: linear-gradient(90deg, #4CAF50, #8BC34A); margin: 0 auto; border-radius: 2px;"></div>
-              </div>
-              
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                Hi ${clientName},
-              </p>
-              
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
-                <p style="color: white; font-size: 18px; font-weight: bold; margin: 0 0 8px 0;">
-                  Your coach has approved your application!
-                </p>
-                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">
-                  You're one step closer to starting your fitness journey
-                </p>
-              </div>
-              
-              <div style="background-color: #f7fafc; border-radius: 8px; padding: 20px; margin: 24px 0;">
-                <h2 style="color: #2d3748; font-size: 18px; margin: 0 0 16px 0;">📋 Your Details</h2>
-                <div style="border-left: 3px solid #4CAF50; padding-left: 16px;">
-                  <p style="color: #4a5568; font-size: 14px; margin: 8px 0;">
-                    <strong>Coach:</strong> ${coachName}
-                  </p>
-                  <p style="color: #4a5568; font-size: 14px; margin: 8px 0;">
-                    <strong>Program:</strong> ${serviceName}
-                  </p>
-                  <p style="color: #4a5568; font-size: 14px; margin: 8px 0;">
-                    <strong>Monthly Fee:</strong> ${servicePrice} KWD
-                  </p>
-                </div>
-              </div>
-              
-              <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; border-radius: 4px; padding: 16px; margin: 24px 0;">
-                <h3 style="color: #856404; font-size: 16px; margin: 0 0 8px 0;">⏰ Next Step: Complete Payment</h3>
-                <p style="color: #856404; font-size: 14px; margin: 0; line-height: 1.5;">
-                  To secure your spot and begin training, please complete your payment within the next 7 days. After payment, your coach will reach out to get you started!
-                </p>
-              </div>
-              
-              <div style="text-align: center; margin: 32px 0 24px 0;">
-                <a href="${dashboardUrl}" 
-                   style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-                  Complete Payment Now →
-                </a>
-              </div>
-              
-              <div style="border-top: 1px solid #e2e8f0; padding-top: 20px; margin-top: 32px;">
-                <p style="color: #718096; font-size: 14px; line-height: 1.6; margin: 0;">
-                  If you have any questions, feel free to reach out to us or your coach.
-                </p>
-                <p style="color: #4a5568; font-size: 16px; margin: 16px 0 0 0;">
-                  Best regards,<br>
-                  <strong style="color: #2d3748;">The IGU Team</strong>
-                </p>
-              </div>
-            </div>
-            
-            <div style="text-align: center; margin-top: 16px;">
-              <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-                This email was sent because your coach approved your application at IGU
-              </p>
-            </div>
-          </div>
-        `,
-      }),
+    const html = wrapInLayout({
+      content,
+      preheader: 'Your coach approved your application. Complete payment to start training.',
     });
 
-    let emailStatus = 'sent';
-    let emailId = null;
+    const result = await sendEmail({
+      from: EMAIL_FROM,
+      to: profile.email,
+      subject: "You're Approved -- Complete Payment to Start",
+      html,
+    });
 
-    if (!emailResponse.ok) {
-      const errorText = await emailResponse.text();
-      console.error('Error sending email:', errorText);
-      emailStatus = 'failed';
+    let emailStatus = result.success ? 'sent' : 'failed';
+    let emailId = result.id || null;
+
+    if (!result.success) {
+      console.error('Error sending email:', result.error);
     } else {
-      const emailData = await emailResponse.json();
-      emailId = emailData.id;
-      console.log('Email sent successfully:', emailData);
+      console.log('Email sent successfully:', result.id);
     }
 
     // Track email notification in database
@@ -241,7 +174,6 @@ const handler = async (req: Request): Promise<Response> => {
           service_id: subData?.service_id ?? null,
           service_name: (subData as any)?.services?.name ?? serviceName,
           coach_id: coachId,
-          // coach_email deliberately omitted - PII should not be sent to external services
           notes: 'Coach approved 1:1 client',
           metadata: {
             previous_status: 'pending_coach_approval',
@@ -255,30 +187,29 @@ const handler = async (req: Request): Promise<Response> => {
       console.error('Zapier notification failed (non-critical):', zapierError);
     }
 
-    // Return success but do NOT include coach email in response
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         success: true,
         message: 'Approval notification sent successfully',
         emailId,
         emailStatus
       }),
-      { 
+      {
         status: 200,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error';
     console.error('Error in send-client-approval-notification:', error);
     return new Response(
-      JSON.stringify({ 
+      JSON.stringify({
         error: 'Internal server error',
         message: errorMessage
       }),
-      { 
+      {
         status: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' } 
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       }
     );
   }

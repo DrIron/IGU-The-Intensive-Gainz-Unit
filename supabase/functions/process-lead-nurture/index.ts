@@ -5,6 +5,9 @@ import {
   AUTH_REDIRECT_URLS,
   APP_BASE_URL,
 } from "../_shared/config.ts";
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, alertBox, ctaButton, sectionHeading, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -31,11 +34,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY not configured");
-    }
 
     const now = new Date();
     const results = {
@@ -123,41 +121,31 @@ Deno.serve(async (req) => {
         }
 
         const firstName = lead.name?.split(" ")[0] || "there";
-        const { subject, html } = buildEmail(notificationType, firstName);
+        const { subject, preheader, content } = buildEmailContent(notificationType, firstName);
 
-        const emailResponse = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: EMAIL_FROM,
-            to: [lead.email],
-            subject,
-            html,
-            reply_to: REPLY_TO_SUPPORT,
-          }),
+        const html = wrapInLayout({
+          content,
+          preheader,
+          showUnsubscribe: true,
         });
 
-        const emailOk = emailResponse.ok;
-        if (!emailOk) {
-          const errorText = await emailResponse.text();
-          console.error(
-            `Failed to send ${notificationType} to ${lead.email}:`,
-            errorText
-          );
-        }
+        const result = await sendEmail({
+          from: EMAIL_FROM,
+          to: lead.email,
+          subject,
+          html,
+          replyTo: REPLY_TO_SUPPORT,
+        });
 
         // Use lead.id as user_id for dedup (leads don't have auth user_ids)
         await supabase.from("email_notifications").insert({
           user_id: lead.id,
           notification_type: notificationType,
-          status: emailOk ? "sent" : "failed",
+          status: result.success ? "sent" : "failed",
           sent_at: new Date().toISOString(),
         });
 
-        if (emailOk) {
+        if (result.success) {
           results.emails_sent++;
           console.log(
             `Sent ${notificationType} to ${lead.email} (day ${daysSinceSignup})`
@@ -188,10 +176,10 @@ Deno.serve(async (req) => {
   }
 });
 
-function buildEmail(
+function buildEmailContent(
   notificationType: string,
   firstName: string
-): { subject: string; html: string } {
+): { subject: string; preheader: string; content: string } {
   const servicesUrl = AUTH_REDIRECT_URLS.services;
   const teamUrl = `${APP_BASE_URL}/meet-our-team`;
   const signupUrl = `${AUTH_REDIRECT_URLS.auth}?tab=signup`;
@@ -199,142 +187,51 @@ function buildEmail(
   switch (notificationType) {
     case "lead_nurture_day2":
       return {
-        subject: "Here's what IGU Coaching can do for you",
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Hi ${firstName},</h1>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                Thanks for signing up for updates from IGU! We wanted to share what makes our coaching different.
-              </p>
-
-              <div style="margin: 24px 0;">
-                <div style="padding: 12px 0; border-bottom: 1px solid #e2e8f0;">
-                  <p style="color: #2d3748; font-size: 15px; margin: 0;"><strong>Personalized Programs</strong> — Every workout is built specifically for your goals and experience level</p>
-                </div>
-                <div style="padding: 12px 0; border-bottom: 1px solid #e2e8f0;">
-                  <p style="color: #2d3748; font-size: 15px; margin: 0;"><strong>Expert Coaches</strong> — Work 1:1 with certified coaches who specialize in your goals</p>
-                </div>
-                <div style="padding: 12px 0; border-bottom: 1px solid #e2e8f0;">
-                  <p style="color: #2d3748; font-size: 15px; margin: 0;"><strong>Full Tracking</strong> — Log workouts, track progress, and see real results over time</p>
-                </div>
-                <div style="padding: 12px 0;">
-                  <p style="color: #2d3748; font-size: 15px; margin: 0;"><strong>Nutrition Support</strong> — Optional dietitian-led nutrition coaching for complete results</p>
-                </div>
-              </div>
-
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${servicesUrl}"
-                   style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-                  Explore Our Programs
-                </a>
-              </div>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-                Best regards,<br>
-                <strong>The IGU Team</strong>
-              </p>
-            </div>
-            <div style="text-align: center; margin-top: 16px;">
-              <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-                You're receiving this because you signed up at theigu.com
-              </p>
-            </div>
-          </div>
-        `,
+        subject: "Here's what IGU can do for you",
+        preheader: "Personalized programs, expert coaches, and full tracking -- all in one platform.",
+        content: [
+          greeting(firstName),
+          paragraph("Thanks for signing up for updates from IGU! We wanted to share what makes our coaching different."),
+          sectionHeading('What You Get with IGU'),
+          paragraph('<strong>Personalized Programs</strong> -- Every workout is built specifically for your goals and experience level'),
+          paragraph('<strong>Expert Coaches</strong> -- Work 1:1 with certified coaches who specialize in your goals'),
+          paragraph('<strong>Full Tracking</strong> -- Log workouts, track progress, and see real results over time'),
+          paragraph('<strong>Nutrition Support</strong> -- Optional dietitian-led nutrition coaching for complete results'),
+          ctaButton('Explore Our Programs', servicesUrl),
+          signOff(),
+        ].join(''),
       };
 
     case "lead_nurture_day5":
       return {
         subject: "Meet the coaches behind IGU",
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Hi ${firstName},</h1>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                The right coach makes all the difference. At IGU, every coach is hand-picked and brings real expertise to help you reach your goals.
-              </p>
-
-              <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
-                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0 0 8px 0;">OUR TEAM</p>
-                <p style="color: white; font-size: 18px; font-weight: bold; margin: 0;">Certified coaches specializing in bodybuilding, powerlifting, nutrition & more</p>
-              </div>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                When you sign up, we'll match you with the coach who best fits your goals, training style, and schedule.
-              </p>
-
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${teamUrl}"
-                   style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-                  Meet Our Coaches
-                </a>
-              </div>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-                Best regards,<br>
-                <strong>The IGU Team</strong>
-              </p>
-            </div>
-            <div style="text-align: center; margin-top: 16px;">
-              <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-                You're receiving this because you signed up at theigu.com
-              </p>
-            </div>
-          </div>
-        `,
+        preheader: "Hand-picked, certified coaches specializing in bodybuilding, powerlifting, nutrition and more.",
+        content: [
+          greeting(firstName),
+          paragraph("The right coach makes all the difference. At IGU, every coach is hand-picked and brings real expertise to help you reach your goals."),
+          alertBox('<strong>Our team:</strong> Certified coaches specializing in bodybuilding, powerlifting, nutrition and more', 'info'),
+          paragraph("When you sign up, we'll match you with the coach who best fits your goals, training style, and schedule."),
+          ctaButton('Meet Our Coaches', teamUrl),
+          signOff(),
+        ].join(''),
       };
 
     case "lead_nurture_day10":
       return {
         subject: "Ready to start your transformation?",
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Hi ${firstName},</h1>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                We know choosing a coaching program is a big decision. That's why we make it easy to get started — no long-term contracts, cancel anytime.
-              </p>
-
-              <div style="background-color: #f0fff4; border-left: 4px solid #48bb78; padding: 16px; margin: 24px 0; border-radius: 4px;">
-                <p style="color: #276749; font-size: 14px; margin: 0; line-height: 1.6;">
-                  <strong>Plans start from just 12 KWD/month</strong> for team coaching. 1:1 online coaching with a dedicated personal coach starts at 50 KWD/month.
-                </p>
-              </div>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                The onboarding takes just a few minutes — we'll ask about your goals, match you with the perfect coach, and get your first program ready.
-              </p>
-
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${signupUrl}"
-                   style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-                  Start Your Journey
-                </a>
-              </div>
-
-              <p style="color: #718096; font-size: 14px; line-height: 1.6;">
-                Have questions? Simply reply to this email and we'll be happy to help.
-              </p>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-                Best regards,<br>
-                <strong>The IGU Team</strong>
-              </p>
-            </div>
-            <div style="text-align: center; margin-top: 16px;">
-              <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-                You're receiving this because you signed up at theigu.com
-              </p>
-            </div>
-          </div>
-        `,
+        preheader: "Plans start from 12 KWD/month. No contracts, cancel anytime.",
+        content: [
+          greeting(firstName),
+          paragraph("We know choosing a coaching program is a big decision. That's why we make it easy to get started -- no long-term contracts, cancel anytime."),
+          alertBox('<strong>Plans start from just 12 KWD/month</strong> for team coaching. 1:1 online coaching with a dedicated personal coach starts at 50 KWD/month.', 'success'),
+          paragraph("The onboarding takes just a few minutes -- we'll ask about your goals, match you with the perfect coach, and get your first program ready."),
+          ctaButton('Start Your Journey', signupUrl),
+          paragraph("Have questions? Simply reply to this email and we'll be happy to help."),
+          signOff(),
+        ].join(''),
       };
 
     default:
-      return { subject: "", html: "" };
+      return { subject: "", preheader: "", content: "" };
   }
 }

@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.58.0';
 import { APP_BASE_URL, EMAIL_FROM } from "../_shared/config.ts";
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, banner, detailCard, ctaButton, signOff, alertBox, statCard, statGrid } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,12 +12,12 @@ const corsHeaders = {
 
 interface PendingClientNotificationRequest {
   coachUserId: string;
-  coachId?: string; // coaches.id - optional, will fetch email from coaches_private if provided
-  coachEmail?: string; // Optional - if not provided, will be fetched server-side
+  coachId?: string;
+  coachEmail?: string;
   coachFirstName: string;
   clientFirstName: string;
   clientLastName: string;
-  clientEmail?: string; // Optional now
+  clientEmail?: string;
   serviceName: string;
 }
 
@@ -34,7 +37,6 @@ const handler = async (req: Request): Promise<Response> => {
       serviceName,
     } = requestData;
 
-    // Initialize Supabase client with service role for server-side access
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
@@ -69,157 +71,46 @@ const handler = async (req: Request): Promise<Response> => {
 
     const clientFullName = `${clientFirstName} ${clientLastName}`.trim();
     const dashboardUrl = `${APP_BASE_URL}/dashboard`;
-    const resendApiKey = Deno.env.get('RESEND_API_KEY')!;
 
-    const emailHtml = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <meta charset="utf-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <style>
-            body {
-              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-              line-height: 1.6;
-              color: #333;
-              max-width: 600px;
-              margin: 0 auto;
-              padding: 20px;
-            }
-            .header {
-              background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-              color: white;
-              padding: 30px;
-              border-radius: 10px 10px 0 0;
-              text-align: center;
-            }
-            .content {
-              background: #f8f9fa;
-              padding: 30px;
-              border-radius: 0 0 10px 10px;
-            }
-            .client-card {
-              background: white;
-              padding: 20px;
-              border-radius: 8px;
-              margin: 20px 0;
-              border-left: 4px solid #667eea;
-            }
-            .client-info {
-              margin: 10px 0;
-            }
-            .client-info strong {
-              color: #667eea;
-            }
-            .cta-button {
-              display: inline-block;
-              background: #667eea;
-              color: white;
-              padding: 15px 30px;
-              text-decoration: none;
-              border-radius: 8px;
-              font-weight: 600;
-              margin: 20px 0;
-              text-align: center;
-            }
-            .cta-button:hover {
-              background: #5568d3;
-            }
-            .stats {
-              background: white;
-              padding: 15px;
-              border-radius: 8px;
-              margin: 20px 0;
-              text-align: center;
-            }
-            .stats-number {
-              font-size: 32px;
-              font-weight: bold;
-              color: #667eea;
-            }
-            .footer {
-              text-align: center;
-              color: #666;
-              font-size: 12px;
-              margin-top: 30px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1 style="margin: 0;">🎉 New Client Awaiting Approval!</h1>
-          </div>
-          
-          <div class="content">
-            <p>Hi ${coachFirstName},</p>
-            
-            <p>Great news! A new client has selected you as their coach and is waiting for your approval.</p>
-            
-            <div class="client-card">
-              <h2 style="margin-top: 0; color: #333;">Client Details</h2>
-              <div class="client-info">
-                <strong>Name:</strong> ${clientFullName}
-              </div>
-              <div class="client-info">
-                <strong>Service:</strong> ${serviceName}
-              </div>
-            </div>
+    const content = [
+      banner('New Client Awaiting Approval', 'A new client has selected you as their coach'),
+      greeting(coachFirstName),
+      paragraph('A new client has selected you and is waiting for your approval.'),
+      detailCard('Client Details', [
+        { label: 'Name', value: clientFullName },
+        { label: 'Service', value: serviceName },
+      ]),
+      pendingCount && pendingCount > 1
+        ? statGrid([statCard('Total Pending Approvals', pendingCount, true)])
+        : '',
+      alertBox(
+        '<strong>What happens next?</strong><br>Accept: The client will be added to your active roster<br>Reject: The client will be notified to select another coach',
+        'info'
+      ),
+      ctaButton('Review Pending Clients', dashboardUrl),
+      signOff(),
+    ].join('');
 
-            ${pendingCount && pendingCount > 1 ? `
-            <div class="stats">
-              <div class="stats-number">${pendingCount}</div>
-              <div>Total Pending Approvals</div>
-            </div>
-            ` : ''}
-            
-            <p>Please review this client's application and decide whether to accept or reject them based on your current capacity and schedule.</p>
-            
-            <div style="text-align: center;">
-              <a href="${dashboardUrl}" class="cta-button">
-                Review Pending Clients
-              </a>
-            </div>
-            
-            <p style="margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 14px;">
-              <strong>What happens next?</strong><br>
-              • Accept: The client will be added to your active roster<br>
-              • Reject: The client will be notified to select another coach
-            </p>
-            
-            <div class="footer">
-              <p>This is an automated notification from your coaching platform.</p>
-              <p>If you have any questions, please contact support.</p>
-            </div>
-          </div>
-        </body>
-      </html>
-    `;
-
-    // Send email using Resend API
-    const emailResponse = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${resendApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        from: EMAIL_FROM,
-        to: [coachEmail],
-        subject: `New Client Awaiting Your Approval - ${clientFullName}`,
-        html: emailHtml,
-      }),
+    const html = wrapInLayout({
+      content,
+      preheader: `${clientFullName} is waiting for your approval -- ${serviceName}`,
     });
 
-    const emailResult = await emailResponse.json();
+    const result = await sendEmail({
+      from: EMAIL_FROM,
+      to: coachEmail,
+      subject: `New Client Awaiting Your Approval - ${clientFullName}`,
+      html,
+    });
 
-    if (!emailResponse.ok) {
-      throw new Error(`Resend API error: ${JSON.stringify(emailResult)}`);
+    if (!result.success) {
+      throw new Error(`Resend API error: ${result.error}`);
     }
 
-    console.log("Pending client notification sent successfully:", emailResult);
+    console.log("Pending client notification sent successfully:", result.id);
 
     return new Response(
-      JSON.stringify({ success: true, emailResult }),
+      JSON.stringify({ success: true, emailResult: result }),
       {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },

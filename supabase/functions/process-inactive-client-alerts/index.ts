@@ -1,5 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { EMAIL_FROM_COACHING, REPLY_TO_SUPPORT, APP_BASE_URL } from "../_shared/config.ts";
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, alertBox, ctaButton, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,11 +31,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY not configured");
-    }
 
     const now = new Date();
     const results = {
@@ -78,16 +76,7 @@ Deno.serve(async (req) => {
 
         if (!profile) continue;
 
-        // Check for recent workout activity via completed sessions
-        const { data: recentSessions } = await supabase
-          .from("client_day_modules")
-          .select("id")
-          .eq("status", "completed")
-          .gte("completed_at", fiveDaysAgo)
-          .limit(1);
-
-        // We need to filter by user — join through client_program_days → client_programs
-        // Instead, check exercise_set_logs which has created_by_user_id
+        // Check for recent workout activity via set logs
         const { data: recentLogs } = await supabase
           .from("exercise_set_logs")
           .select("id")
@@ -147,42 +136,38 @@ Deno.serve(async (req) => {
         const serviceData = sub.services as any;
         const serviceName = serviceData?.name || "their program";
         const coachFirstName = coachProfile.first_name || "Coach";
+        const dashboardUrl = `${APP_BASE_URL}/coach/clients`;
 
-        const { subject, html } = buildEmail(
-          coachFirstName,
-          clientName,
-          serviceName
-        );
+        const content = [
+          greeting(coachFirstName),
+          paragraph(`Your client <strong>${clientName}</strong> hasn't logged a workout in the last 5 days on their <strong>${serviceName}</strong> program.`),
+          alertBox('<strong>Suggested action:</strong> A quick check-in message can make a big difference. Clients who receive proactive outreach are significantly more likely to stay engaged.', 'info'),
+          ctaButton('View My Clients', dashboardUrl),
+          paragraph('You\'ll receive this alert at most once every 14 days per client.'),
+          signOff(),
+        ].join('');
 
-        const emailResponse = await fetch("https://api.resend.com/emails", {
-          method: "POST",
-          headers: {
-            Authorization: `Bearer ${resendApiKey}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            from: EMAIL_FROM_COACHING,
-            to: [coachProfile.email],
-            subject,
-            html,
-            reply_to: REPLY_TO_SUPPORT,
-          }),
+        const html = wrapInLayout({
+          content,
+          preheader: `${clientName} hasn't trained in 5+ days -- consider a check-in.`,
         });
 
-        const emailOk = emailResponse.ok;
-        if (!emailOk) {
-          const errorText = await emailResponse.text();
-          console.error(`Failed to send inactive alert for ${clientName}:`, errorText);
-        }
+        const result = await sendEmail({
+          from: EMAIL_FROM_COACHING,
+          to: coachProfile.email,
+          subject: `Inactive client: ${clientName}`,
+          html,
+          replyTo: REPLY_TO_SUPPORT,
+        });
 
         await supabase.from("email_notifications").insert({
           user_id: sub.user_id,
           notification_type: "inactive_client_coach_alert",
-          status: emailOk ? "sent" : "failed",
+          status: result.success ? "sent" : "failed",
           sent_at: new Date().toISOString(),
         });
 
-        if (emailOk) {
+        if (result.success) {
           results.alerts_sent++;
           console.log(
             `Sent inactive client alert to ${coachProfile.email} for ${clientName}`
@@ -212,53 +197,3 @@ Deno.serve(async (req) => {
     );
   }
 });
-
-function buildEmail(
-  coachFirstName: string,
-  clientName: string,
-  serviceName: string
-): { subject: string; html: string } {
-  const dashboardUrl = `${APP_BASE_URL}/coach/clients`;
-
-  return {
-    subject: `Inactive client: ${clientName}`,
-    html: `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-        <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Hi ${coachFirstName},</h1>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-            Your client <strong>${clientName}</strong> hasn't logged a workout in the last 5 days on their <strong>${serviceName}</strong> program.
-          </p>
-
-          <div style="background-color: #ebf8ff; border-left: 4px solid #4299e1; padding: 16px; margin: 24px 0; border-radius: 4px;">
-            <p style="color: #2b6cb0; font-size: 14px; margin: 0; line-height: 1.6;">
-              <strong>Suggested action:</strong> A quick check-in message can make a big difference. Clients who receive proactive outreach are significantly more likely to stay engaged.
-            </p>
-          </div>
-
-          <div style="text-align: center; margin: 32px 0;">
-            <a href="${dashboardUrl}"
-               style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-              View My Clients
-            </a>
-          </div>
-
-          <p style="color: #718096; font-size: 14px; line-height: 1.6;">
-            You'll receive this alert at most once every 14 days per client.
-          </p>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-            Best regards,<br>
-            <strong>The IGU Team</strong>
-          </p>
-        </div>
-        <div style="text-align: center; margin-top: 16px;">
-          <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-            This is an automated coaching notification from IGU
-          </p>
-        </div>
-      </div>
-    `,
-  };
-}

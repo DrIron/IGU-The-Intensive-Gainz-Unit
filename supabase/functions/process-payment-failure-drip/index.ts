@@ -5,6 +5,9 @@ import {
   AUTH_REDIRECT_URLS,
   REPLY_TO_SUPPORT,
 } from "../_shared/config.ts";
+import { wrapInLayout } from '../_shared/emailTemplate.ts';
+import { greeting, paragraph, alertBox, ctaButton, detailCard, banner, signOff } from '../_shared/emailComponents.ts';
+import { sendEmail } from '../_shared/sendEmail.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -32,11 +35,6 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
     );
-    const resendApiKey = Deno.env.get("RESEND_API_KEY");
-
-    if (!resendApiKey) {
-      throw new Error("RESEND_API_KEY not configured");
-    }
 
     const now = new Date();
     const results = {
@@ -142,29 +140,31 @@ Deno.serve(async (req) => {
             if (!coachProfile?.email) continue;
 
             const coachFirstName = coach.first_name || "Coach";
-            const { subject, html } = buildCoachNotificationEmail(
+            const { subject, preheader, content } = buildCoachNotification(
               coachFirstName,
               clientName,
               serviceName,
               daysSinceFailure
             );
 
-            const emailOk = await sendEmail(
-              resendApiKey,
-              EMAIL_FROM_COACHING,
-              coachProfile.email,
+            const html = wrapInLayout({ content, preheader });
+
+            const emailResult = await sendEmail({
+              from: EMAIL_FROM_COACHING,
+              to: coachProfile.email,
               subject,
-              html
-            );
+              html,
+              replyTo: REPLY_TO_SUPPORT,
+            });
 
             await supabase.from("email_notifications").insert({
               user_id: sub.user_id,
               notification_type: step.type,
-              status: emailOk ? "sent" : "failed",
+              status: emailResult.success ? "sent" : "failed",
               sent_at: new Date().toISOString(),
             });
 
-            if (emailOk) {
+            if (emailResult.success) {
               results.coach_emails_sent++;
               console.log(
                 `Sent ${step.type} to coach ${coachProfile.email} for client ${profile.email}`
@@ -176,29 +176,31 @@ Deno.serve(async (req) => {
             }
           } else {
             // Send client notification
-            const { subject, html } = buildClientEmail(
+            const { subject, preheader, content } = buildClientEmail(
               step.type,
               firstName,
               serviceName,
               daysSinceFailure
             );
 
-            const emailOk = await sendEmail(
-              resendApiKey,
-              EMAIL_FROM_BILLING,
-              profile.email,
+            const html = wrapInLayout({ content, preheader });
+
+            const emailResult = await sendEmail({
+              from: EMAIL_FROM_BILLING,
+              to: profile.email,
               subject,
-              html
-            );
+              html,
+              replyTo: REPLY_TO_SUPPORT,
+            });
 
             await supabase.from("email_notifications").insert({
               user_id: sub.user_id,
               notification_type: step.type,
-              status: emailOk ? "sent" : "failed",
+              status: emailResult.success ? "sent" : "failed",
               sent_at: new Date().toISOString(),
             });
 
-            if (emailOk) {
+            if (emailResult.success) {
               results.client_emails_sent++;
               console.log(
                 `Sent ${step.type} to ${profile.email} (day ${daysSinceFailure})`
@@ -231,224 +233,77 @@ Deno.serve(async (req) => {
   }
 });
 
-async function sendEmail(
-  apiKey: string,
-  from: string,
-  to: string,
-  subject: string,
-  html: string
-): Promise<boolean> {
-  try {
-    const response = await fetch("https://api.resend.com/emails", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        from,
-        to: [to],
-        subject,
-        html,
-        reply_to: REPLY_TO_SUPPORT,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Resend API error: ${errorText}`);
-      return false;
-    }
-    return true;
-  } catch (err) {
-    console.error("Email send error:", err);
-    return false;
-  }
-}
-
 function buildClientEmail(
   notificationType: string,
   firstName: string,
   serviceName: string,
   daysSinceFailure: number
-): { subject: string; html: string } {
+): { subject: string; preheader: string; content: string } {
   const paymentUrl = AUTH_REDIRECT_URLS.billingPay;
 
   switch (notificationType) {
     case "payment_failure_day1":
       return {
         subject: "We noticed a payment issue",
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Hi ${firstName},</h1>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                We tried to process your monthly payment for <strong>${serviceName}</strong>, but it didn't go through. This can happen for a number of reasons — an expired card, insufficient funds, or a temporary bank issue.
-              </p>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                No worries — your access is still active. Just update your payment method when you get a chance and everything will be sorted.
-              </p>
-
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${paymentUrl}"
-                   style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-                  Update Payment Method
-                </a>
-              </div>
-
-              <p style="color: #718096; font-size: 14px; line-height: 1.6;">
-                If you believe this is an error, please reach out and we'll help sort it out.
-              </p>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-                Best regards,<br>
-                <strong>The IGU Team</strong>
-              </p>
-            </div>
-            <div style="text-align: center; margin-top: 16px;">
-              <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-                This is an automated billing notification from IGU
-              </p>
-            </div>
-          </div>
-        `,
+        preheader: `Your payment for ${serviceName} didn't go through -- here's how to fix it.`,
+        content: [
+          greeting(firstName),
+          paragraph(`We tried to process your monthly payment for <strong>${serviceName}</strong>, but it didn't go through. This can happen for a number of reasons -- an expired card, insufficient funds, or a temporary bank issue.`),
+          paragraph("No worries -- your access is still active. Just update your payment method when you get a chance and everything will be sorted."),
+          ctaButton('Update Payment Method', paymentUrl),
+          paragraph('If you believe this is an error, please reach out and we\'ll help sort it out.'),
+          signOff(),
+        ].join(''),
       };
 
     case "payment_failure_day2":
       return {
-        subject: "Quick reminder: Update your payment method",
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Hi ${firstName},</h1>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                Just a quick follow-up — your payment for <strong>${serviceName}</strong> still needs to be updated. Your access continues for now, so there's no interruption to your training.
-              </p>
-
-              <div style="background-color: #ebf8ff; border-left: 4px solid #4299e1; padding: 16px; margin: 24px 0; border-radius: 4px;">
-                <p style="color: #2b6cb0; font-size: 14px; margin: 0; line-height: 1.6;">
-                  <strong>Your access is still active.</strong> Update your payment method to keep things running smoothly.
-                </p>
-              </div>
-
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${paymentUrl}"
-                   style="display: inline-block; background-color: #4CAF50; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);">
-                  Update Payment Method
-                </a>
-              </div>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-                Best regards,<br>
-                <strong>The IGU Team</strong>
-              </p>
-            </div>
-            <div style="text-align: center; margin-top: 16px;">
-              <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-                This is an automated billing notification from IGU
-              </p>
-            </div>
-          </div>
-        `,
+        subject: "Quick reminder -- update your payment method",
+        preheader: `Your payment for ${serviceName} still needs to be updated.`,
+        content: [
+          greeting(firstName),
+          paragraph(`Just a quick follow-up -- your payment for <strong>${serviceName}</strong> still needs to be updated. Your access continues for now, so there's no interruption to your training.`),
+          alertBox('<strong>Your access is still active.</strong> Update your payment method to keep things running smoothly.', 'info'),
+          ctaButton('Update Payment Method', paymentUrl),
+          signOff(),
+        ].join(''),
       };
 
     case "payment_failure_day9":
       return {
         subject: "We don't want to lose you",
-        html: `
-          <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-            <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-              <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Hi ${firstName},</h1>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                We really don't want to lose you as a member. Your payment for <strong>${serviceName}</strong> has been outstanding for ${daysSinceFailure} days, and your account access is currently restricted.
-              </p>
-
-              <div style="background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%); border-radius: 8px; padding: 24px; margin: 24px 0; text-align: center;">
-                <p style="color: white; font-size: 18px; font-weight: bold; margin: 0 0 8px 0;">
-                  Account cancellation in ~5 days
-                </p>
-                <p style="color: rgba(255,255,255,0.9); font-size: 14px; margin: 0;">
-                  Update your payment now to restore full access immediately
-                </p>
-              </div>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-                Your coach and program are still here waiting for you. One quick payment update and you're back on track.
-              </p>
-
-              <div style="text-align: center; margin: 32px 0;">
-                <a href="${paymentUrl}"
-                   style="display: inline-block; background-color: #e53e3e; color: white; padding: 14px 32px; text-decoration: none; border-radius: 8px; font-weight: bold; font-size: 16px; box-shadow: 0 4px 12px rgba(229, 62, 62, 0.3);">
-                  Restore My Access Now
-                </a>
-              </div>
-
-              <p style="color: #718096; font-size: 14px; line-height: 1.6;">
-                If you're experiencing financial difficulties or have questions, please reply to this email. We're happy to discuss options.
-              </p>
-
-              <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-                Best regards,<br>
-                <strong>The IGU Team</strong>
-              </p>
-            </div>
-            <div style="text-align: center; margin-top: 16px;">
-              <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-                This is an automated billing notification from IGU
-              </p>
-            </div>
-          </div>
-        `,
+        preheader: `Your ${serviceName} subscription needs attention -- account cancellation in ~5 days.`,
+        content: [
+          greeting(firstName),
+          paragraph(`We really don't want to lose you as a member. Your payment for <strong>${serviceName}</strong> has been outstanding for ${daysSinceFailure} days, and your account access is currently restricted.`),
+          banner('Account cancellation in ~5 days', 'Update your payment now to restore full access immediately'),
+          paragraph("Your coach and program are still here waiting for you. One quick payment update and you're back on track."),
+          ctaButton('Restore My Access Now', paymentUrl, 'danger'),
+          paragraph("If you're experiencing financial difficulties or have questions, please reply to this email. We're happy to discuss options."),
+          signOff(),
+        ].join(''),
       };
 
     default:
-      return { subject: "", html: "" };
+      return { subject: "", preheader: "", content: "" };
   }
 }
 
-function buildCoachNotificationEmail(
+function buildCoachNotification(
   coachFirstName: string,
   clientName: string,
   serviceName: string,
   daysSinceFailure: number
-): { subject: string; html: string } {
+): { subject: string; preheader: string; content: string } {
   return {
     subject: `Payment issue: ${clientName}`,
-    html: `
-      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f9f9f9;">
-        <div style="background-color: white; border-radius: 12px; padding: 32px; box-shadow: 0 2px 8px rgba(0,0,0,0.1);">
-          <h1 style="color: #2d3748; font-size: 24px; margin-bottom: 20px;">Hi ${coachFirstName},</h1>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-            This is a heads-up that your client <strong>${clientName}</strong> has a payment issue with their <strong>${serviceName}</strong> subscription.
-          </p>
-
-          <div style="background-color: #fff3cd; border-left: 4px solid #ffc107; padding: 16px; margin: 24px 0; border-radius: 4px;">
-            <p style="color: #856404; font-size: 14px; margin: 0; line-height: 1.6;">
-              <strong>Payment failed ${daysSinceFailure} days ago.</strong><br>
-              The client has been notified and reminded to update their payment method. No action is required from you, but you may want to check in with them during your next session.
-            </p>
-          </div>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.6; margin-bottom: 20px;">
-            If the payment isn't resolved within 14 days, the client's account will be automatically cancelled.
-          </p>
-
-          <p style="color: #4a5568; font-size: 16px; line-height: 1.5;">
-            Best regards,<br>
-            <strong>The IGU Team</strong>
-          </p>
-        </div>
-        <div style="text-align: center; margin-top: 16px;">
-          <p style="color: #a0aec0; font-size: 12px; margin: 0;">
-            This is an automated notification from IGU
-          </p>
-        </div>
-      </div>
-    `,
+    preheader: `${clientName}'s payment for ${serviceName} failed ${daysSinceFailure} days ago.`,
+    content: [
+      greeting(coachFirstName),
+      paragraph(`This is a heads-up that your client <strong>${clientName}</strong> has a payment issue with their <strong>${serviceName}</strong> subscription.`),
+      alertBox(`<strong>Payment failed ${daysSinceFailure} days ago.</strong><br>The client has been notified and reminded to update their payment method. No action is required from you, but you may want to check in with them during your next session.`, 'warning'),
+      paragraph("If the payment isn't resolved within 14 days, the client's account will be automatically cancelled."),
+      signOff(),
+    ].join(''),
   };
 }
