@@ -131,7 +131,7 @@ export function CoachApplicationForm({ open, onOpenChange }: CoachApplicationFor
       setTurnstileToken(null);
       turnstileRef.current?.reset();
       onOpenChange(false);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error submitting application:", error);
       toast.error(sanitizeErrorForUser(error));
     } finally {

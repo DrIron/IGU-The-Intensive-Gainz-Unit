@@ -9,7 +9,7 @@ import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag, Dumbbell, Trash2, X } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { SimplePagination, usePagination } from "@/components/ui/simple-pagination";
+import { SimplePagination, createPagination } from "@/components/ui/simple-pagination";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -299,7 +299,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
   });
 
   // Paginate filtered results
-  const { paginate } = usePagination(filteredPrograms, PAGE_SIZE);
+  const { paginate } = createPagination(filteredPrograms, PAGE_SIZE);
   const { paginatedItems: pagePrograms, totalPages, totalItems, pageSize } = paginate(currentPage);
 
   // Reset to page 1 when filters change

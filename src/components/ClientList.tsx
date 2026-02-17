@@ -43,7 +43,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
-import { SimplePagination, usePagination } from "@/components/ui/simple-pagination";
+import { SimplePagination, createPagination } from "@/components/ui/simple-pagination";
 
 interface Client {
   id: string;
@@ -551,7 +551,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
       });
 
       fetchClients();
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error",
         description: sanitizeErrorForUser(error),
@@ -566,7 +566,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
 
   const paginateTab = (tabKey: string, clientList: Client[]) => {
     const page = tabPages[tabKey] || 1;
-    const { paginate } = usePagination(clientList, CLIENTS_PER_PAGE);
+    const { paginate } = createPagination(clientList, CLIENTS_PER_PAGE);
     return { ...paginate(page), tabKey };
   };
 

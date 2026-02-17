@@ -28,7 +28,7 @@ import {
 import { TeamMemberNutritionDialog } from "./TeamMemberNutritionDialog";
 import { CoachEarningsSummary } from "./CoachEarningsSummary";
 import { RoleBreadcrumb } from "./RoleBreadcrumb";
-import { SimplePagination, usePagination } from "@/components/ui/simple-pagination";
+import { SimplePagination, createPagination } from "@/components/ui/simple-pagination";
 
 interface CoachClient {
   id: string;
@@ -493,7 +493,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   }) => {
     const filteredClients = applyFilters(sectionClients);
     const page = sectionPages[sectionKey] || 1;
-    const { paginate } = usePagination(filteredClients, CLIENTS_PER_PAGE);
+    const { paginate } = createPagination(filteredClients, CLIENTS_PER_PAGE);
     const { paginatedItems: pageClients, totalPages, totalItems, pageSize } = paginate(page);
     const variantStyles = {
       amber: 'border-amber-200 bg-amber-50/50',
