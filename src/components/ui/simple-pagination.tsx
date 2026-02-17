@@ -87,9 +87,8 @@ function getPageNumbers(current: number, total: number): (number | "...")[] {
   return pages;
 }
 
-/** Hook-like helper: returns paginated slice + controls */
-export function usePagination<T>(items: T[], pageSize: number = 20) {
-  // This is a pure function helper, not a hook — call it in render
+/** Pure function helper: returns paginated slice + controls (not a React hook) */
+export function createPagination<T>(items: T[], pageSize: number = 20) {
   return {
     paginate: (page: number) => {
       const totalPages = Math.max(1, Math.ceil(items.length / pageSize));

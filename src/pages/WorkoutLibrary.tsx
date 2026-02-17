@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dumbbell, Search, Plus, X, Youtube, Pencil, ChevronDown, ChevronUp, AlertCircle } from "lucide-react";
+import { Dumbbell, Search, Plus, X, Youtube, Pencil, ChevronDown, ChevronUp, AlertCircle, Loader2 } from "lucide-react";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -58,6 +58,7 @@ export default function WorkoutLibrary() {
   const [exercises, setExercises] = useState<Exercise[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [exercisesLoaded, setExercisesLoaded] = useState(false);
 
   const [formData, setFormData] = useState({
@@ -146,55 +147,74 @@ export default function WorkoutLibrary() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
 
-    const muscleGroups = Object.keys(formData.selectedMuscles);
-    const muscleSubdivisions = formData.selectedMuscles;
+    try {
+      const muscleGroups = Object.keys(formData.selectedMuscles);
+      const muscleSubdivisions = formData.selectedMuscles;
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user) return;
+      const authResult = await supabase.auth.getUser();
+      const user = authResult.data?.user;
+      if (!user) {
+        toast({
+          title: "Not authenticated",
+          description: "Please sign in and try again",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const exerciseData = {
-      name: formData.name,
-      muscle_groups: muscleGroups,
-      muscle_subdivisions: muscleSubdivisions,
-      difficulty: formData.difficulty,
-      youtube_url: formData.youtube_url || null,
-      setup_instructions: formData.setup_instructions.filter(s => s.trim()),
-      execution_instructions: formData.execution_instructions.filter(s => s.trim()),
-      pitfalls: formData.pitfalls.filter(s => s.trim()),
-    };
+      const exerciseData = {
+        name: formData.name,
+        muscle_groups: muscleGroups,
+        muscle_subdivisions: muscleSubdivisions,
+        difficulty: formData.difficulty,
+        youtube_url: formData.youtube_url || null,
+        setup_instructions: formData.setup_instructions.filter(s => s.trim()),
+        execution_instructions: formData.execution_instructions.filter(s => s.trim()),
+        pitfalls: formData.pitfalls.filter(s => s.trim()),
+      };
 
-    let error;
-    if (editingExercise) {
-      const result = await supabase
-        .from("exercises")
-        .update(exerciseData)
-        .eq("id", editingExercise.id);
-      error = result.error;
-    } else {
-      const result = await supabase
-        .from("exercises")
-        .insert({ ...exerciseData, created_by: session.user.id });
-      error = result.error;
-    }
+      let error;
+      if (editingExercise) {
+        const dbResult = await supabase
+          .from("exercises")
+          .update(exerciseData)
+          .eq("id", editingExercise.id);
+        error = dbResult.error;
+      } else {
+        const dbResult = await supabase
+          .from("exercises")
+          .insert({ ...exerciseData, created_by: user.id });
+        error = dbResult.error;
+      }
 
-    if (error) {
+      if (error) {
+        toast({
+          title: editingExercise ? "Error updating exercise" : "Error adding exercise",
+          description: sanitizeErrorForUser(error),
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
-        title: editingExercise ? "Error updating exercise" : "Error adding exercise",
-        description: sanitizeErrorForUser(error),
+        title: editingExercise ? "Exercise updated" : "Exercise added",
+        description: editingExercise ? "The exercise has been updated successfully." : "The exercise has been added to the library.",
+      });
+
+      fetchExercises();
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: sanitizeErrorForUser(err),
         variant: "destructive",
       });
-      return;
+    } finally {
+      setIsSubmitting(false);
     }
-
-    toast({
-      title: editingExercise ? "Exercise updated" : "Exercise added",
-      description: editingExercise ? "The exercise has been updated successfully." : "The exercise has been added to the library.",
-    });
-
-    fetchExercises();
-    setIsDialogOpen(false);
-    resetForm();
   };
 
   const handleEdit = (exercise: Exercise) => {
@@ -609,7 +629,8 @@ export default function WorkoutLibrary() {
                   }}>
                     Cancel
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" disabled={isSubmitting}>
+                    {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     {editingExercise ? "Save Changes" : "Add Exercise"}
                   </Button>
                 </div>

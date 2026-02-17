@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
@@ -97,59 +98,66 @@ export function ExerciseQuickAdd() {
 
     setIsSaving(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      toast({
-        title: "Not authenticated",
-        description: "You must be logged in to add exercises",
-        variant: "destructive"
-      });
-      setIsSaving(false);
-      return;
-    }
-
-    for (const exercise of validExercises) {
-      setExercises(prev => prev.map(e =>
-        e.id === exercise.id ? { ...e, status: "saving" as const } : e
-      ));
-
-      try {
-        // Insert into exercises table
-        const { error } = await supabase
-          .from("exercises")
-          .insert({
-            name: exercise.name,
-            youtube_url: exercise.youtube_url,
-            muscle_groups: [exercise.primary_muscle],
-            muscle_subdivisions: { [exercise.primary_muscle]: [] },
-            difficulty: exercise.difficulty,
-            setup_instructions: [],
-            execution_instructions: [],
-            pitfalls: [],
-            created_by: user.id
-          });
-
-        if (error) throw error;
-
-        setExercises(prev => prev.map(e =>
-          e.id === exercise.id ? { ...e, status: "saved" as const } : e
-        ));
-      } catch (error: unknown) {
-        const errorMessage = sanitizeErrorForUser(error);
-        console.error("Error saving exercise:", error);
-        setExercises(prev => prev.map(e =>
-          e.id === exercise.id ? { ...e, status: "error" as const, error: errorMessage } : e
-        ));
+    try {
+      const authResult = await supabase.auth.getUser();
+      const user = authResult.data?.user;
+      if (!user) {
+        toast({
+          title: "Not authenticated",
+          description: "You must be logged in to add exercises",
+          variant: "destructive"
+        });
+        return;
       }
+
+      for (const exercise of validExercises) {
+        setExercises(prev => prev.map(e =>
+          e.id === exercise.id ? { ...e, status: "saving" as const } : e
+        ));
+
+        try {
+          const { error } = await supabase
+            .from("exercises")
+            .insert({
+              name: exercise.name,
+              youtube_url: exercise.youtube_url,
+              muscle_groups: [exercise.primary_muscle],
+              muscle_subdivisions: { [exercise.primary_muscle]: [] },
+              difficulty: exercise.difficulty,
+              setup_instructions: [],
+              execution_instructions: [],
+              pitfalls: [],
+              created_by: user.id
+            });
+
+          if (error) throw error;
+
+          setExercises(prev => prev.map(e =>
+            e.id === exercise.id ? { ...e, status: "saved" as const } : e
+          ));
+        } catch (error: unknown) {
+          const errorMessage = sanitizeErrorForUser(error);
+          console.error("Error saving exercise:", error);
+          setExercises(prev => prev.map(e =>
+            e.id === exercise.id ? { ...e, status: "error" as const, error: errorMessage } : e
+          ));
+        }
+      }
+
+      const savedCount = exercises.filter(e => e.status === "saved").length;
+      toast({
+        title: "Saved",
+        description: `${savedCount} exercises added to the library`,
+      });
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: sanitizeErrorForUser(err),
+        variant: "destructive",
+      });
+    } finally {
+      setIsSaving(false);
     }
-
-    setIsSaving(false);
-
-    const savedCount = exercises.filter(e => e.status === "saved").length;
-    toast({
-      title: "Saved",
-      description: `${savedCount} exercises added to the library`,
-    });
   };
 
   const clearSaved = () => {
@@ -220,13 +228,14 @@ Squat Variation | https://youtu.be/zzz`}
             {exercises.map((exercise) => (
               <div
                 key={exercise.id}
-                className={`grid grid-cols-12 gap-2 items-center p-3 rounded-lg border ${
+                className={`flex flex-col gap-2 p-3 rounded-lg border md:grid md:grid-cols-12 md:gap-2 md:items-center ${
                   exercise.status === "saved" ? "bg-green-50 border-green-200 dark:bg-green-950/20" :
                   exercise.status === "error" ? "bg-red-50 border-red-200 dark:bg-red-950/20" :
                   "bg-muted/30"
                 }`}
               >
-                <div className="col-span-3">
+                <div className="md:col-span-3">
+                  <Label className="text-xs text-muted-foreground md:hidden">Exercise Name</Label>
                   <Input
                     placeholder="Exercise name"
                     value={exercise.name}
@@ -234,7 +243,8 @@ Squat Variation | https://youtu.be/zzz`}
                     disabled={exercise.status === "saved"}
                   />
                 </div>
-                <div className="col-span-3">
+                <div className="md:col-span-3">
+                  <Label className="text-xs text-muted-foreground md:hidden">YouTube URL</Label>
                   <Input
                     placeholder="YouTube URL"
                     value={exercise.youtube_url}
@@ -242,39 +252,43 @@ Squat Variation | https://youtu.be/zzz`}
                     disabled={exercise.status === "saved"}
                   />
                 </div>
-                <div className="col-span-2">
-                  <Select
-                    value={exercise.primary_muscle}
-                    onValueChange={(v) => updateExercise(exercise.id, "primary_muscle", v)}
-                    disabled={exercise.status === "saved"}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Muscle" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {MUSCLE_GROUPS.map(muscle => (
-                        <SelectItem key={muscle} value={muscle}>{muscle}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-2 md:contents">
+                  <div className="md:col-span-2">
+                    <Label className="text-xs text-muted-foreground md:hidden">Muscle Group</Label>
+                    <Select
+                      value={exercise.primary_muscle}
+                      onValueChange={(v) => updateExercise(exercise.id, "primary_muscle", v)}
+                      disabled={exercise.status === "saved"}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Muscle" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {MUSCLE_GROUPS.map(muscle => (
+                          <SelectItem key={muscle} value={muscle}>{muscle}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="md:col-span-2">
+                    <Label className="text-xs text-muted-foreground md:hidden">Difficulty</Label>
+                    <Select
+                      value={exercise.difficulty}
+                      onValueChange={(v) => updateExercise(exercise.id, "difficulty", v as QuickExercise["difficulty"])}
+                      disabled={exercise.status === "saved"}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Beginner">Beginner</SelectItem>
+                        <SelectItem value="Intermediate">Intermediate</SelectItem>
+                        <SelectItem value="Advanced">Advanced</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-                <div className="col-span-2">
-                  <Select
-                    value={exercise.difficulty}
-                    onValueChange={(v) => updateExercise(exercise.id, "difficulty", v as QuickExercise["difficulty"])}
-                    disabled={exercise.status === "saved"}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Beginner">Beginner</SelectItem>
-                      <SelectItem value="Intermediate">Intermediate</SelectItem>
-                      <SelectItem value="Advanced">Advanced</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="col-span-2 flex items-center justify-end gap-2">
+                <div className="md:col-span-2 flex items-center justify-end gap-2">
                   {exercise.status === "saved" && (
                     <Badge variant="default" className="bg-green-600">
                       <CheckCircle2 className="h-3 w-3 mr-1" />

@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Search, Plus, X, Youtube, Pencil, Zap, Trash2, List, Eye, EyeOff, Power } from "lucide-react";
+import { Search, Plus, X, Youtube, Pencil, Zap, Trash2, List, Eye, EyeOff, Power, Loader2 } from "lucide-react";
 import { ExerciseQuickAdd } from "@/components/admin/ExerciseQuickAdd";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -82,6 +82,7 @@ export default function WorkoutLibraryManager() {
     { name: "", youtube_url: "", primary_muscle: "", difficulty: "Beginner" },
   ]);
   const [isSubmittingQuickAdd, setIsSubmittingQuickAdd] = useState(false);
+  const [isSubmittingForm, setIsSubmittingForm] = useState(false);
 
   const fetchExercises = useCallback(async () => {
     // Fetch from both legacy `exercises` and main `exercise_library` tables
@@ -132,56 +133,75 @@ export default function WorkoutLibraryManager() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmittingForm(true);
 
-    const muscleGroups = Object.keys(formData.selectedMuscles);
-    const muscleSubdivisions = formData.selectedMuscles;
+    try {
+      const muscleGroups = Object.keys(formData.selectedMuscles);
+      const muscleSubdivisions = formData.selectedMuscles;
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
+      const result = await supabase.auth.getUser();
+      const user = result.data?.user;
+      if (!user) {
+        toast({
+          title: "Not authenticated",
+          description: "Please sign in and try again",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const exerciseData = {
-      name: formData.name,
-      muscle_groups: muscleGroups,
-      muscle_subdivisions: muscleSubdivisions,
-      difficulty: formData.difficulty,
-      youtube_url: formData.youtube_url || null,
-      setup_instructions: formData.setup_instructions.filter(s => s.trim()),
-      execution_instructions: formData.execution_instructions.filter(s => s.trim()),
-      pitfalls: formData.pitfalls.filter(s => s.trim()),
-    };
+      const exerciseData = {
+        name: formData.name,
+        muscle_groups: muscleGroups,
+        muscle_subdivisions: muscleSubdivisions,
+        difficulty: formData.difficulty,
+        youtube_url: formData.youtube_url || null,
+        setup_instructions: formData.setup_instructions.filter(s => s.trim()),
+        execution_instructions: formData.execution_instructions.filter(s => s.trim()),
+        pitfalls: formData.pitfalls.filter(s => s.trim()),
+      };
 
-    let error;
-    if (editingExercise) {
-      const result = await supabase
-        .from("exercises")
-        .update(exerciseData)
-        .eq("id", editingExercise.id);
-      error = result.error;
-    } else {
-      const result = await supabase
-        .from("exercises")
-        .insert({ ...exerciseData, created_by: user.id });
-      error = result.error;
-    }
+      let error;
+      if (editingExercise) {
+        const dbResult = await supabase
+          .from("exercises")
+          .update(exerciseData)
+          .eq("id", editingExercise.id);
+        error = dbResult.error;
+      } else {
+        const dbResult = await supabase
+          .from("exercises")
+          .insert({ ...exerciseData, created_by: user.id });
+        error = dbResult.error;
+      }
 
-    if (error) {
+      if (error) {
+        toast({
+          title: editingExercise ? "Error updating exercise" : "Error adding exercise",
+          description: sanitizeErrorForUser(error),
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
-        title: editingExercise ? "Error updating exercise" : "Error adding exercise",
-        description: sanitizeErrorForUser(error),
+        title: "Success",
+        description: editingExercise ? "Exercise updated successfully" : "Exercise added successfully",
+      });
+
+      setIsDialogOpen(false);
+      setEditingExercise(null);
+      fetchExercises();
+      resetForm();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: sanitizeErrorForUser(err),
         variant: "destructive",
       });
-      return;
+    } finally {
+      setIsSubmittingForm(false);
     }
-
-    toast({
-      title: "Success",
-      description: editingExercise ? "Exercise updated successfully" : "Exercise added successfully",
-    });
-
-    setIsDialogOpen(false);
-    setEditingExercise(null);
-    fetchExercises();
-    resetForm();
   };
 
   const handleEdit = (exercise: Exercise) => {
@@ -334,47 +354,60 @@ export default function WorkoutLibraryManager() {
 
     setIsSubmittingQuickAdd(true);
 
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) {
-      setIsSubmittingQuickAdd(false);
-      return;
-    }
+    try {
+      const result = await supabase.auth.getUser();
+      const user = result.data?.user;
+      if (!user) {
+        toast({
+          title: "Not authenticated",
+          description: "Please sign in and try again",
+          variant: "destructive",
+        });
+        return;
+      }
 
-    const exercisesToInsert = validEntries.map(entry => ({
-      name: entry.name.trim(),
-      muscle_groups: [entry.primary_muscle],
-      muscle_subdivisions: { [entry.primary_muscle]: [] },
-      difficulty: entry.difficulty,
-      youtube_url: entry.youtube_url.trim() || null,
-      setup_instructions: [],
-      execution_instructions: [],
-      pitfalls: [],
-      created_by: user.id,
-    }));
+      const exercisesToInsert = validEntries.map(entry => ({
+        name: entry.name.trim(),
+        muscle_groups: [entry.primary_muscle],
+        muscle_subdivisions: { [entry.primary_muscle]: [] },
+        difficulty: entry.difficulty,
+        youtube_url: entry.youtube_url.trim() || null,
+        setup_instructions: [],
+        execution_instructions: [],
+        pitfalls: [],
+        created_by: user.id,
+      }));
 
-    const { error } = await supabase
-      .from("exercises")
-      .insert(exercisesToInsert);
+      const { error } = await supabase
+        .from("exercises")
+        .insert(exercisesToInsert);
 
-    setIsSubmittingQuickAdd(false);
+      if (error) {
+        toast({
+          title: "Error adding exercises",
+          description: sanitizeErrorForUser(error),
+          variant: "destructive",
+        });
+        return;
+      }
 
-    if (error) {
       toast({
-        title: "Error adding exercises",
-        description: sanitizeErrorForUser(error),
+        title: "Success",
+        description: `Added ${validEntries.length} exercise${validEntries.length > 1 ? 's' : ''} successfully`,
+      });
+
+      setIsDialogOpen(false);
+      resetQuickAdd();
+      fetchExercises();
+    } catch (err) {
+      toast({
+        title: "Error",
+        description: sanitizeErrorForUser(err),
         variant: "destructive",
       });
-      return;
+    } finally {
+      setIsSubmittingQuickAdd(false);
     }
-
-    toast({
-      title: "Success",
-      description: `Added ${validEntries.length} exercise${validEntries.length > 1 ? 's' : ''} successfully`,
-    });
-
-    setIsDialogOpen(false);
-    resetQuickAdd();
-    fetchExercises();
   };
 
   const toggleMuscleGroup = (muscle: string) => {
@@ -696,7 +729,10 @@ export default function WorkoutLibraryManager() {
                 }}>
                   Cancel
                 </Button>
-                <Button type="submit">{editingExercise ? "Update Exercise" : "Add Exercise"}</Button>
+                <Button type="submit" disabled={isSubmittingForm}>
+                  {isSubmittingForm && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                  {editingExercise ? "Update Exercise" : "Add Exercise"}
+                </Button>
               </div>
             </form>
             ) : (
@@ -715,8 +751,8 @@ export default function WorkoutLibraryManager() {
                 </p>
 
                 <div className="space-y-3">
-                  {/* Header row */}
-                  <div className="grid grid-cols-[1fr_1fr_140px_140px_40px] gap-2 text-sm font-medium text-muted-foreground">
+                  {/* Header row - hidden on mobile */}
+                  <div className="hidden md:grid grid-cols-[1fr_1fr_140px_140px_40px] gap-2 text-sm font-medium text-muted-foreground">
                     <span>Exercise Name *</span>
                     <span>YouTube URL</span>
                     <span>Muscle Group *</span>
@@ -724,51 +760,66 @@ export default function WorkoutLibraryManager() {
                     <span></span>
                   </div>
 
-                  {/* Entry rows */}
+                  {/* Entry rows - stacked on mobile, grid on desktop */}
                   {quickAddEntries.map((entry, index) => (
-                    <div key={index} className="grid grid-cols-[1fr_1fr_140px_140px_40px] gap-2 items-center">
-                      <Input
-                        value={entry.name}
-                        onChange={(e) => updateQuickAddEntry(index, 'name', e.target.value)}
-                        placeholder="e.g., Bench Press"
-                      />
-                      <Input
-                        value={entry.youtube_url}
-                        onChange={(e) => updateQuickAddEntry(index, 'youtube_url', e.target.value)}
-                        placeholder="https://youtube.com/..."
-                      />
-                      <Select
-                        value={entry.primary_muscle}
-                        onValueChange={(value) => updateQuickAddEntry(index, 'primary_muscle', value)}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {Object.keys(MUSCLE_GROUPS).map(muscle => (
-                            <SelectItem key={muscle} value={muscle}>{muscle}</SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <Select
-                        value={entry.difficulty}
-                        onValueChange={(value) => updateQuickAddEntry(index, 'difficulty', value as QuickAddEntry['difficulty'])}
-                      >
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Beginner">Beginner</SelectItem>
-                          <SelectItem value="Intermediate">Intermediate</SelectItem>
-                          <SelectItem value="Advanced">Advanced</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div key={index} className="flex flex-col gap-2 p-3 rounded-lg border bg-muted/30 md:p-0 md:border-0 md:bg-transparent md:grid md:grid-cols-[1fr_1fr_140px_140px_40px] md:items-center">
+                      <div>
+                        <Label className="text-xs text-muted-foreground md:hidden">Exercise Name *</Label>
+                        <Input
+                          value={entry.name}
+                          onChange={(e) => updateQuickAddEntry(index, 'name', e.target.value)}
+                          placeholder="e.g., Bench Press"
+                        />
+                      </div>
+                      <div>
+                        <Label className="text-xs text-muted-foreground md:hidden">YouTube URL</Label>
+                        <Input
+                          value={entry.youtube_url}
+                          onChange={(e) => updateQuickAddEntry(index, 'youtube_url', e.target.value)}
+                          placeholder="https://youtube.com/..."
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 md:contents">
+                        <div>
+                          <Label className="text-xs text-muted-foreground md:hidden">Muscle Group *</Label>
+                          <Select
+                            value={entry.primary_muscle}
+                            onValueChange={(value) => updateQuickAddEntry(index, 'primary_muscle', value)}
+                          >
+                            <SelectTrigger>
+                              <SelectValue placeholder="Select" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {Object.keys(MUSCLE_GROUPS).map(muscle => (
+                                <SelectItem key={muscle} value={muscle}>{muscle}</SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div>
+                          <Label className="text-xs text-muted-foreground md:hidden">Difficulty</Label>
+                          <Select
+                            value={entry.difficulty}
+                            onValueChange={(value) => updateQuickAddEntry(index, 'difficulty', value as QuickAddEntry['difficulty'])}
+                          >
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="Beginner">Beginner</SelectItem>
+                              <SelectItem value="Intermediate">Intermediate</SelectItem>
+                              <SelectItem value="Advanced">Advanced</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                      </div>
                       <Button
                         type="button"
                         variant="ghost"
                         size="icon"
                         onClick={() => removeQuickAddRow(index)}
                         disabled={quickAddEntries.length === 1}
+                        className="self-end md:self-auto"
                       >
                         <Trash2 className="h-4 w-4" />
                       </Button>
@@ -792,6 +843,7 @@ export default function WorkoutLibraryManager() {
                     onClick={handleQuickAddSubmit}
                     disabled={isSubmittingQuickAdd}
                   >
+                    {isSubmittingQuickAdd && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     {isSubmittingQuickAdd ? "Adding..." : `Add ${quickAddEntries.filter(e => e.name.trim() && e.primary_muscle).length} Exercise(s)`}
                   </Button>
                 </div>
@@ -987,7 +1039,10 @@ export default function WorkoutLibraryManager() {
                     }}>
                       Cancel
                     </Button>
-                    <Button type="submit">Add Exercise</Button>
+                    <Button type="submit" disabled={isSubmittingForm}>
+                      {isSubmittingForm && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                      Add Exercise
+                    </Button>
                   </div>
                 </form>
               </TabsContent>

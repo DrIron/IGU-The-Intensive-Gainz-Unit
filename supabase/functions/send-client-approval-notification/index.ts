@@ -120,8 +120,8 @@ const handler = async (req: Request): Promise<Response> => {
       html,
     });
 
-    let emailStatus = result.success ? 'sent' : 'failed';
-    let emailId = result.id || null;
+    const emailStatus = result.success ? 'sent' : 'failed';
+    const emailId = result.id || null;
 
     if (!result.success) {
       console.error('Error sending email:', result.error);
