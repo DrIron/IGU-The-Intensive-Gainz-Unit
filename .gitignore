@@ -38,5 +38,9 @@ supabase/.temp/
 # Cursor
 .cursor/
 
+# Build artifacts
+coverage/
+*.map
+
 # Agents
 .agents/

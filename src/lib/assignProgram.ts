@@ -44,7 +44,7 @@ export async function assignProgramToClient(
 
     const result = data as { client_program_id: string };
     return { success: true, clientProgramId: result.client_program_id };
-  } catch (error: any) {
-    return { success: false, error: error?.message || "Unknown error" };
+  } catch (error: unknown) {
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
 }

@@ -71,7 +71,7 @@ export function ExercisePickerDialog({
 
       if (error) throw error;
       setExercises(data || []);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error loading exercises",
         description: sanitizeErrorForUser(error),

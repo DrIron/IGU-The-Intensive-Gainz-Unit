@@ -961,6 +961,7 @@ export type Database = {
           start_date: string
           status: Database["public"]["Enums"]["client_program_status"]
           subscription_id: string
+          team_id: string | null
           timezone: string
           updated_at: string
           user_id: string
@@ -974,6 +975,7 @@ export type Database = {
           start_date: string
           status?: Database["public"]["Enums"]["client_program_status"]
           subscription_id: string
+          team_id?: string | null
           timezone?: string
           updated_at?: string
           user_id: string
@@ -987,6 +989,7 @@ export type Database = {
           start_date?: string
           status?: Database["public"]["Enums"]["client_program_status"]
           subscription_id?: string
+          team_id?: string | null
           timezone?: string
           updated_at?: string
           user_id?: string
@@ -1018,6 +1021,13 @@ export type Database = {
             columns: ["subscription_id"]
             isOneToOne: false
             referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_programs_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "coach_teams"
             referencedColumns: ["id"]
           },
           {
@@ -1477,6 +1487,53 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_teams: {
+        Row: {
+          coach_id: string
+          created_at: string | null
+          current_program_template_id: string | null
+          description: string | null
+          id: string
+          is_active: boolean | null
+          max_members: number | null
+          name: string
+          tags: string[] | null
+          updated_at: string | null
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string | null
+          current_program_template_id?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_members?: number | null
+          name: string
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string | null
+          current_program_template_id?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          max_members?: number | null
+          name?: string
+          tags?: string[] | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_teams_current_program_template_id_fkey"
+            columns: ["current_program_template_id"]
+            isOneToOne: false
+            referencedRelation: "program_templates"
             referencedColumns: ["id"]
           },
         ]
@@ -2817,6 +2874,7 @@ export type Database = {
           preferred_gym_location: string | null
           preferred_training_times: string[] | null
           requested_coach_id: string | null
+          selected_team_id: string | null
           submission_status: string | null
           training_days_per_week: string | null
           training_experience: Database["public"]["Enums"]["training_experience"]
@@ -2898,6 +2956,7 @@ export type Database = {
           preferred_gym_location?: string | null
           preferred_training_times?: string[] | null
           requested_coach_id?: string | null
+          selected_team_id?: string | null
           submission_status?: string | null
           training_days_per_week?: string | null
           training_experience: Database["public"]["Enums"]["training_experience"]
@@ -2979,6 +3038,7 @@ export type Database = {
           preferred_gym_location?: string | null
           preferred_training_times?: string[] | null
           requested_coach_id?: string | null
+          selected_team_id?: string | null
           submission_status?: string | null
           training_days_per_week?: string | null
           training_experience?: Database["public"]["Enums"]["training_experience"]
@@ -3016,6 +3076,13 @@ export type Database = {
             columns: ["requested_coach_id"]
             isOneToOne: false
             referencedRelation: "coaches_client_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "form_submissions_selected_team_id_fkey"
+            columns: ["selected_team_id"]
+            isOneToOne: false
+            referencedRelation: "coach_teams"
             referencedColumns: ["id"]
           },
           {
@@ -5555,6 +5622,7 @@ export type Database = {
           id: string
           last_payment_status: string | null
           last_payment_verified_at: string | null
+          last_team_change_at: string | null
           last_verified_charge_id: string | null
           needs_coach_assignment: boolean | null
           next_billing_date: string | null
@@ -5572,6 +5640,7 @@ export type Database = {
           tap_payment_agreement_id: string | null
           tap_subscription_id: string | null
           tap_subscription_status: string | null
+          team_id: string | null
           total_price_kwd: number | null
           updated_at: string | null
           user_id: string
@@ -5597,6 +5666,7 @@ export type Database = {
           id?: string
           last_payment_status?: string | null
           last_payment_verified_at?: string | null
+          last_team_change_at?: string | null
           last_verified_charge_id?: string | null
           needs_coach_assignment?: boolean | null
           next_billing_date?: string | null
@@ -5614,6 +5684,7 @@ export type Database = {
           tap_payment_agreement_id?: string | null
           tap_subscription_id?: string | null
           tap_subscription_status?: string | null
+          team_id?: string | null
           total_price_kwd?: number | null
           updated_at?: string | null
           user_id: string
@@ -5639,6 +5710,7 @@ export type Database = {
           id?: string
           last_payment_status?: string | null
           last_payment_verified_at?: string | null
+          last_team_change_at?: string | null
           last_verified_charge_id?: string | null
           needs_coach_assignment?: boolean | null
           next_billing_date?: string | null
@@ -5656,6 +5728,7 @@ export type Database = {
           tap_payment_agreement_id?: string | null
           tap_subscription_id?: string | null
           tap_subscription_status?: string | null
+          team_id?: string | null
           total_price_kwd?: number | null
           updated_at?: string | null
           user_id?: string
@@ -5688,6 +5761,13 @@ export type Database = {
             columns: ["service_id"]
             isOneToOne: false
             referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "coach_teams"
             referencedColumns: ["id"]
           },
           {
@@ -6408,6 +6488,17 @@ export type Database = {
           updated_at: string
         }[]
       }
+      assign_program_to_client: {
+        Args: {
+          p_client_id: string
+          p_coach_id: string
+          p_start_date: string
+          p_subscription_id: string
+          p_team_id?: string
+          p_template_id: string
+        }
+        Returns: Json
+      }
       bootstrap_admin: { Args: { admin_email: string }; Returns: string }
       calculate_addon_session_payout: {
         Args: {
@@ -6446,6 +6537,16 @@ export type Database = {
       }
       cleanup_expired_discount_applications: { Args: never; Returns: number }
       client_has_dietitian: { Args: { p_client_uid: string }; Returns: boolean }
+      convert_muscle_plan_to_program: {
+        Args: {
+          p_coach_id: string
+          p_day_slots?: Json
+          p_muscle_template_id?: string
+          p_plan_description: string
+          p_plan_name: string
+        }
+        Returns: Json
+      }
       decrypt_phi_boolean: {
         Args: { encrypted_text: string }
         Returns: boolean
@@ -6983,6 +7084,7 @@ export type Database = {
         | "buns_of_steel"
         | "fe_squad"
         | "one_to_one_hybrid"
+        | "team_plan"
       intensity_type: "RIR" | "RPE" | "PERCENT_1RM" | "TARGET_LOAD" | "OTHER"
       module_status: "draft" | "published"
       nutrition_approach:
@@ -7224,6 +7326,7 @@ export const Constants = {
         "buns_of_steel",
         "fe_squad",
         "one_to_one_hybrid",
+        "team_plan",
       ],
       intensity_type: ["RIR", "RPE", "PERCENT_1RM", "TARGET_LOAD", "OTHER"],
       module_status: ["draft", "published"],

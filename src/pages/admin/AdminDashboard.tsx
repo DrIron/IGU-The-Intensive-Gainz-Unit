@@ -115,7 +115,7 @@ export default function AdminDashboard() {
       } catch (timeoutErr) {
         if (import.meta.env.DEV) console.warn("[AdminDashboard] Roles query timed out, using cached roles");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (import.meta.env.DEV) console.error("[AdminDashboard] Error loading user data:", error);
     } finally {
       setLoading(false);

@@ -88,7 +88,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── tap-webhook/      # Payment webhook handler
 │   │   ├── verify-payment/
 │   │   ├── send-coach-application-emails/  # Coach app confirmation (no JWT)
-│   │   ├── _shared/          # Shared utilities (config.ts, rateLimit.ts)
+│   │   ├── _shared/          # Shared utilities (config.ts, emailTemplate.ts, emailComponents.ts, sendEmail.ts, rateLimit.ts)
 │   │   └── # n8n automation endpoints (called on schedule):
 │   │       # process-abandoned-onboarding/
 │   │       # process-payment-failure-drip/
@@ -504,6 +504,7 @@ When understanding this codebase, read in this order:
 - Pre-Launch QA Sweep — 15 bugs found across 3 roles, 8 code fixes + 1 DB migration, RLS index performance (Feb 13, 2026) ✅
 - Planning Board Architecture Improvements — undo/redo, auto-save, plan library, batch RPCs for conversion + assignment (Feb 15, 2026) ✅
 - Phase 34: Muscle Subdivisions + Exercise Auto-Fill — 42 anatomical subdivisions, hierarchical palette, exercise auto-fill on conversion (Feb 16, 2026) ✅
+- Type Safety & Loading State Fixes — error: any → error: unknown, usePagination → createPagination utility, WorkoutLibraryManager loading states, ExerciseQuickAdd isSubmitting prop (Feb 17, 2026) ✅
 
 ### Phase 34: Muscle Subdivisions + Exercise Auto-Fill (Feb 16, 2026)
 

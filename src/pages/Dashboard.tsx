@@ -65,7 +65,7 @@ function DashboardContent() {
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [currentUser, setCurrentUser] = useState<{ id: string; email: string | null } | null>(null);
   const hasLoadedData = useRef(false);
 
   const { cachedRoles, cachedUserId, setCachedRoles } = useRoleCache();
@@ -215,7 +215,7 @@ function DashboardContent() {
       } catch (e) {
         if (import.meta.env.DEV) console.warn("[Dashboard] Subscription query timed out");
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       if (import.meta.env.DEV) console.error("[Dashboard] Error loading data:", error);
       toast({ title: "Error loading data", description: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
