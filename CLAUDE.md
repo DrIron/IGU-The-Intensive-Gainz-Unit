@@ -504,6 +504,66 @@ When understanding this codebase, read in this order:
 - Pre-Launch QA Sweep — 15 bugs found across 3 roles, 8 code fixes + 1 DB migration, RLS index performance (Feb 13, 2026) ✅
 - Planning Board Architecture Improvements — undo/redo, auto-save, plan library, batch RPCs for conversion + assignment (Feb 15, 2026) ✅
 - Phase 34: Muscle Subdivisions + Exercise Auto-Fill — 42 anatomical subdivisions, hierarchical palette, exercise auto-fill on conversion (Feb 16, 2026) ✅
+- Fix: Workout Library Add Loading — infinite loading on Quick Add / Full Form buttons, getSession() deadlock, mobile layout (Feb 17, 2026) ✅
+
+### Fix: Workout Library Add Loading (Feb 17, 2026)
+
+Fixed infinite loading on workout library add buttons (Quick Add and Full Form) across all 3 exercise management pages. On mobile (and potentially desktop with slow connections), clicking the add button would show a spinner that never stopped.
+
+**Root Causes (3 issues):**
+
+1. **Missing try/catch/finally on async submit handlers**: If `getUser()` or the Supabase insert threw (network timeout, auth failure), `setIsSubmitting(false)` was never reached — the button stayed in loading state forever.
+
+2. **`getSession()` deadlock in WorkoutLibrary.tsx**: Used the known-deadlocking `getSession()` call (see Auth Session Persistence section). Replaced with `getUser()`.
+
+3. **Silent auth failure**: When auth returned null user, functions silently returned with no toast feedback and loading state stuck.
+
+**Fix Pattern — Safe async submit handlers:**
+```typescript
+const handleSubmit = async () => {
+  setIsSubmitting(true);
+  try {
+    const result = await supabase.auth.getUser();
+    const user = result.data?.user;
+    if (!user) {
+      toast.error("You must be logged in");
+      return;
+    }
+    // ... insert logic
+  } catch (error) {
+    captureException(error, { context: 'exercise_submit' });
+    toast.error("Failed to save");
+  } finally {
+    setIsSubmitting(false); // ALWAYS resets, even on throw
+  }
+};
+```
+
+**Mobile Layout Fix:** Converted fixed-column grids (`grid-cols-[1fr_1fr_140px_140px_40px]`) to responsive stacked/grid hybrid:
+```tsx
+// Stacked on mobile, grid on desktop
+<div className="flex flex-col gap-2 p-3 rounded-lg border md:p-0 md:border-0 md:bg-transparent md:grid md:grid-cols-[1fr_1fr_140px_140px_40px] md:items-center">
+  <Label className="md:hidden">Exercise Name</Label>
+  <Input ... />
+</div>
+```
+
+**Files Modified (3):**
+| File | Changes |
+|------|---------|
+| `src/components/WorkoutLibraryManager.tsx` | try/catch/finally on both `handleSubmit` and `handleQuickAddSubmit`, added `isSubmittingForm` state, Loader2 spinners on both buttons, mobile-responsive Quick Add layout |
+| `src/pages/WorkoutLibrary.tsx` | Replaced `getSession()` with `getUser()`, try/catch/finally, added `isSubmitting` state, Loader2 spinner on submit button |
+| `src/components/admin/ExerciseQuickAdd.tsx` | Outer try/catch/finally on `saveAll` (inner per-exercise try/catch already existed), mobile-responsive exercise row layout with Labels |
+
+**CI Lint Fixes (same commit batch, 4 pre-existing errors):**
+| File | Fix |
+|------|-----|
+| `src/components/ui/simple-pagination.tsx` | Renamed `usePagination` → `createPagination` (pure function, not a hook — violated `react-hooks/rules-of-hooks`) |
+| `src/components/ClientList.tsx` | Updated import + `catch (error: any)` → `catch (error: unknown)` |
+| `src/components/coach/CoachMyClientsPage.tsx` | Updated `createPagination` import |
+| `src/components/coach/programs/ProgramLibrary.tsx` | Updated `createPagination` import |
+| `src/components/CoachApplicationForm.tsx` | `catch (error: any)` → `catch (error: unknown)` |
+| `supabase/functions/send-client-approval-notification/index.ts` | `let` → `const` for reassignment-free variables |
 
 ### Phase 34: Muscle Subdivisions + Exercise Auto-Fill (Feb 16, 2026)
 
@@ -1850,6 +1910,9 @@ SQL function `generate_referral_code(first_name)`:
 - **All public-facing pages MUST be wrapped in `<PublicLayout>` in App.tsx** — this provides the consistent "IGU" navbar and footer. Never render a public page without PublicLayout, and never add `<Navigation />` or `<Footer />` inside a page component that is already wrapped in PublicLayout (causes duplicates). When creating a new public route, wrap it: `<Route path="/foo" element={<PublicLayout><Foo /></PublicLayout>} />`. When editing a page, check App.tsx first to see if it's already wrapped.
 - **Team-based RLS requires dedicated policies.** Existing coach RLS checks `subscriptions.coach_id` and `is_primary_coach_for_user()`. For team queries (`WHERE team_id = X`), coaches need separate policies on both `subscriptions` (read by team_id) and `profiles_public` (read team member profiles). See migrations `20260212170000` and `20260212180000`.
 - **Use `.maybeSingle()` instead of `.single()` for optional rows.** `.single()` throws an error when zero rows are returned (PostgREST 406). Use `.maybeSingle()` when the row may not exist (e.g., user presets, optional config, first-time setup). Only use `.single()` when you are certain exactly one row exists (e.g., after an INSERT...RETURNING, or querying by primary key that you know is present).
+- **Never use `getSession()` in submit handlers** — use `getUser()` instead. `getSession()` can deadlock (see Auth Session Persistence section). Also never destructure auth responses unsafely: use `const result = await supabase.auth.getUser(); const user = result.data?.user;` instead of `const { data: { user } } = ...` which throws on unexpected response shapes.
+- **All async submit handlers MUST use try/catch/finally** with loading state reset in `finally`. Without `finally`, a network error or auth failure leaves the submit button in permanent loading state. See "Fix: Workout Library Add Loading" section for the pattern.
+- **`simple-pagination.tsx` exports `createPagination`** (not `usePagination`) — it's a pure function, not a React hook. Naming it with `use` prefix violates `react-hooks/rules-of-hooks` when called inside non-hook functions like `paginateTab`.
 
 ---
 
