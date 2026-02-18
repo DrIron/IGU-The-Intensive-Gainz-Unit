@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Instagram, Youtube, Music2, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { useSocialLinks, getSocialIcon, getSocialLabel } from "@/hooks/useSocialLinks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CoachApplicationForm } from "@/components/CoachApplicationForm";
@@ -15,6 +16,7 @@ export function Footer() {
   const [newsletterLoading, setNewsletterLoading] = useState(false);
   const { toast } = useToast();
   const { t } = useTranslation('nav');
+  const { data: socialLinks } = useSocialLinks();
 
   const handleNewsletterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,35 +113,25 @@ export function Footer() {
                   </a>
                 </p>
 
-                <div className="flex gap-4 pt-2">
-                  <a
-                    href="https://www.instagram.com/theigu.kw/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-primary transition-colors"
-                    aria-label="Instagram"
-                  >
-                    <Instagram className="h-6 w-6" />
-                  </a>
-                  <a
-                    href="https://www.tiktok.com/@theigu.kw"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-primary transition-colors"
-                    aria-label="TikTok"
-                  >
-                    <Music2 className="h-6 w-6" />
-                  </a>
-                  <a
-                    href="https://www.youtube.com/@theigu"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="hover:text-primary transition-colors"
-                    aria-label="YouTube"
-                  >
-                    <Youtube className="h-6 w-6" />
-                  </a>
-                </div>
+                {socialLinks && socialLinks.length > 0 && (
+                  <div className="flex gap-4 pt-2">
+                    {socialLinks.map((link) => {
+                      const Icon = getSocialIcon(link.key);
+                      return (
+                        <a
+                          key={link.key}
+                          href={link.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="hover:text-primary transition-colors"
+                          aria-label={getSocialLabel(link.key)}
+                        >
+                          <Icon className="h-6 w-6" />
+                        </a>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             </div>
 

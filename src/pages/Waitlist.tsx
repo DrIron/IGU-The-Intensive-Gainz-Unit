@@ -6,16 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { Instagram, Youtube, Music2, CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2, Loader2 } from "lucide-react";
+import { useSocialLinks, getSocialIcon, getSocialLabel } from "@/hooks/useSocialLinks";
 import { getUTMParams } from "@/lib/utm";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { SEOHead } from "@/components/SEOHead";
 
-// Hero image served from public/ for preloading (stable URL, no Vite hash)
-const gymHeroBg = "/gym-hero-bg.jpg";
-
 export default function Waitlist() {
   const { toast } = useToast();
+  const { data: socialLinks } = useSocialLinks();
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
@@ -99,18 +98,7 @@ export default function Waitlist() {
         description="Be the first to know when IGU opens. Join our waitlist for early access to professional fitness coaching."
       />
 
-      <section className="relative min-h-[calc(100vh-56px)] flex items-center justify-center overflow-hidden">
-        {/* Background image */}
-        <img
-          src={gymHeroBg}
-          alt=""
-          role="presentation"
-          fetchPriority="high"
-          decoding="async"
-          className="absolute inset-0 w-full h-full object-cover"
-        />
-        {/* Dark overlay */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background/90 via-background/70 to-background" />
+      <section className="relative min-h-[calc(100vh-56px)] flex items-center justify-center overflow-hidden bg-black">
         {/* Grid pattern */}
         <div className="absolute inset-0 grid-pattern opacity-30" />
         {/* Red glow */}
@@ -199,35 +187,25 @@ export default function Waitlist() {
           </p>
 
           {/* Social links */}
-          <div className="mt-8 flex justify-center gap-6">
-            <a
-              href="https://www.instagram.com/theigu.kw/"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-primary transition-colors"
-              aria-label="Instagram"
-            >
-              <Instagram className="h-5 w-5" />
-            </a>
-            <a
-              href="https://www.tiktok.com/@theigu.kw"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-primary transition-colors"
-              aria-label="TikTok"
-            >
-              <Music2 className="h-5 w-5" />
-            </a>
-            <a
-              href="https://www.youtube.com/@theigu"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-muted-foreground hover:text-primary transition-colors"
-              aria-label="YouTube"
-            >
-              <Youtube className="h-5 w-5" />
-            </a>
-          </div>
+          {socialLinks && socialLinks.length > 0 && (
+            <div className="mt-8 flex justify-center gap-6">
+              {socialLinks.map((link) => {
+                const Icon = getSocialIcon(link.key);
+                return (
+                  <a
+                    key={link.key}
+                    href={link.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted-foreground hover:text-primary transition-colors"
+                    aria-label={getSocialLabel(link.key)}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </a>
+                );
+              })}
+            </div>
+          )}
         </div>
       </section>
     </>
