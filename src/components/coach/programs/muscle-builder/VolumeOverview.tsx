@@ -65,10 +65,15 @@ export const VolumeOverview = memo(function VolumeOverview({
                       <span className="text-xs font-medium truncate">{entry.muscle.label}</span>
                     </div>
 
-                    {/* Sets number */}
-                    <span className="font-mono text-xs w-6 text-right shrink-0">
-                      {entry.totalSets}
-                    </span>
+                    {/* Sets + reps */}
+                    <div className="text-right shrink-0 w-24">
+                      <span className="font-mono text-xs">{entry.totalSets}</span>
+                      {entry.totalRepsMin > 0 && (
+                        <span className="text-[10px] text-muted-foreground ml-1">
+                          ({entry.totalRepsMin}-{entry.totalRepsMax})
+                        </span>
+                      )}
+                    </div>
 
                     {/* Bar */}
                     <div className="flex-1 relative h-5 bg-muted/50 rounded overflow-hidden">
@@ -105,7 +110,7 @@ export const VolumeOverview = memo(function VolumeOverview({
                 </TooltipTrigger>
                 <TooltipContent side="top" className="text-xs">
                   <div className="space-y-0.5">
-                    <p className="font-medium">{entry.muscle.label}: {entry.totalSets} sets/week</p>
+                    <p className="font-medium">{entry.muscle.label}: {entry.totalSets} sets/week ({entry.totalRepsMin}-{entry.totalRepsMax} reps)</p>
                     <p>MV: {entry.muscle.landmarks.MV} | MEV: {entry.muscle.landmarks.MEV} | MAV: {entry.muscle.landmarks.MAV} | MRV: {entry.muscle.landmarks.MRV}</p>
                     <p>Frequency: {entry.frequency}× per week</p>
                     {entry.subdivisionBreakdown.length > 0 && (

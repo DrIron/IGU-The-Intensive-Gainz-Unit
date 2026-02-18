@@ -28,6 +28,8 @@ export interface MuscleSlotData {
   dayIndex: number;     // 1-7 (Mon-Sun)
   muscleId: string;
   sets: number;
+  repMin: number;       // Default 8
+  repMax: number;       // Default 12
   sortOrder: number;
 }
 
@@ -232,11 +234,11 @@ export function getLandmarkLabel(zone: LandmarkZone): string {
 // Built-in Presets
 // ============================================================
 
-function makeSlots(dayMuscles: Record<number, { id: string; sets: number }[]>): MuscleSlotData[] {
+function makeSlots(dayMuscles: Record<number, { id: string; sets: number; repMin?: number; repMax?: number }[]>): MuscleSlotData[] {
   const slots: MuscleSlotData[] = [];
   for (const [day, muscles] of Object.entries(dayMuscles)) {
     muscles.forEach((m, i) => {
-      slots.push({ id: crypto.randomUUID(), dayIndex: Number(day), muscleId: m.id, sets: m.sets, sortOrder: i });
+      slots.push({ id: crypto.randomUUID(), dayIndex: Number(day), muscleId: m.id, sets: m.sets, repMin: m.repMin ?? 8, repMax: m.repMax ?? 12, sortOrder: i });
     });
   }
   return slots;

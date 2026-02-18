@@ -17,6 +17,7 @@ type Action =
   | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string; sets?: number }
   | { type: 'REMOVE_MUSCLE'; slotId: string }
   | { type: 'SET_SETS'; slotId: string; sets: number }
+  | { type: 'SET_REPS'; slotId: string; repMin: number; repMax: number }
   | { type: 'SET_ALL_SETS_FOR_MUSCLE'; muscleId: string; sets: number }
   | { type: 'REORDER'; dayIndex: number; fromIndex: number; toIndex: number }
   | { type: 'MOVE_MUSCLE'; slotId: string; toDay: number; toIndex: number }
@@ -49,9 +50,14 @@ function getMaxSortOrder(slots: MuscleSlotData[], dayIndex: number): number {
   return Math.max(...daySlots.map(s => s.sortOrder));
 }
 
-/** Ensure every slot has a unique id (backward compat for saved data without ids) */
+/** Ensure every slot has a unique id and rep range (backward compat for saved data) */
 function hydrateSlotIds(slots: MuscleSlotData[]): MuscleSlotData[] {
-  return slots.map(s => (s.id ? s : { ...s, id: crypto.randomUUID() }));
+  return slots.map(s => ({
+    ...s,
+    id: s.id || crypto.randomUUID(),
+    repMin: s.repMin ?? 8,
+    repMax: s.repMax ?? 12,
+  }));
 }
 
 function reducer(state: MusclePlanState, action: Action): MusclePlanState {
@@ -82,6 +88,8 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         dayIndex: action.dayIndex,
         muscleId: action.muscleId,
         sets: action.sets ?? 3,
+        repMin: 8,
+        repMax: 12,
         sortOrder: getMaxSortOrder(state.slots, action.dayIndex) + 1,
       };
       return { ...state, slots: [...state.slots, newSlot], isDirty: true };
@@ -100,6 +108,17 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         slots: state.slots.map(s =>
           s.id === action.slotId
             ? { ...s, sets: Math.max(1, Math.min(20, action.sets)) }
+            : s
+        ),
+        isDirty: true,
+      };
+
+    case 'SET_REPS':
+      return {
+        ...state,
+        slots: state.slots.map(s =>
+          s.id === action.slotId
+            ? { ...s, repMin: Math.max(1, Math.min(100, action.repMin)), repMax: Math.max(1, Math.min(100, action.repMax)) }
             : s
         ),
         isDirty: true,

@@ -11,8 +11,11 @@ interface MuscleSlotCardProps {
   slotId: string;
   muscleId: string;
   sets: number;
+  repMin: number;
+  repMax: number;
   draggableIndex: number;
   onSetSets: (slotId: string, sets: number) => void;
+  onSetReps: (slotId: string, repMin: number, repMax: number) => void;
   onRemove: (slotId: string) => void;
   isHighlighted?: boolean;
   onSetAllSets?: (muscleId: string, sets: number) => void;
@@ -23,8 +26,11 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   slotId,
   muscleId,
   sets,
+  repMin,
+  repMax,
   draggableIndex,
   onSetSets,
+  onSetReps,
   onRemove,
   isHighlighted,
   onSetAllSets,
@@ -45,6 +51,22 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   const handleRemove = useCallback(() => {
     onRemove(slotId);
   }, [slotId, onRemove]);
+
+  const handleRepMinChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = parseInt(e.target.value);
+      if (!isNaN(val)) onSetReps(slotId, val, repMax);
+    },
+    [slotId, repMax, onSetReps]
+  );
+
+  const handleRepMaxChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = parseInt(e.target.value);
+      if (!isNaN(val)) onSetReps(slotId, repMin, val);
+    },
+    [slotId, repMin, onSetReps]
+  );
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -119,7 +141,27 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
             className="w-12 h-6 text-center text-xs px-1 bg-background/50"
             onClick={e => e.stopPropagation()}
           />
-          <span className="text-[10px] text-muted-foreground">sets</span>
+          <span className="text-[10px] text-muted-foreground shrink-0">×</span>
+          <Input
+            type="number"
+            min={1}
+            max={100}
+            value={repMin}
+            onChange={handleRepMinChange}
+            className="w-10 h-6 text-center text-xs px-0.5 bg-background/50"
+            onClick={e => e.stopPropagation()}
+          />
+          <span className="text-[10px] text-muted-foreground shrink-0">-</span>
+          <Input
+            type="number"
+            min={1}
+            max={100}
+            value={repMax}
+            onChange={handleRepMaxChange}
+            className="w-10 h-6 text-center text-xs px-0.5 bg-background/50"
+            onClick={e => e.stopPropagation()}
+          />
+          <span className="text-[10px] text-muted-foreground shrink-0">reps</span>
           <Button
             variant="ghost"
             size="icon"

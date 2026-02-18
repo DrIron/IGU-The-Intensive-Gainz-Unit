@@ -9,6 +9,7 @@ interface WeeklyCalendarProps {
   selectedDayIndex: number;
   onSelectDay: (dayIndex: number) => void;
   onSetSets: (slotId: string, sets: number) => void;
+  onSetReps: (slotId: string, repMin: number, repMax: number) => void;
   onRemove: (slotId: string) => void;
   onAddMuscle?: (dayIndex: number, muscleId: string) => void;
   copiedDayIndex?: number | null;
@@ -23,6 +24,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   selectedDayIndex,
   onSelectDay,
   onSetSets,
+  onSetReps,
   onRemove,
   onAddMuscle,
   copiedDayIndex,
@@ -53,6 +55,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           slots={slots}
           selectedDayIndex={selectedDayIndex}
           onSetSets={onSetSets}
+          onSetReps={onSetReps}
           onRemove={onRemove}
           onAddMuscle={handleAddMuscle}
           copiedDayIndex={copiedDayIndex}
@@ -72,6 +75,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             isSelected={selectedDayIndex === dayIndex}
             onSelectDay={onSelectDay}
             onSetSets={onSetSets}
+            onSetReps={onSetReps}
             onRemove={onRemove}
             onAddMuscle={onAddMuscle}
             copiedDayIndex={copiedDayIndex}

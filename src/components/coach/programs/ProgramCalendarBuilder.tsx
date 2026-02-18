@@ -47,6 +47,8 @@ import {
   ClipboardPaste,
 } from "lucide-react";
 import { SessionTypeSelector } from "./SessionTypeSelector";
+import { ProgramMetadataHeader } from "./ProgramMetadataHeader";
+import { SessionEditorSheet } from "./SessionEditorSheet";
 import {
   SessionType,
   SessionTiming,
@@ -264,6 +266,7 @@ export function ProgramCalendarBuilder({
   const [copyFromWeek, setCopyFromWeek] = useState<number | null>(null);
   const [copyToWeek, setCopyToWeek] = useState<number | null>(null);
   const [copiedSessionId, setCopiedSessionId] = useState<string | null>(null);
+  const [editingModuleId, setEditingModuleId] = useState<string | null>(null);
   const hasFetched = useRef(false);
   const { toast } = useToast();
 
@@ -682,6 +685,20 @@ export function ProgramCalendarBuilder({
     setShowAddDayDialog(true);
   }, []);
 
+  // Open session in sheet (internal) or delegate to external handler
+  const handleEditSession = useCallback((moduleId: string) => {
+    if (onEditDay) {
+      onEditDay(moduleId);
+    } else {
+      setEditingModuleId(moduleId);
+    }
+  }, [onEditDay]);
+
+  const handleSessionUpdated = useCallback(() => {
+    hasFetched.current = false;
+    loadProgramStructure().then(() => { hasFetched.current = true; });
+  }, [loadProgramStructure]);
+
   const currentWeek = useMemo(
     () => weeks.find((w) => w.weekNumber === selectedWeek),
     [weeks, selectedWeek]
@@ -697,10 +714,19 @@ export function ProgramCalendarBuilder({
 
   return (
     <div className="space-y-4">
+      {/* Program Metadata Header (only when not readOnly and onBack is provided) */}
+      {!readOnly && onBack && (
+        <ProgramMetadataHeader
+          programId={programId}
+          coachUserId={coachUserId}
+          onBack={onBack}
+        />
+      )}
+
       {/* Week Navigation */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {onBack && (
+          {readOnly && onBack && (
             <Button variant="ghost" size="sm" onClick={onBack}>
               <ChevronLeft className="h-4 w-4 mr-1" />
               Back
@@ -771,7 +797,7 @@ export function ProgramCalendarBuilder({
             copiedSessionId={copiedSessionId}
             onPasteSession={pasteSession}
             onAddSession={handleAddSession}
-            onEditDay={onEditDay}
+            onEditDay={handleEditSession}
             onCopySession={handleCopySession}
             onToggleStatus={toggleModuleStatus}
             onDeleteSession={deleteSession}
@@ -866,6 +892,17 @@ export function ProgramCalendarBuilder({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Session Editor Sheet (opens when clicking a session in non-readOnly mode without external onEditDay) */}
+      {!readOnly && !onEditDay && (
+        <SessionEditorSheet
+          moduleId={editingModuleId}
+          coachUserId={coachUserId}
+          programId={programId}
+          onClose={() => setEditingModuleId(null)}
+          onSessionUpdated={handleSessionUpdated}
+        />
+      )}
     </div>
   );
 }

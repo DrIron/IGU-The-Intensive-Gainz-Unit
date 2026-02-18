@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag, Dumbbell, Trash2, X } from "lucide-react";
+import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag, Dumbbell, Trash2, X, User, Users } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SimplePagination, createPagination } from "@/components/ui/simple-pagination";
 import {
@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Tables } from "@/integrations/supabase/types";
+import { AssignFromLibraryDialog } from "./AssignFromLibraryDialog";
 
 type ProgramTemplate = Tables<"program_templates"> & {
   program_template_days?: { id: string }[];
@@ -47,6 +48,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
   const [deleteTarget, setDeleteTarget] = useState<ProgramTemplate | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [assignTarget, setAssignTarget] = useState<{ programId: string; programTitle: string; mode: "client" | "team" } | null>(null);
   const { toast } = useToast();
   const PAGE_SIZE = 12;
 
@@ -462,6 +464,15 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
                         Duplicate
                       </DropdownMenuItem>
                       <DropdownMenuSeparator />
+                      <DropdownMenuItem onClick={() => setAssignTarget({ programId: program.id, programTitle: program.title, mode: "client" })}>
+                        <User className="h-4 w-4 mr-2" />
+                        Assign to Client
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setAssignTarget({ programId: program.id, programTitle: program.title, mode: "team" })}>
+                        <Users className="h-4 w-4 mr-2" />
+                        Assign to Team
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
                         onClick={() => setDeleteTarget(program)}
@@ -487,12 +498,6 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
                       <Badge variant="secondary" className="capitalize">
                         {program.level}
                       </Badge>
-                    </>
-                  )}
-                  {program.visibility === "shared" && (
-                    <>
-                      <span>•</span>
-                      <Badge variant="outline">Shared</Badge>
                     </>
                   )}
                 </div>
@@ -573,6 +578,19 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Assign from library dialog */}
+      {assignTarget && (
+        <AssignFromLibraryDialog
+          open={!!assignTarget}
+          onOpenChange={(open) => !open && setAssignTarget(null)}
+          programId={assignTarget.programId}
+          programTitle={assignTarget.programTitle}
+          coachUserId={coachUserId}
+          mode={assignTarget.mode}
+          onAssigned={loadPrograms}
+        />
+      )}
     </div>
   );
 }

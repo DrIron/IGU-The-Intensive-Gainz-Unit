@@ -33,7 +33,7 @@ import {
   Redo2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { MUSCLE_GROUPS, DAYS_OF_WEEK } from "@/types/muscle-builder";
+import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId } from "@/types/muscle-builder";
 import type { MuscleSlotData } from "@/types/muscle-builder";
 
 import { useMuscleBuilderState } from "./hooks/useMuscleBuilderState";
@@ -142,7 +142,7 @@ export function MuscleBuilderPage({
         });
       }
     },
-    [state.slots, dispatch]
+    [dispatch]
   );
 
   // ── Memoized callbacks for child components ──────────────────
@@ -154,6 +154,12 @@ export function MuscleBuilderPage({
   const handleSetSets = useCallback(
     (slotId: string, sets: number) =>
       dispatch({ type: 'SET_SETS', slotId, sets }),
+    [dispatch]
+  );
+
+  const handleSetReps = useCallback(
+    (slotId: string, repMin: number, repMax: number) =>
+      dispatch({ type: 'SET_REPS', slotId, repMin, repMax }),
     [dispatch]
   );
 
@@ -178,7 +184,7 @@ export function MuscleBuilderPage({
         };
       }
       dispatch({ type: 'REMOVE_MUSCLE', slotId });
-      const muscle = slot ? MUSCLE_GROUPS.find(m => m.id === slot.muscleId) : null;
+      const muscle = slot ? getMuscleDisplay(slot.muscleId) : null;
       const dayName = slot ? DAYS_OF_WEEK[slot.dayIndex - 1] : '';
       toast({
         title: `Removed ${muscle?.label || 'muscle'} from ${dayName}`,
@@ -229,7 +235,7 @@ export function MuscleBuilderPage({
   const handleSetAllSets = useCallback(
     (muscleId: string, sets: number) => {
       dispatch({ type: 'SET_ALL_SETS_FOR_MUSCLE', muscleId, sets });
-      const muscle = MUSCLE_GROUPS.find(m => m.id === muscleId);
+      const muscle = getMuscleDisplay(muscleId);
       toast({ title: `Set all ${muscle?.label || muscleId} to ${sets} sets` });
     },
     [dispatch, toast]
@@ -238,7 +244,7 @@ export function MuscleBuilderPage({
   // #6 — Volume bar click → scroll to first day with muscle
   const handleMuscleClick = useCallback(
     (muscleId: string) => {
-      const slot = state.slots.find(s => s.muscleId === muscleId);
+      const slot = state.slots.find(s => resolveParentMuscleId(s.muscleId) === muscleId);
       if (!slot) return;
 
       dispatch({ type: 'SELECT_DAY', dayIndex: slot.dayIndex });
@@ -400,6 +406,7 @@ export function MuscleBuilderPage({
               selectedDayIndex={state.selectedDayIndex}
               onSelectDay={handleSelectDay}
               onSetSets={handleSetSets}
+              onSetReps={handleSetReps}
               onRemove={handleRemoveMuscle}
               onAddMuscle={handleAddMuscle}
               copiedDayIndex={copiedDayIndex}
@@ -491,7 +498,7 @@ export function MuscleBuilderPage({
           <DialogHeader>
             <DialogTitle>Clear all muscles?</DialogTitle>
             <DialogDescription>
-              This will remove all muscle placements from every day. This action cannot be undone.
+              This will remove all muscle placements from every day. You can undo with Ctrl+Z.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -12,6 +12,7 @@ import {
   BODY_REGIONS,
   BODY_REGION_LABELS,
   SUBDIVISIONS_BY_PARENT,
+  resolveParentMuscleId,
   type MuscleSlotData,
 } from "@/types/muscle-builder";
 
@@ -21,6 +22,7 @@ interface DayColumnProps {
   isSelected: boolean;
   onSelectDay: (dayIndex: number) => void;
   onSetSets: (slotId: string, sets: number) => void;
+  onSetReps: (slotId: string, repMin: number, repMax: number) => void;
   onRemove: (slotId: string) => void;
   onAddMuscle?: (dayIndex: number, muscleId: string) => void;
   className?: string;
@@ -37,6 +39,7 @@ export const DayColumn = memo(function DayColumn({
   isSelected,
   onSelectDay,
   onSetSets,
+  onSetReps,
   onRemove,
   onAddMuscle,
   className,
@@ -222,10 +225,13 @@ export const DayColumn = memo(function DayColumn({
                   slotId={slot.id}
                   muscleId={slot.muscleId}
                   sets={slot.sets}
+                  repMin={slot.repMin ?? 8}
+                  repMax={slot.repMax ?? 12}
                   draggableIndex={i}
                   onSetSets={onSetSets}
+                  onSetReps={onSetReps}
                   onRemove={onRemove}
-                  isHighlighted={highlightedMuscleId === slot.muscleId}
+                  isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
                   onSetAllSets={onSetAllSets}
                 />
               ))}

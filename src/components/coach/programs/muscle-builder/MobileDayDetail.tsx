@@ -12,6 +12,7 @@ import {
   BODY_REGIONS,
   BODY_REGION_LABELS,
   getMuscleDisplay,
+  resolveParentMuscleId,
   SUBDIVISIONS_BY_PARENT,
   type MuscleSlotData,
   type BodyRegion,
@@ -21,6 +22,7 @@ interface MobileDayDetailProps {
   slots: MuscleSlotData[];
   selectedDayIndex: number;
   onSetSets: (slotId: string, sets: number) => void;
+  onSetReps: (slotId: string, repMin: number, repMax: number) => void;
   onRemove: (slotId: string) => void;
   onAddMuscle: (dayIndex: number, muscleId: string) => void;
   copiedDayIndex?: number | null;
@@ -39,6 +41,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   slots,
   selectedDayIndex,
   onSetSets,
+  onSetReps,
   onRemove,
   onAddMuscle,
   copiedDayIndex,
@@ -241,8 +244,11 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                       slotId={slot.id}
                       muscle={muscle}
                       sets={slot.sets}
-                      isHighlighted={highlightedMuscleId === slot.muscleId}
+                      repMin={slot.repMin ?? 8}
+                      repMax={slot.repMax ?? 12}
+                      isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
                       onSetSets={onSetSets}
+                      onSetReps={onSetReps}
                       onRemove={onRemove}
                     />
                   );
@@ -298,8 +304,11 @@ interface MobileSlotRowProps {
   slotId: string;
   muscle: { id: string; label: string; colorClass: string; colorHex: string };
   sets: number;
+  repMin: number;
+  repMax: number;
   isHighlighted: boolean;
   onSetSets: (slotId: string, sets: number) => void;
+  onSetReps: (slotId: string, repMin: number, repMax: number) => void;
   onRemove: (slotId: string) => void;
 }
 
@@ -307,8 +316,11 @@ const MobileSlotRow = memo(function MobileSlotRow({
   slotId,
   muscle,
   sets,
+  repMin,
+  repMax,
   isHighlighted,
   onSetSets,
+  onSetReps,
   onRemove,
 }: MobileSlotRowProps) {
   const handleSetsChange = useCallback(
@@ -317,6 +329,22 @@ const MobileSlotRow = memo(function MobileSlotRow({
       if (!isNaN(val)) onSetSets(slotId, Math.max(1, Math.min(20, val)));
     },
     [slotId, onSetSets],
+  );
+
+  const handleRepMinChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = parseInt(e.target.value);
+      if (!isNaN(val)) onSetReps(slotId, val, repMax);
+    },
+    [slotId, repMax, onSetReps],
+  );
+
+  const handleRepMaxChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const val = parseInt(e.target.value);
+      if (!isNaN(val)) onSetReps(slotId, repMin, val);
+    },
+    [slotId, repMin, onSetReps],
   );
 
   return (
@@ -337,10 +365,29 @@ const MobileSlotRow = memo(function MobileSlotRow({
         max={20}
         value={sets}
         onChange={handleSetsChange}
-        className="w-14 h-7 text-center text-xs px-1 bg-background/50"
+        className="w-12 h-7 text-center text-xs px-1 bg-background/50"
         inputMode="numeric"
       />
-      <span className="text-[10px] text-muted-foreground">sets</span>
+      <span className="text-[10px] text-muted-foreground shrink-0">×</span>
+      <Input
+        type="number"
+        min={1}
+        max={100}
+        value={repMin}
+        onChange={handleRepMinChange}
+        className="w-10 h-7 text-center text-xs px-0.5 bg-background/50"
+        inputMode="numeric"
+      />
+      <span className="text-[10px] text-muted-foreground shrink-0">-</span>
+      <Input
+        type="number"
+        min={1}
+        max={100}
+        value={repMax}
+        onChange={handleRepMaxChange}
+        className="w-10 h-7 text-center text-xs px-0.5 bg-background/50"
+        inputMode="numeric"
+      />
       <Button
         variant="ghost"
         size="icon"

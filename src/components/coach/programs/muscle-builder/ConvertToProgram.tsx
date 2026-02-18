@@ -98,6 +98,14 @@ export const ConvertToProgram = memo(function ConvertToProgram({
       // Auto-fill exercises for each module (best-effort)
       let autoFilledCount = 0;
       try {
+        // Build rep range lookup: muscleId → queue of { repMin, repMax }
+        const repRangeMap = new Map<string, { repMin: number; repMax: number }[]>();
+        for (const slot of slots) {
+          const arr = repRangeMap.get(slot.muscleId) || [];
+          arr.push({ repMin: slot.repMin ?? 8, repMax: slot.repMax ?? 12 });
+          repRangeMap.set(slot.muscleId, arr);
+        }
+
         // 1. Get all day_modules for this program with source_muscle_id
         const { data: days } = await supabase
           .from('program_template_days')
@@ -162,10 +170,13 @@ export const ConvertToProgram = memo(function ConvertToProgram({
                     if (picked.length >= 3) break;
                   }
 
+                  // Get rep range from the slot (first match for this muscle, consume it)
+                  const reps = repRangeMap.get(mod.source_muscle_id!)?.shift() ?? { repMin: 8, repMax: 12 };
+
                   for (let i = 0; i < picked.length; i++) {
                     const meId = crypto.randomUUID();
                     meInserts.push({ id: meId, day_module_id: mod.id, exercise_id: picked[i].id, section: 'main', sort_order: i + 1 });
-                    prescInserts.push({ module_exercise_id: meId, set_count: 3, rep_range_min: 8, rep_range_max: 12, intensity_type: 'rir', intensity_value: 2, rest_seconds: 90 });
+                    prescInserts.push({ module_exercise_id: meId, set_count: 3, rep_range_min: reps.repMin, rep_range_max: reps.repMax, intensity_type: 'rir', intensity_value: 2, rest_seconds: 90 });
                   }
                   autoFilledCount += picked.length;
                 }
