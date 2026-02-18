@@ -12,6 +12,7 @@ import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
 import { RoutesDebugPanel } from "./components/admin/RoutesDebugPanel";
 import { OnboardingGuard } from "@/components/OnboardingGuard";
+import { WaitlistGuard } from "@/components/WaitlistGuard";
 import { useTokenGuard } from "@/hooks/useTokenGuard";
 import { captureUTMParams } from "@/lib/utm";
 import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
@@ -60,6 +61,7 @@ const WorkoutCalendar = lazy(() => import("./pages/client/WorkoutCalendar"));
 const ExerciseHistory = lazy(() => import("./pages/client/ExerciseHistory"));
 const AccessDebug = lazy(() => import("./pages/AccessDebug"));
 const EmailConfirmed = lazy(() => import("./pages/EmailConfirmed"));
+const Waitlist = lazy(() => import("./pages/Waitlist"));
 // Onboarding pages
 const MedicalReview = lazy(() => import("./pages/onboarding/MedicalReview"));
 const AwaitingApproval = lazy(() => import("./pages/onboarding/AwaitingApproval"));
@@ -93,10 +95,11 @@ const App = () => {
             <div className="min-h-screen">
               <Suspense fallback={<LoadingSpinner />}>
                 <Routes>
-                  <Route path="/" element={<PublicLayout><Index /></PublicLayout>} />
+                  <Route path="/waitlist" element={<PublicLayout minimal><Waitlist /></PublicLayout>} />
+                  <Route path="/" element={<WaitlistGuard><PublicLayout><Index /></PublicLayout></WaitlistGuard>} />
                   <Route path="/auth" element={<PublicLayout minimal><Auth /></PublicLayout>} />
                   <Route path="/email-confirmed" element={<PublicLayout minimal><EmailConfirmed /></PublicLayout>} />
-                  <Route path="/services" element={<PublicLayout><Services /></PublicLayout>} />
+                  <Route path="/services" element={<WaitlistGuard><PublicLayout><Services /></PublicLayout></WaitlistGuard>} />
 
                   {/* Role-scoped Admin routes - requires admin role */}
                   <Route path="/admin" element={<RoleProtectedRoute requiredRole="admin"><AdminDashboard /></RoleProtectedRoute>} />
@@ -124,11 +127,11 @@ const App = () => {
 
                   <Route path="/account" element={<AuthGuard><AccountManagement /></AuthGuard>} />
                   <Route path="/reset-password" element={<PublicLayout minimal><ResetPassword /></PublicLayout>} />
-                  <Route path="/calorie-calculator" element={<PublicLayout><CalorieCalculator /></PublicLayout>} />
+                  <Route path="/calorie-calculator" element={<WaitlistGuard><PublicLayout><CalorieCalculator /></PublicLayout></WaitlistGuard>} />
                   <Route path="/workout-library" element={<AuthGuard><OnboardingGuard><WorkoutLibrary /></OnboardingGuard></AuthGuard>} />
-                  <Route path="/testimonial" element={<PublicLayout><Testimonial /></PublicLayout>} />
+                  <Route path="/testimonial" element={<WaitlistGuard><PublicLayout><Testimonial /></PublicLayout></WaitlistGuard>} />
                   <Route path="/client-submission/:userId" element={<ClientSubmission />} />
-                  <Route path="/meet-our-team" element={<PublicLayout><MeetOurTeam /></PublicLayout>} />
+                  <Route path="/meet-our-team" element={<WaitlistGuard><PublicLayout><MeetOurTeam /></PublicLayout></WaitlistGuard>} />
                   <Route path="/coach-signup" element={<PublicLayout><CoachSignup /></PublicLayout>} />
                   <Route path="/coach-password-setup" element={<CoachPasswordSetup />} />
                   <Route path="/coach-password-set" element={<CoachPasswordSetup />} />

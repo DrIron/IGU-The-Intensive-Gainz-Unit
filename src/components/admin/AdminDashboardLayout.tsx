@@ -26,6 +26,7 @@ import { CoachWorkloadPanel } from "@/components/admin/CoachWorkloadPanel";
 import { AdminQuickActions } from "@/components/admin/AdminQuickActions";
 import { SiteContentManager } from "@/components/admin/SiteContentManager";
 import { SubroleApprovalQueue } from "@/components/admin/SubroleApprovalQueue";
+import { WaitlistManager } from "@/components/admin/WaitlistManager";
 
 const ADMIN_BUILD_TIMESTAMP = typeof __BUILD_TIMESTAMP__ !== 'undefined'
   ? new Date(__BUILD_TIMESTAMP__).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
@@ -281,6 +282,15 @@ function DiscordLegalSection() {
           <p className="text-sm text-muted-foreground">Control registration window and start date for team programs displayed on the home page.</p>
         </div>
         <TeamPlanSettings />
+      </section>
+
+      {/* Waitlist Settings Section */}
+      <section id="waitlist-settings">
+        <div className="mb-4">
+          <h2 className="text-xl font-semibold">Waitlist Mode</h2>
+          <p className="text-sm text-muted-foreground">Control pre-launch waitlist redirect and send invites to collected leads.</p>
+        </div>
+        <WaitlistManager />
       </section>
     </div>
   );

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -62,7 +62,8 @@ export default function Auth() {
   const [selectedService, setSelectedService] = useState<string>("");
   const [activeTab, setActiveTab] = useState("signin");
   const [isCoachAuth, setIsCoachAuth] = useState(false);
-  
+  const [waitlistActive, setWaitlistActive] = useState(false);
+
   // Guard to ensure bootstrap-admin-role runs only once per session
   const bootstrapCalledRef = useRef(false);
   const redirectingRef = useRef(false);
@@ -194,6 +195,32 @@ export default function Auth() {
     // Load services (don't block on error)
     loadServices();
 
+    // Check waitlist status
+    const checkWaitlist = async () => {
+      try {
+        const { data } = await supabase
+          .from("waitlist_settings")
+          .select("is_enabled")
+          .limit(1)
+          .maybeSingle();
+
+        if (data?.is_enabled) {
+          setWaitlistActive(true);
+          // If someone tries to access signup tab directly while waitlist is on, redirect
+          const tab = searchParams.get("tab");
+          if (tab === "signup") {
+            navigate("/waitlist", { replace: true });
+            return;
+          }
+          // Force sign-in tab when waitlist is active
+          setActiveTab("signin");
+        }
+      } catch {
+        // Ignore errors -- fail open
+      }
+    };
+    checkWaitlist();
+
     // Check if coach authentication mode
     const coachParam = searchParams.get("coach");
     if (coachParam === "true") {
@@ -206,9 +233,9 @@ export default function Auth() {
       setSelectedService(serviceId);
     }
 
-    // Check for active tab from URL
+    // Check for active tab from URL (only if waitlist isn't active -- waitlist check handles it above)
     const tab = searchParams.get("tab");
-    if (tab) {
+    if (tab && !waitlistActive) {
       setActiveTab(tab);
     }
 
@@ -545,10 +572,12 @@ export default function Auth() {
         </CardHeader>
         <CardContent>
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
-            </TabsList>
+            {!waitlistActive && (
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="signin">Sign In</TabsTrigger>
+                <TabsTrigger value="signup">Sign Up</TabsTrigger>
+              </TabsList>
+            )}
             <TabsContent value="signin">
               {resetMode ? (
                 <form onSubmit={handlePasswordReset} className="space-y-4">
@@ -611,6 +640,14 @@ export default function Auth() {
                     Forgot Password?
                   </Button>
                 </form>
+              )}
+              {waitlistActive && (
+                <p className="text-center text-sm text-muted-foreground mt-4">
+                  New here?{" "}
+                  <Link to="/waitlist" className="text-primary hover:underline font-medium">
+                    Join our waitlist
+                  </Link>
+                </p>
               )}
             </TabsContent>
             <TabsContent value="signup">

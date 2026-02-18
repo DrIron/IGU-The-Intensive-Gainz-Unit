@@ -130,9 +130,17 @@ hasPermission(roles, 'view_phi'); // PHI access check
 
 ### 2. Route Protection
 
-Three-layer protection system:
+Four-layer protection system:
 
 ```typescript
+// 0. WaitlistGuard - redirects unauthenticated visitors when waitlist mode is ON
+// Wraps public routes: /, /services, /testimonial, /calorie-calculator, /meet-our-team
+// Does NOT wrap: /auth, /waitlist, /reset-password, /email-confirmed, /coach-signup
+// Authenticated users always pass through immediately
+<WaitlistGuard>
+  <PublicLayout><Index /></PublicLayout>
+</WaitlistGuard>
+
 // 1. AuthGuard - requires login only
 <AuthGuard>
   <SomePage />
@@ -259,6 +267,10 @@ muscle_program_templates   -- Muscle planning templates (slot_config JSONB, is_p
 coach_teams                -- Head coach team management (name, tags[], max_members, current_program_template_id)
 -- client_programs.team_id -- Nullable FK to coach_teams (tracks which team assignment created the program)
 -- subscriptions.team_id   -- Nullable FK to coach_teams (direct team membership)
+
+-- Waitlist System (Pre-Launch)
+waitlist_settings          -- Single-row: is_enabled, heading, subheading (anon read, admin write)
+-- leads.invited_at        -- Tracks which waitlist leads have been sent invite emails
 ```
 
 ### 5b. Service Tiers & Compensation
@@ -505,6 +517,7 @@ When understanding this codebase, read in this order:
 - Planning Board Architecture Improvements — undo/redo, auto-save, plan library, batch RPCs for conversion + assignment (Feb 15, 2026) ✅
 - Phase 34: Muscle Subdivisions + Exercise Auto-Fill — 42 anatomical subdivisions, hierarchical palette, exercise auto-fill on conversion (Feb 16, 2026) ✅
 - Type Safety & Loading State Fixes — error: any → error: unknown, usePagination → createPagination utility, WorkoutLibraryManager loading states, ExerciseQuickAdd isSubmitting prop (Feb 17, 2026) ✅
+- Pre-Launch Waitlist System — waitlist_settings table, WaitlistGuard on 5 public routes, branded waitlist page, admin toggle + invite emails, Auth.tsx signup tab hidden when active (Feb 18, 2026) ✅
 
 ### Phase 34: Muscle Subdivisions + Exercise Auto-Fill (Feb 16, 2026)
 
@@ -2071,6 +2084,8 @@ Quick reference for edge function JWT settings:
 | `process-coach-inactivity-monitor` | **No** | Called by n8n (service role key) |
 | `send-admin-daily-summary` | **No** | Called by n8n (service role key) |
 | `send-weekly-coach-digest` | **No** | Called by n8n (service role key) |
+| `send-waitlist-confirmation` | **No** | Called by anonymous users (waitlist signup) |
+| `send-waitlist-invites` | **No** | Called with admin session (has internal auth check) |
 | `submit-onboarding` | **No** | Gateway rejects ES256 JWTs; function has internal auth checks |
 
 Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
