@@ -8,8 +8,7 @@ interface WeeklyCalendarProps {
   slots: MuscleSlotData[];
   selectedDayIndex: number;
   onSelectDay: (dayIndex: number) => void;
-  onSetSets: (slotId: string, sets: number) => void;
-  onSetReps: (slotId: string, repMin: number, repMax: number) => void;
+  onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
   onAddMuscle?: (dayIndex: number, muscleId: string) => void;
   copiedDayIndex?: number | null;
@@ -23,8 +22,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   slots,
   selectedDayIndex,
   onSelectDay,
-  onSetSets,
-  onSetReps,
+  onSetSlotDetails,
   onRemove,
   onAddMuscle,
   copiedDayIndex,
@@ -54,8 +52,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
         <MobileDayDetail
           slots={slots}
           selectedDayIndex={selectedDayIndex}
-          onSetSets={onSetSets}
-          onSetReps={onSetReps}
+          onSetSlotDetails={onSetSlotDetails}
           onRemove={onRemove}
           onAddMuscle={handleAddMuscle}
           copiedDayIndex={copiedDayIndex}
@@ -74,8 +71,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             slots={slots}
             isSelected={selectedDayIndex === dayIndex}
             onSelectDay={onSelectDay}
-            onSetSets={onSetSets}
-            onSetReps={onSetReps}
+            onSetSlotDetails={onSetSlotDetails}
             onRemove={onRemove}
             onAddMuscle={onAddMuscle}
             copiedDayIndex={copiedDayIndex}

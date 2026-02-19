@@ -151,15 +151,9 @@ export function MuscleBuilderPage({
     [dispatch]
   );
 
-  const handleSetSets = useCallback(
-    (slotId: string, sets: number) =>
-      dispatch({ type: 'SET_SETS', slotId, sets }),
-    [dispatch]
-  );
-
-  const handleSetReps = useCallback(
-    (slotId: string, repMin: number, repMax: number) =>
-      dispatch({ type: 'SET_REPS', slotId, repMin, repMax }),
+  const handleSetSlotDetails = useCallback(
+    (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) =>
+      dispatch({ type: 'SET_SLOT_DETAILS', slotId, ...details }),
     [dispatch]
   );
 
@@ -405,8 +399,7 @@ export function MuscleBuilderPage({
               slots={state.slots}
               selectedDayIndex={state.selectedDayIndex}
               onSelectDay={handleSelectDay}
-              onSetSets={handleSetSets}
-              onSetReps={handleSetReps}
+              onSetSlotDetails={handleSetSlotDetails}
               onRemove={handleRemoveMuscle}
               onAddMuscle={handleAddMuscle}
               copiedDayIndex={copiedDayIndex}

@@ -18,6 +18,7 @@ type Action =
   | { type: 'REMOVE_MUSCLE'; slotId: string }
   | { type: 'SET_SETS'; slotId: string; sets: number }
   | { type: 'SET_REPS'; slotId: string; repMin: number; repMax: number }
+  | { type: 'SET_SLOT_DETAILS'; slotId: string; sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }
   | { type: 'SET_ALL_SETS_FOR_MUSCLE'; muscleId: string; sets: number }
   | { type: 'REORDER'; dayIndex: number; fromIndex: number; toIndex: number }
   | { type: 'MOVE_MUSCLE'; slotId: string; toDay: number; toIndex: number }
@@ -119,6 +120,25 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         slots: state.slots.map(s =>
           s.id === action.slotId
             ? { ...s, repMin: Math.max(1, Math.min(100, action.repMin)), repMax: Math.max(1, Math.min(100, action.repMax)) }
+            : s
+        ),
+        isDirty: true,
+      };
+
+    case 'SET_SLOT_DETAILS':
+      return {
+        ...state,
+        slots: state.slots.map(s =>
+          s.id === action.slotId
+            ? {
+                ...s,
+                ...(action.sets != null && { sets: Math.max(1, Math.min(20, action.sets)) }),
+                ...(action.repMin != null && { repMin: Math.max(1, Math.min(100, action.repMin)) }),
+                ...(action.repMax != null && { repMax: Math.max(1, Math.min(100, action.repMax)) }),
+                ...(action.tempo !== undefined && { tempo: action.tempo || undefined }),
+                ...(action.rir !== undefined && { rir: action.rir }),
+                ...(action.rpe !== undefined && { rpe: action.rpe }),
+              }
             : s
         ),
         isDirty: true,

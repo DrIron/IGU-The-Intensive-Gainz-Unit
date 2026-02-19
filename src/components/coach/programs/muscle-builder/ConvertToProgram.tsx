@@ -98,12 +98,12 @@ export const ConvertToProgram = memo(function ConvertToProgram({
       // Auto-fill exercises for each module (best-effort)
       let autoFilledCount = 0;
       try {
-        // Build rep range lookup: muscleId → queue of { repMin, repMax }
-        const repRangeMap = new Map<string, { repMin: number; repMax: number }[]>();
+        // Build rep range + intensity lookup: muscleId → queue of slot details
+        const slotDetailsMap = new Map<string, { repMin: number; repMax: number; tempo?: string; rir?: number; rpe?: number }[]>();
         for (const slot of slots) {
-          const arr = repRangeMap.get(slot.muscleId) || [];
-          arr.push({ repMin: slot.repMin ?? 8, repMax: slot.repMax ?? 12 });
-          repRangeMap.set(slot.muscleId, arr);
+          const arr = slotDetailsMap.get(slot.muscleId) || [];
+          arr.push({ repMin: slot.repMin ?? 8, repMax: slot.repMax ?? 12, tempo: slot.tempo, rir: slot.rir, rpe: slot.rpe });
+          slotDetailsMap.set(slot.muscleId, arr);
         }
 
         // 1. Get all day_modules for this program with source_muscle_id
@@ -152,7 +152,7 @@ export const ConvertToProgram = memo(function ConvertToProgram({
 
                 // 4. Pick up to 3 exercises per module, build batch inserts
                 const meInserts: { id: string; day_module_id: string; exercise_id: string; section: string; sort_order: number }[] = [];
-                const prescInserts: { module_exercise_id: string; set_count: number; rep_range_min: number; rep_range_max: number; intensity_type: string; intensity_value: number; rest_seconds: number }[] = [];
+                const prescInserts: Record<string, unknown>[] = [];
 
                 for (const mod of modules) {
                   const filters = muscleFilterMap.get(mod.id);
@@ -170,13 +170,24 @@ export const ConvertToProgram = memo(function ConvertToProgram({
                     if (picked.length >= 3) break;
                   }
 
-                  // Get rep range from the slot (first match for this muscle, consume it)
-                  const reps = repRangeMap.get(mod.source_muscle_id!)?.shift() ?? { repMin: 8, repMax: 12 };
+                  // Get slot details (first match for this muscle, consume it)
+                  const details = slotDetailsMap.get(mod.source_muscle_id!)?.shift() ?? { repMin: 8, repMax: 12 };
 
                   for (let i = 0; i < picked.length; i++) {
                     const meId = crypto.randomUUID();
                     meInserts.push({ id: meId, day_module_id: mod.id, exercise_id: picked[i].id, section: 'main', sort_order: i + 1 });
-                    prescInserts.push({ module_exercise_id: meId, set_count: 3, rep_range_min: reps.repMin, rep_range_max: reps.repMax, intensity_type: 'rir', intensity_value: 2, rest_seconds: 90 });
+                    const presc: Record<string, unknown> = {
+                      module_exercise_id: meId,
+                      set_count: 3,
+                      rep_range_min: details.repMin,
+                      rep_range_max: details.repMax,
+                      intensity_type: 'rir',
+                      intensity_value: details.rir ?? 2,
+                      rest_seconds: 90,
+                    };
+                    if (details.tempo) presc.tempo = details.tempo;
+                    if (details.rpe != null) presc.rpe = details.rpe;
+                    prescInserts.push(presc);
                   }
                   autoFilledCount += picked.length;
                 }

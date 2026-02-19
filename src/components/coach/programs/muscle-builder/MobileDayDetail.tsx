@@ -1,8 +1,10 @@
 import { memo, useMemo, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Copy, ClipboardPaste, Plus, X, Search } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DAYS_OF_WEEK,
@@ -14,6 +16,7 @@ import {
   getMuscleDisplay,
   resolveParentMuscleId,
   SUBDIVISIONS_BY_PARENT,
+  SUBDIVISION_MAP,
   type MuscleSlotData,
   type BodyRegion,
 } from "@/types/muscle-builder";
@@ -21,8 +24,7 @@ import {
 interface MobileDayDetailProps {
   slots: MuscleSlotData[];
   selectedDayIndex: number;
-  onSetSets: (slotId: string, sets: number) => void;
-  onSetReps: (slotId: string, repMin: number, repMax: number) => void;
+  onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
   onAddMuscle: (dayIndex: number, muscleId: string) => void;
   copiedDayIndex?: number | null;
@@ -37,11 +39,22 @@ for (const region of BODY_REGIONS) {
   musclesByRegion.set(region, MUSCLE_GROUPS.filter(m => m.bodyRegion === region));
 }
 
+/** Format slot label: subdivisions show "Parent > Sub", parents show their label */
+function formatSlotLabel(muscleId: string): string {
+  const sub = SUBDIVISION_MAP.get(muscleId);
+  if (sub) {
+    const parent = MUSCLE_MAP.get(sub.parentId);
+    const shortLabel = sub.label.replace(/\s*\(.*?\)\s*/, '');
+    return `${parent?.label ?? sub.parentId} \u203A ${shortLabel}`;
+  }
+  const display = getMuscleDisplay(muscleId);
+  return display?.label ?? muscleId;
+}
+
 export const MobileDayDetail = memo(function MobileDayDetail({
   slots,
   selectedDayIndex,
-  onSetSets,
-  onSetReps,
+  onSetSlotDetails,
   onRemove,
   onAddMuscle,
   copiedDayIndex,
@@ -125,7 +138,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
 
       <CardContent className="p-3 pt-0 space-y-2">
         {pickerOpen ? (
-          /* ── Inline Muscle Picker ─────────────────────────── */
+          /* -- Inline Muscle Picker -- */
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">Add Muscle</span>
@@ -201,7 +214,6 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                           />
                         ))}
                       </div>
-                      {/* Subdivisions under each parent */}
                       {muscles.map(muscle => {
                         const subs = SUBDIVISIONS_BY_PARENT.get(muscle.id);
                         if (!subs || subs.length === 0) return null;
@@ -227,7 +239,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
             )}
           </div>
         ) : (
-          /* ── Slot List ────────────────────────────────────── */
+          /* -- Slot List -- */
           <>
             {daySlots.length === 0 ? (
               <div className="flex items-center justify-center h-16 text-xs text-muted-foreground/50">
@@ -241,14 +253,11 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                   return (
                     <MobileSlotRow
                       key={slot.id}
-                      slotId={slot.id}
+                      slot={slot}
                       muscle={muscle}
-                      sets={slot.sets}
-                      repMin={slot.repMin ?? 8}
-                      repMax={slot.repMax ?? 12}
+                      label={formatSlotLabel(slot.muscleId)}
                       isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
-                      onSetSets={onSetSets}
-                      onSetReps={onSetReps}
+                      onSetSlotDetails={onSetSlotDetails}
                       onRemove={onRemove}
                     />
                   );
@@ -272,7 +281,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   );
 });
 
-/* ── Tappable muscle chip for the picker ──────────────────── */
+/* -- Tappable muscle chip for the picker -- */
 
 interface MuscleChipProps {
   muscleId: string;
@@ -298,53 +307,35 @@ const MuscleChip = memo(function MuscleChip({ muscleId, label, colorClass, onTap
   );
 });
 
-/* ── Mobile slot row (always-visible controls) ────────────── */
+/* -- Mobile slot row (minimal card + tap to edit popover) -- */
 
 interface MobileSlotRowProps {
-  slotId: string;
-  muscle: { id: string; label: string; colorClass: string; colorHex: string };
-  sets: number;
-  repMin: number;
-  repMax: number;
+  slot: MuscleSlotData;
+  muscle: { label: string; colorClass: string; colorHex: string };
+  label: string;
   isHighlighted: boolean;
-  onSetSets: (slotId: string, sets: number) => void;
-  onSetReps: (slotId: string, repMin: number, repMax: number) => void;
+  onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
 }
 
 const MobileSlotRow = memo(function MobileSlotRow({
-  slotId,
+  slot,
   muscle,
-  sets,
-  repMin,
-  repMax,
+  label,
   isHighlighted,
-  onSetSets,
-  onSetReps,
+  onSetSlotDetails,
   onRemove,
 }: MobileSlotRowProps) {
-  const handleSetsChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = parseInt(e.target.value);
-      if (!isNaN(val)) onSetSets(slotId, Math.max(1, Math.min(20, val)));
-    },
-    [slotId, onSetSets],
-  );
+  const [popoverOpen, setPopoverOpen] = useState(false);
 
-  const handleRepMinChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = parseInt(e.target.value);
-      if (!isNaN(val)) onSetReps(slotId, val, repMax);
-    },
-    [slotId, repMax, onSetReps],
-  );
+  const hasTempo = !!slot.tempo && slot.tempo.length === 4;
+  const needsIntensity = hasTempo && slot.rir == null && slot.rpe == null;
 
-  const handleRepMaxChange = useCallback(
-    (e: React.ChangeEvent<HTMLInputElement>) => {
-      const val = parseInt(e.target.value);
-      if (!isNaN(val)) onSetReps(slotId, repMin, val);
+  const update = useCallback(
+    (details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => {
+      onSetSlotDetails(slot.id, details);
     },
-    [slotId, repMin, onSetReps],
+    [slot.id, onSetSlotDetails],
   );
 
   return (
@@ -358,41 +349,117 @@ const MobileSlotRow = memo(function MobileSlotRow({
       style={{ backgroundColor: isHighlighted ? undefined : `${muscle.colorHex}08` }}
     >
       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${muscle.colorClass}`} />
-      <span className="font-medium truncate flex-1 text-foreground">{muscle.label}</span>
-      <Input
-        type="number"
-        min={1}
-        max={20}
-        value={sets}
-        onChange={handleSetsChange}
-        className="w-12 h-7 text-center text-xs px-1 bg-background/50"
-        inputMode="numeric"
-      />
-      <span className="text-[10px] text-muted-foreground shrink-0">×</span>
-      <Input
-        type="number"
-        min={1}
-        max={100}
-        value={repMin}
-        onChange={handleRepMinChange}
-        className="w-10 h-7 text-center text-xs px-0.5 bg-background/50"
-        inputMode="numeric"
-      />
-      <span className="text-[10px] text-muted-foreground shrink-0">-</span>
-      <Input
-        type="number"
-        min={1}
-        max={100}
-        value={repMax}
-        onChange={handleRepMaxChange}
-        className="w-10 h-7 text-center text-xs px-0.5 bg-background/50"
-        inputMode="numeric"
-      />
+
+      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <PopoverTrigger asChild>
+          <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
+            <span className="font-medium truncate text-foreground">{label}</span>
+            <span
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"
+              style={{ backgroundColor: `${muscle.colorHex}20`, color: muscle.colorHex }}
+            >
+              {slot.sets}s
+            </span>
+            {hasTempo && (
+              <span className="text-[10px] font-mono text-muted-foreground shrink-0">{slot.tempo}</span>
+            )}
+            {needsIntensity && (
+              <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+            )}
+          </button>
+        </PopoverTrigger>
+        <PopoverContent
+          className="w-64 p-3"
+          onClick={e => e.stopPropagation()}
+          side="bottom"
+          align="start"
+        >
+          <div className="space-y-3">
+            <p className="text-sm font-medium">{label}</p>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Sets</Label>
+              <Input
+                type="number" min={1} max={20} value={slot.sets}
+                onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ sets: v }); }}
+                className="h-8 text-sm" inputMode="numeric" onClick={e => e.stopPropagation()}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Rep Range</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  type="number" min={1} max={100} value={slot.repMin ?? 8}
+                  onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ repMin: v }); }}
+                  className="h-8 text-sm flex-1" inputMode="numeric" onClick={e => e.stopPropagation()}
+                />
+                <span className="text-xs text-muted-foreground">&mdash;</span>
+                <Input
+                  type="number" min={1} max={100} value={slot.repMax ?? 12}
+                  onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ repMax: v }); }}
+                  className="h-8 text-sm flex-1" inputMode="numeric" onClick={e => e.stopPropagation()}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Tempo</Label>
+              <Input
+                type="text" maxLength={4} pattern="[0-9]{4}" inputMode="numeric" placeholder="3120"
+                value={slot.tempo ?? ''}
+                onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4); update({ tempo: v || undefined }); }}
+                className="h-8 text-sm font-mono" onClick={e => e.stopPropagation()}
+              />
+              <p className="text-[10px] text-muted-foreground">ecc-pause-con-pause in seconds</p>
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">RIR</Label>
+              <Input
+                type="number" min={0} max={10} placeholder="2"
+                value={slot.rir ?? ''}
+                onChange={e => {
+                  const v = e.target.value === '' ? undefined : parseInt(e.target.value);
+                  update({ rir: v != null && !isNaN(v) ? Math.max(0, Math.min(10, v)) : undefined });
+                }}
+                className="h-8 text-sm" inputMode="numeric" onClick={e => e.stopPropagation()}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">RPE</Label>
+              <Input
+                type="number" min={1} max={10} step={0.5} placeholder="8"
+                value={slot.rpe ?? ''}
+                onChange={e => {
+                  const v = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                  update({ rpe: v != null && !isNaN(v) ? Math.max(1, Math.min(10, v)) : undefined });
+                }}
+                className="h-8 text-sm" inputMode="numeric" onClick={e => e.stopPropagation()}
+              />
+            </div>
+
+            {needsIntensity && (
+              <div className="flex items-start gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
+                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">Add RIR or RPE for TUST tracking</p>
+              </div>
+            )}
+
+            <div className="text-[10px] text-muted-foreground space-y-0.5 pt-1 border-t border-border/30">
+              <p>Working set: RIR &le; 5 or RPE &ge; 5</p>
+              <p>Only working sets count for TUST</p>
+            </div>
+          </div>
+        </PopoverContent>
+      </Popover>
+
       <Button
         variant="ghost"
         size="icon"
         className="h-6 w-6 shrink-0 opacity-100"
-        onClick={() => onRemove(slotId)}
+        onClick={() => onRemove(slot.id)}
       >
         <X className="h-3.5 w-3.5" />
       </Button>

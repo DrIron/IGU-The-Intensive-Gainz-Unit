@@ -21,8 +21,7 @@ interface DayColumnProps {
   slots: MuscleSlotData[];
   isSelected: boolean;
   onSelectDay: (dayIndex: number) => void;
-  onSetSets: (slotId: string, sets: number) => void;
-  onSetReps: (slotId: string, repMin: number, repMax: number) => void;
+  onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
   onAddMuscle?: (dayIndex: number, muscleId: string) => void;
   className?: string;
@@ -38,8 +37,7 @@ export const DayColumn = memo(function DayColumn({
   slots,
   isSelected,
   onSelectDay,
-  onSetSets,
-  onSetReps,
+  onSetSlotDetails,
   onRemove,
   onAddMuscle,
   className,
@@ -169,7 +167,7 @@ export const DayColumn = memo(function DayColumn({
                 </PopoverContent>
               </Popover>
             )}
-            {/* Copy button — visible on hover when day has slots */}
+            {/* Copy button */}
             {daySlots.length > 0 && onCopyDay && (
               <Button
                 variant="ghost"
@@ -184,7 +182,7 @@ export const DayColumn = memo(function DayColumn({
                 <Copy className="h-3 w-3" />
               </Button>
             )}
-            {/* Paste button — visible when another day is copied */}
+            {/* Paste button */}
             {hasCopied && !isCopiedDay && onPasteDay && (
               <Button
                 variant="ghost"
@@ -227,9 +225,11 @@ export const DayColumn = memo(function DayColumn({
                   sets={slot.sets}
                   repMin={slot.repMin ?? 8}
                   repMax={slot.repMax ?? 12}
+                  tempo={slot.tempo}
+                  rir={slot.rir}
+                  rpe={slot.rpe}
                   draggableIndex={i}
-                  onSetSets={onSetSets}
-                  onSetReps={onSetReps}
+                  onSetSlotDetails={onSetSlotDetails}
                   onRemove={onRemove}
                   isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
                   onSetAllSets={onSetAllSets}

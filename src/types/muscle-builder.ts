@@ -30,6 +30,9 @@ export interface MuscleSlotData {
   sets: number;
   repMin: number;       // Default 8
   repMax: number;       // Default 12
+  tempo?: string;       // 4-digit notation "3120" (ecc-pause-con-pause in seconds)
+  rir?: number;         // Reps in Reserve (0-10)
+  rpe?: number;         // Rate of Perceived Exertion (1-10, half-steps allowed)
   sortOrder: number;
 }
 
@@ -228,6 +231,25 @@ export function getLandmarkLabel(zone: LandmarkZone): string {
     case 'approaching_mrv': return 'Near MRV';
     case 'over_mrv': return 'Over MRV';
   }
+}
+
+// ============================================================
+// Tempo & Working Set Helpers
+// ============================================================
+
+/** Parse 4-digit tempo "3120" → { ecc, pause1, con, pause2, total } or null */
+export function parseTempo(tempo: string | undefined): { ecc: number; pause1: number; con: number; pause2: number; total: number } | null {
+  if (!tempo || tempo.length !== 4) return null;
+  const digits = tempo.split('').map(Number);
+  if (digits.some(isNaN)) return null;
+  return { ecc: digits[0], pause1: digits[1], con: digits[2], pause2: digits[3], total: digits[0] + digits[1] + digits[2] + digits[3] };
+}
+
+/** Check if slot counts as a "working set" for TUST calculation (RIR ≤ 5 or RPE ≥ 5) */
+export function isWorkingSet(slot: MuscleSlotData): boolean {
+  if (slot.rir != null && slot.rir <= 5) return true;
+  if (slot.rpe != null && slot.rpe >= 5) return true;
+  return false;
 }
 
 // ============================================================

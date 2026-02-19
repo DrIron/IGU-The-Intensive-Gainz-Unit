@@ -5,6 +5,8 @@ import {
   getMuscleDisplay,
   resolveParentMuscleId,
   getVolumeLandmarkZone,
+  parseTempo,
+  isWorkingSet,
   type MuscleSlotData,
   type LandmarkZone,
   type MuscleGroupDef,
@@ -21,6 +23,10 @@ export interface MuscleVolumeEntry {
   totalSets: number;
   totalRepsMin: number;
   totalRepsMax: number;
+  tustSecondsMin: number;   // TUST in seconds (using repMin)
+  tustSecondsMax: number;   // TUST in seconds (using repMax)
+  workingSets: number;      // Count of sets from qualifying slots (RIR ≤ 5 or RPE ≥ 5 with tempo)
+  hasTempo: boolean;        // Any slot in this muscle group has tempo set
   frequency: number;
   zone: LandmarkZone;
   dayBreakdown: { dayIndex: number; sets: number }[];
@@ -32,18 +38,23 @@ export interface VolumeSummary {
   musclesTargeted: number;
   trainingDays: number;
   avgSetsPerMuscle: number;
+  totalRepsMin: number;
+  totalRepsMax: number;
+  totalWorkingSets: number;
+  totalTustSecondsMin: number;
+  totalTustSecondsMax: number;
 }
 
 export function useMusclePlanVolume(slots: MuscleSlotData[]) {
   // Volume entries — aggregate subdivisions to parent level
   const volumeEntries = useMemo<MuscleVolumeEntry[]>(() => {
-    const map = new Map<string, { totalSets: number; totalRepsMin: number; totalRepsMax: number; days: Map<number, number>; subs: Map<string, number> }>();
+    const map = new Map<string, { totalSets: number; totalRepsMin: number; totalRepsMax: number; tustSecondsMin: number; tustSecondsMax: number; workingSets: number; hasTempo: boolean; days: Map<number, number>; subs: Map<string, number> }>();
 
     for (const slot of slots) {
       const parentId = resolveParentMuscleId(slot.muscleId);
       let entry = map.get(parentId);
       if (!entry) {
-        entry = { totalSets: 0, totalRepsMin: 0, totalRepsMax: 0, days: new Map(), subs: new Map() };
+        entry = { totalSets: 0, totalRepsMin: 0, totalRepsMax: 0, tustSecondsMin: 0, tustSecondsMax: 0, workingSets: 0, hasTempo: false, days: new Map(), subs: new Map() };
         map.set(parentId, entry);
       }
       entry.totalSets += slot.sets;
@@ -52,6 +63,16 @@ export function useMusclePlanVolume(slots: MuscleSlotData[]) {
       entry.totalRepsMin += slot.sets * repMin;
       entry.totalRepsMax += slot.sets * repMax;
       entry.days.set(slot.dayIndex, (entry.days.get(slot.dayIndex) || 0) + slot.sets);
+
+      // TUST: only for working sets with tempo
+      const tempo = parseTempo(slot.tempo);
+      if (tempo) entry.hasTempo = true;
+      if (tempo && isWorkingSet(slot)) {
+        entry.tustSecondsMin += slot.sets * repMin * tempo.total;
+        entry.tustSecondsMax += slot.sets * repMax * tempo.total;
+        entry.workingSets += slot.sets;
+      }
+
       // Track subdivision-level sets (only if slot is a subdivision)
       if (parentId !== slot.muscleId) {
         entry.subs.set(slot.muscleId, (entry.subs.get(slot.muscleId) || 0) + slot.sets);
@@ -73,6 +94,10 @@ export function useMusclePlanVolume(slots: MuscleSlotData[]) {
         totalSets: data.totalSets,
         totalRepsMin: data.totalRepsMin,
         totalRepsMax: data.totalRepsMax,
+        tustSecondsMin: data.tustSecondsMin,
+        tustSecondsMax: data.tustSecondsMax,
+        workingSets: data.workingSets,
+        hasTempo: data.hasTempo,
         frequency: data.days.size,
         zone: getVolumeLandmarkZone(data.totalSets, muscle.landmarks),
         dayBreakdown: Array.from(data.days.entries()).map(([dayIndex, sets]) => ({ dayIndex, sets })),
@@ -92,6 +117,11 @@ export function useMusclePlanVolume(slots: MuscleSlotData[]) {
       musclesTargeted,
       trainingDays,
       avgSetsPerMuscle: musclesTargeted > 0 ? Math.round(totalSets / musclesTargeted) : 0,
+      totalRepsMin: volumeEntries.reduce((sum, e) => sum + e.totalRepsMin, 0),
+      totalRepsMax: volumeEntries.reduce((sum, e) => sum + e.totalRepsMax, 0),
+      totalWorkingSets: volumeEntries.reduce((sum, e) => sum + e.workingSets, 0),
+      totalTustSecondsMin: volumeEntries.reduce((sum, e) => sum + e.tustSecondsMin, 0),
+      totalTustSecondsMax: volumeEntries.reduce((sum, e) => sum + e.tustSecondsMax, 0),
     };
   }, [slots, volumeEntries]);
 
