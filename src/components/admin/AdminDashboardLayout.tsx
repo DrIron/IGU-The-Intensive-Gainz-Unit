@@ -26,6 +26,8 @@ import { CoachWorkloadPanel } from "@/components/admin/CoachWorkloadPanel";
 import { AdminQuickActions } from "@/components/admin/AdminQuickActions";
 import { SiteContentManager } from "@/components/admin/SiteContentManager";
 import { SubroleApprovalQueue } from "@/components/admin/SubroleApprovalQueue";
+import { MedicalReviewsPanel } from "@/components/admin/MedicalReviewsPanel";
+import { CoachEducationalContentManager } from "@/components/admin/CoachEducationalContentManager";
 import { WaitlistManager } from "@/components/admin/WaitlistManager";
 import { SocialLinksManager } from "@/components/admin/SocialLinksManager";
 
@@ -61,6 +63,8 @@ export function AdminDashboardLayout({
     if (path.includes('/admin/discord-legal')) return 'discord-legal';
     if (path.includes('/admin/exercises')) return 'exercises';
     if (path.includes('/admin/system-health')) return 'system-health';
+    if (path.includes('/admin/medical-reviews')) return 'medical-reviews';
+    if (path.includes('/admin/coach-training')) return 'coach-training';
     return 'dashboard';
   };
 
@@ -113,6 +117,10 @@ export function AdminDashboardLayout({
         return <SiteContentManager />;
       case "subrole-approvals":
         return <SubroleApprovalQueue />;
+      case "medical-reviews":
+        return <MedicalReviewsPanel />;
+      case "coach-training":
+        return <CoachEducationalContentManager />;
 
       // Fallback
       default:
@@ -194,6 +202,8 @@ const titles: Record<string, string> = {
     "launch-checklist": "Launch Test Checklist",
     "site-content": "Site Content",
     "subrole-approvals": "Subrole Approvals",
+    "medical-reviews": "Medical Reviews",
+    "coach-training": "Coach Training Content",
     "debug-roles": "Roles Debug",
   };
   return titles[section] || "Admin";
@@ -227,6 +237,8 @@ const titles: Record<string, string> = {
     "launch-checklist": "Internal QA tool for verifying end-to-end user flows",
     "site-content": "Manage website content and copywriting",
     "subrole-approvals": "Review and approve practitioner credential requests",
+    "medical-reviews": "Review flagged PAR-Q submissions and manage medical clearances",
+    "coach-training": "Manage required training videos for new coaches",
     "debug-roles": "Debug role bootstrapping and role assignments",
   };
   return titles[section] || "Dashboard";

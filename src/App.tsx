@@ -62,6 +62,7 @@ const ExerciseHistory = lazy(() => import("./pages/client/ExerciseHistory"));
 const AccessDebug = lazy(() => import("./pages/AccessDebug"));
 const EmailConfirmed = lazy(() => import("./pages/EmailConfirmed"));
 const Waitlist = lazy(() => import("./pages/Waitlist"));
+const TeamsPage = lazy(() => import("./pages/TeamsPage"));
 // Onboarding pages
 const MedicalReview = lazy(() => import("./pages/onboarding/MedicalReview"));
 const AwaitingApproval = lazy(() => import("./pages/onboarding/AwaitingApproval"));
@@ -132,6 +133,7 @@ const App = () => {
                   <Route path="/testimonial" element={<WaitlistGuard><PublicLayout><Testimonial /></PublicLayout></WaitlistGuard>} />
                   <Route path="/client-submission/:userId" element={<ClientSubmission />} />
                   <Route path="/meet-our-team" element={<WaitlistGuard><PublicLayout><MeetOurTeam /></PublicLayout></WaitlistGuard>} />
+                  <Route path="/teams" element={<PublicLayout><TeamsPage /></PublicLayout>} />
                   <Route path="/coach-signup" element={<PublicLayout><CoachSignup /></PublicLayout>} />
                   <Route path="/coach-password-setup" element={<CoachPasswordSetup />} />
                   <Route path="/coach-password-set" element={<CoachPasswordSetup />} />

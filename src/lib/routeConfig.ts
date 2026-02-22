@@ -17,7 +17,7 @@
 import { LucideIcon, LayoutDashboard, Users, UserCog, Shield, ShieldCheck,
   Library, Tag, Activity, CreditCard, Wallet, ClipboardCheck, Bug,
   Stethoscope, CalendarDays, BookOpen, UsersRound, Dumbbell, Apple,
-  User, Video, Calendar, History, Home, MessageSquare, FileText, Users2 } from "lucide-react";
+  User, Video, Calendar, History, Home, MessageSquare, FileText, Users2, HeartPulse, GraduationCap } from "lucide-react";
 import { Role, getDashboardForRole, isRouteBlocked } from "@/auth/roles";
 
 // Re-export Role as AppRole for backward compatibility
@@ -90,6 +90,8 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "admin-testimonials", path: "/admin/testimonials", label: "Testimonials", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: MessageSquare, navOrder: 10 },
   { id: "admin-site-content", path: "/admin/site-content", label: "Site Content", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: FileText, navOrder: 11 },
   { id: "admin-subrole-approvals", path: "/admin/subrole-approvals", label: "Subrole Approvals", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: ShieldCheck, navOrder: 12 },
+  { id: "admin-medical-reviews", path: "/admin/medical-reviews", label: "Medical Reviews", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: HeartPulse, navOrder: 13 },
+  { id: "admin-coach-training", path: "/admin/coach-training", label: "Coach Training", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: GraduationCap, navOrder: 14 },
   // Developer-only pages - accessible via URL but hidden from nav
   { id: "admin-pre-launch", path: "/admin/pre-launch", label: "Pre-Launch Check", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: Shield, navOrder: 20 },
   { id: "admin-security", path: "/admin/security", label: "Security Checklist", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: ShieldCheck, navOrder: 21 },

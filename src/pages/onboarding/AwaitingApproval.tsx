@@ -4,9 +4,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Users, Clock, CheckCircle2, Mail, RefreshCw, Loader2 } from "lucide-react";
+import { Users, CheckCircle2, RefreshCw, Loader2, Calculator, BookOpen, Dumbbell } from "lucide-react";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
+import { OnboardingStepTracker } from "@/components/onboarding/OnboardingStepTracker";
 import { supabase } from "@/integrations/supabase/client";
 import { getOnboardingRedirect, ClientStatus } from "@/auth/onboarding";
 
@@ -16,9 +17,33 @@ interface CoachInfo {
   profile_picture_url: string | null;
 }
 
+function getStepTrackerSteps(needsCoachAssignment: boolean, hasCoach: boolean) {
+  return [
+    { id: "account", label: "Account created", status: "completed" as const },
+    { id: "intake", label: "Intake form submitted", status: "completed" as const },
+    { id: "medical", label: "Medical clearance passed", status: "completed" as const },
+    {
+      id: "coach",
+      label: hasCoach ? "Coach assigned -- reviewing your profile" : "Finding your coach",
+      status: "current" as const,
+      description: needsCoachAssignment
+        ? "We're matching you based on your goals and preferences"
+        : hasCoach
+        ? "Your coach is reviewing your application"
+        : "Usually takes 24-48 hours",
+    },
+    {
+      id: "payment",
+      label: "Payment & activation",
+      status: "upcoming" as const,
+    },
+  ];
+}
+
 /**
  * Awaiting Approval page - shown after medical clearance, waiting for coach assignment.
  * Polls every 30s to detect status changes and auto-redirect.
+ * Enhanced with step tracker and "while you wait" resources.
  */
 export default function AwaitingApproval() {
   const navigate = useNavigate();
@@ -108,6 +133,8 @@ export default function AwaitingApproval() {
     );
   }
 
+  const steps = getStepTrackerSteps(needsCoachAssignment, !!coach);
+
   return (
     <PublicLayout minimal>
       <div className="container max-w-2xl py-8 px-4">
@@ -124,18 +151,12 @@ export default function AwaitingApproval() {
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <Alert className="border-primary/50 bg-primary/10">
-              <CheckCircle2 className="h-4 w-4 text-primary" />
-              <AlertTitle>Great news!</AlertTitle>
-              <AlertDescription>
-                Your health questionnaire has been approved. We're now finding the
-                best coach to help you achieve your fitness goals.
-              </AlertDescription>
-            </Alert>
+            {/* Step Tracker */}
+            <OnboardingStepTracker steps={steps} />
 
             {/* Show assigned coach if available */}
             {coach && (
-              <div className="flex items-center gap-4 p-4 rounded-lg bg-muted/50 border">
+              <div className="flex items-center gap-4 p-4 rounded-lg bg-primary/5 border border-primary/20">
                 <Avatar className="h-14 w-14 shrink-0">
                   <AvatarImage src={coach.profile_picture_url || undefined} />
                   <AvatarFallback className="bg-primary/10 text-primary font-semibold text-lg">
@@ -154,34 +175,19 @@ export default function AwaitingApproval() {
               </div>
             )}
 
-            {/* Waiting for coach assignment */}
-            {needsCoachAssignment && (
-              <div className="p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/30">
-                <p className="text-sm font-medium text-yellow-600">
-                  We're finding the best available coach for your goals. This usually takes 24-48 hours.
-                </p>
-              </div>
-            )}
+            {/* Estimated timeline */}
+            <Alert className="border-primary/30 bg-primary/5">
+              <CheckCircle2 className="h-4 w-4 text-primary" />
+              <AlertTitle>You're in good hands</AlertTitle>
+              <AlertDescription>
+                Coach matching typically takes 24-48 hours. We consider your goals,
+                schedule, and preferences to find the best fit. You'll receive an email
+                when your coach is assigned.
+              </AlertDescription>
+            </Alert>
 
-            <div className="space-y-4">
-              <h3 className="font-semibold">What's happening now?</h3>
-              <ul className="space-y-3 text-sm text-muted-foreground">
-                <li className="flex items-start gap-2">
-                  <Clock className="h-4 w-4 mt-0.5 text-primary" />
-                  <span>Coach matching typically takes 24-48 hours</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Users className="h-4 w-4 mt-0.5 text-primary" />
-                  <span>We consider your goals, schedule, and preferences</span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <Mail className="h-4 w-4 mt-0.5 text-primary" />
-                  <span>You'll receive an email when your coach is assigned</span>
-                </li>
-              </ul>
-            </div>
-
-            <div className="flex flex-col gap-3">
+            {/* Check Status */}
+            <div className="flex flex-col gap-2">
               <Button
                 variant="outline"
                 onClick={() => fetchStatusAndCoach(true)}
@@ -199,22 +205,77 @@ export default function AwaitingApproval() {
               </p>
             </div>
 
-            <div className="bg-muted/50 rounded-lg p-4">
-              <h3 className="font-semibold mb-2">While you wait...</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Check out our free resources to get started on your fitness journey.
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3">
-                <Button variant="outline" asChild>
-                  <a href="/calorie-calculator">
-                    Free Calorie Calculator
-                  </a>
-                </Button>
-                <Button variant="outline" asChild>
-                  <a href="/meet-our-team">
-                    Meet Our Coaches
-                  </a>
-                </Button>
+            {/* While You Wait section */}
+            <div className="border-t pt-6">
+              <h3 className="font-semibold mb-4">While you wait</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <a
+                  href="/calorie-calculator"
+                  className="group flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                    <Calculator className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium group-hover:text-primary transition-colors">
+                      Calorie Calculator
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Estimate your daily calorie needs
+                    </p>
+                  </div>
+                </a>
+
+                <a
+                  href="/meet-our-team"
+                  className="group flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                    <Users className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium group-hover:text-primary transition-colors">
+                      Meet Our Coaches
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Get to know the team behind IGU
+                    </p>
+                  </div>
+                </a>
+
+                <a
+                  href="/services"
+                  className="group flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                    <BookOpen className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium group-hover:text-primary transition-colors">
+                      Explore Our Services
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      Learn what each plan offers
+                    </p>
+                  </div>
+                </a>
+
+                <a
+                  href="/"
+                  className="group flex items-start gap-3 p-3 rounded-lg border bg-card hover:bg-muted/50 transition-colors"
+                >
+                  <div className="w-9 h-9 rounded-md bg-primary/10 flex items-center justify-center shrink-0">
+                    <Dumbbell className="h-4 w-4 text-primary" />
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium group-hover:text-primary transition-colors">
+                      What to Expect
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      See how your coaching journey works
+                    </p>
+                  </div>
+                </a>
               </div>
             </div>
           </CardContent>

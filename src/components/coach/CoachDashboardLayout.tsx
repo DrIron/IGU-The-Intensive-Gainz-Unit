@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useLocation } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { CoachSidebar } from "./CoachSidebar";
@@ -12,7 +12,9 @@ import { CoachClientDetail } from "./CoachClientDetail";
 import { CoachSessions } from "./CoachSessions";
 import { MyAssignmentsPanel } from "./MyAssignmentsPanel";
 import { CoachTeamsPage } from "./teams";
+import { CoachTrainingDashboard } from "@/pages/coach/CoachTrainingDashboard";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
+import { supabase } from "@/integrations/supabase/client";
 
 interface CoachDashboardLayoutProps {
   user: any;
@@ -20,7 +22,7 @@ interface CoachDashboardLayoutProps {
   onSectionChange?: (section: string) => void;
 }
 
-export function CoachDashboardLayout({ 
+export function CoachDashboardLayout({
   user,
   activeSection: externalActiveSection,
   onSectionChange: externalOnSectionChange
@@ -28,6 +30,25 @@ export function CoachDashboardLayout({
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
+  const [coachStatus, setCoachStatus] = useState<string | null>(null);
+  const hasFetchedStatus = useRef(false);
+
+  // Fetch coach status to determine if in training mode
+  useEffect(() => {
+    if (!user?.id || hasFetchedStatus.current) return;
+    hasFetchedStatus.current = true;
+
+    supabase
+      .from("coaches")
+      .select("status")
+      .eq("user_id", user.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.status) setCoachStatus(data.status);
+      });
+  }, [user?.id]);
+
+  const isTrainingMode = coachStatus === "training";
 
   // Derive active section from URL path for persistence
   const getSectionFromPath = useCallback((): string => {
@@ -76,7 +97,19 @@ export function CoachDashboardLayout({
     setSelectedClientId(null);
   };
 
+  const handleTrainingComplete = useCallback(() => {
+    setCoachStatus("active");
+  }, []);
+
   const renderContent = () => {
+    // Training mode: only show training + profile
+    if (isTrainingMode) {
+      if (activeSection === "profile") {
+        return <CoachProfile />;
+      }
+      return <CoachTrainingDashboard coachUserId={user.id} onTrainingComplete={handleTrainingComplete} />;
+    }
+
     // If viewing client detail
     if (selectedClientId) {
       return <CoachClientDetail clientUserId={selectedClientId} onBack={handleBackFromClientDetail} />;
@@ -87,8 +120,8 @@ export function CoachDashboardLayout({
         return <CoachDashboardOverview coachUserId={user.id} onNavigate={handleNavigateWithFilter} />;
       case "clients":
         return (
-          <CoachMyClientsPage 
-            coachUserId={user.id} 
+          <CoachMyClientsPage
+            coachUserId={user.id}
             onViewClient={handleViewClientDetail}
           />
         );
@@ -102,8 +135,8 @@ export function CoachDashboardLayout({
       case "pending-approvals":
         // Redirect to clients section with pending filter
         return (
-          <CoachMyClientsPage 
-            coachUserId={user.id} 
+          <CoachMyClientsPage
+            coachUserId={user.id}
             onViewClient={handleViewClientDetail}
           />
         );
@@ -121,7 +154,7 @@ export function CoachDashboardLayout({
   return (
     <SidebarProvider defaultOpen={false}>
       <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
-        <CoachSidebar activeSection={activeSection} onSectionChange={setActiveSection} />
+        <CoachSidebar activeSection={isTrainingMode ? "training" : activeSection} onSectionChange={setActiveSection} trainingMode={isTrainingMode} />
         
         <main className="flex-1 overflow-auto">
           <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
@@ -152,6 +185,7 @@ export function CoachDashboardLayout({
 function getPageTitle(section: string): string {
   const titles: Record<string, string> = {
     overview: "Dashboard",
+    training: "Coach Training",
     clients: "My Clients",
     teams: "My Teams",
     assignments: "My Assignments",
@@ -169,6 +203,7 @@ function getPageTitle(section: string): string {
 function getSectionSubtitle(section: string): string {
   const titles: Record<string, string> = {
     overview: "Here's what needs attention today",
+    training: "Complete required training to activate your account",
     clients: "View and manage all your clients",
     teams: "Manage your team plans and members",
     assignments: "Clients you're assigned to as a specialist",

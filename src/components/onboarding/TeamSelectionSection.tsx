@@ -1,20 +1,10 @@
-import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { memo } from "react";
 import { UseFormReturn } from "react-hook-form";
-import { supabase } from "@/integrations/supabase/client";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Users } from "lucide-react";
-
-interface AvailableTeam {
-  id: string;
-  name: string;
-  description: string | null;
-  tags: string[];
-  max_members: number;
-  coachName: string;
-  memberCount: number;
-}
+import { useTeams } from "@/hooks/useTeams";
 
 interface TeamSelectionSectionProps {
   form: UseFormReturn<any>;
@@ -23,69 +13,8 @@ interface TeamSelectionSectionProps {
 export const TeamSelectionSection = memo(function TeamSelectionSection({
   form,
 }: TeamSelectionSectionProps) {
-  const [teams, setTeams] = useState<AvailableTeam[]>([]);
-  const [loading, setLoading] = useState(true);
-  const hasFetched = useRef(false);
-
+  const { teams, loading } = useTeams({ publicOnly: false });
   const selectedTeamId = form.watch("selected_team_id");
-
-  const loadTeams = useCallback(async () => {
-    try {
-      // RLS allows authenticated users to read active teams
-      const { data: teamsData, error } = await supabase
-        .from("coach_teams")
-        .select("id, name, description, tags, max_members, coach_id")
-        .eq("is_active", true)
-        .order("name");
-
-      if (error) throw error;
-
-      // Enrich with coach name and member count
-      const enriched: AvailableTeam[] = await Promise.all(
-        (teamsData || []).map(async (team) => {
-          // Coach name from coaches_client_safe (RLS-safe for clients)
-          const { data: coach } = await supabase
-            .from("coaches_client_safe")
-            .select("first_name, last_name")
-            .eq("user_id", team.coach_id)
-            .maybeSingle();
-
-          // Member count from subscriptions
-          const { count } = await supabase
-            .from("subscriptions")
-            .select("id", { count: "exact", head: true })
-            .eq("team_id", team.id)
-            .in("status", ["pending", "active"]);
-
-          const coachName = coach
-            ? `${coach.first_name}${coach.last_name ? ` ${coach.last_name}` : ""}`
-            : "Coach";
-
-          return {
-            id: team.id,
-            name: team.name,
-            description: team.description,
-            tags: team.tags || [],
-            max_members: team.max_members,
-            coachName,
-            memberCount: count || 0,
-          };
-        })
-      );
-
-      setTeams(enriched);
-    } catch (error) {
-      console.error("Error loading teams:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (hasFetched.current) return;
-    hasFetched.current = true;
-    loadTeams();
-  }, [loadTeams]);
 
   if (loading) {
     return (
@@ -118,7 +47,7 @@ export const TeamSelectionSection = memo(function TeamSelectionSection({
         className="space-y-3"
       >
         {teams.map((team) => {
-          const isFull = team.memberCount >= team.max_members;
+          const isFull = team.statusBadge === "closed";
 
           return (
             <Card
