@@ -55,6 +55,7 @@ const formSchema = z.object({
   email: z.string().email().max(255).trim().toLowerCase(),
   phone_number: z.string().min(1).max(50).trim(),
   gender: z.enum(['male', 'female']).optional(),
+  date_of_birth: z.string().max(20).trim().optional(),
   discord_username: z.string().max(100).trim().optional(),
   plan_name: z.string().min(1).max(100),
   focus_areas: z.array(z.string().max(50)).optional(),
@@ -418,6 +419,9 @@ Deno.serve(async (req) => {
     };
     if (validatedData.gender) {
       profilePrivateUpdate.gender = validatedData.gender;
+    }
+    if (validatedData.date_of_birth) {
+      profilePrivateUpdate.date_of_birth = validatedData.date_of_birth;
     }
     const { error: profilePrivateError } = await supabase
       .from('profiles_private')

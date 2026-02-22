@@ -479,12 +479,12 @@ export default function AccountManagement() {
           <h1 className="text-4xl font-bold mb-8">Account Settings</h1>
 
           <Tabs defaultValue="account" className="w-full">
-            <TabsList className="grid w-full grid-cols-2 mb-6">
+            <TabsList className={`grid w-full ${userRoles.includes('coach') ? 'grid-cols-2' : 'grid-cols-1'} mb-6`}>
               <TabsTrigger value="account">
                 <User className="h-4 w-4 mr-2" />
                 Account
               </TabsTrigger>
-              {(userRoles.includes('coach') || userRoles.includes('admin')) && (
+              {userRoles.includes('coach') && (
                 <TabsTrigger value="coach-profile">
                   <Users className="h-4 w-4 mr-2" />
                   Coach Profile
@@ -677,7 +677,7 @@ export default function AccountManagement() {
               <CardHeader>
                 <CardTitle>Coach Assignment</CardTitle>
                 <CardDescription>
-                  For team plans like Fe Squad, coach changes may be limited and are primarily handled by the coaching team. If you need to change coaches, submit a request here or contact support.
+                  For team plans, coach changes may be limited and are primarily handled by the coaching team. If you need to change coaches, submit a request here or contact support.
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -888,7 +888,7 @@ export default function AccountManagement() {
           </Card>
             </TabsContent>
 
-            {(userRoles.includes('coach') || userRoles.includes('admin')) && (
+            {userRoles.includes('coach') && (
               <TabsContent value="coach-profile">
                 <Card>
                   <CardHeader>

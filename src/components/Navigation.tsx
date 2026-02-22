@@ -448,11 +448,6 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                       {dashboardSections.client.length > 0 && (
                         <>
                           <DropdownMenuLabel className="text-muted-foreground text-xs uppercase tracking-wider">{t('dashboard')}</DropdownMenuLabel>
-                          <DropdownMenuItem asChild>
-                            <Link to="/dashboard" className="cursor-pointer">
-                              {t('dashboard')}
-                            </Link>
-                          </DropdownMenuItem>
                           {dashboardSections.client.map((item) => (
                             <DropdownMenuItem
                               key={item.section}

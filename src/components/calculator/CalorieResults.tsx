@@ -19,7 +19,7 @@ interface CalorieResultsProps {
 }
 
 export function CalorieResults({ result, goal, rateOfChange }: CalorieResultsProps) {
-  const showDeficitWarning = result.deficitPercent && result.deficitPercent > 25;
+  const showDeficitWarning = result.deficitPercent && Math.abs(result.deficitPercent) > 25;
 
   return (
     <div className="mt-8 space-y-4">

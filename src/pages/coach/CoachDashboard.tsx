@@ -17,9 +17,9 @@ const SECTION_MAP: Record<string, string> = {
   sessions: "sessions",
   programs: "programs",
   exercises: "exercises",
+  "workout-library": "exercises",
+  assignments: "assignments",
   profile: "profile",
-  nutrition: "client-nutrition",
-  "client-nutrition": "client-nutrition",
 };
 
 export default function CoachDashboard() {

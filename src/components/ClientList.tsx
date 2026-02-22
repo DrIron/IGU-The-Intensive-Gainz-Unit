@@ -886,11 +886,11 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
               return (
                 <>
                   <div className="md:hidden">
-                    <ClientCardView clients={pg.paginatedItems} />
+                    <ClientCardView clients={pg.paginatedItems} onViewDetails={(id) => handleViewSubmission(id)} />
                   </div>
                   <div className="hidden md:block">
                     {viewMode === 'cards' ? (
-                      <ClientCardView clients={pg.paginatedItems} />
+                      <ClientCardView clients={pg.paginatedItems} onViewDetails={(id) => handleViewSubmission(id)} />
                     ) : (
                       renderClientTable(pg.paginatedItems, false)
                     )}
@@ -906,11 +906,11 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
               return (
                 <>
                   <div className="md:hidden">
-                    <ClientCardView clients={pg.paginatedItems} />
+                    <ClientCardView clients={pg.paginatedItems} onViewDetails={(id) => handleViewSubmission(id)} />
                   </div>
                   <div className="hidden md:block">
                     {viewMode === 'cards' ? (
-                      <ClientCardView clients={pg.paginatedItems} />
+                      <ClientCardView clients={pg.paginatedItems} onViewDetails={(id) => handleViewSubmission(id)} />
                     ) : (
                       renderClientTable(pg.paginatedItems, false)
                     )}
