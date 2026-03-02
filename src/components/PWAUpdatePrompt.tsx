@@ -22,10 +22,14 @@ export function PWAUpdatePrompt() {
       hasPrompted.current = true;
       toast("New version available", {
         description: "Tap to update IGU to the latest version.",
-        duration: Infinity,
+        duration: 15000,
         action: {
           label: "Update",
           onClick: () => updateServiceWorker(true),
+        },
+        cancel: {
+          label: "Dismiss",
+          onClick: () => {},
         },
       });
     }

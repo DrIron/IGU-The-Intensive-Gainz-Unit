@@ -431,7 +431,7 @@ export default function OnboardingForm() {
         break;
       }
       case 1: // Service Details
-        if (serviceName === "Fe Squad" || serviceName === "Bunz of Steel") {
+        if (serviceName === "Team Plan" || serviceName === "Fe Squad" || serviceName === "Bunz of Steel") {
           // Manual validation for team plan checkboxes
           const acceptsTeam = form.getValues("accepts_team_program");
           const understandsNoNutrition = form.getValues("understands_no_nutrition");

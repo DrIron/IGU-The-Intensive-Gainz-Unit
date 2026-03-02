@@ -224,9 +224,9 @@ export default function WorkoutLibrary() {
       difficulty: exercise.difficulty as "Beginner" | "Intermediate" | "Advanced",
       youtube_url: exercise.youtube_url || "",
       selectedMuscles: exercise.muscle_subdivisions,
-      setup_instructions: exercise.setup_instructions.length > 0 ? exercise.setup_instructions : [""],
-      execution_instructions: exercise.execution_instructions.length > 0 ? exercise.execution_instructions : [""],
-      pitfalls: exercise.pitfalls.length > 0 ? exercise.pitfalls : [""],
+      setup_instructions: exercise.setup_instructions?.length > 0 ? exercise.setup_instructions : [""],
+      execution_instructions: exercise.execution_instructions?.length > 0 ? exercise.execution_instructions : [""],
+      pitfalls: exercise.pitfalls?.length > 0 ? exercise.pitfalls : [""],
     });
     setIsDialogOpen(true);
   };
@@ -312,8 +312,8 @@ export default function WorkoutLibrary() {
     const matchesSearch = searchTerm === "" || (
       exercise.name.toLowerCase().includes(search) ||
       exercise.muscle_groups.some(mg => mg.toLowerCase().includes(search)) ||
-      Object.keys(exercise.muscle_subdivisions).some(muscle =>
-        exercise.muscle_subdivisions[muscle].some(sub => sub.toLowerCase().includes(search))
+      Object.keys(exercise.muscle_subdivisions || {}).some(muscle =>
+        (exercise.muscle_subdivisions?.[muscle] || []).some(sub => sub.toLowerCase().includes(search))
       )
     );
 
@@ -710,7 +710,7 @@ export default function WorkoutLibrary() {
 
                     {isExpanded && (
                       <div className="space-y-4 text-sm">
-                        {exercise.setup_instructions.length > 0 && (
+                        {exercise.setup_instructions?.length > 0 && (
                           <div>
                             <h4 className="font-semibold mb-2">Setup</h4>
                             <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
@@ -721,7 +721,7 @@ export default function WorkoutLibrary() {
                           </div>
                         )}
 
-                        {exercise.execution_instructions.length > 0 && (
+                        {exercise.execution_instructions?.length > 0 && (
                           <div>
                             <h4 className="font-semibold mb-2">Execution</h4>
                             <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
@@ -732,7 +732,7 @@ export default function WorkoutLibrary() {
                           </div>
                         )}
 
-                        {exercise.pitfalls.length > 0 && (
+                        {exercise.pitfalls?.length > 0 && (
                           <div>
                             <h4 className="font-semibold mb-2 text-amber-500">Common Pitfalls</h4>
                             <ul className="list-disc list-inside space-y-1 text-muted-foreground">
@@ -743,12 +743,12 @@ export default function WorkoutLibrary() {
                           </div>
                         )}
 
-                        {Object.entries(exercise.muscle_subdivisions).some(([_, subs]) => subs.length > 0) && (
+                        {Object.entries(exercise.muscle_subdivisions || {}).some(([_, subs]) => subs?.length > 0) && (
                           <div>
                             <h4 className="font-semibold mb-2">Target Areas</h4>
                             <div className="flex flex-wrap gap-1">
-                              {Object.entries(exercise.muscle_subdivisions).map(([muscle, subs]) =>
-                                subs.map((sub) => (
+                              {Object.entries(exercise.muscle_subdivisions || {}).map(([muscle, subs]) =>
+                                (subs || []).map((sub) => (
                                   <Badge key={`${muscle}-${sub}`} variant="secondary" className="text-xs">
                                     {muscle}: {sub}
                                   </Badge>

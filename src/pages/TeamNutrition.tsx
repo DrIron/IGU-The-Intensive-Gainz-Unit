@@ -120,7 +120,7 @@ export default function TeamNutrition() {
             Team Plan – Self-service nutrition calculator and progress tracking
           </p>
           <p className="text-sm text-muted-foreground mt-2">
-            Your Fe Squad coach may review and adjust these targets if needed.
+            Your IGU coach may review and adjust these targets if needed.
           </p>
         </div>
 

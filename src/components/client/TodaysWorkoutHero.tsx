@@ -53,9 +53,10 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
 
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return { text: "Good morning", icon: Sunrise };
-    if (hour < 17) return { text: "Good afternoon", icon: Coffee };
-    return { text: "Good evening", icon: Moon };
+    if (hour >= 5 && hour < 12) return { text: "Good morning", icon: Sunrise };
+    if (hour >= 12 && hour < 17) return { text: "Good afternoon", icon: Coffee };
+    if (hour >= 17 && hour < 21) return { text: "Good evening", icon: Moon };
+    return { text: "Good night", icon: Moon };
   };
 
   const fetchTodayWorkout = useCallback(async () => {

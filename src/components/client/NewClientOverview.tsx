@@ -200,7 +200,7 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
             nextBillingDate={subscription?.next_billing_date}
           />
 
-          <ProgressSummaryCard phase={activePhase} />
+          <ProgressSummaryCard phase={activePhase} subscription={subscription} />
         </div>
       </div>
     </div>

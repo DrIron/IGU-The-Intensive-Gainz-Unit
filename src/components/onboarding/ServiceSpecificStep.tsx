@@ -14,8 +14,8 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
   const gymAccessType = form.watch("gym_access_type");
   const preferredGymLocation = form.watch("preferred_gym_location");
 
-  // Fe Squad
-  if (selectedService === "Fe Squad") {
+  // Team Plan (formerly Fe Squad)
+  if (selectedService === "Team Plan" || selectedService === "Fe Squad") {
     return (
       <div className="space-y-6">
         <div>
@@ -49,7 +49,7 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
               </FormControl>
               <div className="space-y-1 leading-none">
                 <FormLabel>
-                  I am aware that nutritional guidance and recommendations are not included within the Fe Squad service
+                  I am aware that nutritional guidance and recommendations are not included within the Team Plan service
                 </FormLabel>
               </div>
             </FormItem>

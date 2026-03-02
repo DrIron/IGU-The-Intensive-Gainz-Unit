@@ -790,7 +790,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
 
               <Card 
                 className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
-                onClick={() => navigate('/workout-library')}
+                onClick={() => navigate('/coach/exercises')}
               >
                 <CardContent className="flex items-center gap-4 p-4">
                   <div className="p-3 rounded-lg bg-primary/10">

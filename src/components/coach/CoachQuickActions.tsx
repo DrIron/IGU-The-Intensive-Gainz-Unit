@@ -46,7 +46,7 @@ export function CoachQuickActions({
       icon: Library,
       label: "Exercise Library",
       description: "Browse exercises",
-      onClick: () => navigate("/workout-library"),
+      onClick: () => navigate("/coach/exercises"),
       color: "text-orange-600 bg-orange-100 dark:bg-orange-900/50",
     },
   ];

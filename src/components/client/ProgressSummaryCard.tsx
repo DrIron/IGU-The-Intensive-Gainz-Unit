@@ -7,6 +7,7 @@ import { useNavigate } from "react-router-dom";
 interface ProgressSummaryCardProps {
   phase: any;
   latestAdherence?: boolean;
+  subscription?: any;
 }
 
 interface CircularProgressProps {
@@ -57,8 +58,10 @@ function CircularProgress({ value, max, size = 120, strokeWidth = 8, children }:
   );
 }
 
-export function ProgressSummaryCard({ phase, latestAdherence }: ProgressSummaryCardProps) {
+export function ProgressSummaryCard({ phase, latestAdherence, subscription }: ProgressSummaryCardProps) {
   const navigate = useNavigate();
+  const isTeamPlan = subscription?.services?.type === "team" || subscription?.service?.type === "team";
+  const nutritionPath = isTeamPlan ? "/nutrition-team?tab=progress" : "/nutrition";
 
   if (!phase) {
     return (
@@ -147,9 +150,9 @@ export function ProgressSummaryCard({ phase, latestAdherence }: ProgressSummaryC
         )}
 
         <div className="space-y-2">
-          <Button 
-            className="w-full font-semibold text-base" 
-            onClick={() => navigate("/nutrition")}
+          <Button
+            className="w-full font-semibold text-base"
+            onClick={() => navigate(nutritionPath)}
           >
             <TrendingUp className="h-4 w-4 mr-2" />
             Open Progress Tracker

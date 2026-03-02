@@ -128,13 +128,13 @@ export function ComparisonTable() {
               <th className="text-center p-4 font-semibold text-foreground border-b border-border">
                 <div className="flex flex-col items-center gap-1">
                   <span>1:1 Online</span>
-                  <span className="text-xs font-normal text-muted-foreground">50 KWD/mo</span>
+                  <span className="text-xs font-normal text-muted-foreground">40 KWD/mo</span>
                 </div>
               </th>
               <th className="text-center p-4 font-semibold text-foreground border-b border-border bg-primary/5">
                 <div className="flex flex-col items-center gap-1">
                   <span className="text-primary">Hybrid</span>
-                  <span className="text-xs font-normal text-muted-foreground">175 KWD/mo</span>
+                  <span className="text-xs font-normal text-muted-foreground">150 KWD/mo</span>
                 </div>
               </th>
               <th className="text-center p-4 font-semibold text-foreground border-b border-border">

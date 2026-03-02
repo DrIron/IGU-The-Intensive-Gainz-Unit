@@ -15,7 +15,6 @@ import { RefeedDayScheduler } from "@/components/nutrition/RefeedDayScheduler";
 import { StepProgressDisplay } from "@/components/nutrition/StepProgressDisplay";
 import { StepRecommendationCard } from "@/components/nutrition/StepRecommendationCard";
 import { NutritionPermissionGate } from "@/components/nutrition/NutritionPermissionGate";
-import { useNutritionPermissions } from "@/hooks/useNutritionPermissions";
 
 interface Client {
   id: string;
@@ -152,22 +151,6 @@ export default function CoachClientNutrition() {
     }
   }, [loadCoaches, loadClients]);
 
-  useEffect(() => {
-    loadUser();
-  }, [loadUser]);
-
-  useEffect(() => {
-    if (selectedClient) {
-      loadClientPhase();
-    }
-  }, [selectedClient, filter, loadClientPhase]);
-
-  useEffect(() => {
-    if (isAdmin) {
-      loadCoaches();
-    }
-  }, [isAdmin, loadCoaches]);
-
   const loadClientPhase = useCallback(async () => {
     try {
       if (!selectedClient) return;
@@ -229,6 +212,22 @@ export default function CoachClientNutrition() {
       console.error('Error loading client phase:', error);
     }
   }, [selectedClient, clients, filter]);
+
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
+
+  useEffect(() => {
+    if (selectedClient) {
+      loadClientPhase();
+    }
+  }, [selectedClient, filter, loadClientPhase]);
+
+  useEffect(() => {
+    if (isAdmin) {
+      loadCoaches();
+    }
+  }, [isAdmin, loadCoaches]);
 
   // Filter clients based on selected coach (admin only)
   const filteredClients = isAdmin && selectedCoach !== "all"

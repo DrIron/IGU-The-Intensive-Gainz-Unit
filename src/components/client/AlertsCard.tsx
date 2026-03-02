@@ -66,12 +66,14 @@ export function AlertsCard({ profile, subscription, weeklyLogsCount }: AlertsCar
 
   // Check for missing weight logs (minimum 3 per week)
   if (weeklyLogsCount !== undefined && weeklyLogsCount < 3) {
+    const isTeamPlan = subscription?.services?.type === "team" || subscription?.service?.type === "team";
+    const nutritionPath = isTeamPlan ? "/nutrition-team?tab=progress" : "/nutrition";
     alerts.push({
       icon: AlertCircle,
       title: "Missing Weight Logs",
       description: `You need ${3 - weeklyLogsCount} more weight log${3 - weeklyLogsCount !== 1 ? 's' : ''} this week (minimum 3). Tap to log now.`,
       variant: "default",
-      onClick: () => navigate("/nutrition"),
+      onClick: () => navigate(nutritionPath),
     });
   }
 

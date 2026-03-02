@@ -76,9 +76,10 @@ export default function CoachProfile() {
         .from("coaches_public")
         .select("id, user_id, first_name, last_name, location, bio, short_bio, profile_picture_url, qualifications, specializations, nickname")
         .eq("user_id", user.id)
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
+      if (!data) return; // No coach profile found
 
       // Note: gender is stored in coaches_private now
       setCoachData({ ...data, gender: null });
@@ -247,7 +248,7 @@ export default function CoachProfile() {
     return (
       <Card>
         <CardContent className="pt-6">
-          <p className="text-muted-foreground">Loading profile...</p>
+          <p className="text-muted-foreground">No coach profile found. Your coach profile will appear here once it's set up.</p>
         </CardContent>
       </Card>
     );

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -15,33 +15,57 @@ export default function ResetPassword() {
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [recoveryReady, setRecoveryReady] = useState(false);
+  const hasChecked = useRef(false);
 
   useEffect(() => {
-    // Check if there's a recovery token in the URL
+    if (hasChecked.current) return;
+    hasChecked.current = true;
+
+    // Check if there's a recovery token in the URL hash or query params
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
-    const hasRecoveryToken = hashParams.get('type') === 'recovery' || hashParams.get('access_token');
-    
-    if (!hasRecoveryToken) {
-      toast({
-        title: "Invalid or expired link",
-        description: "The password reset link is invalid or has expired. Please request a new one.",
-        variant: "destructive",
-      });
-      navigate("/auth");
-      return;
+    const queryParams = new URLSearchParams(window.location.search);
+    const hasRecoveryToken =
+      hashParams.get('type') === 'recovery' ||
+      hashParams.get('access_token') ||
+      queryParams.get('type') === 'recovery' ||
+      queryParams.get('code');
+
+    // Listen for PASSWORD_RECOVERY event from Supabase auth
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setRecoveryReady(true);
+      }
+    });
+
+    if (hasRecoveryToken) {
+      // Token found in URL -- Supabase will process it via onAuthStateChange
+      // Give it a moment, then verify session
+      setTimeout(() => {
+        supabase.auth.getSession().then(({ data: { session } }) => {
+          if (session) {
+            setRecoveryReady(true);
+          }
+        });
+      }, 1000);
+      return () => subscription.unsubscribe();
     }
 
-    // Verify session validity
+    // No token in URL -- check if there's already an active session (e.g. PKCE flow completed)
     supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
+      if (session) {
+        setRecoveryReady(true);
+      } else {
         toast({
-          title: "Session expired",
-          description: "Your password reset session has expired. Please request a new link.",
+          title: "Invalid or expired link",
+          description: "The password reset link is invalid or has expired. Please request a new one.",
           variant: "destructive",
         });
         navigate("/auth");
       }
     });
+
+    return () => subscription.unsubscribe();
   }, [navigate, toast]);
 
   const handlePasswordReset = async (e: React.FormEvent) => {

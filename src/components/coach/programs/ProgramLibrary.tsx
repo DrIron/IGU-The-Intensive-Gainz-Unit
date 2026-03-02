@@ -491,7 +491,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
                   </p>
                 )}
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{program.program_template_days?.length || 0} days</span>
+                  <span>{(program.program_template_days?.length || 0) === 1 ? '1 day' : `${program.program_template_days?.length || 0} days`}</span>
                   {program.level && (
                     <>
                       <span>•</span>

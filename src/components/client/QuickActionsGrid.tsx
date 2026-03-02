@@ -13,19 +13,22 @@ export function QuickActionsGrid({ profile, subscription, sessionBookingEnabled 
 
   // Only show Exercise Library for active clients
   const isActiveClient = profile?.status === "active" && subscription?.status === "active";
+  const isTeamPlan = subscription?.services?.type === "team" || subscription?.service?.type === "team";
+  const nutritionPath = isTeamPlan ? "/nutrition-team?tab=progress" : "/nutrition";
+  const nutritionGoalPath = isTeamPlan ? "/nutrition-team?tab=goal" : "/nutrition";
 
   const actions = [
     {
       icon: Calendar,
       title: "Weekly Check-In",
       description: "Submit this week's progress",
-      onClick: () => navigate("/nutrition"),
+      onClick: () => navigate(nutritionPath),
     },
     {
       icon: Calculator,
       title: "Nutrition & Calculator",
       description: "View or update your nutrition goal",
-      onClick: () => navigate("/nutrition"),
+      onClick: () => navigate(nutritionGoalPath),
     },
     ...(isActiveClient ? [{
       icon: Dumbbell,

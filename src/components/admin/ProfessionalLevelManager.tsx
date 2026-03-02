@@ -337,7 +337,7 @@ export function ProfessionalLevelManager() {
                           <Input
                             value={edit.head_coach_specialisation}
                             onChange={(e) => updateCoachEdit(coach.user_id, "head_coach_specialisation", e.target.value)}
-                            placeholder="e.g. Fe Squad"
+                            placeholder="e.g. Team Alpha"
                             className="w-36"
                           />
                         ) : (
