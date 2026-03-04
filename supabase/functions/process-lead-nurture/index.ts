@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
       .from("leads")
       .select("id, email, name, source, created_at, converted_to_user_id")
       .is("converted_to_user_id", null)
+      .eq("source", "newsletter")
       .lt("created_at", oneDayAgo);
 
     if (fetchError) {
