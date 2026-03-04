@@ -7,6 +7,7 @@ import {
 import { wrapInLayout } from '../_shared/emailTemplate.ts';
 import { greeting, paragraph, alertBox, ctaButton, signOff, statCard, statGrid, sectionHeading } from '../_shared/emailComponents.ts';
 import { sendEmail } from '../_shared/sendEmail.ts';
+import { isEmailEnabled } from '../_shared/emailTypeLoader.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -48,6 +49,13 @@ Deno.serve(async (req) => {
     if (!coaches || coaches.length === 0) {
       console.log("No active coaches found");
       return new Response(JSON.stringify(results), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Check if weekly coach digest is enabled in admin settings
+    if (!(await isEmailEnabled(supabase, "weekly_coach_digest"))) {
+      return new Response(JSON.stringify({ skipped: "disabled" }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

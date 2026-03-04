@@ -7,6 +7,7 @@ import {
 import { wrapInLayout } from '../_shared/emailTemplate.ts';
 import { greeting, paragraph, alertBox, ctaButton, signOff, statCard, statGrid, sectionHeading } from '../_shared/emailComponents.ts';
 import { sendEmail } from '../_shared/sendEmail.ts';
+import { isEmailEnabled } from '../_shared/emailTypeLoader.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -85,6 +86,13 @@ Deno.serve(async (req) => {
       totalClients: totalClientsResult.count || 0,
       totalCoaches: totalCoachesResult.count || 0,
     };
+
+    // Check if admin daily summary is enabled
+    if (!(await isEmailEnabled(supabase, "admin_daily_summary"))) {
+      return new Response(JSON.stringify({ skipped: "disabled" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
     // Get admin emails
     const { data: adminRoles } = await supabase

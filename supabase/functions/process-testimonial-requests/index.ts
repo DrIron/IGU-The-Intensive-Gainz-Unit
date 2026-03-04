@@ -7,6 +7,7 @@ import {
 import { wrapInLayout } from '../_shared/emailTemplate.ts';
 import { greeting, paragraph, banner, ctaButton, signOff } from '../_shared/emailComponents.ts';
 import { sendEmail } from '../_shared/sendEmail.ts';
+import { isEmailEnabled } from '../_shared/emailTypeLoader.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,6 +41,7 @@ Deno.serve(async (req) => {
       eligible_clients: 0,
       requests_sent: 0,
       already_sent: 0,
+      skipped_disabled: 0,
       errors: [] as string[],
     };
 
@@ -95,6 +97,12 @@ Deno.serve(async (req) => {
 
         if (existing) {
           results.already_sent++;
+          continue;
+        }
+
+        // Check if testimonial requests are enabled in admin settings
+        if (!(await isEmailEnabled(supabase, "testimonial_request"))) {
+          results.skipped_disabled++;
           continue;
         }
 

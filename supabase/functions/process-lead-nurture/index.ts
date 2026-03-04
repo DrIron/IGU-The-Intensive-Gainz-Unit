@@ -8,6 +8,8 @@ import {
 import { wrapInLayout } from '../_shared/emailTemplate.ts';
 import { greeting, paragraph, alertBox, ctaButton, sectionHeading, signOff } from '../_shared/emailComponents.ts';
 import { sendEmail } from '../_shared/sendEmail.ts';
+import { isEmailEnabled, loadEmailTemplate } from '../_shared/emailTypeLoader.ts';
+import { resolveVars, renderBodySections } from '../_shared/renderEmailBody.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -41,6 +43,7 @@ Deno.serve(async (req) => {
       emails_sent: 0,
       already_sent: 0,
       already_converted: 0,
+      skipped_disabled: 0,
       errors: [] as string[],
     };
 
@@ -108,6 +111,12 @@ Deno.serve(async (req) => {
 
         if (!notificationType) continue;
 
+        // Check if this email type is enabled in admin settings
+        if (!(await isEmailEnabled(supabase, notificationType))) {
+          results.skipped_disabled++;
+          continue;
+        }
+
         // Check if already sent (use lead email as key since they don't have user_id)
         const { data: existing } = await supabase
           .from("email_notifications")
@@ -122,7 +131,13 @@ Deno.serve(async (req) => {
         }
 
         const firstName = lead.name?.split(" ")[0] || "there";
-        const { subject, preheader, content } = buildEmailContent(notificationType, firstName);
+        const vars = { firstName, servicesUrl: AUTH_REDIRECT_URLS.services, teamUrl: `${APP_BASE_URL}/meet-our-team`, signupUrl: `${AUTH_REDIRECT_URLS.auth}?tab=signup` };
+
+        // Check for admin-customized template
+        const custom = await loadEmailTemplate(supabase, notificationType);
+        const { subject, preheader, content } = custom
+          ? { subject: resolveVars(custom.subject, vars), preheader: '', content: renderBodySections(custom.bodySections, vars) }
+          : buildEmailContent(notificationType, firstName);
 
         const html = wrapInLayout({
           content,

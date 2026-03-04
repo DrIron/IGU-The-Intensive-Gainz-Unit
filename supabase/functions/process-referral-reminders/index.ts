@@ -8,6 +8,7 @@ import { wrapInLayout } from '../_shared/emailTemplate.ts';
 import { EMAIL_BRAND } from '../_shared/emailTemplate.ts';
 import { greeting, paragraph, alertBox, banner, ctaButton, signOff } from '../_shared/emailComponents.ts';
 import { sendEmail } from '../_shared/sendEmail.ts';
+import { isEmailEnabled } from '../_shared/emailTypeLoader.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,6 +39,7 @@ Deno.serve(async (req) => {
       eligible_clients: 0,
       reminders_sent: 0,
       already_sent: 0,
+      skipped_disabled: 0,
       errors: [] as string[],
     };
 
@@ -89,6 +91,12 @@ Deno.serve(async (req) => {
 
         if (existing) {
           results.already_sent++;
+          continue;
+        }
+
+        // Check if referral reminders are enabled in admin settings
+        if (!(await isEmailEnabled(supabase, "referral_reminder"))) {
+          results.skipped_disabled++;
           continue;
         }
 

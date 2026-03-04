@@ -3,6 +3,7 @@ import { EMAIL_FROM_COACHING, REPLY_TO_SUPPORT, APP_BASE_URL } from "../_shared/
 import { wrapInLayout } from '../_shared/emailTemplate.ts';
 import { greeting, paragraph, alertBox, ctaButton, signOff } from '../_shared/emailComponents.ts';
 import { sendEmail } from '../_shared/sendEmail.ts';
+import { isEmailEnabled } from '../_shared/emailTypeLoader.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,6 +39,7 @@ Deno.serve(async (req) => {
       alerts_sent: 0,
       already_sent: 0,
       recently_active: 0,
+      skipped_disabled: 0,
       errors: [] as string[],
     };
 
@@ -118,6 +120,12 @@ Deno.serve(async (req) => {
 
         if (recentAlert) {
           results.already_sent++;
+          continue;
+        }
+
+        // Check if inactive client alerts are enabled in admin settings
+        if (!(await isEmailEnabled(supabase, "inactive_client_coach_alert"))) {
+          results.skipped_disabled++;
           continue;
         }
 

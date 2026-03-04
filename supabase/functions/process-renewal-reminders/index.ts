@@ -7,6 +7,7 @@ import {
 import { wrapInLayout } from '../_shared/emailTemplate.ts';
 import { greeting, paragraph, detailCard, ctaButton, signOff } from '../_shared/emailComponents.ts';
 import { sendEmail } from '../_shared/sendEmail.ts';
+import { isEmailEnabled } from '../_shared/emailTypeLoader.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,6 +38,7 @@ Deno.serve(async (req) => {
       subscriptions_checked: 0,
       reminders_sent: 0,
       already_sent: 0,
+      skipped_disabled: 0,
       errors: [] as string[],
     };
 
@@ -95,6 +97,12 @@ Deno.serve(async (req) => {
 
         if (existing) {
           results.already_sent++;
+          continue;
+        }
+
+        // Check if renewal reminders are enabled in admin settings
+        if (!(await isEmailEnabled(supabase, "renewal_reminder"))) {
+          results.skipped_disabled++;
           continue;
         }
 

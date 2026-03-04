@@ -43,8 +43,4 @@ CREATE POLICY "Service role can insert medical reviews"
   FOR INSERT
   WITH CHECK (true);
 
--- Trigger for updated_at
-CREATE TRIGGER set_medical_reviews_updated_at
-  BEFORE UPDATE ON public.medical_reviews
-  FOR EACH ROW
-  EXECUTE FUNCTION public.handle_updated_at();
+-- No updated_at trigger needed — table uses reviewed_at for state changes

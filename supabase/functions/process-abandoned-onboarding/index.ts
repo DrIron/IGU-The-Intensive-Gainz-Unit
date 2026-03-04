@@ -3,6 +3,8 @@ import { EMAIL_FROM, AUTH_REDIRECT_URLS, REPLY_TO_SUPPORT } from "../_shared/con
 import { wrapInLayout } from '../_shared/emailTemplate.ts';
 import { greeting, paragraph, alertBox, ctaButton, detailCard, signOff } from '../_shared/emailComponents.ts';
 import { sendEmail } from '../_shared/sendEmail.ts';
+import { isEmailEnabled, loadEmailTemplate } from '../_shared/emailTypeLoader.ts';
+import { resolveVars, renderBodySections } from '../_shared/renderEmailBody.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -37,6 +39,7 @@ Deno.serve(async (req) => {
       already_sent: 0,
       skipped_completed: 0,
       skipped_has_subscription: 0,
+      skipped_disabled: 0,
       errors: [] as string[],
     };
 
@@ -81,6 +84,12 @@ Deno.serve(async (req) => {
         }
 
         if (!notificationType) continue;
+
+        // Check if this email type is enabled in admin settings
+        if (!(await isEmailEnabled(supabase, notificationType))) {
+          results.skipped_disabled++;
+          continue;
+        }
 
         // Check if user has already completed onboarding
         const { data: profile } = await supabase
@@ -135,12 +144,13 @@ Deno.serve(async (req) => {
         const currentStepName =
           stepLabels[draft.current_step] || `Step ${draft.current_step + 1}`;
 
-        const { subject, preheader, content } = buildEmailContent(
-          notificationType,
-          firstName,
-          currentStepName,
-          serviceName
-        );
+        const vars = { firstName, currentStepName, serviceName: serviceName || '', resumeUrl: AUTH_REDIRECT_URLS.onboarding };
+
+        // Check for admin-customized template
+        const custom = await loadEmailTemplate(supabase, notificationType);
+        const { subject, preheader, content } = custom
+          ? { subject: resolveVars(custom.subject, vars), preheader: '', content: renderBodySections(custom.bodySections, vars) }
+          : buildEmailContent(notificationType, firstName, currentStepName, serviceName);
 
         const html = wrapInLayout({
           content,

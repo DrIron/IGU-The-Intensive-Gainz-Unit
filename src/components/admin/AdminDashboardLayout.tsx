@@ -30,6 +30,7 @@ import { MedicalReviewsPanel } from "@/components/admin/MedicalReviewsPanel";
 import { CoachEducationalContentManager } from "@/components/admin/CoachEducationalContentManager";
 import { WaitlistManager } from "@/components/admin/WaitlistManager";
 import { SocialLinksManager } from "@/components/admin/SocialLinksManager";
+import { EmailManagerPanel } from "@/components/admin/EmailManagerPanel";
 
 const ADMIN_BUILD_TIMESTAMP = typeof __BUILD_TIMESTAMP__ !== 'undefined'
   ? new Date(__BUILD_TIMESTAMP__).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })
@@ -65,6 +66,7 @@ export function AdminDashboardLayout({
     if (path.includes('/admin/system-health')) return 'system-health';
     if (path.includes('/admin/medical-reviews')) return 'medical-reviews';
     if (path.includes('/admin/coach-training')) return 'coach-training';
+    if (path.includes('/admin/email-manager')) return 'email-manager';
     return 'dashboard';
   };
 
@@ -121,6 +123,8 @@ export function AdminDashboardLayout({
         return <MedicalReviewsPanel />;
       case "coach-training":
         return <CoachEducationalContentManager />;
+      case "email-manager":
+        return <EmailManagerPanel />;
 
       // Fallback
       default:
@@ -204,6 +208,7 @@ const titles: Record<string, string> = {
     "subrole-approvals": "Subrole Approvals",
     "medical-reviews": "Medical Reviews",
     "coach-training": "Coach Training Content",
+    "email-manager": "Email Manager",
     "debug-roles": "Roles Debug",
   };
   return titles[section] || "Admin";
@@ -239,6 +244,7 @@ const titles: Record<string, string> = {
     "subrole-approvals": "Review and approve practitioner credential requests",
     "medical-reviews": "Review flagged PAR-Q submissions and manage medical clearances",
     "coach-training": "Manage required training videos for new coaches",
+    "email-manager": "View all email types, toggle drip sequences, and edit templates",
     "debug-roles": "Debug role bootstrapping and role assignments",
   };
   return titles[section] || "Dashboard";
