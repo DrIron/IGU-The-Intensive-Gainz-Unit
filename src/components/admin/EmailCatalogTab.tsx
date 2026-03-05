@@ -132,6 +132,11 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
 
   const handleToggle = async (typeId: string, enabled: boolean) => {
     setTogglingId(typeId);
+    // Optimistic update + toast before API call
+    setEmailTypes((prev) =>
+      prev.map((t) => (t.id === typeId ? { ...t, is_enabled: enabled } : t))
+    );
+    toast.success(`${enabled ? "Enabled" : "Disabled"} email type`);
     try {
       const { error } = await supabase
         .from("email_types")
@@ -139,13 +144,12 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
         .eq("id", typeId);
 
       if (error) throw error;
-
-      setEmailTypes((prev) =>
-        prev.map((t) => (t.id === typeId ? { ...t, is_enabled: enabled } : t))
-      );
-      toast.success(`${enabled ? "Enabled" : "Disabled"} email type`);
     } catch (err: unknown) {
       console.error("Error toggling email type:", err);
+      // Revert on failure
+      setEmailTypes((prev) =>
+        prev.map((t) => (t.id === typeId ? { ...t, is_enabled: !enabled } : t))
+      );
       toast.error("Failed to update email type");
     } finally {
       setTogglingId(null);
