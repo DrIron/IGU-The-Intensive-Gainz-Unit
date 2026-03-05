@@ -224,13 +224,19 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
                         {enabledCount}/{types.length} active
                       </Badge>
                       {isTransactional(category) && (
-                        <Tooltip>
+                        <Tooltip delayDuration={0}>
                           <TooltipTrigger asChild>
-                            <Badge variant="outline" className="text-xs">
-                              Read-only
-                            </Badge>
+                            <span
+                              className="inline-flex"
+                              onClick={(e) => e.stopPropagation()}
+                              onPointerDown={(e) => e.stopPropagation()}
+                            >
+                              <Badge variant="outline" className="text-xs">
+                                Read-only
+                              </Badge>
+                            </span>
                           </TooltipTrigger>
-                          <TooltipContent>
+                          <TooltipContent side="bottom">
                             Transactional emails are managed in code and cannot be toggled or edited
                           </TooltipContent>
                         </Tooltip>
