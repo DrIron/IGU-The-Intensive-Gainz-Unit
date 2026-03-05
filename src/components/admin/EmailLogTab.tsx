@@ -386,7 +386,6 @@ Email Notification ID: ${selectedEmail.id}
                   <TableHeader>
                     <TableRow>
                       <TableHead>Sent At</TableHead>
-                      <TableHead>Email</TableHead>
                       <TableHead>Name</TableHead>
                       <TableHead>Notification Type</TableHead>
                       <TableHead>Status</TableHead>
@@ -404,7 +403,6 @@ Email Notification ID: ${selectedEmail.id}
                             ? format(new Date(email.sent_at), "MMM d, yyyy HH:mm")
                             : "--"}
                         </TableCell>
-                        <TableCell>{email.profile_email || "--"}</TableCell>
                         <TableCell>{email.profile_name || "--"}</TableCell>
                         <TableCell>
                           <span className="text-sm">
@@ -428,7 +426,7 @@ Email Notification ID: ${selectedEmail.id}
                   >
                     <div className="flex items-center justify-between mb-2">
                       <span className="font-medium text-sm">
-                        {email.profile_email || "--"}
+                        {email.profile_name || "--"}
                       </span>
                       {getStatusBadge(email.status)}
                     </div>

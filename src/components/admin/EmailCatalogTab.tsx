@@ -9,8 +9,25 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { ChevronDown, ScrollText, Pencil, Loader2, Mail } from "lucide-react";
 import { toast } from "sonner";
+import { formatDistanceToNow } from "date-fns";
 import { EmailTemplateEditor } from "./EmailTemplateEditor";
 
 interface EmailType {
@@ -24,6 +41,7 @@ interface EmailType {
   body_sections: any[] | null;
   sort_order: number;
   sent_count?: number;
+  last_sent_at?: string;
 }
 
 interface EmailCatalogTabProps {
@@ -53,6 +71,7 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
   const [loading, setLoading] = useState(true);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [editingType, setEditingType] = useState<EmailType | null>(null);
+  const [pendingToggle, setPendingToggle] = useState<{ id: string; label: string } | null>(null);
   const [openSections, setOpenSections] = useState<Set<string>>(
     new Set(CATEGORY_ORDER)
   );
@@ -74,15 +93,19 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
       ).toISOString();
       const { data: counts } = await supabase
         .from("email_notifications")
-        .select("notification_type")
+        .select("notification_type, sent_at")
         .gte("sent_at", thirtyDaysAgo);
 
-      // Count by type
+      // Count by type + track latest sent_at
       const countMap = new Map<string, number>();
+      const lastSentMap = new Map<string, string>();
       if (counts) {
         for (const row of counts) {
           const key = row.notification_type;
           countMap.set(key, (countMap.get(key) || 0) + 1);
+          if (row.sent_at && (!lastSentMap.has(key) || row.sent_at > lastSentMap.get(key)!)) {
+            lastSentMap.set(key, row.sent_at);
+          }
         }
       }
 
@@ -90,6 +113,7 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
         (types || []).map((t: any) => ({
           ...t,
           sent_count: countMap.get(t.id) || 0,
+          last_sent_at: lastSentMap.get(t.id),
         }))
       );
     } catch (err: unknown) {
@@ -179,6 +203,7 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
   const isTransactional = (category: string) => category === "transactional";
 
   return (
+    <TooltipProvider>
     <div className="space-y-4">
       {CATEGORY_ORDER.filter((cat) => grouped.has(cat)).map((category) => {
         const types = grouped.get(category)!;
@@ -199,9 +224,16 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
                         {enabledCount}/{types.length} active
                       </Badge>
                       {isTransactional(category) && (
-                        <Badge variant="outline" className="text-xs">
-                          Read-only
-                        </Badge>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <Badge variant="outline" className="text-xs">
+                              Read-only
+                            </Badge>
+                          </TooltipTrigger>
+                          <TooltipContent>
+                            Transactional emails are managed in code and cannot be toggled or edited
+                          </TooltipContent>
+                        </Tooltip>
                       )}
                     </div>
                     <ChevronDown
@@ -226,9 +258,13 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
                             <Switch
                               checked={type.is_enabled}
                               disabled={togglingId === type.id}
-                              onCheckedChange={(checked) =>
-                                handleToggle(type.id, checked)
-                              }
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  handleToggle(type.id, true);
+                                } else {
+                                  setPendingToggle({ id: type.id, label: type.label });
+                                }
+                              }}
                             />
                           )}
                           <div className="min-w-0 flex-1">
@@ -251,10 +287,13 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
                         </div>
 
                         <div className="flex items-center gap-2 shrink-0">
-                          {(type.sent_count ?? 0) > 0 && (
-                            <Badge variant="secondary" className="text-xs tabular-nums">
-                              {type.sent_count} sent
-                            </Badge>
+                          <Badge variant="secondary" className="text-xs tabular-nums">
+                            {type.sent_count ?? 0} sent
+                          </Badge>
+                          {type.last_sent_at && (
+                            <span className="text-xs text-muted-foreground">
+                              Last: {formatDistanceToNow(new Date(type.last_sent_at), { addSuffix: true })}
+                            </span>
                           )}
                           {!isTransactional(category) && (
                             <Button
@@ -291,6 +330,31 @@ export function EmailCatalogTab({ onViewLogs }: EmailCatalogTabProps) {
           onSaved={handleTemplateSaved}
         />
       )}
+
+      <AlertDialog open={!!pendingToggle} onOpenChange={(open) => !open && setPendingToggle(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Disable email?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to disable "{pendingToggle?.label}"? This email will stop sending until re-enabled.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingToggle) {
+                  handleToggle(pendingToggle.id, false);
+                }
+                setPendingToggle(null);
+              }}
+            >
+              Disable
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
+    </TooltipProvider>
   );
 }
