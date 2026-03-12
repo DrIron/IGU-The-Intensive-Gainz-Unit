@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -103,8 +103,6 @@ export function AdminBillingManager() {
   const [manualPaymentAmount, setManualPaymentAmount] = useState("");
   const [manualPaymentNote, setManualPaymentNote] = useState("");
   
-  const { toast } = useToast();
-
   const loadClients = useCallback(async () => {
     try {
       setLoading(true);
@@ -142,15 +140,11 @@ export function AdminBillingManager() {
       setClients(processedData);
     } catch (error) {
       console.error("Error loading clients:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load billing data",
-        variant: "destructive",
-      });
+      toast.error("Failed to load billing data");
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, []);
 
   const filterClients = useCallback(() => {
     let filtered = [...clients];
@@ -251,21 +245,14 @@ export function AdminBillingManager() {
         new_grace_days: (selectedClient.grace_period_days || 7) + extendDays,
       });
 
-      toast({
-        title: "Grace Period Extended",
-        description: `Extended grace period by ${extendDays} days`,
-      });
+      toast.success(`Extended grace period by ${extendDays} days`);
 
       setShowExtendGraceDialog(false);
       loadClients();
       loadClientDetails(selectedClient);
     } catch (error) {
       console.error("Error extending grace:", error);
-      toast({
-        title: "Error",
-        description: "Failed to extend grace period",
-        variant: "destructive",
-      });
+      toast.error("Failed to extend grace period");
     } finally {
       setActionLoading(false);
     }
@@ -322,10 +309,7 @@ export function AdminBillingManager() {
         next_billing_date: nextBillingDate.toISOString(),
       });
 
-      toast({
-        title: "Payment Recorded",
-        description: `Marked as paid (${amount} KWD). Next billing: ${format(nextBillingDate, "MMM dd, yyyy")}`,
-      });
+      toast.success(`Marked as paid (${amount} KWD). Next billing: ${format(nextBillingDate, "MMM dd, yyyy")}`);
 
       setShowMarkPaidDialog(false);
       setManualPaymentAmount("");
@@ -334,11 +318,7 @@ export function AdminBillingManager() {
       loadClientDetails(selectedClient);
     } catch (error) {
       console.error("Error marking paid:", error);
-      toast({
-        title: "Error",
-        description: "Failed to mark payment as complete",
-        variant: "destructive",
-      });
+      toast.error("Failed to mark payment as complete");
     } finally {
       setActionLoading(false);
     }
@@ -377,12 +357,10 @@ export function AdminBillingManager() {
         new_exempt_status: newExemptStatus,
       });
 
-      toast({
-        title: newExemptStatus ? "Payment Exempt Enabled" : "Payment Exempt Disabled",
-        description: newExemptStatus 
-          ? "Client is now exempt from payments" 
-          : "Client must now pay for subscription",
-      });
+      toast.success(newExemptStatus
+        ? "Client is now exempt from payments"
+        : "Client must now pay for subscription"
+      );
 
       loadClients();
       loadClientDetails({
@@ -391,11 +369,7 @@ export function AdminBillingManager() {
       });
     } catch (error) {
       console.error("Error toggling exempt:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update payment exempt status",
-        variant: "destructive",
-      });
+      toast.error("Failed to update payment exempt status");
     } finally {
       setActionLoading(false);
     }
@@ -425,17 +399,10 @@ export function AdminBillingManager() {
         subscription_status: selectedClient.status,
       });
 
-      toast({
-        title: "Reminder Sent",
-        description: `Payment reminder sent to ${selectedClient.profiles.email}`,
-      });
+      toast.success(`Payment reminder sent to ${selectedClient.profiles.email}`);
     } catch (error) {
       console.error("Error sending reminder:", error);
-      toast({
-        title: "Error",
-        description: "Failed to send reminder",
-        variant: "destructive",
-      });
+      toast.error("Failed to send reminder");
     } finally {
       setActionLoading(false);
     }

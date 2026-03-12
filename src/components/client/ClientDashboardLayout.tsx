@@ -236,7 +236,8 @@ export function ClientDashboardLayout({
   }
 
   // 5. isPendingPayment && hasSubscription && subStatus === "pending" → Payment required
-  if (isPendingPayment && hasSubscription && subStatus === "pending") {
+  //    Skip if admin has marked this client as payment exempt
+  if (isPendingPayment && hasSubscription && subStatus === "pending" && !profile?.payment_exempt) {
     return (
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
