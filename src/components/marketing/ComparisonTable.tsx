@@ -111,7 +111,11 @@ function FeatureCell({ value }: { value: boolean | string }) {
 
 export function ComparisonTable() {
   return (
-    <div className="w-full overflow-x-auto">
+    <div className="w-full">
+      <p className="text-sm text-muted-foreground mb-2 md:hidden text-center">
+        Swipe to see all plans →
+      </p>
+      <div className="w-full overflow-x-auto">
       <div className="min-w-[600px]">
         <table className="w-full border-collapse">
           <thead>
@@ -173,6 +177,7 @@ export function ComparisonTable() {
             ))}
           </tbody>
         </table>
+      </div>
       </div>
     </div>
   );

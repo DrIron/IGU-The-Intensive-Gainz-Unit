@@ -86,11 +86,7 @@ export function ExerciseLibrary() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold">Exercise Library</h2>
-        <p className="text-muted-foreground">Browse and search exercises for your programs</p>
-      </div>
+      {/* Filters */}
 
       {/* Filters */}
       <div className="flex flex-col sm:flex-row gap-4">
