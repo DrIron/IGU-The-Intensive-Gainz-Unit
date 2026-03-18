@@ -102,8 +102,12 @@ export default function WorkoutLibraryManager() {
 
     const legacyExercises: Exercise[] = (legacyResult.data || []).map(ex => ({
       ...ex,
-      muscle_subdivisions: ex.muscle_subdivisions as Record<string, string[]>,
+      muscle_groups: ex.muscle_groups || [],
+      muscle_subdivisions: (ex.muscle_subdivisions as Record<string, string[]>) || {},
       youtube_url: ex.youtube_url || null,
+      setup_instructions: ex.setup_instructions || [],
+      execution_instructions: ex.execution_instructions || [],
+      pitfalls: ex.pitfalls || [],
       is_active: true,
       source_table: "exercises" as const,
     }));
