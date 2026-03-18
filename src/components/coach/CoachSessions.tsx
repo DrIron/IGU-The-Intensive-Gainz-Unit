@@ -62,6 +62,7 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
     try {
       const now = new Date().toISOString();
       
+      // Fetch bookings without FK join to profiles_public (PostgREST can't resolve it)
       const { data, error } = await supabase
         .from("session_bookings")
         .select(`
@@ -74,10 +75,6 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
           status,
           coach_time_slots!inner (
             location
-          ),
-          profiles_public!session_bookings_client_id_fkey (
-            first_name,
-            display_name
           ),
           subscriptions!inner (
             services!inner (
@@ -92,6 +89,19 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
 
       if (error) throw error;
 
+      // Fetch client names separately (profiles_public FK join unreliable)
+      const clientIds = [...new Set((data || []).map((b: any) => b.client_id).filter(Boolean))];
+      const profileMap = new Map<string, { first_name: string | null; display_name: string | null }>();
+      if (clientIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles_public")
+          .select("id, first_name, display_name")
+          .in("id", clientIds);
+        for (const p of profiles || []) {
+          profileMap.set(p.id, p);
+        }
+      }
+
       const sessions: SessionBooking[] = (data || []).map((booking: any) => ({
         id: booking.id,
         slot_id: booking.slot_id,
@@ -100,8 +110,8 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
         session_start: booking.session_start,
         session_end: booking.session_end,
         status: booking.status,
-        client_name: booking.profiles_public?.display_name || 
-          booking.profiles_public?.first_name || 
+        client_name: profileMap.get(booking.client_id)?.display_name ||
+          profileMap.get(booking.client_id)?.first_name ||
           'Client',
         service_name: booking.subscriptions?.services?.name || 'Unknown Service',
         location: booking.coach_time_slots?.location || null,

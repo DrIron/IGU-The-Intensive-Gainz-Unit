@@ -182,7 +182,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
           .from("profiles_public")
           .select("first_name, display_name")
           .eq("id", sub.user_id)
-          .single();
+          .maybeSingle();
         
         const clientName = profile?.display_name || profile?.first_name || 'Unknown';
         

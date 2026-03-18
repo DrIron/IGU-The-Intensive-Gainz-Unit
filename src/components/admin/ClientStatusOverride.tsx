@@ -111,14 +111,15 @@ export function ClientStatusOverride({
       });
 
       // Also log to database
-      await supabase.from("security_audit_log").insert({
-        event_type: "status_change",
-        user_id: clientId,
+      await supabase.from("admin_audit_log").insert({
+        admin_user_id: user?.id,
+        action_type: "status_change",
+        target_type: "profile",
+        target_id: clientId,
         details: {
           from_status: currentStatus,
           to_status: selectedStatus,
           reason: reason.trim(),
-          changed_by: user?.id,
         },
       });
 
