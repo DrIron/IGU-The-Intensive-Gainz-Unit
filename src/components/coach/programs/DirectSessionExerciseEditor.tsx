@@ -170,7 +170,7 @@ export function DirectSessionExerciseEditor({
         .select("column_config")
         .eq("coach_id", coachUserId)
         .eq("is_default", true)
-        .single();
+        .maybeSingle();
 
       if (data?.column_config) {
         setDefaultColumns(data.column_config as ColumnConfig[]);

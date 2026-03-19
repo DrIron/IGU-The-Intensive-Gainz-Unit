@@ -364,7 +364,7 @@ export function ProgramCalendarBuilder({
         .select("id")
         .eq("program_template_id", programId)
         .eq("day_index", addDayIndex)
-        .single();
+        .maybeSingle();
 
       if (existingDay.data) {
         dayId = existingDay.data.id;
@@ -437,7 +437,7 @@ export function ProgramCalendarBuilder({
           .select("id")
           .eq("program_template_id", programId)
           .eq("day_index", targetDayIndex)
-          .single();
+          .maybeSingle();
 
         if (existingDay.data) {
           targetDayId = existingDay.data.id;
@@ -570,7 +570,7 @@ export function ProgramCalendarBuilder({
         .select("id")
         .eq("program_template_id", programId)
         .eq("day_index", targetDayIndex)
-        .single();
+        .maybeSingle();
 
       if (existingDay.data) {
         targetDayId = existingDay.data.id;

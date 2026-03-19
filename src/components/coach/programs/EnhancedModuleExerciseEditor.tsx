@@ -366,7 +366,7 @@ export function EnhancedModuleExerciseEditor({
           .from("exercise_prescriptions")
           .select("id")
           .eq("module_exercise_id", exercise.id)
-          .single();
+          .maybeSingle();
 
         const prescriptionData = {
           // V2: per-set data
@@ -453,9 +453,11 @@ export function EnhancedModuleExerciseEditor({
     setHasUnsavedChanges(true);
   };
 
+  const addExerciseRef = useRef(addExercise);
+  addExerciseRef.current = addExercise;
+
   const handleSelectExercise = useCallback(
-    (exerciseId: string, section: ExerciseSection) => addExercise(exerciseId, section),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- addExercise reads current exercises state directly; adding it would recreate callback on every state change
+    (exerciseId: string, section: ExerciseSection) => addExerciseRef.current(exerciseId, section),
     []
   );
 

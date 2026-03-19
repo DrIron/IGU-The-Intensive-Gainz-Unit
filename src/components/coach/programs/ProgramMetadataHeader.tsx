@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +41,8 @@ export function ProgramMetadataHeader({
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const hasFetched = useRef(false);
   const { toast } = useToast();
 
   const loadMetadata = useCallback(async () => {
@@ -67,6 +69,8 @@ export function ProgramMetadataHeader({
   }, [programId, toast]);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     loadMetadata();
   }, [loadMetadata]);
 
@@ -107,7 +111,7 @@ export function ProgramMetadataHeader({
   };
 
   const handleTitleBlur = () => {
-    if (loaded && title.trim()) save();
+    if (loaded && title.trim() && isDirty) save();
   };
 
   return (
@@ -119,7 +123,7 @@ export function ProgramMetadataHeader({
         </Button>
         <Input
           value={title}
-          onChange={(e) => setTitle(e.target.value)}
+          onChange={(e) => { setTitle(e.target.value); setIsDirty(true); }}
           onBlur={handleTitleBlur}
           placeholder="Program title..."
           className="text-lg font-bold border-none bg-transparent p-0 h-auto focus-visible:ring-0 flex-1"

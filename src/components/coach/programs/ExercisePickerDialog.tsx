@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,6 +55,7 @@ export function ExercisePickerDialog({
   const [selectedSection, setSelectedSection] = useState<Enums<"exercise_section">>("main");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [muscleFilterActive, setMuscleFilterActive] = useState(true);
+  const hasFetchedExercises = useRef(false);
   const { toast } = useToast();
 
   const muscleLabel = sourceMuscleId ? getMuscleDisplay(sourceMuscleId)?.label : null;
@@ -84,8 +85,10 @@ export function ExercisePickerDialog({
 
   useEffect(() => {
     if (open) {
-      loadExercises();
       setMuscleFilterActive(true);
+      if (hasFetchedExercises.current) return;
+      hasFetchedExercises.current = true;
+      loadExercises();
     }
   }, [open, loadExercises]);
 

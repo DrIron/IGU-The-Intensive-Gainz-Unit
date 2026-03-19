@@ -74,8 +74,7 @@ export function MuscleBuilderPage({
   const [highlightedMuscleId, setHighlightedMuscleId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
-  // #2 — Delete undo ref
-  const lastDeletedSlotRef = useRef<{ dayIndex: number; muscleId: string; sets: number; sortOrder: number } | null>(null);
+
 
   // ── Undo/Redo keyboard shortcuts ─────────────────────────────
   useEffect(() => {
@@ -169,14 +168,6 @@ export function MuscleBuilderPage({
   const handleRemoveMuscle = useCallback(
     (slotId: string) => {
       const slot = state.slots.find(s => s.id === slotId);
-      if (slot) {
-        lastDeletedSlotRef.current = {
-          dayIndex: slot.dayIndex,
-          muscleId: slot.muscleId,
-          sets: slot.sets,
-          sortOrder: slot.sortOrder,
-        };
-      }
       dispatch({ type: 'REMOVE_MUSCLE', slotId });
       const muscle = slot ? getMuscleDisplay(slot.muscleId) : null;
       const dayName = slot ? DAYS_OF_WEEK[slot.dayIndex - 1] : '';
@@ -186,10 +177,7 @@ export function MuscleBuilderPage({
           <ToastAction
             altText="Undo"
             onClick={() => {
-              const deleted = lastDeletedSlotRef.current;
-              if (deleted) {
-                dispatch({ type: 'ADD_MUSCLE', dayIndex: deleted.dayIndex, muscleId: deleted.muscleId, sets: deleted.sets });
-              }
+              dispatch({ type: 'UNDO' });
             }}
           >
             Undo

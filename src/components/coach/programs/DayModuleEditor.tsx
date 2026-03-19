@@ -69,8 +69,11 @@ export function DayModuleEditor({
   const { toast } = useToast();
 
   const hasFocused = useRef(false);
+  const hasFetchedCoaches = useRef(false);
 
   useEffect(() => {
+    if (hasFetchedCoaches.current) return;
+    hasFetchedCoaches.current = true;
     loadCareTeamCoaches();
   }, []);
 

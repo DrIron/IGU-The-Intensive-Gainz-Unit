@@ -13,7 +13,7 @@ import { Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { withTimeout } from "@/lib/withTimeout";
-import { getMuscleDisplay, MUSCLE_TO_EXERCISE_FILTER, DAYS_OF_WEEK, type MuscleSlotData } from "@/types/muscle-builder";
+import { getMuscleDisplay, MUSCLE_TO_EXERCISE_FILTER, DAYS_OF_WEEK, resolveParentMuscleId, type MuscleSlotData } from "@/types/muscle-builder";
 import type { VolumeSummary } from "./hooks/useMusclePlanVolume";
 
 interface ConvertToProgramProps {
@@ -101,9 +101,17 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         // Build rep range + intensity lookup: muscleId → queue of slot details
         const slotDetailsMap = new Map<string, { repMin: number; repMax: number; tempo?: string; rir?: number; rpe?: number }[]>();
         for (const slot of slots) {
+          const details = { repMin: slot.repMin ?? 8, repMax: slot.repMax ?? 12, tempo: slot.tempo, rir: slot.rir, rpe: slot.rpe };
           const arr = slotDetailsMap.get(slot.muscleId) || [];
-          arr.push({ repMin: slot.repMin ?? 8, repMax: slot.repMax ?? 12, tempo: slot.tempo, rir: slot.rir, rpe: slot.rpe });
+          arr.push(details);
           slotDetailsMap.set(slot.muscleId, arr);
+          // Also map to parent ID as fallback (in case RPC normalizes subdivision → parent)
+          const parentId = resolveParentMuscleId(slot.muscleId);
+          if (parentId !== slot.muscleId) {
+            const parentArr = slotDetailsMap.get(parentId) || [];
+            parentArr.push({ ...details });
+            slotDetailsMap.set(parentId, parentArr);
+          }
         }
 
         // 1. Get all day_modules for this program with source_muscle_id
@@ -176,17 +184,33 @@ export const ConvertToProgram = memo(function ConvertToProgram({
                   for (let i = 0; i < picked.length; i++) {
                     const meId = crypto.randomUUID();
                     meInserts.push({ id: meId, day_module_id: mod.id, exercise_id: picked[i].id, section: 'main', sort_order: i + 1 });
+
+                    // Determine intensity type and value
+                    const hasRpe = details.rpe != null && details.rir == null;
+                    const intensityType = hasRpe ? 'RPE' : 'RIR';
+                    const intensityValue = hasRpe ? details.rpe! : (details.rir ?? 2);
+
+                    // Build V2 per-set data so the editor and client logger display correctly
+                    const setsJson = Array.from({ length: 3 }, (_, si) => ({
+                      set_number: si + 1,
+                      rep_range_min: details.repMin,
+                      rep_range_max: details.repMax,
+                      rest_seconds: 90,
+                      ...(hasRpe ? { rpe: details.rpe } : { rir: details.rir ?? 2 }),
+                      ...(details.tempo ? { tempo: details.tempo } : {}),
+                    }));
+
                     const presc: Record<string, unknown> = {
                       module_exercise_id: meId,
                       set_count: 3,
                       rep_range_min: details.repMin,
                       rep_range_max: details.repMax,
-                      intensity_type: 'rir',
-                      intensity_value: details.rir ?? 2,
+                      intensity_type: intensityType,
+                      intensity_value: intensityValue,
                       rest_seconds: 90,
+                      sets_json: setsJson,
                     };
                     if (details.tempo) presc.tempo = details.tempo;
-                    if (details.rpe != null) presc.rpe = details.rpe;
                     prescInserts.push(presc);
                   }
                   autoFilledCount += picked.length;

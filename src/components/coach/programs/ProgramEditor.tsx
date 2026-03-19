@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -47,6 +47,7 @@ export function ProgramEditor({ coachUserId, programId, onBack }: ProgramEditorP
   const [days, setDays] = useState<(ProgramTemplateDay & { day_modules: DayModule[] })[]>([]);
   const [expandedDays, setExpandedDays] = useState<Set<string>>(new Set());
   const [tagInput, setTagInput] = useState("");
+  const hasFetched = useRef(false);
   const { toast } = useToast();
 
   const loadProgram = useCallback(async () => {
@@ -88,9 +89,9 @@ export function ProgramEditor({ coachUserId, programId, onBack }: ProgramEditorP
   }, [programId, toast]);
 
   useEffect(() => {
-    if (programId) {
-      loadProgram();
-    }
+    if (!programId || hasFetched.current) return;
+    hasFetched.current = true;
+    loadProgram();
   }, [programId, loadProgram]);
 
   const saveProgram = async () => {

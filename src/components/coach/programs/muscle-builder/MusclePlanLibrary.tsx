@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -102,7 +102,11 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
     }
   }, [coachUserId, toast]);
 
+  const hasFetched = useRef(false);
+
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     loadPlans();
   }, [loadPlans]);
 
@@ -221,7 +225,7 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
             const topMuscles = [...muscleCounts.entries()]
               .sort((a, b) => b[1] - a[1])
               .slice(0, 4)
-              .map(([id]) => getMuscleDisplay(id));
+              .map(([id]) => ({ id, display: getMuscleDisplay(id) }));
 
             return (
               <Card key={plan.id} className="group hover:shadow-md transition-shadow">
@@ -279,11 +283,11 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
                   {topMuscles.length > 0 && (
                     <div className="flex items-center gap-1.5 flex-wrap">
                       {topMuscles.map(
-                        m =>
-                          m && (
-                            <Badge key={m.id} variant="outline" className="text-xs gap-1 py-0">
-                              <div className={`w-2 h-2 rounded-full ${m.colorClass}`} />
-                              {m.label}
+                        ({ id, display }) =>
+                          display && (
+                            <Badge key={id} variant="outline" className="text-xs gap-1 py-0">
+                              <div className={`w-2 h-2 rounded-full ${display.colorClass}`} />
+                              {display.label}
                             </Badge>
                           )
                       )}

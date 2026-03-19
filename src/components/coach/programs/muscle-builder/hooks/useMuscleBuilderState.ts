@@ -219,7 +219,9 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       return { ...state, slots: [], isDirty: true };
 
     case 'MARK_SAVED':
-      return { ...state, templateId: action.templateId, isDirty: false, isSaving: false };
+      // Preserve isDirty if an undo happened during the save flight (isDirty was restored to true).
+      // Without this, the undo's changes would silently not auto-save.
+      return { ...state, templateId: action.templateId, isDirty: state.isDirty, isSaving: false };
 
     case 'SAVING':
       return { ...state, isSaving: true };
@@ -368,6 +370,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
 
   // Save
   const save = useCallback(async () => {
+    clearTimeout(autoSaveTimerRef.current); // cancel pending auto-save to prevent race
     dispatch({ type: 'SAVING' });
 
     try {

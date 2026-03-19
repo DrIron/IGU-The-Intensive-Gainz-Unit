@@ -74,11 +74,16 @@ export function SessionEditorSheet({
 
   useEffect(() => {
     if (moduleId) {
+      // Reset and reload when moduleId changes
       hasFetched.current = false;
-      loadModule();
     } else {
+      hasFetched.current = false;
       setModule(null);
+      return;
     }
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    loadModule();
   }, [moduleId, loadModule]);
 
   const updateField = async (updates: Partial<ModuleData>) => {
