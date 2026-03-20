@@ -110,9 +110,10 @@ export function EnhancedWorkoutLogger({
           coaches:module_owner_coach_id(first_name)
         `)
         .eq("id", moduleId)
-        .single();
+        .maybeSingle();
 
       if (moduleError) throw moduleError;
+      if (!moduleData) return;
 
       // Get exercises
       const { data: exercisesData, error: exercisesError } = await supabase
@@ -178,11 +179,12 @@ export function EnhancedWorkoutLogger({
             .order("created_at", { ascending: false })
             .limit(setCount);
 
-          // Get personal best
+          // Get personal best for this specific exercise
           const { data: pbData } = await supabase
             .from("exercise_set_logs")
-            .select("performed_load, created_at")
+            .select("performed_load, created_at, client_module_exercises!inner(exercise_id)")
             .eq("created_by_user_id", userId)
+            .eq("client_module_exercises.exercise_id", ex.exercise_id)
             .not("performed_load", "is", null)
             .order("performed_load", { ascending: false })
             .limit(1);

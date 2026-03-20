@@ -240,7 +240,8 @@ function DashboardContent() {
     loadUserData();
 
     return () => clearTimeout(timeout);
-  }, [cachedUserId, sessionUser, loadUserData, loading]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- loading excluded to prevent timeout leak on re-fire
+  }, [cachedUserId, sessionUser, loadUserData]);
 
   const handleSectionChange = (section: string) => {
     setActiveSection(section);

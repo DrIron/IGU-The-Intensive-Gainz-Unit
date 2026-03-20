@@ -916,6 +916,8 @@ function WorkoutSessionV2Content() {
   const [showSwapPicker, setShowSwapPicker] = useState(false);
 
   const hasFetched = useRef(false);
+  const setLogsRef = useRef(setLogs);
+  setLogsRef.current = setLogs;
 
   // Progression suggestions
   const {
@@ -950,9 +952,14 @@ function WorkoutSessionV2Content() {
         .from("client_day_modules")
         .select("*")
         .eq("id", moduleId)
-        .single();
+        .maybeSingle();
 
       if (moduleError) throw moduleError;
+      if (!moduleData) {
+        toast({ title: "Workout not found", description: "This workout session may have been removed or is no longer available.", variant: "destructive" });
+        navigate("/client/workout/calendar");
+        return;
+      }
 
       // Fix #4: Use coaches_client_safe view with .maybeSingle() (RLS-safe)
       const { data: coachData } = await supabase
@@ -1195,7 +1202,7 @@ function WorkoutSessionV2Content() {
         const config: ProgressionConfig =
           snapshot.progression_config ?? DEFAULT_PROGRESSION_CONFIG;
         const prescription = prescriptions[setIndex];
-        const log = setLogs[exerciseId]?.[setIndex];
+        const log = setLogsRef.current[exerciseId]?.[setIndex];
 
         if (log && log.performed_reps !== null && log.performed_load !== null) {
           evaluateProgression(

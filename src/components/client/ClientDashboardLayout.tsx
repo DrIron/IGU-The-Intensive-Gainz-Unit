@@ -46,10 +46,11 @@ export function ClientDashboardLayout({
   // Sync section from URL on mount and changes
   useEffect(() => {
     const sectionParam = searchParams.get("section");
-    if (sectionParam && sectionParam !== internalActiveSection) {
+    if (sectionParam) {
       setInternalActiveSection(sectionParam);
     }
-  }, [searchParams, internalActiveSection]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- only re-sync when URL changes, not when state changes
+  }, [searchParams]);
 
   const activeSection = externalActiveSection || internalActiveSection;
   

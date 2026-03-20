@@ -43,8 +43,13 @@ export function WelcomeModal({ userId, firstName, subscription }: WelcomeModalPr
 
     fetchCoach();
     setOpen(true);
-    localStorage.setItem(shownKey, "true");
+    // Flag is set on dismiss, not on open — see handleDismiss
   }, [userId, subscription?.coach_id]);
+
+  const handleDismiss = () => {
+    setOpen(false);
+    localStorage.setItem(`${WELCOME_SHOWN_KEY}_${userId}`, "true");
+  };
 
   if (!open) return null;
 
@@ -52,7 +57,7 @@ export function WelcomeModal({ userId, firstName, subscription }: WelcomeModalPr
   const isTeamPlan = subscription?.services?.type === "team";
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={(v) => { if (!v) handleDismiss(); }}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="text-center text-2xl">
@@ -126,7 +131,7 @@ export function WelcomeModal({ userId, firstName, subscription }: WelcomeModalPr
           </div>
         </div>
 
-        <Button onClick={() => setOpen(false)} className="w-full" variant="gradient">
+        <Button onClick={handleDismiss} className="w-full" variant="gradient">
           <CheckCircle2 className="h-4 w-4 mr-2" />
           Let's Get Started
         </Button>

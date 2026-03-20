@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -165,7 +165,11 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
     }
   }, [userId]);
 
+  const hasFetched = useRef(false);
+
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     fetchTodayWorkout();
   }, [fetchTodayWorkout]);
 
