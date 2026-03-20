@@ -145,7 +145,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const handleSignOut = async () => {
     // Clear all auth-related localStorage keys immediately (before async work)
     Object.keys(localStorage).forEach(key => {
-      if (key.startsWith('sb-') || key.startsWith('igu_') || key.includes('supabase')) {
+      if ((key.startsWith('sb-') || key.startsWith('igu_') || key.includes('supabase')) && !key.startsWith('igu_welcome_shown')) {
         localStorage.removeItem(key);
       }
     });
