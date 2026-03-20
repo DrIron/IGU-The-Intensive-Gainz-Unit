@@ -417,7 +417,7 @@ function ServicePricingSection() {
                   <TableCell className="font-medium">{row.service_name}</TableCell>
                   <TableCell>
                     <Badge variant={row.service_type === "one_to_one" ? "default" : "secondary"}>
-                      {row.service_type === "one_to_one" ? "1:1" : "Team"}
+                      {{ one_to_one: "1:1", one_to_one_complete: "1:1 Complete", team: "Team", hybrid: "Hybrid", in_person: "In-Person" }[row.service_type] ?? row.service_type}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -523,7 +523,7 @@ function ServicePricingSection() {
                 <div>
                   <h3 className="font-semibold">{row.service_name}</h3>
                   <Badge variant={row.service_type === "one_to_one" ? "default" : "secondary"} className="mt-1">
-                    {row.service_type === "one_to_one" ? "1:1" : "Team"}
+                    {{ one_to_one: "1:1", one_to_one_complete: "1:1 Complete", team: "Team", hybrid: "Hybrid", in_person: "In-Person" }[row.service_type] ?? row.service_type}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">

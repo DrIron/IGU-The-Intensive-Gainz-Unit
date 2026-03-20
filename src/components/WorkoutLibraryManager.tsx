@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
@@ -131,7 +131,11 @@ export default function WorkoutLibraryManager() {
     setExercises([...legacyExercises, ...libraryExercises]);
   }, [toast]);
 
+  const hasFetched = useRef(false);
+
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     fetchExercises();
   }, [fetchExercises]);
 
@@ -167,11 +171,28 @@ export default function WorkoutLibraryManager() {
 
       let error;
       if (editingExercise) {
-        const dbResult = await supabase
-          .from("exercises")
-          .update(exerciseData)
-          .eq("id", editingExercise.id);
-        error = dbResult.error;
+        const table = editingExercise.source_table === "exercise_library" ? "exercise_library" : "exercises";
+        if (table === "exercise_library") {
+          // exercise_library uses different column names
+          const libData = {
+            name: formData.name,
+            primary_muscle: muscleGroups[0] || null,
+            equipment: formData.difficulty, // map difficulty to equipment for library
+            default_video_url: formData.youtube_url || null,
+            description: formData.setup_instructions.filter(s => s.trim()).join('\n'),
+          };
+          const dbResult = await supabase
+            .from("exercise_library")
+            .update(libData)
+            .eq("id", editingExercise.id);
+          error = dbResult.error;
+        } else {
+          const dbResult = await supabase
+            .from("exercises")
+            .update(exerciseData)
+            .eq("id", editingExercise.id);
+          error = dbResult.error;
+        }
       } else {
         const dbResult = await supabase
           .from("exercises")

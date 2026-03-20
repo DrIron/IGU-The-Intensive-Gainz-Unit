@@ -174,7 +174,7 @@ export function ProfessionalLevelManager() {
     setSavingCoach(coach.user_id);
     try {
       const { error } = await supabase
-        .from("coaches_public")
+        .from("coaches")
         .update({
           coach_level: edit.coach_level,
           is_head_coach: edit.is_head_coach,

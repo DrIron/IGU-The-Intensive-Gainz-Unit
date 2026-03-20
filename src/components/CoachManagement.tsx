@@ -486,6 +486,8 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
   );
 
   // Service limits content (standalone view for tab)
+  // Note: Defined inline because it uses parent state (activeCoaches, setLimitsCoach, setLimitsDialogOpen).
+  // This causes remount on parent re-render, but only runs when the "Service Limits" tab is active.
   const ServiceLimitsTab = () => {
     const [allLimits, setAllLimits] = useState<any[]>([]);
     const [services, setServices] = useState<any[]>([]);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -575,10 +575,14 @@ function AdminDashboardContent({ dateRange }: { dateRange: { from: Date; to: Dat
     }
   }, [toast]);
 
+  const hasFetched = useRef(false);
+
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     fetchMetrics();
     fetchWorkQueue();
-  }, [dateRange, fetchMetrics, fetchWorkQueue]);
+  }, [fetchMetrics, fetchWorkQueue]);
 
   const getMissingLegalDocs = (submission: any) => {
     const missing = [];

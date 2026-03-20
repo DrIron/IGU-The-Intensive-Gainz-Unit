@@ -388,8 +388,8 @@ export default function TestimonialsManager() {
                             type="number"
                             step="0.1"
                             placeholder="e.g., -5.5"
-                            value={testimonial.weight_change_kg ?? ""}
-                            onChange={(e) => {
+                            defaultValue={testimonial.weight_change_kg ?? ""}
+                            onBlur={(e) => {
                               const value = e.target.value ? parseFloat(e.target.value) : null;
                               handleStatsUpdate(testimonial.id, "weight_change_kg", value);
                             }}
@@ -401,8 +401,8 @@ export default function TestimonialsManager() {
                           <Input
                             type="number"
                             placeholder="e.g., 12"
-                            value={testimonial.duration_weeks ?? ""}
-                            onChange={(e) => {
+                            defaultValue={testimonial.duration_weeks ?? ""}
+                            onBlur={(e) => {
                               const value = e.target.value ? parseInt(e.target.value) : null;
                               handleStatsUpdate(testimonial.id, "duration_weeks", value);
                             }}
