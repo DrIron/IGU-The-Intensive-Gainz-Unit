@@ -25,13 +25,6 @@ import {
   legacyPrescriptionToSets,
 } from "@/types/workout-builder";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
   Alert,
   AlertDescription,
 } from "@/components/ui/alert";
@@ -60,7 +53,6 @@ export function EnhancedModuleExerciseEditor({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [showExercisePicker, setShowExercisePicker] = useState(false);
-  const [addToSection, setAddToSection] = useState<ExerciseSection>("main");
   const [defaultColumns, setDefaultColumns] = useState<ColumnConfig[]>(DEFAULT_PRESCRIPTION_COLUMNS);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const hasFetchedExercises = useRef(false);
@@ -543,26 +535,10 @@ export function EnhancedModuleExerciseEditor({
             </Button>
           )}
           {!isReadOnly && (
-            <div className="flex items-center gap-2">
-              {!sourceMuscleId && (
-                <Select value={addToSection} onValueChange={(v) => setAddToSection(v as ExerciseSection)}>
-                  <SelectTrigger className="w-32 h-8">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {EXERCISE_SECTIONS.map((section) => (
-                      <SelectItem key={section.value} value={section.value}>
-                        {section.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-              <Button onClick={() => setShowExercisePicker(true)} size="sm">
-                <Plus className="h-4 w-4 mr-1" />
-                Add Exercise
-              </Button>
-            </div>
+            <Button onClick={() => setShowExercisePicker(true)} size="sm">
+              <Plus className="h-4 w-4 mr-1" />
+              Add Exercise
+            </Button>
           )}
         </div>
       </div>

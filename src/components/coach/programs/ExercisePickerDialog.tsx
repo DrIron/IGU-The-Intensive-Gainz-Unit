@@ -159,27 +159,25 @@ export function ExercisePickerDialog({
             </div>
           )}
 
-          {/* Section selector — hidden for muscle modules */}
-          {!isMuscleMode && (
-            <div className="space-y-2">
-              <Label>Add to Section</Label>
-              <Select
-                value={selectedSection}
-                onValueChange={(v) => setSelectedSection(v as Enums<"exercise_section">)}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {SECTIONS.map((section) => (
-                    <SelectItem key={section.value} value={section.value}>
-                      {section.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          )}
+          {/* Section selector */}
+          <div className="space-y-2">
+            <Label>Add to Section</Label>
+            <Select
+              value={selectedSection}
+              onValueChange={(v) => setSelectedSection(v as Enums<"exercise_section">)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {SECTIONS.map((section) => (
+                  <SelectItem key={section.value} value={section.value}>
+                    {section.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
 
           {/* Filters */}
           <div className="flex gap-3">
@@ -227,11 +225,11 @@ export function ExercisePickerDialog({
                     role="button"
                     tabIndex={0}
                     className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => onSelectExercise(exercise.id, isMuscleMode ? "main" : selectedSection)}
+                    onClick={() => onSelectExercise(exercise.id, selectedSection)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        onSelectExercise(exercise.id, isMuscleMode ? "main" : selectedSection);
+                        onSelectExercise(exercise.id, selectedSection);
                       }
                     }}
                   >
