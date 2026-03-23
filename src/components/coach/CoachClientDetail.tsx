@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertTriangle, Crown, Users, Info, Shield, CheckCircle2, Clock, MessageSquare, Dumbbell, Calendar } from "lucide-react";
 import { format } from "date-fns";
-import ClientNutritionProgress from "@/pages/ClientNutrition";
+// Note: ClientNutrition is a full page component (with its own Nav + auth).
+// Using it here would redirect the coach away. Instead show a link to the coach nutrition view.
+
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { CareTeamCard } from "./CareTeamCard";
@@ -98,7 +100,7 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
         .from('profiles_public')
         .select('first_name, display_name, status')
         .eq('id', clientUserId)
-        .single();
+        .maybeSingle();
 
       // Get subscription info with coach
       const { data: subscription } = await supabase
@@ -183,7 +185,7 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
             .from('coaches_directory')
             .select('user_id, first_name, last_name, profile_picture_url, specializations')
             .eq('user_id', subscription.coach_id)
-            .single();
+            .maybeSingle();
           
           if (coachData) {
             setPrimaryCoach(coachData);
@@ -191,7 +193,8 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
         }
 
         // Check if current user is a care team member for this client
-        if (user && !isPrimaryCoach) {
+        const isPrimary = user && subscription.coach_id === user.id;
+        if (user && !isPrimary) {
           const { data: careTeamData } = await supabase
             .from('care_team_assignments')
             .select('specialty')
@@ -211,7 +214,7 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
     } finally {
       setLoading(false);
     }
-  }, [clientUserId, isPrimaryCoach]);
+  }, [clientUserId]);
 
   useEffect(() => {
     loadClientInfo();
@@ -488,7 +491,14 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
 
       <div>
         <h3 className="text-xl font-bold mb-4">Nutrition Progress</h3>
-        <ClientNutritionProgress />
+        <Card>
+          <CardContent className="py-6 text-center">
+            <p className="text-muted-foreground mb-3">View detailed nutrition data for this client</p>
+            <Button variant="outline" onClick={() => window.open(`/coach-client-nutrition?client=${clientUserId}`, '_blank')}>
+              Open Nutrition Dashboard
+            </Button>
+          </CardContent>
+        </Card>
       </div>
 
       {/* Assign Program Dialog */}

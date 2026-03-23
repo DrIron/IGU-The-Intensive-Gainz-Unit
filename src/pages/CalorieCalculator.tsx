@@ -54,7 +54,7 @@ export default function CalorieCalculator() {
           .from("profiles_private")
           .select("date_of_birth, gender")
           .eq("profile_id", user.id)
-          .single();
+          .maybeSingle();
         
         if (profile) {
           if (profile.date_of_birth) setDateOfBirth(profile.date_of_birth);

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -59,14 +59,14 @@ export default function ClientNutrition() {
 
         // Check if user had initial body fat
         if (weightsRes.data && weightsRes.data.length > 0) {
-          const { data: weeklyProgress } = await supabase
+          const { data: weekOneBf } = await supabase
             .from('weekly_progress')
             .select('body_fat_percentage')
             .eq('goal_id', phase.id)
             .eq('week_number', 1)
             .maybeSingle();
 
-          setInitialBodyFat(weeklyProgress?.body_fat_percentage || null);
+          setInitialBodyFat(weekOneBf?.body_fat_percentage || null);
         }
 
         // Generate phase summary if phase is complete
@@ -154,7 +154,11 @@ export default function ClientNutrition() {
     }
   }, [navigate, toast, loadActivePhase]);
 
+  const hasFetched = useRef(false);
+
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     loadUser();
   }, [loadUser]);
 

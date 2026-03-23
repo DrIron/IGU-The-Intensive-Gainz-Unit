@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -213,7 +213,11 @@ export default function CoachClientNutrition() {
     }
   }, [selectedClient, clients, filter]);
 
+  const hasFetchedUser = useRef(false);
+
   useEffect(() => {
+    if (hasFetchedUser.current) return;
+    hasFetchedUser.current = true;
     loadUser();
   }, [loadUser]);
 
@@ -221,12 +225,15 @@ export default function CoachClientNutrition() {
     if (selectedClient) {
       loadClientPhase();
     }
-  }, [selectedClient, filter, loadClientPhase]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally reactive to selectedClient and filter changes
+  }, [selectedClient, filter]);
+
+  const hasFetchedCoaches = useRef(false);
 
   useEffect(() => {
-    if (isAdmin) {
-      loadCoaches();
-    }
+    if (!isAdmin || hasFetchedCoaches.current) return;
+    hasFetchedCoaches.current = true;
+    loadCoaches();
   }, [isAdmin, loadCoaches]);
 
   // Filter clients based on selected coach (admin only)
