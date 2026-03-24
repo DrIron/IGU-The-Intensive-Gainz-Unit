@@ -44,7 +44,7 @@ export default function MedicalReview() {
         .from("profiles_public")
         .select("status")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (profile?.status && profile.status !== "needs_medical_review") {
         const redirect = getOnboardingRedirect(profile.status as ClientStatus);

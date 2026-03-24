@@ -67,7 +67,7 @@ export function OnboardingGuard({
             .from("profiles_public")
             .select("status")
             .eq("id", user.id)
-            .single(),
+            .maybeSingle(),
           supabase
             .from("subscriptions")
             .select("status")
@@ -81,10 +81,10 @@ export function OnboardingGuard({
 
         if (profileResult.error) {
           console.error("Error fetching profile:", profileResult.error);
-          setProfileStatus({ status: "new" as ClientStatus, hasSubscription: false, subscriptionStatus: null });
+          setProfileStatus({ status: "pending" as ClientStatus, hasSubscription: false, subscriptionStatus: null });
         } else {
           setProfileStatus({
-            status: (profileResult.data?.status as ClientStatus) || "new",
+            status: (profileResult.data?.status as ClientStatus) || "pending",
             hasSubscription: !!subscriptionResult.data,
             subscriptionStatus: subscriptionResult.data?.status || null,
           });
@@ -198,7 +198,7 @@ export function useOnboardingStatus() {
             .from("profiles_public")
             .select("status")
             .eq("id", user.id)
-            .single(),
+            .maybeSingle(),
           supabase
             .from("subscriptions")
             .select("status")
@@ -210,7 +210,7 @@ export function useOnboardingStatus() {
 
         if (mounted) {
           setStatus({
-            status: (profileResult.data?.status as ClientStatus) || "new",
+            status: (profileResult.data?.status as ClientStatus) || "pending",
             hasSubscription: !!subscriptionResult.data,
             subscriptionStatus: subscriptionResult.data?.status || null,
           });

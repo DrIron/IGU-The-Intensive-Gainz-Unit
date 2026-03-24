@@ -26,10 +26,13 @@ export default function PaymentReturn() {
   const [retryCount, setRetryCount] = useState(0);
   const hasFetched = useRef(false);
   const autoRetryRef = useRef(0);
+  const isVerifying = useRef(false);
   const maxRetries = 3;
   const maxAutoRetries = 3;
 
   const verifyPayment = useCallback(async () => {
+    if (isVerifying.current) return;
+    isVerifying.current = true;
     setState('verifying');
 
     try {
@@ -103,6 +106,7 @@ export default function PaymentReturn() {
         if (autoRetryRef.current < maxAutoRetries) {
           autoRetryRef.current++;
           if (import.meta.env.DEV) console.log(`Payment pending, auto-retry ${autoRetryRef.current}/${maxAutoRetries} in 3s...`);
+          isVerifying.current = false;
           setTimeout(() => verifyPayment(), 3000);
           return;
         }
@@ -128,9 +132,11 @@ export default function PaymentReturn() {
       if (autoRetryRef.current < maxAutoRetries) {
         autoRetryRef.current++;
         if (import.meta.env.DEV) console.log(`Verification error, auto-retry ${autoRetryRef.current}/${maxAutoRetries} in 2s...`);
+        isVerifying.current = false;
         setTimeout(() => verifyPayment(), 2000);
         return;
       }
+      isVerifying.current = false;
       setState('error');
       setMessage("We couldn't verify your payment status. Please try again.");
     }

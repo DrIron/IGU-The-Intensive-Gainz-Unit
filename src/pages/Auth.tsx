@@ -77,7 +77,7 @@ export default function Auth() {
   const handleRedirectAfterAuth = useCallback(async (userId: string) => {
     const redirectParam = searchParams.get("redirect");
 
-    if (redirectParam) {
+    if (redirectParam && redirectParam.startsWith('/') && !redirectParam.startsWith('//')) {
       navigate(redirectParam);
       return;
     }
@@ -214,9 +214,15 @@ export default function Auth() {
           }
           // Force sign-in tab when waitlist is active
           setActiveTab("signin");
+        } else {
+          // Waitlist inactive — set tab from URL
+          const tab = searchParams.get("tab");
+          if (tab) setActiveTab(tab);
         }
       } catch {
-        // Ignore errors -- fail open
+        // Ignore errors -- fail open; still set tab
+        const tab = searchParams.get("tab");
+        if (tab) setActiveTab(tab);
       }
     };
     checkWaitlist();
@@ -233,11 +239,7 @@ export default function Auth() {
       setSelectedService(serviceId);
     }
 
-    // Check for active tab from URL (only if waitlist isn't active -- waitlist check handles it above)
-    const tab = searchParams.get("tab");
-    if (tab && !waitlistActive) {
-      setActiveTab(tab);
-    }
+    // Tab handling is done inside checkWaitlist after async waitlist check completes
 
     // Check if already logged in (with timeout to prevent blocking)
     const checkExistingSession = async () => {
@@ -271,10 +273,15 @@ export default function Auth() {
       if (event === 'SIGNED_IN' && session && !redirectingRef.current) {
         redirectingRef.current = true;
 
-        // Small delay to ensure session is persisted to localStorage
-        await new Promise(resolve => setTimeout(resolve, 200));
+        try {
+          // Small delay to ensure session is persisted to localStorage
+          await new Promise(resolve => setTimeout(resolve, 200));
 
-        await handleRedirectAfterAuth(session.user.id);
+          await handleRedirectAfterAuth(session.user.id);
+        } catch (err) {
+          console.error('[Auth] Redirect after auth failed:', err);
+          redirectingRef.current = false;
+        }
       }
     });
 

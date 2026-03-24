@@ -64,7 +64,7 @@ export default function AwaitingApproval() {
         .from("profiles_public")
         .select("status")
         .eq("id", user.id)
-        .single();
+        .maybeSingle();
 
       if (profile?.status && profile.status !== "pending_coach_approval") {
         const redirect = getOnboardingRedirect(profile.status as ClientStatus);
