@@ -41,6 +41,27 @@ serve(async (req) => {
       }
     );
 
+    // Auth check: verify caller is an admin
+    const authHeader = req.headers.get('Authorization')?.replace('Bearer ', '');
+    if (authHeader) {
+      const { data: { user: caller }, error: callerError } = await supabaseAdmin.auth.getUser(authHeader);
+      if (callerError || !caller) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: roles } = await supabaseAdmin.from('user_roles').select('role').eq('user_id', caller.id).eq('role', 'admin');
+      if (!roles || roles.length === 0) {
+        return new Response(JSON.stringify({ error: 'Admin role required' }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    } else {
+      return new Response(JSON.stringify({ error: 'Authorization header required' }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const body = await req.json();
     const validated = manualClientSchema.parse(body);
     const { email, firstName, lastName, phoneNumber, dateOfBirth, gender, serviceId } = validated;

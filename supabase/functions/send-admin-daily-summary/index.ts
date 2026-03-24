@@ -69,7 +69,7 @@ Deno.serve(async (req) => {
       supabase
         .from("user_roles")
         .select("id", { count: "exact", head: true })
-        .eq("role", "client"),
+        .eq("role", "member"),
       supabase
         .from("coaches")
         .select("user_id", { count: "exact", head: true })

@@ -78,7 +78,7 @@ serve(async (req) => {
       .select('*, services(discord_role_id)')
       .eq('user_id', userId)
       .eq('status', 'active')
-      .single();
+      .maybeSingle();
 
     if (subError || !subscription) {
       console.error('No active subscription found for user:', userId);

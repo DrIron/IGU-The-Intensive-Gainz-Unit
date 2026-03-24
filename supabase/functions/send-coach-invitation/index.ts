@@ -26,6 +26,30 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Auth check: require service role key (called by other edge functions or admin)
+    const authHeader = req.headers.get('Authorization');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (!authHeader?.includes(serviceRoleKey)) {
+      // Also allow authenticated admin users
+      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? '';
+      const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+        auth: { autoRefreshToken: false, persistSession: false },
+      });
+      const token = authHeader?.replace('Bearer ', '') ?? '';
+      const { data: { user: caller } } = await adminClient.auth.getUser(token);
+      if (!caller) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      const { data: roles } = await adminClient.from('user_roles').select('role').eq('user_id', caller.id).eq('role', 'admin');
+      if (!roles || roles.length === 0) {
+        return new Response(JSON.stringify({ error: 'Admin role required' }), {
+          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+    }
+
     const body = await req.json();
     const { coachId, coachEmail, coachName, isNewUser, coachStatus, passwordResetLink } = requestSchema.parse(body);
 

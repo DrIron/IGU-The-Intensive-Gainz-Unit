@@ -193,15 +193,15 @@ Deno.serve(async (req) => {
     }
 
     // Final step: Delete auth user (this will cascade any remaining auth-related data)
-    const { error: authError } = await supabaseClient.auth.admin.deleteUser(userId);
+    const { error: deleteAuthError } = await supabaseClient.auth.admin.deleteUser(userId);
 
-    if (authError) {
+    if (deleteAuthError) {
       // If the user is already deleted in auth, proceed gracefully
       // @ts-expect-error - runtime error object may include status/code
-      if (authError.status === 404 || authError.code === 'user_not_found') {
+      if (deleteAuthError.status === 404 || deleteAuthError.code === 'user_not_found') {
         console.warn('Auth user not found, proceeding with cleanup');
       } else {
-        console.error('Error deleting auth user (non-fatal):', authError);
+        console.error('Error deleting auth user (non-fatal):', deleteAuthError);
       }
     }
 

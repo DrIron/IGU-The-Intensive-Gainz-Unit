@@ -112,6 +112,16 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
+    // Auth check: require service role key or authenticated admin
+    const authHeader = req.headers.get('Authorization');
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+    if (!authHeader?.includes(serviceRoleKey)) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const { type, adminEmail, data }: NotificationRequest = await req.json();
 
     console.log(`Processing admin notification: ${type}`);

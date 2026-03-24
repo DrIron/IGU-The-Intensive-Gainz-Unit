@@ -138,13 +138,7 @@ Deno.serve(async (req) => {
           clientCount: clientCount || 0,
         });
 
-        // Log notification for dedup
-        await supabase.from("email_notifications").insert({
-          user_id: coach.user_id,
-          notification_type: "coach_inactivity_admin_alert",
-          status: "sent",
-          sent_at: new Date().toISOString(),
-        });
+        // Dedup record inserted after email send succeeds (see below)
       } catch (err: any) {
         console.error(`Error checking coach ${coach.user_id}:`, err);
         results.errors.push(`coach ${coach.user_id}: ${err.message}`);
@@ -204,6 +198,18 @@ Deno.serve(async (req) => {
           result.error
         );
         results.errors.push(`${adminProfile.email}: send failed`);
+      }
+    }
+
+    // Insert dedup records only after email send succeeded
+    if (results.alerts_sent > 0) {
+      for (const coach of inactiveCoaches) {
+        await supabase.from("email_notifications").insert({
+          user_id: coach.user_id,
+          notification_type: "coach_inactivity_admin_alert",
+          status: "sent",
+          sent_at: new Date().toISOString(),
+        });
       }
     }
 
