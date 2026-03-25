@@ -1,9 +1,9 @@
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense, useEffect, memo } from "react";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { AuthGuard } from "@/components/AuthGuard";
 import { GlobalErrorBoundary } from "@/components/GlobalErrorBoundary";
@@ -75,6 +75,29 @@ function TokenGuard() {
   useTokenGuard();
   return null;
 }
+
+/** Mobile bottom nav for client routes — persists across all authenticated client pages */
+const ClientMobileNavGlobal = memo(function ClientMobileNavGlobal() {
+  const location = useLocation();
+
+  // Show on client routes (dashboard, workout, nutrition, etc.)
+  const clientPaths = ["/dashboard", "/client", "/nutrition", "/sessions", "/workout-library", "/account"];
+  const isClientRoute = clientPaths.some(p => location.pathname === p || location.pathname.startsWith(p + "/"));
+
+  if (!isClientRoute) return null;
+
+  return <MobileBottomNavClient />;
+});
+
+// Lazy-load the actual nav to avoid pulling sidebar code into the initial bundle
+const MobileBottomNavClient = lazy(() =>
+  Promise.all([
+    import("@/components/layouts/MobileBottomNav"),
+    import("@/components/client/ClientSidebar"),
+  ]).then(([navMod, sidebarMod]) => ({
+    default: () => <navMod.MobileBottomNav items={sidebarMod.getClientMobileNavItems()} />,
+  }))
+);
 
 const App = () => {
   // Capture UTM parameters on app mount for lead tracking
@@ -162,6 +185,10 @@ const App = () => {
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
+                {/* Global mobile bottom nav for client routes */}
+                <Suspense fallback={null}>
+                  <ClientMobileNavGlobal />
+                </Suspense>
               </Suspense>
             </div>
           </BrowserRouter>

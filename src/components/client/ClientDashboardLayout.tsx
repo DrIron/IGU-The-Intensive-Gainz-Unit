@@ -1,8 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
-import { ClientSidebar, getClientMobileNavItems } from "./ClientSidebar";
-import { MobileBottomNav } from "@/components/layouts/MobileBottomNav";
+import { ClientSidebar } from "./ClientSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -538,8 +537,7 @@ export function ClientDashboardLayout({
               </div>
             </div>
           </main>
-          {/* Mobile Bottom Navigation */}
-          <MobileBottomNav items={getClientMobileNavItems()} />
+          {/* Mobile Bottom Navigation — now rendered globally in App.tsx */}
         </div>
       </SidebarProvider>
     );
