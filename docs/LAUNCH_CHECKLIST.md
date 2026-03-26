@@ -17,7 +17,7 @@
 - [ ] Test coach dashboard workflows
 - [ ] Verify RLS policies for all roles
 - [x] Workout Builder Phase 1 deployed (calendar builder, dynamic columns, direct client calendar)
-- [ ] Workout Builder Phase 2 (client logger routing, exercise swap, teams)
+- [x] Workout Builder Phase 2 (client logger routing, exercise swap, teams)
 
 ### Team Readiness
 - [ ] Create coach accounts for all coaches

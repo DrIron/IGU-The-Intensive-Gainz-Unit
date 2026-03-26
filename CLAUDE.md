@@ -89,7 +89,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── verify-payment/
 │   │   ├── send-coach-application-emails/  # Coach app confirmation (no JWT)
 │   │   ├── _shared/          # Shared utilities (config.ts, emailTemplate.ts, emailComponents.ts, sendEmail.ts, rateLimit.ts)
-│   │   └── # n8n automation endpoints (called on schedule):
+│   │   └── # Scheduled automation endpoints (called by Vercel Cron):
 │   │       # process-abandoned-onboarding/
 │   │       # process-payment-failure-drip/
 │   │       # process-inactive-client-alerts/
@@ -1944,7 +1944,7 @@ When asking for help:
 - Admin QA polish — all 10 issues resolved ✅ (Feb 8, 2026)
 
 **Completed (Phase 29+)**:
-- n8n automation workflows — 10 scheduled workflows for platform operations ✅ (Feb 9, 2026)
+- Scheduled automations — 10 Vercel Cron Jobs for platform operations ✅ (Feb 9, 2026)
   - 8 new edge functions + 2 existing (send-admin-daily-summary, send-weekly-coach-digest)
   - Abandoned onboarding recovery drip (day 1/3/7)
   - Payment failure recovery drip (day 1/2/5/9, includes coach notification)
@@ -1955,7 +1955,7 @@ When asking for help:
   - Referral program reminders (2+ weeks active, lifetime dedup)
   - Coach inactivity alerts to admins (7+ days no login, weekly dedup)
 - Workout Builder INP performance fix — memoization across 7 component files ✅ (Feb 9, 2026)
-- Edge function DB query fix — repaired 7 n8n edge functions with broken FK joins and wrong column names ✅ (Feb 9, 2026)
+- Edge function DB query fix — repaired 7 scheduled edge functions with broken FK joins and wrong column names ✅ (Feb 9, 2026)
 - Client onboarding submission fix — 3 trigger bugs + gateway JWT rejection + functions auth recovery ✅ (Feb 9, 2026)
 
 **Not launched yet**:
@@ -2150,7 +2150,7 @@ const getCallback = useCallback((index: number) => {
 
 ## Edge Function DB Query Fix (Feb 9, 2026)
 
-Fixed 7 n8n edge functions that were returning HTTP 500 due to incorrect database queries. 6 of 10 n8n workflows were failing in production.
+Fixed 7 scheduled edge functions that were returning HTTP 500 due to incorrect database queries. 6 of 10 workflows were failing in production.
 
 **Root Causes (3 issues):**
 
@@ -2212,7 +2212,7 @@ for (const sub of subs) {
 | `supabase/functions/process-testimonial-requests/index.ts` | Removed FK join; separate profiles query per subscription |
 | `supabase/functions/process-payment-failure-drip/index.ts` | Removed FK join (latent bug — only passed because 0 failed subscriptions existed) |
 
-**Result:** All 10/10 n8n edge functions return HTTP 200.
+**Result:** All 10/10 scheduled edge functions return HTTP 200.
 
 **Rule for edge functions:** Never use PostgREST FK joins to the `profiles` view. Always query `.from("profiles")` directly with `.eq("id", userId)`.
 
