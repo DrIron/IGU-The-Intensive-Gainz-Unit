@@ -37,7 +37,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 - **Error Tracking**: Sentry
 - **Email**: Resend
 - **Payments**: Tap Payments (Kuwait/GCC region)
-- **Workflow Automation**: n8n Cloud (theigu.app.n8n.cloud)
+- **Scheduled Jobs**: Vercel Cron Jobs (configured in `vercel.json`, dispatcher at `/api/cron.ts`)
 
 ---
 
@@ -502,7 +502,7 @@ When understanding this codebase, read in this order:
 - Phase 25: Client Onboarding & Coach Matching QA — polling pages, audit logging, gender collection, coach matching dedup, UX improvements (Feb 7, 2026) ✅
 - Phase 26: Roles, Subroles & Tags System — subrole definitions, permission functions, admin approval queue, coach request UI, feature gating (Feb 7, 2026) ✅
 - Fix: Supabase getSession() hang — custom lock timeout prevents infinite lock waits from freezing all data queries (Feb 8, 2026) ✅
-- Phase 29: n8n Automation Workflows — 10 scheduled workflows for email drips, admin alerts, and platform operations (Feb 9, 2026) ✅
+- Phase 29: Scheduled Automations — 10 Vercel Cron Jobs calling Supabase edge functions for email drips, admin alerts, and platform operations (Feb 9, 2026) ✅
 - Fix: Workout Builder INP Performance — React.memo, useMemo, useCallback across 7 component files to eliminate 4-51s UI freezes (Feb 9, 2026) ✅
 - i18n Scaffolding — react-i18next setup, en/ar locales, Navigation + Footer converted, LanguageSwitcher (Feb 10, 2026) ✅
 - Phase 30: Compensation Model Schema — hourly-rate compensation, professional levels, add-on services, payout functions (Feb 11, 2026) ✅
@@ -2031,30 +2031,43 @@ When asking for help:
 
 ---
 
-## n8n Automation Workflows (Phase 29 - Feb 9, 2026)
+## Scheduled Automation (Vercel Cron Jobs)
 
-Platform operations are automated via n8n Cloud (`theigu.app.n8n.cloud`). Each workflow calls a Supabase edge function on a schedule. The edge functions handle all business logic — n8n is just a scheduler.
+Platform operations are automated via **Vercel Cron Jobs** calling Supabase edge functions on a schedule. No external scheduler (n8n) needed — everything is configured in `vercel.json` and deployed with the app.
 
-**Architecture**: n8n Schedule Trigger → HTTP POST to edge function (Bearer service role key) → edge function queries DB, sends emails via Resend, logs to `email_notifications` for dedup → returns JSON summary.
+**Architecture**: Vercel Cron → `GET /api/cron?fn=<name>` (Vercel Serverless Function) → validates `CRON_SECRET` → `POST` to Supabase edge function (Bearer service role key) → edge function queries DB, sends emails via Resend, logs to `email_notifications` for dedup → returns JSON summary.
 
-**All n8n edge functions use `--no-verify-jwt`** (called with service role key, not user JWT).
+**Dispatcher**: Single serverless function at `/api/cron.ts` handles all 10 jobs. Validates `CRON_SECRET` header and allowlists function names.
 
-| Time (UTC) | Workflow | Frequency | Edge Function | Purpose |
-|------------|----------|-----------|---------------|---------|
-| 6:00 AM | Admin Daily Summary | Daily | `send-admin-daily-summary` | Platform health snapshot to admins (active subs, new signups, failed payments, pending apps) |
-| 7:00 AM | Weekly Coach Digest | Weekly (Mon) | `send-weekly-coach-digest` | Per-coach summary of active clients, workout activity, inactive clients |
-| 8:00 AM | Renewal Reminders | Daily | `process-renewal-reminders` | 3-day advance billing renewal notice to clients (monthly dedup) |
-| 8:30 AM | Coach Inactivity Monitor | Daily | `process-coach-inactivity-monitor` | Alert admins if active coach hasn't logged in 7+ days (weekly dedup per coach) |
-| 9:00 AM | Testimonial Request | Weekly | `process-testimonial-requests` | Request testimonials from clients after 4+ weeks active (lifetime dedup) |
-| 9:00 AM | Referral Reminders | Weekly | `process-referral-reminders` | Remind clients about referral program after 2+ weeks active (lifetime dedup) |
-| 9:30 AM | Payment Failure Recovery | Daily | `process-payment-failure-drip` | Escalating drip (day 1/2/5/9) for failed payments, day 5 notifies coach |
-| 10:00 AM | Abandoned Onboarding | Daily | `process-abandoned-onboarding` | Drip (day 1/3/7) for stale onboarding drafts with resume links |
-| 10:30 AM | Inactive Client Alert | Daily | `process-inactive-client-alerts` | Alert coach when client hasn't trained in 5+ days |
-| 11:00 AM | Lead Nurture | Daily | `process-lead-nurture` | Drip (day 1/3/7) for unconverted newsletter leads |
+**All scheduled edge functions use `--no-verify-jwt`** (called with service role key, not user JWT).
+
+| Schedule (UTC) | Frequency | Edge Function | Purpose |
+|----------------|-----------|---------------|---------|
+| 6:00 AM | Daily | `send-admin-daily-summary` | Platform health snapshot to admins |
+| 7:00 AM | Mon | `send-weekly-coach-digest` | Per-coach summary of clients and activity |
+| 8:00 AM | Daily | `process-renewal-reminders` | 3-day advance billing renewal notice (monthly dedup) |
+| 8:30 AM | Daily | `process-coach-inactivity-monitor` | Alert admins if coach inactive 7+ days (weekly dedup) |
+| 9:00 AM | Mon | `process-testimonial-requests` | Request testimonials after 4+ weeks active (lifetime dedup) |
+| 9:00 AM | Mon | `process-referral-reminders` | Referral program reminders after 2+ weeks (lifetime dedup) |
+| 9:30 AM | Daily | `process-payment-failure-drip` | Escalating drip (day 1/2/5/9) for failed payments |
+| 10:00 AM | Daily | `process-abandoned-onboarding` | Drip (day 1/3/7) for stale onboarding drafts |
+| 10:30 AM | Daily | `process-inactive-client-alerts` | Alert coach when client inactive 5+ days |
+| 11:00 AM | Daily | `process-lead-nurture` | Drip (day 1/3/7) for unconverted newsletter leads |
 
 **Deduplication**: All functions check `email_notifications` table before sending. Each uses a `notification_type` string (e.g., `abandoned_onboarding_day1`, `payment_failure_day2`) to prevent duplicate sends.
 
-**Testing**: Call any function directly via curl:
+**Vercel Environment Variables Required** (set in Vercel Dashboard > Settings > Environment Variables):
+- `CRON_SECRET` — random 32+ char string (Vercel sends as Bearer token on cron requests)
+- `SUPABASE_URL` — e.g. `https://ghotrbotrywonaejlppg.supabase.co` (server-side only, no `VITE_` prefix)
+- `SUPABASE_SERVICE_ROLE_KEY` — from Supabase dashboard (server-side only)
+
+**Testing**: Call the dispatcher directly:
+```bash
+curl "https://theigu.com/api/cron?fn=send-admin-daily-summary" \
+  -H "Authorization: Bearer $CRON_SECRET"
+```
+
+Or call edge functions directly:
 ```bash
 curl -X POST https://ghotrbotrywonaejlppg.supabase.co/functions/v1/<function-name> \
   -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY" \
@@ -2075,16 +2088,16 @@ Quick reference for edge function JWT settings:
 | `tap-webhook` | **No** | Called by payment provider |
 | `create-tap-payment` | **No** | Gateway rejects ES256 JWTs; has internal auth checks |
 | `verify-payment` | **No** | Gateway rejects ES256 JWTs; has internal auth checks |
-| `process-abandoned-onboarding` | **No** | Called by n8n (service role key) |
-| `process-payment-failure-drip` | **No** | Called by n8n (service role key) |
-| `process-inactive-client-alerts` | **No** | Called by n8n (service role key) |
-| `process-lead-nurture` | **No** | Called by n8n (service role key) |
-| `process-testimonial-requests` | **No** | Called by n8n (service role key) |
-| `process-renewal-reminders` | **No** | Called by n8n (service role key) |
-| `process-referral-reminders` | **No** | Called by n8n (service role key) |
-| `process-coach-inactivity-monitor` | **No** | Called by n8n (service role key) |
-| `send-admin-daily-summary` | **No** | Called by n8n (service role key) |
-| `send-weekly-coach-digest` | **No** | Called by n8n (service role key) |
+| `process-abandoned-onboarding` | **No** | Called by Vercel Cron (service role key) |
+| `process-payment-failure-drip` | **No** | Called by Vercel Cron (service role key) |
+| `process-inactive-client-alerts` | **No** | Called by Vercel Cron (service role key) |
+| `process-lead-nurture` | **No** | Called by Vercel Cron (service role key) |
+| `process-testimonial-requests` | **No** | Called by Vercel Cron (service role key) |
+| `process-renewal-reminders` | **No** | Called by Vercel Cron (service role key) |
+| `process-referral-reminders` | **No** | Called by Vercel Cron (service role key) |
+| `process-coach-inactivity-monitor` | **No** | Called by Vercel Cron (service role key) |
+| `send-admin-daily-summary` | **No** | Called by Vercel Cron (service role key) |
+| `send-weekly-coach-digest` | **No** | Called by Vercel Cron (service role key) |
 | `send-waitlist-confirmation` | **No** | Called by anonymous users (waitlist signup) |
 | `send-waitlist-invites` | **No** | Called with admin session (has internal auth check) |
 | `submit-onboarding` | **No** | Gateway rejects ES256 JWTs; function has internal auth checks |
