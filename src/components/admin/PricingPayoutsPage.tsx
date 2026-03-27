@@ -14,13 +14,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { supabase } from "@/integrations/supabase/client";
-import { DollarSign, Percent, Edit2, X, Check, Plus, Package, Wallet, Calculator, Info, History, Eye } from "lucide-react";
+import { DollarSign, Percent, Edit2, X, Check, Plus, Package, Wallet, Award, Info, History, Eye } from "lucide-react";
 import { format } from "date-fns";
-import { PayoutRatesManager } from "./PayoutRatesManager";
-import { CoachPaymentCalculator } from "./CoachPaymentCalculator";
 import { PricingAuditLogDialog } from "./PricingAuditLogDialog";
 import { SubscriptionPayoutPreview } from "./SubscriptionPayoutPreview";
 import { AddonServicesManager } from "./AddonServicesManager";
+import { ProfessionalLevelManager } from "./ProfessionalLevelManager";
 import { logPricingChange, logCreateAction } from "@/lib/auditLog";
 
 interface ServicePricingRow {
@@ -99,7 +98,7 @@ export function PricingPayoutsPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="pricing" className="w-full">
-        <TabsList className="grid w-full grid-cols-6 max-w-4xl">
+        <TabsList className="grid w-full grid-cols-5 max-w-4xl">
           <TabsTrigger value="pricing" className="gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Services</span>
@@ -112,17 +111,13 @@ export function PricingPayoutsPage() {
             <DollarSign className="h-4 w-4" />
             <span className="hidden sm:inline">Add-ons</span>
           </TabsTrigger>
-          <TabsTrigger value="payouts" className="gap-2">
-            <Wallet className="h-4 w-4" />
-            <span className="hidden sm:inline">Payouts</span>
+          <TabsTrigger value="levels" className="gap-2">
+            <Award className="h-4 w-4" />
+            <span className="hidden sm:inline">Levels</span>
           </TabsTrigger>
           <TabsTrigger value="preview" className="gap-2">
             <Eye className="h-4 w-4" />
-            <span className="hidden sm:inline">Preview</span>
-          </TabsTrigger>
-          <TabsTrigger value="monthly" className="gap-2">
-            <Calculator className="h-4 w-4" />
-            <span className="hidden sm:inline">Monthly</span>
+            <span className="hidden sm:inline">Payouts</span>
           </TabsTrigger>
         </TabsList>
 
@@ -139,16 +134,12 @@ export function PricingPayoutsPage() {
           <AddonServicesManager />
         </TabsContent>
 
-        <TabsContent value="payouts" className="mt-6">
-          <PayoutRatesManager />
+        <TabsContent value="levels" className="mt-6">
+          <ProfessionalLevelManager />
         </TabsContent>
 
         <TabsContent value="preview" className="mt-6">
           <SubscriptionPayoutPreview />
-        </TabsContent>
-
-        <TabsContent value="monthly" className="mt-6">
-          <CoachPaymentCalculator />
         </TabsContent>
       </Tabs>
     </div>
