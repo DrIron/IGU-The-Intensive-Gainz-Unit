@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Loader2, Award, DollarSign } from "lucide-react";
+import { Loader2, Award, TrendingUp, Users, ChevronUp } from "lucide-react";
 import { COACH_PAYOUT_PER_CLIENT, LEVEL_LABELS, type ProfessionalLevel } from "@/auth/roles";
+import { cn } from "@/lib/utils";
 
 interface ClientPayout {
   clientName: string;
@@ -16,6 +17,21 @@ interface ClientPayout {
 interface CoachCompensationCardProps {
   coachUserId: string;
 }
+
+const TIER_ORDER = [
+  { slug: "one_to_one_online", label: "Online" },
+  { slug: "one_to_one_complete", label: "Complete" },
+  { slug: "hybrid", label: "Hybrid" },
+  { slug: "in_person", label: "In-Person" },
+] as const;
+
+const LEVELS: ProfessionalLevel[] = ["junior", "senior", "lead"];
+
+const LEVEL_COLORS: Record<ProfessionalLevel, string> = {
+  junior: "text-zinc-400",
+  senior: "text-blue-400",
+  lead: "text-amber-400",
+};
 
 export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProps) {
   const hasFetched = useRef(false);
@@ -29,7 +45,6 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
     try {
       setLoading(true);
 
-      // Get coach profile from coaches_public
       const { data: coachProfile } = await supabase
         .from("coaches_public")
         .select("coach_level, is_head_coach")
@@ -41,7 +56,6 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
         setIsHeadCoach(coachProfile.is_head_coach || false);
       }
 
-      // Get active subscriptions for this coach
       const { data: subs } = await supabase
         .from("subscriptions")
         .select("id, user_id, service_id")
@@ -55,7 +69,6 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
         return;
       }
 
-      // Get client names
       const clientIds = [...new Set(subs.map(s => s.user_id))];
       const { data: clients } = await supabase
         .from("profiles_public")
@@ -65,7 +78,6 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
         (clients || []).map(c => [c.id, c.display_name || c.first_name || "Unknown"])
       );
 
-      // Get service names
       const serviceIds = [...new Set(subs.map(s => s.service_id))];
       const { data: services } = await supabase
         .from("services")
@@ -75,7 +87,6 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
         (services || []).map(s => [s.id, s.name])
       );
 
-      // Calculate payout for each subscription
       const payouts: ClientPayout[] = [];
       let total = 0;
 
@@ -134,93 +145,167 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
     );
   }
 
-  // Show per-client rates for the most common tiers
-  const onlineRate = COACH_PAYOUT_PER_CLIENT["one_to_one_online"]?.[level] ?? 0;
-  const hybridRate = COACH_PAYOUT_PER_CLIENT["hybrid"]?.[level] ?? 0;
+  const currentLevelIndex = LEVELS.indexOf(level);
+  const nextLevel = currentLevelIndex < LEVELS.length - 1 ? LEVELS[currentLevelIndex + 1] : null;
 
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Award className="h-5 w-5 text-primary" />
-            My Compensation
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Badge variant="default">{LEVEL_LABELS[level]}</Badge>
-            {isHeadCoach && (
-              <Badge variant="secondary">Head Coach</Badge>
-            )}
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Per-Client Rates */}
-        <div className="flex gap-6">
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-primary/10 rounded-lg">
-              <DollarSign className="h-4 w-4 text-primary" />
-            </div>
+    <div className="space-y-4">
+      {/* Main compensation card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
             <div>
-              <p className="text-xs text-muted-foreground">Online / client</p>
-              <p className="font-semibold">{onlineRate} KWD/mo</p>
+              <CardTitle className="flex items-center gap-2 text-lg">
+                <Award className="h-5 w-5 text-primary" />
+                My Compensation
+              </CardTitle>
+              <CardDescription className="mt-1">
+                {clientPayouts.length} active client{clientPayouts.length !== 1 ? "s" : ""}
+              </CardDescription>
+            </div>
+            <div className="flex items-center gap-2">
+              <Badge className={cn(
+                "font-semibold",
+                level === "lead" && "bg-amber-500/20 text-amber-400 border-amber-500/30",
+                level === "senior" && "bg-blue-500/20 text-blue-400 border-blue-500/30",
+                level === "junior" && "bg-zinc-500/20 text-zinc-400 border-zinc-500/30",
+              )}>
+                {LEVEL_LABELS[level]}
+              </Badge>
+              {isHeadCoach && (
+                <Badge variant="secondary" className="bg-primary/10 text-primary border-primary/20">
+                  Head Coach
+                </Badge>
+              )}
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <div className="p-2 bg-green-500/10 rounded-lg">
-              <DollarSign className="h-4 w-4 text-green-600" />
-            </div>
-            <div>
-              <p className="text-xs text-muted-foreground">Hybrid / client</p>
-              <p className="font-semibold">{hybridRate} KWD/mo</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Per-client breakdown */}
-        {clientPayouts.length > 0 && (
-          <>
-            <div className="border-t pt-4">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Client</TableHead>
-                    <TableHead>Service</TableHead>
-                    <TableHead className="text-right">My Payout</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {clientPayouts.map((cp, i) => (
-                    <TableRow key={i} className={cp.blocked ? "opacity-50" : ""}>
-                      <TableCell className="font-medium">{cp.clientName}</TableCell>
-                      <TableCell className="text-sm">{cp.serviceName}</TableCell>
-                      <TableCell className="text-right">
-                        {cp.blocked ? (
-                          <Badge variant="destructive" className="text-xs">Blocked</Badge>
-                        ) : (
-                          `${cp.coachPayout.toFixed(2)} KWD`
-                        )}
-                      </TableCell>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {/* Per-client breakdown */}
+          {clientPayouts.length > 0 ? (
+            <>
+              <div className="rounded-lg border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead className="text-xs font-medium">Client</TableHead>
+                      <TableHead className="text-xs font-medium">Service</TableHead>
+                      <TableHead className="text-xs font-medium text-right">Payout</TableHead>
                     </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {clientPayouts.map((cp, i) => (
+                      <TableRow key={i} className={cp.blocked ? "opacity-40" : ""}>
+                        <TableCell className="font-medium text-sm">{cp.clientName}</TableCell>
+                        <TableCell className="text-sm text-muted-foreground">{cp.serviceName}</TableCell>
+                        <TableCell className="text-right">
+                          {cp.blocked ? (
+                            <Badge variant="destructive" className="text-xs">Blocked</Badge>
+                          ) : (
+                            <span className="font-semibold text-sm">{cp.coachPayout} KWD</span>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Total */}
+              <div className="flex items-center justify-between rounded-lg bg-primary/5 border border-primary/10 px-4 py-3">
+                <span className="text-sm font-medium text-muted-foreground">Monthly Total</span>
+                <span className="text-xl font-bold tracking-tight">{totalPayout} KWD</span>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-6 text-muted-foreground">
+              <Users className="h-8 w-8 mx-auto mb-2 opacity-40" />
+              <p className="text-sm">No active clients yet</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Compensation tiers card */}
+      <Card>
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            Compensation Tiers
+          </CardTitle>
+          <CardDescription>
+            Per client, per month (KWD)
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="rounded-lg border overflow-hidden">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/50">
+                  <TableHead className="text-xs font-medium w-[120px]">Service</TableHead>
+                  {LEVELS.map((lvl) => (
+                    <TableHead
+                      key={lvl}
+                      className={cn(
+                        "text-xs font-medium text-center",
+                        lvl === level && "bg-primary/5"
+                      )}
+                    >
+                      <span className={LEVEL_COLORS[lvl]}>{LEVEL_LABELS[lvl]}</span>
+                    </TableHead>
                   ))}
-                </TableBody>
-              </Table>
-            </div>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {TIER_ORDER.map(({ slug, label }) => {
+                  const rates = COACH_PAYOUT_PER_CLIENT[slug];
+                  if (!rates) return null;
+                  return (
+                    <TableRow key={slug}>
+                      <TableCell className="text-sm font-medium">{label}</TableCell>
+                      {LEVELS.map((lvl) => {
+                        const isCurrent = lvl === level;
+                        const value = rates[lvl] ?? 0;
+                        return (
+                          <TableCell
+                            key={lvl}
+                            className={cn(
+                              "text-center tabular-nums",
+                              isCurrent && "bg-primary/5 font-bold",
+                              !isCurrent && "text-muted-foreground"
+                            )}
+                          >
+                            {value}
+                          </TableCell>
+                        );
+                      })}
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          </div>
 
-            {/* Total */}
-            <div className="flex items-center justify-between border-t pt-3">
-              <span className="text-sm font-medium text-muted-foreground">Estimated Monthly Total</span>
-              <span className="text-lg font-bold">{totalPayout.toFixed(2)} KWD</span>
+          {/* Level up nudge */}
+          {nextLevel && (
+            <div className="mt-3 flex items-start gap-2 rounded-lg bg-muted/50 border border-border/50 px-3 py-2.5">
+              <ChevronUp className={cn("h-4 w-4 mt-0.5 shrink-0", LEVEL_COLORS[nextLevel])} />
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                As a <span className={cn("font-semibold", LEVEL_COLORS[nextLevel])}>{LEVEL_LABELS[nextLevel]}</span> coach,
+                you'd earn up to{" "}
+                <span className="font-semibold text-foreground">
+                  {COACH_PAYOUT_PER_CLIENT["in_person"]?.[nextLevel] ?? 0} KWD
+                </span>
+                {" "}per In-Person client — that's{" "}
+                <span className="font-semibold text-foreground">
+                  +{(COACH_PAYOUT_PER_CLIENT["in_person"]?.[nextLevel] ?? 0) - (COACH_PAYOUT_PER_CLIENT["in_person"]?.[level] ?? 0)} KWD
+                </span>
+                {" "}more per client.
+              </p>
             </div>
-          </>
-        )}
-
-        {clientPayouts.length === 0 && (
-          <p className="text-sm text-muted-foreground text-center py-4">
-            No active clients yet
-          </p>
-        )}
-      </CardContent>
-    </Card>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
