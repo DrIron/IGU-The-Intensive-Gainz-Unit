@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, Award, DollarSign } from "lucide-react";
-import { COACH_RATES, LEVEL_LABELS, type ProfessionalLevel } from "@/auth/roles";
+import { COACH_PAYOUT_PER_CLIENT, LEVEL_LABELS, type ProfessionalLevel } from "@/auth/roles";
 
 interface ClientPayout {
   clientName: string;
@@ -134,7 +134,9 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
     );
   }
 
-  const rateInfo = COACH_RATES[level];
+  // Show per-client rates for the most common tiers
+  const onlineRate = COACH_PAYOUT_PER_CLIENT["one_to_one_online"]?.[level] ?? 0;
+  const hybridRate = COACH_PAYOUT_PER_CLIENT["hybrid"]?.[level] ?? 0;
 
   return (
     <Card>
@@ -153,15 +155,15 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Hourly Rates */}
+        {/* Per-Client Rates */}
         <div className="flex gap-6">
           <div className="flex items-center gap-2">
             <div className="p-2 bg-primary/10 rounded-lg">
               <DollarSign className="h-4 w-4 text-primary" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">Online</p>
-              <p className="font-semibold">{rateInfo.online} KWD/hr</p>
+              <p className="text-xs text-muted-foreground">Online / client</p>
+              <p className="font-semibold">{onlineRate} KWD/mo</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -169,8 +171,8 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
               <DollarSign className="h-4 w-4 text-green-600" />
             </div>
             <div>
-              <p className="text-xs text-muted-foreground">In-Person</p>
-              <p className="font-semibold">{rateInfo.in_person} KWD/hr</p>
+              <p className="text-xs text-muted-foreground">Hybrid / client</p>
+              <p className="font-semibold">{hybridRate} KWD/mo</p>
             </div>
           </div>
         </div>

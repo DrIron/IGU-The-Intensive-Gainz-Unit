@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, DollarSign, Clock, TrendingUp, Users } from "lucide-react";
-import { COACH_RATES, LEVEL_LABELS, type ProfessionalLevel } from "@/auth/roles";
+import { COACH_PAYOUT_PER_CLIENT, LEVEL_LABELS, type ProfessionalLevel } from "@/auth/roles";
 
 interface EarningsSummary {
   currentMonthEstimate: number;
@@ -132,7 +132,7 @@ export function CoachEarningsSummary() {
               {summary.isHeadCoach && <Badge variant="secondary">Head Coach</Badge>}
             </div>
             <CardDescription className="mt-1">
-              Your monthly payout overview &middot; {COACH_RATES[summary.coachLevel].online} KWD/hr online &middot; {COACH_RATES[summary.coachLevel].in_person} KWD/hr in-person
+              Your monthly payout overview &middot; {COACH_PAYOUT_PER_CLIENT["one_to_one_online"]?.[summary.coachLevel] ?? 0} KWD/client online &middot; {COACH_PAYOUT_PER_CLIENT["hybrid"]?.[summary.coachLevel] ?? 0} KWD/client hybrid
             </CardDescription>
           </div>
           <Badge variant="secondary" className="gap-1">

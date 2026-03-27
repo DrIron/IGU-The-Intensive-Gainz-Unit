@@ -308,18 +308,36 @@ export type ProfessionalRole = "coach" | "dietitian";
 export type WorkTypeCategory = "online" | "in_person";
 
 /**
- * Coach hourly rates by level (KWD/hr).
- * Source of truth is DB `professional_levels` table; this is for client-side reference.
+ * Flat coach payout per client per month (KWD).
+ * Source of truth is DB `coach_payout_rates` table; this is for client-side reference.
+ * No hourly calculations — one number per tier per level.
  */
+export const COACH_PAYOUT_PER_CLIENT: Record<string, Record<ProfessionalLevel, number>> = {
+  team_plan:           { junior: 7, senior: 7, lead: 7 },
+  one_to_one_online:   { junior: 20, senior: 26, lead: 34 },
+  one_to_one_complete: { junior: 20, senior: 26, lead: 34 },
+  hybrid:              { junior: 60, senior: 80, lead: 105 },
+  in_person:           { junior: 105, senior: 140, lead: 185 },
+};
+
+/**
+ * Flat dietitian payout per client per month (KWD).
+ * Only applies to tiers that include dietitian (Complete, Hybrid, In-Person).
+ */
+export const DIETITIAN_PAYOUT_PER_CLIENT: Record<string, Record<ProfessionalLevel, number>> = {
+  one_to_one_complete: { junior: 15, senior: 20, lead: 20 },
+  hybrid:              { junior: 15, senior: 20, lead: 20 },
+  in_person:           { junior: 15, senior: 20, lead: 20 },
+};
+
+/** @deprecated Use COACH_PAYOUT_PER_CLIENT instead. Kept for backward compat. */
 export const COACH_RATES: Record<ProfessionalLevel, { online: number; in_person: number }> = {
   junior: { online: 4, in_person: 8 },
   senior: { online: 6, in_person: 12 },
   lead:   { online: 8, in_person: 15 },
 };
 
-/**
- * Dietitian hourly rates by level (KWD/hr). Online only.
- */
+/** @deprecated Use DIETITIAN_PAYOUT_PER_CLIENT instead. Kept for backward compat. */
 export const DIETITIAN_RATES: Record<ProfessionalLevel, number> = {
   junior: 5,
   senior: 7,
@@ -339,8 +357,7 @@ export const LEVEL_LABELS: Record<ProfessionalLevel, string> = {
  * Service tier slugs — matches DB `services.slug` column.
  */
 export type ServiceSlug =
-  | "team_fe_squad"
-  | "team_bunz"
+  | "team_plan"
   | "one_to_one_online"
   | "one_to_one_complete"
   | "hybrid"
@@ -348,26 +365,24 @@ export type ServiceSlug =
 
 /**
  * Level eligibility per tier.
- * Some combinations are blocked because they'd push IGU profit below 5 KWD.
+ * All levels are now eligible on all tiers (flat payout model).
  */
 export const LEVEL_ELIGIBILITY: Record<ServiceSlug, {
   coach: ProfessionalLevel[];
-  maxDietitianWithLeadCoach?: ProfessionalLevel;
   notes?: string;
 }> = {
-  team_fe_squad:       { coach: [], notes: "Team plans use Head Coach, not level system" },
-  team_bunz:           { coach: [], notes: "Team plans use Head Coach, not level system" },
-  one_to_one_online:   { coach: ["junior", "senior"], notes: "Lead Coach not eligible (budget too tight)" },
-  one_to_one_complete: { coach: ["junior", "senior", "lead"], maxDietitianWithLeadCoach: "senior", notes: "Lead+Lead blocked (exceeds budget)" },
+  team_plan:           { coach: [], notes: "Team plans use Head Coach flat payout" },
+  one_to_one_online:   { coach: ["junior", "senior", "lead"] },
+  one_to_one_complete: { coach: ["junior", "senior", "lead"] },
   hybrid:              { coach: ["junior", "senior", "lead"] },
   in_person:           { coach: ["junior", "senior", "lead"] },
 };
 
 /**
  * Minimum IGU profit guardrail (KWD).
- * Assignments that would result in less than this are blocked.
+ * 3 KWD for Team/Online (high-volume, low-margin), 5 KWD for premium tiers.
  */
-export const MIN_IGU_PROFIT_KWD = 5;
+export const MIN_IGU_PROFIT_KWD = 3;
 
 /**
  * Maximum discount percentage without admin override.
@@ -377,7 +392,7 @@ export const MAX_DISCOUNT_PERCENT = 30;
 /**
  * Head Coach fixed payout per team plan client (KWD/month).
  */
-export const HEAD_COACH_TEAM_PAYOUT_KWD = 5;
+export const HEAD_COACH_TEAM_PAYOUT_KWD = 7;
 
 // ============================================================================
 // ACCESS VIOLATION LOGGING

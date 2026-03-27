@@ -13,8 +13,8 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Loader2, Save, Info } from "lucide-react";
 import {
   ProfessionalLevel,
-  COACH_RATES,
-  DIETITIAN_RATES,
+  COACH_PAYOUT_PER_CLIENT,
+  DIETITIAN_PAYOUT_PER_CLIENT,
   LEVEL_LABELS,
 } from "@/auth/roles";
 
@@ -286,8 +286,8 @@ export function ProfessionalLevelManager() {
                 <TableHead>Level</TableHead>
                 <TableHead>Head Coach</TableHead>
                 <TableHead>HC Specialisation</TableHead>
-                <TableHead className="text-right">Online Rate</TableHead>
-                <TableHead className="text-right">In-Person Rate</TableHead>
+                <TableHead className="text-right">Online/client</TableHead>
+                <TableHead className="text-right">Hybrid/client</TableHead>
                 <TableHead className="w-[80px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -302,7 +302,8 @@ export function ProfessionalLevelManager() {
                 coaches.map(coach => {
                   const edit = getCoachEdit(coach);
                   const changed = hasCoachChanges(coach);
-                  const rateInfo = COACH_RATES[edit.coach_level];
+                  const onlinePayout = COACH_PAYOUT_PER_CLIENT["one_to_one_online"]?.[edit.coach_level] ?? 0;
+                  const hybridPayout = COACH_PAYOUT_PER_CLIENT["hybrid"]?.[edit.coach_level] ?? 0;
                   return (
                     <TableRow key={coach.user_id}>
                       <TableCell className="font-medium">
@@ -344,8 +345,8 @@ export function ProfessionalLevelManager() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-right">{rateInfo.online} KWD/hr</TableCell>
-                      <TableCell className="text-right">{rateInfo.in_person} KWD/hr</TableCell>
+                      <TableCell className="text-right">{onlinePayout} KWD</TableCell>
+                      <TableCell className="text-right">{hybridPayout} KWD</TableCell>
                       <TableCell>
                         {changed && (
                           <Button
@@ -383,7 +384,7 @@ export function ProfessionalLevelManager() {
                   <TableHead>Name</TableHead>
                   <TableHead>Role</TableHead>
                   <TableHead>Level</TableHead>
-                  <TableHead className="text-right">Online Rate</TableHead>
+                  <TableHead className="text-right">Per Client</TableHead>
                   <TableHead className="w-[80px]"></TableHead>
                 </TableRow>
               </TableHeader>
@@ -392,8 +393,8 @@ export function ProfessionalLevelManager() {
                   const currentLevel = specialistEdits[specialist.id] || specialist.level;
                   const changed = specialistEdits[specialist.id] && specialistEdits[specialist.id] !== specialist.level;
                   const rate = specialist.role === "dietitian"
-                    ? DIETITIAN_RATES[currentLevel]
-                    : COACH_RATES[currentLevel].online;
+                    ? (DIETITIAN_PAYOUT_PER_CLIENT["one_to_one_complete"]?.[currentLevel] ?? 0)
+                    : (COACH_PAYOUT_PER_CLIENT["one_to_one_online"]?.[currentLevel] ?? 0);
                   return (
                     <TableRow key={specialist.id}>
                       <TableCell className="font-medium">{specialist.name}</TableCell>
