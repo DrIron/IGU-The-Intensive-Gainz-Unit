@@ -2,10 +2,12 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Loader2, Award, TrendingUp, Users, ChevronUp } from "lucide-react";
 import { COACH_PAYOUT_PER_CLIENT, LEVEL_LABELS, type ProfessionalLevel } from "@/auth/roles";
 import { cn } from "@/lib/utils";
+import { LevelUpRequestDialog } from "./LevelUpRequestDialog";
 
 interface ClientPayout {
   clientName: string;
@@ -40,6 +42,9 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
   const [isHeadCoach, setIsHeadCoach] = useState(false);
   const [clientPayouts, setClientPayouts] = useState<ClientPayout[]>([]);
   const [totalPayout, setTotalPayout] = useState(0);
+  const [coachName, setCoachName] = useState("");
+  const [coachEmail, setCoachEmail] = useState("");
+  const [levelUpOpen, setLevelUpOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     try {
@@ -55,6 +60,21 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
         setLevel((coachProfile.coach_level as ProfessionalLevel) || "junior");
         setIsHeadCoach(coachProfile.is_head_coach || false);
       }
+
+      // Get coach name and email for level-up request
+      const { data: coachInfo } = await supabase
+        .from("coaches")
+        .select("first_name, last_name")
+        .eq("user_id", coachUserId)
+        .maybeSingle();
+      if (coachInfo) setCoachName(`${coachInfo.first_name} ${coachInfo.last_name}`.trim());
+
+      const { data: profileInfo } = await supabase
+        .from("profiles")
+        .select("email")
+        .eq("id", coachUserId)
+        .maybeSingle();
+      if (profileInfo) setCoachEmail(profileInfo.email || "");
 
       const { data: subs } = await supabase
         .from("subscriptions")
@@ -288,24 +308,43 @@ export function CoachCompensationCard({ coachUserId }: CoachCompensationCardProp
 
           {/* Level up nudge */}
           {nextLevel && (
-            <div className="mt-3 flex items-start gap-2 rounded-lg bg-muted/50 border border-border/50 px-3 py-2.5">
-              <ChevronUp className={cn("h-4 w-4 mt-0.5 shrink-0", LEVEL_COLORS[nextLevel])} />
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                As a <span className={cn("font-semibold", LEVEL_COLORS[nextLevel])}>{LEVEL_LABELS[nextLevel]}</span> coach,
-                you'd earn up to{" "}
-                <span className="font-semibold text-foreground">
-                  {COACH_PAYOUT_PER_CLIENT["in_person"]?.[nextLevel] ?? 0} KWD
-                </span>
-                {" "}per In-Person client — that's{" "}
-                <span className="font-semibold text-foreground">
-                  +{(COACH_PAYOUT_PER_CLIENT["in_person"]?.[nextLevel] ?? 0) - (COACH_PAYOUT_PER_CLIENT["in_person"]?.[level] ?? 0)} KWD
-                </span>
-                {" "}more per client.
-              </p>
+            <div className="mt-3 rounded-lg bg-muted/50 border border-border/50 px-3 py-2.5 space-y-2">
+              <div className="flex items-start gap-2">
+                <ChevronUp className={cn("h-4 w-4 mt-0.5 shrink-0", LEVEL_COLORS[nextLevel])} />
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  As a <span className={cn("font-semibold", LEVEL_COLORS[nextLevel])}>{LEVEL_LABELS[nextLevel]}</span> coach,
+                  you'd earn up to{" "}
+                  <span className="font-semibold text-foreground">
+                    {COACH_PAYOUT_PER_CLIENT["in_person"]?.[nextLevel] ?? 0} KWD
+                  </span>
+                  {" "}per In-Person client — that's{" "}
+                  <span className="font-semibold text-foreground">
+                    +{(COACH_PAYOUT_PER_CLIENT["in_person"]?.[nextLevel] ?? 0) - (COACH_PAYOUT_PER_CLIENT["in_person"]?.[level] ?? 0)} KWD
+                  </span>
+                  {" "}more per client.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs"
+                onClick={() => setLevelUpOpen(true)}
+              >
+                <ChevronUp className="h-3 w-3 mr-1" />
+                Request Level Up
+              </Button>
             </div>
           )}
         </CardContent>
       </Card>
+
+      <LevelUpRequestDialog
+        open={levelUpOpen}
+        onOpenChange={setLevelUpOpen}
+        currentLevel={level}
+        coachName={coachName}
+        coachEmail={coachEmail}
+      />
     </div>
   );
 }
