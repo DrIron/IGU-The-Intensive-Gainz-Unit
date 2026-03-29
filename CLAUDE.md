@@ -520,7 +520,7 @@ When understanding this codebase, read in this order:
 - Pre-Launch Waitlist System — waitlist_settings table, WaitlistGuard on 5 public routes, branded waitlist page, admin toggle + invite emails, Auth.tsx signup tab hidden when active (Feb 18, 2026) ✅
 - Phase 35: Planning Board Exercise Selection — exercise assignment integrated into Planning Board as final planning phase, one primary exercise + optional replacements per slot, smart conversion uses pre-selected exercises with auto-fill fallback (Mar 29, 2026) ✅
 - Planning Board as sole program creation path — removed direct "Create Program" dialog, all programs must go through Planning Board first (Mar 29, 2026) ✅
-- Phase 36: Planning Board Full Program Builder — per-set customization (individual rep range/tempo/RIR/RPE/rest per set), coach instructions per exercise, client input config (global + per-slot), per-set TUST/volume analytics (Mar 29, 2026) ✅
+- Phase 36: Planning Board Full Program Builder — per-set customization (individual rep range/tempo/RIR/RPE/rest per set), coach instructions per exercise, client input config (global + per-slot), per-set TUST/volume analytics, dynamic prescription column selector from bank (Mar 29, 2026) ✅
 
 ### Phase 35: Planning Board Exercise Selection (Mar 29, 2026)
 
@@ -579,7 +579,9 @@ Integrated exercise selection directly into the Planning Board as the final plan
 The Planning Board is now the complete program builder — coaches design muscles, pick exercises, configure per-set prescriptions, write instructions, and define client inputs all in one flow. ProgramCalendarBuilder is the post-conversion fine-tuning view.
 
 **Per-Set Customization:**
-- Toggle "Customize each set" (when sets > 1) → compact table with per-row rep range, tempo, RIR, RPE, rest
+- Toggle "Customize each set" (when sets > 1) → compact table with dynamic columns
+- "Choose columns" button reveals multiselect chips from `AVAILABLE_PRESCRIPTION_COLUMNS` (Rep Range, Reps, Weight, Tempo, RIR, RPE, %1RM, Rest, Time, Distance, Notes)
+- Selected columns stored in `MuscleSlotData.prescriptionColumns?: string[]`
 - Uses existing `SetPrescription` type from `workout-builder.ts`
 - `MuscleSlotData.setsDetail?: SetPrescription[]` — per-set overrides, stored in JSONB
 - When toggling OFF, flat values restored from first row
@@ -594,7 +596,7 @@ The Planning Board is now the complete program builder — coaches design muscle
 - `MusclePlanState.globalClientInputs: string[]` — plan-wide defaults (default: Weight, Reps, RPE)
 - `MuscleSlotData.clientInputColumns?: string[]` — per-slot override (undefined = use global)
 - "Client Inputs" button in MuscleBuilderPage header with chip toggles from `AVAILABLE_CLIENT_COLUMNS`
-- Per-slot: popover section with "Plan defaults" / "Custom" toggle + chip selection
+- Per-slot: inline section with "Plan defaults" / "Custom" toggle + chip selection (always visible, chips dimmed when using defaults)
 
 **State Management:**
 - 6 new reducer actions: `TOGGLE_PER_SET`, `UPDATE_SET_DETAIL`, `SET_SLOT_COLUMNS`, `SET_EXERCISE_INSTRUCTIONS`, `SET_GLOBAL_CLIENT_INPUTS`, `SET_SLOT_CLIENT_INPUTS`
