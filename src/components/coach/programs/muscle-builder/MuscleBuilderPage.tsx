@@ -35,7 +35,11 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId } from "@/types/muscle-builder";
 import type { MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
+import type { SetPrescription } from "@/types/workout-builder";
+import { AVAILABLE_CLIENT_COLUMNS } from "@/types/workout-builder";
 import { ExercisePickerDialog } from "../ExercisePickerDialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Settings2 } from "lucide-react";
 
 import { useMuscleBuilderState } from "./hooks/useMuscleBuilderState";
 import { useMusclePlanVolume } from "./hooks/useMusclePlanVolume";
@@ -272,6 +276,35 @@ export function MuscleBuilderPage({
     [dispatch]
   );
 
+  // ── Per-set + instructions + client inputs callbacks ───────
+  const handleTogglePerSet = useCallback(
+    (slotId: string) => dispatch({ type: 'TOGGLE_PER_SET', slotId }),
+    [dispatch]
+  );
+
+  const handleUpdateSetDetail = useCallback(
+    (slotId: string, setIndex: number, field: keyof SetPrescription, value: number | string | undefined) =>
+      dispatch({ type: 'UPDATE_SET_DETAIL', slotId, setIndex, field, value }),
+    [dispatch]
+  );
+
+  const handleSetExerciseInstructions = useCallback(
+    (slotId: string, instructions: string) =>
+      dispatch({ type: 'SET_EXERCISE_INSTRUCTIONS', slotId, instructions }),
+    [dispatch]
+  );
+
+  const handleSetSlotClientInputs = useCallback(
+    (slotId: string, columns: string[] | undefined) =>
+      dispatch({ type: 'SET_SLOT_CLIENT_INPUTS', slotId, columns }),
+    [dispatch]
+  );
+
+  const handleSetGlobalClientInputs = useCallback(
+    (columns: string[]) => dispatch({ type: 'SET_GLOBAL_CLIENT_INPUTS', columns }),
+    [dispatch]
+  );
+
   // #6 — Volume bar click → scroll to first day with muscle
   const handleMuscleClick = useCallback(
     (muscleId: string) => {
@@ -374,6 +407,46 @@ export function MuscleBuilderPage({
                 </Button>
               </>
             )}
+            {/* Global Client Inputs Config */}
+            {!isEmpty && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" size="sm">
+                    <Settings2 className="h-4 w-4 mr-1" />
+                    Client Inputs
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-56 p-3" align="end">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium">What clients fill in</p>
+                    <p className="text-[10px] text-muted-foreground">Applies to all slots by default</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {AVAILABLE_CLIENT_COLUMNS.map(col => {
+                        const active = state.globalClientInputs.includes(col.type);
+                        return (
+                          <button
+                            key={col.type}
+                            className={`text-[10px] px-2 py-1 rounded-full border transition-colors ${
+                              active
+                                ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                                : "border-border/50 text-muted-foreground hover:border-border"
+                            }`}
+                            onClick={() => {
+                              const next = active
+                                ? state.globalClientInputs.filter(t => t !== col.type)
+                                : [...state.globalClientInputs, col.type];
+                              handleSetGlobalClientInputs(next);
+                            }}
+                          >
+                            {col.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
             <Button variant="outline" size="sm" onClick={save} disabled={state.isSaving || !state.isDirty}>
               {state.isSaving ? (
                 <Loader2 className="h-4 w-4 mr-1 animate-spin" />
@@ -442,6 +515,11 @@ export function MuscleBuilderPage({
               onClearExercise={handleClearExercise}
               onRemoveReplacement={handleRemoveReplacement}
               onOpenExercisePicker={handleOpenExercisePicker}
+              onTogglePerSet={handleTogglePerSet}
+              onUpdateSetDetail={handleUpdateSetDetail}
+              onSetExerciseInstructions={handleSetExerciseInstructions}
+              onSetSlotClientInputs={handleSetSlotClientInputs}
+              globalClientInputs={state.globalClientInputs}
               copiedDayIndex={copiedDayIndex}
               onCopyDay={handleCopyDay}
               onPasteDay={handlePasteDay}

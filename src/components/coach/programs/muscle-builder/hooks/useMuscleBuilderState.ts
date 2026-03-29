@@ -4,13 +4,17 @@ import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { withTimeout } from "@/lib/withTimeout";
 import type { MusclePlanState, MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
+import type { SetPrescription } from "@/types/workout-builder";
+
+const DEFAULT_GLOBAL_CLIENT_INPUTS = ['performed_weight', 'performed_reps', 'performed_rpe'];
+const DEFAULT_GLOBAL_PRESCRIPTION_COLUMNS = ['rep_range', 'tempo', 'rir', 'rpe', 'rest'];
 
 // ============================================================
 // Actions
 // ============================================================
 
 type Action =
-  | { type: 'LOAD_TEMPLATE'; payload: { name: string; description: string; slots: MuscleSlotData[]; templateId: string } }
+  | { type: 'LOAD_TEMPLATE'; payload: { name: string; description: string; slots: MuscleSlotData[]; templateId: string; globalClientInputs?: string[]; globalPrescriptionColumns?: string[] } }
   | { type: 'SET_NAME'; name: string }
   | { type: 'SET_DESCRIPTION'; description: string }
   | { type: 'SELECT_DAY'; dayIndex: number }
@@ -32,6 +36,12 @@ type Action =
   | { type: 'CLEAR_EXERCISE'; slotId: string }
   | { type: 'ADD_REPLACEMENT'; slotId: string; exercise: SlotExercise }
   | { type: 'REMOVE_REPLACEMENT'; slotId: string; replacementIndex: number }
+  | { type: 'TOGGLE_PER_SET'; slotId: string }
+  | { type: 'UPDATE_SET_DETAIL'; slotId: string; setIndex: number; field: keyof SetPrescription; value: number | string | undefined }
+  | { type: 'SET_SLOT_COLUMNS'; slotId: string; columns: string[] }
+  | { type: 'SET_EXERCISE_INSTRUCTIONS'; slotId: string; instructions: string }
+  | { type: 'SET_GLOBAL_CLIENT_INPUTS'; columns: string[] }
+  | { type: 'SET_SLOT_CLIENT_INPUTS'; slotId: string; columns: string[] | undefined }
   | { type: 'UNDO' }
   | { type: 'REDO' };
 
@@ -47,12 +57,40 @@ const initialState: MusclePlanState = {
   selectedDayIndex: 1,
   isDirty: false,
   isSaving: false,
+  globalClientInputs: DEFAULT_GLOBAL_CLIENT_INPUTS,
+  globalPrescriptionColumns: DEFAULT_GLOBAL_PRESCRIPTION_COLUMNS,
 };
 
 function getMaxSortOrder(slots: MuscleSlotData[], dayIndex: number): number {
   const daySlots = slots.filter(s => s.dayIndex === dayIndex);
   if (daySlots.length === 0) return -1;
   return Math.max(...daySlots.map(s => s.sortOrder));
+}
+
+/** Create per-set detail array from flat slot values */
+function createSetsDetailFromFlat(slot: MuscleSlotData): SetPrescription[] {
+  return Array.from({ length: slot.sets }, (_, i) => ({
+    set_number: i + 1,
+    rep_range_min: slot.repMin ?? 8,
+    rep_range_max: slot.repMax ?? 12,
+    ...(slot.tempo ? { tempo: slot.tempo } : {}),
+    ...(slot.rir != null ? { rir: slot.rir } : {}),
+    ...(slot.rpe != null ? { rpe: slot.rpe } : {}),
+    rest_seconds: 90,
+  }));
+}
+
+/** Sync setsDetail length with sets count (grow/shrink) */
+function syncSetsDetailLength(setsDetail: SetPrescription[], newCount: number): SetPrescription[] {
+  if (setsDetail.length === newCount) return setsDetail;
+  if (newCount < setsDetail.length) return setsDetail.slice(0, newCount);
+  // Grow: clone last row for new entries
+  const lastRow = setsDetail[setsDetail.length - 1] || { set_number: 0, rest_seconds: 90 };
+  const newRows: SetPrescription[] = [];
+  for (let i = setsDetail.length; i < newCount; i++) {
+    newRows.push({ ...lastRow, set_number: i + 1 });
+  }
+  return [...setsDetail, ...newRows];
 }
 
 /** Ensure every slot has a unique id and rep range (backward compat for saved data) */
@@ -74,6 +112,8 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         name: action.payload.name,
         description: action.payload.description,
         slots: hydrateSlotIds(action.payload.slots),
+        globalClientInputs: action.payload.globalClientInputs || DEFAULT_GLOBAL_CLIENT_INPUTS,
+        globalPrescriptionColumns: action.payload.globalPrescriptionColumns || DEFAULT_GLOBAL_PRESCRIPTION_COLUMNS,
         isDirty: false,
         isSaving: false,
       };
@@ -132,19 +172,23 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
     case 'SET_SLOT_DETAILS':
       return {
         ...state,
-        slots: state.slots.map(s =>
-          s.id === action.slotId
-            ? {
-                ...s,
-                ...(action.sets != null && { sets: Math.max(1, Math.min(20, action.sets)) }),
-                ...(action.repMin != null && { repMin: Math.max(1, Math.min(100, action.repMin)) }),
-                ...(action.repMax != null && { repMax: Math.max(1, Math.min(100, action.repMax)) }),
-                ...(action.tempo !== undefined && { tempo: action.tempo || undefined }),
-                ...(action.rir !== undefined && { rir: action.rir }),
-                ...(action.rpe !== undefined && { rpe: action.rpe }),
-              }
-            : s
-        ),
+        slots: state.slots.map(s => {
+          if (s.id !== action.slotId) return s;
+          const updated = {
+            ...s,
+            ...(action.sets != null && { sets: Math.max(1, Math.min(20, action.sets)) }),
+            ...(action.repMin != null && { repMin: Math.max(1, Math.min(100, action.repMin)) }),
+            ...(action.repMax != null && { repMax: Math.max(1, Math.min(100, action.repMax)) }),
+            ...(action.tempo !== undefined && { tempo: action.tempo || undefined }),
+            ...(action.rir !== undefined && { rir: action.rir }),
+            ...(action.rpe !== undefined && { rpe: action.rpe }),
+          };
+          // Sync setsDetail length when sets count changes
+          if (action.sets != null && updated.setsDetail) {
+            updated.setsDetail = syncSetsDetailLength(updated.setsDetail, updated.sets);
+          }
+          return updated;
+        }),
         isDirty: true,
       };
 
@@ -262,6 +306,74 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         isDirty: true,
       };
 
+    case 'TOGGLE_PER_SET':
+      return {
+        ...state,
+        slots: state.slots.map(s => {
+          if (s.id !== action.slotId) return s;
+          if (s.setsDetail) {
+            // Turn OFF: clear setsDetail, keep flat values from first row
+            const first = s.setsDetail[0];
+            return {
+              ...s,
+              setsDetail: undefined,
+              ...(first?.rep_range_min != null && { repMin: first.rep_range_min }),
+              ...(first?.rep_range_max != null && { repMax: first.rep_range_max }),
+              ...(first?.tempo !== undefined && { tempo: first.tempo }),
+              ...(first?.rir !== undefined && { rir: first.rir }),
+              ...(first?.rpe !== undefined && { rpe: first.rpe }),
+            };
+          }
+          // Turn ON: initialize from flat values
+          return { ...s, setsDetail: createSetsDetailFromFlat(s) };
+        }),
+        isDirty: true,
+      };
+
+    case 'UPDATE_SET_DETAIL':
+      return {
+        ...state,
+        slots: state.slots.map(s => {
+          if (s.id !== action.slotId || !s.setsDetail) return s;
+          const updated = s.setsDetail.map((set, i) =>
+            i === action.setIndex ? { ...set, [action.field]: action.value } : set
+          );
+          return { ...s, setsDetail: updated };
+        }),
+        isDirty: true,
+      };
+
+    case 'SET_SLOT_COLUMNS':
+      return {
+        ...state,
+        slots: state.slots.map(s =>
+          s.id === action.slotId ? { ...s, prescriptionColumns: action.columns } : s
+        ),
+        isDirty: true,
+      };
+
+    case 'SET_EXERCISE_INSTRUCTIONS':
+      return {
+        ...state,
+        slots: state.slots.map(s => {
+          if (s.id !== action.slotId || !s.exercise) return s;
+          return { ...s, exercise: { ...s.exercise, instructions: action.instructions || undefined } };
+        }),
+        isDirty: true,
+      };
+
+    case 'SET_GLOBAL_CLIENT_INPUTS':
+      return { ...state, globalClientInputs: action.columns, isDirty: true };
+
+    case 'SET_SLOT_CLIENT_INPUTS':
+      return {
+        ...state,
+        slots: state.slots.map(s =>
+          s.id === action.slotId ? { ...s, clientInputColumns: action.columns } : s
+        ),
+        isDirty: true,
+      };
+
     case 'MARK_SAVED':
       // Preserve isDirty if an undo happened during the save flight (isDirty was restored to true).
       // Without this, the undo's changes would silently not auto-save.
@@ -363,13 +475,29 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
         return;
       }
 
+      // slot_config can be: array (old format) or object { slots, globalClientInputs, globalPrescriptionColumns }
+      const raw = data.slot_config as unknown;
+      let slots: MuscleSlotData[] = [];
+      let globalClientInputs: string[] | undefined;
+      let globalPrescriptionColumns: string[] | undefined;
+      if (Array.isArray(raw)) {
+        slots = raw as MuscleSlotData[];
+      } else if (raw && typeof raw === 'object' && 'slots' in raw) {
+        const obj = raw as { slots: MuscleSlotData[]; globalClientInputs?: string[]; globalPrescriptionColumns?: string[] };
+        slots = obj.slots || [];
+        globalClientInputs = obj.globalClientInputs;
+        globalPrescriptionColumns = obj.globalPrescriptionColumns;
+      }
+
       dispatch({
         type: 'LOAD_TEMPLATE',
         payload: {
           templateId: data.id,
           name: data.name,
           description: data.description || '',
-          slots: (data.slot_config as MuscleSlotData[]) || [],
+          slots,
+          globalClientInputs,
+          globalPrescriptionColumns,
         },
       });
     })();
@@ -395,7 +523,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
             .update({
               name: s.name,
               description: s.description || null,
-              slot_config: s.slots as unknown as Record<string, unknown>,
+              slot_config: { slots: s.slots, globalClientInputs: s.globalClientInputs, globalPrescriptionColumns: s.globalPrescriptionColumns } as unknown as Record<string, unknown>,
               updated_at: new Date().toISOString(),
             })
             .eq('id', s.templateId),
@@ -425,7 +553,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
             .update({
               name: state.name,
               description: state.description || null,
-              slot_config: state.slots as unknown as Record<string, unknown>,
+              slot_config: { slots: state.slots, globalClientInputs: state.globalClientInputs, globalPrescriptionColumns: state.globalPrescriptionColumns } as unknown as Record<string, unknown>,
               updated_at: new Date().toISOString(),
             })
             .eq('id', state.templateId),
@@ -443,7 +571,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
               coach_id: coachUserId,
               name: state.name,
               description: state.description || null,
-              slot_config: state.slots as unknown as Record<string, unknown>,
+              slot_config: { slots: state.slots, globalClientInputs: state.globalClientInputs, globalPrescriptionColumns: state.globalPrescriptionColumns } as unknown as Record<string, unknown>,
             })
             .select('id')
             .single(),
@@ -473,7 +601,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
             coach_id: coachUserId,
             name: state.name,
             description: state.description || null,
-            slot_config: state.slots as unknown as Record<string, unknown>,
+            slot_config: { slots: state.slots, globalClientInputs: state.globalClientInputs, globalPrescriptionColumns: state.globalPrescriptionColumns } as unknown as Record<string, unknown>,
             is_preset: true,
           })
           .select('id')

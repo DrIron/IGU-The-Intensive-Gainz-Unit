@@ -3,8 +3,11 @@ import { Draggable } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { X, AlertTriangle, Dumbbell, Plus, RefreshCw, ChevronUp, ChevronDown } from "lucide-react";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { X, AlertTriangle, Dumbbell, Plus, RefreshCw, Settings2, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getMuscleDisplay,
@@ -12,6 +15,8 @@ import {
   SUBDIVISION_MAP,
   type SlotExercise,
 } from "@/types/muscle-builder";
+import type { SetPrescription } from "@/types/workout-builder";
+import { AVAILABLE_PRESCRIPTION_COLUMNS, AVAILABLE_CLIENT_COLUMNS } from "@/types/workout-builder";
 
 interface MuscleSlotCardProps {
   slotId: string;
@@ -24,6 +29,10 @@ interface MuscleSlotCardProps {
   rpe?: number;
   exercise?: SlotExercise;
   replacements?: SlotExercise[];
+  setsDetail?: SetPrescription[];
+  prescriptionColumns?: string[];
+  clientInputColumns?: string[];
+  globalClientInputs?: string[];
   draggableIndex: number;
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
@@ -32,6 +41,10 @@ interface MuscleSlotCardProps {
   onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
   onRemoveReplacement?: (slotId: string, replacementIndex: number) => void;
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
+  onTogglePerSet?: (slotId: string) => void;
+  onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof SetPrescription, value: number | string | undefined) => void;
+  onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
+  onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
   isHighlighted?: boolean;
   onSetAllSets?: (muscleId: string, sets: number) => void;
   alwaysShowControls?: boolean;
@@ -60,6 +73,10 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   rpe,
   exercise,
   replacements,
+  setsDetail,
+  prescriptionColumns,
+  clientInputColumns,
+  globalClientInputs,
   draggableIndex,
   onSetSlotDetails,
   onRemove,
@@ -68,6 +85,10 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   onAddReplacement,
   onRemoveReplacement,
   onOpenExercisePicker,
+  onTogglePerSet,
+  onUpdateSetDetail,
+  onSetExerciseInstructions,
+  onSetSlotClientInputs,
   isHighlighted,
   onSetAllSets,
   alwaysShowControls,
@@ -94,6 +115,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   const hasTempo = !!tempo && tempo.length === 4;
   const needsIntensity = hasTempo && rir == null && rpe == null;
   const hasExercise = !!exercise;
+  const hasPerSet = !!setsDetail && setsDetail.length > 0;
 
   return (
     <Draggable draggableId={`slot-${slotId}`} index={draggableIndex}>
@@ -142,43 +164,57 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                 {hasExercise && (
                   <Dumbbell className="h-3 w-3 text-emerald-500 shrink-0" />
                 )}
+                {hasPerSet && (
+                  <Settings2 className="h-3 w-3 text-blue-400 shrink-0" />
+                )}
                 {replacements && replacements.length > 0 && (
                   <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
                     +{replacements.length}
                   </span>
                 )}
-                {needsIntensity && (
+                {needsIntensity && !hasPerSet && (
                   <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
                 )}
               </button>
             </PopoverTrigger>
             <PopoverContent
-              className="w-72 p-3"
+              className="w-80 p-0"
               onClick={e => e.stopPropagation()}
               align="start"
               side="right"
               sideOffset={8}
             >
-              <SlotEditorPopover
-                slotId={slotId}
-                muscleId={muscleId}
-                label={label}
-                sets={sets}
-                repMin={repMin}
-                repMax={repMax}
-                tempo={tempo}
-                rir={rir}
-                rpe={rpe}
-                exercise={exercise}
-                replacements={replacements}
-                onSetSlotDetails={onSetSlotDetails}
-                onSetAllSets={onSetAllSets ? handleBulkApply : undefined}
-                onClearExercise={onClearExercise ? () => onClearExercise(slotId) : undefined}
-                onRemoveReplacement={onRemoveReplacement ? (i) => onRemoveReplacement(slotId, i) : undefined}
-                onOpenPicker={onOpenExercisePicker ? handleOpenPicker : undefined}
-                muscleLabel={muscle.label}
-                muscleColorHex={muscle.colorHex}
-              />
+              <ScrollArea className="max-h-[70vh]">
+                <div className="p-3">
+                  <SlotEditorPopover
+                    slotId={slotId}
+                    muscleId={muscleId}
+                    label={label}
+                    sets={sets}
+                    repMin={repMin}
+                    repMax={repMax}
+                    tempo={tempo}
+                    rir={rir}
+                    rpe={rpe}
+                    exercise={exercise}
+                    replacements={replacements}
+                    setsDetail={setsDetail}
+                    clientInputColumns={clientInputColumns}
+                    globalClientInputs={globalClientInputs}
+                    onSetSlotDetails={onSetSlotDetails}
+                    onSetAllSets={onSetAllSets ? handleBulkApply : undefined}
+                    onClearExercise={onClearExercise ? () => onClearExercise(slotId) : undefined}
+                    onRemoveReplacement={onRemoveReplacement ? (i) => onRemoveReplacement(slotId, i) : undefined}
+                    onOpenPicker={onOpenExercisePicker ? handleOpenPicker : undefined}
+                    onTogglePerSet={onTogglePerSet ? () => onTogglePerSet(slotId) : undefined}
+                    onUpdateSetDetail={onUpdateSetDetail ? (si, f, v) => onUpdateSetDetail(slotId, si, f, v) : undefined}
+                    onSetExerciseInstructions={onSetExerciseInstructions ? (v) => onSetExerciseInstructions(slotId, v) : undefined}
+                    onSetSlotClientInputs={onSetSlotClientInputs ? (v) => onSetSlotClientInputs(slotId, v) : undefined}
+                    muscleLabel={muscle.label}
+                    muscleColorHex={muscle.colorHex}
+                  />
+                </div>
+              </ScrollArea>
             </PopoverContent>
           </Popover>
 
@@ -214,11 +250,18 @@ interface SlotEditorPopoverProps {
   rpe?: number;
   exercise?: SlotExercise;
   replacements?: SlotExercise[];
+  setsDetail?: SetPrescription[];
+  clientInputColumns?: string[];
+  globalClientInputs?: string[];
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onSetAllSets?: () => void;
   onClearExercise?: () => void;
   onRemoveReplacement?: (index: number) => void;
   onOpenPicker?: (mode: 'primary' | 'replacement') => void;
+  onTogglePerSet?: () => void;
+  onUpdateSetDetail?: (setIndex: number, field: keyof SetPrescription, value: number | string | undefined) => void;
+  onSetExerciseInstructions?: (instructions: string) => void;
+  onSetSlotClientInputs?: (columns: string[] | undefined) => void;
   muscleLabel: string;
   muscleColorHex: string;
 }
@@ -235,16 +278,25 @@ function SlotEditorPopover({
   rpe,
   exercise,
   replacements,
+  setsDetail,
+  clientInputColumns,
+  globalClientInputs,
   onSetSlotDetails,
   onSetAllSets,
   onClearExercise,
   onRemoveReplacement,
   onOpenPicker,
+  onTogglePerSet,
+  onUpdateSetDetail,
+  onSetExerciseInstructions,
+  onSetSlotClientInputs,
   muscleLabel,
   muscleColorHex,
 }: SlotEditorPopoverProps) {
   const hasTempo = !!tempo && tempo.length === 4;
   const needsIntensity = hasTempo && rir == null && rpe == null;
+  const hasPerSet = !!setsDetail && setsDetail.length > 0;
+  const [showClientInputs, setShowClientInputs] = useState(false);
 
   const update = useCallback(
     (details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => {
@@ -252,6 +304,9 @@ function SlotEditorPopover({
     },
     [slotId, onSetSlotDetails],
   );
+
+  const effectiveClientInputs = clientInputColumns || globalClientInputs || ['performed_weight', 'performed_reps', 'performed_rpe'];
+  const isCustomClientInputs = !!clientInputColumns;
 
   return (
     <div className="space-y-3">
@@ -278,103 +333,169 @@ function SlotEditorPopover({
         />
       </div>
 
-      {/* Rep Range */}
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Rep Range</Label>
-        <div className="flex items-center gap-2">
-          <Input
-            type="number"
-            min={1}
-            max={100}
-            value={repMin}
-            onChange={e => {
-              const v = parseInt(e.target.value);
-              if (!isNaN(v)) update({ repMin: v });
-            }}
-            className="h-8 text-sm flex-1"
-            onClick={e => e.stopPropagation()}
-          />
-          <span className="text-xs text-muted-foreground">&mdash;</span>
-          <Input
-            type="number"
-            min={1}
-            max={100}
-            value={repMax}
-            onChange={e => {
-              const v = parseInt(e.target.value);
-              if (!isNaN(v)) update({ repMax: v });
-            }}
-            className="h-8 text-sm flex-1"
-            onClick={e => e.stopPropagation()}
-          />
+      {/* Per-set toggle */}
+      {sets > 1 && onTogglePerSet && (
+        <div className="flex items-center justify-between">
+          <Label className="text-xs text-muted-foreground cursor-pointer" onClick={onTogglePerSet}>
+            Customize each set
+          </Label>
+          <Switch checked={hasPerSet} onCheckedChange={onTogglePerSet} />
         </div>
-      </div>
+      )}
 
-      {/* Tempo */}
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">Tempo</Label>
-        <Input
-          type="text"
-          maxLength={4}
-          pattern="[0-9]{4}"
-          inputMode="numeric"
-          placeholder="3120"
-          value={tempo ?? ''}
-          onChange={e => {
-            const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
-            update({ tempo: v || undefined });
-          }}
-          className="h-8 text-sm font-mono"
-          onClick={e => e.stopPropagation()}
-        />
-        <p className="text-[10px] text-muted-foreground">ecc-pause-con-pause in seconds</p>
-      </div>
-
-      {/* RIR */}
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">RIR (Reps in Reserve)</Label>
-        <Input
-          type="number"
-          min={0}
-          max={10}
-          placeholder="2"
-          value={rir ?? ''}
-          onChange={e => {
-            const v = e.target.value === '' ? undefined : parseInt(e.target.value);
-            update({ rir: v != null && !isNaN(v) ? Math.max(0, Math.min(10, v)) : undefined });
-          }}
-          className="h-8 text-sm"
-          onClick={e => e.stopPropagation()}
-        />
-      </div>
-
-      {/* RPE */}
-      <div className="space-y-1">
-        <Label className="text-xs text-muted-foreground">RPE (Rate of Perceived Exertion)</Label>
-        <Input
-          type="number"
-          min={1}
-          max={10}
-          step={0.5}
-          placeholder="8"
-          value={rpe ?? ''}
-          onChange={e => {
-            const v = e.target.value === '' ? undefined : parseFloat(e.target.value);
-            update({ rpe: v != null && !isNaN(v) ? Math.max(1, Math.min(10, v)) : undefined });
-          }}
-          className="h-8 text-sm"
-          onClick={e => e.stopPropagation()}
-        />
-      </div>
-
-      {/* Validation hint */}
-      {needsIntensity && (
-        <div className="flex items-start gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
-          <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
-          <p className="text-[11px] text-amber-600 dark:text-amber-400">
-            Add RIR or RPE for TUST tracking
-          </p>
+      {/* ── Per-set table ──────────────────────────────────────── */}
+      {hasPerSet && onUpdateSetDetail ? (
+        <div className="space-y-1.5">
+          <div className="overflow-x-auto rounded-md border border-border/30">
+            <table className="w-full text-[11px]">
+              <thead>
+                <tr className="bg-muted/30">
+                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-8">#</th>
+                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground">Reps</th>
+                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-14">Tempo</th>
+                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-10">RIR</th>
+                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-10">RPE</th>
+                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-12">Rest</th>
+                </tr>
+              </thead>
+              <tbody>
+                {setsDetail!.map((set, i) => (
+                  <tr key={i} className="border-t border-border/20">
+                    <td className="px-1.5 py-1 text-muted-foreground font-mono">{i + 1}</td>
+                    <td className="px-0.5 py-0.5">
+                      <div className="flex items-center gap-0.5">
+                        <Input
+                          type="number" min={1} max={100} value={set.rep_range_min ?? ''}
+                          onChange={e => {
+                            const v = e.target.value === '' ? undefined : parseInt(e.target.value);
+                            onUpdateSetDetail(i, 'rep_range_min', v != null && !isNaN(v) ? v : undefined);
+                          }}
+                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()}
+                        />
+                        <span className="text-muted-foreground">-</span>
+                        <Input
+                          type="number" min={1} max={100} value={set.rep_range_max ?? ''}
+                          onChange={e => {
+                            const v = e.target.value === '' ? undefined : parseInt(e.target.value);
+                            onUpdateSetDetail(i, 'rep_range_max', v != null && !isNaN(v) ? v : undefined);
+                          }}
+                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()}
+                        />
+                      </div>
+                    </td>
+                    <td className="px-0.5 py-0.5">
+                      <Input
+                        type="text" maxLength={4} inputMode="numeric" value={set.tempo ?? ''} placeholder="3120"
+                        onChange={e => {
+                          const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
+                          onUpdateSetDetail(i, 'tempo', v || undefined);
+                        }}
+                        className="h-6 text-[11px] font-mono w-12 px-1" onClick={e => e.stopPropagation()}
+                      />
+                    </td>
+                    <td className="px-0.5 py-0.5">
+                      <Input
+                        type="number" min={0} max={10} value={set.rir ?? ''} placeholder="2"
+                        onChange={e => {
+                          const v = e.target.value === '' ? undefined : parseInt(e.target.value);
+                          onUpdateSetDetail(i, 'rir', v != null && !isNaN(v) ? Math.max(0, Math.min(10, v)) : undefined);
+                        }}
+                        className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()}
+                      />
+                    </td>
+                    <td className="px-0.5 py-0.5">
+                      <Input
+                        type="number" min={1} max={10} step={0.5} value={set.rpe ?? ''} placeholder="8"
+                        onChange={e => {
+                          const v = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                          onUpdateSetDetail(i, 'rpe', v != null && !isNaN(v) ? Math.max(1, Math.min(10, v)) : undefined);
+                        }}
+                        className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()}
+                      />
+                    </td>
+                    <td className="px-0.5 py-0.5">
+                      <Input
+                        type="number" min={0} max={600} value={set.rest_seconds ?? ''} placeholder="90"
+                        onChange={e => {
+                          const v = e.target.value === '' ? undefined : parseInt(e.target.value);
+                          onUpdateSetDetail(i, 'rest_seconds', v != null && !isNaN(v) ? v : undefined);
+                        }}
+                        className="h-6 text-[11px] w-11 px-1" onClick={e => e.stopPropagation()}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="text-[10px] text-muted-foreground">Each set can have different prescriptions</p>
         </div>
+      ) : (
+        /* ── Shared mode (flat values) ─────────────────────────── */
+        <>
+          {/* Rep Range */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Rep Range</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="number" min={1} max={100} value={repMin}
+                onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ repMin: v }); }}
+                className="h-8 text-sm flex-1" onClick={e => e.stopPropagation()}
+              />
+              <span className="text-xs text-muted-foreground">&mdash;</span>
+              <Input
+                type="number" min={1} max={100} value={repMax}
+                onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ repMax: v }); }}
+                className="h-8 text-sm flex-1" onClick={e => e.stopPropagation()}
+              />
+            </div>
+          </div>
+
+          {/* Tempo */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">Tempo</Label>
+            <Input
+              type="text" maxLength={4} pattern="[0-9]{4}" inputMode="numeric" placeholder="3120"
+              value={tempo ?? ''}
+              onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4); update({ tempo: v || undefined }); }}
+              className="h-8 text-sm font-mono" onClick={e => e.stopPropagation()}
+            />
+          </div>
+
+          {/* RIR */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">RIR</Label>
+            <Input
+              type="number" min={0} max={10} placeholder="2" value={rir ?? ''}
+              onChange={e => {
+                const v = e.target.value === '' ? undefined : parseInt(e.target.value);
+                update({ rir: v != null && !isNaN(v) ? Math.max(0, Math.min(10, v)) : undefined });
+              }}
+              className="h-8 text-sm" onClick={e => e.stopPropagation()}
+            />
+          </div>
+
+          {/* RPE */}
+          <div className="space-y-1">
+            <Label className="text-xs text-muted-foreground">RPE</Label>
+            <Input
+              type="number" min={1} max={10} step={0.5} placeholder="8" value={rpe ?? ''}
+              onChange={e => {
+                const v = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                update({ rpe: v != null && !isNaN(v) ? Math.max(1, Math.min(10, v)) : undefined });
+              }}
+              className="h-8 text-sm" onClick={e => e.stopPropagation()}
+            />
+          </div>
+
+          {/* Validation hint */}
+          {needsIntensity && (
+            <div className="flex items-start gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
+              <p className="text-[11px] text-amber-600 dark:text-amber-400">Add RIR or RPE for TUST tracking</p>
+            </div>
+          )}
+        </>
       )}
 
       {/* ── Exercise Section ─────────────────────────────────── */}
@@ -386,87 +507,139 @@ function SlotEditorPopover({
           </Label>
 
           {exercise ? (
-            <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-2">
-              <Dumbbell className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-              <span className="text-sm font-medium truncate flex-1">{exercise.name}</span>
-              <div className="flex items-center gap-0.5 shrink-0">
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5"
-                  onClick={() => onOpenPicker('primary')}
-                  title="Change exercise"
-                >
-                  <RefreshCw className="h-3 w-3" />
-                </Button>
-                {onClearExercise && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 text-muted-foreground hover:text-destructive"
-                    onClick={onClearExercise}
-                    title="Remove exercise"
-                  >
-                    <X className="h-3 w-3" />
+            <>
+              <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-2">
+                <Dumbbell className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                <span className="text-sm font-medium truncate flex-1">{exercise.name}</span>
+                <div className="flex items-center gap-0.5 shrink-0">
+                  <Button variant="ghost" size="icon" className="h-5 w-5"
+                    onClick={() => onOpenPicker('primary')} title="Change exercise">
+                    <RefreshCw className="h-3 w-3" />
                   </Button>
-                )}
+                  {onClearExercise && (
+                    <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                      onClick={onClearExercise} title="Remove exercise">
+                      <X className="h-3 w-3" />
+                    </Button>
+                  )}
+                </div>
               </div>
-            </div>
+
+              {/* Coach Instructions */}
+              {onSetExerciseInstructions && (
+                <div className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <FileText className="h-2.5 w-2.5" />
+                    Coach Instructions
+                  </Label>
+                  <Textarea
+                    placeholder="Focus on controlled eccentric, full ROM..."
+                    value={exercise.instructions || ''}
+                    onChange={e => onSetExerciseInstructions(e.target.value)}
+                    className="text-xs min-h-[48px] resize-none"
+                    rows={2}
+                    onClick={e => e.stopPropagation()}
+                  />
+                </div>
+              )}
+
+              {/* Replacements */}
+              <div className="space-y-1.5">
+                <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                  <RefreshCw className="h-2.5 w-2.5" />
+                  Replacements (optional)
+                </Label>
+
+                {replacements && replacements.length > 0 && (
+                  <div className="space-y-1">
+                    {replacements.map((rep, i) => (
+                      <div key={`${rep.exerciseId}-${i}`} className="flex items-center gap-2 rounded border border-border/50 bg-muted/20 px-2 py-1.5">
+                        <span className="text-xs truncate flex-1">{rep.name}</span>
+                        {onRemoveReplacement && (
+                          <Button variant="ghost" size="icon" className="h-4 w-4 text-muted-foreground hover:text-destructive shrink-0"
+                            onClick={() => onRemoveReplacement(i)}>
+                            <X className="h-2.5 w-2.5" />
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <Button variant="ghost" size="sm" className="w-full text-[11px] h-7"
+                  onClick={() => onOpenPicker('replacement')}>
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Replacement
+                </Button>
+              </div>
+            </>
           ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full text-xs border-dashed"
-              onClick={() => onOpenPicker('primary')}
-            >
+            <Button variant="outline" size="sm" className="w-full text-xs border-dashed"
+              onClick={() => onOpenPicker('primary')}>
               <Plus className="h-3 w-3 mr-1.5" />
               Choose Exercise
             </Button>
           )}
+        </div>
+      )}
 
-          {/* ── Replacements Section ──────────────────────────── */}
-          {exercise && (
-            <div className="space-y-1.5">
-              <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                <RefreshCw className="h-2.5 w-2.5" />
-                Replacements (optional)
-              </Label>
-              <p className="text-[10px] text-muted-foreground/70">
-                Alternatives the client can swap to
-              </p>
+      {/* ── Client Inputs Section ────────────────────────────── */}
+      {onSetSlotClientInputs && (
+        <div className="space-y-2 pt-2 border-t border-border/30">
+          <button
+            className="flex items-center justify-between w-full text-left"
+            onClick={() => setShowClientInputs(!showClientInputs)}
+          >
+            <Label className="text-xs text-muted-foreground flex items-center gap-1.5 cursor-pointer">
+              <Settings2 className="h-3 w-3" />
+              Client Inputs
+            </Label>
+            <span className="text-[10px] text-muted-foreground">
+              {isCustomClientInputs ? 'Custom' : 'Plan defaults'}
+            </span>
+          </button>
 
-              {replacements && replacements.length > 0 && (
-                <div className="space-y-1">
-                  {replacements.map((rep, i) => (
-                    <div
-                      key={`${rep.exerciseId}-${i}`}
-                      className="flex items-center gap-2 rounded border border-border/50 bg-muted/20 px-2 py-1.5"
-                    >
-                      <span className="text-xs truncate flex-1">{rep.name}</span>
-                      {onRemoveReplacement && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-4 w-4 text-muted-foreground hover:text-destructive shrink-0"
-                          onClick={() => onRemoveReplacement(i)}
-                        >
-                          <X className="h-2.5 w-2.5" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
+          {showClientInputs && (
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <button
+                  className={cn("text-[11px] px-2 py-1 rounded-md border", !isCustomClientInputs ? "border-primary bg-primary/10 text-primary" : "border-border/50 text-muted-foreground")}
+                  onClick={() => onSetSlotClientInputs(undefined)}
+                >
+                  Plan defaults
+                </button>
+                <button
+                  className={cn("text-[11px] px-2 py-1 rounded-md border", isCustomClientInputs ? "border-primary bg-primary/10 text-primary" : "border-border/50 text-muted-foreground")}
+                  onClick={() => onSetSlotClientInputs(effectiveClientInputs)}
+                >
+                  Custom
+                </button>
+              </div>
+
+              {isCustomClientInputs && (
+                <div className="flex flex-wrap gap-1.5">
+                  {AVAILABLE_CLIENT_COLUMNS.map(col => {
+                    const active = effectiveClientInputs.includes(col.type);
+                    return (
+                      <button
+                        key={col.type}
+                        className={cn(
+                          "text-[10px] px-2 py-1 rounded-full border transition-colors",
+                          active ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-border/50 text-muted-foreground hover:border-border"
+                        )}
+                        onClick={() => {
+                          const next = active
+                            ? effectiveClientInputs.filter(t => t !== col.type)
+                            : [...effectiveClientInputs, col.type];
+                          onSetSlotClientInputs(next);
+                        }}
+                      >
+                        {col.label}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
-
-              <Button
-                variant="ghost"
-                size="sm"
-                className="w-full text-[11px] h-7"
-                onClick={() => onOpenPicker('replacement')}
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                Add Replacement
-              </Button>
             </div>
           )}
         </div>
@@ -480,12 +653,7 @@ function SlotEditorPopover({
 
       {/* Bulk apply */}
       {onSetAllSets && (
-        <Button
-          variant="outline"
-          size="sm"
-          className="w-full text-xs"
-          onClick={onSetAllSets}
-        >
+        <Button variant="outline" size="sm" className="w-full text-xs" onClick={onSetAllSets}>
           Apply {sets} sets to all {muscleLabel}
         </Button>
       )}

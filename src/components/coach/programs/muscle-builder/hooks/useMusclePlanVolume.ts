@@ -58,19 +58,39 @@ export function useMusclePlanVolume(slots: MuscleSlotData[]) {
         map.set(parentId, entry);
       }
       entry.totalSets += slot.sets;
-      const repMin = slot.repMin ?? 8;
-      const repMax = slot.repMax ?? 12;
-      entry.totalRepsMin += slot.sets * repMin;
-      entry.totalRepsMax += slot.sets * repMax;
       entry.days.set(slot.dayIndex, (entry.days.get(slot.dayIndex) || 0) + slot.sets);
 
-      // TUST: only for working sets with tempo
-      const tempo = parseTempo(slot.tempo);
-      if (tempo) entry.hasTempo = true;
-      if (tempo && isWorkingSet(slot)) {
-        entry.tustSecondsMin += slot.sets * repMin * tempo.total;
-        entry.tustSecondsMax += slot.sets * repMax * tempo.total;
-        entry.workingSets += slot.sets;
+      if (slot.setsDetail && slot.setsDetail.length > 0) {
+        // Per-set calculation — more accurate
+        for (const set of slot.setsDetail) {
+          const setRepMin = set.rep_range_min ?? slot.repMin ?? 8;
+          const setRepMax = set.rep_range_max ?? slot.repMax ?? 12;
+          entry.totalRepsMin += setRepMin;
+          entry.totalRepsMax += setRepMax;
+
+          const setTempo = parseTempo(set.tempo ?? slot.tempo);
+          if (setTempo) entry.hasTempo = true;
+          const isWorking = (set.rir != null && set.rir <= 5) || (set.rpe != null && set.rpe >= 5);
+          if (setTempo && isWorking) {
+            entry.tustSecondsMin += setRepMin * setTempo.total;
+            entry.tustSecondsMax += setRepMax * setTempo.total;
+            entry.workingSets += 1;
+          }
+        }
+      } else {
+        // Flat calculation — all sets share values
+        const repMin = slot.repMin ?? 8;
+        const repMax = slot.repMax ?? 12;
+        entry.totalRepsMin += slot.sets * repMin;
+        entry.totalRepsMax += slot.sets * repMax;
+
+        const tempo = parseTempo(slot.tempo);
+        if (tempo) entry.hasTempo = true;
+        if (tempo && isWorkingSet(slot)) {
+          entry.tustSecondsMin += slot.sets * repMin * tempo.total;
+          entry.tustSecondsMax += slot.sets * repMax * tempo.total;
+          entry.workingSets += slot.sets;
+        }
       }
 
       // Track subdivision-level sets (only if slot is a subdivision)

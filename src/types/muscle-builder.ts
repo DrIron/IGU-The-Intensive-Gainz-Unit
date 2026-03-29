@@ -26,6 +26,7 @@ export interface MuscleGroupDef {
 export interface SlotExercise {
   exerciseId: string;   // FK to exercise_library.id
   name: string;         // Denormalized for display (captured at selection time)
+  instructions?: string; // Coach notes for this exercise
 }
 
 export interface MuscleSlotData {
@@ -41,6 +42,9 @@ export interface MuscleSlotData {
   sortOrder: number;
   exercise?: SlotExercise;          // Primary exercise (optional — assigned in final planning phase)
   replacements?: SlotExercise[];    // Alternative exercises client can swap to
+  setsDetail?: import("@/types/workout-builder").SetPrescription[];  // Per-set overrides (when customizing individual sets)
+  prescriptionColumns?: string[];   // Active prescription column types for this slot
+  clientInputColumns?: string[];    // Per-slot client input override (undefined = use global plan defaults)
 }
 
 export interface MusclePlanState {
@@ -51,6 +55,8 @@ export interface MusclePlanState {
   selectedDayIndex: number;
   isDirty: boolean;
   isSaving: boolean;
+  globalClientInputs: string[];          // Plan-wide client input column types
+  globalPrescriptionColumns: string[];   // Plan-wide default prescription column types
 }
 
 export type LandmarkZone =

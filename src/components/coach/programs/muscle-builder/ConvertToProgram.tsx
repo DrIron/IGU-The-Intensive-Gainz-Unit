@@ -136,35 +136,46 @@ export const ConvertToProgram = memo(function ConvertToProgram({
             .not('source_muscle_id', 'is', null);
 
           if (modules && modules.length > 0) {
-            const meInserts: { id: string; day_module_id: string; exercise_id: string; section: string; sort_order: number }[] = [];
+            const meInserts: { id: string; day_module_id: string; exercise_id: string; section: string; sort_order: number; instructions?: string }[] = [];
             const prescInserts: Record<string, unknown>[] = [];
 
             // Helper: build prescription for a module exercise
             const buildPrescription = (meId: string, slot: MuscleSlotData) => {
-              const repMin = slot.repMin ?? 8;
-              const repMax = slot.repMax ?? 12;
-              const hasRpe = slot.rpe != null && slot.rir == null;
+              // Use per-set data if available, otherwise expand flat values
+              const setsJson = slot.setsDetail && slot.setsDetail.length > 0
+                ? slot.setsDetail
+                : Array.from({ length: slot.sets || 3 }, (_, si) => {
+                    const repMin = slot.repMin ?? 8;
+                    const repMax = slot.repMax ?? 12;
+                    const hasRpe = slot.rpe != null && slot.rir == null;
+                    return {
+                      set_number: si + 1,
+                      rep_range_min: repMin,
+                      rep_range_max: repMax,
+                      rest_seconds: 90,
+                      ...(hasRpe ? { rpe: slot.rpe } : { rir: slot.rir ?? 2 }),
+                      ...(slot.tempo ? { tempo: slot.tempo } : {}),
+                    };
+                  });
+
+              const firstSet = setsJson[0] || {};
+              const repMin = firstSet.rep_range_min ?? slot.repMin ?? 8;
+              const repMax = firstSet.rep_range_max ?? slot.repMax ?? 12;
+              const hasRpe = (firstSet.rpe != null && firstSet.rir == null) || (slot.rpe != null && slot.rir == null);
               const intensityType = hasRpe ? 'RPE' : 'RIR';
-              const intensityValue = hasRpe ? slot.rpe! : (slot.rir ?? 2);
-              const setsJson = Array.from({ length: 3 }, (_, si) => ({
-                set_number: si + 1,
-                rep_range_min: repMin,
-                rep_range_max: repMax,
-                rest_seconds: 90,
-                ...(hasRpe ? { rpe: slot.rpe } : { rir: slot.rir ?? 2 }),
-                ...(slot.tempo ? { tempo: slot.tempo } : {}),
-              }));
+              const intensityValue = hasRpe ? (firstSet.rpe ?? slot.rpe ?? 8) : (firstSet.rir ?? slot.rir ?? 2);
+
               const presc: Record<string, unknown> = {
                 module_exercise_id: meId,
-                set_count: 3,
+                set_count: setsJson.length,
                 rep_range_min: repMin,
                 rep_range_max: repMax,
                 intensity_type: intensityType,
                 intensity_value: intensityValue,
-                rest_seconds: 90,
+                rest_seconds: firstSet.rest_seconds ?? 90,
                 sets_json: setsJson,
               };
-              if (slot.tempo) presc.tempo = slot.tempo;
+              if (firstSet.tempo ?? slot.tempo) presc.tempo = firstSet.tempo ?? slot.tempo;
               return presc;
             };
 
@@ -178,7 +189,7 @@ export const ConvertToProgram = memo(function ConvertToProgram({
               if (slot.exercise) {
                 // Pre-selected exercise — use it directly
                 const meId = crypto.randomUUID();
-                meInserts.push({ id: meId, day_module_id: mod.id, exercise_id: slot.exercise.exerciseId, section: 'main', sort_order: 1 });
+                meInserts.push({ id: meId, day_module_id: mod.id, exercise_id: slot.exercise.exerciseId, section: 'main', sort_order: 1, ...(slot.exercise.instructions ? { instructions: slot.exercise.instructions } : {}) });
                 prescInserts.push(buildPrescription(meId, slot));
                 preSelectedCount++;
 

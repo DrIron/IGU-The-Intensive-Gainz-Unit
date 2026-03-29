@@ -33,6 +33,11 @@ interface MobileDayDetailProps {
   onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
   onRemoveReplacement?: (slotId: string, replacementIndex: number) => void;
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
+  onTogglePerSet?: (slotId: string) => void;
+  onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
+  onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
+  globalClientInputs?: string[];
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
   onPasteDay?: (dayIndex: number) => void;
@@ -66,6 +71,11 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onClearExercise,
   onRemoveReplacement,
   onOpenExercisePicker,
+  onTogglePerSet,
+  onUpdateSetDetail,
+  onSetExerciseInstructions,
+  onSetSlotClientInputs,
+  globalClientInputs,
   copiedDayIndex,
   onCopyDay,
   onPasteDay,
@@ -271,6 +281,11 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                       onClearExercise={onClearExercise}
                       onRemoveReplacement={onRemoveReplacement}
                       onOpenExercisePicker={onOpenExercisePicker}
+                      onTogglePerSet={onTogglePerSet}
+                      onUpdateSetDetail={onUpdateSetDetail}
+                      onSetExerciseInstructions={onSetExerciseInstructions}
+                      onSetSlotClientInputs={onSetSlotClientInputs}
+                      globalClientInputs={globalClientInputs}
                     />
                   );
                 })}
@@ -331,6 +346,11 @@ interface MobileSlotRowProps {
   onClearExercise?: (slotId: string) => void;
   onRemoveReplacement?: (slotId: string, replacementIndex: number) => void;
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
+  onTogglePerSet?: (slotId: string) => void;
+  onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
+  onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
+  globalClientInputs?: string[];
 }
 
 const MobileSlotRow = memo(function MobileSlotRow({
@@ -343,6 +363,11 @@ const MobileSlotRow = memo(function MobileSlotRow({
   onClearExercise,
   onRemoveReplacement,
   onOpenExercisePicker,
+  onTogglePerSet,
+  onUpdateSetDetail,
+  onSetExerciseInstructions,
+  onSetSlotClientInputs,
+  globalClientInputs,
 }: MobileSlotRowProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 

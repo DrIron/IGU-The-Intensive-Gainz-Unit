@@ -30,6 +30,11 @@ interface DayColumnProps {
   onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
   onRemoveReplacement?: (slotId: string, replacementIndex: number) => void;
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
+  onTogglePerSet?: (slotId: string) => void;
+  onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
+  onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
+  globalClientInputs?: string[];
   className?: string;
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
@@ -51,6 +56,11 @@ export const DayColumn = memo(function DayColumn({
   onAddReplacement,
   onRemoveReplacement,
   onOpenExercisePicker,
+  onTogglePerSet,
+  onUpdateSetDetail,
+  onSetExerciseInstructions,
+  onSetSlotClientInputs,
+  globalClientInputs,
   className,
   copiedDayIndex,
   onCopyDay,
@@ -241,6 +251,10 @@ export const DayColumn = memo(function DayColumn({
                   rpe={slot.rpe}
                   exercise={slot.exercise}
                   replacements={slot.replacements}
+                  setsDetail={slot.setsDetail}
+                  prescriptionColumns={slot.prescriptionColumns}
+                  clientInputColumns={slot.clientInputColumns}
+                  globalClientInputs={globalClientInputs}
                   draggableIndex={i}
                   onSetSlotDetails={onSetSlotDetails}
                   onRemove={onRemove}
@@ -249,6 +263,10 @@ export const DayColumn = memo(function DayColumn({
                   onAddReplacement={onAddReplacement}
                   onRemoveReplacement={onRemoveReplacement}
                   onOpenExercisePicker={onOpenExercisePicker}
+                  onTogglePerSet={onTogglePerSet}
+                  onUpdateSetDetail={onUpdateSetDetail}
+                  onSetExerciseInstructions={onSetExerciseInstructions}
+                  onSetSlotClientInputs={onSetSlotClientInputs}
                   isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
                   onSetAllSets={onSetAllSets}
                 />
