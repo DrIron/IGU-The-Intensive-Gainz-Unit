@@ -520,6 +520,7 @@ When understanding this codebase, read in this order:
 - Pre-Launch Waitlist System — waitlist_settings table, WaitlistGuard on 5 public routes, branded waitlist page, admin toggle + invite emails, Auth.tsx signup tab hidden when active (Feb 18, 2026) ✅
 - Phase 35: Planning Board Exercise Selection — exercise assignment integrated into Planning Board as final planning phase, one primary exercise + optional replacements per slot, smart conversion uses pre-selected exercises with auto-fill fallback (Mar 29, 2026) ✅
 - Planning Board as sole program creation path — removed direct "Create Program" dialog, all programs must go through Planning Board first (Mar 29, 2026) ✅
+- Phase 36: Planning Board Full Program Builder — per-set customization (individual rep range/tempo/RIR/RPE/rest per set), coach instructions per exercise, client input config (global + per-slot), per-set TUST/volume analytics (Mar 29, 2026) ✅
 
 ### Phase 35: Planning Board Exercise Selection (Mar 29, 2026)
 
@@ -572,6 +573,54 @@ Integrated exercise selection directly into the Planning Board as the final plan
 | `src/components/coach/programs/muscle-builder/MobileDayDetail.tsx` | Exercise UI in mobile slot popover |
 | `src/components/coach/programs/muscle-builder/ConvertToProgram.tsx` | Smart conversion with pre-selected exercises + auto-fill fallback |
 | `src/components/coach/programs/ExercisePickerDialog.tsx` | `exerciseName` passed as 3rd arg in `onSelectExercise` |
+
+### Phase 36: Planning Board Full Program Builder (Mar 29, 2026)
+
+The Planning Board is now the complete program builder — coaches design muscles, pick exercises, configure per-set prescriptions, write instructions, and define client inputs all in one flow. ProgramCalendarBuilder is the post-conversion fine-tuning view.
+
+**Per-Set Customization:**
+- Toggle "Customize each set" (when sets > 1) → compact table with per-row rep range, tempo, RIR, RPE, rest
+- Uses existing `SetPrescription` type from `workout-builder.ts`
+- `MuscleSlotData.setsDetail?: SetPrescription[]` — per-set overrides, stored in JSONB
+- When toggling OFF, flat values restored from first row
+- Sets count changes auto-grow/shrink the detail array
+
+**Coach Instructions:**
+- `SlotExercise.instructions?: string` — per-exercise text notes
+- Textarea in the exercise section of the slot popover
+- Passed through to `module_exercises.instructions` on conversion
+
+**Client Input Configuration:**
+- `MusclePlanState.globalClientInputs: string[]` — plan-wide defaults (default: Weight, Reps, RPE)
+- `MuscleSlotData.clientInputColumns?: string[]` — per-slot override (undefined = use global)
+- "Client Inputs" button in MuscleBuilderPage header with chip toggles from `AVAILABLE_CLIENT_COLUMNS`
+- Per-slot: popover section with "Plan defaults" / "Custom" toggle + chip selection
+
+**State Management:**
+- 6 new reducer actions: `TOGGLE_PER_SET`, `UPDATE_SET_DETAIL`, `SET_SLOT_COLUMNS`, `SET_EXERCISE_INSTRUCTIONS`, `SET_GLOBAL_CLIENT_INPUTS`, `SET_SLOT_CLIENT_INPUTS`
+- `slot_config` JSONB format changed: now stores `{ slots, globalClientInputs, globalPrescriptionColumns }` with backward compat for old array format
+
+**Analytics:**
+- `useMusclePlanVolume.ts` uses `setsDetail` for per-set TUST and volume calculations when available
+- More accurate: each set's individual tempo/RIR/RPE feeds into working set detection
+
+**Conversion:**
+- `buildPrescription()` uses `slot.setsDetail` directly as `sets_json` when available
+- Falls back to expanding flat values for slots without per-set data
+- Instructions passed through to `module_exercises`
+
+**Files Modified (9):**
+| File | Changes |
+|------|---------|
+| `src/types/muscle-builder.ts` | `SlotExercise.instructions`, `MuscleSlotData.setsDetail/prescriptionColumns/clientInputColumns`, `MusclePlanState.globalClientInputs/globalPrescriptionColumns` |
+| `.../hooks/useMuscleBuilderState.ts` | 6 new actions, `slot_config` format migration, `createSetsDetailFromFlat()`, `syncSetsDetailLength()` |
+| `.../hooks/useMusclePlanVolume.ts` | Per-set TUST/volume calculation branch |
+| `.../MuscleSlotCard.tsx` | Per-set toggle + table, coach instructions textarea, client inputs config |
+| `.../DayColumn.tsx` | Thread new props |
+| `.../WeeklyCalendar.tsx` | Thread new props |
+| `.../MuscleBuilderPage.tsx` | 5 new callbacks, global client inputs popover in header |
+| `.../MobileDayDetail.tsx` | Thread new props to MobileSlotRow |
+| `.../ConvertToProgram.tsx` | Use `setsDetail` for `sets_json`, pass instructions |
 
 ### Phase 34: Muscle Subdivisions + Exercise Auto-Fill (Feb 16, 2026)
 
