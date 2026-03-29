@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag, Dumbbell, Trash2, X, User, Users } from "lucide-react";
+import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag, Trash2, X, User, Users } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { SimplePagination, createPagination } from "@/components/ui/simple-pagination";
 import {
@@ -36,10 +36,9 @@ interface ProgramLibraryProps {
   coachUserId: string;
   onCreateProgram: () => void;
   onEditProgram: (programId: string) => void;
-  onMuscleBuilder?: () => void;
 }
 
-export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, onMuscleBuilder }: ProgramLibraryProps) {
+export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: ProgramLibraryProps) {
   const [programs, setPrograms] = useState<ProgramTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -342,18 +341,10 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
           <h2 className="text-2xl font-bold">Program Library</h2>
           <p className="text-muted-foreground">Create and manage your workout program templates</p>
         </div>
-        <div className="flex gap-2">
-          {onMuscleBuilder && (
-            <Button variant="outline" onClick={onMuscleBuilder}>
-              <Dumbbell className="h-4 w-4 mr-2" />
-              Planning Board
-            </Button>
-          )}
-          <Button onClick={onCreateProgram}>
-            <Plus className="h-4 w-4 mr-2" />
-            Create Program
-          </Button>
-        </div>
+        <Button onClick={onCreateProgram}>
+          <Plus className="h-4 w-4 mr-2" />
+          Create Program
+        </Button>
       </div>
 
       {/* Search and Filters */}

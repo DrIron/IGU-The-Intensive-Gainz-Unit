@@ -1,25 +1,10 @@
 import { useState, useCallback } from "react";
-import { supabase } from "@/integrations/supabase/client";
 import { ProgramLibrary } from "./ProgramLibrary";
-import { ProgramEditor } from "./ProgramEditor";
 import { ProgramCalendarBuilder } from "./ProgramCalendarBuilder";
 import { MuscleBuilderPage } from "./muscle-builder/MuscleBuilderPage";
 import { MusclePlanLibrary } from "./muscle-builder/MusclePlanLibrary";
 import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
-import { useToast } from "@/hooks/use-toast";
-import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { ShieldAlert } from "lucide-react";
 
 interface CoachProgramsPageProps {
@@ -31,47 +16,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   const [editingProgramId, setEditingProgramId] = useState<string | null>(null);
   const [editingTemplateId, setEditingTemplateId] = useState<string | null>(null);
   const [previousView, setPreviousView] = useState<string | null>(null);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [newProgramTitle, setNewProgramTitle] = useState("");
-  const [creating, setCreating] = useState(false);
   const { canBuildPrograms, isLoading: permissionsLoading } = useSubrolePermissions(coachUserId);
-  const { toast } = useToast();
-
-  // Create program: quick dialog → create template → navigate to calendar
-  const handleCreateProgram = useCallback(() => {
-    setNewProgramTitle("");
-    setShowCreateDialog(true);
-  }, []);
-
-  const handleConfirmCreate = useCallback(async () => {
-    if (!newProgramTitle.trim()) return;
-    setCreating(true);
-    try {
-      const { data, error } = await supabase
-        .from("program_templates")
-        .insert({
-          owner_coach_id: coachUserId,
-          title: newProgramTitle.trim(),
-          visibility: "private",
-        })
-        .select("id")
-        .single();
-
-      if (error) throw error;
-
-      setShowCreateDialog(false);
-      setEditingProgramId(data.id);
-      setView("calendar");
-    } catch (error: unknown) {
-      toast({
-        title: "Error creating program",
-        description: sanitizeErrorForUser(error),
-        variant: "destructive",
-      });
-    } finally {
-      setCreating(false);
-    }
-  }, [newProgramTitle, coachUserId, toast]);
 
   // Edit program → go to calendar (not the old linear editor)
   const handleEditProgram = useCallback((programId: string) => {
@@ -165,43 +110,10 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   }
 
   return (
-    <>
-      <ProgramLibrary
-        coachUserId={coachUserId}
-        onCreateProgram={handleCreateProgram}
-        onEditProgram={handleEditProgram}
-        onMuscleBuilder={handleMuscleBuilder}
-      />
-
-      {/* Create Program Dialog */}
-      <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-        <DialogContent className="max-w-sm">
-          <DialogHeader>
-            <DialogTitle>Create Program</DialogTitle>
-            <DialogDescription>
-              Give your program a name to get started.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2">
-            <Label>Program Title</Label>
-            <Input
-              value={newProgramTitle}
-              onChange={(e) => setNewProgramTitle(e.target.value)}
-              placeholder="e.g., 12-Week Strength Builder"
-              onKeyDown={(e) => e.key === "Enter" && handleConfirmCreate()}
-              autoFocus
-            />
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleConfirmCreate} disabled={!newProgramTitle.trim() || creating}>
-              {creating ? "Creating..." : "Create"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </>
+    <ProgramLibrary
+      coachUserId={coachUserId}
+      onCreateProgram={handleMuscleBuilder}
+      onEditProgram={handleEditProgram}
+    />
   );
 }
