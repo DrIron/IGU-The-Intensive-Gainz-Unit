@@ -519,6 +519,7 @@ When understanding this codebase, read in this order:
 - Type Safety & Loading State Fixes — error: any → error: unknown, usePagination → createPagination utility, WorkoutLibraryManager loading states, ExerciseQuickAdd isSubmitting prop (Feb 17, 2026) ✅
 - Pre-Launch Waitlist System — waitlist_settings table, WaitlistGuard on 5 public routes, branded waitlist page, admin toggle + invite emails, Auth.tsx signup tab hidden when active (Feb 18, 2026) ✅
 - Phase 35: Planning Board Exercise Selection — exercise assignment integrated into Planning Board as final planning phase, one primary exercise + optional replacements per slot, smart conversion uses pre-selected exercises with auto-fill fallback (Mar 29, 2026) ✅
+- Planning Board as sole program creation path — removed direct "Create Program" dialog, all programs must go through Planning Board first (Mar 29, 2026) ✅
 
 ### Phase 35: Planning Board Exercise Selection (Mar 29, 2026)
 
@@ -846,6 +847,8 @@ src/components/coach/programs/muscle-builder/
 - Day → Same Day: reorder
 - Day → Different Day: move
 - No per-day muscle limit — each slot has a unique `id` for identification
+
+**Program Creation Flow:** The Planning Board is the **only** way to create a program — the direct "Create Program" dialog was removed. "Create Program" in ProgramLibrary routes to the Planning Board (muscle plan library). Flow: Planning Board (muscles + exercises) → Convert → ProgramCalendarBuilder (fine-tune instructions, inputs, per-set details).
 
 **Conversion:** Creates `program_templates` + `program_template_days` (one per training day) + `day_modules` (one per muscle slot, with `source_muscle_id`). Pre-selected exercises (from Planning Board slot assignments) are used directly; slots without exercises get auto-filled from `exercise_library` based on `MUSCLE_TO_EXERCISE_FILTER` (up to 3 per module, defaults: 3×8-12, RIR 2, 90s rest). Replacement exercises added as accessory section. Coach can edit in ProgramCalendarBuilder afterward.
 
