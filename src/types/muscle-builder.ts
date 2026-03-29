@@ -23,6 +23,11 @@ export interface MuscleGroupDef {
   landmarks: MuscleLandmarks;
 }
 
+export interface SlotExercise {
+  exerciseId: string;   // FK to exercise_library.id
+  name: string;         // Denormalized for display (captured at selection time)
+}
+
 export interface MuscleSlotData {
   id: string;           // Unique slot identifier
   dayIndex: number;     // 1-7 (Mon-Sun)
@@ -34,6 +39,8 @@ export interface MuscleSlotData {
   rir?: number;         // Reps in Reserve (0-10)
   rpe?: number;         // Rate of Perceived Exertion (1-10, half-steps allowed)
   sortOrder: number;
+  exercise?: SlotExercise;          // Primary exercise (optional — assigned in final planning phase)
+  replacements?: SlotExercise[];    // Alternative exercises client can swap to
 }
 
 export interface MusclePlanState {

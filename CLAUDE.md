@@ -518,6 +518,59 @@ When understanding this codebase, read in this order:
 - Phase 34: Muscle Subdivisions + Exercise Auto-Fill — 42 anatomical subdivisions, hierarchical palette, exercise auto-fill on conversion (Feb 16, 2026) ✅
 - Type Safety & Loading State Fixes — error: any → error: unknown, usePagination → createPagination utility, WorkoutLibraryManager loading states, ExerciseQuickAdd isSubmitting prop (Feb 17, 2026) ✅
 - Pre-Launch Waitlist System — waitlist_settings table, WaitlistGuard on 5 public routes, branded waitlist page, admin toggle + invite emails, Auth.tsx signup tab hidden when active (Feb 18, 2026) ✅
+- Phase 35: Planning Board Exercise Selection — exercise assignment integrated into Planning Board as final planning phase, one primary exercise + optional replacements per slot, smart conversion uses pre-selected exercises with auto-fill fallback (Mar 29, 2026) ✅
+
+### Phase 35: Planning Board Exercise Selection (Mar 29, 2026)
+
+Integrated exercise selection directly into the Planning Board as the final planning phase before program conversion. Coaches can now assign one primary exercise + optional replacement exercises per muscle slot, eliminating the need to navigate to the program editor to pick exercises.
+
+**Data Model (`src/types/muscle-builder.ts`):**
+- `SlotExercise` interface: `{ exerciseId: string; name: string }` — denormalized name for display
+- `MuscleSlotData.exercise?: SlotExercise` — ONE primary exercise per slot (optional)
+- `MuscleSlotData.replacements?: SlotExercise[]` — alternative exercises client can swap to
+- No DB migration — stored in existing JSONB `slot_config`. Old data loads fine.
+
+**State Management (`useMuscleBuilderState.ts`):**
+- 4 new reducer actions: `SET_EXERCISE`, `CLEAR_EXERCISE`, `ADD_REPLACEMENT`, `REMOVE_REPLACEMENT`
+- All undoable (not in `NON_UNDOABLE` set). Auto-save serializes naturally.
+
+**UI — Card Face (`MuscleSlotCard.tsx`):**
+- When exercise assigned: shows exercise name (replaces muscle label) + dumbbell icon + replacement count
+- When no exercise: same as before (muscle label)
+
+**UI — Popover Exercise Section:**
+- Below existing sets/reps/tempo/RIR/RPE fields in the slot popover
+- "Choose Exercise" button opens `ExercisePickerDialog` (auto-filtered by muscle)
+- Once chosen: shows exercise name with change/remove actions
+- "Replacements" sub-section: add alternatives the client can swap to
+
+**ExercisePickerDialog Enhancement:**
+- `onSelectExercise` now passes `exerciseName` as optional 3rd arg (backward compatible)
+- Dialog opened from `MuscleBuilderPage` level (not inside popover) to avoid Radix popover dismissal issues
+
+**Conversion Enhancement (`ConvertToProgram.tsx`):**
+- Pre-selected exercises used directly as module exercises (1 per slot)
+- Replacement exercises added as accessory section exercises
+- Auto-fill only runs for slots WITHOUT pre-selected exercises (fallback)
+- Preview shows exercise names per slot: green "→ Bench Press" or grey italic "→ auto-fill"
+- Amber warning when slots are missing exercises, green checkmark when all assigned
+- Toast shows both pre-selected and auto-filled counts
+
+**Mobile (`MobileDayDetail.tsx`):**
+- Same exercise UI mirrored in mobile slot popover
+
+**Files Modified (9):**
+| File | Changes |
+|------|---------|
+| `src/types/muscle-builder.ts` | Added `SlotExercise` interface, `exercise?` + `replacements?` on `MuscleSlotData` |
+| `src/components/coach/programs/muscle-builder/hooks/useMuscleBuilderState.ts` | 4 new reducer actions |
+| `src/components/coach/programs/muscle-builder/MuscleBuilderPage.tsx` | Exercise picker state, callbacks, ExercisePickerDialog integration |
+| `src/components/coach/programs/muscle-builder/WeeklyCalendar.tsx` | Thread exercise callbacks to DayColumn + MobileDayDetail |
+| `src/components/coach/programs/muscle-builder/DayColumn.tsx` | Thread exercise props to MuscleSlotCard |
+| `src/components/coach/programs/muscle-builder/MuscleSlotCard.tsx` | Exercise name on card face, exercise + replacements section in popover |
+| `src/components/coach/programs/muscle-builder/MobileDayDetail.tsx` | Exercise UI in mobile slot popover |
+| `src/components/coach/programs/muscle-builder/ConvertToProgram.tsx` | Smart conversion with pre-selected exercises + auto-fill fallback |
+| `src/components/coach/programs/ExercisePickerDialog.tsx` | `exerciseName` passed as 3rd arg in `onSelectExercise` |
 
 ### Phase 34: Muscle Subdivisions + Exercise Auto-Fill (Feb 16, 2026)
 
@@ -546,12 +599,10 @@ Added 42 anatomically specific muscle subdivisions to the Planning Board's 17 co
 - `FrequencyHeatmap.tsx` — unchanged (already correct via parent-level aggregated frequencyMatrix)
 
 **Exercise Auto-Fill on Conversion (`ConvertToProgram.tsx`):**
-After RPC creates program structure, a best-effort auto-fill step:
-1. Queries `program_template_days` → `day_modules` with `source_muscle_id`
-2. Looks up `MUSCLE_TO_EXERCISE_FILTER[source_muscle_id]` for each module
-3. Batch-queries `exercise_library` for matching exercises (sorted by name)
-4. Picks up to 3 exercises per module, batch-inserts `module_exercises` + `exercise_prescriptions` (3×8-12, RIR 2, 90s rest)
-5. Auto-fill failure doesn't block program creation (wrapped in try/catch)
+After RPC creates program structure, exercises are populated in two stages:
+1. **Pre-selected exercises** (Phase 35): slots with `exercise` use that directly; `replacements` added as accessory exercises
+2. **Auto-fill fallback**: slots without exercises get auto-filled — queries `MUSCLE_TO_EXERCISE_FILTER[source_muscle_id]` → `exercise_library`, picks up to 3 per module (3×8-12, RIR 2, 90s rest)
+3. Auto-fill failure doesn't block program creation (wrapped in try/catch)
 
 **Replaced `MUSCLE_MAP.get()` calls** with `getMuscleDisplay()` across 10 files: MuscleSlotCard, MobileDayDetail, ConvertToProgram, DayModuleEditor, ExercisePickerDialog, EnhancedModuleExerciseEditor, PresetSelector, MusclePlanLibrary, FrequencyHeatmap, useMusclePlanVolume.
 
@@ -762,7 +813,7 @@ Coaches plan workouts starting from **muscles** instead of exercises. Drag muscl
 | `coach_id` | UUID FK coaches | Owner |
 | `name` | TEXT | Plan name |
 | `description` | TEXT | Optional description |
-| `slot_config` | JSONB | Array of `{id, dayIndex, muscleId, sets, sortOrder}` |
+| `slot_config` | JSONB | Array of `MuscleSlotData` — `{id, dayIndex, muscleId, sets, repMin, repMax, sortOrder, tempo?, rir?, rpe?, exercise?, replacements?}` |
 | `is_preset` | BOOLEAN | Coach-saved preset flag |
 | `is_system` | BOOLEAN | Built-in preset flag |
 | `converted_program_id` | UUID FK program_templates | Link to converted program |
@@ -774,18 +825,19 @@ Coaches plan workouts starting from **muscles** instead of exercises. Drag muscl
 **Component Tree:**
 ```
 src/components/coach/programs/muscle-builder/
-├── MuscleBuilderPage.tsx           # Entry: DragDropContext + header + 3-col layout
+├── MuscleBuilderPage.tsx           # Entry: DragDropContext + header + 3-col layout + ExercisePickerDialog
 ├── MusclePalette.tsx               # Right panel: search + accordion by body region
 │   └── DraggableMuscleChip.tsx     # Draggable muscle badge with placement count
 ├── WeeklyCalendar.tsx              # 7-column responsive grid (2-col mobile → 7-col desktop)
 │   ├── DayColumn.tsx               # Droppable day zone with slot list
-│   └── MuscleSlotCard.tsx          # Draggable slot: color dot + name + sets input + delete
+│   ├── MuscleSlotCard.tsx          # Draggable slot: exercise name or muscle label + popover editor + exercise picker
+│   └── MobileDayDetail.tsx         # Mobile day view with inline muscle picker + exercise selection
 ├── VolumeOverview.tsx              # Horizontal bars with MEV/MRV markers + zone badges
 ├── FrequencyHeatmap.tsx            # Muscle × Day matrix with consecutive-day warnings
 ├── PresetSelector.tsx              # 4 built-in + coach custom preset cards
-├── ConvertToProgramDialog.tsx      # Creates program_template + days + day_modules
+├── ConvertToProgram.tsx            # Smart conversion: pre-selected exercises + auto-fill fallback
 └── hooks/
-    ├── useMuscleBuilderState.ts    # useReducer (13 actions) + Supabase save/load
+    ├── useMuscleBuilderState.ts    # useReducer (17 actions) + Supabase save/load
     └── useMusclePlanVolume.ts      # Derived volume, summary, frequency, placement counts
 ```
 
@@ -795,7 +847,7 @@ src/components/coach/programs/muscle-builder/
 - Day → Different Day: move
 - No per-day muscle limit — each slot has a unique `id` for identification
 
-**Conversion:** Creates `program_templates` + `program_template_days` (one per training day) + `day_modules` (one per muscle slot, with `source_muscle_id`). Exercises are auto-filled from `exercise_library` based on `MUSCLE_TO_EXERCISE_FILTER` (up to 3 per module, defaults: 3×8-12, RIR 2, 90s rest). Coach can edit in ProgramCalendarBuilder afterward.
+**Conversion:** Creates `program_templates` + `program_template_days` (one per training day) + `day_modules` (one per muscle slot, with `source_muscle_id`). Pre-selected exercises (from Planning Board slot assignments) are used directly; slots without exercises get auto-filled from `exercise_library` based on `MUSCLE_TO_EXERCISE_FILTER` (up to 3 per module, defaults: 3×8-12, RIR 2, 90s rest). Replacement exercises added as accessory section. Coach can edit in ProgramCalendarBuilder afterward.
 
 **Modified Files:** `CoachProgramsPage.tsx` (added `muscle-builder` view), `ProgramLibrary.tsx` (added "Planning Board" button), `index.ts` (export).
 

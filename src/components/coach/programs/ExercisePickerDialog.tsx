@@ -30,7 +30,7 @@ type Exercise = Tables<"exercise_library">;
 interface ExercisePickerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSelectExercise: (exerciseId: string, section: Enums<"exercise_section">) => void;
+  onSelectExercise: (exerciseId: string, section: Enums<"exercise_section">, exerciseName?: string) => void;
   coachUserId: string;
   sourceMuscleId?: string | null;
 }
@@ -225,11 +225,11 @@ export function ExercisePickerDialog({
                     role="button"
                     tabIndex={0}
                     className="flex items-center gap-3 p-3 hover:bg-muted/50 cursor-pointer transition-colors"
-                    onClick={() => onSelectExercise(exercise.id, selectedSection)}
+                    onClick={() => onSelectExercise(exercise.id, selectedSection, exercise.name)}
                     onKeyDown={(e) => {
                       if (e.key === "Enter" || e.key === " ") {
                         e.preventDefault();
-                        onSelectExercise(exercise.id, selectedSection);
+                        onSelectExercise(exercise.id, selectedSection, exercise.name);
                       }
                     }}
                   >

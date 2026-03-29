@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { withTimeout } from "@/lib/withTimeout";
-import type { MusclePlanState, MuscleSlotData } from "@/types/muscle-builder";
+import type { MusclePlanState, MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
 
 // ============================================================
 // Actions
@@ -28,6 +28,10 @@ type Action =
   | { type: 'MARK_SAVED'; templateId: string }
   | { type: 'SAVING' }
   | { type: 'SAVE_ERROR' }
+  | { type: 'SET_EXERCISE'; slotId: string; exercise: SlotExercise }
+  | { type: 'CLEAR_EXERCISE'; slotId: string }
+  | { type: 'ADD_REPLACEMENT'; slotId: string; exercise: SlotExercise }
+  | { type: 'REMOVE_REPLACEMENT'; slotId: string; replacementIndex: number }
   | { type: 'UNDO' }
   | { type: 'REDO' };
 
@@ -217,6 +221,46 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
 
     case 'CLEAR_ALL':
       return { ...state, slots: [], isDirty: true };
+
+    case 'SET_EXERCISE':
+      return {
+        ...state,
+        slots: state.slots.map(s =>
+          s.id === action.slotId ? { ...s, exercise: action.exercise } : s
+        ),
+        isDirty: true,
+      };
+
+    case 'CLEAR_EXERCISE':
+      return {
+        ...state,
+        slots: state.slots.map(s =>
+          s.id === action.slotId ? { ...s, exercise: undefined } : s
+        ),
+        isDirty: true,
+      };
+
+    case 'ADD_REPLACEMENT':
+      return {
+        ...state,
+        slots: state.slots.map(s =>
+          s.id === action.slotId
+            ? { ...s, replacements: [...(s.replacements || []), action.exercise] }
+            : s
+        ),
+        isDirty: true,
+      };
+
+    case 'REMOVE_REPLACEMENT':
+      return {
+        ...state,
+        slots: state.slots.map(s => {
+          if (s.id !== action.slotId || !s.replacements) return s;
+          const updated = s.replacements.filter((_, i) => i !== action.replacementIndex);
+          return { ...s, replacements: updated.length > 0 ? updated : undefined };
+        }),
+        isDirty: true,
+      };
 
     case 'MARK_SAVED':
       // Preserve isDirty if an undo happened during the save flight (isDirty was restored to true).

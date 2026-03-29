@@ -34,7 +34,8 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId } from "@/types/muscle-builder";
-import type { MuscleSlotData } from "@/types/muscle-builder";
+import type { MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
+import { ExercisePickerDialog } from "../ExercisePickerDialog";
 
 import { useMuscleBuilderState } from "./hooks/useMuscleBuilderState";
 import { useMusclePlanVolume } from "./hooks/useMusclePlanVolume";
@@ -73,6 +74,12 @@ export function MuscleBuilderPage({
   // #6 — Volume bar click → scroll
   const [highlightedMuscleId, setHighlightedMuscleId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
+
+  // ── Exercise Picker state ───────────────────────────────────
+  const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
+  const [pickerSlotId, setPickerSlotId] = useState<string | null>(null);
+  const [pickerMuscleId, setPickerMuscleId] = useState<string | null>(null);
+  const [pickerMode, setPickerMode] = useState<'primary' | 'replacement'>('primary');
 
 
 
@@ -221,6 +228,48 @@ export function MuscleBuilderPage({
       toast({ title: `Set all ${muscle?.label || muscleId} to ${sets} sets` });
     },
     [dispatch, toast]
+  );
+
+  // ── Exercise callbacks ──────────────────────────────────────
+  const handleOpenExercisePicker = useCallback(
+    (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => {
+      setPickerSlotId(slotId);
+      setPickerMuscleId(muscleId);
+      setPickerMode(mode);
+      setExercisePickerOpen(true);
+    },
+    []
+  );
+
+  const handleExerciseSelected = useCallback(
+    (exerciseId: string, _section: string, exerciseName?: string) => {
+      if (!pickerSlotId) return;
+
+      const exercise: SlotExercise = { exerciseId, name: exerciseName || 'Exercise' };
+
+      if (pickerMode === 'primary') {
+        dispatch({ type: 'SET_EXERCISE', slotId: pickerSlotId, exercise });
+      } else {
+        dispatch({ type: 'ADD_REPLACEMENT', slotId: pickerSlotId, exercise });
+      }
+
+      setExercisePickerOpen(false);
+    },
+    [pickerSlotId, pickerMode, dispatch]
+  );
+
+  const handleClearExercise = useCallback(
+    (slotId: string) => {
+      dispatch({ type: 'CLEAR_EXERCISE', slotId });
+    },
+    [dispatch]
+  );
+
+  const handleRemoveReplacement = useCallback(
+    (slotId: string, replacementIndex: number) => {
+      dispatch({ type: 'REMOVE_REPLACEMENT', slotId, replacementIndex });
+    },
+    [dispatch]
   );
 
   // #6 — Volume bar click → scroll to first day with muscle
@@ -390,6 +439,9 @@ export function MuscleBuilderPage({
               onSetSlotDetails={handleSetSlotDetails}
               onRemove={handleRemoveMuscle}
               onAddMuscle={handleAddMuscle}
+              onClearExercise={handleClearExercise}
+              onRemoveReplacement={handleRemoveReplacement}
+              onOpenExercisePicker={handleOpenExercisePicker}
               copiedDayIndex={copiedDayIndex}
               onCopyDay={handleCopyDay}
               onPasteDay={handlePasteDay}
@@ -472,6 +524,15 @@ export function MuscleBuilderPage({
           </div>
         </div>
       </div>
+
+      {/* ── Exercise Picker Dialog ──────────────────────────────── */}
+      <ExercisePickerDialog
+        open={exercisePickerOpen}
+        onOpenChange={setExercisePickerOpen}
+        onSelectExercise={handleExerciseSelected}
+        coachUserId={coachUserId}
+        sourceMuscleId={pickerMuscleId}
+      />
 
       {/* ── Clear Confirmation Dialog ─────────────────────────── */}
       <Dialog open={showClearDialog} onOpenChange={setShowClearDialog}>

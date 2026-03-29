@@ -2,7 +2,7 @@ import { memo, useCallback } from "react";
 import { DayColumn } from "./DayColumn";
 import { MobileWeekStrip } from "./MobileWeekStrip";
 import { MobileDayDetail } from "./MobileDayDetail";
-import type { MuscleSlotData } from "@/types/muscle-builder";
+import type { MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
 
 interface WeeklyCalendarProps {
   slots: MuscleSlotData[];
@@ -11,6 +11,11 @@ interface WeeklyCalendarProps {
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
   onAddMuscle?: (dayIndex: number, muscleId: string) => void;
+  onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
+  onClearExercise?: (slotId: string) => void;
+  onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
+  onRemoveReplacement?: (slotId: string, replacementIndex: number) => void;
+  onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
   onPasteDay?: (dayIndex: number) => void;
@@ -25,6 +30,11 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onSetSlotDetails,
   onRemove,
   onAddMuscle,
+  onSetExercise,
+  onClearExercise,
+  onAddReplacement,
+  onRemoveReplacement,
+  onOpenExercisePicker,
   copiedDayIndex,
   onCopyDay,
   onPasteDay,
@@ -55,6 +65,11 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           onSetSlotDetails={onSetSlotDetails}
           onRemove={onRemove}
           onAddMuscle={handleAddMuscle}
+          onSetExercise={onSetExercise}
+          onClearExercise={onClearExercise}
+          onAddReplacement={onAddReplacement}
+          onRemoveReplacement={onRemoveReplacement}
+          onOpenExercisePicker={onOpenExercisePicker}
           copiedDayIndex={copiedDayIndex}
           onCopyDay={onCopyDay}
           onPasteDay={onPasteDay}
@@ -74,6 +89,11 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onSetSlotDetails={onSetSlotDetails}
             onRemove={onRemove}
             onAddMuscle={onAddMuscle}
+            onSetExercise={onSetExercise}
+            onClearExercise={onClearExercise}
+            onAddReplacement={onAddReplacement}
+            onRemoveReplacement={onRemoveReplacement}
+            onOpenExercisePicker={onOpenExercisePicker}
             copiedDayIndex={copiedDayIndex}
             onCopyDay={onCopyDay}
             onPasteDay={onPasteDay}

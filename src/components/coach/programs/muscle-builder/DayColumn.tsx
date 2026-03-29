@@ -14,6 +14,7 @@ import {
   SUBDIVISIONS_BY_PARENT,
   resolveParentMuscleId,
   type MuscleSlotData,
+  type SlotExercise,
 } from "@/types/muscle-builder";
 
 interface DayColumnProps {
@@ -24,6 +25,11 @@ interface DayColumnProps {
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
   onAddMuscle?: (dayIndex: number, muscleId: string) => void;
+  onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
+  onClearExercise?: (slotId: string) => void;
+  onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
+  onRemoveReplacement?: (slotId: string, replacementIndex: number) => void;
+  onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   className?: string;
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
@@ -40,6 +46,11 @@ export const DayColumn = memo(function DayColumn({
   onSetSlotDetails,
   onRemove,
   onAddMuscle,
+  onSetExercise,
+  onClearExercise,
+  onAddReplacement,
+  onRemoveReplacement,
+  onOpenExercisePicker,
   className,
   copiedDayIndex,
   onCopyDay,
@@ -228,9 +239,16 @@ export const DayColumn = memo(function DayColumn({
                   tempo={slot.tempo}
                   rir={slot.rir}
                   rpe={slot.rpe}
+                  exercise={slot.exercise}
+                  replacements={slot.replacements}
                   draggableIndex={i}
                   onSetSlotDetails={onSetSlotDetails}
                   onRemove={onRemove}
+                  onSetExercise={onSetExercise}
+                  onClearExercise={onClearExercise}
+                  onAddReplacement={onAddReplacement}
+                  onRemoveReplacement={onRemoveReplacement}
+                  onOpenExercisePicker={onOpenExercisePicker}
                   isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
                   onSetAllSets={onSetAllSets}
                 />

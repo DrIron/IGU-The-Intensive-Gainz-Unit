@@ -9,7 +9,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Loader2 } from "lucide-react";
+import { Loader2, AlertTriangle, Dumbbell, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { withTimeout } from "@/lib/withTimeout";
@@ -62,6 +62,13 @@ export const ConvertToProgram = memo(function ConvertToProgram({
       }));
   }, [slots]);
 
+  // Count slots with/without exercises for the warning
+  const exerciseStats = useMemo(() => {
+    const withExercise = slots.filter(s => s.exercise).length;
+    const withoutExercise = slots.length - withExercise;
+    return { withExercise, withoutExercise };
+  }, [slots]);
+
   const handleConvert = useCallback(async () => {
     setConverting(true);
     try {
@@ -95,22 +102,22 @@ export const ConvertToProgram = memo(function ConvertToProgram({
 
       const result = data as { program_id: string; total_days: number; total_modules: number };
 
-      // Auto-fill exercises for each module (best-effort)
+      // Fill exercises for each module (pre-selected first, then auto-fill for the rest)
+      let preSelectedCount = 0;
       let autoFilledCount = 0;
       try {
-        // Build rep range + intensity lookup: muscleId → queue of slot details
-        const slotDetailsMap = new Map<string, { repMin: number; repMax: number; tempo?: string; rir?: number; rpe?: number }[]>();
+        // Build rep range + intensity lookup: muscleId → queue of slot details (including exercise info)
+        const slotQueue = new Map<string, MuscleSlotData[]>();
         for (const slot of slots) {
-          const details = { repMin: slot.repMin ?? 8, repMax: slot.repMax ?? 12, tempo: slot.tempo, rir: slot.rir, rpe: slot.rpe };
-          const arr = slotDetailsMap.get(slot.muscleId) || [];
-          arr.push(details);
-          slotDetailsMap.set(slot.muscleId, arr);
-          // Also map to parent ID as fallback (in case RPC normalizes subdivision → parent)
+          const arr = slotQueue.get(slot.muscleId) || [];
+          arr.push(slot);
+          slotQueue.set(slot.muscleId, arr);
+          // Also map to parent ID as fallback
           const parentId = resolveParentMuscleId(slot.muscleId);
           if (parentId !== slot.muscleId) {
-            const parentArr = slotDetailsMap.get(parentId) || [];
-            parentArr.push({ ...details });
-            slotDetailsMap.set(parentId, parentArr);
+            const parentArr = slotQueue.get(parentId) || [];
+            parentArr.push({ ...slot });
+            slotQueue.set(parentId, parentArr);
           }
         }
 
@@ -129,111 +136,141 @@ export const ConvertToProgram = memo(function ConvertToProgram({
             .not('source_muscle_id', 'is', null);
 
           if (modules && modules.length > 0) {
-            // 2. Build muscle filter map and collect all primary_muscle values
-            const muscleFilterMap = new Map<string, string[]>();
-            const allPrimaryMuscles = new Set<string>();
+            const meInserts: { id: string; day_module_id: string; exercise_id: string; section: string; sort_order: number }[] = [];
+            const prescInserts: Record<string, unknown>[] = [];
+
+            // Helper: build prescription for a module exercise
+            const buildPrescription = (meId: string, slot: MuscleSlotData) => {
+              const repMin = slot.repMin ?? 8;
+              const repMax = slot.repMax ?? 12;
+              const hasRpe = slot.rpe != null && slot.rir == null;
+              const intensityType = hasRpe ? 'RPE' : 'RIR';
+              const intensityValue = hasRpe ? slot.rpe! : (slot.rir ?? 2);
+              const setsJson = Array.from({ length: 3 }, (_, si) => ({
+                set_number: si + 1,
+                rep_range_min: repMin,
+                rep_range_max: repMax,
+                rest_seconds: 90,
+                ...(hasRpe ? { rpe: slot.rpe } : { rir: slot.rir ?? 2 }),
+                ...(slot.tempo ? { tempo: slot.tempo } : {}),
+              }));
+              const presc: Record<string, unknown> = {
+                module_exercise_id: meId,
+                set_count: 3,
+                rep_range_min: repMin,
+                rep_range_max: repMax,
+                intensity_type: intensityType,
+                intensity_value: intensityValue,
+                rest_seconds: 90,
+                sets_json: setsJson,
+              };
+              if (slot.tempo) presc.tempo = slot.tempo;
+              return presc;
+            };
+
+            // Collect modules that need auto-fill (no pre-selected exercise)
+            const autoFillModules: typeof modules = [];
+
             for (const mod of modules) {
-              const filters = MUSCLE_TO_EXERCISE_FILTER[mod.source_muscle_id!];
-              if (filters && filters.length > 0) {
-                muscleFilterMap.set(mod.id, filters);
-                for (const f of filters) allPrimaryMuscles.add(f);
+              const slot = slotQueue.get(mod.source_muscle_id!)?.shift();
+              if (!slot) { autoFillModules.push(mod); continue; }
+
+              if (slot.exercise) {
+                // Pre-selected exercise — use it directly
+                const meId = crypto.randomUUID();
+                meInserts.push({ id: meId, day_module_id: mod.id, exercise_id: slot.exercise.exerciseId, section: 'main', sort_order: 1 });
+                prescInserts.push(buildPrescription(meId, slot));
+                preSelectedCount++;
+
+                // Also add replacement exercises if any
+                if (slot.replacements && slot.replacements.length > 0) {
+                  for (let ri = 0; ri < slot.replacements.length; ri++) {
+                    const repMeId = crypto.randomUUID();
+                    meInserts.push({ id: repMeId, day_module_id: mod.id, exercise_id: slot.replacements[ri].exerciseId, section: 'accessory', sort_order: ri + 2 });
+                    prescInserts.push(buildPrescription(repMeId, slot));
+                  }
+                }
+              } else {
+                autoFillModules.push(mod);
               }
             }
 
-            // 3. Batch query all matching exercises
-            if (allPrimaryMuscles.size > 0) {
-              const { data: exercises } = await supabase
-                .from('exercise_library')
-                .select('id, name, primary_muscle')
-                .in('primary_muscle', Array.from(allPrimaryMuscles))
-                .eq('is_active', true)
-                .order('name');
-
-              if (exercises && exercises.length > 0) {
-                // Group by primary_muscle
-                const exercisesByMuscle = new Map<string, typeof exercises>();
-                for (const ex of exercises) {
-                  const arr = exercisesByMuscle.get(ex.primary_muscle) || [];
-                  arr.push(ex);
-                  exercisesByMuscle.set(ex.primary_muscle, arr);
-                }
-
-                // 4. Pick up to 3 exercises per module, build batch inserts
-                const meInserts: { id: string; day_module_id: string; exercise_id: string; section: string; sort_order: number }[] = [];
-                const prescInserts: Record<string, unknown>[] = [];
-
-                for (const mod of modules) {
-                  const filters = muscleFilterMap.get(mod.id);
-                  if (!filters) continue;
-
-                  const seen = new Set<string>();
-                  const picked: { id: string }[] = [];
-                  for (const filter of filters) {
-                    for (const ex of exercisesByMuscle.get(filter) || []) {
-                      if (picked.length >= 3) break;
-                      if (seen.has(ex.id)) continue;
-                      seen.add(ex.id);
-                      picked.push(ex);
-                    }
-                    if (picked.length >= 3) break;
-                  }
-
-                  // Get slot details (first match for this muscle, consume it)
-                  const details = slotDetailsMap.get(mod.source_muscle_id!)?.shift() ?? { repMin: 8, repMax: 12 };
-
-                  for (let i = 0; i < picked.length; i++) {
-                    const meId = crypto.randomUUID();
-                    meInserts.push({ id: meId, day_module_id: mod.id, exercise_id: picked[i].id, section: 'main', sort_order: i + 1 });
-
-                    // Determine intensity type and value
-                    const hasRpe = details.rpe != null && details.rir == null;
-                    const intensityType = hasRpe ? 'RPE' : 'RIR';
-                    const intensityValue = hasRpe ? details.rpe! : (details.rir ?? 2);
-
-                    // Build V2 per-set data so the editor and client logger display correctly
-                    const setsJson = Array.from({ length: 3 }, (_, si) => ({
-                      set_number: si + 1,
-                      rep_range_min: details.repMin,
-                      rep_range_max: details.repMax,
-                      rest_seconds: 90,
-                      ...(hasRpe ? { rpe: details.rpe } : { rir: details.rir ?? 2 }),
-                      ...(details.tempo ? { tempo: details.tempo } : {}),
-                    }));
-
-                    const presc: Record<string, unknown> = {
-                      module_exercise_id: meId,
-                      set_count: 3,
-                      rep_range_min: details.repMin,
-                      rep_range_max: details.repMax,
-                      intensity_type: intensityType,
-                      intensity_value: intensityValue,
-                      rest_seconds: 90,
-                      sets_json: setsJson,
-                    };
-                    if (details.tempo) presc.tempo = details.tempo;
-                    prescInserts.push(presc);
-                  }
-                  autoFilledCount += picked.length;
-                }
-
-                // 5. Batch insert
-                if (meInserts.length > 0) {
-                  await supabase.from('module_exercises').insert(meInserts);
-                  await supabase.from('exercise_prescriptions').insert(prescInserts);
+            // Auto-fill remaining modules (same logic as before)
+            if (autoFillModules.length > 0) {
+              const muscleFilterMap = new Map<string, string[]>();
+              const allPrimaryMuscles = new Set<string>();
+              for (const mod of autoFillModules) {
+                const filters = MUSCLE_TO_EXERCISE_FILTER[mod.source_muscle_id!];
+                if (filters && filters.length > 0) {
+                  muscleFilterMap.set(mod.id, filters);
+                  for (const f of filters) allPrimaryMuscles.add(f);
                 }
               }
+
+              if (allPrimaryMuscles.size > 0) {
+                const { data: exercises } = await supabase
+                  .from('exercise_library')
+                  .select('id, name, primary_muscle')
+                  .in('primary_muscle', Array.from(allPrimaryMuscles))
+                  .eq('is_active', true)
+                  .order('name');
+
+                if (exercises && exercises.length > 0) {
+                  const exercisesByMuscle = new Map<string, typeof exercises>();
+                  for (const ex of exercises) {
+                    const arr = exercisesByMuscle.get(ex.primary_muscle) || [];
+                    arr.push(ex);
+                    exercisesByMuscle.set(ex.primary_muscle, arr);
+                  }
+
+                  for (const mod of autoFillModules) {
+                    const filters = muscleFilterMap.get(mod.id);
+                    if (!filters) continue;
+
+                    const seen = new Set<string>();
+                    const picked: { id: string }[] = [];
+                    for (const filter of filters) {
+                      for (const ex of exercisesByMuscle.get(filter) || []) {
+                        if (picked.length >= 3) break;
+                        if (seen.has(ex.id)) continue;
+                        seen.add(ex.id);
+                        picked.push(ex);
+                      }
+                      if (picked.length >= 3) break;
+                    }
+
+                    // Find slot details for this module's muscle
+                    const matchingSlot = slots.find(s => s.muscleId === mod.source_muscle_id) || { repMin: 8, repMax: 12, tempo: undefined, rir: undefined, rpe: undefined } as MuscleSlotData;
+
+                    for (let i = 0; i < picked.length; i++) {
+                      const meId = crypto.randomUUID();
+                      meInserts.push({ id: meId, day_module_id: mod.id, exercise_id: picked[i].id, section: 'main', sort_order: i + 1 });
+                      prescInserts.push(buildPrescription(meId, matchingSlot));
+                    }
+                    autoFilledCount += picked.length;
+                  }
+                }
+              }
+            }
+
+            // Batch insert all exercises and prescriptions
+            if (meInserts.length > 0) {
+              await supabase.from('module_exercises').insert(meInserts);
+              await supabase.from('exercise_prescriptions').insert(prescInserts);
             }
           }
         }
       } catch (autoFillError) {
-        console.warn('Exercise auto-fill failed:', autoFillError);
+        console.warn('Exercise fill failed:', autoFillError);
       }
+
+      const parts: string[] = [`${result.total_days} training days, ${result.total_modules} modules.`];
+      if (preSelectedCount > 0) parts.push(`${preSelectedCount} exercises from your selections.`);
+      if (autoFilledCount > 0) parts.push(`${autoFilledCount} auto-filled.`);
 
       toast({
         title: "Program created",
-        description: autoFilledCount > 0
-          ? `${result.total_days} training days, ${result.total_modules} modules. ${autoFilledCount} exercises auto-filled.`
-          : `${result.total_days} training days with ${result.total_modules} muscle modules.`,
+        description: parts.join(' '),
       });
 
       // Close dialog and navigate immediately
@@ -281,7 +318,13 @@ export const ConvertToProgram = memo(function ConvertToProgram({
                     <div key={slot.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
                       <div className={`w-1.5 h-1.5 rounded-full ${muscle.colorClass}`} />
                       <span>{muscle.label}</span>
-                      <span className="ml-auto font-mono">{slot.sets} sets</span>
+                      <span className="mx-1 text-border">→</span>
+                      {slot.exercise ? (
+                        <span className="text-emerald-500 font-medium truncate flex-1">{slot.exercise.name}</span>
+                      ) : (
+                        <span className="text-muted-foreground/50 italic truncate flex-1">auto-fill</span>
+                      )}
+                      <span className="ml-auto font-mono shrink-0">{slot.sets}s</span>
                     </div>
                   );
                 })}
@@ -290,8 +333,33 @@ export const ConvertToProgram = memo(function ConvertToProgram({
           ))}
         </div>
 
+        {/* Exercise assignment status */}
+        {exerciseStats.withoutExercise > 0 && (
+          <div className="flex items-start gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2">
+            <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+            <div className="text-xs">
+              <p className="text-amber-600 dark:text-amber-400 font-medium">
+                {exerciseStats.withoutExercise} slot{exerciseStats.withoutExercise > 1 ? 's' : ''} without exercises
+              </p>
+              <p className="text-muted-foreground mt-0.5">
+                Auto-fill will pick exercises from the library. You can still convert and edit later.
+              </p>
+            </div>
+          </div>
+        )}
+        {exerciseStats.withoutExercise === 0 && exerciseStats.withExercise > 0 && (
+          <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-3 py-2">
+            <Check className="h-4 w-4 text-emerald-500 shrink-0" />
+            <p className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+              All {exerciseStats.withExercise} slots have exercises assigned
+            </p>
+          </div>
+        )}
+
         <p className="text-xs text-muted-foreground">
-          Each muscle slot becomes a day module with exercises auto-filled from the library. You can edit them in the program editor.
+          {exerciseStats.withExercise > 0
+            ? "Your chosen exercises will be used directly. Slots without exercises will be auto-filled from the library."
+            : "Each muscle slot becomes a day module with exercises auto-filled from the library. You can edit them in the program editor."}
         </p>
 
         <DialogFooter>

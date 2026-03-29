@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DAYS_OF_WEEK,
@@ -18,6 +18,7 @@ import {
   SUBDIVISIONS_BY_PARENT,
   SUBDIVISION_MAP,
   type MuscleSlotData,
+  type SlotExercise,
   type BodyRegion,
 } from "@/types/muscle-builder";
 
@@ -27,6 +28,11 @@ interface MobileDayDetailProps {
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
   onAddMuscle: (dayIndex: number, muscleId: string) => void;
+  onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
+  onClearExercise?: (slotId: string) => void;
+  onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
+  onRemoveReplacement?: (slotId: string, replacementIndex: number) => void;
+  onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
   onPasteDay?: (dayIndex: number) => void;
@@ -57,6 +63,9 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onSetSlotDetails,
   onRemove,
   onAddMuscle,
+  onClearExercise,
+  onRemoveReplacement,
+  onOpenExercisePicker,
   copiedDayIndex,
   onCopyDay,
   onPasteDay,
@@ -259,6 +268,9 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                       isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
                       onSetSlotDetails={onSetSlotDetails}
                       onRemove={onRemove}
+                      onClearExercise={onClearExercise}
+                      onRemoveReplacement={onRemoveReplacement}
+                      onOpenExercisePicker={onOpenExercisePicker}
                     />
                   );
                 })}
@@ -316,6 +328,9 @@ interface MobileSlotRowProps {
   isHighlighted: boolean;
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
+  onClearExercise?: (slotId: string) => void;
+  onRemoveReplacement?: (slotId: string, replacementIndex: number) => void;
+  onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
 }
 
 const MobileSlotRow = memo(function MobileSlotRow({
@@ -325,6 +340,9 @@ const MobileSlotRow = memo(function MobileSlotRow({
   isHighlighted,
   onSetSlotDetails,
   onRemove,
+  onClearExercise,
+  onRemoveReplacement,
+  onOpenExercisePicker,
 }: MobileSlotRowProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -353,7 +371,9 @@ const MobileSlotRow = memo(function MobileSlotRow({
       <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
         <PopoverTrigger asChild>
           <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
-            <span className="font-medium truncate text-foreground">{label}</span>
+            <span className="font-medium truncate text-foreground">
+              {slot.exercise ? slot.exercise.name : label}
+            </span>
             <span
               className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"
               style={{ backgroundColor: `${muscle.colorHex}20`, color: muscle.colorHex }}
@@ -362,6 +382,14 @@ const MobileSlotRow = memo(function MobileSlotRow({
             </span>
             {hasTempo && (
               <span className="text-[10px] font-mono text-muted-foreground shrink-0">{slot.tempo}</span>
+            )}
+            {slot.exercise && (
+              <Dumbbell className="h-3 w-3 text-emerald-500 shrink-0" />
+            )}
+            {slot.replacements && slot.replacements.length > 0 && (
+              <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
+                +{slot.replacements.length}
+              </span>
             )}
             {needsIntensity && (
               <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
@@ -444,6 +472,70 @@ const MobileSlotRow = memo(function MobileSlotRow({
               <div className="flex items-start gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
                 <p className="text-[11px] text-amber-600 dark:text-amber-400">Add RIR or RPE for TUST tracking</p>
+              </div>
+            )}
+
+            {/* Exercise Section */}
+            {onOpenExercisePicker && (
+              <div className="space-y-2 pt-2 border-t border-border/30">
+                <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Dumbbell className="h-3 w-3" />
+                  Exercise
+                </Label>
+
+                {slot.exercise ? (
+                  <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-2">
+                    <Dumbbell className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <span className="text-sm font-medium truncate flex-1">{slot.exercise.name}</span>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Button variant="ghost" size="icon" className="h-5 w-5"
+                        onClick={() => onOpenExercisePicker(slot.id, slot.muscleId, 'primary')} title="Change">
+                        <RefreshCw className="h-3 w-3" />
+                      </Button>
+                      {onClearExercise && (
+                        <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                          onClick={() => onClearExercise(slot.id)} title="Remove">
+                          <X className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <Button variant="outline" size="sm" className="w-full text-xs border-dashed"
+                    onClick={() => onOpenExercisePicker(slot.id, slot.muscleId, 'primary')}>
+                    <Plus className="h-3 w-3 mr-1.5" />
+                    Choose Exercise
+                  </Button>
+                )}
+
+                {slot.exercise && (
+                  <div className="space-y-1.5">
+                    <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                      <RefreshCw className="h-2.5 w-2.5" />
+                      Replacements (optional)
+                    </Label>
+                    {slot.replacements && slot.replacements.length > 0 && (
+                      <div className="space-y-1">
+                        {slot.replacements.map((rep, i) => (
+                          <div key={`${rep.exerciseId}-${i}`} className="flex items-center gap-2 rounded border border-border/50 bg-muted/20 px-2 py-1.5">
+                            <span className="text-xs truncate flex-1">{rep.name}</span>
+                            {onRemoveReplacement && (
+                              <Button variant="ghost" size="icon" className="h-4 w-4 text-muted-foreground hover:text-destructive shrink-0"
+                                onClick={() => onRemoveReplacement(slot.id, i)}>
+                                <X className="h-2.5 w-2.5" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    <Button variant="ghost" size="sm" className="w-full text-[11px] h-7"
+                      onClick={() => onOpenExercisePicker(slot.id, slot.muscleId, 'replacement')}>
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add Replacement
+                    </Button>
+                  </div>
+                )}
               </div>
             )}
 

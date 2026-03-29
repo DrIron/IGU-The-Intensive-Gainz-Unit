@@ -4,12 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { X, AlertTriangle } from "lucide-react";
+import { X, AlertTriangle, Dumbbell, Plus, RefreshCw, ChevronUp, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getMuscleDisplay,
   MUSCLE_MAP,
   SUBDIVISION_MAP,
+  type SlotExercise,
 } from "@/types/muscle-builder";
 
 interface MuscleSlotCardProps {
@@ -21,9 +22,16 @@ interface MuscleSlotCardProps {
   tempo?: string;
   rir?: number;
   rpe?: number;
+  exercise?: SlotExercise;
+  replacements?: SlotExercise[];
   draggableIndex: number;
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
+  onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
+  onClearExercise?: (slotId: string) => void;
+  onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
+  onRemoveReplacement?: (slotId: string, replacementIndex: number) => void;
+  onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   isHighlighted?: boolean;
   onSetAllSets?: (muscleId: string, sets: number) => void;
   alwaysShowControls?: boolean;
@@ -50,9 +58,16 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   tempo,
   rir,
   rpe,
+  exercise,
+  replacements,
   draggableIndex,
   onSetSlotDetails,
   onRemove,
+  onSetExercise,
+  onClearExercise,
+  onAddReplacement,
+  onRemoveReplacement,
+  onOpenExercisePicker,
   isHighlighted,
   onSetAllSets,
   alwaysShowControls,
@@ -68,12 +83,17 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
     onSetAllSets?.(muscleId, sets);
   }, [muscleId, sets, onSetAllSets]);
 
+  const handleOpenPicker = useCallback((mode: 'primary' | 'replacement') => {
+    onOpenExercisePicker?.(slotId, muscleId, mode);
+  }, [slotId, muscleId, onOpenExercisePicker]);
+
   const muscle = getMuscleDisplay(muscleId);
   if (!muscle) return null;
 
   const label = formatSlotLabel(muscleId);
   const hasTempo = !!tempo && tempo.length === 4;
   const needsIntensity = hasTempo && rir == null && rpe == null;
+  const hasExercise = !!exercise;
 
   return (
     <Draggable draggableId={`slot-${slotId}`} index={draggableIndex}>
@@ -105,7 +125,9 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                 className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
                 onClick={e => e.stopPropagation()}
               >
-                <span className="font-medium truncate text-foreground">{label}</span>
+                <span className="font-medium truncate text-foreground">
+                  {hasExercise ? exercise.name : label}
+                </span>
                 <span
                   className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"
                   style={{ backgroundColor: `${muscle.colorHex}20`, color: muscle.colorHex }}
@@ -117,13 +139,21 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                     {tempo}
                   </span>
                 )}
+                {hasExercise && (
+                  <Dumbbell className="h-3 w-3 text-emerald-500 shrink-0" />
+                )}
+                {replacements && replacements.length > 0 && (
+                  <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
+                    +{replacements.length}
+                  </span>
+                )}
                 {needsIntensity && (
                   <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
                 )}
               </button>
             </PopoverTrigger>
             <PopoverContent
-              className="w-64 p-3"
+              className="w-72 p-3"
               onClick={e => e.stopPropagation()}
               align="start"
               side="right"
@@ -131,6 +161,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
             >
               <SlotEditorPopover
                 slotId={slotId}
+                muscleId={muscleId}
                 label={label}
                 sets={sets}
                 repMin={repMin}
@@ -138,9 +169,15 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                 tempo={tempo}
                 rir={rir}
                 rpe={rpe}
+                exercise={exercise}
+                replacements={replacements}
                 onSetSlotDetails={onSetSlotDetails}
                 onSetAllSets={onSetAllSets ? handleBulkApply : undefined}
+                onClearExercise={onClearExercise ? () => onClearExercise(slotId) : undefined}
+                onRemoveReplacement={onRemoveReplacement ? (i) => onRemoveReplacement(slotId, i) : undefined}
+                onOpenPicker={onOpenExercisePicker ? handleOpenPicker : undefined}
                 muscleLabel={muscle.label}
+                muscleColorHex={muscle.colorHex}
               />
             </PopoverContent>
           </Popover>
@@ -167,6 +204,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
 
 interface SlotEditorPopoverProps {
   slotId: string;
+  muscleId: string;
   label: string;
   sets: number;
   repMin: number;
@@ -174,13 +212,20 @@ interface SlotEditorPopoverProps {
   tempo?: string;
   rir?: number;
   rpe?: number;
+  exercise?: SlotExercise;
+  replacements?: SlotExercise[];
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onSetAllSets?: () => void;
+  onClearExercise?: () => void;
+  onRemoveReplacement?: (index: number) => void;
+  onOpenPicker?: (mode: 'primary' | 'replacement') => void;
   muscleLabel: string;
+  muscleColorHex: string;
 }
 
 function SlotEditorPopover({
   slotId,
+  muscleId,
   label,
   sets,
   repMin,
@@ -188,9 +233,15 @@ function SlotEditorPopover({
   tempo,
   rir,
   rpe,
+  exercise,
+  replacements,
   onSetSlotDetails,
   onSetAllSets,
+  onClearExercise,
+  onRemoveReplacement,
+  onOpenPicker,
   muscleLabel,
+  muscleColorHex,
 }: SlotEditorPopoverProps) {
   const hasTempo = !!tempo && tempo.length === 4;
   const needsIntensity = hasTempo && rir == null && rpe == null;
@@ -204,7 +255,11 @@ function SlotEditorPopover({
 
   return (
     <div className="space-y-3">
-      <p className="text-sm font-medium">{label}</p>
+      {/* Muscle label with color indicator */}
+      <div className="flex items-center gap-2">
+        <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: muscleColorHex }} />
+        <p className="text-sm font-medium">{label}</p>
+      </div>
 
       {/* Sets */}
       <div className="space-y-1">
@@ -319,6 +374,101 @@ function SlotEditorPopover({
           <p className="text-[11px] text-amber-600 dark:text-amber-400">
             Add RIR or RPE for TUST tracking
           </p>
+        </div>
+      )}
+
+      {/* ── Exercise Section ─────────────────────────────────── */}
+      {onOpenPicker && (
+        <div className="space-y-2 pt-2 border-t border-border/30">
+          <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <Dumbbell className="h-3 w-3" />
+            Exercise
+          </Label>
+
+          {exercise ? (
+            <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-2">
+              <Dumbbell className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              <span className="text-sm font-medium truncate flex-1">{exercise.name}</span>
+              <div className="flex items-center gap-0.5 shrink-0">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5"
+                  onClick={() => onOpenPicker('primary')}
+                  title="Change exercise"
+                >
+                  <RefreshCw className="h-3 w-3" />
+                </Button>
+                {onClearExercise && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                    onClick={onClearExercise}
+                    title="Remove exercise"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full text-xs border-dashed"
+              onClick={() => onOpenPicker('primary')}
+            >
+              <Plus className="h-3 w-3 mr-1.5" />
+              Choose Exercise
+            </Button>
+          )}
+
+          {/* ── Replacements Section ──────────────────────────── */}
+          {exercise && (
+            <div className="space-y-1.5">
+              <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <RefreshCw className="h-2.5 w-2.5" />
+                Replacements (optional)
+              </Label>
+              <p className="text-[10px] text-muted-foreground/70">
+                Alternatives the client can swap to
+              </p>
+
+              {replacements && replacements.length > 0 && (
+                <div className="space-y-1">
+                  {replacements.map((rep, i) => (
+                    <div
+                      key={`${rep.exerciseId}-${i}`}
+                      className="flex items-center gap-2 rounded border border-border/50 bg-muted/20 px-2 py-1.5"
+                    >
+                      <span className="text-xs truncate flex-1">{rep.name}</span>
+                      {onRemoveReplacement && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-4 w-4 text-muted-foreground hover:text-destructive shrink-0"
+                          onClick={() => onRemoveReplacement(i)}
+                        >
+                          <X className="h-2.5 w-2.5" />
+                        </Button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <Button
+                variant="ghost"
+                size="sm"
+                className="w-full text-[11px] h-7"
+                onClick={() => onOpenPicker('replacement')}
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add Replacement
+              </Button>
+            </div>
+          )}
         </div>
       )}
 
