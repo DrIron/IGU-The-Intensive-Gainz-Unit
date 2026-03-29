@@ -305,6 +305,11 @@ export function MuscleBuilderPage({
     [dispatch]
   );
 
+  const handleSetSlotColumns = useCallback(
+    (slotId: string, columns: string[]) => dispatch({ type: 'SET_SLOT_COLUMNS', slotId, columns }),
+    [dispatch]
+  );
+
   // #6 — Volume bar click → scroll to first day with muscle
   const handleMuscleClick = useCallback(
     (muscleId: string) => {
@@ -519,6 +524,7 @@ export function MuscleBuilderPage({
               onUpdateSetDetail={handleUpdateSetDetail}
               onSetExerciseInstructions={handleSetExerciseInstructions}
               onSetSlotClientInputs={handleSetSlotClientInputs}
+              onSetSlotColumns={handleSetSlotColumns}
               globalClientInputs={state.globalClientInputs}
               copiedDayIndex={copiedDayIndex}
               onCopyDay={handleCopyDay}

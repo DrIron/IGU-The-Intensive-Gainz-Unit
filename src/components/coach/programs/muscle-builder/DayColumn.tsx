@@ -34,6 +34,7 @@ interface DayColumnProps {
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
+  onSetSlotColumns?: (slotId: string, columns: string[]) => void;
   globalClientInputs?: string[];
   className?: string;
   copiedDayIndex?: number | null;
@@ -60,6 +61,7 @@ export const DayColumn = memo(function DayColumn({
   onUpdateSetDetail,
   onSetExerciseInstructions,
   onSetSlotClientInputs,
+  onSetSlotColumns,
   globalClientInputs,
   className,
   copiedDayIndex,
@@ -267,6 +269,7 @@ export const DayColumn = memo(function DayColumn({
                   onUpdateSetDetail={onUpdateSetDetail}
                   onSetExerciseInstructions={onSetExerciseInstructions}
                   onSetSlotClientInputs={onSetSlotClientInputs}
+                  onSetSlotColumns={onSetSlotColumns}
                   isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
                   onSetAllSets={onSetAllSets}
                 />

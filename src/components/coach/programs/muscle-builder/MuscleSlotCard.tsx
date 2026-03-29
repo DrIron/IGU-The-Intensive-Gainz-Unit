@@ -45,6 +45,7 @@ interface MuscleSlotCardProps {
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof SetPrescription, value: number | string | undefined) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
+  onSetSlotColumns?: (slotId: string, columns: string[]) => void;
   isHighlighted?: boolean;
   onSetAllSets?: (muscleId: string, sets: number) => void;
   alwaysShowControls?: boolean;
@@ -89,6 +90,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   onUpdateSetDetail,
   onSetExerciseInstructions,
   onSetSlotClientInputs,
+  onSetSlotColumns,
   isHighlighted,
   onSetAllSets,
   alwaysShowControls,
@@ -210,6 +212,8 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                     onUpdateSetDetail={onUpdateSetDetail ? (si, f, v) => onUpdateSetDetail(slotId, si, f, v) : undefined}
                     onSetExerciseInstructions={onSetExerciseInstructions ? (v) => onSetExerciseInstructions(slotId, v) : undefined}
                     onSetSlotClientInputs={onSetSlotClientInputs ? (v) => onSetSlotClientInputs(slotId, v) : undefined}
+                    prescriptionColumns={prescriptionColumns}
+                    onSetSlotColumns={onSetSlotColumns ? (v) => onSetSlotColumns(slotId, v) : undefined}
                     muscleLabel={muscle.label}
                     muscleColorHex={muscle.colorHex}
                   />
@@ -251,6 +255,7 @@ interface SlotEditorPopoverProps {
   exercise?: SlotExercise;
   replacements?: SlotExercise[];
   setsDetail?: SetPrescription[];
+  prescriptionColumns?: string[];
   clientInputColumns?: string[];
   globalClientInputs?: string[];
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
@@ -262,6 +267,7 @@ interface SlotEditorPopoverProps {
   onUpdateSetDetail?: (setIndex: number, field: keyof SetPrescription, value: number | string | undefined) => void;
   onSetExerciseInstructions?: (instructions: string) => void;
   onSetSlotClientInputs?: (columns: string[] | undefined) => void;
+  onSetSlotColumns?: (columns: string[]) => void;
   muscleLabel: string;
   muscleColorHex: string;
 }
@@ -290,13 +296,19 @@ function SlotEditorPopover({
   onUpdateSetDetail,
   onSetExerciseInstructions,
   onSetSlotClientInputs,
+  prescriptionColumns,
+  onSetSlotColumns,
   muscleLabel,
   muscleColorHex,
 }: SlotEditorPopoverProps) {
   const hasTempo = !!tempo && tempo.length === 4;
   const needsIntensity = hasTempo && rir == null && rpe == null;
   const hasPerSet = !!setsDetail && setsDetail.length > 0;
-  const [showClientInputs, setShowClientInputs] = useState(false);
+  const [showColumnPicker, setShowColumnPicker] = useState(false);
+
+  // Active prescription columns for per-set table
+  const DEFAULT_COLUMNS = ['rep_range', 'tempo', 'rir', 'rpe', 'rest'];
+  const activeColumns = prescriptionColumns || DEFAULT_COLUMNS;
 
   const update = useCallback(
     (details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => {
@@ -345,90 +357,153 @@ function SlotEditorPopover({
 
       {/* ── Per-set table ──────────────────────────────────────── */}
       {hasPerSet && onUpdateSetDetail ? (
-        <div className="space-y-1.5">
+        <div className="space-y-2">
+          {/* Column selector */}
+          <div className="space-y-1.5">
+            <button
+              className="flex items-center gap-1 text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() => setShowColumnPicker(!showColumnPicker)}
+            >
+              <Settings2 className="h-2.5 w-2.5" />
+              {showColumnPicker ? 'Hide columns' : 'Choose columns'}
+            </button>
+            {showColumnPicker && onSetSlotColumns && (
+              <div className="flex flex-wrap gap-1">
+                {AVAILABLE_PRESCRIPTION_COLUMNS.filter(c => c.type !== 'sets' && c.type !== 'custom').map(col => {
+                  const active = activeColumns.includes(col.type);
+                  return (
+                    <button
+                      key={col.type}
+                      className={cn(
+                        "text-[10px] px-1.5 py-0.5 rounded-full border transition-colors",
+                        active ? "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400" : "border-border/50 text-muted-foreground hover:border-border"
+                      )}
+                      onClick={() => {
+                        const next = active
+                          ? activeColumns.filter(t => t !== col.type)
+                          : [...activeColumns, col.type];
+                        onSetSlotColumns(next.length > 0 ? next : ['rep_range']);
+                      }}
+                    >
+                      {col.label.replace(/\s*\(.*?\)/, '')}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Dynamic per-set table */}
           <div className="overflow-x-auto rounded-md border border-border/30">
             <table className="w-full text-[11px]">
               <thead>
                 <tr className="bg-muted/30">
-                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-8">#</th>
-                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground">Reps</th>
-                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-14">Tempo</th>
-                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-10">RIR</th>
-                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-10">RPE</th>
-                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-12">Rest</th>
+                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-7">#</th>
+                  {activeColumns.includes('rep_range') && <th className="px-1 py-1 text-left font-medium text-muted-foreground">Reps</th>}
+                  {activeColumns.includes('reps') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-10">Reps</th>}
+                  {activeColumns.includes('weight') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-12">Wt</th>}
+                  {activeColumns.includes('tempo') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-12">Tempo</th>}
+                  {activeColumns.includes('rir') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-9">RIR</th>}
+                  {activeColumns.includes('rpe') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-9">RPE</th>}
+                  {activeColumns.includes('percent_1rm') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">%1RM</th>}
+                  {activeColumns.includes('rest') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">Rest</th>}
+                  {activeColumns.includes('time') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">Time</th>}
+                  {activeColumns.includes('distance') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">Dist</th>}
+                  {activeColumns.includes('notes') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-20">Notes</th>}
                 </tr>
               </thead>
               <tbody>
                 {setsDetail!.map((set, i) => (
                   <tr key={i} className="border-t border-border/20">
                     <td className="px-1.5 py-1 text-muted-foreground font-mono">{i + 1}</td>
-                    <td className="px-0.5 py-0.5">
-                      <div className="flex items-center gap-0.5">
-                        <Input
-                          type="number" min={1} max={100} value={set.rep_range_min ?? ''}
-                          onChange={e => {
-                            const v = e.target.value === '' ? undefined : parseInt(e.target.value);
-                            onUpdateSetDetail(i, 'rep_range_min', v != null && !isNaN(v) ? v : undefined);
-                          }}
-                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()}
-                        />
-                        <span className="text-muted-foreground">-</span>
-                        <Input
-                          type="number" min={1} max={100} value={set.rep_range_max ?? ''}
-                          onChange={e => {
-                            const v = e.target.value === '' ? undefined : parseInt(e.target.value);
-                            onUpdateSetDetail(i, 'rep_range_max', v != null && !isNaN(v) ? v : undefined);
-                          }}
-                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()}
-                        />
-                      </div>
-                    </td>
-                    <td className="px-0.5 py-0.5">
-                      <Input
-                        type="text" maxLength={4} inputMode="numeric" value={set.tempo ?? ''} placeholder="3120"
-                        onChange={e => {
-                          const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4);
-                          onUpdateSetDetail(i, 'tempo', v || undefined);
-                        }}
-                        className="h-6 text-[11px] font-mono w-12 px-1" onClick={e => e.stopPropagation()}
-                      />
-                    </td>
-                    <td className="px-0.5 py-0.5">
-                      <Input
-                        type="number" min={0} max={10} value={set.rir ?? ''} placeholder="2"
-                        onChange={e => {
-                          const v = e.target.value === '' ? undefined : parseInt(e.target.value);
-                          onUpdateSetDetail(i, 'rir', v != null && !isNaN(v) ? Math.max(0, Math.min(10, v)) : undefined);
-                        }}
-                        className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()}
-                      />
-                    </td>
-                    <td className="px-0.5 py-0.5">
-                      <Input
-                        type="number" min={1} max={10} step={0.5} value={set.rpe ?? ''} placeholder="8"
-                        onChange={e => {
-                          const v = e.target.value === '' ? undefined : parseFloat(e.target.value);
-                          onUpdateSetDetail(i, 'rpe', v != null && !isNaN(v) ? Math.max(1, Math.min(10, v)) : undefined);
-                        }}
-                        className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()}
-                      />
-                    </td>
-                    <td className="px-0.5 py-0.5">
-                      <Input
-                        type="number" min={0} max={600} value={set.rest_seconds ?? ''} placeholder="90"
-                        onChange={e => {
-                          const v = e.target.value === '' ? undefined : parseInt(e.target.value);
-                          onUpdateSetDetail(i, 'rest_seconds', v != null && !isNaN(v) ? v : undefined);
-                        }}
-                        className="h-6 text-[11px] w-11 px-1" onClick={e => e.stopPropagation()}
-                      />
-                    </td>
+                    {activeColumns.includes('rep_range') && (
+                      <td className="px-0.5 py-0.5">
+                        <div className="flex items-center gap-0.5">
+                          <Input type="number" min={1} max={100} value={set.rep_range_min ?? ''}
+                            onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rep_range_min', v != null && !isNaN(v) ? v : undefined); }}
+                            className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
+                          <span className="text-muted-foreground text-[9px]">-</span>
+                          <Input type="number" min={1} max={100} value={set.rep_range_max ?? ''}
+                            onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rep_range_max', v != null && !isNaN(v) ? v : undefined); }}
+                            className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
+                        </div>
+                      </td>
+                    )}
+                    {activeColumns.includes('reps') && (
+                      <td className="px-0.5 py-0.5">
+                        <Input type="number" min={1} max={100} value={set.reps ?? ''}
+                          onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'reps', v != null && !isNaN(v) ? v : undefined); }}
+                          className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
+                      </td>
+                    )}
+                    {activeColumns.includes('weight') && (
+                      <td className="px-0.5 py-0.5">
+                        <Input type="number" min={0} max={999} value={set.weight ?? ''} placeholder="kg"
+                          onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value); onUpdateSetDetail(i, 'weight', v != null && !isNaN(v) ? v : undefined); }}
+                          className="h-6 text-[11px] w-11 px-1" onClick={e => e.stopPropagation()} />
+                      </td>
+                    )}
+                    {activeColumns.includes('tempo') && (
+                      <td className="px-0.5 py-0.5">
+                        <Input type="text" maxLength={4} inputMode="numeric" value={set.tempo ?? ''} placeholder="3120"
+                          onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4); onUpdateSetDetail(i, 'tempo', v || undefined); }}
+                          className="h-6 text-[11px] font-mono w-11 px-1" onClick={e => e.stopPropagation()} />
+                      </td>
+                    )}
+                    {activeColumns.includes('rir') && (
+                      <td className="px-0.5 py-0.5">
+                        <Input type="number" min={0} max={10} value={set.rir ?? ''} placeholder="2"
+                          onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rir', v != null && !isNaN(v) ? Math.max(0, Math.min(10, v)) : undefined); }}
+                          className="h-6 text-[11px] w-8 px-1" onClick={e => e.stopPropagation()} />
+                      </td>
+                    )}
+                    {activeColumns.includes('rpe') && (
+                      <td className="px-0.5 py-0.5">
+                        <Input type="number" min={1} max={10} step={0.5} value={set.rpe ?? ''} placeholder="8"
+                          onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value); onUpdateSetDetail(i, 'rpe', v != null && !isNaN(v) ? Math.max(1, Math.min(10, v)) : undefined); }}
+                          className="h-6 text-[11px] w-8 px-1" onClick={e => e.stopPropagation()} />
+                      </td>
+                    )}
+                    {activeColumns.includes('percent_1rm') && (
+                      <td className="px-0.5 py-0.5">
+                        <Input type="number" min={0} max={120} value={set.percent_1rm ?? ''} placeholder="%"
+                          onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'percent_1rm', v != null && !isNaN(v) ? v : undefined); }}
+                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
+                      </td>
+                    )}
+                    {activeColumns.includes('rest') && (
+                      <td className="px-0.5 py-0.5">
+                        <Input type="number" min={0} max={600} value={set.rest_seconds ?? ''} placeholder="90"
+                          onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rest_seconds', v != null && !isNaN(v) ? v : undefined); }}
+                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
+                      </td>
+                    )}
+                    {activeColumns.includes('time') && (
+                      <td className="px-0.5 py-0.5">
+                        <Input type="number" min={0} max={7200} value={set.time_seconds ?? ''} placeholder="sec"
+                          onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'time_seconds', v != null && !isNaN(v) ? v : undefined); }}
+                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
+                      </td>
+                    )}
+                    {activeColumns.includes('distance') && (
+                      <td className="px-0.5 py-0.5">
+                        <Input type="number" min={0} max={99999} value={set.distance_meters ?? ''} placeholder="m"
+                          onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'distance_meters', v != null && !isNaN(v) ? v : undefined); }}
+                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
+                      </td>
+                    )}
+                    {activeColumns.includes('notes') && (
+                      <td className="px-0.5 py-0.5">
+                        <Input type="text" value={set.notes ?? ''} placeholder="..."
+                          onChange={e => onUpdateSetDetail(i, 'notes', e.target.value || undefined)}
+                          className="h-6 text-[11px] w-20 px-1" onClick={e => e.stopPropagation()} />
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
-          <p className="text-[10px] text-muted-foreground">Each set can have different prescriptions</p>
         </div>
       ) : (
         /* ── Shared mode (flat values) ─────────────────────────── */
@@ -586,62 +661,51 @@ function SlotEditorPopover({
       {/* ── Client Inputs Section ────────────────────────────── */}
       {onSetSlotClientInputs && (
         <div className="space-y-2 pt-2 border-t border-border/30">
-          <button
-            className="flex items-center justify-between w-full text-left"
-            onClick={() => setShowClientInputs(!showClientInputs)}
-          >
-            <Label className="text-xs text-muted-foreground flex items-center gap-1.5 cursor-pointer">
-              <Settings2 className="h-3 w-3" />
-              Client Inputs
-            </Label>
-            <span className="text-[10px] text-muted-foreground">
-              {isCustomClientInputs ? 'Custom' : 'Plan defaults'}
-            </span>
-          </button>
+          <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
+            <Settings2 className="h-3 w-3" />
+            Client Inputs
+          </Label>
 
-          {showClientInputs && (
-            <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <button
-                  className={cn("text-[11px] px-2 py-1 rounded-md border", !isCustomClientInputs ? "border-primary bg-primary/10 text-primary" : "border-border/50 text-muted-foreground")}
-                  onClick={() => onSetSlotClientInputs(undefined)}
-                >
-                  Plan defaults
-                </button>
-                <button
-                  className={cn("text-[11px] px-2 py-1 rounded-md border", isCustomClientInputs ? "border-primary bg-primary/10 text-primary" : "border-border/50 text-muted-foreground")}
-                  onClick={() => onSetSlotClientInputs(effectiveClientInputs)}
-                >
-                  Custom
-                </button>
-              </div>
+          <div className="flex items-center gap-2">
+            <button
+              className={cn("text-[11px] px-2 py-1 rounded-md border", !isCustomClientInputs ? "border-primary bg-primary/10 text-primary" : "border-border/50 text-muted-foreground")}
+              onClick={() => onSetSlotClientInputs(undefined)}
+            >
+              Plan defaults
+            </button>
+            <button
+              className={cn("text-[11px] px-2 py-1 rounded-md border", isCustomClientInputs ? "border-primary bg-primary/10 text-primary" : "border-border/50 text-muted-foreground")}
+              onClick={() => onSetSlotClientInputs(effectiveClientInputs)}
+            >
+              Custom
+            </button>
+          </div>
 
-              {isCustomClientInputs && (
-                <div className="flex flex-wrap gap-1.5">
-                  {AVAILABLE_CLIENT_COLUMNS.map(col => {
-                    const active = effectiveClientInputs.includes(col.type);
-                    return (
-                      <button
-                        key={col.type}
-                        className={cn(
-                          "text-[10px] px-2 py-1 rounded-full border transition-colors",
-                          active ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-border/50 text-muted-foreground hover:border-border"
-                        )}
-                        onClick={() => {
-                          const next = active
-                            ? effectiveClientInputs.filter(t => t !== col.type)
-                            : [...effectiveClientInputs, col.type];
-                          onSetSlotClientInputs(next);
-                        }}
-                      >
-                        {col.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+          <div className="flex flex-wrap gap-1">
+            {AVAILABLE_CLIENT_COLUMNS.map(col => {
+              const active = effectiveClientInputs.includes(col.type);
+              return (
+                <button
+                  key={col.type}
+                  disabled={!isCustomClientInputs}
+                  className={cn(
+                    "text-[10px] px-1.5 py-0.5 rounded-full border transition-colors",
+                    active ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" : "border-border/50 text-muted-foreground",
+                    !isCustomClientInputs && "opacity-50 cursor-default"
+                  )}
+                  onClick={() => {
+                    if (!isCustomClientInputs) return;
+                    const next = active
+                      ? effectiveClientInputs.filter(t => t !== col.type)
+                      : [...effectiveClientInputs, col.type];
+                    onSetSlotClientInputs(next);
+                  }}
+                >
+                  {col.label}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
