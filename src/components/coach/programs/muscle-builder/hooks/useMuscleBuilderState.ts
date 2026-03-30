@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { withTimeout } from "@/lib/withTimeout";
-import type { MusclePlanState, MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
+import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType } from "@/types/muscle-builder";
+import { ACTIVITY_MAP } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
 
 const DEFAULT_GLOBAL_CLIENT_INPUTS = ['performed_weight', 'performed_reps', 'performed_rpe'];
@@ -42,6 +43,8 @@ type Action =
   | { type: 'SET_EXERCISE_INSTRUCTIONS'; slotId: string; instructions: string }
   | { type: 'SET_GLOBAL_CLIENT_INPUTS'; columns: string[] }
   | { type: 'SET_SLOT_CLIENT_INPUTS'; slotId: string; columns: string[] | undefined }
+  | { type: 'ADD_ACTIVITY'; dayIndex: number; activityId: string; activityType: ActivityType }
+  | { type: 'SET_ACTIVITY_DETAILS'; slotId: string; details: Partial<Pick<MuscleSlotData, 'duration' | 'distance' | 'targetHrZone' | 'pace' | 'rounds' | 'workSeconds' | 'restSeconds' | 'difficulty' | 'activityNotes'>> }
   | { type: 'UNDO' }
   | { type: 'REDO' };
 
@@ -370,6 +373,33 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         ...state,
         slots: state.slots.map(s =>
           s.id === action.slotId ? { ...s, clientInputColumns: action.columns } : s
+        ),
+        isDirty: true,
+      };
+
+    case 'ADD_ACTIVITY': {
+      const activity = ACTIVITY_MAP.get(action.activityId);
+      const newSlot: MuscleSlotData = {
+        id: crypto.randomUUID(),
+        dayIndex: action.dayIndex,
+        muscleId: '',
+        sets: 1,
+        repMin: 0,
+        repMax: 0,
+        sortOrder: getMaxSortOrder(state.slots, action.dayIndex) + 1,
+        activityType: action.activityType,
+        activityId: action.activityId,
+        activityName: activity?.label || action.activityId,
+        duration: 30,
+      };
+      return { ...state, slots: [...state.slots, newSlot], isDirty: true };
+    }
+
+    case 'SET_ACTIVITY_DETAILS':
+      return {
+        ...state,
+        slots: state.slots.map(s =>
+          s.id === action.slotId ? { ...s, ...action.details } : s
         ),
         isDirty: true,
       };

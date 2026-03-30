@@ -21,6 +21,7 @@ interface WeeklyCalendarProps {
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
   onSetSlotColumns?: (slotId: string, columns: string[]) => void;
+  onSetActivityDetails?: (slotId: string, details: Record<string, unknown>) => void;
   globalClientInputs?: string[];
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
@@ -46,6 +47,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onSetExerciseInstructions,
   onSetSlotClientInputs,
   onSetSlotColumns,
+  onSetActivityDetails,
   globalClientInputs,
   copiedDayIndex,
   onCopyDay,
@@ -116,6 +118,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onSetExerciseInstructions={onSetExerciseInstructions}
             onSetSlotClientInputs={onSetSlotClientInputs}
             onSetSlotColumns={onSetSlotColumns}
+            onSetActivityDetails={onSetActivityDetails}
             globalClientInputs={globalClientInputs}
             copiedDayIndex={copiedDayIndex}
             onCopyDay={onCopyDay}

@@ -23,6 +23,103 @@ export interface MuscleGroupDef {
   landmarks: MuscleLandmarks;
 }
 
+// ============================================================
+// Activity Types (multi-session support)
+// ============================================================
+
+export type ActivityType = 'strength' | 'cardio' | 'hiit' | 'yoga_mobility' | 'recovery' | 'sport_specific';
+
+export interface ActivityDef {
+  id: string;
+  label: string;
+  category: ActivityType;
+  colorClass: string;
+  colorHex: string;
+}
+
+export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
+  strength: 'Strength',
+  cardio: 'Cardio',
+  hiit: 'HIIT',
+  yoga_mobility: 'Yoga / Mobility',
+  recovery: 'Recovery',
+  sport_specific: 'Sport-Specific',
+};
+
+export const ACTIVITY_TYPE_COLORS: Record<ActivityType, { colorClass: string; colorHex: string }> = {
+  strength: { colorClass: 'bg-blue-500', colorHex: '#3b82f6' },
+  cardio: { colorClass: 'bg-green-500', colorHex: '#22c55e' },
+  hiit: { colorClass: 'bg-orange-500', colorHex: '#f97316' },
+  yoga_mobility: { colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  recovery: { colorClass: 'bg-teal-500', colorHex: '#14b8a6' },
+  sport_specific: { colorClass: 'bg-red-500', colorHex: '#ef4444' },
+};
+
+export const ACTIVITY_CATEGORIES: ActivityDef[] = [
+  // Cardio (green)
+  { id: 'running', label: 'Running', category: 'cardio', colorClass: 'bg-green-500', colorHex: '#22c55e' },
+  { id: 'cycling', label: 'Cycling', category: 'cardio', colorClass: 'bg-green-500', colorHex: '#22c55e' },
+  { id: 'rowing', label: 'Rowing', category: 'cardio', colorClass: 'bg-green-500', colorHex: '#22c55e' },
+  { id: 'swimming', label: 'Swimming', category: 'cardio', colorClass: 'bg-green-500', colorHex: '#22c55e' },
+  { id: 'elliptical', label: 'Elliptical', category: 'cardio', colorClass: 'bg-green-500', colorHex: '#22c55e' },
+  { id: 'jump_rope', label: 'Jump Rope', category: 'cardio', colorClass: 'bg-green-500', colorHex: '#22c55e' },
+  { id: 'assault_bike', label: 'Assault Bike', category: 'cardio', colorClass: 'bg-green-500', colorHex: '#22c55e' },
+  { id: 'stair_climber', label: 'Stair Climber', category: 'cardio', colorClass: 'bg-green-500', colorHex: '#22c55e' },
+  { id: 'walking', label: 'Walking', category: 'cardio', colorClass: 'bg-green-500', colorHex: '#22c55e' },
+  // HIIT (orange)
+  { id: 'tabata', label: 'Tabata', category: 'hiit', colorClass: 'bg-orange-500', colorHex: '#f97316' },
+  { id: 'emom', label: 'EMOM', category: 'hiit', colorClass: 'bg-orange-500', colorHex: '#f97316' },
+  { id: 'amrap', label: 'AMRAP', category: 'hiit', colorClass: 'bg-orange-500', colorHex: '#f97316' },
+  { id: 'circuit', label: 'Circuit', category: 'hiit', colorClass: 'bg-orange-500', colorHex: '#f97316' },
+  { id: 'interval_training', label: 'Interval Training', category: 'hiit', colorClass: 'bg-orange-500', colorHex: '#f97316' },
+  // Yoga / Mobility (purple)
+  { id: 'vinyasa_flow', label: 'Vinyasa Flow', category: 'yoga_mobility', colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  { id: 'hatha_yoga', label: 'Hatha Yoga', category: 'yoga_mobility', colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  { id: 'yin_yoga', label: 'Yin Yoga', category: 'yoga_mobility', colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  { id: 'power_yoga', label: 'Power Yoga', category: 'yoga_mobility', colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  { id: 'stretching', label: 'Stretching', category: 'yoga_mobility', colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  { id: 'foam_rolling_mobility', label: 'Foam Rolling', category: 'yoga_mobility', colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  { id: 'dynamic_warmup', label: 'Dynamic Warmup', category: 'yoga_mobility', colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  { id: 'band_work', label: 'Band Work', category: 'yoga_mobility', colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  { id: 'cat_cow', label: 'Cat-Cow', category: 'yoga_mobility', colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  { id: 'hip_9090', label: 'Hip 90/90', category: 'yoga_mobility', colorClass: 'bg-purple-500', colorHex: '#a855f7' },
+  // Recovery (teal)
+  { id: 'foam_rolling_recovery', label: 'Foam Rolling', category: 'recovery', colorClass: 'bg-teal-500', colorHex: '#14b8a6' },
+  { id: 'cold_plunge', label: 'Cold Plunge', category: 'recovery', colorClass: 'bg-teal-500', colorHex: '#14b8a6' },
+  { id: 'sauna', label: 'Sauna', category: 'recovery', colorClass: 'bg-teal-500', colorHex: '#14b8a6' },
+  { id: 'massage', label: 'Massage', category: 'recovery', colorClass: 'bg-teal-500', colorHex: '#14b8a6' },
+  { id: 'light_walk', label: 'Light Walk', category: 'recovery', colorClass: 'bg-teal-500', colorHex: '#14b8a6' },
+  { id: 'sleep_rest', label: 'Sleep / Rest', category: 'recovery', colorClass: 'bg-teal-500', colorHex: '#14b8a6' },
+  // Sport-Specific (red)
+  { id: 'agility_drills', label: 'Agility Drills', category: 'sport_specific', colorClass: 'bg-red-500', colorHex: '#ef4444' },
+  { id: 'plyometrics', label: 'Plyometrics', category: 'sport_specific', colorClass: 'bg-red-500', colorHex: '#ef4444' },
+  { id: 'skill_work', label: 'Skill Work', category: 'sport_specific', colorClass: 'bg-red-500', colorHex: '#ef4444' },
+  { id: 'sprint_drills', label: 'Sprint Drills', category: 'sport_specific', colorClass: 'bg-red-500', colorHex: '#ef4444' },
+  { id: 'footwork', label: 'Footwork', category: 'sport_specific', colorClass: 'bg-red-500', colorHex: '#ef4444' },
+  { id: 'reaction_training', label: 'Reaction Training', category: 'sport_specific', colorClass: 'bg-red-500', colorHex: '#ef4444' },
+];
+
+export const ACTIVITY_MAP = new Map(ACTIVITY_CATEGORIES.map(a => [a.id, a]));
+
+/** Get activities grouped by category */
+export const ACTIVITIES_BY_CATEGORY = new Map<ActivityType, ActivityDef[]>();
+for (const activity of ACTIVITY_CATEGORIES) {
+  const existing = ACTIVITIES_BY_CATEGORY.get(activity.category) || [];
+  existing.push(activity);
+  ACTIVITIES_BY_CATEGORY.set(activity.category, existing);
+}
+
+/** Lookup activity display by ID */
+export function getActivityDisplay(activityId: string): { label: string; colorClass: string; colorHex: string; category: ActivityType } | null {
+  const activity = ACTIVITY_MAP.get(activityId);
+  if (!activity) return null;
+  return { label: activity.label, colorClass: activity.colorClass, colorHex: activity.colorHex, category: activity.category };
+}
+
+// ============================================================
+// Slot Exercise + Slot Data
+// ============================================================
+
 export interface SlotExercise {
   exerciseId: string;   // FK to exercise_library.id
   name: string;         // Denormalized for display (captured at selection time)
@@ -45,6 +142,19 @@ export interface MuscleSlotData {
   setsDetail?: import("@/types/workout-builder").SetPrescription[];  // Per-set overrides (when customizing individual sets)
   prescriptionColumns?: string[];   // Active prescription column types for this slot
   clientInputColumns?: string[];    // Per-slot client input override (undefined = use global plan defaults)
+  // Activity fields (non-strength sessions — all optional, backward compat)
+  activityType?: ActivityType;       // undefined = 'strength'
+  activityId?: string;               // e.g. 'running', 'tabata' — references ACTIVITY_CATEGORIES
+  activityName?: string;             // display name (denormalized)
+  duration?: number;                 // minutes
+  distance?: number;                 // meters
+  targetHrZone?: number;             // 1-5
+  pace?: string;                     // free text
+  rounds?: number;                   // HIIT
+  workSeconds?: number;              // HIIT
+  restSeconds?: number;              // HIIT
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  activityNotes?: string;            // general notes for non-strength slot
 }
 
 export interface MusclePlanState {

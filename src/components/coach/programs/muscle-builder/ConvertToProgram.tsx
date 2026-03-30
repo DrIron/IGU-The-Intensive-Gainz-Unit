@@ -13,7 +13,7 @@ import { Loader2, AlertTriangle, Dumbbell, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { withTimeout } from "@/lib/withTimeout";
-import { getMuscleDisplay, MUSCLE_TO_EXERCISE_FILTER, DAYS_OF_WEEK, resolveParentMuscleId, type MuscleSlotData } from "@/types/muscle-builder";
+import { getMuscleDisplay, getActivityDisplay, MUSCLE_TO_EXERCISE_FILTER, DAYS_OF_WEEK, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_COLORS, resolveParentMuscleId, type MuscleSlotData, type ActivityType } from "@/types/muscle-builder";
 import type { VolumeSummary } from "./hooks/useMusclePlanVolume";
 
 interface ConvertToProgramProps {
@@ -78,7 +78,11 @@ export const ConvertToProgram = memo(function ConvertToProgram({
       }
 
       // Build the slot array with muscle labels for the RPC
-      const rpcSlots = slots.map(s => ({
+      // Only strength slots go through the RPC
+      const strengthSlots = slots.filter(s => !s.activityType || s.activityType === 'strength');
+      const activitySlots = slots.filter(s => s.activityType && s.activityType !== 'strength');
+
+      const rpcSlots = strengthSlots.map(s => ({
         dayIndex: s.dayIndex,
         muscleId: s.muscleId,
         sets: s.sets,
@@ -101,6 +105,51 @@ export const ConvertToProgram = memo(function ConvertToProgram({
       if (error) throw error;
 
       const result = data as { program_id: string; total_days: number; total_modules: number };
+
+      // Add non-strength activity modules to existing days (best-effort)
+      if (activitySlots.length > 0) {
+        try {
+          const { data: days } = await supabase
+            .from('program_template_days')
+            .select('id, day_index')
+            .eq('program_template_id', result.program_id);
+
+          if (days) {
+            const dayMap = new Map(days.map(d => [d.day_index, d.id]));
+            const SESSION_TYPE_MAP: Record<string, string> = {
+              cardio: 'cardio', hiit: 'hiit', yoga_mobility: 'mobility',
+              recovery: 'recovery', sport_specific: 'sport_specific',
+            };
+
+            for (const slot of activitySlots) {
+              let dayId = dayMap.get(slot.dayIndex);
+              // Create day if it doesn't exist (activity-only day)
+              if (!dayId) {
+                const dayName = DAYS_OF_WEEK[slot.dayIndex - 1];
+                const { data: newDay } = await supabase
+                  .from('program_template_days')
+                  .insert({ program_template_id: result.program_id, day_index: slot.dayIndex, day_title: `${dayName} — ${slot.activityName || 'Activity'}` })
+                  .select('id')
+                  .single();
+                if (newDay) { dayId = newDay.id; dayMap.set(slot.dayIndex, dayId); }
+              }
+              if (dayId) {
+                await supabase.from('day_modules').insert({
+                  program_template_day_id: dayId,
+                  module_owner_coach_id: coachUserId,
+                  module_type: 'strength',
+                  session_type: SESSION_TYPE_MAP[slot.activityType!] || 'other',
+                  session_timing: 'anytime',
+                  title: `${slot.activityName || 'Activity'} — ${slot.duration || 30}min`,
+                  status: 'draft',
+                });
+              }
+            }
+          }
+        } catch (activityErr) {
+          console.warn('Activity module creation failed:', activityErr);
+        }
+      }
 
       // Fill exercises for each module (pre-selected first, then auto-fill for the rest)
       let preSelectedCount = 0;
@@ -323,19 +372,31 @@ export const ConvertToProgram = memo(function ConvertToProgram({
               </div>
               <div className="space-y-0.5">
                 {daySlots.map(slot => {
-                  const muscle = getMuscleDisplay(slot.muscleId);
-                  if (!muscle) return null;
+                  const isStrength = !slot.activityType || slot.activityType === 'strength';
+                  if (isStrength) {
+                    const muscle = getMuscleDisplay(slot.muscleId);
+                    if (!muscle) return null;
+                    return (
+                      <div key={slot.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <div className={`w-1.5 h-1.5 rounded-full ${muscle.colorClass}`} />
+                        <span>{muscle.label}</span>
+                        <span className="mx-1 text-border">→</span>
+                        {slot.exercise ? (
+                          <span className="text-emerald-500 font-medium truncate flex-1">{slot.exercise.name}</span>
+                        ) : (
+                          <span className="text-muted-foreground/50 italic truncate flex-1">auto-fill</span>
+                        )}
+                        <span className="ml-auto font-mono shrink-0">{slot.sets}s</span>
+                      </div>
+                    );
+                  }
+                  // Non-strength activity
+                  const typeColors = ACTIVITY_TYPE_COLORS[slot.activityType!];
                   return (
                     <div key={slot.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <div className={`w-1.5 h-1.5 rounded-full ${muscle.colorClass}`} />
-                      <span>{muscle.label}</span>
-                      <span className="mx-1 text-border">→</span>
-                      {slot.exercise ? (
-                        <span className="text-emerald-500 font-medium truncate flex-1">{slot.exercise.name}</span>
-                      ) : (
-                        <span className="text-muted-foreground/50 italic truncate flex-1">auto-fill</span>
-                      )}
-                      <span className="ml-auto font-mono shrink-0">{slot.sets}s</span>
+                      <div className={`w-1.5 h-1.5 rounded-full ${typeColors.colorClass}`} />
+                      <span>{slot.activityName || slot.activityId}</span>
+                      <span className="ml-auto font-mono shrink-0">{slot.duration || 30}min</span>
                     </div>
                   );
                 })}

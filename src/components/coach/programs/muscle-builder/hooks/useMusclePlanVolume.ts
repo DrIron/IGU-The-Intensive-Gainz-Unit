@@ -51,7 +51,10 @@ export function useMusclePlanVolume(slots: MuscleSlotData[]) {
     const map = new Map<string, { totalSets: number; totalRepsMin: number; totalRepsMax: number; tustSecondsMin: number; tustSecondsMax: number; workingSets: number; hasTempo: boolean; days: Map<number, number>; subs: Map<string, number> }>();
 
     for (const slot of slots) {
+      // Skip non-strength activities from volume/TUST calculations
+      if (slot.activityType && slot.activityType !== 'strength') continue;
       const parentId = resolveParentMuscleId(slot.muscleId);
+      if (!parentId) continue;
       let entry = map.get(parentId);
       if (!entry) {
         entry = { totalSets: 0, totalRepsMin: 0, totalRepsMax: 0, tustSecondsMin: 0, tustSecondsMax: 0, workingSets: 0, hasTempo: false, days: new Map(), subs: new Map() };

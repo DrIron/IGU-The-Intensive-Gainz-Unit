@@ -3,9 +3,11 @@ import { Droppable } from "@hello-pangea/dnd";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Copy, ClipboardPaste, Plus, ChevronRight } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Copy, ClipboardPaste, Plus, ChevronRight, ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MuscleSlotCard } from "./MuscleSlotCard";
+import { ActivitySlotCard } from "./ActivitySlotCard";
 import {
   DAYS_OF_WEEK,
   MUSCLE_GROUPS,
@@ -13,6 +15,9 @@ import {
   BODY_REGION_LABELS,
   SUBDIVISIONS_BY_PARENT,
   resolveParentMuscleId,
+  ACTIVITY_TYPE_LABELS,
+  ACTIVITY_TYPE_COLORS,
+  type ActivityType,
   type MuscleSlotData,
   type SlotExercise,
 } from "@/types/muscle-builder";
@@ -35,6 +40,7 @@ interface DayColumnProps {
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
   onSetSlotColumns?: (slotId: string, columns: string[]) => void;
+  onSetActivityDetails?: (slotId: string, details: Record<string, unknown>) => void;
   globalClientInputs?: string[];
   className?: string;
   copiedDayIndex?: number | null;
@@ -62,6 +68,7 @@ export const DayColumn = memo(function DayColumn({
   onSetExerciseInstructions,
   onSetSlotClientInputs,
   onSetSlotColumns,
+  onSetActivityDetails,
   globalClientInputs,
   className,
   copiedDayIndex,
@@ -79,9 +86,23 @@ export const DayColumn = memo(function DayColumn({
   );
 
   const totalSets = useMemo(
-    () => daySlots.reduce((sum, s) => sum + s.sets, 0),
+    () => daySlots.filter(s => !s.activityType || s.activityType === 'strength').reduce((sum, s) => sum + s.sets, 0),
     [daySlots]
   );
+
+  // Group slots by activity type for collapsible sections
+  const sessionGroups = useMemo(() => {
+    const groups = new Map<string, MuscleSlotData[]>();
+    for (const slot of daySlots) {
+      const type = slot.activityType || 'strength';
+      const list = groups.get(type) || [];
+      list.push(slot);
+      groups.set(type, list);
+    }
+    return groups;
+  }, [daySlots]);
+
+  const hasMultipleTypes = sessionGroups.size > 1;
 
   const handleAddMuscle = useCallback(
     (muscleId: string) => {
@@ -240,40 +261,83 @@ export const DayColumn = memo(function DayColumn({
                   Rest day
                 </div>
               )}
-              {daySlots.map((slot, i) => (
-                <MuscleSlotCard
-                  key={slot.id}
-                  slotId={slot.id}
-                  muscleId={slot.muscleId}
-                  sets={slot.sets}
-                  repMin={slot.repMin ?? 8}
-                  repMax={slot.repMax ?? 12}
-                  tempo={slot.tempo}
-                  rir={slot.rir}
-                  rpe={slot.rpe}
-                  exercise={slot.exercise}
-                  replacements={slot.replacements}
-                  setsDetail={slot.setsDetail}
-                  prescriptionColumns={slot.prescriptionColumns}
-                  clientInputColumns={slot.clientInputColumns}
-                  globalClientInputs={globalClientInputs}
-                  draggableIndex={i}
-                  onSetSlotDetails={onSetSlotDetails}
-                  onRemove={onRemove}
-                  onSetExercise={onSetExercise}
-                  onClearExercise={onClearExercise}
-                  onAddReplacement={onAddReplacement}
-                  onRemoveReplacement={onRemoveReplacement}
-                  onOpenExercisePicker={onOpenExercisePicker}
-                  onTogglePerSet={onTogglePerSet}
-                  onUpdateSetDetail={onUpdateSetDetail}
-                  onSetExerciseInstructions={onSetExerciseInstructions}
-                  onSetSlotClientInputs={onSetSlotClientInputs}
-                  onSetSlotColumns={onSetSlotColumns}
-                  isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
-                  onSetAllSets={onSetAllSets}
-                />
-              ))}
+              {(() => {
+                // Render slots with optional session type headers when multiple types present
+                let globalIdx = 0;
+                const rendered: React.ReactNode[] = [];
+                const typeOrder: string[] = ['strength', 'cardio', 'hiit', 'yoga_mobility', 'recovery', 'sport_specific'];
+
+                for (const type of typeOrder) {
+                  const slotsForType = sessionGroups.get(type);
+                  if (!slotsForType || slotsForType.length === 0) continue;
+
+                  const isStrength = type === 'strength';
+                  const typeColors = ACTIVITY_TYPE_COLORS[type as ActivityType];
+                  const typeLabel = ACTIVITY_TYPE_LABELS[type as ActivityType];
+
+                  // Session group header (only when multiple types)
+                  if (hasMultipleTypes) {
+                    rendered.push(
+                      <div key={`header-${type}`} className="flex items-center gap-1.5 pt-1 pb-0.5 first:pt-0">
+                        <div className={`w-1.5 h-1.5 rounded-full ${typeColors.colorClass}`} />
+                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{typeLabel}</span>
+                      </div>
+                    );
+                  }
+
+                  // Render slots for this type
+                  for (const slot of slotsForType) {
+                    const idx = globalIdx++;
+                    if (isStrength) {
+                      rendered.push(
+                        <MuscleSlotCard
+                          key={slot.id}
+                          slotId={slot.id}
+                          muscleId={slot.muscleId}
+                          sets={slot.sets}
+                          repMin={slot.repMin ?? 8}
+                          repMax={slot.repMax ?? 12}
+                          tempo={slot.tempo}
+                          rir={slot.rir}
+                          rpe={slot.rpe}
+                          exercise={slot.exercise}
+                          replacements={slot.replacements}
+                          setsDetail={slot.setsDetail}
+                          prescriptionColumns={slot.prescriptionColumns}
+                          clientInputColumns={slot.clientInputColumns}
+                          globalClientInputs={globalClientInputs}
+                          draggableIndex={idx}
+                          onSetSlotDetails={onSetSlotDetails}
+                          onRemove={onRemove}
+                          onSetExercise={onSetExercise}
+                          onClearExercise={onClearExercise}
+                          onAddReplacement={onAddReplacement}
+                          onRemoveReplacement={onRemoveReplacement}
+                          onOpenExercisePicker={onOpenExercisePicker}
+                          onTogglePerSet={onTogglePerSet}
+                          onUpdateSetDetail={onUpdateSetDetail}
+                          onSetExerciseInstructions={onSetExerciseInstructions}
+                          onSetSlotClientInputs={onSetSlotClientInputs}
+                          onSetSlotColumns={onSetSlotColumns}
+                          isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
+                          onSetAllSets={onSetAllSets}
+                        />
+                      );
+                    } else {
+                      rendered.push(
+                        <ActivitySlotCard
+                          key={slot.id}
+                          slot={slot}
+                          draggableIndex={idx}
+                          onRemove={onRemove}
+                          onSetActivityDetails={onSetActivityDetails}
+                        />
+                      );
+                    }
+                  }
+                }
+                return rendered;
+              })()}
               {provided.placeholder}
             </div>
           )}

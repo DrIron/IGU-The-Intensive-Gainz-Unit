@@ -33,7 +33,7 @@ import {
   Redo2,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId } from "@/types/muscle-builder";
+import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId, ACTIVITY_MAP } from "@/types/muscle-builder";
 import type { MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
 import { AVAILABLE_CLIENT_COLUMNS } from "@/types/workout-builder";
@@ -113,11 +113,20 @@ export function MuscleBuilderPage({
       const { source, destination, draggableId } = result;
       if (!destination) return;
 
-      // Palette → Day: ADD muscle (copy)
+      // Palette → Day: ADD muscle or activity (copy)
       if (source.droppableId === 'palette' && destination.droppableId.startsWith('day-')) {
         const dayIndex = parseInt(destination.droppableId.replace('day-', ''));
-        const muscleId = draggableId.replace('palette-', '');
-        dispatch({ type: 'ADD_MUSCLE', dayIndex, muscleId });
+        const paletteId = draggableId.replace('palette-', '');
+
+        if (paletteId.startsWith('activity-')) {
+          // Activity drop
+          const activityId = paletteId.replace('activity-', '');
+          const activityDef = ACTIVITY_MAP.get(activityId);
+          dispatch({ type: 'ADD_ACTIVITY', dayIndex, activityId, activityType: activityDef?.category || 'cardio' });
+        } else {
+          // Muscle drop
+          dispatch({ type: 'ADD_MUSCLE', dayIndex, muscleId: paletteId });
+        }
         return;
       }
 
@@ -307,6 +316,12 @@ export function MuscleBuilderPage({
 
   const handleSetSlotColumns = useCallback(
     (slotId: string, columns: string[]) => dispatch({ type: 'SET_SLOT_COLUMNS', slotId, columns }),
+    [dispatch]
+  );
+
+  const handleSetActivityDetails = useCallback(
+    (slotId: string, details: Record<string, unknown>) =>
+      dispatch({ type: 'SET_ACTIVITY_DETAILS', slotId, details: details as any }),
     [dispatch]
   );
 
@@ -525,6 +540,7 @@ export function MuscleBuilderPage({
               onSetExerciseInstructions={handleSetExerciseInstructions}
               onSetSlotClientInputs={handleSetSlotClientInputs}
               onSetSlotColumns={handleSetSlotColumns}
+              onSetActivityDetails={handleSetActivityDetails}
               globalClientInputs={state.globalClientInputs}
               copiedDayIndex={copiedDayIndex}
               onCopyDay={handleCopyDay}
