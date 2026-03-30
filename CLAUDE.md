@@ -521,6 +521,7 @@ When understanding this codebase, read in this order:
 - Phase 35: Planning Board Exercise Selection — exercise assignment integrated into Planning Board as final planning phase, one primary exercise + optional replacements per slot, smart conversion uses pre-selected exercises with auto-fill fallback (Mar 29, 2026) ✅
 - Planning Board as sole program creation path — removed direct "Create Program" dialog, all programs must go through Planning Board first (Mar 29, 2026) ✅
 - Phase 36: Planning Board Full Program Builder — per-set customization (individual rep range/tempo/RIR/RPE/rest per set), coach instructions per exercise, client input config (global + per-slot), per-set TUST/volume analytics, dynamic prescription column selector from bank (Mar 29, 2026) ✅
+- Phase 37: Multi-Session Planning Board — Activity Palette with Cardio (9), HIIT (5), Yoga/Mobility (10), Recovery (6), Sport-Specific (6) activities. Each day supports multiple collapsible session types. ActivitySlotCard with type-specific editors. Conversion creates correct session_type per module (Mar 30, 2026) ✅
 
 ### Phase 35: Planning Board Exercise Selection (Mar 29, 2026)
 
@@ -1168,11 +1169,12 @@ When showing "no results" messages that reference a search term, always handle t
 
 **Problem**: Page refresh caused authentication failures - `getSession()` hung, auth headers didn't attach to Supabase client, RLS policies blocked queries, users got locked out of admin dashboard.
 
-**Solution** (three layers):
+**Solution** (four layers):
 
 1. **Cache-first role management** (Phase 8): Authorization checks use cached roles, not `getSession()`
 2. **Navigator lock bypass** (Feb 8, 2026): Custom `lockWithTimeout()` in `client.ts` bypasses Navigator LockManager entirely — runs `fn()` directly without a lock
 3. **initializePromise timeout** (Feb 8, 2026): Races `initializePromise` against 5s timeout + resets internal `lockAcquired`/`pendingInLock` state to break the deadlock queue
+4. **Full session recovery from localStorage** (Mar 29, 2026): After initializePromise timeout, `getSession()` returns null but valid session exists in localStorage. Now calls `supabase.auth.setSession()` with stored access_token + refresh_token to restore the full session — fixes `supabase.from()` queries that were silently using anon key (RLS blocked all data)
 
 The root cause is a circular deadlock in Supabase's GoTrueClient:
 1. `initialize()` → `_recoverAndRefresh()` → `_notifyAllSubscribers('SIGNED_IN')`
@@ -1183,6 +1185,8 @@ The root cause is a circular deadlock in Supabase's GoTrueClient:
 
 The lock bypass + initializePromise timeout break both the lock-level and Promise-level deadlocks. Trade-off: no cross-tab token refresh coordination (concurrent refreshes are idempotent on server).
 
+**Critical gotcha (Layer 4)**: After initializePromise timeout resolves, the Supabase client's in-memory session is empty. `RoleProtectedRoute` bypasses this via raw `fetch()` with stored JWT, but ALL `supabase.from()` calls in dashboard components silently use the anon key. RLS blocks queries → empty results → dashboard shows infinite loading spinners. Fix: `client.ts` now calls `supabase.auth.setSession()` to restore the full session, which also fires `onAuthStateChange('SIGNED_IN')` to unblock `AuthGuard` and `useAuthSession`.
+
 **Cache-first pattern details:**
 - Cache user roles in localStorage after successful authentication
 - Read cached roles instantly on page refresh (no waiting for session)
@@ -1190,12 +1194,13 @@ The lock bypass + initializePromise timeout break both the lock-level and Promis
 - Use refs instead of state for authorization guards (avoids React batched update issues)
 
 **Key Files**:
-- `src/integrations/supabase/client.ts` - Custom `lockWithTimeout()` + `sessionReady` promise
+- `src/integrations/supabase/client.ts` - Custom `lockWithTimeout()` + `sessionReady` promise + full session recovery
 - `src/lib/constants.ts` - Cache keys, timeouts configuration
 - `src/hooks/useRoleCache.ts` - localStorage role caching hook
-- `src/hooks/useAuthSession.ts` - Session management with timeouts
+- `src/hooks/useAuthSession.ts` - Session management with 5s safety timeout
 - `src/hooks/useAuthCleanup.ts` - Sign-out with cache cleanup
-- `src/components/RoleProtectedRoute.tsx` - Cache-first auth guard with `isAuthorizedRef`
+- `src/components/RoleProtectedRoute.tsx` - Cache-first auth guard with `isAuthorizedRef` + raw fetch()
+- `src/components/AuthGuard.tsx` - 5s getSession timeout + 6s safety timeout (prevents infinite loader)
 - `src/components/Navigation.tsx` - Synced with cached auth state
 - `src/pages/Auth.tsx` - Fixed sign-in redirect (timeout + reset redirectingRef)
 - `src/pages/admin/AdminDashboard.tsx` - Uses cached roles for instant sidebar render
@@ -1951,7 +1956,8 @@ SQL function `generate_referral_code(first_name)`:
 - No automated tests for components (only smoke tests)
 - No staging environment (production only)
 - Bundle size: ~441KB initial (down from 2.8MB after React.lazy + vendor chunk splitting in Phase 28)
-- `getSession()` could hang on page refresh — mitigated by Navigator lock bypass + `initializePromise` timeout in `client.ts` + cache-first role pattern
+- `getSession()` could hang on page refresh — mitigated by Navigator lock bypass + `initializePromise` timeout + full session recovery via `setSession()` in `client.ts` + cache-first role pattern. After the timeout, the Supabase client's in-memory session is empty — `supabase.from()` queries silently use the anon key and RLS blocks everything. The `setSession()` recovery restores the full session. **Any new auth guard or component calling `getSession()` MUST have a safety timeout** (see `AuthGuard.tsx` pattern).
+- `AuthGuard` has a 6s safety timeout — if no auth event fires within 6s, loading is forced to false. Without this, the component hangs forever when `onAuthStateChange` doesn't fire due to the init deadlock.
 - Edge functions: Always handle OPTIONS before `req.json()` to avoid CORS preflight crashes
 - Resend emails must use `@mail.theigu.com` (only verified subdomain)
 - React useEffect with useCallback dependencies can cause infinite loops — always use `hasFetched` ref guards for data fetching
