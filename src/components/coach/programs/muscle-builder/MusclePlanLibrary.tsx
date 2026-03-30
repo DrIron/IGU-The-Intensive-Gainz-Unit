@@ -90,10 +90,12 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
 
       if (error) throw error;
       setPlans(
-        (data || []).map(d => ({
-          ...d,
-          slot_config: (d.slot_config as unknown as MuscleSlotData[]) || [],
-        }))
+        (data || []).map(d => {
+          // slot_config can be array (old format) or object { slots, ... } (new format)
+          const raw = d.slot_config as unknown;
+          const slots = Array.isArray(raw) ? raw as MuscleSlotData[] : (raw && typeof raw === 'object' && 'slots' in raw) ? (raw as { slots: MuscleSlotData[] }).slots || [] : [];
+          return { ...d, slot_config: slots };
+        })
       );
     } catch (error: any) {
       toast({ title: "Error loading plans", description: sanitizeErrorForUser(error), variant: "destructive" });
@@ -126,7 +128,7 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
           coach_id: coachUserId,
           name: `${plan.name} (Copy)`,
           description: plan.description,
-          slot_config: plan.slot_config as unknown as Record<string, unknown>,
+          slot_config: { slots: plan.slot_config } as unknown as Record<string, unknown>,
         });
 
       if (error) throw error;

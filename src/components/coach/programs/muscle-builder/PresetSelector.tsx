@@ -53,7 +53,7 @@ export const PresetSelector = memo(function PresetSelector({
           id: d.id,
           name: d.name,
           description: d.description,
-          slot_config: d.slot_config as MuscleSlotData[],
+          slot_config: (() => { const raw = d.slot_config as unknown; return Array.isArray(raw) ? raw as MuscleSlotData[] : (raw && typeof raw === 'object' && 'slots' in raw) ? (raw as { slots: MuscleSlotData[] }).slots || [] : []; })(),
         }))
       );
       setLoading(false);
