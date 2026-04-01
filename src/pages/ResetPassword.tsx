@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Dumbbell, X } from "lucide-react";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { withTimeout } from "@/lib/withTimeout";
 
 export default function ResetPassword() {
   const navigate = useNavigate();
@@ -41,18 +42,24 @@ export default function ResetPassword() {
     if (hasRecoveryToken) {
       // Token found in URL -- Supabase will process it via onAuthStateChange
       // Give it a moment, then verify session
-      setTimeout(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
+      setTimeout(async () => {
+        try {
+          const { data: { session } } = await withTimeout(
+            supabase.auth.getSession(), 5000, 'getSession (recovery)'
+          );
           if (session) {
             setRecoveryReady(true);
           }
-        });
-      }, 1000);
+        } catch {
+          // Timeout or error — the onAuthStateChange listener may still fire
+          setRecoveryReady(true);
+        }
+      }, 1500);
       return () => subscription.unsubscribe();
     }
 
     // No token in URL -- check if there's already an active session (e.g. PKCE flow completed)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    withTimeout(supabase.auth.getSession(), 5000, 'getSession (check)').then(({ data: { session } }) => {
       if (session) {
         setRecoveryReady(true);
       } else {
@@ -63,6 +70,14 @@ export default function ResetPassword() {
         });
         navigate("/auth");
       }
+    }).catch(() => {
+      // getSession timed out — redirect to auth
+      toast({
+        title: "Session error",
+        description: "Could not verify your session. Please try the link again or request a new one.",
+        variant: "destructive",
+      });
+      navigate("/auth");
     });
 
     return () => subscription.unsubscribe();
@@ -100,9 +115,11 @@ export default function ResetPassword() {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      });
+      const { error } = await withTimeout(
+        supabase.auth.updateUser({ password }),
+        10000,
+        'updateUser'
+      );
 
       if (error) throw error;
 
@@ -110,12 +127,15 @@ export default function ResetPassword() {
         title: "Password updated!",
         description: "Your password has been successfully reset.",
       });
-      
+
       navigate("/dashboard");
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const message = error instanceof Error && error.message.includes('timed out')
+        ? "The request timed out. Your password may have been updated — try logging in with your new password."
+        : sanitizeErrorForUser(error);
       toast({
         title: "Error",
-        description: sanitizeErrorForUser(error),
+        description: message,
         variant: "destructive",
       });
     } finally {
