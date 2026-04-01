@@ -7,7 +7,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Users, XCircle, Star, FileCheck, LayoutGrid, LayoutList, Trash2, MoreVertical, Edit, Stethoscope, Mail, Check, X, Inbox } from "lucide-react";
+import { Users, XCircle, Star, FileCheck, LayoutGrid, LayoutList, Trash2, MoreVertical, Edit, Stethoscope, Mail, KeyRound, Check, X, Inbox } from "lucide-react";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClientCardView } from "@/components/ClientCardView";
 import { formatProfileStatus, getProfileStatusVariant } from "@/lib/statusUtils";
@@ -553,6 +553,27 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     }
   };
 
+  const handleSendPasswordReset = async (email: string, name: string) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-signup-confirmation', {
+        body: { email, name, generatePasswordReset: true },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Password Reset Sent",
+        description: `Password setup email sent to ${email}`,
+      });
+    } catch (error: unknown) {
+      toast({
+        title: "Error",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    }
+  };
+
   // NOTE: Coach-specific approval logic has been removed from ClientList.
   // All coach approvals are handled exclusively in CoachMyClientsPage.
   // This component is ADMIN-ONLY.
@@ -696,6 +717,11 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
                       <DropdownMenuItem onClick={() => handleResendWelcomeEmail(client.id, client.email, client.first_name || getClientDisplayName(client))}>
                         <Mail className="mr-2 h-4 w-4" />
                         Resend Welcome Email
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem onClick={() => handleSendPasswordReset(client.email, client.first_name || getClientDisplayName(client))}>
+                        <KeyRound className="mr-2 h-4 w-4" />
+                        Send Password Reset
                       </DropdownMenuItem>
 
                       {activeSubscription && !activeSubscription.cancel_at_period_end && client.status !== 'cancelled' && (

@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "https://deno.land/x/zod@v3.22.4/mod.ts";
 import { EMAIL_FROM_IGU, APP_BASE_URL } from '../_shared/config.ts';
 import { checkRateLimit, getClientIp, rateLimitResponse } from '../_shared/rateLimit.ts';
@@ -17,6 +18,7 @@ const requestSchema = z.object({
   passwordResetLink: z.string().url().optional(),
   isManualClient: z.boolean().optional(),
   isExemptActivation: z.boolean().optional(),
+  generatePasswordReset: z.boolean().optional(),
 });
 
 serve(async (req) => {
@@ -33,7 +35,32 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { email, name, passwordResetLink, isManualClient, isExemptActivation } = requestSchema.parse(body);
+    const parsed = requestSchema.parse(body);
+    const { email, name, isManualClient, isExemptActivation, generatePasswordReset } = parsed;
+    let { passwordResetLink } = parsed;
+
+    // Generate password reset link server-side if requested
+    if (generatePasswordReset && !passwordResetLink) {
+      const supabaseAdmin = createClient(
+        Deno.env.get('SUPABASE_URL') ?? '',
+        Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+        { auth: { autoRefreshToken: false, persistSession: false } }
+      );
+
+      const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'recovery',
+        email,
+        options: { redirectTo: `${APP_BASE_URL}/reset-password` },
+      });
+
+      if (linkError) {
+        console.error('Failed to generate password reset link:', linkError.message);
+        throw new Error('Failed to generate password reset link');
+      }
+
+      passwordResetLink = linkData?.properties?.action_link || undefined;
+      console.log('Generated password reset link for:', email);
+    }
 
     let content: string;
     let preheader: string;
