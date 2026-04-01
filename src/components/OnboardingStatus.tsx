@@ -257,9 +257,7 @@ export function OnboardingStatus() {
                 <p className="text-sm text-blue-800 dark:text-blue-200 mt-1 mb-3">
                   {paymentFailed || paymentCancelled || paymentDeclined
                     ? `Please retry your payment to activate your ${status.planName} subscription.`
-                    : isTeamPlan 
-                      ? `Complete your payment to activate your ${status.planName} subscription. You'll be added to TrueCoach within 48 hours.`
-                      : `Complete your payment to activate your ${status.planName} subscription.`
+                    : `Complete your payment to activate your ${status.planName} subscription.`
                   }
                 </p>
                 <PaymentButton

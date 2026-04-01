@@ -290,15 +290,15 @@ export default function ClientSubmission() {
                   label="Email"
                   value={phiData?.email}
                   canView={userCanViewPHI}
-                  placeholder="Contact via TrueCoach"
+                  placeholder="Restricted"
                 />
-                
+
                 {/* Phone - PHI restricted */}
                 <PHIRestrictedField
                   label="Phone Number"
                   value={phiData?.phone_number}
                   canView={userCanViewPHI}
-                  placeholder="Contact via TrueCoach"
+                  placeholder="Restricted"
                 />
                 
                 <div>
@@ -473,7 +473,7 @@ export default function ClientSubmission() {
                   <Alert>
                     <Info className="h-4 w-4" />
                     <AlertDescription>
-                      Use TrueCoach messaging to discuss training modifications with the client directly.
+                      Discuss training modifications with the client directly via the platform.
                     </AlertDescription>
                   </Alert>
                 </div>

@@ -715,48 +715,6 @@ Deno.serve(async (req) => {
     console.log(JSON.stringify({ fn: "submit-onboarding", step: "submission_complete", ok: true, user_id: user.id, status: newStatus }));
 
     // ============================
-    // ZAPIER NOTIFICATION (NON-BLOCKING)
-    // ============================
-    try {
-      // Fetch coach email if available
-      let coachEmail: string | null = null;
-      if (coachUserId) {
-        const { data: coachData } = await supabaseServiceRole
-          .from('coaches')
-          .select('email')
-          .eq('user_id', coachUserId)
-          .maybeSingle();
-        coachEmail = coachData?.email ?? null;
-      }
-      
-      await supabaseServiceRole.functions.invoke('notify-zapier', {
-        body: {
-          event_type: 'onboarding_submitted',
-          user_id: user.id,
-          profile_id: user.id,
-          profile_email: validatedData.email,
-          profile_status: newStatus,
-          subscription_id: subscription.id,
-          subscription_status: subscription.status,
-          service_id: serviceData.id,
-          service_name: validatedData.plan_name,
-          coach_id: coachUserId ?? null,
-          coach_email: coachEmail,
-          notes: 'New onboarding submitted',
-          metadata: {
-            form_type: mappedFormType,
-            plan_type: serviceData.type,
-            needs_medical_review,
-            was_auto_assigned: wasAutoAssigned,
-          },
-        },
-      });
-      console.log(JSON.stringify({ fn: "submit-onboarding", step: "zapier_notify", ok: true }));
-    } catch (zapierError) {
-      console.error(JSON.stringify({ fn: "submit-onboarding", step: "zapier_notify", ok: false, error: "zapier_failed" }));
-    }
-
-    // ============================
     // EMAIL NOTIFICATIONS (NON-BLOCKING)
     // ============================
     const logEmail = async (userId: string, notificationType: string, status: string) => {

@@ -205,48 +205,6 @@ Deno.serve(async (req) => {
       // Non-critical - booking is cancelled but slot may not be released
     }
 
-    // Get client email for Zapier
-    let clientEmail = profile.email;
-    if (!isClient) {
-      const { data: clientProfile } = await supabaseAdmin
-        .from('profiles')
-        .select('email')
-        .eq('id', booking.client_id)
-        .single();
-      clientEmail = clientProfile?.email ?? null;
-    }
-
-    // Emit Zapier event (non-blocking)
-    try {
-      const sub = (booking as unknown as { subscriptions: { id: string; status: string; service_id: string; services: { id: string; name: string } } }).subscriptions;
-      const slot = (booking as unknown as { coach_time_slots: { id: string; status: string; location: string } }).coach_time_slots;
-
-      await supabaseAdmin.functions.invoke('notify-zapier', {
-        body: {
-          event_type: 'session_cancelled',
-          user_id: booking.client_id,
-          profile_id: booking.client_id,
-          profile_email: clientEmail,
-          subscription_id: sub.id,
-          subscription_status: sub.status,
-          service_id: sub.services.id,
-          service_name: sub.services.name,
-          coach_id: booking.coach_id,
-          notes: 'Session cancelled',
-          metadata: {
-            session_id: booking.id,
-            slot_id: booking.slot_id,
-            session_start: booking.session_start,
-            session_end: booking.session_end,
-            cancelled_by: cancelledBy,
-          },
-        },
-      });
-      console.log('[cancel-session] Zapier notification sent');
-    } catch (zapierError) {
-      console.error('[cancel-session] Zapier notification failed (non-critical):', zapierError);
-    }
-
     console.log(`[cancel-session] Booking ${booking.id} cancelled by ${cancelledBy}`);
 
     return new Response(

@@ -281,38 +281,6 @@ Deno.serve(async (req) => {
       // Booking was created, but slot update failed - log but don't fail
     }
 
-    // Emit Zapier event (non-blocking)
-    try {
-      const service = (subscription as unknown as { services: { id: string; name: string; type: string } }).services;
-      
-      await supabaseAdmin.functions.invoke('notify-zapier', {
-        body: {
-          event_type: 'session_booked',
-          user_id: profile.id,
-          profile_id: profile.id,
-          profile_email: profile.email,
-          profile_status: profile.status,
-          subscription_id: subscription.id,
-          subscription_status: subscription.status,
-          service_id: service.id,
-          service_name: service.name,
-          coach_id: slot.coach_id,
-          notes: 'Session booked',
-          metadata: {
-            session_id: booking.id,
-            slot_id: slot.id,
-            session_start: slot.slot_start,
-            session_end: slot.slot_end,
-            location: slot.location,
-            session_type: slot.slot_type,
-          },
-        },
-      });
-      console.log('[book-session] Zapier notification sent');
-    } catch (zapierError) {
-      console.error('[book-session] Zapier notification failed (non-critical):', zapierError);
-    }
-
     console.log(`[book-session] Booking created: ${booking.id} for user ${profile.id}`);
 
     return new Response(

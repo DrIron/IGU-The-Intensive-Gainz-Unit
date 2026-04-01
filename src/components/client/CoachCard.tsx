@@ -96,7 +96,7 @@ export function CoachCard({ coach, clientFirstName, wasPreferred, originalPrefer
         <div className="flex items-start gap-2 p-3 rounded-md bg-primary/5 border border-primary/10">
           <MessageSquare className="h-4 w-4 text-primary mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground">
-            Contact your coach via TrueCoach or Discord for training support
+            Your coach will reach out to you directly to discuss your training
           </p>
         </div>
       </CardContent>

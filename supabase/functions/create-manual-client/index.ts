@@ -286,6 +286,18 @@ serve(async (req) => {
     const coachId = adminCoach?.user_id || null;
     console.log(JSON.stringify({ fn: "create-manual-client", step: "assign_coach", ok: true, coach_id: coachId }));
 
+    // Ensure profiles_legacy row exists (FK required by subscriptions table)
+    const { error: legacyError } = await supabaseAdmin
+      .from("profiles_legacy")
+      .upsert(
+        { id: userId!, email },
+        { onConflict: 'id' }
+      );
+
+    if (legacyError) {
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "upsert_profiles_legacy", ok: false, error: legacyError.message }));
+    }
+
     // Create active subscription (no payment needed for manual clients)
     // Idempotency: skip if an active/pending subscription for same service already exists
     const { data: existingSub, error: existingSubErr } = await supabaseAdmin

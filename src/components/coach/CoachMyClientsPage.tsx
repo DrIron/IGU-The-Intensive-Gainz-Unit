@@ -461,7 +461,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
     // This should go through an edge function that fetches email server-side
     toast({
       title: "Coming Soon",
-      description: "Testimonial requests are handled through TrueCoach. Contact admin for manual requests.",
+      description: "Testimonial requests are sent automatically after 4 weeks. Contact admin for manual requests.",
       variant: "default",
     });
   };

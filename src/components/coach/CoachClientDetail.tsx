@@ -343,7 +343,7 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
           <Alert>
             <Info className="h-4 w-4" />
             <AlertDescription>
-              Contact details are managed by the client. Use in-app messaging or TrueCoach for communication.
+              Contact details are managed by the client. Client PII is restricted for privacy.
             </AlertDescription>
           </Alert>
 

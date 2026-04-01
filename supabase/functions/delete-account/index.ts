@@ -159,38 +159,10 @@ Deno.serve(async (req) => {
     await supabaseClient.from('coaches').delete().eq('user_id', userId);
 
     await supabaseClient.from('user_roles').delete().eq('user_id', userId);
-    // Get profile email before deletion for Zapier notification (from profiles_private)
-    const { data: profileData } = await supabaseClient
-      .from('profiles_private')
-      .select('email')
-      .eq('profile_id', userId)
-      .maybeSingle();
-    const profileEmail = profileData?.email ?? null;
 
     // Delete from both tables (profiles_private first due to FK, then profiles_public)
     await supabaseClient.from('profiles_private').delete().eq('profile_id', userId);
     await supabaseClient.from('profiles_public').delete().eq('id', userId);
-
-    // ============================
-    // ZAPIER NOTIFICATION (NON-BLOCKING)
-    // ============================
-    try {
-      await supabaseClient.functions.invoke('notify-zapier', {
-        body: {
-          event_type: 'user_deleted',
-          user_id: userId,
-          profile_id: userId,
-          profile_email: profileEmail,
-          notes: 'Account deleted',
-          metadata: {
-            reason: 'delete_account_function',
-          },
-        },
-      });
-      console.log('Zapier notification sent for user_deleted');
-    } catch (zapierError) {
-      console.error('Zapier notification failed (non-critical):', zapierError);
-    }
 
     // Final step: Delete auth user (this will cascade any remaining auth-related data)
     const { error: deleteAuthError } = await supabaseClient.auth.admin.deleteUser(userId);
