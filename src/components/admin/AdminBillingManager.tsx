@@ -372,14 +372,15 @@ export function AdminBillingManager() {
         new_exempt_status: newExemptStatus,
       });
 
-      // Send activation email when toggling TO exempt
+      // Send password setup email when toggling TO exempt
       if (newExemptStatus) {
         try {
           await supabase.functions.invoke('send-signup-confirmation', {
             body: {
               email: selectedClient.profiles.email,
               name: selectedClient.profiles.first_name || 'there',
-              isExemptActivation: true,
+              isManualClient: true,
+              generatePasswordReset: true,
             },
           });
         } catch (emailError) {
