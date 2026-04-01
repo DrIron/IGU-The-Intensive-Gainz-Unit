@@ -185,6 +185,8 @@ export const MUSCLE_GROUPS: MuscleGroupDef[] = [
   { id: 'pecs', label: 'Pecs', bodyRegion: 'push', colorClass: 'bg-rose-500', colorHex: '#f43f5e', landmarks: { MV: 6, MEV: 10, MAV: 20, MRV: 24 } },
   { id: 'shoulders', label: 'Shoulders', bodyRegion: 'push', colorClass: 'bg-orange-500', colorHex: '#f97316', landmarks: { MV: 6, MEV: 8, MAV: 22, MRV: 26 } },
   { id: 'triceps', label: 'Triceps', bodyRegion: 'push', colorClass: 'bg-amber-500', colorHex: '#f59e0b', landmarks: { MV: 4, MEV: 6, MAV: 14, MRV: 18 } },
+  { id: 'rotator_cuff', label: 'Rotator Cuff', bodyRegion: 'push', colorClass: 'bg-pink-400', colorHex: '#f472b6', landmarks: { MV: 2, MEV: 4, MAV: 10, MRV: 14 } },
+  { id: 'serratus', label: 'Serratus Anterior', bodyRegion: 'push', colorClass: 'bg-pink-300', colorHex: '#f9a8d4', landmarks: { MV: 2, MEV: 4, MAV: 10, MRV: 14 } },
   // Pull muscles (blue/sky/cyan/indigo/violet)
   { id: 'lats', label: 'Lats', bodyRegion: 'pull', colorClass: 'bg-blue-500', colorHex: '#3b82f6', landmarks: { MV: 6, MEV: 10, MAV: 20, MRV: 25 } },
   { id: 'mid_back', label: 'Mid-back', bodyRegion: 'pull', colorClass: 'bg-sky-500', colorHex: '#0ea5e9', landmarks: { MV: 6, MEV: 8, MAV: 18, MRV: 22 } },
@@ -199,6 +201,7 @@ export const MUSCLE_GROUPS: MuscleGroupDef[] = [
   { id: 'adductors', label: 'Adductors', bodyRegion: 'legs', colorClass: 'bg-green-400', colorHex: '#4ade80', landmarks: { MV: 4, MEV: 6, MAV: 14, MRV: 18 } },
   { id: 'abductors', label: 'Abductors', bodyRegion: 'legs', colorClass: 'bg-emerald-400', colorHex: '#34d399', landmarks: { MV: 4, MEV: 6, MAV: 14, MRV: 18 } },
   { id: 'hip_flexors', label: 'Hip Flexors', bodyRegion: 'legs', colorClass: 'bg-lime-400', colorHex: '#a3e635', landmarks: { MV: 2, MEV: 4, MAV: 10, MRV: 14 } },
+  { id: 'tibialis', label: 'Tibialis Anterior', bodyRegion: 'legs', colorClass: 'bg-cyan-400', colorHex: '#22d3ee', landmarks: { MV: 2, MEV: 4, MAV: 8, MRV: 12 } },
   // Core (yellow)
   { id: 'core', label: 'Core', bodyRegion: 'core', colorClass: 'bg-yellow-500', colorHex: '#eab308', landmarks: { MV: 4, MEV: 6, MAV: 16, MRV: 20 } },
   { id: 'neck', label: 'Neck', bodyRegion: 'core', colorClass: 'bg-yellow-400', colorHex: '#facc15', landmarks: { MV: 2, MEV: 4, MAV: 10, MRV: 14 } },
@@ -245,14 +248,30 @@ export const SUBDIVISIONS: SubdivisionDef[] = [
   { id: 'elbow_flexors_biceps_long', label: 'Biceps Long Head', parentId: 'elbow_flexors' },
   { id: 'elbow_flexors_brachialis', label: 'Brachialis', parentId: 'elbow_flexors' },
   { id: 'elbow_flexors_brachioradialis', label: 'Brachioradialis', parentId: 'elbow_flexors' },
+  // Rotator Cuff
+  { id: 'rotator_cuff_supraspinatus', label: 'Supraspinatus', parentId: 'rotator_cuff' },
+  { id: 'rotator_cuff_infraspinatus', label: 'Infraspinatus', parentId: 'rotator_cuff' },
+  { id: 'rotator_cuff_subscapularis', label: 'Subscapularis', parentId: 'rotator_cuff' },
+  { id: 'rotator_cuff_teres_minor', label: 'Teres Minor', parentId: 'rotator_cuff' },
+  // Serratus
+  { id: 'serratus_anterior', label: 'Serratus Anterior', parentId: 'serratus' },
   // Forearm
   { id: 'forearm_flexors', label: 'Wrist Flexors', parentId: 'forearm' },
   { id: 'forearm_extensors', label: 'Wrist Extensors', parentId: 'forearm' },
+  { id: 'forearm_digital_flexors', label: 'Digital Flexors (Grip)', parentId: 'forearm' },
+  { id: 'forearm_digital_extensors', label: 'Digital Extensors', parentId: 'forearm' },
+  { id: 'forearm_supinators', label: 'Supinators', parentId: 'forearm' },
+  { id: 'forearm_pronators', label: 'Pronators', parentId: 'forearm' },
   // Quads
   { id: 'quads_rectus_femoris', label: 'Rectus Femoris', parentId: 'quads' },
   { id: 'quads_vastus_lateralis', label: 'Vastus Lateralis', parentId: 'quads' },
   { id: 'quads_vastus_medialis', label: 'Vastus Medialis', parentId: 'quads' },
   { id: 'quads_vastus_intermedius', label: 'Vastus Intermedius', parentId: 'quads' },
+  // Calves
+  { id: 'calves_gastrocnemius', label: 'Gastrocnemius', parentId: 'calves' },
+  { id: 'calves_soleus', label: 'Soleus', parentId: 'calves' },
+  // Tibialis
+  { id: 'tibialis_anterior', label: 'Tibialis Anterior', parentId: 'tibialis' },
   // Glutes
   { id: 'glutes_max', label: 'Glute Max', parentId: 'glutes' },
   { id: 'glutes_med', label: 'Glute Med', parentId: 'glutes' },
@@ -419,6 +438,9 @@ export const MUSCLE_TO_EXERCISE_FILTER: Record<string, string[]> = {
   hip_flexors:   ['Hip Flexors', 'Glutes'],
   core:          ['Core', 'Obliques'],
   neck:          ['Traps'],
+  rotator_cuff:  ['Rotator Cuff', 'Shoulders'],
+  serratus:      ['Serratus', 'Core'],
+  tibialis:      ['Tibialis', 'Calves'],
   // Pecs subdivisions
   pecs_clavicular:  ['Upper Chest', 'Chest'],
   pecs_sternal:     ['Chest'],
@@ -447,9 +469,20 @@ export const MUSCLE_TO_EXERCISE_FILTER: Record<string, string[]> = {
   elbow_flexors_biceps_long:     ['Biceps'],
   elbow_flexors_brachialis:      ['Brachialis', 'Biceps'],
   elbow_flexors_brachioradialis: ['Forearms', 'Biceps'],
+  // Rotator Cuff subdivisions
+  rotator_cuff_supraspinatus: ['Rotator Cuff', 'Shoulders'],
+  rotator_cuff_infraspinatus: ['Rotator Cuff', 'Shoulders'],
+  rotator_cuff_subscapularis: ['Rotator Cuff', 'Shoulders'],
+  rotator_cuff_teres_minor:   ['Rotator Cuff', 'Shoulders'],
+  // Serratus subdivisions
+  serratus_anterior: ['Serratus', 'Core'],
   // Forearm subdivisions
-  forearm_flexors:   ['Forearms'],
-  forearm_extensors: ['Forearms'],
+  forearm_flexors:           ['Forearms'],
+  forearm_extensors:         ['Forearms'],
+  forearm_digital_flexors:   ['Forearms'],
+  forearm_digital_extensors: ['Forearms'],
+  forearm_supinators:        ['Forearms'],
+  forearm_pronators:         ['Forearms'],
   // Quads subdivisions
   quads_rectus_femoris:    ['Quadriceps'],
   quads_vastus_lateralis:  ['Quadriceps'],
@@ -470,6 +503,11 @@ export const MUSCLE_TO_EXERCISE_FILTER: Record<string, string[]> = {
   core_transversus:       ['Core'],
   core_erectors:          ['Core'],
   core_pelvic_floor:      ['Core'],
+  // Calves subdivisions
+  calves_gastrocnemius: ['Calves'],
+  calves_soleus:        ['Calves'],
+  // Tibialis subdivisions
+  tibialis_anterior: ['Tibialis', 'Calves'],
   // Neck subdivisions
   neck_scm:         ['Traps'],
   neck_upper_traps: ['Traps'],

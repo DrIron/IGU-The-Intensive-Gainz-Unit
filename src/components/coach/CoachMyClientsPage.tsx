@@ -496,19 +496,27 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
     const { paginate } = createPagination(filteredClients, CLIENTS_PER_PAGE);
     const { paginatedItems: pageClients, totalPages, totalItems, pageSize } = paginate(page);
     const variantStyles = {
-      amber: 'border-amber-200 bg-amber-50/50',
-      blue: 'border-blue-200 bg-blue-50/50',
-      green: 'border-green-200 bg-green-50/50',
-      red: 'border-red-200 bg-red-50/50',
+      amber: 'border-amber-500/20 bg-amber-500/5',
+      blue: 'border-blue-500/20 bg-blue-500/5',
+      green: 'border-emerald-500/20 bg-emerald-500/5',
+      red: 'border-red-500/20 bg-red-500/5',
       default: ''
     };
 
     const iconStyles = {
-      amber: 'text-amber-600',
-      blue: 'text-blue-600',
-      green: 'text-green-600',
-      red: 'text-red-600',
+      amber: 'text-amber-400',
+      blue: 'text-blue-400',
+      green: 'text-emerald-400',
+      red: 'text-red-400',
       default: 'text-muted-foreground'
+    };
+
+    const badgeStyles = {
+      amber: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
+      blue: 'bg-blue-500/15 text-blue-400 border-blue-500/20',
+      green: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
+      red: 'bg-red-500/15 text-red-400 border-red-500/20',
+      default: ''
     };
 
     return (
@@ -519,7 +527,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
               <Icon className={`h-5 w-5 ${iconStyles[variant]}`} />
               {title}
             </span>
-            <Badge variant="secondary" className="font-medium">
+            <Badge variant="secondary" className={`font-medium ${badgeStyles[variant]}`}>
               {filteredClients.length}
             </Badge>
           </CardTitle>

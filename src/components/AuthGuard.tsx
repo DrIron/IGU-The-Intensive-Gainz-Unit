@@ -35,57 +35,72 @@ export function AuthGuard({ children }: AuthGuardProps) {
   useEffect(() => {
     let mounted = true;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
 
       if (event === 'INITIAL_SESSION') {
-        if (session) {
-          setSession(session);
+        if (newSession) {
+          setSession(newSession);
           setLoading(false);
         } else {
-          // INITIAL_SESSION with null — re-check getSession() immediately
-          // (no artificial delay — Supabase reads localStorage synchronously)
-          const { data: { session: freshSession } } = await supabase.auth.getSession();
-          if (!mounted) return;
+          // INITIAL_SESSION with null — re-check getSession() with timeout
+          try {
+            const result = await Promise.race([
+              supabase.auth.getSession(),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+            ]);
+            if (!mounted) return;
 
-          if (freshSession) {
-            setSession(freshSession);
-            setLoading(false);
-          } else {
-            setLoading(false);
-            navigate("/auth", { replace: true });
+            const freshSession = result && 'data' in result ? result.data.session : null;
+            if (freshSession) {
+              setSession(freshSession);
+              setLoading(false);
+            } else {
+              setLoading(false);
+              navigate("/auth", { replace: true });
+            }
+          } catch {
+            if (mounted) {
+              setLoading(false);
+              navigate("/auth", { replace: true });
+            }
           }
         }
         return;
       }
 
-      setSession(session);
+      if (event === 'SIGNED_IN' && newSession) {
+        setSession(newSession);
+        setLoading(false);
+        return;
+      }
 
-      if (!session) {
+      if (event === 'SIGNED_OUT' || !newSession) {
+        setSession(null);
         setLoading(false);
         navigate("/auth", { replace: true });
         return;
       }
 
+      setSession(newSession);
       setLoading(false);
     });
 
-    const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+    // Safety timeout — if no auth event resolves loading within 6s, stop waiting
+    const safetyTimer = setTimeout(() => {
       if (!mounted) return;
-
-      if (session) {
-        setSession(session);
-        setLoading(false);
-        return;
-      }
-      // Don't redirect yet — onAuthStateChange INITIAL_SESSION handles this
-    };
-
-    checkAuth();
+      setLoading((prev) => {
+        if (prev) {
+          if (import.meta.env.DEV) console.warn('[AuthGuard] Safety timeout — forcing loading=false');
+          return false;
+        }
+        return prev;
+      });
+    }, 6000);
 
     return () => {
       mounted = false;
+      clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
   }, [navigate]);

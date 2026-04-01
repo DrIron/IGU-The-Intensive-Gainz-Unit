@@ -228,15 +228,17 @@ export function AdminBillingManager() {
       // Extend by adjusting the past_due_since date backwards
       const extendedDate = addDays(newPastDueSince, extendDays);
 
-      await supabase
+      const { error: graceError } = await supabase
         .from("subscriptions")
-        .update({ 
-          past_due_since: selectedClient.past_due_since 
+        .update({
+          past_due_since: selectedClient.past_due_since
             ? addDays(new Date(selectedClient.past_due_since), extendDays).toISOString()
             : null,
           grace_period_days: (selectedClient.grace_period_days || 7) + extendDays,
         })
         .eq("id", selectedClient.id);
+
+      if (graceError) throw graceError;
 
       await logAuditAction("extend_grace_period", selectedClient.id, {
         days_extended: extendDays,
@@ -270,7 +272,7 @@ export function AdminBillingManager() {
       const nextBillingDate = addDays(new Date(), 30);
 
       // Update subscription to active
-      await supabase
+      const { error: subActiveError } = await supabase
         .from("subscriptions")
         .update({
           status: "active",
@@ -279,16 +281,20 @@ export function AdminBillingManager() {
         })
         .eq("id", selectedClient.id);
 
+      if (subActiveError) throw subActiveError;
+
       // Update profile status if needed
       if (selectedClient.profiles.status !== "active") {
-        await supabase
+        const { error: profileActiveError } = await supabase
           .from("profiles_public")
           .update({ status: "active" })
           .eq("id", selectedClient.user_id);
+
+        if (profileActiveError) throw profileActiveError;
       }
 
       // Create a payment record for the manual payment
-      await supabase.from("subscription_payments").insert({
+      const { error: paymentInsertError } = await supabase.from("subscription_payments").insert({
         subscription_id: selectedClient.id,
         user_id: selectedClient.user_id,
         tap_charge_id: `MANUAL_${Date.now()}`,
@@ -301,6 +307,8 @@ export function AdminBillingManager() {
           note: manualPaymentNote || "Marked paid by admin",
         },
       });
+
+      if (paymentInsertError) throw paymentInsertError;
 
       await logAuditAction("mark_paid_manually", selectedClient.id, {
         amount_kwd: amount,
@@ -331,14 +339,16 @@ export function AdminBillingManager() {
     try {
       const newExemptStatus = !selectedClient.profiles.payment_exempt;
 
-      await supabase
+      const { error: exemptError } = await supabase
         .from("profiles_public")
         .update({ payment_exempt: newExemptStatus })
         .eq("id", selectedClient.user_id);
 
+      if (exemptError) throw exemptError;
+
       // If setting to exempt, also activate the subscription
       if (newExemptStatus) {
-        await supabase
+        const { error: subError } = await supabase
           .from("subscriptions")
           .update({
             status: "active",
@@ -346,16 +356,35 @@ export function AdminBillingManager() {
           })
           .eq("id", selectedClient.id);
 
-        await supabase
+        if (subError) throw subError;
+
+        const { error: statusError } = await supabase
           .from("profiles_public")
           .update({ status: "active" })
           .eq("id", selectedClient.user_id);
+
+        if (statusError) throw statusError;
       }
 
       await logAuditAction("toggle_payment_exempt", selectedClient.id, {
         client_email: selectedClient.profiles.email,
         new_exempt_status: newExemptStatus,
       });
+
+      // Send activation email when toggling TO exempt
+      if (newExemptStatus) {
+        try {
+          await supabase.functions.invoke('send-signup-confirmation', {
+            body: {
+              email: selectedClient.profiles.email,
+              name: selectedClient.profiles.first_name || 'there',
+              isExemptActivation: true,
+            },
+          });
+        } catch (emailError) {
+          console.error("Failed to send exempt activation email:", emailError);
+        }
+      }
 
       toast.success(newExemptStatus
         ? "Client is now exempt from payments"
@@ -367,9 +396,12 @@ export function AdminBillingManager() {
         ...selectedClient,
         profiles: { ...selectedClient.profiles, payment_exempt: newExemptStatus },
       });
-    } catch (error) {
+    } catch (error: unknown) {
       console.error("Error toggling exempt:", error);
-      toast.error("Failed to update payment exempt status");
+      const message = error instanceof Error ? error.message
+        : typeof error === 'object' && error !== null && 'message' in error ? String((error as { message: unknown }).message)
+        : "Unknown error";
+      toast.error(`Failed to update payment exempt status: ${message}`);
     } finally {
       setActionLoading(false);
     }

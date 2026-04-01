@@ -522,6 +522,44 @@ When understanding this codebase, read in this order:
 - Planning Board as sole program creation path — removed direct "Create Program" dialog, all programs must go through Planning Board first (Mar 29, 2026) ✅
 - Phase 36: Planning Board Full Program Builder — per-set customization (individual rep range/tempo/RIR/RPE/rest per set), coach instructions per exercise, client input config (global + per-slot), per-set TUST/volume analytics, dynamic prescription column selector from bank (Mar 29, 2026) ✅
 - Phase 37: Multi-Session Planning Board — Activity Palette with Cardio (9), HIIT (5), Yoga/Mobility (10), Recovery (6), Sport-Specific (6) activities. Each day supports multiple collapsible session types. ActivitySlotCard with type-specific editors. Conversion creates correct session_type per module (Mar 30, 2026) ✅
+- Bug Fix: Payment Exempt Toggle — Supabase update errors were silently swallowed; now properly destructures `{ error }` and surfaces error messages in toast (Mar 31, 2026) ✅
+- Bug Fix: Workout Builder Mobile Portrait — replaced Popover with Drawer (vaul bottom sheet) in `MobileDayDetail.tsx` for proper mobile slot editing with scrolling, larger touch targets, and grid layout (Mar 31, 2026) ✅
+- Bug Fix: Payment Exempt Emails — deployed `create-manual-client` and `send-signup-confirmation` with `--no-verify-jwt` (gateway was rejecting ES256 JWTs, silently preventing welcome emails). Added exempt activation email when admin toggles client to exempt (Apr 1, 2026) ✅
+
+### Bug Fix: Payment Exempt Email Notifications (Apr 1, 2026)
+
+**Root cause (Flow 1 - manual client creation):** The `create-manual-client` edge function calls `send-signup-confirmation` via `supabaseAdmin.functions.invoke()`. Neither function was deployed with `--no-verify-jwt`. The Supabase gateway rejected the ES256 JWT with 401 before the function code ran. The error was silently caught (try/catch on lines 360-363). Same bug pattern as Phase 14 (`send-coach-invitation`).
+
+**Fix:** Deployed both `create-manual-client` and `send-signup-confirmation` with `--no-verify-jwt`. Zero code changes needed — manual client password setup emails now send correctly.
+
+**New feature (Flow 2 - exempt toggle):** When admin toggles a client to payment exempt via "Set Exempt" in Billing Management, the client now receives an "Your IGU Account Has Been Activated" email with a dashboard CTA. Added `isExemptActivation` branch to `send-signup-confirmation` edge function.
+
+**Files Modified (2):**
+| File | Changes |
+|------|---------|
+| `supabase/functions/send-signup-confirmation/index.ts` | Added `isExemptActivation` flag to Zod schema, third content branch with activation email, dynamic subject |
+| `src/components/admin/AdminBillingManager.tsx` | Added `supabase.functions.invoke('send-signup-confirmation')` call in `handleTogglePaymentExempt` when toggling TO exempt |
+
+### Bug Fixes: Payment Exempt & Mobile Workout Builder (Mar 31, 2026)
+
+**Payment Exempt Toggle (`AdminBillingManager.tsx`):**
+The "Set Exempt" / "Remove Exempt" button in Billing Management was silently failing — all three `supabase.from().update()` calls used `await` without destructuring `{ error }`. When RLS blocked the update, the error was swallowed and a success toast was shown even though nothing changed. Fix: destructure `{ error }` from all three calls, throw on error, and surface the actual error message in the toast.
+
+**Workout Builder Mobile Portrait (`MobileDayDetail.tsx`):**
+The `MobileSlotRow` used a `Popover` (`w-64`, `side="bottom"`) for slot editing, which had no max-height, no scroll containment, and tiny inputs (`h-8 text-sm`) — unusable in portrait mode. Fix: replaced with a vaul `Drawer` (bottom sheet) that provides:
+- Full-width bottom sheet with drag-to-dismiss handle
+- `ScrollArea` with `max-h-[85vh]` for proper scrolling
+- Larger touch targets: `h-10 text-base` inputs (was `h-8 text-sm`)
+- Better layout: Sets + Rep Range in a 2-column grid, Tempo/RIR/RPE in a 3-column grid
+- "Done" button in header for easy dismissal
+- Exercise picker buttons close the drawer before opening the dialog (avoids stacking)
+- Accessible `DrawerTitle` with `sr-only`
+
+**Files Modified (2):**
+| File | Changes |
+|------|---------|
+| `src/components/admin/AdminBillingManager.tsx` | Destructure `{ error }` from all update calls, throw on error, descriptive error toast |
+| `src/components/coach/programs/muscle-builder/MobileDayDetail.tsx` | Replaced `Popover` import with `Drawer`/`DrawerContent`/`DrawerTrigger`/`DrawerTitle` + `ScrollArea`. `MobileSlotRow` now uses bottom sheet with grid layout and larger inputs |
 
 ### Phase 35: Planning Board Exercise Selection (Mar 29, 2026)
 
@@ -1977,6 +2015,8 @@ SQL function `generate_referral_code(first_name)`:
 - **Team-based RLS requires dedicated policies.** Existing coach RLS checks `subscriptions.coach_id` and `is_primary_coach_for_user()`. For team queries (`WHERE team_id = X`), coaches need separate policies on both `subscriptions` (read by team_id) and `profiles_public` (read team member profiles). See migrations `20260212170000` and `20260212180000`.
 - **Use `.maybeSingle()` instead of `.single()` for optional rows.** `.single()` throws an error when zero rows are returned (PostgREST 406). Use `.maybeSingle()` when the row may not exist (e.g., user presets, optional config, first-time setup). Only use `.single()` when you are certain exactly one row exists (e.g., after an INSERT...RETURNING, or querying by primary key that you know is present).
 - **macOS quarantine can freeze git.** Downloaded/cloned repos on Desktop accumulate `com.apple.provenance` extended attributes. Over time, macOS security scanning (Gatekeeper/XProtect) makes git operations hang indefinitely — `git status`, `git diff`, `git add` all freeze because git stats hundreds of files and each stat triggers a security check. Symptoms: git commands hang with 0% CPU, individual `stat` calls are fast but bulk operations never complete. **Fix:** Fresh-clone the repo to a new directory (`git clone <url> /tmp/igu-fresh`), copy `.env.local` over, run `npm install`, and swap the old directory out. **Prevention:** Periodically run `xattr -cr .` in the project root to clear quarantine flags, or move the project off Desktop to a path less aggressively scanned (e.g., `~/Projects/`).
+- **Always destructure `{ error }` from Supabase mutations.** `supabase.from().update()`, `.insert()`, `.delete()` return `{ data, error }` — if you `await` without checking `error`, RLS failures and DB errors are silently swallowed (HTTP 200, no rows affected, no exception). Always do: `const { error } = await supabase.from(...).update(...); if (error) throw error;`. This was the root cause of the payment exempt toggle bug.
+- **Mobile Planning Board uses Drawer, not Popover.** `MobileDayDetail.tsx` uses a vaul `Drawer` (bottom sheet) for slot editing — not a `Popover`. The desktop `MuscleSlotCard.tsx` still uses `Popover` with `side="right"`. When adding new mobile slot editing features, add them to the Drawer content, not a Popover.
 
 ---
 
@@ -2213,6 +2253,8 @@ Quick reference for edge function JWT settings:
 | `send-waitlist-confirmation` | **No** | Called by anonymous users (waitlist signup) |
 | `send-waitlist-invites` | **No** | Called with admin session (has internal auth check) |
 | `submit-onboarding` | **No** | Gateway rejects ES256 JWTs; function has internal auth checks |
+| `create-manual-client` | **No** | Gateway rejects ES256 JWTs; function has internal auth checks (admin role verification) |
+| `send-signup-confirmation` | **No** | Called by other edge functions (`create-manual-client`) and from frontend |
 
 Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
 

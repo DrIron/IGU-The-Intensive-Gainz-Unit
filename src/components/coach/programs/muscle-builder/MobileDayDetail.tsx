@@ -3,7 +3,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/ui/drawer";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -393,8 +394,8 @@ const MobileSlotRow = memo(function MobileSlotRow({
     >
       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${muscle.colorClass}`} />
 
-      <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
-        <PopoverTrigger asChild>
+      <Drawer open={popoverOpen} onOpenChange={setPopoverOpen}>
+        <DrawerTrigger asChild>
           <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
             <span className="font-medium truncate text-foreground">
               {slot.exercise ? slot.exercise.name : label}
@@ -420,143 +421,151 @@ const MobileSlotRow = memo(function MobileSlotRow({
               <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
             )}
           </button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="w-64 p-3"
-          onClick={e => e.stopPropagation()}
-          side="bottom"
-          align="start"
-        >
-          <div className="space-y-3">
-            <p className="text-sm font-medium">{label}</p>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Sets</Label>
-              <Input
-                type="number" min={1} max={20} value={slot.sets}
-                onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ sets: v }); }}
-                className="h-8 text-sm" inputMode="numeric" onClick={e => e.stopPropagation()}
-              />
+        </DrawerTrigger>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerTitle className="sr-only">{label}</DrawerTitle>
+          <ScrollArea className="overflow-y-auto px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
+          <div className="space-y-4">
+            {/* Header with muscle label */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: muscle.colorHex }} />
+                <p className="text-base font-semibold">{label}</p>
+              </div>
+              <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setPopoverOpen(false)}>
+                Done
+              </Button>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Rep Range</Label>
-              <div className="flex items-center gap-2">
+            {/* Sets & Rep Range side by side */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Sets</Label>
                 <Input
-                  type="number" min={1} max={100} value={slot.repMin ?? 8}
-                  onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ repMin: v }); }}
-                  className="h-8 text-sm flex-1" inputMode="numeric" onClick={e => e.stopPropagation()}
+                  type="number" min={1} max={20} value={slot.sets}
+                  onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ sets: v }); }}
+                  className="h-10 text-base" inputMode="numeric"
                 />
-                <span className="text-xs text-muted-foreground">&mdash;</span>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Rep Range</Label>
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number" min={1} max={100} value={slot.repMin ?? 8}
+                    onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ repMin: v }); }}
+                    className="h-10 text-base flex-1" inputMode="numeric"
+                  />
+                  <span className="text-xs text-muted-foreground">–</span>
+                  <Input
+                    type="number" min={1} max={100} value={slot.repMax ?? 12}
+                    onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ repMax: v }); }}
+                    className="h-10 text-base flex-1" inputMode="numeric"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Tempo, RIR, RPE in a row */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">Tempo</Label>
                 <Input
-                  type="number" min={1} max={100} value={slot.repMax ?? 12}
-                  onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ repMax: v }); }}
-                  className="h-8 text-sm flex-1" inputMode="numeric" onClick={e => e.stopPropagation()}
+                  type="text" maxLength={4} pattern="[0-9]{4}" inputMode="numeric" placeholder="3120"
+                  value={slot.tempo ?? ''}
+                  onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4); update({ tempo: v || undefined }); }}
+                  className="h-10 text-base font-mono"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">RIR</Label>
+                <Input
+                  type="number" min={0} max={10} placeholder="2"
+                  value={slot.rir ?? ''}
+                  onChange={e => {
+                    const v = e.target.value === '' ? undefined : parseInt(e.target.value);
+                    update({ rir: v != null && !isNaN(v) ? Math.max(0, Math.min(10, v)) : undefined });
+                  }}
+                  className="h-10 text-base" inputMode="numeric"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs text-muted-foreground">RPE</Label>
+                <Input
+                  type="number" min={1} max={10} step={0.5} placeholder="8"
+                  value={slot.rpe ?? ''}
+                  onChange={e => {
+                    const v = e.target.value === '' ? undefined : parseFloat(e.target.value);
+                    update({ rpe: v != null && !isNaN(v) ? Math.max(1, Math.min(10, v)) : undefined });
+                  }}
+                  className="h-10 text-base" inputMode="numeric"
                 />
               </div>
             </div>
 
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Tempo</Label>
-              <Input
-                type="text" maxLength={4} pattern="[0-9]{4}" inputMode="numeric" placeholder="3120"
-                value={slot.tempo ?? ''}
-                onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4); update({ tempo: v || undefined }); }}
-                className="h-8 text-sm font-mono" onClick={e => e.stopPropagation()}
-              />
-              <p className="text-[10px] text-muted-foreground">ecc-pause-con-pause in seconds</p>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">RIR</Label>
-              <Input
-                type="number" min={0} max={10} placeholder="2"
-                value={slot.rir ?? ''}
-                onChange={e => {
-                  const v = e.target.value === '' ? undefined : parseInt(e.target.value);
-                  update({ rir: v != null && !isNaN(v) ? Math.max(0, Math.min(10, v)) : undefined });
-                }}
-                className="h-8 text-sm" inputMode="numeric" onClick={e => e.stopPropagation()}
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">RPE</Label>
-              <Input
-                type="number" min={1} max={10} step={0.5} placeholder="8"
-                value={slot.rpe ?? ''}
-                onChange={e => {
-                  const v = e.target.value === '' ? undefined : parseFloat(e.target.value);
-                  update({ rpe: v != null && !isNaN(v) ? Math.max(1, Math.min(10, v)) : undefined });
-                }}
-                className="h-8 text-sm" inputMode="numeric" onClick={e => e.stopPropagation()}
-              />
-            </div>
-
             {needsIntensity && (
-              <div className="flex items-start gap-1.5 rounded-md bg-amber-500/10 border border-amber-500/20 px-2 py-1.5">
-                <AlertTriangle className="h-3.5 w-3.5 text-amber-500 mt-0.5 shrink-0" />
-                <p className="text-[11px] text-amber-600 dark:text-amber-400">Add RIR or RPE for TUST tracking</p>
+              <div className="flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2">
+                <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
+                <p className="text-xs text-amber-600 dark:text-amber-400">Add RIR or RPE for TUST tracking</p>
               </div>
             )}
 
             {/* Exercise Section */}
             {onOpenExercisePicker && (
-              <div className="space-y-2 pt-2 border-t border-border/30">
-                <Label className="text-xs text-muted-foreground flex items-center gap-1.5">
-                  <Dumbbell className="h-3 w-3" />
+              <div className="space-y-3 pt-3 border-t border-border/30">
+                <Label className="text-sm text-muted-foreground flex items-center gap-1.5">
+                  <Dumbbell className="h-3.5 w-3.5" />
                   Exercise
                 </Label>
 
                 {slot.exercise ? (
-                  <div className="flex items-center gap-2 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-2.5 py-2">
-                    <Dumbbell className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                  <div className="flex items-center gap-2.5 rounded-md border border-emerald-500/20 bg-emerald-500/5 px-3 py-2.5">
+                    <Dumbbell className="h-4 w-4 text-emerald-500 shrink-0" />
                     <span className="text-sm font-medium truncate flex-1">{slot.exercise.name}</span>
-                    <div className="flex items-center gap-0.5 shrink-0">
-                      <Button variant="ghost" size="icon" className="h-5 w-5"
-                        onClick={() => onOpenExercisePicker(slot.id, slot.muscleId, 'primary')} title="Change">
-                        <RefreshCw className="h-3 w-3" />
+                    <div className="flex items-center gap-1 shrink-0">
+                      <Button variant="ghost" size="icon" className="h-8 w-8"
+                        onClick={() => { setPopoverOpen(false); onOpenExercisePicker(slot.id, slot.muscleId, 'primary'); }} title="Change">
+                        <RefreshCw className="h-4 w-4" />
                       </Button>
                       {onClearExercise && (
-                        <Button variant="ghost" size="icon" className="h-5 w-5 text-muted-foreground hover:text-destructive"
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive"
                           onClick={() => onClearExercise(slot.id)} title="Remove">
-                          <X className="h-3 w-3" />
+                          <X className="h-4 w-4" />
                         </Button>
                       )}
                     </div>
                   </div>
                 ) : (
-                  <Button variant="outline" size="sm" className="w-full text-xs border-dashed"
-                    onClick={() => onOpenExercisePicker(slot.id, slot.muscleId, 'primary')}>
-                    <Plus className="h-3 w-3 mr-1.5" />
+                  <Button variant="outline" size="sm" className="w-full h-10 text-sm border-dashed"
+                    onClick={() => { setPopoverOpen(false); onOpenExercisePicker(slot.id, slot.muscleId, 'primary'); }}>
+                    <Plus className="h-4 w-4 mr-1.5" />
                     Choose Exercise
                   </Button>
                 )}
 
                 {slot.exercise && (
-                  <div className="space-y-1.5">
-                    <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
-                      <RefreshCw className="h-2.5 w-2.5" />
+                  <div className="space-y-2">
+                    <Label className="text-xs text-muted-foreground flex items-center gap-1">
+                      <RefreshCw className="h-3 w-3" />
                       Replacements (optional)
                     </Label>
                     {slot.replacements && slot.replacements.length > 0 && (
-                      <div className="space-y-1">
+                      <div className="space-y-1.5">
                         {slot.replacements.map((rep, i) => (
-                          <div key={`${rep.exerciseId}-${i}`} className="flex items-center gap-2 rounded border border-border/50 bg-muted/20 px-2 py-1.5">
-                            <span className="text-xs truncate flex-1">{rep.name}</span>
+                          <div key={`${rep.exerciseId}-${i}`} className="flex items-center gap-2 rounded border border-border/50 bg-muted/20 px-3 py-2">
+                            <span className="text-sm truncate flex-1">{rep.name}</span>
                             {onRemoveReplacement && (
-                              <Button variant="ghost" size="icon" className="h-4 w-4 text-muted-foreground hover:text-destructive shrink-0"
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive shrink-0"
                                 onClick={() => onRemoveReplacement(slot.id, i)}>
-                                <X className="h-2.5 w-2.5" />
+                                <X className="h-3.5 w-3.5" />
                               </Button>
                             )}
                           </div>
                         ))}
                       </div>
                     )}
-                    <Button variant="ghost" size="sm" className="w-full text-[11px] h-7"
-                      onClick={() => onOpenExercisePicker(slot.id, slot.muscleId, 'replacement')}>
-                      <Plus className="h-3 w-3 mr-1" />
+                    <Button variant="ghost" size="sm" className="w-full text-xs h-9"
+                      onClick={() => { setPopoverOpen(false); onOpenExercisePicker(slot.id, slot.muscleId, 'replacement'); }}>
+                      <Plus className="h-3.5 w-3.5 mr-1" />
                       Add Replacement
                     </Button>
                   </div>
@@ -564,13 +573,14 @@ const MobileSlotRow = memo(function MobileSlotRow({
               </div>
             )}
 
-            <div className="text-[10px] text-muted-foreground space-y-0.5 pt-1 border-t border-border/30">
+            <div className="text-xs text-muted-foreground space-y-0.5 pt-2 border-t border-border/30">
               <p>Working set: RIR &le; 5 or RPE &ge; 5</p>
               <p>Only working sets count for TUST</p>
             </div>
           </div>
-        </PopoverContent>
-      </Popover>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
 
       <Button
         variant="ghost"

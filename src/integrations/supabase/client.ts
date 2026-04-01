@@ -120,14 +120,31 @@ supabase.auth.getSession().then(({ data, error }) => {
     // When initializePromise times out, getSession() returns null even though
     // a valid session exists in localStorage. The internal onAuthStateChange
     // listener that normally updates functions client headers never fires.
-    // Recover the access token from localStorage and set it on the functions
-    // client so that supabase.functions.invoke() attaches the correct JWT.
+    // Recover the FULL session so that supabase.from() queries also attach
+    // the correct JWT (not just functions client).
     try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (parsed?.access_token) {
-          if (import.meta.env.DEV) console.log('[Supabase Client] Recovering functions auth from localStorage');
+        if (parsed?.access_token && parsed?.refresh_token) {
+          if (import.meta.env.DEV) console.log('[Supabase Client] Recovering full session from localStorage');
+          // setSession() restores the session in memory so supabase.from()
+          // queries attach the JWT. It also triggers onAuthStateChange which
+          // unblocks AuthGuard and useAuthSession.
+          supabase.auth.setSession({
+            access_token: parsed.access_token,
+            refresh_token: parsed.refresh_token,
+          }).then(({ error: setErr }) => {
+            if (setErr) {
+              if (import.meta.env.DEV) console.warn('[Supabase Client] setSession recovery failed:', setErr.message);
+              // Fallback: at least set functions auth
+              supabase.functions.setAuth(parsed.access_token);
+            } else {
+              if (import.meta.env.DEV) console.log('[Supabase Client] Session recovered successfully');
+            }
+          });
+        } else if (parsed?.access_token) {
+          if (import.meta.env.DEV) console.log('[Supabase Client] Recovering functions auth only (no refresh_token)');
           supabase.functions.setAuth(parsed.access_token);
         }
       }

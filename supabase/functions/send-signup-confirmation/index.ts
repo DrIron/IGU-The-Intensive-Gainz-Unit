@@ -16,6 +16,7 @@ const requestSchema = z.object({
   name: z.string().min(1).max(100).trim(),
   passwordResetLink: z.string().url().optional(),
   isManualClient: z.boolean().optional(),
+  isExemptActivation: z.boolean().optional(),
 });
 
 serve(async (req) => {
@@ -32,12 +33,29 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { email, name, passwordResetLink, isManualClient } = requestSchema.parse(body);
+    const { email, name, passwordResetLink, isManualClient, isExemptActivation } = requestSchema.parse(body);
 
     let content: string;
     let preheader: string;
+    let subject: string;
 
-    if (passwordResetLink) {
+    if (isExemptActivation) {
+      subject = 'Your IGU Account Has Been Activated';
+      preheader = 'Your IGU account is now active -- log in to get started.';
+      content = [
+        greeting(name),
+        paragraph("Great news! Your IGU account has been activated. You now have full access to the platform."),
+        paragraph('<strong>What to do next:</strong>'),
+        orderedList([
+          'Log in to your dashboard',
+          'Your coach will reach out within 24 hours',
+          'Start your fitness journey!',
+        ]),
+        ctaButton('Go to Dashboard', `${APP_BASE_URL}/dashboard`),
+        signOff(),
+      ].join('');
+    } else if (passwordResetLink) {
+      subject = 'Welcome to IGU -- Your Account is Ready';
       preheader = 'Set your password to get started with IGU.';
       content = [
         greeting(name),
@@ -51,6 +69,7 @@ serve(async (req) => {
         signOff(),
       ].join('');
     } else {
+      subject = 'Welcome to IGU -- Your Account is Ready';
       preheader = 'Welcome to IGU — here are your next steps.';
       content = [
         greeting(name),
@@ -72,7 +91,7 @@ serve(async (req) => {
     const result = await sendEmail({
       from: EMAIL_FROM_IGU,
       to: email,
-      subject: 'Welcome to IGU -- Your Account is Ready',
+      subject,
       html,
     });
 
