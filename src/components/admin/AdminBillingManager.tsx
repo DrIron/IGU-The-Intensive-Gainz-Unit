@@ -43,6 +43,7 @@ import {
   Loader2,
   Search,
   RefreshCw,
+  Mail,
 } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 
@@ -440,6 +441,40 @@ export function AdminBillingManager() {
     }
   };
 
+  const handleResendWelcomeEmail = async () => {
+    if (!selectedClient) return;
+    setActionLoading(true);
+
+    try {
+      const isExempt = selectedClient.profiles.payment_exempt;
+
+      const { data, error } = await supabase.functions.invoke('send-signup-confirmation', {
+        body: {
+          email: selectedClient.profiles.email,
+          name: selectedClient.profiles.first_name || 'there',
+          ...(isExempt ? { isExemptActivation: true } : {}),
+        },
+      });
+
+      if (error) throw error;
+
+      await logAuditAction("resend_welcome_email", selectedClient.id, {
+        client_email: selectedClient.profiles.email,
+        is_exempt: isExempt,
+      });
+
+      toast.success(`Welcome email resent to ${selectedClient.profiles.email}`);
+    } catch (error: unknown) {
+      console.error("Error resending welcome email:", error);
+      const message = error instanceof Error ? error.message
+        : typeof error === 'object' && error !== null && 'message' in error ? String((error as { message: unknown }).message)
+        : "Unknown error";
+      toast.error(`Failed to resend welcome email: ${message}`);
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const getStatusBadge = (status: string, pastDueSince: string | null, gracePeriodDays: number) => {
     if (status === "active" && !pastDueSince) {
       return <Badge className="bg-status-success">Active</Badge>;
@@ -759,6 +794,14 @@ export function AdminBillingManager() {
                   >
                     <Send className="h-4 w-4 mr-2" />
                     Send Reminder
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={handleResendWelcomeEmail}
+                    disabled={actionLoading}
+                  >
+                    <Mail className="h-4 w-4 mr-2" />
+                    Resend Welcome Email
                   </Button>
                 </div>
               </div>
