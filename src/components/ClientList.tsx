@@ -59,7 +59,6 @@ interface Client {
     status: string;
     start_date: string;
     next_billing_date: string;
-    added_to_truecoach_team: boolean;
     service_id: string;
     coach_id: string | null;
     cancel_at_period_end: boolean;
@@ -144,7 +143,6 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
             status,
             start_date,
             next_billing_date,
-            added_to_truecoach_team,
             service_id,
             coach_id,
             cancel_at_period_end,
@@ -408,27 +406,12 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
 
       if (profileError) throw profileError;
 
-      // Sync with Airtable
-      const { error: syncError } = await supabase.functions.invoke('sync-airtable', {
-        body: { userId, status: newStatus, email },
+      toast({
+        title: "Client Approved",
+        description: needsMedicalReview
+          ? `${clientName} has been flagged for medical review.`
+          : `${clientName} has been approved. Payment deadline: 7 days.`,
       });
-
-      if (syncError) {
-        console.error('Airtable sync error:', syncError);
-        toast({
-          title: "Client Approved",
-          description: needsMedicalReview 
-            ? `${clientName} flagged for medical review, but Airtable sync failed.`
-            : `${clientName} approved with 7-day payment deadline, but Airtable sync failed.`,
-        });
-      } else {
-        toast({
-          title: "Client Approved",
-          description: needsMedicalReview
-            ? `${clientName} has been flagged for medical review.`
-            : `${clientName} has been approved. Payment deadline: 7 days.`,
-        });
-      }
 
       fetchClients();
     } catch (error: any) {
@@ -472,32 +455,6 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
 
   const handleViewSubmission = (userId: string) => {
     navigate(`/client-submission/${userId}`);
-  };
-
-  const handleTeamAssignmentToggle = async (subscriptionId: string, currentStatus: boolean) => {
-    try {
-      const { error } = await supabase
-        .from('subscriptions')
-        .update({ added_to_truecoach_team: !currentStatus })
-        .eq('id', subscriptionId);
-
-      if (error) throw error;
-
-      toast({
-        title: "Success",
-        description: !currentStatus 
-          ? "Client marked as added to TrueCoach team" 
-          : "Client marked as not added to TrueCoach team",
-      });
-
-      fetchClients();
-    } catch (error: any) {
-      toast({
-        title: "Error",
-        description: sanitizeErrorForUser(error),
-        variant: "destructive",
-      });
-    }
   };
 
   const sendTestimonialRequest = async (clientEmail: string, clientName: string) => {
@@ -612,14 +569,13 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
             <TableHead className="text-xs md:text-sm py-3">Status</TableHead>
             <TableHead className="text-xs md:text-sm py-3">Plan</TableHead>
             <TableHead className="hidden xl:table-cell text-xs md:text-sm py-3">Renewal</TableHead>
-            <TableHead className="text-xs md:text-sm py-3">Team Access</TableHead>
             <TableHead className="w-[50px]"></TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           {clientList.length === 0 ? (
             <TableRow>
-              <TableCell colSpan={8}>
+              <TableCell colSpan={7}>
                 <EmptyState
                   icon={Inbox}
                   title="No clients found"
@@ -633,7 +589,6 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
             const activeSubscription = client.subscriptions?.find(sub => sub.status === "active");
             const pendingSubscription = client.subscriptions?.find(sub => sub.status === "pending");
             const displaySubscription = activeSubscription || pendingSubscription;
-            const isTeamPlan = displaySubscription?.services?.type === 'team';
             const isPendingCoachApproval = client.status === 'pending_coach_approval';
             
             return (
@@ -653,11 +608,6 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
                   {displaySubscription ? (
                     <div className="space-y-1">
                       <p className="font-medium">{planAbbreviations[displaySubscription.services.name] || displaySubscription.services.name}</p>
-                      {isTeamPlan && activeSubscription && (
-                        <p className="text-xs text-primary lg:hidden mt-1">
-                          {activeSubscription.added_to_truecoach_team ? "✓ Team" : "✗ Not in Team"}
-                        </p>
-                      )}
                       {pendingSubscription && !activeSubscription && (
                         <p className="text-xs text-muted-foreground">(pending)</p>
                       )}
@@ -673,24 +623,6 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
                     </span>
                   ) : (
                     <span className="text-xs text-muted-foreground">N/A</span>
-                  )}
-                </TableCell>
-                <TableCell className="py-4">
-                  {activeSubscription && isTeamPlan && (
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="checkbox"
-                        checked={activeSubscription.added_to_truecoach_team || false}
-                        onChange={() => handleTeamAssignmentToggle(
-                          activeSubscription.id, 
-                          activeSubscription.added_to_truecoach_team || false
-                        )}
-                        className="h-4 w-4 cursor-pointer"
-                      />
-                      <span className="text-xs text-muted-foreground">
-                        {activeSubscription.added_to_truecoach_team ? "Added" : "Not Added"}
-                      </span>
-                    </div>
                   )}
                 </TableCell>
                 <TableCell className="py-4">
