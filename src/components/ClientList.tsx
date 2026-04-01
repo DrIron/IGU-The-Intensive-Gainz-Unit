@@ -560,6 +560,27 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     }
   };
 
+  const handleResendWelcomeEmail = async (userId: string, email: string, name: string) => {
+    try {
+      const { error } = await supabase.functions.invoke('send-signup-confirmation', {
+        body: { email, name },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Welcome Email Sent",
+        description: `Welcome email resent to ${email}`,
+      });
+    } catch (error: unknown) {
+      toast({
+        title: "Error",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    }
+  };
+
   // NOTE: Coach-specific approval logic has been removed from ClientList.
   // All coach approvals are handled exclusively in CoachMyClientsPage.
   // This component is ADMIN-ONLY.
@@ -723,6 +744,11 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
                       <DropdownMenuItem onClick={() => navigate(`/admin/email-log?email=${encodeURIComponent(client.email)}`)}>
                         <Mail className="mr-2 h-4 w-4" />
                         View Email History
+                      </DropdownMenuItem>
+
+                      <DropdownMenuItem onClick={() => handleResendWelcomeEmail(client.id, client.email, client.first_name || getClientDisplayName(client))}>
+                        <Mail className="mr-2 h-4 w-4" />
+                        Resend Welcome Email
                       </DropdownMenuItem>
 
                       {activeSubscription && !activeSubscription.cancel_at_period_end && client.status !== 'cancelled' && (
