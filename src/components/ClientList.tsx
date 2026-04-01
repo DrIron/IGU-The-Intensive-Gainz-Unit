@@ -323,22 +323,29 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
     if (!confirmed) return;
 
     try {
-      const { error } = await supabase.functions.invoke('cancel-subscription', {
-        body: { 
+      const { error: fnError } = await supabase.functions.invoke('cancel-subscription', {
+        body: {
           userId: clientId,
           reason: 'Admin cancelled subscription',
           cancelledBy: 'admin',
         },
       });
 
-      if (error) throw error;
+      // If no subscription exists, just update profile status directly
+      if (fnError) {
+        const { error: profileError } = await supabase
+          .from('profiles_public')
+          .update({ status: 'cancelled' })
+          .eq('id', clientId);
+
+        if (profileError) throw profileError;
+      }
 
       toast({
         title: "Subscription Cancelled",
-        description: `${clientName}'s subscription has been cancelled. They will retain access until the end of their billing period.`,
+        description: `${clientName}'s membership has been cancelled.`,
       });
 
-      // Refresh the client list
       fetchClients();
     } catch (error: any) {
       toast({
@@ -425,19 +432,27 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
 
   const handleRejectClient = async (userId: string, email: string, clientName: string) => {
     try {
-      // Use cancel-subscription edge function for proper cancellation
-      const { error } = await supabase.functions.invoke('cancel-subscription', {
-        body: { 
+      const displayName = clientName || 'Client';
+
+      // Try cancel-subscription first (handles active/pending subscriptions)
+      const { error: fnError } = await supabase.functions.invoke('cancel-subscription', {
+        body: {
           userId,
           reason: 'Application rejected by admin',
           adminCancellation: true
         },
       });
 
-      if (error) throw error;
+      // If no subscription exists, just update the profile status directly
+      if (fnError) {
+        const { error: profileError } = await supabase
+          .from('profiles_public')
+          .update({ status: 'cancelled' })
+          .eq('id', userId);
 
-      const displayName = clientName || 'Client';
-      
+        if (profileError) throw profileError;
+      }
+
       toast({
         title: "Client Rejected",
         description: `${displayName}'s application has been rejected.`,
