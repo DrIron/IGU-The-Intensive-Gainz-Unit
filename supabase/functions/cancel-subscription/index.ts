@@ -72,18 +72,20 @@ serve(async (req) => {
       }
     }
 
-    // Get user's subscription and service info
+    // Get user's subscription and service info (active or pending)
     const { data: subscription, error: subError } = await supabase
       .from('subscriptions')
       .select('*, services(discord_role_id)')
       .eq('user_id', userId)
-      .eq('status', 'active')
+      .in('status', ['active', 'pending'])
+      .order('created_at', { ascending: false })
+      .limit(1)
       .maybeSingle();
 
     if (subError || !subscription) {
-      console.error('No active subscription found for user:', userId);
+      console.error('No active or pending subscription found for user:', userId);
       return new Response(
-        JSON.stringify({ error: 'No active subscription found' }),
+        JSON.stringify({ error: 'No active or pending subscription found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
@@ -112,20 +114,31 @@ serve(async (req) => {
       }
     }
 
-    // Mark subscription to cancel at period end - user keeps access until then
-    // Account will be hard deleted when period ends
-    const periodEnd = subscription.next_billing_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
-    
+    // For pending subscriptions, cancel immediately. For active, cancel at period end.
+    const isPending = subscription.status === 'pending';
+    const periodEnd = isPending
+      ? new Date().toISOString()
+      : (subscription.next_billing_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString());
+
     await supabase
       .from('subscriptions')
-      .update({ 
-        cancel_at_period_end: true,
+      .update({
+        status: isPending ? 'cancelled' : subscription.status,
+        cancel_at_period_end: !isPending,
         cancelled_at: new Date().toISOString(),
-        end_date: periodEnd, // Mark when to hard delete
+        end_date: periodEnd,
       })
       .eq('id', subscription.id);
 
-    console.log(`Subscription will be deleted at period end: ${periodEnd}`);
+    // Update profile status for pending cancellations
+    if (isPending) {
+      await supabase
+        .from('profiles_public')
+        .update({ status: 'cancelled' })
+        .eq('id', userId);
+    }
+
+    console.log(`Subscription ${isPending ? 'cancelled immediately' : 'will be deleted at period end'}: ${periodEnd}`);
 
     // Update form submission with who cancelled
     await supabase

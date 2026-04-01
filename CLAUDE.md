@@ -2255,6 +2255,7 @@ Quick reference for edge function JWT settings:
 | `submit-onboarding` | **No** | Gateway rejects ES256 JWTs; function has internal auth checks |
 | `create-manual-client` | **No** | Gateway rejects ES256 JWTs; function has internal auth checks (admin role verification) |
 | `send-signup-confirmation` | **No** | Called by other edge functions (`create-manual-client`) and from frontend |
+| `cancel-subscription` | **No** | Gateway rejects ES256 JWTs; function has internal auth checks (admin/self verification) |
 
 Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
 
