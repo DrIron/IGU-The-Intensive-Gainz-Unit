@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { UserPlus } from "lucide-react";
 import { PersonalDetailsFields } from "@/components/forms/PersonalDetailsFields";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
+import { withTimeout } from '@/lib/withTimeout';
 
 const manualClientSchema = z.object({
   firstName: z.string().min(1, "First name is required").max(50, "First name too long").trim(),
@@ -86,17 +87,21 @@ export function ManualClientCreation({ onClientCreated }: ManualClientCreationPr
     setLoading(true);
     try {
       // Call edge function to create client properly with admin privileges
-      const { data: result, error: fnError } = await supabase.functions.invoke('create-manual-client', {
-        body: {
-          firstName: data.firstName,
-          lastName: data.lastName,
-          email: data.email,
-          phoneNumber: `${data.countryCode}${data.phoneNumber}`,
-          dateOfBirth: data.dateOfBirth,
-          gender: data.gender,
-          serviceId: data.serviceId,
-        },
-      });
+      const { data: result, error: fnError } = await withTimeout(
+        supabase.functions.invoke('create-manual-client', {
+          body: {
+            firstName: data.firstName,
+            lastName: data.lastName,
+            email: data.email,
+            phoneNumber: `${data.countryCode}${data.phoneNumber}`,
+            dateOfBirth: data.dateOfBirth,
+            gender: data.gender,
+            serviceId: data.serviceId,
+          },
+        }),
+        15000,
+        'create-manual-client'
+      );
 
       if (fnError) throw fnError;
       if (!result?.success) throw new Error(result?.error || "Failed to create client");

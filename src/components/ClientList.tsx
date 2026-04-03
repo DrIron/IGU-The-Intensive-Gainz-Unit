@@ -43,6 +43,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
+import { withTimeout } from '@/lib/withTimeout';
 import { SimplePagination, createPagination } from "@/components/ui/simple-pagination";
 
 interface Client {
@@ -534,9 +535,13 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
 
   const handleResendWelcomeEmail = async (userId: string, email: string, name: string) => {
     try {
-      const { error } = await supabase.functions.invoke('send-signup-confirmation', {
-        body: { email, name },
-      });
+      const { error } = await withTimeout(
+        supabase.functions.invoke('send-signup-confirmation', {
+          body: { email, name },
+        }),
+        10000,
+        'send-signup-confirmation'
+      );
 
       if (error) throw error;
 
@@ -555,9 +560,13 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
 
   const handleSendPasswordReset = async (email: string, name: string) => {
     try {
-      const { error } = await supabase.functions.invoke('send-signup-confirmation', {
-        body: { email, name, generatePasswordReset: true },
-      });
+      const { error } = await withTimeout(
+        supabase.functions.invoke('send-signup-confirmation', {
+          body: { email, name, generatePasswordReset: true },
+        }),
+        15000,
+        'send-password-reset'
+      );
 
       if (error) throw error;
 
