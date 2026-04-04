@@ -47,7 +47,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
           try {
             const result = await Promise.race([
               supabase.auth.getSession(),
-              new Promise<null>((resolve) => setTimeout(() => resolve(null), 5000)),
+              new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
             ]);
             if (!mounted) return;
 
@@ -86,7 +86,8 @@ export function AuthGuard({ children }: AuthGuardProps) {
       setLoading(false);
     });
 
-    // Safety timeout — if no auth event resolves loading within 6s, stop waiting
+    // Safety timeout — if no auth event resolves loading within 12s, stop waiting.
+    // Mobile 3G/4G networks can take 4-8s for initial round-trips, so 6s was too tight.
     const safetyTimer = setTimeout(() => {
       if (!mounted) return;
       setLoading((prev) => {
@@ -96,7 +97,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
         }
         return prev;
       });
-    }, 6000);
+    }, 12000);
 
     return () => {
       mounted = false;

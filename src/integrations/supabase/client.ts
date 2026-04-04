@@ -19,7 +19,7 @@ const STORAGE_KEY = `sb-${PROJECT_REF}-auth-token`;
 //
 // This timeout breaks the deadlock by ensuring initializePromise resolves
 // within INIT_TIMEOUT_MS, even if the initialization is stuck.
-const INIT_TIMEOUT_MS = 5000;
+const INIT_TIMEOUT_MS = 10000;
 
 /**
  * Custom lock function that bypasses Navigator LockManager entirely.
@@ -109,32 +109,38 @@ export const sessionReady: Promise<void> = new Promise((resolve) => {
 });
 
 // Let the client initialize naturally — getSession reads from localStorage
-// and triggers auto-refresh if the token is expired
-supabase.auth.getSession().then(({ data, error }) => {
-  if (error) {
-    if (import.meta.env.DEV) console.warn('[Supabase Client] getSession error:', error.message);
-  } else if (data.session) {
-    if (import.meta.env.DEV) console.log('[Supabase Client] Session initialized via getSession');
-  } else {
-    if (import.meta.env.DEV) console.log('[Supabase Client] No session found');
-    // When initializePromise times out, getSession() returns null even though
-    // a valid session exists in localStorage. The internal onAuthStateChange
-    // listener that normally updates functions client headers never fires.
-    // Recover the FULL session so that supabase.from() queries also attach
-    // the correct JWT (not just functions client).
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        const parsed = JSON.parse(stored);
-        if (parsed?.access_token && parsed?.refresh_token) {
-          if (import.meta.env.DEV) console.log('[Supabase Client] Recovering full session from localStorage');
-          // setSession() restores the session in memory so supabase.from()
-          // queries attach the JWT. It also triggers onAuthStateChange which
-          // unblocks AuthGuard and useAuthSession.
-          supabase.auth.setSession({
-            access_token: parsed.access_token,
-            refresh_token: parsed.refresh_token,
-          }).then(({ error: setErr }) => {
+// and triggers auto-refresh if the token is expired.
+// CRITICAL: We must await setSession() before resolving sessionReady,
+// otherwise downstream queries run with anon key and RLS blocks everything.
+(async () => {
+  try {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      if (import.meta.env.DEV) console.warn('[Supabase Client] getSession error:', error.message);
+    } else if (data.session) {
+      if (import.meta.env.DEV) console.log('[Supabase Client] Session initialized via getSession');
+    } else {
+      if (import.meta.env.DEV) console.log('[Supabase Client] No session found');
+      // When initializePromise times out, getSession() returns null even though
+      // a valid session exists in localStorage. The internal onAuthStateChange
+      // listener that normally updates functions client headers never fires.
+      // Recover the FULL session so that supabase.from() queries also attach
+      // the correct JWT (not just functions client).
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.access_token && parsed?.refresh_token) {
+            if (import.meta.env.DEV) console.log('[Supabase Client] Recovering full session from localStorage');
+            // setSession() restores the session in memory so supabase.from()
+            // queries attach the JWT. It also triggers onAuthStateChange which
+            // unblocks AuthGuard and useAuthSession.
+            // AWAIT this — resolving sessionReady before setSession completes
+            // causes all downstream queries to use anon key (RLS blocks everything).
+            const { error: setErr } = await supabase.auth.setSession({
+              access_token: parsed.access_token,
+              refresh_token: parsed.refresh_token,
+            });
             if (setErr) {
               if (import.meta.env.DEV) console.warn('[Supabase Client] setSession recovery failed:', setErr.message);
               // Fallback: at least set functions auth
@@ -142,20 +148,21 @@ supabase.auth.getSession().then(({ data, error }) => {
             } else {
               if (import.meta.env.DEV) console.log('[Supabase Client] Session recovered successfully');
             }
-          });
-        } else if (parsed?.access_token) {
-          if (import.meta.env.DEV) console.log('[Supabase Client] Recovering functions auth only (no refresh_token)');
-          supabase.functions.setAuth(parsed.access_token);
+          } else if (parsed?.access_token) {
+            if (import.meta.env.DEV) console.log('[Supabase Client] Recovering functions auth only (no refresh_token)');
+            supabase.functions.setAuth(parsed.access_token);
+          }
         }
+      } catch (e) {
+        // Ignore — localStorage may be unavailable
       }
-    } catch (e) {
-      // Ignore — localStorage may be unavailable
     }
+  } catch {
+    // getSession itself failed
+  } finally {
+    _sessionReadyResolve();
   }
-  _sessionReadyResolve();
-}).catch(() => {
-  _sessionReadyResolve();
-});
+})();
 
 // Safety timeout — if getSession hangs (known issue), resolve after timeout
 setTimeout(() => {

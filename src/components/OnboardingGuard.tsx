@@ -61,20 +61,41 @@ export function OnboardingGuard({
       }
 
       try {
-        // Fetch profile and subscription in parallel (saves ~300ms)
+        // Fetch profile and subscription in parallel with per-query timeouts.
+        // On mobile 3G/4G, one query can hang while the other succeeds — without
+        // individual timeouts, Promise.all blocks on the slowest query indefinitely.
+        const queryTimeout = <T,>(promise: Promise<T>, label: string): Promise<T> =>
+          Promise.race([
+            promise,
+            new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error(`${label} query timed out`)), 8000)
+            ),
+          ]);
+
         const [profileResult, subscriptionResult] = await Promise.all([
-          supabase
-            .from("profiles_public")
-            .select("status")
-            .eq("id", user.id)
-            .maybeSingle(),
-          supabase
-            .from("subscriptions")
-            .select("status")
-            .eq("user_id", user.id)
-            .order("created_at", { ascending: false })
-            .limit(1)
-            .maybeSingle(),
+          queryTimeout(
+            supabase
+              .from("profiles_public")
+              .select("status")
+              .eq("id", user.id)
+              .maybeSingle(),
+            'profile'
+          ),
+          queryTimeout(
+            supabase
+              .from("subscriptions")
+              .select("status")
+              .eq("user_id", user.id)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+            'subscription'
+          ).catch((err) => {
+            // If subscription query times out, don't block — use null
+            // Profile is more important for routing decisions
+            console.warn("[OnboardingGuard] Subscription query failed:", err.message);
+            return { data: null, error: err };
+          }),
         ]);
 
         if (!mounted) return;

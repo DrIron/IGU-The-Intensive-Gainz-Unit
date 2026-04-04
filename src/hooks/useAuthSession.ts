@@ -73,7 +73,8 @@ export function useAuthSession(): UseAuthSessionReturn {
       }
     );
 
-    // Safety timeout — if no auth event fires within 5s, stop loading
+    // Safety timeout — if no auth event fires within 10s, stop loading.
+    // Mobile 3G/4G networks can take 4-8s for initial round-trips, so 5s was too tight.
     const safetyTimer = setTimeout(() => {
       setIsLoading(prev => {
         if (prev) {
@@ -82,7 +83,7 @@ export function useAuthSession(): UseAuthSessionReturn {
         }
         return prev;
       });
-    }, 5000);
+    }, 10000);
 
     return () => {
       clearTimeout(safetyTimer);

@@ -27,8 +27,18 @@ export function WaitlistGuard({ children }: WaitlistGuardProps) {
 
     const check = async () => {
       try {
-        // Check if user is authenticated
-        const { data: { user } } = await supabase.auth.getUser();
+        // Check if user is authenticated — with timeout so public pages
+        // don't hang on mobile when getUser() is slow (init deadlock, etc.)
+        let user = null;
+        try {
+          const result = await Promise.race([
+            supabase.auth.getUser(),
+            new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+          ]);
+          user = result && 'data' in result ? result.data.user : null;
+        } catch {
+          // getUser failed — treat as unauthenticated
+        }
         if (user) {
           // Authenticated users always pass through
           setAllowed(true);
