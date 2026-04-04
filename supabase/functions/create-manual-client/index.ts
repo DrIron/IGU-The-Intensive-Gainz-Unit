@@ -78,159 +78,68 @@ serve(async (req) => {
       throw new Error('Invalid or inactive service selected');
     }
 
-    // Resolve user by email via paginated listUsers, then fallback to profile lookup
+    // Try to create the user first (fast path). If email already exists,
+    // fall back to a quick DB lookup. Avoids expensive paginated listUsers scan.
     let userId: string | null = null;
-    try {
-      let page = 1;
-      const perPage = 1000;
-      while (!userId) {
-        const { data: pageData, error: pageErr } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
-        if (pageErr) break;
-        const found = pageData?.users?.find((u: any) => (u.email || '').toLowerCase() === email.toLowerCase());
-        if (found) {
-          userId = found.id;
-          console.log(JSON.stringify({ fn: "create-manual-client", step: "user_exists_auth", ok: true, user_id: userId }));
-          break;
-        }
-        if (!pageData || pageData.users.length < perPage) break;
-        page += 1;
-      }
-    } catch (e) {
-      console.log(JSON.stringify({ fn: "create-manual-client", step: "list_users_fallback", ok: false, error: "list_users_failed" }));
-    }
 
-    if (!userId) {
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+      email,
+      email_confirm: true,
+      user_metadata: {
+        first_name: firstName,
+        last_name: lastName,
+      },
+    });
+
+    if (!authError && authData?.user) {
+      userId = authData.user.id;
+      console.log(JSON.stringify({ fn: "create-manual-client", step: "user_created", ok: true, user_id: userId }));
+    } else {
+      // User likely already exists — look up by email via fast DB queries
+      console.log(JSON.stringify({ fn: "create-manual-client", step: "create_user_failed", ok: false, error: authError?.message }));
+
+      // 1) Check profiles view (joins profiles_public + profiles_private)
       const { data: existingProfile } = await supabaseAdmin
         .from('profiles')
         .select('id')
         .ilike('email', email)
         .maybeSingle();
-      userId = existingProfile?.id || null;
-      if (userId) console.log(JSON.stringify({ fn: "create-manual-client", step: "user_exists_profile", ok: true, user_id: userId }));
-    }
-
-    // Additional recovery: check if this email belongs to a coach record
-    if (!userId) {
-      const { data: coachUser, error: coachLookupErr } = await supabaseAdmin
-        .from('coaches')
-        .select('user_id')
-        .ilike('email', email)
-        .maybeSingle();
-      if (coachLookupErr) {
-        console.log(JSON.stringify({ fn: "create-manual-client", step: "coach_lookup", ok: false, error: "query_failed" }));
+      if (existingProfile?.id) {
+        userId = existingProfile.id;
+        console.log(JSON.stringify({ fn: "create-manual-client", step: "user_exists_profile", ok: true, user_id: userId }));
       }
-      if (coachUser?.user_id) {
-        userId = coachUser.user_id;
-        console.log(JSON.stringify({ fn: "create-manual-client", step: "user_exists_coach", ok: true, user_id: userId }));
+
+      // 2) Check coaches table
+      if (!userId) {
+        const { data: coachUser } = await supabaseAdmin
+          .from('coaches')
+          .select('user_id')
+          .ilike('email', email)
+          .maybeSingle();
+        if (coachUser?.user_id) {
+          userId = coachUser.user_id;
+          console.log(JSON.stringify({ fn: "create-manual-client", step: "user_exists_coach", ok: true, user_id: userId }));
+        }
       }
-    }
 
-    if (!userId) {
-      // Create the user account (will trigger profile creation via trigger)
-      const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
-        email,
-        email_confirm: true,
-        user_metadata: {
-          first_name: firstName,
-          last_name: lastName,
-        },
-      });
-
-      if (authError) {
-        console.error(JSON.stringify({ fn: "create-manual-client", step: "create_user", ok: false, error: "auth_create_failed" }));
-        // 1) Try to find existing auth user by email (case-insensitive)
+      // 3) Last resort: invite by email (creates user if not present)
+      if (!userId) {
         try {
-          let page = 1;
-          const perPage = 1000;
-          while (!userId) {
-            const { data: pageData, error: pageErr } = await supabaseAdmin.auth.admin.listUsers({ page, perPage });
-            if (pageErr) break;
-            const found = pageData?.users?.find((u: any) => (u.email || '').toLowerCase() === email.toLowerCase());
-            if (found) {
-              userId = found.id;
-              console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_auth", ok: true, user_id: userId }));
-              break;
-            }
-            if (!pageData || pageData.users.length < perPage) break;
-            page += 1;
+          const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+            email,
+            { redirectTo: 'https://theigu.com/reset-password', data: { first_name: firstName, last_name: lastName } }
+          );
+          if (!inviteError && inviteData?.user?.id) {
+            userId = inviteData.user.id;
+            console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_invite", ok: true, user_id: userId }));
           }
         } catch (_e) {
-          console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_list_users", ok: false, error: "list_users_failed" }));
+          // ignore
         }
+      }
 
-        // 2) If still not found, try profile (case-insensitive)
-        if (!userId) {
-          const { data: recoveredProfile } = await supabaseAdmin
-            .from('profiles')
-            .select('id')
-            .ilike('email', email)
-            .maybeSingle();
-          if (recoveredProfile?.id) {
-            userId = recoveredProfile.id;
-            console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_profile", ok: true, user_id: userId }));
-          }
-        }
-
-        // 3) If still not found, try coach by email (case-insensitive)
-        if (!userId) {
-          const { data: coachUser2 } = await supabaseAdmin
-            .from('coaches')
-            .select('user_id')
-            .ilike('email', email)
-            .maybeSingle();
-          if (coachUser2?.user_id) {
-            userId = coachUser2.user_id;
-            console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_coach", ok: true, user_id: userId }));
-          }
-        }
-
-        // 4) Fallback: try sending an invite (also creates the user if not present)
-        if (!userId) {
-          try {
-            const redirectTo = 'https://theigu.com/reset-password';
-            const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-              email,
-              { redirectTo, data: { first_name: firstName, last_name: lastName } }
-            );
-            if (inviteError) {
-              console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_invite", ok: false, error: "invite_failed" }));
-            } else if (inviteData?.user?.id) {
-              userId = inviteData.user.id;
-              console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_invite", ok: true, user_id: userId }));
-            }
-          } catch (invErr) {
-            console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_invite", ok: false, error: "invite_exception" }));
-          }
-        }
-
-        // 5) Final fallback: try signup link generation (creates user if allowed)
-        if (!userId) {
-          try {
-            const tempPassword = crypto.randomUUID() + 'Aa1!#';
-            const { data: signupLinkData, error: signupLinkError } = await supabaseAdmin.auth.admin.generateLink({
-              type: 'signup',
-              email,
-              password: tempPassword,
-              options: { redirectTo: 'https://theigu.com/reset-password', data: { first_name: firstName, last_name: lastName } }
-            });
-            if (signupLinkError) {
-              console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_signup_link", ok: false, error: "link_gen_failed" }));
-            } else if (signupLinkData?.user?.id) {
-              userId = signupLinkData.user.id;
-              console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_signup_link", ok: true, user_id: userId }));
-            }
-          } catch (sgErr) {
-            console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_signup_link", ok: false, error: "link_gen_exception" }));
-          }
-        }
-
-        if (!userId) {
-          throw authError;
-        }
-      } else {
-        if (!authData.user) throw new Error("Failed to create user");
-        userId = authData.user.id;
-        console.log(JSON.stringify({ fn: "create-manual-client", step: "user_created", ok: true, user_id: userId }));
+      if (!userId) {
+        throw new Error(authError?.message || 'Failed to create or find user');
       }
     }
 
