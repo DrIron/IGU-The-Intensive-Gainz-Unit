@@ -104,9 +104,31 @@ Deno.serve(async (req) => {
     }
 
     // 2. Hard delete all user data in order (respecting foreign keys)
+    // IMPORTANT: Several FK constraints do NOT have ON DELETE CASCADE
+    // (payment_webhook_events, payment_events → subscriptions; subscriptions,
+    // care_team_assignments → profiles_public). We must delete these first.
     console.log('Deleting all user data for:', userId);
-    
-    // Delete nutrition-related data
+
+    // Helper to log errors without blocking
+    const safeDelete = async (table: string, filter: Record<string, string>) => {
+      const query = supabaseClient.from(table).delete();
+      for (const [col, val] of Object.entries(filter)) {
+        query.eq(col, val);
+      }
+      const { error } = await query;
+      if (error) {
+        console.error(`Error deleting from ${table}:`, error.message);
+      }
+    };
+
+    // --- Get subscription IDs first (needed for payment tables) ---
+    const { data: userSubs } = await supabaseClient
+      .from('subscriptions')
+      .select('id')
+      .eq('user_id', userId);
+    const subIds = userSubs?.map(s => s.id) || [];
+
+    // --- Delete nutrition-related data ---
     const { data: phases } = await supabaseClient
       .from('nutrition_phases')
       .select('id')
@@ -120,17 +142,55 @@ Deno.serve(async (req) => {
       await supabaseClient.from('circumference_logs').delete().in('phase_id', phaseIds);
       await supabaseClient.from('adherence_logs').delete().in('phase_id', phaseIds);
     }
-    
+
     await supabaseClient.from('nutrition_phases').delete().eq('user_id', userId);
     await supabaseClient.from('weekly_progress').delete().eq('user_id', userId);
+    await supabaseClient.from('step_logs').delete().eq('user_id', userId);
+    await supabaseClient.from('body_fat_logs').delete().eq('user_id', userId);
+    await supabaseClient.from('diet_breaks').delete().eq('user_id', userId);
+    await supabaseClient.from('refeed_days').delete().eq('user_id', userId);
+    await supabaseClient.from('step_recommendations').delete().eq('client_id', userId);
 
-    
-    // Delete other user data
+    // --- Delete care team data (FK to profiles_public WITHOUT CASCADE) ---
+    await supabaseClient.from('care_team_messages').delete().eq('sender_id', userId);
+    await supabaseClient.from('care_team_assignments').delete().eq('client_id', userId);
+    await supabaseClient.from('care_team_assignments').delete().eq('staff_user_id', userId);
+
+    // --- Delete payment tables that block subscription deletion ---
+    // payment_webhook_events and payment_events reference subscriptions(id)
+    // WITHOUT ON DELETE CASCADE — must delete these BEFORE subscriptions
+    if (subIds.length > 0) {
+      await supabaseClient.from('payment_webhook_events').delete().in('subscription_id', subIds);
+      await supabaseClient.from('payment_events').delete().in('subscription_id', subIds);
+      await supabaseClient.from('subscription_payments').delete().in('subscription_id', subIds);
+    }
+    // Also clean up by user_id for any orphaned rows
+    await supabaseClient.from('payment_webhook_events').delete().eq('user_id', userId);
+    await supabaseClient.from('payment_events').delete().eq('user_id', userId);
+
+    // --- Delete program data ---
+    // client_programs cascades from profiles_public, but clean up explicitly
+    // to be safe (ON DELETE RESTRICT on primary_coach_id could block coach deletion)
+    await supabaseClient.from('client_programs').delete().eq('user_id', userId);
+    await supabaseClient.from('direct_calendar_sessions').delete().eq('client_user_id', userId);
+
+    // --- Delete other user data ---
+    await supabaseClient.from('addon_purchases').delete().eq('client_id', userId);
     await supabaseClient.from('coach_change_requests').delete().eq('user_id', userId);
     await supabaseClient.from('testimonials').delete().eq('user_id', userId);
     await supabaseClient.from('form_submissions').delete().eq('user_id', userId);
-    await supabaseClient.from('subscriptions').delete().eq('user_id', userId);
+    await supabaseClient.from('medical_reviews').delete().eq('user_id', userId);
+    await supabaseClient.from('parq_submissions').delete().eq('user_id', userId);
+    await supabaseClient.from('referrals').delete().eq('referrer_user_id', userId);
+    await supabaseClient.from('user_subroles').delete().eq('user_id', userId);
     await supabaseClient.from('email_notifications').delete().eq('user_id', userId);
+    await supabaseClient.from('admin_audit_log').delete().eq('user_id', userId);
+
+    // --- NOW delete subscriptions (payment FK blockers removed above) ---
+    const { error: subDeleteErr } = await supabaseClient.from('subscriptions').delete().eq('user_id', userId);
+    if (subDeleteErr) {
+      console.error('Error deleting subscriptions:', subDeleteErr.message);
+    }
 
     // Clean up any relationships where this user acted as a coach
     // 1) Unassign as coach from client subscriptions and nutrition phases
@@ -162,7 +222,10 @@ Deno.serve(async (req) => {
 
     // Delete from both tables (profiles_private first due to FK, then profiles_public)
     await supabaseClient.from('profiles_private').delete().eq('profile_id', userId);
-    await supabaseClient.from('profiles_public').delete().eq('id', userId);
+    const { error: profileDeleteErr } = await supabaseClient.from('profiles_public').delete().eq('id', userId);
+    if (profileDeleteErr) {
+      console.error('Error deleting profiles_public:', profileDeleteErr.message);
+    }
 
     // Final step: Delete auth user (this will cascade any remaining auth-related data)
     const { error: deleteAuthError } = await supabaseClient.auth.admin.deleteUser(userId);
