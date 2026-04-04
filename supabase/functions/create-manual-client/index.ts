@@ -109,7 +109,20 @@ serve(async (req) => {
         console.log(JSON.stringify({ fn: "create-manual-client", step: "user_exists_profile", ok: true, user_id: userId }));
       }
 
-      // 2) Check coaches table
+      // 2) Check profiles_private directly (profiles view may fail if profiles_public was deleted)
+      if (!userId) {
+        const { data: existingPrivate } = await supabaseAdmin
+          .from('profiles_private')
+          .select('profile_id')
+          .ilike('email', email)
+          .maybeSingle();
+        if (existingPrivate?.profile_id) {
+          userId = existingPrivate.profile_id;
+          console.log(JSON.stringify({ fn: "create-manual-client", step: "user_exists_private", ok: true, user_id: userId }));
+        }
+      }
+
+      // 3) Check coaches table
       if (!userId) {
         const { data: coachUser } = await supabaseAdmin
           .from('coaches')
@@ -122,7 +135,25 @@ serve(async (req) => {
         }
       }
 
-      // 3) Last resort: invite by email (creates user if not present)
+      // 4) Try generateLink recovery — works for existing confirmed users
+      // and returns the user object (unlike inviteUserByEmail which fails for confirmed users)
+      if (!userId) {
+        try {
+          const { data: linkData, error: linkErr } = await supabaseAdmin.auth.admin.generateLink({
+            type: 'recovery',
+            email,
+            options: { redirectTo: 'https://theigu.com/reset-password' },
+          });
+          if (!linkErr && linkData?.user?.id) {
+            userId = linkData.user.id;
+            console.log(JSON.stringify({ fn: "create-manual-client", step: "recovery_generate_link", ok: true, user_id: userId }));
+          }
+        } catch (_e) {
+          // ignore
+        }
+      }
+
+      // 5) Last resort: invite by email (creates user if not present)
       if (!userId) {
         try {
           const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
