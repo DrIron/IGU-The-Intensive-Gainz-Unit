@@ -23,10 +23,14 @@ CREATE TABLE IF NOT EXISTS coach_payout_rates (
 
 ALTER TABLE coach_payout_rates ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Admin full access on coach_payout_rates" ON coach_payout_rates
-  FOR ALL USING (public.is_admin(auth.uid()));
-CREATE POLICY "Authenticated read coach_payout_rates" ON coach_payout_rates
-  FOR SELECT TO authenticated USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Admin full access on coach_payout_rates' AND tablename = 'coach_payout_rates') THEN
+    CREATE POLICY "Admin full access on coach_payout_rates" ON coach_payout_rates FOR ALL USING (public.is_admin(auth.uid()));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE policyname = 'Authenticated read coach_payout_rates' AND tablename = 'coach_payout_rates') THEN
+    CREATE POLICY "Authenticated read coach_payout_rates" ON coach_payout_rates FOR SELECT TO authenticated USING (true);
+  END IF;
+END $$;
 
 -- 2. Seed payout rates
 -- Team Plan (head coach flat, same for all levels)
