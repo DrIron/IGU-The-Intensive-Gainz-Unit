@@ -26,6 +26,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 import MovementPatternEditor from './MovementPatternEditor';
+import ExerciseCatalogView from './ExerciseCatalogView';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -461,6 +462,7 @@ export default function ExerciseLibraryManager() {
             Exercises
           </TabsTrigger>
           <TabsTrigger value="patterns">Movement Patterns</TabsTrigger>
+          <TabsTrigger value="catalog">Catalog View</TabsTrigger>
           <TabsTrigger value="stats">Library Stats</TabsTrigger>
         </TabsList>
 
@@ -765,7 +767,18 @@ export default function ExerciseLibraryManager() {
         </TabsContent>
 
         {/* ============================================================= */}
-        {/* TAB 3: Library Stats                                          */}
+        {/* TAB 3: Catalog View                                           */}
+        {/* ============================================================= */}
+        <TabsContent value="catalog" className="mt-4">
+          <ExerciseCatalogView
+            exercises={exercises}
+            patterns={patterns}
+            onEditExercise={openEdit}
+          />
+        </TabsContent>
+
+        {/* ============================================================= */}
+        {/* TAB 4: Library Stats                                          */}
         {/* ============================================================= */}
         <TabsContent value="stats" className="space-y-4 mt-4">
           {/* Summary cards */}
