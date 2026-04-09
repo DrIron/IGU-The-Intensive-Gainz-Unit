@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dumbbell, Video } from "lucide-react";
-import WorkoutLibraryManager from "@/components/WorkoutLibraryManager";
+import { ExerciseLibraryManager } from "@/components/admin/ExerciseLibraryManager";
 import { EducationalVideosManager } from "@/components/EducationalVideosManager";
 
 type ContentTab = "workouts" | "education";
@@ -36,7 +36,7 @@ export function ContentLibraryPanel() {
         <TabsList className="grid w-full max-w-md grid-cols-2">
           <TabsTrigger value="workouts" className="flex items-center gap-2">
             <Dumbbell className="h-4 w-4" />
-            Workout Library
+            Exercise Library
           </TabsTrigger>
           <TabsTrigger value="education" className="flex items-center gap-2">
             <Video className="h-4 w-4" />
@@ -45,7 +45,7 @@ export function ContentLibraryPanel() {
         </TabsList>
 
         <TabsContent value="workouts" className="mt-6">
-          <WorkoutLibraryManager />
+          <ExerciseLibraryManager />
         </TabsContent>
 
         <TabsContent value="education" className="mt-6">

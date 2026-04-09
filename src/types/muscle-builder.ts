@@ -515,6 +515,38 @@ export const MUSCLE_TO_EXERCISE_FILTER: Record<string, string[]> = {
   neck_splenius:    ['Traps'],
 };
 
+// ============================================================
+// Exercise Library V2 Constants
+// ============================================================
+
+export const EQUIPMENT_TYPES = [
+  { id: 'BB', label: 'Barbell / EZ Bar' },
+  { id: 'DB', label: 'Dumbbell' },
+  { id: 'M', label: 'Machine' },
+  { id: 'C-FT', label: 'Cable — Functional Trainer' },
+  { id: 'C-AA', label: 'Cable — Adjustable Arms' },
+  { id: 'C-FS', label: 'Cable — Fixed Seated' },
+  { id: 'BW', label: 'Bodyweight / Bands' },
+] as const;
+
+export const EQUIPMENT_MAP = new Map(EQUIPMENT_TYPES.map(e => [e.id, e.label]));
+
+export const RESISTANCE_PROFILES = ['Lengthened', 'Mid-range', 'Shortened'] as const;
+export type ResistanceProfile = typeof RESISTANCE_PROFILES[number];
+
+export const RESISTANCE_PROFILE_SHORT: Record<ResistanceProfile, string> = {
+  'Lengthened': '(L)',
+  'Mid-range': '(M)',
+  'Shortened': '(S)',
+};
+
+export const MACHINE_BRANDS = [
+  'Prime', 'Hammer Strength', 'Nautilus', 'Cybex',
+  'NewTech M-Torture', 'Atlantis', 'Gymleco', 'Life Fitness', 'Other',
+] as const;
+
+export type MachineBrand = typeof MACHINE_BRANDS[number];
+
 export const SYSTEM_PRESETS: SystemPreset[] = [
   {
     name: 'Push / Pull / Legs',
