@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dumbbell, Video } from "lucide-react";
-import { ExerciseLibraryManager } from "@/components/admin/ExerciseLibraryManager";
+import ExerciseLibraryManager from "@/components/admin/ExerciseLibraryManager";
 import { EducationalVideosManager } from "@/components/EducationalVideosManager";
 
 type ContentTab = "workouts" | "education";
