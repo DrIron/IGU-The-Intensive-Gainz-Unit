@@ -669,8 +669,7 @@ export default function ExerciseLibraryManager() {
           </div>
 
           {/* Table */}
-          <div className="rounded-lg border overflow-hidden">
-            <ScrollArea className="max-h-[65vh]">
+          <div className="rounded-lg border overflow-auto max-h-[70vh]">
               <Table>
                 <TableHeader>
                   <TableRow className="text-xs">
@@ -755,7 +754,6 @@ export default function ExerciseLibraryManager() {
                   )}
                 </TableBody>
               </Table>
-            </ScrollArea>
           </div>
         </TabsContent>
 
