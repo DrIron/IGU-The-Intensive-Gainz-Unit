@@ -26,7 +26,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 import MovementPatternEditor from './MovementPatternEditor';
+import BulletPointEditor from './BulletPointEditor';
 import ExerciseCatalogView from './ExerciseCatalogView';
+import { Drawer, DrawerContent, DrawerTitle } from '@/components/ui/drawer';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -46,6 +48,7 @@ interface ExerciseRow {
   secondary_muscles: string[] | null;
   default_video_url: string | null;
   setup_instructions: string | null;
+  setup_points: string[] | null;
   tags: string[] | null;
   is_active: boolean;
   is_global: boolean;
@@ -73,7 +76,7 @@ interface ExerciseFormState {
   primaryMuscle: string;
   secondaryMuscles: string[];
   videoUrl: string;
-  setupInstructions: string;
+  setupPoints: string[];
   tags: string[];
   isActive: boolean;
   isGlobal: boolean;
@@ -91,7 +94,7 @@ const EMPTY_FORM: ExerciseFormState = {
   primaryMuscle: '',
   secondaryMuscles: [],
   videoUrl: '',
-  setupInstructions: '',
+  setupPoints: [],
   tags: [],
   isActive: true,
   isGlobal: true,
@@ -121,7 +124,7 @@ function exerciseToForm(ex: ExerciseRow): ExerciseFormState {
     primaryMuscle: ex.primary_muscle || '',
     secondaryMuscles: ex.secondary_muscles || [],
     videoUrl: ex.default_video_url || '',
-    setupInstructions: ex.setup_instructions || '',
+    setupPoints: ex.setup_points || [],
     tags: ex.tags || [],
     isActive: ex.is_active,
     isGlobal: ex.is_global,
@@ -196,6 +199,15 @@ export default function ExerciseLibraryManager() {
 
   // Tab
   const [activeTab, setActiveTab] = useState('exercises');
+
+  // Mobile detection
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 640);
+    check();
+    window.addEventListener('resize', check);
+    return () => window.removeEventListener('resize', check);
+  }, []);
 
   // -----------------------------------------------------------------------
   // Data fetching
@@ -361,7 +373,8 @@ export default function ExerciseLibraryManager() {
         primary_muscle: form.primaryMuscle || null,
         secondary_muscles: form.secondaryMuscles.length > 0 ? form.secondaryMuscles : null,
         default_video_url: form.videoUrl || null,
-        setup_instructions: form.setupInstructions || null,
+        setup_points: form.setupPoints.filter(s => s.trim()).length > 0 ? form.setupPoints.filter(s => s.trim()) : null,
+        setup_instructions: form.setupPoints.filter(s => s.trim()).join('\n') || null,
         tags: form.tags.length > 0 ? form.tags : null,
         is_active: form.isActive,
         is_global: form.isGlobal,
@@ -676,12 +689,12 @@ export default function ExerciseLibraryManager() {
                     <TableHead className="w-10">#</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead>Muscle</TableHead>
-                    <TableHead>Subdivision</TableHead>
-                    <TableHead>Movement</TableHead>
+                    <TableHead className="hidden sm:table-cell">Subdivision</TableHead>
+                    <TableHead className="hidden sm:table-cell">Movement</TableHead>
                     <TableHead>Equipment</TableHead>
-                    <TableHead>Brand</TableHead>
-                    <TableHead>Profile(s)</TableHead>
-                    <TableHead className="w-10">
+                    <TableHead className="hidden sm:table-cell">Brand</TableHead>
+                    <TableHead className="hidden sm:table-cell">Profile(s)</TableHead>
+                    <TableHead className="w-10 hidden sm:table-cell">
                       <Video className="h-3.5 w-3.5" />
                     </TableHead>
                     <TableHead className="w-16">Active</TableHead>
@@ -715,17 +728,17 @@ export default function ExerciseLibraryManager() {
                               <span className="text-xs text-muted-foreground">--</span>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden sm:table-cell">
                             {subDisplay ? (
                               <span className="text-xs">{subDisplay.label}</span>
                             ) : (
                               <span className="text-xs text-muted-foreground">--</span>
                             )}
                           </TableCell>
-                          <TableCell className="text-xs">{ex.movement_pattern || '--'}</TableCell>
+                          <TableCell className="text-xs hidden sm:table-cell">{ex.movement_pattern || '--'}</TableCell>
                           <TableCell className="text-xs">{getEquipmentLabel(ex.equipment)}</TableCell>
-                          <TableCell className="text-xs">{ex.machine_brand || '--'}</TableCell>
-                          <TableCell>
+                          <TableCell className="text-xs hidden sm:table-cell">{ex.machine_brand || '--'}</TableCell>
+                          <TableCell className="hidden sm:table-cell">
                             {ex.resistance_profiles && ex.resistance_profiles.length > 0 ? (
                               <span className="text-xs">
                                 {ex.resistance_profiles.map((rp) => rpShort[rp] || rp).join(' ')}
@@ -734,7 +747,7 @@ export default function ExerciseLibraryManager() {
                               <span className="text-xs text-muted-foreground">--</span>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="hidden sm:table-cell">
                             {ex.default_video_url ? (
                               <Video className="h-3.5 w-3.5 text-primary" />
                             ) : (
@@ -865,15 +878,11 @@ export default function ExerciseLibraryManager() {
       </Tabs>
 
       {/* ================================================================= */}
-      {/* Edit / Create Sheet                                                */}
+      {/* Edit / Create Sheet (or Drawer on mobile)                          */}
       {/* ================================================================= */}
-      <Sheet open={sheetOpen} onOpenChange={(open) => !open && closeSheet()}>
-        <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
-          <SheetHeader className="mb-4">
-            <SheetTitle>{editing ? 'Edit Exercise' : 'Add Exercise'}</SheetTitle>
-          </SheetHeader>
-
-          <div className="space-y-5">
+      {(() => {
+        const editFormContent = (
+          <div className="space-y-5 p-1">
             {/* Name */}
             <div className="space-y-1.5">
               <Label htmlFor="ex-name">Name *</Label>
@@ -1067,16 +1076,13 @@ export default function ExerciseLibraryManager() {
               })()}
             </div>
 
-            {/* Setup Instructions */}
-            <div className="space-y-1.5">
-              <Label>Setup Instructions</Label>
-              <Textarea
-                rows={4}
-                value={form.setupInstructions}
-                onChange={(e) => updateForm('setupInstructions', e.target.value)}
-                placeholder="Describe setup and execution..."
-              />
-            </div>
+            {/* Setup Points */}
+            <BulletPointEditor
+              label="Setup Points"
+              points={form.setupPoints}
+              onChange={(points) => updateForm('setupPoints', points)}
+              placeholder="Enter setup instruction..."
+            />
 
             {/* Tags */}
             <div className="space-y-1.5">
@@ -1125,8 +1131,30 @@ export default function ExerciseLibraryManager() {
               </Button>
             </div>
           </div>
-        </SheetContent>
-      </Sheet>
+        );
+
+        return isMobile ? (
+          <Drawer open={sheetOpen} onOpenChange={(open) => !open && closeSheet()}>
+            <DrawerContent className="max-h-[90vh] px-4 pb-6">
+              <DrawerTitle className="text-lg font-semibold mt-4 mb-2">
+                {editing ? 'Edit Exercise' : 'Add Exercise'}
+              </DrawerTitle>
+              <div className="overflow-y-auto max-h-[80vh]">
+                {editFormContent}
+              </div>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+          <Sheet open={sheetOpen} onOpenChange={(open) => !open && closeSheet()}>
+            <SheetContent className="w-full sm:max-w-lg overflow-y-auto">
+              <SheetHeader className="mb-4">
+                <SheetTitle>{editing ? 'Edit Exercise' : 'Add Exercise'}</SheetTitle>
+              </SheetHeader>
+              {editFormContent}
+            </SheetContent>
+          </Sheet>
+        );
+      })()}
     </div>
   );
 }

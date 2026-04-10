@@ -35,6 +35,7 @@ interface ExerciseRow {
   secondary_muscles: string[] | null;
   default_video_url: string | null;
   setup_instructions: string | null;
+  setup_points: string[] | null;
   tags: string[] | null;
   is_active: boolean;
   is_global: boolean;
@@ -46,6 +47,7 @@ interface MovementPattern {
   subdivision: string | null;
   movement: string;
   execution_text: string | null;
+  execution_points: string[] | null;
 }
 
 interface ExerciseCatalogViewProps {
@@ -75,6 +77,7 @@ function profileShort(p: string): string {
 interface GroupedMovement {
   patternName: string;
   executionText: string | null;
+  executionPoints: string[] | null;
   exercises: ExerciseRow[];
 }
 
@@ -179,6 +182,7 @@ function buildSubdivisionGroup(
     movements.push({
       patternName,
       executionText: match?.execution_text ?? null,
+      executionPoints: match?.execution_points ?? null,
       exercises: exList.sort((a, b) => a.name.localeCompare(b.name)),
     });
   }
@@ -338,12 +342,21 @@ export default function ExerciseCatalogView({
                                 </Badge>
                               </div>
 
-                              {/* Execution text blockquote */}
-                              {mv.executionText && (
+                              {/* Execution points bullet list (or fallback to text) */}
+                              {mv.executionPoints && mv.executionPoints.length > 0 ? (
+                                <div className="border-l-2 border-primary/40 bg-muted/30 px-3 py-2 ml-3 rounded-r space-y-1">
+                                  {mv.executionPoints.map((point, i) => (
+                                    <div key={i} className="flex items-start gap-2 text-sm text-muted-foreground">
+                                      <span className="text-primary/60 mt-0.5 shrink-0">•</span>
+                                      <span>{point}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : mv.executionText ? (
                                 <blockquote className="border-l-2 border-primary/40 bg-muted/50 px-3 py-2 ml-3 rounded-r text-sm italic text-muted-foreground leading-relaxed">
                                   {mv.executionText}
                                 </blockquote>
-                              )}
+                              ) : null}
 
                               {/* Exercise table */}
                               <div className="ml-3 rounded border border-border overflow-hidden">
@@ -352,7 +365,7 @@ export default function ExerciseCatalogView({
                                     <tr className="bg-muted/60 text-muted-foreground">
                                       <th className="px-2 py-1.5 text-left font-medium w-8">#</th>
                                       <th className="px-2 py-1.5 text-left font-medium">Exercise Name</th>
-                                      <th className="px-2 py-1.5 text-left font-medium">Equipment</th>
+                                      <th className="px-2 py-1.5 text-left font-medium hidden sm:table-cell">Equipment</th>
                                       <th className="px-2 py-1.5 text-left font-medium">Profile</th>
                                       <th className="px-2 py-1.5 text-left font-medium hidden sm:table-cell">
                                         Secondary Muscles
@@ -373,17 +386,29 @@ export default function ExerciseCatalogView({
                                           {idx + 1}
                                         </td>
                                         <td className="px-2 py-1.5 font-medium text-foreground">
-                                          {ex.name}
-                                          {!ex.is_active && (
-                                            <Badge
-                                              variant="outline"
-                                              className="ml-1.5 text-[9px] text-destructive border-destructive/30"
-                                            >
-                                              Inactive
-                                            </Badge>
+                                          <div>
+                                            {ex.name}
+                                            {!ex.is_active && (
+                                              <Badge
+                                                variant="outline"
+                                                className="ml-1.5 text-[9px] text-destructive border-destructive/30"
+                                              >
+                                                Inactive
+                                              </Badge>
+                                            )}
+                                          </div>
+                                          {ex.setup_points && ex.setup_points.length > 0 && (
+                                            <div className="mt-1 space-y-0.5">
+                                              {ex.setup_points.map((sp, si) => (
+                                                <div key={si} className="flex items-start gap-1.5 text-[10px] text-muted-foreground">
+                                                  <span className="text-primary/50 mt-px shrink-0">•</span>
+                                                  <span>{sp}</span>
+                                                </div>
+                                              ))}
+                                            </div>
                                           )}
                                         </td>
-                                        <td className="px-2 py-1.5">
+                                        <td className="px-2 py-1.5 hidden sm:table-cell">
                                           {ex.equipment ? (
                                             <Badge
                                               variant="secondary"

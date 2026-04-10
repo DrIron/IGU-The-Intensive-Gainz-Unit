@@ -2,7 +2,6 @@ import { useState, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -12,6 +11,7 @@ import { MUSCLE_GROUPS, SUBDIVISIONS_BY_PARENT } from '@/types/muscle-builder';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
+import BulletPointEditor from './BulletPointEditor';
 
 interface MovementPattern {
   id: string;
@@ -19,6 +19,7 @@ interface MovementPattern {
   subdivision: string | null;
   movement: string;
   execution_text: string | null;
+  execution_points: string[] | null;
   exercise_count?: number;
 }
 
@@ -28,7 +29,7 @@ interface MovementPatternEditorProps {
 }
 
 interface EditForm {
-  executionText: string;
+  executionPoints: string[];
 }
 
 interface AddForm {
@@ -39,7 +40,7 @@ interface AddForm {
 
 export default function MovementPatternEditor({ patterns, onRefresh }: MovementPatternEditorProps) {
   const [editingPattern, setEditingPattern] = useState<MovementPattern | null>(null);
-  const [editForm, setEditForm] = useState<EditForm>({ executionText: '' });
+  const [editForm, setEditForm] = useState<EditForm>({ executionPoints: [] });
   const [editSaving, setEditSaving] = useState(false);
 
   const [addOpen, setAddOpen] = useState(false);
@@ -58,16 +59,20 @@ export default function MovementPatternEditor({ patterns, onRefresh }: MovementP
 
   const handleOpenEdit = useCallback((pattern: MovementPattern) => {
     setEditingPattern(pattern);
-    setEditForm({ executionText: pattern.execution_text || '' });
+    setEditForm({ executionPoints: pattern.execution_points || [] });
   }, []);
 
   const handleSaveEdit = useCallback(async () => {
     if (!editingPattern) return;
     setEditSaving(true);
     try {
+      const points = editForm.executionPoints.filter(s => s.trim());
       const { error } = await supabase
         .from('movement_patterns')
-        .update({ execution_text: editForm.executionText || null })
+        .update({
+          execution_points: points.length > 0 ? points : null,
+          execution_text: points.join('\n') || null,
+        })
         .eq('id', editingPattern.id);
       if (error) throw error;
       toast.success('Movement pattern updated');
@@ -78,7 +83,7 @@ export default function MovementPatternEditor({ patterns, onRefresh }: MovementP
     } finally {
       setEditSaving(false);
     }
-  }, [editingPattern, editForm.executionText, onRefresh]);
+  }, [editingPattern, editForm.executionPoints, onRefresh]);
 
   const handleAddMovement = useCallback(async () => {
     if (!addForm.movement.trim()) {
@@ -203,16 +208,12 @@ export default function MovementPatternEditor({ patterns, onRefresh }: MovementP
                 <p className="text-sm">{editingPattern?.subdivision || '--'}</p>
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="exec-text">Execution Text</Label>
-              <Textarea
-                id="exec-text"
-                rows={8}
-                value={editForm.executionText}
-                onChange={(e) => setEditForm({ executionText: e.target.value })}
-                placeholder="Describe the execution cues, setup, and common mistakes..."
-              />
-            </div>
+            <BulletPointEditor
+              label="Execution Points"
+              points={editForm.executionPoints}
+              onChange={(points) => setEditForm({ executionPoints: points })}
+              placeholder="Enter execution cue..."
+            />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingPattern(null)} disabled={editSaving}>
