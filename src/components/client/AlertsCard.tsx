@@ -1,5 +1,5 @@
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, CreditCard, Calendar, Ban } from "lucide-react";
+import { AlertCircle, CreditCard, Ban } from "lucide-react";
 import { differenceInDays, format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 
@@ -47,22 +47,7 @@ export function AlertsCard({ profile, subscription, weeklyLogsCount }: AlertsCar
     });
   }
 
-  // Check for upcoming manual payment
-  if (subscription?.next_billing_date) {
-    const daysUntilRenewal = differenceInDays(
-      new Date(subscription.next_billing_date),
-      new Date()
-    );
-    if (daysUntilRenewal <= 7 && daysUntilRenewal > 0) {
-      alerts.push({
-        icon: Calendar,
-        title: "Payment Due Soon",
-        description: `Your next payment is due in ${daysUntilRenewal} day${daysUntilRenewal !== 1 ? 's' : ''}. Click "Pay Now" to renew.`,
-        variant: "default" as const,
-        onClick: () => navigate("/billing/pay"),
-      });
-    }
-  }
+  // Payment due reminders handled by PaymentAttentionBanner above — no duplication here
 
   // Check for missing weight logs (minimum 3 per week)
   if (weeklyLogsCount !== undefined && weeklyLogsCount < 3) {

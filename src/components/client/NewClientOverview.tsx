@@ -3,9 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { QuickActionsGrid } from "./QuickActionsGrid";
 import { CoachCard } from "./CoachCard";
 import { PlanBillingCard } from "./PlanBillingCard";
-import { PaymentDueCard } from "./PaymentDueCard";
 import { PaymentAttentionBanner } from "./PaymentAttentionBanner";
-import { ProgressSummaryCard } from "./ProgressSummaryCard";
 import { AlertsCard } from "./AlertsCard";
 import { MyCareTeamCard } from "./MyCareTeamCard";
 import { TodaysWorkoutHero } from "./TodaysWorkoutHero";
@@ -173,35 +171,25 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         </div>
       </div>
 
-      {/* Adherence Summary */}
+      {/* Adherence Summary — clickable to workout calendar */}
       <AdherenceSummaryCard userId={user?.id} />
 
-      {/* Billing & Account Section */}
+      {/* Billing & Care Team Section */}
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Left Column */}
-        <div className="space-y-6">
-          {/* Payment Due Card - shows next payment info for active subscriptions */}
-          <PaymentDueCard subscription={subscription} />
-
-          <PlanBillingCard
-            subscription={subscription}
-            onManageBilling={() => {
-              navigate("/billing/pay");
-            }}
-          />
-        </div>
+        <PlanBillingCard
+          subscription={subscription}
+          onManageBilling={() => {
+            navigate("/billing/pay");
+          }}
+        />
 
         {/* Right Column */}
-        <div className="space-y-6">
-          {/* My Care Team Card - shows primary coach + specialists with end dates */}
-          <MyCareTeamCard
-            subscriptionId={subscription?.id}
-            primaryCoach={primaryCoach}
-            nextBillingDate={subscription?.next_billing_date}
-          />
-
-          <ProgressSummaryCard phase={activePhase} subscription={subscription} />
-        </div>
+        <MyCareTeamCard
+          subscriptionId={subscription?.id}
+          primaryCoach={primaryCoach}
+          nextBillingDate={subscription?.next_billing_date}
+        />
       </div>
     </div>
   );

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -36,6 +36,7 @@ export function ClientPipelineSection() {
   const [pipelineData, setPipelineData] = useState<PipelineStage[]>([]);
   const [stuckClients, setStuckClients] = useState<StuckClient[]>([]);
   const [totalClients, setTotalClients] = useState(0);
+  const hasFetched = useRef(false);
 
   const fetchPipelineData = useCallback(async () => {
     try {
@@ -149,6 +150,8 @@ export function ClientPipelineSection() {
   }, []);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     fetchPipelineData();
   }, [fetchPipelineData]);
 
@@ -261,7 +264,7 @@ export function ClientPipelineSection() {
   };
 
   const handleStageAction = (filterParam: string) => {
-    navigate(`/dashboard/clients?status=${filterParam}`);
+    navigate(`/admin/clients?status=${filterParam}`);
   };
 
   const handleStuckClientAction = (client: StuckClient) => {

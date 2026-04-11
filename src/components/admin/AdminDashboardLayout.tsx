@@ -23,7 +23,8 @@ import { AdminMetricsCards } from "@/components/admin/AdminMetricsCards";
 import { AdminRequiresAttention } from "@/components/admin/AdminRequiresAttention";
 import { SubscriptionBreakdown } from "@/components/admin/SubscriptionBreakdown";
 import { CoachWorkloadPanel } from "@/components/admin/CoachWorkloadPanel";
-import { AdminQuickActions } from "@/components/admin/AdminQuickActions";
+import { ClientPipelineSection } from "@/components/admin/ClientPipelineSection";
+import { SystemHealthCard } from "@/components/admin/SystemHealthCard";
 import { SiteContentManager } from "@/components/admin/SiteContentManager";
 import { SubroleApprovalQueue } from "@/components/admin/SubroleApprovalQueue";
 import { MedicalReviewsPanel } from "@/components/admin/MedicalReviewsPanel";
@@ -263,12 +264,15 @@ function OverviewSection({ onNavigate }: { onNavigate: (section: string) => void
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="space-y-6">
           <SubscriptionBreakdown />
-          <AdminQuickActions />
+          <SystemHealthCard />
         </div>
         <div className="space-y-6">
           <CoachWorkloadPanel />
         </div>
       </div>
+
+      {/* Client Pipeline - Full Width */}
+      <ClientPipelineSection />
     </div>
   );
 }

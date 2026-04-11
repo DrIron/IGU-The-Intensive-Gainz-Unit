@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { TrendingUp, Activity } from "lucide-react";
+import { TrendingUp, Activity, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { startOfWeek, endOfWeek, format } from "date-fns";
@@ -19,6 +20,7 @@ interface ModuleAdherence {
 }
 
 export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
+  const navigate = useNavigate();
   const [overallPercent, setOverallPercent] = useState(0);
   const [moduleBreakdown, setModuleBreakdown] = useState<ModuleAdherence[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,12 +136,18 @@ export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
   }
 
   return (
-    <Card>
+    <Card
+      className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+      onClick={() => navigate("/client/workout/calendar")}
+    >
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Activity className="h-5 w-5 text-primary" />
-          Weekly Adherence
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Activity className="h-5 w-5 text-primary" />
+            Weekly Adherence
+          </CardTitle>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </div>
         <CardDescription>
           This week's workout completion
         </CardDescription>

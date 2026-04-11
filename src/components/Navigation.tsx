@@ -523,7 +523,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
 
           {/* Slide-in panel from right */}
           <div
-            className="absolute top-0 right-0 h-full w-[85vw] max-w-[320px] bg-background shadow-2xl flex flex-col animate-slide-in-right"
+            className="absolute top-0 right-0 h-full w-[85vw] max-w-[320px] bg-background shadow-2xl flex flex-col overflow-hidden animate-slide-in-right"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             {/* Header with logo and close button */}
@@ -712,51 +712,51 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                     </div>
                   </>
                 )}
-              </div>
-            </div>
 
-            {/* Fixed bottom section with auth CTA */}
-            <div className="shrink-0 px-5 py-4 border-t border-border bg-background">
-              {user ? (
-                <div className="space-y-3">
-                  <Button
-                    onClick={() => {
-                      navigate("/dashboard");
-                      setMobileMenuOpen(false);
-                    }}
-                    variant="default"
-                    className="w-full"
-                  >
-                    <LayoutDashboard className="h-4 w-4 mr-2" />
-                    {t('goToDashboard')}
-                  </Button>
-                  <Button onClick={handleSignOut} variant="outline" className="w-full">
-                    {t('common:signOut')}
-                  </Button>
+                {/* Auth actions — inside scroll area so always reachable */}
+                <div className="mt-auto px-5 py-4 border-t border-border">
+                  {user ? (
+                    <div className="space-y-3">
+                      <Button
+                        onClick={() => {
+                          navigate("/dashboard");
+                          setMobileMenuOpen(false);
+                        }}
+                        variant="default"
+                        className="w-full"
+                      >
+                        <LayoutDashboard className="h-4 w-4 mr-2" />
+                        {t('goToDashboard')}
+                      </Button>
+                      <Button onClick={handleSignOut} variant="outline" className="w-full">
+                        {t('common:signOut')}
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      <Button
+                        onClick={() => {
+                          goToAuthOrDashboard(user);
+                          setMobileMenuOpen(false);
+                        }}
+                        variant="default"
+                        className="w-full"
+                      >
+                        {t('logInDashboard')}
+                      </Button>
+                      <button
+                        onClick={() => {
+                          navigate("/services");
+                          setMobileMenuOpen(false);
+                        }}
+                        className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors text-center py-2"
+                      >
+                        {t('becomeClient')}
+                      </button>
+                    </div>
+                  )}
                 </div>
-              ) : (
-                <div className="space-y-3">
-                  <Button
-                    onClick={() => {
-                      goToAuthOrDashboard(user);
-                      setMobileMenuOpen(false);
-                    }}
-                    variant="default"
-                    className="w-full"
-                  >
-                    {t('logInDashboard')}
-                  </Button>
-                  <button
-                    onClick={() => {
-                      navigate("/services");
-                      setMobileMenuOpen(false);
-                    }}
-                    className="w-full text-sm text-muted-foreground hover:text-foreground transition-colors text-center py-2"
-                  >
-                    {t('becomeClient')}
-                  </button>
-                </div>
-              )}
+              </div>
             </div>
           </div>
         </div>
