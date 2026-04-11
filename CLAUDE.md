@@ -526,6 +526,21 @@ When understanding this codebase, read in this order:
 - Bug Fix: Workout Builder Mobile Portrait — replaced Popover with Drawer (vaul bottom sheet) in `MobileDayDetail.tsx` for proper mobile slot editing with scrolling, larger touch targets, and grid layout (Mar 31, 2026) ✅
 - Bug Fix: Payment Exempt Emails — deployed `create-manual-client` and `send-signup-confirmation` with `--no-verify-jwt` (gateway was rejecting ES256 JWTs, silently preventing welcome emails). Added exempt activation email when admin toggles client to exempt (Apr 1, 2026) ✅
 - Mobile Experience Improvements — app-ready foundation: Coach/Admin bottom navigation, button active states + 44px touch targets, responsive Card padding, global touch-feedback CSS, PWA overscroll-behavior, iOS splash screens, portrait orientation lock (Apr 8, 2026) ✅
+- Dashboard Streamlining — all 3 roles: removed redundant components (CoachKPIRow, CoachQuickActions, AdminQuickActions, ProgressSummaryCard, PaymentDueCard), promoted SystemHealthCard + ClientPipelineSection to admin overview, made WeeklyProgressCard + AdherenceSummaryCard clickable, fixed pipeline nav bug, deleted RefinedAdminDashboard dead code, moved mobile Sign Out into scrollable area (Apr 12, 2026) ✅
+
+### Dashboard Streamlining — All 3 Roles (Apr 12, 2026)
+
+Assessed and streamlined all three role dashboards. Design principle: each card should show a clickable number linking to its detail page, or show an actionable alert — no display-only filler.
+
+**Coach** (8 sections → 4): Removed CoachKPIRow (redundant), CoachQuickActions (sidebar duplicate), CoachStatsCards (replaced), legacy CoachActivityFeed (merged into ClientActivityFeed). Added CoachOverviewStats (3 clickable cards) + CoachCompensationSummary (total + level badge). New layout: Alerts → Stats → Tasks+Activity → Capacity+Teams+Compensation.
+
+**Admin**: Replaced AdminQuickActions (6 static sidebar-duplicate links) with SystemHealthCard + ClientPipelineSection (promoted from dead RefinedAdminDashboard.tsx). Fixed pipeline nav bug (/dashboard/clients → /admin/clients). Deleted RefinedAdminDashboard.tsx (839 lines dead code with hardcoded fake data).
+
+**Client**: Removed ProgressSummaryCard (duplicate of NutritionTargetsCard), PaymentDueCard (redundant with PaymentAttentionBanner), duplicate payment alert in AlertsCard. Made WeeklyProgressCard clickable (→ /client/workout/history) and AdherenceSummaryCard clickable (→ /client/workout/calendar).
+
+**Mobile**: Moved Sign Out button from fixed shrink-0 bottom into scrollable overflow-y-auto container in Navigation.tsx hamburger menu.
+
+**Files Modified (9):** CoachDashboardOverview.tsx, AdminDashboardLayout.tsx, ClientPipelineSection.tsx, NewClientOverview.tsx, WeeklyProgressCard.tsx, AdherenceSummaryCard.tsx, AlertsCard.tsx, Navigation.tsx. **Deleted:** RefinedAdminDashboard.tsx. Net -792 lines.
 
 ### Mobile Experience Improvements — App-Ready Foundation (Apr 8, 2026)
 
@@ -1309,17 +1324,24 @@ if (cachedRoles && hasRequiredRole(cachedRoles, requiredRole)) {
 
 **Phase 11 Regression Note**: Dashboard UX merge conflicts removed role caching from Auth.tsx sign-in flow, causing infinite redirect loops. Two-part fix: (1) Auth.tsx: Query and cache roles immediately after signInWithPassword, BEFORE redirect. (2) Dashboard components: Remove independent getSession() calls, trust RoleProtectedRoute cache.
 
-### Dashboard UX Redesign (Phase 9)
+### Dashboard UX Redesign (Phase 9, streamlined Apr 12 2026)
 
-Consistent pattern across all 3 role dashboards:
-1. **Attention alerts** at top (flagged items, pending actions)
-2. **Metrics cards** row showing key KPIs
-3. **Two-column layout** for main content (left: primary actions, right: secondary info)
+Design principle: each dashboard card should either (a) show a clickable number linking to its detail page, or (b) show an actionable alert. No display-only filler.
 
-**Key Components**:
-- Admin: `src/components/admin/AdminSidebar.tsx`, `AdminDashboard.tsx`
-- Coach: `src/components/coach/CoachKPIRow.tsx`, `ChartDrillDown.tsx`
-- Client: `src/components/client/` dashboard components
+**Admin Overview** (`OverviewSection` in `AdminDashboardLayout.tsx`):
+- `AdminRequiresAttention` → `AdminMetricsCards` → two-column (`SubscriptionBreakdown` + `SystemHealthCard` | `CoachWorkloadPanel`) → `ClientPipelineSection` (full width, pipeline funnel + stuck clients table)
+- Deleted: `AdminQuickActions` (sidebar duplicate), `RefinedAdminDashboard.tsx` (dead code)
+
+**Coach Overview** (`CoachDashboardOverview.tsx`):
+- `NeedsAttentionAlerts` → `CoachOverviewStats` (3 clickable cards) → two-column (`CoachTodaysTasks` | `ClientActivityFeed`) → two-column (`EnhancedCapacityCard` | `CoachTeamsSummaryCard` + `CoachCompensationSummary`)
+- Deleted: `CoachKPIRow` (redundant), `CoachStatsCards` (replaced), `CoachQuickActions` (sidebar duplicate), `CoachActivityFeed` legacy (merged into `ClientActivityFeed`), full `CoachCompensationCard` on overview (replaced with summary)
+
+**Client Overview** (`NewClientOverview.tsx`):
+- `PaymentAttentionBanner` → `AlertsCard` → `TodaysWorkoutHero` → two-column (`NutritionTargetsCard` + `CoachCard` | `WeeklyProgressCard` + `QuickActionsGrid`) → `AdherenceSummaryCard` → two-column (`PlanBillingCard` | `MyCareTeamCard`)
+- Deleted: `ProgressSummaryCard` (duplicate of NutritionTargetsCard), `PaymentDueCard` (redundant with banner)
+- Made clickable: `WeeklyProgressCard` → `/client/workout/history`, `AdherenceSummaryCard` → `/client/workout/calendar`
+
+**Mobile nav**: Sign Out button in hamburger menu is inside the scrollable container (not fixed bottom) so it's always reachable
 
 ### Specialization Tags (Phase 13)
 
