@@ -132,6 +132,24 @@ All colors MUST be HSL.
   .safe-area-bottom-lg {
     padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 2rem);
   }
+
+  /* Mobile touch utilities */
+  .touch-feedback {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+  }
+
+  .touch-feedback:active {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+
+  /* Disable overscroll/pull-to-refresh in installed PWA */
+  @media all and (display-mode: standalone) {
+    html, body {
+      overscroll-behavior-y: none;
+    }
+  }
 }
 
 /* Fade-up scroll animation */

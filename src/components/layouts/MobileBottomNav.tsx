@@ -68,9 +68,9 @@ export function MobileBottomNav({
               to={item.path}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 px-3 rounded-lg",
-                "transition-colors touch-manipulation",
-                active 
-                  ? "text-primary bg-primary/10" 
+                "transition-all touch-manipulation active:scale-95 active:opacity-80",
+                active
+                  ? "text-primary bg-primary/10"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
@@ -88,9 +88,9 @@ export function MobileBottomNav({
               <button
                 className={cn(
                   "flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 px-3 rounded-lg",
-                  "transition-colors touch-manipulation",
-                  isOverflowActive 
-                    ? "text-primary bg-primary/10" 
+                  "transition-all touch-manipulation active:scale-95 active:opacity-80",
+                  isOverflowActive
+                    ? "text-primary bg-primary/10"
                     : "text-muted-foreground hover:text-foreground hover:bg-muted"
                 )}
               >

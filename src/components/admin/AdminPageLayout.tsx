@@ -112,7 +112,7 @@ export function AdminPageLayout({
               </div>
             </div>
             
-            <div className="p-4 md:p-6 pb-8 safe-area-bottom">
+            <div className="p-4 md:p-6 pb-24 md:pb-8 safe-area-bottom">
               <div className="max-w-7xl mx-auto">
                 {children}
                 <div className="mt-8 text-xs text-muted-foreground text-right">

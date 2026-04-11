@@ -121,3 +121,21 @@ export function AdminSidebar({
     </Sidebar>
   );
 }
+
+/**
+ * Get nav items for mobile bottom navigation.
+ * Returns simplified list for mobile use.
+ * Picks 4 most-used admin items: Overview, Clients, Coaches, Billing
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function getAdminMobileNavItems() {
+  return adminMenuItems
+    .filter(item =>
+      ["admin-dashboard", "admin-clients", "admin-coaches", "admin-billing"].includes(item.id)
+    )
+    .map(item => ({
+      path: item.path,
+      label: item.label,
+      icon: item.icon!,
+    }));
+}

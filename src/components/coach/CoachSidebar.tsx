@@ -148,3 +148,21 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
     </Sidebar>
   );
 }
+
+/**
+ * Get nav items for mobile bottom navigation.
+ * Returns simplified list for mobile use.
+ * Picks 4 most-used coach items: Dashboard, Clients, Programs, Profile
+ */
+// eslint-disable-next-line react-refresh/only-export-components
+export function getCoachMobileNavItems() {
+  return menuItems
+    .filter(item =>
+      ["coach-dashboard", "coach-clients", "coach-programs", "coach-profile"].includes(item.id)
+    )
+    .map(item => ({
+      path: item.path,
+      label: item.label,
+      icon: item.icon!,
+    }));
+}

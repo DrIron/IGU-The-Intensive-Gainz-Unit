@@ -99,6 +99,40 @@ const MobileBottomNavClient = lazy(() =>
   }))
 );
 
+/** Mobile bottom nav for coach routes — persists across all authenticated coach pages */
+const CoachMobileNavGlobal = memo(function CoachMobileNavGlobal() {
+  const location = useLocation();
+  const isCoachRoute = location.pathname === "/coach" || location.pathname.startsWith("/coach/");
+  if (!isCoachRoute) return null;
+  return <MobileBottomNavCoach />;
+});
+
+const MobileBottomNavCoach = lazy(() =>
+  Promise.all([
+    import("@/components/layouts/MobileBottomNav"),
+    import("@/components/coach/CoachSidebar"),
+  ]).then(([navMod, sidebarMod]) => ({
+    default: () => <navMod.MobileBottomNav items={sidebarMod.getCoachMobileNavItems()} />,
+  }))
+);
+
+/** Mobile bottom nav for admin routes — persists across all authenticated admin pages */
+const AdminMobileNavGlobal = memo(function AdminMobileNavGlobal() {
+  const location = useLocation();
+  const isAdminRoute = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
+  if (!isAdminRoute) return null;
+  return <MobileBottomNavAdmin />;
+});
+
+const MobileBottomNavAdmin = lazy(() =>
+  Promise.all([
+    import("@/components/layouts/MobileBottomNav"),
+    import("@/components/admin/AdminSidebar"),
+  ]).then(([navMod, sidebarMod]) => ({
+    default: () => <navMod.MobileBottomNav items={sidebarMod.getAdminMobileNavItems()} />,
+  }))
+);
+
 const App = () => {
   // Capture UTM parameters on app mount for lead tracking
   useEffect(() => {
@@ -185,9 +219,11 @@ const App = () => {
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                   <Route path="*" element={<NotFound />} />
                 </Routes>
-                {/* Global mobile bottom nav for client routes */}
+                {/* Global mobile bottom nav for all roles */}
                 <Suspense fallback={null}>
                   <ClientMobileNavGlobal />
+                  <CoachMobileNavGlobal />
+                  <AdminMobileNavGlobal />
                 </Suspense>
               </Suspense>
             </div>
