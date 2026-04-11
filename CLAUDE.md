@@ -525,6 +525,58 @@ When understanding this codebase, read in this order:
 - Bug Fix: Payment Exempt Toggle — Supabase update errors were silently swallowed; now properly destructures `{ error }` and surfaces error messages in toast (Mar 31, 2026) ✅
 - Bug Fix: Workout Builder Mobile Portrait — replaced Popover with Drawer (vaul bottom sheet) in `MobileDayDetail.tsx` for proper mobile slot editing with scrolling, larger touch targets, and grid layout (Mar 31, 2026) ✅
 - Bug Fix: Payment Exempt Emails — deployed `create-manual-client` and `send-signup-confirmation` with `--no-verify-jwt` (gateway was rejecting ES256 JWTs, silently preventing welcome emails). Added exempt activation email when admin toggles client to exempt (Apr 1, 2026) ✅
+- Mobile Experience Improvements — app-ready foundation: Coach/Admin bottom navigation, button active states + 44px touch targets, responsive Card padding, global touch-feedback CSS, PWA overscroll-behavior, iOS splash screens, portrait orientation lock (Apr 8, 2026) ✅
+
+### Mobile Experience Improvements — App-Ready Foundation (Apr 8, 2026)
+
+Comprehensive mobile UX improvements to create a production-quality foundation applicable to a future native app.
+
+**Coach & Admin Bottom Navigation:**
+- Added `MobileBottomNav` for Coach routes (Dashboard, Clients, Programs, Profile + 4 overflow items in "More")
+- Added `MobileBottomNav` for Admin routes (Overview, Clients, Coaches, Billing + 11 overflow items in "More")
+- Follows existing Client bottom nav pattern: `memo` wrapper checking route prefix, `lazy` import, rendered globally in `App.tsx`
+- Export functions: `getCoachMobileNavItems()` in `CoachSidebar.tsx`, `getAdminMobileNavItems()` in `AdminSidebar.tsx`
+
+**Bottom Padding Fix:**
+- `CoachDashboardLayout`, `AdminDashboardLayout`, `AdminPageLayout` all changed from `pb-8` to `pb-24 md:pb-8`
+- Matches existing `ClientDashboardLayout` pattern — 96px on mobile (clears bottom nav), 32px on desktop
+
+**Button Active States & Touch Targets (`button.tsx`):**
+- Base: `active:scale-[0.98] touch-manipulation` on all buttons
+- Per-variant: `active:bg-primary/80`, `active:bg-destructive/80`, etc.
+- Mobile touch targets: `min-h-[44px] md:min-h-0` on `default`, `sm`, `icon` sizes (meets Apple HIG 44px minimum)
+
+**Responsive Card Component (`card.tsx`):**
+- `CardHeader`/`CardContent`/`CardFooter`: `p-4 md:p-6` (was `p-6` everywhere)
+- `CardTitle`: `text-xl md:text-2xl` (was `text-2xl` everywhere)
+
+**Global Mobile CSS (`index.css`):**
+- `.touch-feedback` utility class with active opacity + scale
+- `overscroll-behavior-y: none` in `display-mode: standalone` (prevents pull-to-refresh in installed PWA)
+
+**MobileBottomNav Touch Feedback:**
+- `active:scale-95 active:opacity-80` on all nav items and overflow trigger
+- `transition-colors` → `transition-all` for smooth scale animation
+
+**PWA Enhancements:**
+- iOS splash screen `apple-touch-startup-image` meta tags for 4 common iPhone sizes
+- `orientation: "portrait"` added to PWA manifest
+
+**Files Modified (12):**
+| File | Changes |
+|------|---------|
+| `src/components/coach/CoachDashboardLayout.tsx` | Bottom padding fix |
+| `src/components/admin/AdminDashboardLayout.tsx` | Bottom padding fix |
+| `src/components/admin/AdminPageLayout.tsx` | Bottom padding fix |
+| `src/components/coach/CoachSidebar.tsx` | `getCoachMobileNavItems()` export |
+| `src/components/admin/AdminSidebar.tsx` | `getAdminMobileNavItems()` export |
+| `src/App.tsx` | `CoachMobileNavGlobal` + `AdminMobileNavGlobal` lazy components |
+| `src/components/ui/button.tsx` | Active states, touch targets |
+| `src/components/ui/card.tsx` | Responsive padding/titles |
+| `src/index.css` | Touch feedback class, PWA overscroll |
+| `src/components/layouts/MobileBottomNav.tsx` | Active states on nav items |
+| `index.html` | iOS splash screen meta tags |
+| `vite.config.ts` | Portrait orientation in manifest |
 
 ### Bug Fix: Payment Exempt Email Notifications (Apr 1, 2026)
 
@@ -2017,6 +2069,9 @@ SQL function `generate_referral_code(first_name)`:
 - **macOS quarantine can freeze git.** Downloaded/cloned repos on Desktop accumulate `com.apple.provenance` extended attributes. Over time, macOS security scanning (Gatekeeper/XProtect) makes git operations hang indefinitely — `git status`, `git diff`, `git add` all freeze because git stats hundreds of files and each stat triggers a security check. Symptoms: git commands hang with 0% CPU, individual `stat` calls are fast but bulk operations never complete. **Fix:** Fresh-clone the repo to a new directory (`git clone <url> /tmp/igu-fresh`), copy `.env.local` over, run `npm install`, and swap the old directory out. **Prevention:** Periodically run `xattr -cr .` in the project root to clear quarantine flags, or move the project off Desktop to a path less aggressively scanned (e.g., `~/Projects/`).
 - **Always destructure `{ error }` from Supabase mutations.** `supabase.from().update()`, `.insert()`, `.delete()` return `{ data, error }` — if you `await` without checking `error`, RLS failures and DB errors are silently swallowed (HTTP 200, no rows affected, no exception). Always do: `const { error } = await supabase.from(...).update(...); if (error) throw error;`. This was the root cause of the payment exempt toggle bug.
 - **Mobile Planning Board uses Drawer, not Popover.** `MobileDayDetail.tsx` uses a vaul `Drawer` (bottom sheet) for slot editing — not a `Popover`. The desktop `MuscleSlotCard.tsx` still uses `Popover` with `side="right"`. When adding new mobile slot editing features, add them to the Drawer content, not a Popover.
+- **All 3 roles have mobile bottom navigation.** Client (`getClientMobileNavItems` in `ClientSidebar.tsx`), Coach (`getCoachMobileNavItems` in `CoachSidebar.tsx`), and Admin (`getAdminMobileNavItems` in `AdminSidebar.tsx`). All wired via lazy-loaded `memo` components in `App.tsx`. Bottom nav is `h-16` (64px) — **all layout content areas must use `pb-24 md:pb-8`** to prevent content from hiding behind it.
+- **Button touch targets on mobile.** `button.tsx` uses `min-h-[44px] md:min-h-0` on `default`, `sm`, and `icon` sizes. This ensures 44px minimum touch targets on mobile without affecting desktop layout. All buttons have `active:scale-[0.98]` press feedback and `touch-manipulation`.
+- **Card padding is responsive.** `card.tsx` uses `p-4 md:p-6` — 16px on mobile, 24px on desktop. `CardTitle` is `text-xl md:text-2xl`. Components overriding card padding with explicit `className` will still win via `cn()`.
 
 ---
 
