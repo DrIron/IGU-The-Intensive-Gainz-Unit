@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Activity, ChevronRight } from "lucide-react";
@@ -136,17 +137,17 @@ export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
   }
 
   return (
-    <Card
-      className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+    <ClickableCard
+      ariaLabel="View workout calendar"
       onClick={() => navigate("/client/workout/calendar")}
     >
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Activity className="h-5 w-5 text-primary" />
+            <Activity className="h-5 w-5 text-primary" aria-hidden="true" />
             Weekly Adherence
           </CardTitle>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
         <CardDescription>
           This week's workout completion
@@ -189,11 +190,11 @@ export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
 
         {moduleBreakdown.length === 0 && (
           <div className="text-center py-4 text-muted-foreground">
-            <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-30" />
+            <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-30" aria-hidden="true" />
             <p className="text-sm">No workout data this week yet</p>
           </div>
         )}
       </CardContent>
-    </Card>
+    </ClickableCard>
   );
 }

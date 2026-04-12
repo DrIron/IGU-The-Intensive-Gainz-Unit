@@ -268,8 +268,8 @@ export function ClientPipelineSection() {
   };
 
   const handleStuckClientAction = (client: StuckClient) => {
-    // Navigate to client management with a filter that will show this client
-    navigate(`/dashboard/clients?status=${client.stage}`);
+    // Navigate to admin client directory filtered to this client's stage
+    navigate(`/admin/clients?status=${client.stage}`);
   };
 
   const getStageVariant = (stageLabel: string): "default" | "secondary" | "destructive" | "outline" => {

@@ -173,8 +173,8 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
               {getStatusBadge()}
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon">
-                    <MoreVertical className="h-4 w-4" />
+                  <Button variant="ghost" size="icon" aria-label="Plan options">
+                    <MoreVertical className="h-4 w-4" aria-hidden="true" />
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
@@ -214,7 +214,7 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
                     <div key={addon.id} className="flex justify-between items-start">
                       <div className="flex flex-col">
                         <span className="text-muted-foreground flex items-center gap-1">
-                          <Package className="h-3 w-3" />
+                          <Package className="h-3 w-3" aria-hidden="true" />
                           {addon.name}
                         </span>
                         {staffName && (
@@ -246,11 +246,11 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
           </div>
 
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
-            <Calendar className="h-4 w-4" />
+            <Calendar className="h-4 w-4" aria-hidden="true" />
             <span>Next Billing: {formatNextBilling()}</span>
           </div>
           <Button className="w-full" onClick={onManageBilling}>
-            <CreditCard className="h-4 w-4 mr-2" />
+            <CreditCard className="h-4 w-4 mr-2" aria-hidden="true" />
             Manage Billing
           </Button>
         </CardContent>
@@ -276,8 +276,8 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
             >
               {cancelling ? (
                 <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Cancelling...
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />
+                  Cancelling…
                 </>
               ) : (
                 "Confirm Cancellation"

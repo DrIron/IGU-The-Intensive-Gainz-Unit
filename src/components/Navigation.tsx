@@ -361,6 +361,16 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
     };
   }, [mobileMenuOpen]);
 
+  // Close mobile menu on Escape key
+  useEffect(() => {
+    if (!mobileMenuOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenuOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [mobileMenuOpen]);
+
   return (
     <>
       <nav className="sticky top-0 left-0 right-0 z-50 bg-background/95 backdrop-blur-sm border-b border-border/50">
@@ -513,6 +523,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
           className="fixed inset-0 z-[9999] md:hidden"
           role="dialog"
           aria-modal="true"
+          aria-labelledby="mobile-menu-heading"
         >
           {/* Backdrop - click to close */}
           <div
@@ -523,20 +534,21 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
 
           {/* Slide-in panel from right */}
           <div
-            className="absolute top-0 right-0 h-full w-[85vw] max-w-[320px] bg-background shadow-2xl flex flex-col overflow-hidden animate-slide-in-right"
+            className="absolute top-0 right-0 h-full w-[85vw] max-w-[320px] bg-background shadow-2xl flex flex-col overflow-hidden animate-slide-in-right [overscroll-behavior:contain]"
             style={{ WebkitOverflowScrolling: 'touch' }}
           >
             {/* Header with logo and close button */}
             <div className="flex items-center justify-between p-4 border-b border-border bg-background shrink-0">
               <div className="flex items-center">
+                <h2 id="mobile-menu-heading" className="sr-only">{t('openMenu')}</h2>
                 <IguLogo height={22} variant="light" />
               </div>
               <button
                 onClick={() => setMobileMenuOpen(false)}
-                className="p-2 hover:bg-muted rounded-lg transition-colors"
+                className="p-2 hover:bg-muted rounded-lg transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 aria-label={t('closeMenu')}
               >
-                <X className="h-5 w-5" />
+                <X className="h-5 w-5" aria-hidden="true" />
               </button>
             </div>
 

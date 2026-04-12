@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Circle, TrendingDown, TrendingUp, Minus, ChevronRight } from "lucide-react";
@@ -126,9 +127,9 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
   }, [userId, loadWeeklyStats]);
 
   const getTrendIcon = () => {
-    if (stats.weightTrend === "up") return <TrendingUp className="h-4 w-4 text-orange-500" />;
-    if (stats.weightTrend === "down") return <TrendingDown className="h-4 w-4 text-green-500" />;
-    if (stats.weightTrend === "stable") return <Minus className="h-4 w-4 text-blue-500" />;
+    if (stats.weightTrend === "up") return <TrendingUp className="h-4 w-4 text-orange-500" aria-hidden="true" />;
+    if (stats.weightTrend === "down") return <TrendingDown className="h-4 w-4 text-green-500" aria-hidden="true" />;
+    if (stats.weightTrend === "stable") return <Minus className="h-4 w-4 text-blue-500" aria-hidden="true" />;
     return null;
   };
 
@@ -150,14 +151,14 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
   }
 
   return (
-    <Card
-      className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+    <ClickableCard
+      ariaLabel="View exercise history"
       onClick={() => navigate("/client/workout/history")}
     >
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base font-semibold">This Week</CardTitle>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -173,9 +174,9 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
             {Array.from({ length: Math.max(stats.workoutsTotal, 5) }).map((_, i) => (
               <div key={i} className="flex-1 flex justify-center">
                 {i < stats.workoutsCompleted ? (
-                  <CheckCircle2 className="h-5 w-5 text-primary" />
+                  <CheckCircle2 className="h-5 w-5 text-primary" aria-hidden="true" />
                 ) : i < stats.workoutsTotal ? (
-                  <Circle className="h-5 w-5 text-muted-foreground/30" />
+                  <Circle className="h-5 w-5 text-muted-foreground/30" aria-hidden="true" />
                 ) : null}
               </div>
             ))}
@@ -207,6 +208,6 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
           </div>
         )}
       </CardContent>
-    </Card>
+    </ClickableCard>
   );
 }

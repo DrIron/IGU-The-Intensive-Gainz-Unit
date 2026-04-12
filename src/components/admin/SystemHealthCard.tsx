@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -20,64 +20,75 @@ export function SystemHealthCard() {
     stuckPendingPayment: 0,
   });
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
-  useEffect(() => {
-    fetchHealthMetrics();
-  }, []);
-
-  const fetchHealthMetrics = async () => {
+  const fetchHealthMetrics = useCallback(async () => {
     try {
       const sevenDaysAgo = subDays(new Date(), 7);
       const threeDaysAgo = subDays(new Date(), 3);
       const fiveDaysAgo = subDays(new Date(), 5);
-      const now = new Date();
 
-      // Payment failures in last 7 days
-      const { count: paymentFailures } = await supabase
-        .from("subscriptions")
-        .select("*", { count: "exact", head: true })
-        .not("payment_failed_at", "is", null)
-        .gte("payment_failed_at", sevenDaysAgo.toISOString());
+      // Run all 5 count queries in parallel, surface any error
+      const [
+        paymentFailuresResult,
+        stuckMedicalResult,
+        stuckCoachResult,
+        stuckPayment1Result,
+        stuckPayment2Result,
+      ] = await Promise.all([
+        supabase
+          .from("subscriptions")
+          .select("*", { count: "exact", head: true })
+          .not("payment_failed_at", "is", null)
+          .gte("payment_failed_at", sevenDaysAgo.toISOString()),
+        supabase
+          .from("profiles_public")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "needs_medical_review")
+          .lt("updated_at", sevenDaysAgo.toISOString()),
+        supabase
+          .from("profiles_public")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "pending_coach_approval")
+          .lt("updated_at", threeDaysAgo.toISOString()),
+        supabase
+          .from("profiles_public")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "pending_payment")
+          .lt("updated_at", fiveDaysAgo.toISOString()),
+        supabase
+          .from("profiles_public")
+          .select("*", { count: "exact", head: true })
+          .eq("status", "approved")
+          .lt("updated_at", fiveDaysAgo.toISOString()),
+      ]);
 
-      // Stuck in medical review (> 7 days) - use profiles_public for admin counts
-      const { count: stuckMedical } = await supabase
-        .from("profiles_public")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "needs_medical_review")
-        .lt("updated_at", sevenDaysAgo.toISOString());
-
-      // Stuck in coach approval (> 3 days)
-      const { count: stuckCoach } = await supabase
-        .from("profiles_public")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "pending_coach_approval")
-        .lt("updated_at", threeDaysAgo.toISOString());
-
-      // Stuck in pending payment (> 5 days) - includes legacy 'approved' status
-      const { count: stuckPayment1 } = await supabase
-        .from("profiles_public")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "pending_payment")
-        .lt("updated_at", fiveDaysAgo.toISOString());
-
-      const { count: stuckPayment2 } = await supabase
-        .from("profiles_public")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "approved")
-        .lt("updated_at", fiveDaysAgo.toISOString());
+      const firstError =
+        paymentFailuresResult.error ||
+        stuckMedicalResult.error ||
+        stuckCoachResult.error ||
+        stuckPayment1Result.error ||
+        stuckPayment2Result.error;
+      if (firstError) throw firstError;
 
       setMetrics({
-        paymentFailures7d: paymentFailures || 0,
-        stuckMedicalReview: stuckMedical || 0,
-        stuckCoachApproval: stuckCoach || 0,
-        stuckPendingPayment: (stuckPayment1 || 0) + (stuckPayment2 || 0),
+        paymentFailures7d: paymentFailuresResult.count || 0,
+        stuckMedicalReview: stuckMedicalResult.count || 0,
+        stuckCoachApproval: stuckCoachResult.count || 0,
+        stuckPendingPayment: (stuckPayment1Result.count || 0) + (stuckPayment2Result.count || 0),
       });
     } catch (error) {
       console.error("Error fetching health metrics:", error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    fetchHealthMetrics();
+  }, [fetchHealthMetrics]);
 
   const totalIssues = 
     metrics.paymentFailures7d + 

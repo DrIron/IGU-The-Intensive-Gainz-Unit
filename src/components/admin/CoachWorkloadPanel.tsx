@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Progress } from "@/components/ui/progress";
@@ -14,7 +14,6 @@ interface CoachWorkload {
 }
 
 export function CoachWorkloadPanel() {
-  const navigate = useNavigate();
   const [coaches, setCoaches] = useState<CoachWorkload[]>([]);
   const [loading, setLoading] = useState(true);
   const hasFetched = useRef(false);
@@ -33,6 +32,9 @@ export function CoachWorkloadPanel() {
           .select("coach_id")
           .eq("status", "active"),
       ]);
+
+      if (coachesResult.error) throw coachesResult.error;
+      if (subsResult.error) throw subsResult.error;
 
       const coachData = coachesResult.data;
       const subsData = subsResult.data;
@@ -162,13 +164,13 @@ export function CoachWorkloadPanel() {
           })
         )}
 
-        <button
-          onClick={() => navigate("/admin/coaches")}
-          className="w-full flex items-center justify-between pt-3 border-t text-sm text-muted-foreground hover:text-foreground transition-colors"
+        <Link
+          to="/admin/coaches"
+          className="w-full flex items-center justify-between pt-3 border-t text-sm text-muted-foreground hover:text-foreground transition-colors rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
           Manage coaches
-          <ChevronRight className="h-4 w-4" />
-        </button>
+          <ChevronRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
       </CardContent>
     </Card>
   );

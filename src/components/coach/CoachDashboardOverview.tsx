@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Loader2, Users2, ChevronRight, Award, Dumbbell, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { startOfWeek, endOfWeek } from "date-fns";
@@ -33,6 +34,7 @@ interface DashboardMetrics {
 export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboardOverviewProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     totalClients: 0,
     activeClients: 0,
@@ -156,12 +158,15 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
       }
 
       // Programs created count
-      const { count: programsCreated } = await supabase
+      const { count: programsCreated, error: programsError } = await supabase
         .from("program_templates")
         .select("*", { count: "exact", head: true })
         .eq("owner_coach_id", coachUserId);
+      if (programsError) throw programsError;
 
-      // Workouts completed this week by my clients
+      // Workouts completed this week by my clients.
+      // Avoid nested PostgREST FK joins (unreliable per CLAUDE.md):
+      // 3 separate queries — client_programs → client_program_days → count client_day_modules
       const weekStart = startOfWeek(new Date());
       const clientIds = subscriptionsWithProfiles
         .filter(s => s.status === 'active')
@@ -169,14 +174,33 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
 
       let workoutsThisWeek = 0;
       if (clientIds.length > 0) {
-        const { count } = await supabase
-          .from("client_day_modules")
-          .select("*, client_program_days!inner(client_programs!inner(user_id))", { count: "exact", head: true })
-          .in("client_program_days.client_programs.user_id", clientIds)
-          .not("completed_at", "is", null)
-          .gte("completed_at", weekStart.toISOString());
+        const { data: programRows, error: programsErr } = await supabase
+          .from("client_programs")
+          .select("id")
+          .in("user_id", clientIds)
+          .eq("status", "active");
+        if (programsErr) throw programsErr;
 
-        workoutsThisWeek = count || 0;
+        const programIds = (programRows || []).map(p => p.id);
+        if (programIds.length > 0) {
+          const { data: dayRows, error: daysErr } = await supabase
+            .from("client_program_days")
+            .select("id")
+            .in("client_program_id", programIds);
+          if (daysErr) throw daysErr;
+
+          const dayIds = (dayRows || []).map(d => d.id);
+          if (dayIds.length > 0) {
+            const { count, error: countErr } = await supabase
+              .from("client_day_modules")
+              .select("*", { count: "exact", head: true })
+              .in("client_program_day_id", dayIds)
+              .not("completed_at", "is", null)
+              .gte("completed_at", weekStart.toISOString());
+            if (countErr) throw countErr;
+            workoutsThisWeek = count || 0;
+          }
+        }
       }
 
       setMetrics({
@@ -190,7 +214,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
         workoutsThisWeek,
       });
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error fetching dashboard metrics:", error);
       toast({
         title: "Error",
@@ -203,16 +227,16 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
   }, [coachUserId, toast]);
 
   useEffect(() => {
-    if (coachUserId) {
-      fetchDashboardMetrics();
-    }
+    if (!coachUserId || hasFetched.current) return;
+    hasFetched.current = true;
+    fetchDashboardMetrics();
   }, [coachUserId, fetchDashboardMetrics]);
 
-  const handleNavigate = (section: string, filter?: string) => {
+  const handleNavigate = useCallback((section: string, filter?: string) => {
     if (onNavigate) {
       onNavigate(section, filter);
     }
-  };
+  }, [onNavigate]);
 
   if (loading) {
     return (
@@ -328,33 +352,33 @@ const CoachTeamsSummaryCard = memo(function CoachTeamsSummaryCard({
   if (!isHeadCoach || loading) return null;
 
   return (
-    <Card
-      className="cursor-pointer hover:shadow-md transition-shadow"
+    <ClickableCard
+      ariaLabel={`Manage my teams: ${teamCount} team${teamCount !== 1 ? "s" : ""}, ${totalMembers} total members`}
       onClick={() => onNavigate("teams")}
     >
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <Users2 className="h-4 w-4" />
+            <Users2 className="h-4 w-4" aria-hidden="true" />
             My Teams
           </CardTitle>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
         <CardDescription>Team plan management</CardDescription>
       </CardHeader>
       <CardContent>
         <div className="flex items-center gap-6">
           <div>
-            <p className="text-2xl font-bold">{teamCount}</p>
+            <p className="text-2xl font-bold tabular-nums">{teamCount}</p>
             <p className="text-xs text-muted-foreground">Teams</p>
           </div>
           <div>
-            <p className="text-2xl font-bold">{totalMembers}</p>
+            <p className="text-2xl font-bold tabular-nums">{totalMembers}</p>
             <p className="text-xs text-muted-foreground">Total Members</p>
           </div>
         </div>
       </CardContent>
-    </Card>
+    </ClickableCard>
   );
 });
 
@@ -392,19 +416,19 @@ const CoachOverviewStats = memo(function CoachOverviewStats({ metrics, onNavigat
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
       {stats.map((stat) => (
-        <Card
+        <ClickableCard
           key={stat.label}
-          className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+          ariaLabel={`${stat.label}: ${stat.value}`}
           onClick={stat.onClick}
         >
           <CardContent className="p-4">
             <div className={`inline-flex p-2 rounded-lg ${stat.color} mb-3`}>
-              <stat.icon className="h-5 w-5" />
+              <stat.icon className="h-5 w-5" aria-hidden="true" />
             </div>
-            <p className="text-2xl font-bold">{stat.value}</p>
+            <p className="text-2xl font-bold tabular-nums">{stat.value}</p>
             <p className="text-sm text-muted-foreground">{stat.label}</p>
           </CardContent>
-        </Card>
+        </ClickableCard>
       ))}
     </div>
   );
@@ -436,11 +460,12 @@ const CoachCompensationSummary = memo(function CoachCompensationSummary({ coachU
         setIsHeadCoach(coachProfile.is_head_coach || false);
       }
 
-      const { data: subs } = await supabase
+      const { data: subs, error: subsError } = await supabase
         .from("subscriptions")
         .select("id")
         .eq("coach_id", coachUserId)
         .eq("status", "active");
+      if (subsError) throw subsError;
 
       if (!subs || subs.length === 0) {
         setLoading(false);
@@ -449,21 +474,27 @@ const CoachCompensationSummary = memo(function CoachCompensationSummary({ coachU
 
       setClientCount(subs.length);
 
-      let total = 0;
-      for (const sub of subs) {
-        try {
-          const { data } = await supabase.rpc("calculate_subscription_payout", {
-            p_subscription_id: sub.id,
-            p_discount_percentage: 0,
-          });
-          const result = data as any;
-          if (!result?.blocked) {
-            total += result?.coach_payout || 0;
+      // Parallelize RPC calls — one round-trip per sub was O(N); now 1x latency.
+      // Future: collapse into a single batch RPC if this becomes a hot path.
+      const payoutResults = await Promise.all(
+        subs.map(async (sub) => {
+          try {
+            const { data } = await supabase.rpc("calculate_subscription_payout", {
+              p_subscription_id: sub.id,
+              p_discount_percentage: 0,
+            });
+            return data as { coach_payout?: number; blocked?: boolean } | null;
+          } catch (error) {
+            console.error("Payout calc failed for subscription", sub.id, error);
+            return null;
           }
-        } catch {
-          // skip
-        }
-      }
+        })
+      );
+
+      const total = payoutResults.reduce((sum, result) => {
+        if (!result || result.blocked) return sum;
+        return sum + (result.coach_payout || 0);
+      }, 0);
 
       setTotalPayout(total);
     } catch (error) {
@@ -496,7 +527,7 @@ const CoachCompensationSummary = memo(function CoachCompensationSummary({ coachU
       <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
-            <Award className="h-4 w-4 text-primary" />
+            <Award className="h-4 w-4 text-primary" aria-hidden="true" />
             Compensation
           </CardTitle>
           <div className="flex items-center gap-1.5">
@@ -518,7 +549,7 @@ const CoachCompensationSummary = memo(function CoachCompensationSummary({ coachU
       </CardHeader>
       <CardContent>
         <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold tracking-tight">{totalPayout} KWD</span>
+          <span className="text-2xl font-bold tracking-tight tabular-nums">{totalPayout} KWD</span>
           <span className="text-sm text-muted-foreground">/ month</span>
         </div>
         <p className="text-xs text-muted-foreground mt-1">

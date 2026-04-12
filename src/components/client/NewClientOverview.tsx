@@ -49,13 +49,14 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
     try {
       // Load coach info - subscriptions.coach_id references coaches.user_id
       if (subscription?.coach_id) {
-        // Use coaches_directory (public-safe view) - only exposes safe public fields
+        // Use coaches_directory (public-safe view) - only exposes safe public fields.
+        // .maybeSingle() — coach row may legitimately be missing for new/exempt clients.
         const { data: coachData } = await supabase
           .from("coaches_directory")
           .select("user_id, first_name, last_name, nickname, profile_picture_url")
           .eq("user_id", subscription.coach_id)
-          .single();
-        
+          .maybeSingle();
+
         if (coachData) {
           setCoach(coachData);
           setPrimaryCoach({

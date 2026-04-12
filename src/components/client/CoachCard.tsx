@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { AlertCircle, MessageSquare, ChevronRight } from "lucide-react";
@@ -35,14 +36,15 @@ export function CoachCard({ coach, clientFirstName, wasPreferred, originalPrefer
   const initials = coach.first_name?.[0] || 'C';
 
   return (
-    <Card
-      className="border-border cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+    <ClickableCard
+      ariaLabel={`View coach profile: ${displayName}`}
+      className="border-border"
       onClick={() => navigate("/meet-our-team")}
     >
       <CardHeader>
         <div className="flex items-center justify-between">
           <CardTitle className="text-lg">Your Coach</CardTitle>
-          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+          <ChevronRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -93,21 +95,21 @@ export function CoachCard({ coach, clientFirstName, wasPreferred, originalPrefer
         {/* Show message if client was auto-assigned due to capacity */}
         {wasPreferred === false && originalPreferredCoachName && (
           <div className="flex items-start gap-2 p-3 rounded-md bg-muted/50 border border-muted">
-            <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" />
+            <AlertCircle className="h-4 w-4 text-muted-foreground mt-0.5 shrink-0" aria-hidden="true" />
             <p className="text-xs text-muted-foreground">
               Assigned to {displayName} (your requested coach, {originalPreferredCoachName}, is currently at capacity)
             </p>
           </div>
         )}
 
-        {/* Contact guidance - tap card to view full coach profile */}
+        {/* Contact guidance - open card to view full coach profile */}
         <div className="flex items-start gap-2 p-3 rounded-md bg-primary/5 border border-primary/10">
-          <MessageSquare className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+          <MessageSquare className="h-4 w-4 text-primary mt-0.5 shrink-0" aria-hidden="true" />
           <p className="text-xs text-muted-foreground">
-            Your coach will reach out to you directly. Tap to view their full profile.
+            Your coach will reach out to you directly. Open to view their full profile.
           </p>
         </div>
       </CardContent>
-    </Card>
+    </ClickableCard>
   );
 }
