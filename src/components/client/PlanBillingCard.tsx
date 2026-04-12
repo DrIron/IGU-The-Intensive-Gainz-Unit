@@ -18,9 +18,11 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MoreVertical, Calendar, CreditCard, Package } from "lucide-react";
+import { MoreVertical, Calendar, CreditCard, Package, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface SubscriptionAddon {
   id: string;
@@ -40,8 +42,51 @@ interface PlanBillingCardProps {
 }
 
 export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCardProps) {
+  const { toast } = useToast();
   const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [addons, setAddons] = useState<SubscriptionAddon[]>([]);
+
+  const handleCancelSubscription = async () => {
+    if (!subscription?.user_id) {
+      toast({
+        title: "Error",
+        description: "Unable to cancel — missing subscription details.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setCancelling(true);
+    try {
+      const { error } = await supabase.functions.invoke("cancel-subscription", {
+        body: {
+          userId: subscription.user_id,
+          reason: "client_self_cancel",
+          cancelledBy: "client",
+        },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Subscription Cancelled",
+        description: "Your subscription will remain active until the end of your current billing period.",
+      });
+
+      setShowCancelDialog(false);
+      // Refresh so the dashboard picks up the new cancel_at_period_end state
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (error) {
+      toast({
+        title: "Cancellation Failed",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    } finally {
+      setCancelling(false);
+    }
+  };
 
   const loadAddons = useCallback(async () => {
     if (!subscription?.id) return;
@@ -216,14 +261,27 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
           <AlertDialogHeader>
             <AlertDialogTitle>Cancel Subscription?</AlertDialogTitle>
             <AlertDialogDescription>
-              Are you sure you want to cancel your subscription? This action cannot be undone.
-              Type CANCEL to confirm.
+              Your subscription will remain active until the end of your current billing period, then stop renewing. You'll need to sign up again to resume coaching.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel>Go Back</AlertDialogCancel>
-            <AlertDialogAction className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-              Confirm Cancellation
+            <AlertDialogCancel disabled={cancelling}>Go Back</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={cancelling}
+              onClick={(e) => {
+                e.preventDefault();
+                handleCancelSubscription();
+              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {cancelling ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Cancelling...
+                </>
+              ) : (
+                "Confirm Cancellation"
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
