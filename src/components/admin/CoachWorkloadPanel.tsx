@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -17,38 +17,46 @@ export function CoachWorkloadPanel() {
   const navigate = useNavigate();
   const [coaches, setCoaches] = useState<CoachWorkload[]>([]);
   const [loading, setLoading] = useState(true);
+  const hasFetched = useRef(false);
 
   const loadWorkload = useCallback(async () => {
     try {
-      const { data: coachData } = await supabase
-        .from("coaches")
-        .select("user_id, first_name, last_name, max_onetoone_clients, max_team_clients")
-        .eq("status", "active");
+      // Two queries total instead of N+1: fetch all coaches and all active
+      // subscriptions, then aggregate in JS. Scales cleanly past 15+ coaches.
+      const [coachesResult, subsResult] = await Promise.all([
+        supabase
+          .from("coaches")
+          .select("user_id, first_name, last_name, max_onetoone_clients, max_team_clients")
+          .eq("status", "active"),
+        supabase
+          .from("subscriptions")
+          .select("coach_id")
+          .eq("status", "active"),
+      ]);
+
+      const coachData = coachesResult.data;
+      const subsData = subsResult.data;
 
       if (!coachData) {
         setLoading(false);
         return;
       }
 
-      const workloads: CoachWorkload[] = [];
-
-      for (const coach of coachData) {
-        const { count } = await supabase
-          .from("subscriptions")
-          .select("*", { count: "exact", head: true })
-          .eq("coach_id", coach.user_id)
-          .eq("status", "active");
-
-        // Combine max capacities for overall workload view
-        const maxCapacity = (coach.max_onetoone_clients || 10) + (coach.max_team_clients || 20);
-
-        workloads.push({
-          coachId: coach.user_id,
-          name: `${coach.first_name || ""} ${coach.last_name || ""}`.trim() || "Unnamed Coach",
-          clientCount: count || 0,
-          maxCapacity,
-        });
+      // Build coach_id → active client count map
+      const countByCoach = new Map<string, number>();
+      for (const sub of subsData || []) {
+        if (sub.coach_id) {
+          countByCoach.set(sub.coach_id, (countByCoach.get(sub.coach_id) || 0) + 1);
+        }
       }
+
+      const workloads: CoachWorkload[] = coachData.map((coach) => ({
+        coachId: coach.user_id,
+        name: `${coach.first_name || ""} ${coach.last_name || ""}`.trim() || "Unnamed Coach",
+        clientCount: countByCoach.get(coach.user_id) || 0,
+        // Combine max capacities for overall workload view
+        maxCapacity: (coach.max_onetoone_clients || 10) + (coach.max_team_clients || 20),
+      }));
 
       setCoaches(workloads.sort((a, b) => b.clientCount - a.clientCount));
     } catch (error) {
@@ -59,6 +67,8 @@ export function CoachWorkloadPanel() {
   }, []);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     loadWorkload();
   }, [loadWorkload]);
 

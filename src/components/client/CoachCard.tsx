@@ -1,7 +1,8 @@
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { AlertCircle, MessageSquare } from "lucide-react";
+import { AlertCircle, MessageSquare, ChevronRight } from "lucide-react";
 
 interface CoachCardProps {
   coach: {
@@ -29,13 +30,20 @@ interface CoachCardProps {
 }
 
 export function CoachCard({ coach, clientFirstName, wasPreferred, originalPreferredCoachName }: CoachCardProps) {
+  const navigate = useNavigate();
   const displayName = coach.nickname || `${coach.first_name} ${coach.last_name || ''}`.trim();
   const initials = coach.first_name?.[0] || 'C';
 
   return (
-    <Card className="border-border">
+    <Card
+      className="border-border cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+      onClick={() => navigate("/meet-our-team")}
+    >
       <CardHeader>
-        <CardTitle className="text-lg">Your Coach</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-lg">Your Coach</CardTitle>
+          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center gap-3">
@@ -92,11 +100,11 @@ export function CoachCard({ coach, clientFirstName, wasPreferred, originalPrefer
           </div>
         )}
 
-        {/* Contact guidance - no direct contact exposed */}
+        {/* Contact guidance - tap card to view full coach profile */}
         <div className="flex items-start gap-2 p-3 rounded-md bg-primary/5 border border-primary/10">
           <MessageSquare className="h-4 w-4 text-primary mt-0.5 shrink-0" />
           <p className="text-xs text-muted-foreground">
-            Your coach will reach out to you directly to discuss your training
+            Your coach will reach out to you directly. Tap to view their full profile.
           </p>
         </div>
       </CardContent>
