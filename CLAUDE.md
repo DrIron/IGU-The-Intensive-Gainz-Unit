@@ -527,6 +527,7 @@ When understanding this codebase, read in this order:
 - Bug Fix: Payment Exempt Emails — deployed `create-manual-client` and `send-signup-confirmation` with `--no-verify-jwt` (gateway was rejecting ES256 JWTs, silently preventing welcome emails). Added exempt activation email when admin toggles client to exempt (Apr 1, 2026) ✅
 - Mobile Experience Improvements — app-ready foundation: Coach/Admin bottom navigation, button active states + 44px touch targets, responsive Card padding, global touch-feedback CSS, PWA overscroll-behavior, iOS splash screens, portrait orientation lock (Apr 8, 2026) ✅
 - Dashboard Streamlining — all 3 roles: removed redundant components (CoachKPIRow, CoachQuickActions, AdminQuickActions, ProgressSummaryCard, PaymentDueCard), promoted SystemHealthCard + ClientPipelineSection to admin overview, made WeeklyProgressCard + AdherenceSummaryCard clickable, fixed pipeline nav bug, deleted RefinedAdminDashboard dead code, moved mobile Sign Out into scrollable area (Apr 12, 2026) ✅
+- Dashboard Post-Streamlining Polish — wired up PlanBillingCard cancel subscription button (was silently no-op), deleted 7 unused component files, fixed CoachWorkloadPanel N+1 with parallel queries, made CoachCard clickable to /meet-our-team, audit-driven fixes: second pipeline nav bug occurrence, CoachCompensationSummary N+1 RPC loop, nested PostgREST FK join in workoutsThisWeek, missing `{error}` destructuring across 4 files, `.single()` → `.maybeSingle()`, new reusable ClickableCard primitive with full keyboard a11y, aria-hidden on decorative icons, aria-label on icon-only button, mobile menu Escape handler + aria-labelledby (Apr 12, 2026) ✅
 
 ### Dashboard Streamlining — All 3 Roles (Apr 12, 2026)
 
@@ -541,6 +542,41 @@ Assessed and streamlined all three role dashboards. Design principle: each card 
 **Mobile**: Moved Sign Out button from fixed shrink-0 bottom into scrollable overflow-y-auto container in Navigation.tsx hamburger menu.
 
 **Files Modified (9):** CoachDashboardOverview.tsx, AdminDashboardLayout.tsx, ClientPipelineSection.tsx, NewClientOverview.tsx, WeeklyProgressCard.tsx, AdherenceSummaryCard.tsx, AlertsCard.tsx, Navigation.tsx. **Deleted:** RefinedAdminDashboard.tsx. Net -792 lines.
+
+### Dashboard Post-Streamlining Polish — 4 Commits (Apr 12, 2026)
+
+Four follow-up commits after the initial dashboard streamlining addressed bugs, performance, silent failures, and accessibility — validated by running `web-design-guidelines` skill + `pr-review-toolkit:code-reviewer` agent on the commits.
+
+**Commit 1 — Cancel subscription bug + dead code cleanup:**
+- `PlanBillingCard.tsx`: the "Confirm Cancellation" button was a no-op (no onClick handler). Users clicked, dialog closed, subscription stayed active. Now calls `cancel-subscription` edge function with loading state, error sanitization, success toast, and page reload to refresh dashboard state. Edge function contract: `{ userId, reason, cancelledBy }`, enforces `caller.id !== userId` → 403 for non-admins.
+- Deleted 7 unused component files after streamlining: `CoachKPIRow`, `CoachQuickActions`, `CoachStatsCards`, `CoachActivityFeed` (legacy), `AdminQuickActions`, `ProgressSummaryCard`, `PaymentDueCard`. Removed from barrel `index.ts` exports.
+
+**Commit 2 — CoachWorkloadPanel N+1 + CoachCard clickable:**
+- `CoachWorkloadPanel.tsx`: replaced N+1 (one count per coach) with 2 parallel queries — all coaches + all active subscriptions — aggregated via `Map<coach_id, count>` in JS. Added `hasFetched` ref guard. Changed "Manage coaches" from `<button>` to `<Link>` (navigation rule).
+- `CoachCard.tsx`: made entire card clickable → `/meet-our-team` to view full coach profile. Removes the dead-end pattern.
+
+**Commit 3 — Audit findings (critical):**
+- **Bug**: `ClientPipelineSection.tsx:272` — `handleStuckClientAction` still navigated to `/dashboard/clients` (coach path). Second occurrence of the same bug I missed in the first pass. Fixed to `/admin/clients`.
+- **Data correctness (CoachDashboardOverview)**: Replaced nested PostgREST FK join on `client_programs` (CLAUDE.md says these are unreliable) with 3 separate queries for "Workouts This Week". Added `{ error }` destructuring on all Supabase selects, `hasFetched` ref guard, `error: any` → `unknown`, wrapped `handleNavigate` in `useCallback` so `memo` on `CoachOverviewStats` actually works.
+- **Performance (CoachCompensationSummary)**: `for` loop making N sequential `calculate_subscription_payout` RPC calls → `Promise.all` parallelization. Ironic N+1 introduced by the streamlining itself — caught by code review agent.
+- **Silent failures**: Added `{ error }` destructuring across `CoachDashboardOverview`, `SystemHealthCard` (5 count queries), `CoachWorkloadPanel`. `SystemHealthCard` now runs all 5 count queries in parallel via `Promise.all` with first-error surfacing.
+- **`.single()` → `.maybeSingle()`**: `NewClientOverview.tsx` optional coach fetch.
+
+**Commit 4 — Accessibility systemic fix:**
+- **New primitive**: `src/components/ui/clickable-card.tsx` — `ClickableCard` with `role="button"`, `tabIndex={0}`, Enter/Space keyboard handler, required `ariaLabel` prop, `focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2`, proper `disabled` support, `forwardRef`. Wraps shadcn `Card`. **Use this whenever a Card represents a navigation target or primary action** instead of adding `onClick` directly to `<Card>`.
+- Applied to 5 components: `WeeklyProgressCard`, `AdherenceSummaryCard`, `CoachCard`, `CoachOverviewStats` (inline in CoachDashboardOverview), `CoachTeamsSummaryCard` (inline in CoachDashboardOverview).
+- `aria-hidden="true"` on decorative icons across all affected files.
+- `PlanBillingCard`: added `aria-label="Plan options"` to icon-only `MoreVertical` button. "..." → "…" in loading text.
+- **Navigation mobile menu**: added Escape key handler effect (closes menu), `aria-labelledby` pointing at an `sr-only` `<h2>` heading, `[overscroll-behavior:contain]` on panel, `focus-visible` ring on close button.
+- `tabular-nums` on numeric displays in stat cards (avoid number column jitter).
+
+**Files Modified across 4 commits (16 unique):** PlanBillingCard.tsx, CoachWorkloadPanel.tsx, CoachCard.tsx, CoachDashboardOverview.tsx, ClientPipelineSection.tsx, NewClientOverview.tsx, SystemHealthCard.tsx, AdherenceSummaryCard.tsx, WeeklyProgressCard.tsx, Navigation.tsx, admin/index.ts, client/index.ts, coach/index.ts. **Deleted:** 7 component files. **Added:** `ui/clickable-card.tsx`. **Total combined with streamlining: ~2,500 lines removed.**
+
+**Audit tools used:**
+- `web-design-guidelines` skill (Vercel Web Interface Guidelines) — caught systemic a11y gap around clickable cards, icon aria-hidden, icon-only button label, mobile menu focus trap gaps
+- `pr-review-toolkit:code-reviewer` agent — caught critical bugs (second pipeline nav bug occurrence, nested FK join, N+1 RPC loop, silent failures, stale memo)
+
+**Rule going forward:** Never add `onClick` to `<Card>` directly. Always use `<ClickableCard>` from `@/components/ui/clickable-card` with a required `ariaLabel`.
 
 ### Mobile Experience Improvements — App-Ready Foundation (Apr 8, 2026)
 
@@ -1341,7 +1377,9 @@ Design principle: each dashboard card should either (a) show a clickable number 
 - Deleted: `ProgressSummaryCard` (duplicate of NutritionTargetsCard), `PaymentDueCard` (redundant with banner)
 - Made clickable: `WeeklyProgressCard` → `/client/workout/history`, `AdherenceSummaryCard` → `/client/workout/calendar`
 
-**Mobile nav**: Sign Out button in hamburger menu is inside the scrollable container (not fixed bottom) so it's always reachable
+**Mobile nav**: Sign Out button in hamburger menu is inside the scrollable container (not fixed bottom) so it's always reachable. Mobile menu dialog has `aria-labelledby`, Escape key handler, `overscroll-behavior:contain`.
+
+**ClickableCard primitive**: `src/components/ui/clickable-card.tsx` — reusable accessible wrapper around shadcn `Card` with `role="button"`, `tabIndex`, Enter/Space keyboard handler, required `ariaLabel` prop, `focus-visible` ring. **Always use this instead of `<Card onClick={...}>`** when a card represents navigation or a primary action. Used by `WeeklyProgressCard`, `AdherenceSummaryCard`, `CoachCard`, `CoachOverviewStats`, `CoachTeamsSummaryCard`.
 
 ### Specialization Tags (Phase 13)
 
