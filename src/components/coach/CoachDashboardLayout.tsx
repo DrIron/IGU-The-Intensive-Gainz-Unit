@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams, useLocation } from "react-router-dom";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { CoachSidebar } from "./CoachSidebar";
 import CoachProfile from "@/components/CoachProfile";
 import { ExerciseLibrary } from "./ExerciseLibrary";
@@ -29,6 +29,7 @@ export function CoachDashboardLayout({
 }: CoachDashboardLayoutProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const location = useLocation();
+  const navigate = useNavigate();
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [coachStatus, setCoachStatus] = useState<string | null>(null);
   const hasFetchedStatus = useRef(false);
@@ -74,19 +75,19 @@ export function CoachDashboardLayout({
   const setActiveSection = externalOnSectionChange || setInternalActiveSection;
 
   const handleNavigateWithFilter = (section: string, filter?: string) => {
-    if (section === 'clients') {
-      setActiveSection("clients");
-      const newParams = new URLSearchParams(searchParams);
-      newParams.set('section', 'my-clients');
-      if (filter) {
-        newParams.set('filter', filter);
-      } else {
-        newParams.delete('filter');
-      }
-      setSearchParams(newParams);
-    } else {
-      setActiveSection(section);
-    }
+    const sectionToPath: Record<string, string> = {
+      overview: "/coach",
+      clients: "/coach/clients",
+      teams: "/coach/teams",
+      assignments: "/coach/assignments",
+      sessions: "/coach/sessions",
+      programs: "/coach/programs",
+      exercises: "/coach/exercises",
+      profile: "/coach/profile",
+    };
+    const targetPath = sectionToPath[section] ?? "/coach";
+    const search = filter ? `?filter=${encodeURIComponent(filter)}` : "";
+    navigate(`${targetPath}${search}`);
   };
 
   const handleViewClientDetail = (clientId: string) => {
@@ -159,7 +160,6 @@ export function CoachDashboardLayout({
         <main className="flex-1 overflow-auto">
           <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
             <div className="flex items-center gap-4">
-              <SidebarTrigger className="md:hidden" />
               <div className="flex-1 min-w-0">
                 <h1 className="text-2xl md:text-3xl font-bold truncate">{getPageTitle(activeSection)}</h1>
                 <p className="text-sm text-muted-foreground truncate">

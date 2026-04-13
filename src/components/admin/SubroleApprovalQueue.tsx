@@ -365,20 +365,22 @@ export function SubroleApprovalQueue() {
       </Card>
 
       <Tabs defaultValue="pending" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="pending">
-            Pending ({pendingRequests.length})
-          </TabsTrigger>
-          <TabsTrigger value="approved">
-            Approved ({approvedRequests.length})
-          </TabsTrigger>
-          <TabsTrigger value="rejected">
-            Rejected ({rejectedRequests.length})
-          </TabsTrigger>
-          <TabsTrigger value="revoked">
-            Revoked ({revokedRequests.length})
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <TabsList className="inline-flex md:grid md:w-full md:grid-cols-4 w-max">
+            <TabsTrigger value="pending" className="whitespace-nowrap">
+              Pending ({pendingRequests.length})
+            </TabsTrigger>
+            <TabsTrigger value="approved" className="whitespace-nowrap">
+              Approved ({approvedRequests.length})
+            </TabsTrigger>
+            <TabsTrigger value="rejected" className="whitespace-nowrap">
+              Rejected ({rejectedRequests.length})
+            </TabsTrigger>
+            <TabsTrigger value="revoked" className="whitespace-nowrap">
+              Revoked ({revokedRequests.length})
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {(["pending", "approved", "rejected", "revoked"] as const).map((tab) => {
           const tabRequests =

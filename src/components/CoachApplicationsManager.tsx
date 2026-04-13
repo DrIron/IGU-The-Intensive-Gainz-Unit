@@ -767,20 +767,22 @@ export function CoachApplicationsManager() {
       </Card>
 
       <Tabs defaultValue="pending" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="pending">
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+        <TabsList className="inline-flex md:grid md:w-full md:grid-cols-4 w-max">
+          <TabsTrigger value="pending" className="whitespace-nowrap">
             Pending ({pendingApps.length})
           </TabsTrigger>
-          <TabsTrigger value="interview">
+          <TabsTrigger value="interview" className="whitespace-nowrap">
             Interview ({interviewApps.length})
           </TabsTrigger>
-          <TabsTrigger value="approved">
+          <TabsTrigger value="approved" className="whitespace-nowrap">
             Approved ({approvedApps.length})
           </TabsTrigger>
-          <TabsTrigger value="rejected">
+          <TabsTrigger value="rejected" className="whitespace-nowrap">
             Rejected ({rejectedApps.length})
           </TabsTrigger>
         </TabsList>
+        </div>
 
         <TabsContent value="pending" className="space-y-4">
           {pendingApps.length === 0 ? (

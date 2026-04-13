@@ -167,13 +167,19 @@ export function ClientSidebar({
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function getClientMobileNavItems() {
+  const MOBILE_LABELS: Record<string, string> = {
+    "client-dashboard": "Home",
+    "nutrition": "Nutrition",
+    "client-workout-calendar": "Calendar",
+    "workout-library": "Library",
+  };
   return routeNavItems
-    .filter(item => 
+    .filter(item =>
       ["client-dashboard", "nutrition", "client-workout-calendar", "workout-library"].includes(item.id)
     )
     .map(item => ({
       path: item.path,
-      label: item.label,
+      label: MOBILE_LABELS[item.id] ?? item.label,
       icon: item.icon!,
     }));
 }

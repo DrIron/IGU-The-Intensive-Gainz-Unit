@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AdminSidebar } from "./AdminSidebar";
 import CoachManagement from "@/components/CoachManagement";
 import { AdminClientDirectory } from "@/components/admin/AdminClientDirectory";
@@ -68,6 +68,13 @@ export function AdminDashboardLayout({
     if (path.includes('/admin/medical-reviews')) return 'medical-reviews';
     if (path.includes('/admin/coach-training')) return 'coach-training';
     if (path.includes('/admin/email-manager')) return 'email-manager';
+    if (path.includes('/admin/testimonials')) return 'testimonials';
+    if (path.includes('/admin/site-content')) return 'site-content';
+    if (path.includes('/admin/subrole-approvals')) return 'subrole-approvals';
+    if (path.includes('/admin/security')) return 'security';
+    if (path.includes('/admin/phi-audit')) return 'phi-audit';
+    if (path.includes('/admin/pre-launch')) return 'pre-launch';
+    if (path.includes('/admin/launch-checklist')) return 'launch-checklist';
     return 'dashboard';
   };
 
@@ -146,12 +153,11 @@ export function AdminDashboardLayout({
         <main className="flex-1 overflow-auto">
           <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
             <div className="flex items-center gap-4">
-              <SidebarTrigger className="md:hidden" />
               <div className="flex-1 min-w-0 flex items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div>
+                  <div className="min-w-0">
                     <h1 className="text-2xl md:text-3xl font-bold truncate">{getPageTitle(activeSection)}</h1>
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p className="text-sm text-muted-foreground line-clamp-2">
                       {getSectionTitle(activeSection)}
                     </p>
                   </div>

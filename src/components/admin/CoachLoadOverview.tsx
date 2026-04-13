@@ -321,26 +321,26 @@ export function CoachLoadOverview() {
                 return (
                   <div key={coach.coachId} className="border rounded-lg overflow-hidden">
                     {/* Coach Header Row */}
-                    <div 
-                      className="flex items-center gap-4 p-4 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
+                    <div
+                      className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-4 p-4 bg-muted/30 cursor-pointer hover:bg-muted/50 transition-colors"
                       onClick={() => toggleCoachExpanded(coach.coachId)}
                     >
-                      <button className="p-1">
-                        {isExpanded ? (
-                          <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                        )}
-                      </button>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">{coach.coachName}</span>
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <button className="p-1 shrink-0">
+                          {isExpanded ? (
+                            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                          ) : (
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          )}
+                        </button>
+                        <div className="flex items-center gap-2 flex-wrap min-w-0">
+                          <span className="font-medium truncate">{coach.coachName}</span>
                           <Badge variant="outline" className="text-xs">
                             {coach.status}
                           </Badge>
                         </div>
                       </div>
-                      <div className="flex items-center gap-4">
+                      <div className="flex items-center gap-4 sm:shrink-0 ml-7 sm:ml-0">
                         <div className="text-right">
                           <p className="text-sm font-medium">
                             {coach.totalActiveClients} / {coach.totalCapacity ?? '∞'}

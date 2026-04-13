@@ -8,7 +8,7 @@ import {
   LayoutDashboard, CreditCard, Apple, Users,
   UserCog, Shield, Video, Library, MessageSquare,
   Calculator, Home, FileText, Settings, DollarSign,
-  UserCheck, UsersRound
+  UserCheck, UsersRound, Calendar, ClipboardList
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { IguLogo } from "@/components/IguLogo";
@@ -219,7 +219,11 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
           { label: t('dashboard'), path: "/coach/dashboard", icon: LayoutDashboard },
           { label: t('myClients'), path: "/coach/clients", icon: Users },
           { label: t('pendingApprovals'), path: "/coach/clients?filter=pending", icon: UserCheck },
+          { label: "Teams", path: "/coach/teams", icon: UsersRound },
           { label: t('programs'), path: "/coach/programs", icon: Shield },
+          { label: "Sessions", path: "/coach/sessions", icon: Calendar },
+          { label: "Assignments", path: "/coach/assignments", icon: ClipboardList },
+          { label: "Exercise Library", path: "/coach/exercises", icon: Library },
           { label: t('myProfile'), path: "/coach/profile", icon: UserCog },
         ],
       };
@@ -233,7 +237,6 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
         { label: t('nutrition'), path: "/nutrition", icon: Apple },
         { label: t('exerciseLibrary'), path: "/workout-library", icon: Library },
         { label: t('videos'), path: "/educational-videos", icon: Video },
-        { label: t('profile'), path: "/dashboard", section: "profile", icon: User },
       ],
     };
   };
@@ -281,7 +284,6 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   };
 
   const userLinks = [
-    { label: t('workoutLibrary'), path: "/workout-library" },
     { label: t('account'), path: "/account" }
   ];
 
@@ -706,14 +708,6 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                     {/* Settings links */}
                     <div className="border-t border-border mt-2 pt-2">
                       <Link
-                        to="/workout-library"
-                        className="flex items-center gap-3 text-foreground hover:bg-muted transition-colors px-5 py-3 text-sm"
-                        onClick={() => setMobileMenuOpen(false)}
-                      >
-                        <Dumbbell className="h-4 w-4 text-muted-foreground" />
-                        {t('workoutLibrary')}
-                      </Link>
-                      <Link
                         to="/account"
                         className="flex items-center gap-3 text-foreground hover:bg-muted transition-colors px-5 py-3 text-sm"
                         onClick={() => setMobileMenuOpen(false)}
@@ -728,22 +722,9 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                 {/* Auth actions — inside scroll area so always reachable */}
                 <div className="mt-auto px-5 py-4 border-t border-border">
                   {user ? (
-                    <div className="space-y-3">
-                      <Button
-                        onClick={() => {
-                          navigate("/dashboard");
-                          setMobileMenuOpen(false);
-                        }}
-                        variant="default"
-                        className="w-full"
-                      >
-                        <LayoutDashboard className="h-4 w-4 mr-2" />
-                        {t('goToDashboard')}
-                      </Button>
-                      <Button onClick={handleSignOut} variant="outline" className="w-full">
-                        {t('common:signOut')}
-                      </Button>
-                    </div>
+                    <Button onClick={handleSignOut} variant="outline" className="w-full">
+                      {t('common:signOut')}
+                    </Button>
                   ) : (
                     <div className="space-y-3">
                       <Button

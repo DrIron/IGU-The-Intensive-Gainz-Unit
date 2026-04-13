@@ -128,7 +128,7 @@ export function ManualClientCreation({ onClientCreated }: ManualClientCreationPr
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon">
+        <Button variant="outline" size="icon" aria-label="Add new client">
           <UserPlus className="h-4 w-4" />
         </Button>
       </DialogTrigger>

@@ -350,7 +350,8 @@ export function CoachCapacityManager() {
                     No service limits configured
                   </p>
                 ) : (
-                  <Table>
+                  <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+                  <Table className="min-w-[480px]">
                     <TableHeader>
                       <TableRow>
                         <TableHead>Service</TableHead>
@@ -459,6 +460,7 @@ export function CoachCapacityManager() {
                       })}
                     </TableBody>
                   </Table>
+                  </div>
                 )}
               </CardContent>
             </Card>

@@ -673,7 +673,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
                 <TableCell className="py-4">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
+                      <Button variant="ghost" size="sm" aria-label="Client actions">
                         <MoreVertical className="h-4 w-4" />
                       </Button>
                     </DropdownMenuTrigger>
@@ -830,6 +830,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
                 variant={viewMode === 'table' ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={() => setViewMode('table')}
+                aria-label="Table view"
               >
                 <LayoutList className="h-4 w-4" />
               </Button>
@@ -837,6 +838,7 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
                 variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
                 size="sm"
                 onClick={() => setViewMode('cards')}
+                aria-label="Card view"
               >
                 <LayoutGrid className="h-4 w-4" />
               </Button>

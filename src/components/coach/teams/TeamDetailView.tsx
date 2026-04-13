@@ -160,14 +160,14 @@ export const TeamDetailView = memo(function TeamDetailView({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
+      <div className="space-y-3">
+        <div className="flex items-start gap-3">
+          <Button variant="ghost" size="icon" onClick={onBack} className="shrink-0">
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h2 className="text-xl font-bold">{team.name}</h2>
-            <div className="flex items-center gap-2 mt-1">
+          <div className="flex-1 min-w-0">
+            <h2 className="text-xl font-bold break-words">{team.name}</h2>
+            <div className="flex flex-wrap items-center gap-2 mt-1">
               {team.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {team.tags.map((tag) => (
@@ -183,7 +183,7 @@ export const TeamDetailView = memo(function TeamDetailView({
             </div>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => setShowEditDialog(true)}>
             <Pencil className="h-4 w-4 mr-2" />
             Edit

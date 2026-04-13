@@ -129,13 +129,19 @@ export function AdminSidebar({
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function getAdminMobileNavItems() {
+  const MOBILE_LABELS: Record<string, string> = {
+    "admin-dashboard": "Home",
+    "admin-clients": "Clients",
+    "admin-coaches": "Coaches",
+    "admin-billing": "Billing",
+  };
   return adminMenuItems
     .filter(item =>
       ["admin-dashboard", "admin-clients", "admin-coaches", "admin-billing"].includes(item.id)
     )
     .map(item => ({
       path: item.path,
-      label: item.label,
+      label: MOBILE_LABELS[item.id] ?? item.label,
       icon: item.icon!,
     }));
 }

@@ -156,13 +156,19 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
  */
 // eslint-disable-next-line react-refresh/only-export-components
 export function getCoachMobileNavItems() {
+  const MOBILE_LABELS: Record<string, string> = {
+    "coach-dashboard": "Home",
+    "coach-clients": "Clients",
+    "coach-programs": "Programs",
+    "coach-profile": "Profile",
+  };
   return menuItems
     .filter(item =>
       ["coach-dashboard", "coach-clients", "coach-programs", "coach-profile"].includes(item.id)
     )
     .map(item => ({
       path: item.path,
-      label: item.label,
+      label: MOBILE_LABELS[item.id] ?? item.label,
       icon: item.icon!,
     }));
 }

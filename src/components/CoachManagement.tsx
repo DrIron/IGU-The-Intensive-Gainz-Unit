@@ -381,7 +381,8 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
   };
 
   const renderCoachTable = (coachList: Coach[]) => (
-    <Table>
+    <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+    <Table className="min-w-[640px]">
       <TableHeader>
         <TableRow>
           <TableHead>Name</TableHead>
@@ -483,6 +484,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
         )}
       </TableBody>
     </Table>
+    </div>
   );
 
   // Service limits content (standalone view for tab)
@@ -590,28 +592,30 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     <div className="space-y-6">
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-5">
-          <TabsTrigger value="load-capacity" className="gap-2">
-            <BarChart3 className="h-4 w-4 hidden sm:block" />
-            Load & Capacity
-          </TabsTrigger>
-          <TabsTrigger value="service-limits" className="gap-2">
-            <Sliders className="h-4 w-4 hidden sm:block" />
-            Service Limits
-          </TabsTrigger>
-          <TabsTrigger value="levels" className="gap-2">
-            <Award className="h-4 w-4 hidden sm:block" />
-            Levels
-          </TabsTrigger>
-          <TabsTrigger value="applications" className="gap-2">
-            <FileText className="h-4 w-4 hidden sm:block" />
-            Applications
-          </TabsTrigger>
-          <TabsTrigger value="specializations" className="gap-2">
-            <Tag className="h-4 w-4 hidden sm:block" />
-            Specializations
-          </TabsTrigger>
-        </TabsList>
+        <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <TabsList className="inline-flex md:grid md:w-full md:grid-cols-5 w-max">
+            <TabsTrigger value="load-capacity" className="gap-2 whitespace-nowrap">
+              <BarChart3 className="h-4 w-4 hidden sm:block" />
+              Load & Capacity
+            </TabsTrigger>
+            <TabsTrigger value="service-limits" className="gap-2 whitespace-nowrap">
+              <Sliders className="h-4 w-4 hidden sm:block" />
+              Service Limits
+            </TabsTrigger>
+            <TabsTrigger value="levels" className="gap-2 whitespace-nowrap">
+              <Award className="h-4 w-4 hidden sm:block" />
+              Levels
+            </TabsTrigger>
+            <TabsTrigger value="applications" className="gap-2 whitespace-nowrap">
+              <FileText className="h-4 w-4 hidden sm:block" />
+              Applications
+            </TabsTrigger>
+            <TabsTrigger value="specializations" className="gap-2 whitespace-nowrap">
+              <Tag className="h-4 w-4 hidden sm:block" />
+              Specializations
+            </TabsTrigger>
+          </TabsList>
+        </div>
 
         {/* Load & Capacity Tab */}
         <TabsContent value="load-capacity" className="space-y-6">

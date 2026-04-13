@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { AdminSidebar } from "./AdminSidebar";
 import { Navigation } from "@/components/Navigation";
 import { Badge } from "@/components/ui/badge";
@@ -93,7 +93,6 @@ export function AdminPageLayout({
           <main className="flex-1 overflow-auto">
             <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
               <div className="flex items-center gap-4">
-                <SidebarTrigger className="md:hidden" />
                 <div className="flex-1 min-w-0 flex items-center justify-between gap-4">
                   <div className="flex items-center gap-3">
                     <div>

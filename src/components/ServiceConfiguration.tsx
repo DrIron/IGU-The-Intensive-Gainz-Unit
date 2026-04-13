@@ -126,7 +126,8 @@ export function ServiceConfiguration() {
             </ol>
           </div>
 
-          <Table>
+          <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
+          <Table className="min-w-[640px]">
             <TableHeader>
               <TableRow>
                 <TableHead>Service Name</TableHead>
@@ -158,6 +159,7 @@ export function ServiceConfiguration() {
               ))}
             </TableBody>
           </Table>
+          </div>
 
           <div className="flex justify-end">
             <Button onClick={handleSave} disabled={saving}>

@@ -523,16 +523,7 @@ export function AdminBillingManager() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <CreditCard className="h-5 w-5" />
-                Billing Management
-              </CardTitle>
-              <CardDescription>
-                Manage client billing, grace periods, and manual payments
-              </CardDescription>
-            </div>
+          <div className="flex items-center justify-end">
             <Button variant="outline" size="sm" onClick={loadClients}>
               <RefreshCw className="h-4 w-4 mr-2" />
               Refresh
@@ -592,8 +583,8 @@ export function AdminBillingManager() {
           </div>
 
           {/* Clients Table */}
-          <div className="rounded-md border">
-            <Table>
+          <div className="rounded-md border overflow-x-auto">
+            <Table className="min-w-[720px]">
               <TableHeader>
                 <TableRow>
                   <TableHead>Client</TableHead>
@@ -618,14 +609,14 @@ export function AdminBillingManager() {
                       <TableRow key={client.id}>
                         <TableCell>
                           <div>
-                            <p className="font-medium">
-                              {client.profiles?.first_name || "Unknown"}
+                            <div className="font-medium flex items-center gap-2">
+                              <span>{client.profiles?.first_name || "Unknown"}</span>
                               {client.profiles?.payment_exempt && (
-                                <Badge variant="outline" className="ml-2 text-xs">
+                                <Badge variant="outline" className="text-xs">
                                   Exempt
                                 </Badge>
                               )}
-                            </p>
+                            </div>
                             <p className="text-sm text-muted-foreground">
                               {client.profiles?.email}
                             </p>

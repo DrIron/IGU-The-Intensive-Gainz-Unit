@@ -65,23 +65,13 @@ export function PricingPayoutsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header with Admin Badge */}
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold">Pricing & Payouts</h1>
-          <p className="text-muted-foreground mt-1">
-            Centralized management for service prices, add-ons, and coach payout rules.
-          </p>
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <Button variant="outline" size="sm" onClick={() => setAuditDialogOpen(true)}>
-            <History className="h-4 w-4 mr-2" />
-            View Audit Log
-          </Button>
-          <Badge variant="destructive">
-            Admin only
-          </Badge>
-        </div>
+      {/* Action row (page title is rendered by AdminDashboardLayout) */}
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="outline" size="sm" onClick={() => setAuditDialogOpen(true)}>
+          <History className="h-4 w-4 mr-2" />
+          View Audit Log
+        </Button>
+        <Badge variant="destructive">Admin only</Badge>
       </div>
 
       {/* Central Management Alert */}

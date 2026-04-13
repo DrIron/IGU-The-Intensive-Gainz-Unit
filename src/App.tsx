@@ -81,7 +81,18 @@ const ClientMobileNavGlobal = memo(function ClientMobileNavGlobal() {
   const location = useLocation();
 
   // Show on client routes (dashboard, workout, nutrition, etc.)
-  const clientPaths = ["/dashboard", "/client", "/nutrition", "/sessions", "/workout-library", "/account"];
+  const clientPaths = [
+    "/dashboard",
+    "/client",
+    "/nutrition",
+    "/nutrition-client",
+    "/nutrition-team",
+    "/sessions",
+    "/workout-library",
+    "/educational-videos",
+    "/account",
+    "/billing",
+  ];
   const isClientRoute = clientPaths.some(p => location.pathname === p || location.pathname.startsWith(p + "/"));
 
   if (!isClientRoute) return null;
@@ -188,7 +199,7 @@ const App = () => {
                   <Route path="/calorie-calculator" element={<WaitlistGuard><PublicLayout><CalorieCalculator /></PublicLayout></WaitlistGuard>} />
                   <Route path="/workout-library" element={<AuthGuard><OnboardingGuard><WorkoutLibrary /></OnboardingGuard></AuthGuard>} />
                   <Route path="/testimonial" element={<WaitlistGuard><PublicLayout><Testimonial /></PublicLayout></WaitlistGuard>} />
-                  <Route path="/client-submission/:userId" element={<ClientSubmission />} />
+                  <Route path="/client-submission/:userId" element={<AuthGuard><ClientSubmission /></AuthGuard>} />
                   <Route path="/meet-our-team" element={<WaitlistGuard><PublicLayout><MeetOurTeam /></PublicLayout></WaitlistGuard>} />
                   <Route path="/teams" element={<PublicLayout><TeamsPage /></PublicLayout>} />
                   <Route path="/coach-signup" element={<PublicLayout><CoachSignup /></PublicLayout>} />
@@ -207,7 +218,6 @@ const App = () => {
                   <Route path="/sessions" element={<AuthGuard><OnboardingGuard><ClientSessions /></OnboardingGuard></AuthGuard>} />
                   <Route path="/admin/client-diagnostics" element={<RoleProtectedRoute requiredRole="admin"><ClientDiagnostics /></RoleProtectedRoute>} />
                   <Route path="/admin/email-log" element={<RoleProtectedRoute requiredRole="admin"><EmailLog /></RoleProtectedRoute>} />
-                  <Route path="/admin/launch-checklist" element={<RoleProtectedRoute requiredRole="admin"><LaunchTestChecklist /></RoleProtectedRoute>} />
                   <Route path="/admin/workout-qa" element={<RoleProtectedRoute requiredRole="admin"><WorkoutBuilderQA /></RoleProtectedRoute>} />
                   <Route path="/admin/debug/roles" element={<RoleProtectedRoute requiredRole="admin"><RolesDebug /></RoleProtectedRoute>} />
                   <Route path="/admin/security-checklist" element={<RoleProtectedRoute requiredRole="admin"><SecurityHardeningChecklist /></RoleProtectedRoute>} />

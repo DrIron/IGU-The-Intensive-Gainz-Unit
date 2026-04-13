@@ -32,6 +32,7 @@ const SECTION_MAP: Record<string, string> = {
   "pre-launch": "pre-launch",
   security: "security",
   "phi-audit": "phi-audit",
+  "launch-checklist": "launch-checklist",
 };
 
 export default function AdminDashboard() {

@@ -676,7 +676,7 @@ export default function WorkoutLibrary() {
                       <Badge className={getDifficultyColor(exercise.difficulty)}>
                         {exercise.difficulty}
                       </Badge>
-                      {exercise.muscle_groups.map((mg) => (
+                      {Array.from(new Set(exercise.muscle_groups)).map((mg) => (
                         <Badge key={mg} variant="outline" className="text-xs">
                           {mg}
                         </Badge>

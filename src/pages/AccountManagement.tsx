@@ -9,7 +9,6 @@ import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { CreditCard, FileText, Loader2, User, Lock, Trash2, AlertTriangle, Users } from "lucide-react";
-import { Footer } from "@/components/Footer";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -909,7 +908,6 @@ export default function AccountManagement() {
           </Tabs>
         </div>
       </main>
-      <Footer />
     </div>
   );
 }

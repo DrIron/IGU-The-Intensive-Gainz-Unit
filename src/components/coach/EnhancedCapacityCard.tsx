@@ -182,7 +182,7 @@ export function EnhancedCapacityCard({ coachUserId, onNavigate, onMetricsLoaded 
     if (onNavigate) {
       onNavigate('clients');
     } else {
-      navigate('/dashboard?section=my-clients');
+      navigate('/coach/clients');
     }
   };
 

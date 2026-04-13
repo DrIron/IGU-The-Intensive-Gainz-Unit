@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { SidebarProvider } from "@/components/ui/sidebar";
 import { ClientSidebar } from "./ClientSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -516,7 +516,6 @@ export function ClientDashboardLayout({
             )}
             <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
               <div className="flex items-center gap-4">
-                <SidebarTrigger className="md:hidden" />
                 <div className="flex-1 min-w-0">
                   <h1 className="text-2xl md:text-3xl font-bold truncate">Welcome, {profile?.first_name || profile?.full_name}!</h1>
                   <p className="text-sm text-muted-foreground truncate">
