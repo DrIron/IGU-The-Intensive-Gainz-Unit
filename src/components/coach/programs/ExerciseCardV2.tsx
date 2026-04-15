@@ -28,8 +28,10 @@ import {
 } from "@/types/workout-builder";
 import { VideoThumbnail } from "./VideoThumbnail";
 import { SetRowEditor } from "./SetRowEditor";
+import { MobileSetEditor } from "./MobileSetEditor";
 import { ColumnCategoryHeader } from "./ColumnCategoryHeader";
 import { ColumnConfigDropdown } from "./ColumnConfigDropdown";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 interface ExerciseCardV2Props {
   exercise: EnhancedExerciseDisplayV2;
@@ -50,6 +52,7 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
   dragHandleProps,
   isReadOnly,
 }: ExerciseCardV2Props) {
+  const isMobile = useIsMobile();
   // Stable per-index callback maps to avoid creating new functions on every render
   const setChangeCallbacksRef = useRef<Map<number, (updated: SetPrescription) => void>>(new Map());
   const deleteSetCallbacksRef = useRef<Map<number, () => void>>(new Map());
@@ -503,35 +506,52 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
         </div>
       )}
 
-      {/* Sets Table */}
-      <div className="overflow-x-auto">
-        <Table>
-          <ColumnCategoryHeader
-            prescriptionColumns={exercise.prescription_columns}
-            inputColumns={exercise.input_columns}
-            onAddPrescriptionColumn={handleAddPrescriptionColumn}
-            onAddInputColumn={handleAddInputColumn}
-            onRemoveColumn={handleRemoveColumn}
-            onReorderPrescriptionColumns={handleReorderPrescriptionColumns}
-            onReorderInputColumns={handleReorderInputColumns}
-            isReadOnly={isReadOnly}
-          />
-          <TableBody>
-            {exercise.sets.map((set, index) => (
-              <SetRowEditor
-                key={set.set_number}
-                set={set}
-                setIndex={index}
-                prescriptionColumns={exercise.prescription_columns}
-                inputColumns={exercise.input_columns}
-                onSetChange={getSetChangeCallback(index)}
-                onDeleteSet={getDeleteSetCallback(index)}
-                isReadOnly={isReadOnly}
-              />
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+      {/* Sets — mobile: stacked cards; desktop: table */}
+      {isMobile ? (
+        <div className="p-3 space-y-3">
+          {exercise.sets.map((set, index) => (
+            <MobileSetEditor
+              key={set.set_number}
+              set={set}
+              prescriptionColumns={exercise.prescription_columns}
+              inputColumns={exercise.input_columns}
+              onSetChange={getSetChangeCallback(index)}
+              onDeleteSet={getDeleteSetCallback(index)}
+              canDelete={exercise.sets.length > 1}
+              isReadOnly={isReadOnly}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <Table>
+            <ColumnCategoryHeader
+              prescriptionColumns={exercise.prescription_columns}
+              inputColumns={exercise.input_columns}
+              onAddPrescriptionColumn={handleAddPrescriptionColumn}
+              onAddInputColumn={handleAddInputColumn}
+              onRemoveColumn={handleRemoveColumn}
+              onReorderPrescriptionColumns={handleReorderPrescriptionColumns}
+              onReorderInputColumns={handleReorderInputColumns}
+              isReadOnly={isReadOnly}
+            />
+            <TableBody>
+              {exercise.sets.map((set, index) => (
+                <SetRowEditor
+                  key={set.set_number}
+                  set={set}
+                  setIndex={index}
+                  prescriptionColumns={exercise.prescription_columns}
+                  inputColumns={exercise.input_columns}
+                  onSetChange={getSetChangeCallback(index)}
+                  onDeleteSet={getDeleteSetCallback(index)}
+                  isReadOnly={isReadOnly}
+                />
+              ))}
+            </TableBody>
+          </Table>
+        </div>
+      )}
 
       {/* Add Set Button */}
       {!isReadOnly && (

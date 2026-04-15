@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   DAYS_OF_WEEK,
@@ -44,6 +44,7 @@ interface MobileDayDetailProps {
   onPasteDay?: (dayIndex: number) => void;
   highlightedMuscleId?: string | null;
   onSetAllSets?: (muscleId: string, sets: number) => void;
+  onReorderSlot?: (dayIndex: number, fromIndex: number, toIndex: number) => void;
 }
 
 const musclesByRegion = new Map<BodyRegion, typeof MUSCLE_GROUPS>();
@@ -81,6 +82,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onCopyDay,
   onPasteDay,
   highlightedMuscleId,
+  onReorderSlot,
 }: MobileDayDetailProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -267,7 +269,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
               </div>
             ) : (
               <div className="space-y-1.5">
-                {daySlots.map(slot => {
+                {daySlots.map((slot, index) => {
                   const muscle = getMuscleDisplay(slot.muscleId);
                   if (!muscle) return null;
                   return (
@@ -287,6 +289,10 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                       onSetExerciseInstructions={onSetExerciseInstructions}
                       onSetSlotClientInputs={onSetSlotClientInputs}
                       globalClientInputs={globalClientInputs}
+                      canMoveUp={index > 0}
+                      canMoveDown={index < daySlots.length - 1}
+                      onMoveUp={onReorderSlot ? () => onReorderSlot(selectedDayIndex, index, index - 1) : undefined}
+                      onMoveDown={onReorderSlot ? () => onReorderSlot(selectedDayIndex, index, index + 1) : undefined}
                     />
                   );
                 })}
@@ -352,6 +358,10 @@ interface MobileSlotRowProps {
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
   globalClientInputs?: string[];
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
 }
 
 const MobileSlotRow = memo(function MobileSlotRow({
@@ -369,6 +379,10 @@ const MobileSlotRow = memo(function MobileSlotRow({
   onSetExerciseInstructions,
   onSetSlotClientInputs,
   globalClientInputs,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
 }: MobileSlotRowProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -581,6 +595,31 @@ const MobileSlotRow = memo(function MobileSlotRow({
           </ScrollArea>
         </DrawerContent>
       </Drawer>
+
+      {onMoveUp && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 disabled:opacity-30"
+          disabled={!canMoveUp}
+          onClick={onMoveUp}
+          aria-label="Move up"
+        >
+          <ArrowUp className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      {onMoveDown && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 disabled:opacity-30"
+          disabled={!canMoveDown}
+          onClick={onMoveDown}
+          aria-label="Move down"
+        >
+          <ArrowDown className="h-3.5 w-3.5" />
+        </Button>
+      )}
 
       <Button
         variant="ghost"

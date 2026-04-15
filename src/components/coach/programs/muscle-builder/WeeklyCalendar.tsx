@@ -28,6 +28,7 @@ interface WeeklyCalendarProps {
   onPasteDay?: (dayIndex: number) => void;
   highlightedMuscleId?: string | null;
   onSetAllSets?: (muscleId: string, sets: number) => void;
+  onReorderSlot?: (dayIndex: number, fromIndex: number, toIndex: number) => void;
 }
 
 export const WeeklyCalendar = memo(function WeeklyCalendar({
@@ -54,6 +55,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onPasteDay,
   highlightedMuscleId,
   onSetAllSets,
+  onReorderSlot,
 }: WeeklyCalendarProps) {
   const days = [1, 2, 3, 4, 5, 6, 7];
 
@@ -94,6 +96,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           onPasteDay={onPasteDay}
           highlightedMuscleId={highlightedMuscleId}
           onSetAllSets={onSetAllSets}
+          onReorderSlot={onReorderSlot}
         />
       </div>
       {/* Desktop: responsive grid */}

@@ -176,6 +176,12 @@ export function MuscleBuilderPage({
     [dispatch]
   );
 
+  const handleReorderSlot = useCallback(
+    (dayIndex: number, fromIndex: number, toIndex: number) =>
+      dispatch({ type: 'REORDER', dayIndex, fromIndex, toIndex }),
+    [dispatch]
+  );
+
   // Click/tap to add muscle (mobile inline picker + desktop popover)
   const handleAddMuscle = useCallback(
     (dayIndex: number, muscleId: string) => {
@@ -547,6 +553,7 @@ export function MuscleBuilderPage({
               onPasteDay={handlePasteDay}
               highlightedMuscleId={highlightedMuscleId}
               onSetAllSets={handleSetAllSets}
+              onReorderSlot={handleReorderSlot}
             />
 
             {/* #4 — First-time onboarding guide */}
