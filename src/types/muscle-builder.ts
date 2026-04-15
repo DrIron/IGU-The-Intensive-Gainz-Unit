@@ -427,6 +427,7 @@ export const MUSCLE_TO_EXERCISE_FILTER: Record<string, string[]> = {
   lats:          ['Lats'],
   mid_back:      ['Upper Back'],
   upper_back:    ['Upper Back', 'Traps'],
+  upper_mid_back: ['Upper Back', 'Traps'],  // V2 exercises use combined group
   elbow_flexors: ['Biceps', 'Brachialis'],
   forearm:       ['Forearms'],
   quads:         ['Quadriceps'],
