@@ -189,8 +189,7 @@ export const MUSCLE_GROUPS: MuscleGroupDef[] = [
   { id: 'serratus', label: 'Serratus Anterior', bodyRegion: 'push', colorClass: 'bg-pink-300', colorHex: '#f9a8d4', landmarks: { MV: 2, MEV: 4, MAV: 10, MRV: 14 } },
   // Pull muscles (blue/sky/cyan/indigo/violet)
   { id: 'lats', label: 'Lats', bodyRegion: 'pull', colorClass: 'bg-blue-500', colorHex: '#3b82f6', landmarks: { MV: 6, MEV: 10, MAV: 20, MRV: 25 } },
-  { id: 'mid_back', label: 'Mid-back', bodyRegion: 'pull', colorClass: 'bg-sky-500', colorHex: '#0ea5e9', landmarks: { MV: 6, MEV: 8, MAV: 18, MRV: 22 } },
-  { id: 'upper_back', label: 'Upper Back', bodyRegion: 'pull', colorClass: 'bg-cyan-500', colorHex: '#06b6d4', landmarks: { MV: 4, MEV: 6, MAV: 16, MRV: 20 } },
+  { id: 'upper_mid_back', label: 'Upper / Mid Back', bodyRegion: 'pull', colorClass: 'bg-sky-500', colorHex: '#0ea5e9', landmarks: { MV: 6, MEV: 8, MAV: 18, MRV: 22 } },
   { id: 'elbow_flexors', label: 'Elbow Flexors', bodyRegion: 'pull', colorClass: 'bg-indigo-500', colorHex: '#6366f1', landmarks: { MV: 4, MEV: 8, MAV: 18, MRV: 22 } },
   { id: 'forearm', label: 'Forearm', bodyRegion: 'pull', colorClass: 'bg-violet-400', colorHex: '#a78bfa', landmarks: { MV: 2, MEV: 4, MAV: 12, MRV: 16 } },
   // Leg muscles (emerald/green/lime/teal)
@@ -229,20 +228,18 @@ export const SUBDIVISIONS: SubdivisionDef[] = [
   { id: 'shoulders_lateral', label: 'Lateral Delt', parentId: 'shoulders' },
   { id: 'shoulders_posterior', label: 'Posterior Delt', parentId: 'shoulders' },
   // Triceps
-  { id: 'triceps_long', label: 'Long Head', parentId: 'triceps' },
-  { id: 'triceps_lateral', label: 'Lateral Head', parentId: 'triceps' },
-  { id: 'triceps_medial', label: 'Medial Head', parentId: 'triceps' },
+  { id: 'triceps_long', label: 'Long Head (Scapular Plane)', parentId: 'triceps' },
+  { id: 'triceps_lat_med', label: 'Lateral + Medial (Non-Scapular)', parentId: 'triceps' },
   // Lats
   { id: 'lats_iliac', label: 'Iliac', parentId: 'lats' },
   { id: 'lats_thoracic', label: 'Thoracic', parentId: 'lats' },
   { id: 'lats_lumbar', label: 'Lumbar', parentId: 'lats' },
-  // Mid-back
-  { id: 'mid_back_rhomboids', label: 'Rhomboids', parentId: 'mid_back' },
-  { id: 'mid_back_mid_traps', label: 'Middle Trapezius', parentId: 'mid_back' },
-  { id: 'mid_back_low_traps', label: 'Lower Trapezius', parentId: 'mid_back' },
-  // Upper Back
-  { id: 'upper_back_upper_traps', label: 'Upper Trapezius', parentId: 'upper_back' },
-  { id: 'upper_back_teres_major', label: 'Teres Major', parentId: 'upper_back' },
+  // Upper / Mid Back
+  { id: 'upper_back_upper_traps', label: 'Upper Trapezius', parentId: 'upper_mid_back' },
+  { id: 'mid_back_mid_traps', label: 'Middle Trapezius', parentId: 'upper_mid_back' },
+  { id: 'mid_back_low_traps', label: 'Lower Trapezius', parentId: 'upper_mid_back' },
+  { id: 'mid_back_rhomboids', label: 'Rhomboids', parentId: 'upper_mid_back' },
+  { id: 'upper_back_teres_major', label: 'Teres Major', parentId: 'upper_mid_back' },
   // Elbow Flexors
   { id: 'elbow_flexors_biceps_short', label: 'Biceps Short Head', parentId: 'elbow_flexors' },
   { id: 'elbow_flexors_biceps_long', label: 'Biceps Long Head', parentId: 'elbow_flexors' },
@@ -425,9 +422,7 @@ export const MUSCLE_TO_EXERCISE_FILTER: Record<string, string[]> = {
   shoulders:     ['Shoulders', 'Side Delts', 'Front Delts', 'Rear Delts'],
   triceps:       ['Triceps'],
   lats:          ['Lats'],
-  mid_back:      ['Upper Back'],
-  upper_back:    ['Upper Back', 'Traps'],
-  upper_mid_back: ['Upper Back', 'Traps'],  // V2 exercises use combined group
+  upper_mid_back: ['Upper Back', 'Traps'],
   elbow_flexors: ['Biceps', 'Brachialis'],
   forearm:       ['Forearms'],
   quads:         ['Quadriceps'],
@@ -452,18 +447,16 @@ export const MUSCLE_TO_EXERCISE_FILTER: Record<string, string[]> = {
   shoulders_posterior: ['Rear Delts'],
   // Triceps subdivisions
   triceps_long:    ['Triceps'],
-  triceps_lateral: ['Triceps'],
-  triceps_medial:  ['Triceps'],
+  triceps_lat_med: ['Triceps'],
   // Lats subdivisions
   lats_iliac:    ['Lats'],
   lats_thoracic: ['Lats'],
   lats_lumbar:   ['Lats'],
-  // Mid-back subdivisions
-  mid_back_rhomboids:  ['Upper Back'],
-  mid_back_mid_traps:  ['Upper Back', 'Traps'],
-  mid_back_low_traps:  ['Upper Back', 'Traps'],
-  // Upper Back subdivisions
-  upper_back_upper_traps: ['Traps'],
+  // Upper / Mid Back subdivisions
+  upper_back_upper_traps: ['Traps', 'Upper Back'],
+  mid_back_mid_traps:     ['Upper Back', 'Traps'],
+  mid_back_low_traps:     ['Upper Back', 'Traps'],
+  mid_back_rhomboids:     ['Upper Back'],
   upper_back_teres_major: ['Upper Back', 'Lats'],
   // Elbow Flexors subdivisions
   elbow_flexors_biceps_short:    ['Biceps'],
@@ -554,10 +547,10 @@ export const SYSTEM_PRESETS: SystemPreset[] = [
     description: '6 days, 2x frequency per muscle',
     slots: makeSlots({
       1: [{ id: 'pecs', sets: 4 }, { id: 'shoulders', sets: 4 }, { id: 'triceps', sets: 3 }],
-      2: [{ id: 'lats', sets: 4 }, { id: 'mid_back', sets: 3 }, { id: 'elbow_flexors', sets: 3 }],
+      2: [{ id: 'lats', sets: 4 }, { id: 'upper_mid_back', sets: 3 }, { id: 'elbow_flexors', sets: 3 }],
       3: [{ id: 'quads', sets: 4 }, { id: 'hamstrings', sets: 3 }, { id: 'glutes', sets: 3 }, { id: 'calves', sets: 3 }],
       4: [{ id: 'pecs', sets: 4 }, { id: 'shoulders', sets: 4 }, { id: 'triceps', sets: 3 }],
-      5: [{ id: 'lats', sets: 4 }, { id: 'mid_back', sets: 3 }, { id: 'elbow_flexors', sets: 3 }],
+      5: [{ id: 'lats', sets: 4 }, { id: 'upper_mid_back', sets: 3 }, { id: 'elbow_flexors', sets: 3 }],
       6: [{ id: 'quads', sets: 4 }, { id: 'hamstrings', sets: 3 }, { id: 'glutes', sets: 3 }, { id: 'calves', sets: 3 }],
     }),
   },
@@ -585,8 +578,8 @@ export const SYSTEM_PRESETS: SystemPreset[] = [
     description: '5 days, 1x per muscle group',
     slots: makeSlots({
       1: [{ id: 'pecs', sets: 5 }, { id: 'triceps', sets: 4 }],
-      2: [{ id: 'lats', sets: 5 }, { id: 'mid_back', sets: 3 }, { id: 'elbow_flexors', sets: 4 }],
-      3: [{ id: 'shoulders', sets: 5 }, { id: 'upper_back', sets: 3 }],
+      2: [{ id: 'lats', sets: 5 }, { id: 'upper_mid_back', sets: 3 }, { id: 'elbow_flexors', sets: 4 }],
+      3: [{ id: 'shoulders', sets: 5 }, { id: 'upper_mid_back', sets: 3 }],
       4: [{ id: 'quads', sets: 5 }, { id: 'hamstrings', sets: 4 }, { id: 'calves', sets: 3 }],
       5: [{ id: 'glutes', sets: 5 }, { id: 'core', sets: 4 }, { id: 'forearm', sets: 3 }],
     }),
