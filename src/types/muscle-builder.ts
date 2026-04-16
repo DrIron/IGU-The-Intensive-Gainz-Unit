@@ -157,16 +157,23 @@ export interface MuscleSlotData {
   activityNotes?: string;            // general notes for non-strength slot
 }
 
+export interface WeekData {
+  slots: MuscleSlotData[];
+  label?: string;
+  isDeload?: boolean;
+}
+
 export interface MusclePlanState {
   templateId: string | null;
   name: string;
   description: string;
-  slots: MuscleSlotData[];
+  weeks: WeekData[];
+  currentWeekIndex: number;
   selectedDayIndex: number;
   isDirty: boolean;
   isSaving: boolean;
-  globalClientInputs: string[];          // Plan-wide client input column types
-  globalPrescriptionColumns: string[];   // Plan-wide default prescription column types
+  globalClientInputs: string[];
+  globalPrescriptionColumns: string[];
 }
 
 export type LandmarkZone =

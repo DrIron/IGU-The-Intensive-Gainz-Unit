@@ -49,6 +49,8 @@ interface MuscleSlotCardProps {
   isHighlighted?: boolean;
   onSetAllSets?: (muscleId: string, sets: number) => void;
   alwaysShowControls?: boolean;
+  weekCount?: number;
+  onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
 }
 
 /** Format slot label: subdivisions show "Parent > Sub", parents show their label */
@@ -216,6 +218,8 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                     onSetSlotColumns={onSetSlotColumns ? (v) => onSetSlotColumns(slotId, v) : undefined}
                     muscleLabel={muscle.label}
                     muscleColorHex={muscle.colorHex}
+                    weekCount={weekCount}
+                    onApplyToRemaining={onApplyToRemaining ? (fields) => onApplyToRemaining(slotId, fields) : undefined}
                   />
                 </div>
               </ScrollArea>
@@ -270,6 +274,8 @@ interface SlotEditorPopoverProps {
   onSetSlotColumns?: (columns: string[]) => void;
   muscleLabel: string;
   muscleColorHex: string;
+  weekCount?: number;
+  onApplyToRemaining?: (fields: Record<string, unknown>) => void;
 }
 
 function SlotEditorPopover({
@@ -300,6 +306,8 @@ function SlotEditorPopover({
   onSetSlotColumns,
   muscleLabel,
   muscleColorHex,
+  weekCount,
+  onApplyToRemaining,
 }: SlotEditorPopoverProps) {
   const hasTempo = !!tempo && tempo.length === 4;
   const needsIntensity = hasTempo && rir == null && rpe == null;
@@ -719,6 +727,22 @@ function SlotEditorPopover({
       {onSetAllSets && (
         <Button variant="outline" size="sm" className="w-full text-xs" onClick={onSetAllSets}>
           Apply {sets} sets to all {muscleLabel}
+        </Button>
+      )}
+
+      {/* Apply to remaining weeks */}
+      {onApplyToRemaining && weekCount && weekCount > 1 && (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full text-xs border-primary/30 text-primary hover:bg-primary/5"
+          onClick={() => onApplyToRemaining({
+            sets, repMin, repMax, tempo, rir, rpe,
+            exercise: exercise ? { ...exercise } : undefined,
+            setsDetail: setsDetail ? [...setsDetail] : undefined,
+          })}
+        >
+          Apply slot to remaining weeks
         </Button>
       )}
     </div>

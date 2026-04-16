@@ -260,8 +260,8 @@ addon_services             -- Catalog of add-on services (session packs, special
 addon_purchases            -- Client purchases of add-on services
 addon_session_logs         -- Individual session consumption from packs
 
--- Planning Board / Muscle Workout Builder (Phase 31)
-muscle_program_templates   -- Muscle planning templates (slot_config JSONB, is_preset, converted_program_id)
+-- Planning Board / Muscle Workout Builder (Phase 31 + Mesocycle support)
+muscle_program_templates   -- Muscle planning templates (slot_config JSONB with weeks[], is_preset, converted_program_id)
 
 -- Team Plan Builder (Phase 32)
 coach_teams                -- Head coach team management (name, tags[], max_members, current_program_template_id)
@@ -529,6 +529,50 @@ When understanding this codebase, read in this order:
 - Dashboard Streamlining — all 3 roles: removed redundant components (CoachKPIRow, CoachQuickActions, AdminQuickActions, ProgressSummaryCard, PaymentDueCard), promoted SystemHealthCard + ClientPipelineSection to admin overview, made WeeklyProgressCard + AdherenceSummaryCard clickable, fixed pipeline nav bug, deleted RefinedAdminDashboard dead code, moved mobile Sign Out into scrollable area (Apr 12, 2026) ✅
 - Dashboard Post-Streamlining Polish — wired up PlanBillingCard cancel subscription button (was silently no-op), deleted 7 unused component files, fixed CoachWorkloadPanel N+1 with parallel queries, made CoachCard clickable to /meet-our-team, audit-driven fixes: second pipeline nav bug occurrence, CoachCompensationSummary N+1 RPC loop, nested PostgREST FK join in workoutsThisWeek, missing `{error}` destructuring across 4 files, `.single()` → `.maybeSingle()`, new reusable ClickableCard primitive with full keyboard a11y, aria-hidden on decorative icons, aria-label on icon-only button, mobile menu Escape handler + aria-labelledby (Apr 12, 2026) ✅
 - Mobile workout builder fixes — ExercisePickerDialog uses `Drawer` on mobile (clears bottom nav), new `MobileSetEditor` renders stacked card-per-set with `h-10 text-base` inputs instead of the table, Planning Board slot rows on mobile now have up/down reorder arrows threaded via new `onReorderSlot` callback to the existing `REORDER` reducer action (Apr 15, 2026) ✅
+- Phase 38: Mesocycle Support for Planning Board — multi-week mesocycles with independent week snapshots, WeekTabStrip navigation, deload auto-trim (sets × 0.6), "Apply to remaining weeks" on slot edits, ProgressionOverview (per-slot instruction arc across weeks), conversion offsets dayIndex per week (W1=1-7, W2=8-14), updated convert_muscle_plan_to_program RPC for day indices > 7 (Apr 16, 2026) ✅
+
+### Mesocycle Support for Planning Board (Apr 16, 2026)
+
+Planning Board now designs full mesocycles (multi-week blocks). Each week is an independent snapshot — coaches build Week 1, add weeks as deep clones, then edit per-week exercise instructions for progression. "Apply to remaining weeks" propagates changes forward via positional matching (dayIndex + sortOrder).
+
+**Data Model Change:**
+- `MusclePlanState.slots` → `MusclePlanState.weeks: WeekData[]` + `currentWeekIndex`
+- `WeekData = { slots: MuscleSlotData[], label?: string, isDeload?: boolean }`
+- `slot_config` JSONB now writes `{ weeks: [...], globalClientInputs, globalPrescriptionColumns }`
+- Full backward compat: old `{ slots: [...] }` and bare array formats auto-wrapped in `weeks: [{ slots }]` on load
+
+**New Reducer Actions (7):**
+- `ADD_WEEK` — deep clones last week (new UUIDs for all slots)
+- `REMOVE_WEEK` — removes a week (min 1)
+- `SELECT_WEEK` — switches viewed week (non-undoable, like SELECT_DAY)
+- `DUPLICATE_WEEK` — clones specific week, inserts after it
+- `SET_WEEK_LABEL` — custom week name (e.g. "Deload")
+- `TOGGLE_DELOAD` — marks week as deload, auto-trims sets × 0.6 (use undo to reverse)
+- `APPLY_SLOT_TO_REMAINING` — copies slot fields to matching slots in all weeks > currentWeekIndex (matched by dayIndex + sortOrder)
+
+**All existing slot actions scoped to `state.weeks[state.currentWeekIndex].slots`** via `withUpdatedCurrentWeek()` helper. `getCurrentSlots(state)` exported for external consumers.
+
+**Conversion:** Offsets dayIndex per week — W1 = days 1-7, W2 = 8-14, W3 = 15-21. RPC updated: `((day_index - 1) % 7) + 1` for day name lookup. Day titles include week prefix in muscle labels (e.g. "W2 Pecs"). `UNIQUE (program_template_id, day_index)` constraint already supports day_index > 7.
+
+**New Files (3):**
+| File | Purpose |
+|------|---------|
+| `src/components/coach/programs/muscle-builder/WeekTabStrip.tsx` | Horizontal week tab strip with dropdown (Duplicate, Rename, Mark Deload, Remove) |
+| `src/components/coach/programs/muscle-builder/ProgressionOverview.tsx` | Per-slot instruction arc across all weeks, editable inline, apply-forward button |
+| `supabase/migrations/20260416100000_update_convert_rpc_multiweek.sql` | Updated RPC for multi-week day index handling |
+
+**Modified Files (9):**
+| File | Changes |
+|------|---------|
+| `src/types/muscle-builder.ts` | Added `WeekData` interface, updated `MusclePlanState` |
+| `.../hooks/useMuscleBuilderState.ts` | Full reducer refactor: all slot ops scoped to current week, 7 new actions, backward-compat load, `buildSlotConfig()`, `deepCloneWeek()` |
+| `.../MuscleBuilderPage.tsx` | `currentWeekSlots` derived, WeekTabStrip + ProgressionOverview wired, week management callbacks |
+| `.../ConvertToProgram.tsx` | Accepts `weeks`, flattens with offset dayIndex, per-week preview with deload badges |
+| `.../WeeklyCalendar.tsx` | Threads `weekCount` + `onApplyToRemaining` to DayColumn and MobileDayDetail |
+| `.../DayColumn.tsx` | Threads `weekCount` + `onApplyToRemaining` to MuscleSlotCard |
+| `.../MuscleSlotCard.tsx` | "Apply slot to remaining weeks" button in popover (visible when weekCount > 1) |
+| `.../MobileDayDetail.tsx` | "Apply slot to remaining weeks" button in Drawer |
+| `.../MusclePlanLibrary.tsx` | Parses `weeks` format from slot_config, shows week count badge |
 
 ### Dashboard Streamlining — All 3 Roles (Apr 12, 2026)
 
@@ -743,7 +787,7 @@ The Planning Board is now the complete program builder — coaches design muscle
 
 **State Management:**
 - 6 new reducer actions: `TOGGLE_PER_SET`, `UPDATE_SET_DETAIL`, `SET_SLOT_COLUMNS`, `SET_EXERCISE_INSTRUCTIONS`, `SET_GLOBAL_CLIENT_INPUTS`, `SET_SLOT_CLIENT_INPUTS`
-- `slot_config` JSONB format changed: now stores `{ slots, globalClientInputs, globalPrescriptionColumns }` with backward compat for old array format
+- `slot_config` JSONB format: now stores `{ weeks: WeekData[], globalClientInputs, globalPrescriptionColumns }` (mesocycle format, Apr 2026). Backward compat reads `{ slots }` (Phase 36) and bare array (Phase 31) formats.
 
 **Analytics:**
 - `useMusclePlanVolume.ts` uses `setsDetail` for per-set TUST and volume calculations when available
@@ -1000,7 +1044,7 @@ src/components/coach/teams/
 
 ### Phase 31: Planning Board — Muscle Workout Builder (Complete - Feb 12, 2026)
 
-Coaches plan workouts starting from **muscles** instead of exercises. Drag muscle groups onto a 7-day calendar, configure sets per slot, view real-time volume analytics (MV/MEV/MAV/MRV landmarks), then convert the muscle template into a program scaffold. UI label: "Planning Board" (renamed from "Muscle-First Plan").
+Coaches plan workouts starting from **muscles** instead of exercises. Drag muscle groups onto a 7-day calendar, configure sets per slot, view real-time volume analytics (MV/MEV/MAV/MRV landmarks), then convert the muscle template into a program scaffold. UI label: "Planning Board". Supports multi-week mesocycles — each week is an independent snapshot with per-week exercise instructions for progression (Phase 38).
 
 **New Table:** `muscle_program_templates`
 | Column | Type | Purpose |
@@ -1008,7 +1052,7 @@ Coaches plan workouts starting from **muscles** instead of exercises. Drag muscl
 | `coach_id` | UUID FK coaches | Owner |
 | `name` | TEXT | Plan name |
 | `description` | TEXT | Optional description |
-| `slot_config` | JSONB | Array of `MuscleSlotData` — `{id, dayIndex, muscleId, sets, repMin, repMax, sortOrder, tempo?, rir?, rpe?, exercise?, replacements?}` |
+| `slot_config` | JSONB | `{ weeks: WeekData[], globalClientInputs, globalPrescriptionColumns }` — each week has `{ slots: MuscleSlotData[], label?, isDeload? }`. Backward compat with old `{ slots }` and bare array formats. |
 | `is_preset` | BOOLEAN | Coach-saved preset flag |
 | `is_system` | BOOLEAN | Built-in preset flag |
 | `converted_program_id` | UUID FK program_templates | Link to converted program |
@@ -1021,6 +1065,7 @@ Coaches plan workouts starting from **muscles** instead of exercises. Drag muscl
 ```
 src/components/coach/programs/muscle-builder/
 ├── MuscleBuilderPage.tsx           # Entry: DragDropContext + header + 3-col layout + ExercisePickerDialog
+├── WeekTabStrip.tsx                # Week navigation tabs with dropdown (Duplicate, Rename, Deload, Remove)
 ├── MusclePalette.tsx               # Right panel: search + accordion by body region
 │   └── DraggableMuscleChip.tsx     # Draggable muscle badge with placement count
 ├── WeeklyCalendar.tsx              # 7-column responsive grid (2-col mobile → 7-col desktop)
@@ -1029,11 +1074,13 @@ src/components/coach/programs/muscle-builder/
 │   └── MobileDayDetail.tsx         # Mobile day view with inline muscle picker + exercise selection
 ├── VolumeOverview.tsx              # Horizontal bars with MEV/MRV markers + zone badges
 ├── FrequencyHeatmap.tsx            # Muscle × Day matrix with consecutive-day warnings
+├── ProgressionOverview.tsx         # Per-slot instruction arc across all weeks (editable inline)
 ├── PresetSelector.tsx              # 4 built-in + coach custom preset cards
-├── ConvertToProgram.tsx            # Smart conversion: pre-selected exercises + auto-fill fallback
+├── ConvertToProgram.tsx            # Smart conversion: multi-week offset, pre-selected exercises + auto-fill
+├── MusclePlanLibrary.tsx           # Plan list with week count badges, duplicate, delete
 └── hooks/
-    ├── useMuscleBuilderState.ts    # useReducer (17 actions) + Supabase save/load
-    └── useMusclePlanVolume.ts      # Derived volume, summary, frequency, placement counts
+    ├── useMuscleBuilderState.ts    # useReducer (24 actions) + Supabase save/load + week management
+    └── useMusclePlanVolume.ts      # Derived volume, summary, frequency, placement counts (per-week)
 ```
 
 **DnD (via @hello-pangea/dnd):**
@@ -2129,6 +2176,7 @@ SQL function `generate_referral_code(first_name)`:
 - **Use `.maybeSingle()` instead of `.single()` for optional rows.** `.single()` throws an error when zero rows are returned (PostgREST 406). Use `.maybeSingle()` when the row may not exist (e.g., user presets, optional config, first-time setup). Only use `.single()` when you are certain exactly one row exists (e.g., after an INSERT...RETURNING, or querying by primary key that you know is present).
 - **macOS quarantine can freeze git.** Downloaded/cloned repos on Desktop accumulate `com.apple.provenance` extended attributes. Over time, macOS security scanning (Gatekeeper/XProtect) makes git operations hang indefinitely — `git status`, `git diff`, `git add` all freeze because git stats hundreds of files and each stat triggers a security check. Symptoms: git commands hang with 0% CPU, individual `stat` calls are fast but bulk operations never complete. **Fix:** Fresh-clone the repo to a new directory (`git clone <url> /tmp/igu-fresh`), copy `.env.local` over, run `npm install`, and swap the old directory out. **Prevention:** Periodically run `xattr -cr .` in the project root to clear quarantine flags, or move the project off Desktop to a path less aggressively scanned (e.g., `~/Projects/`).
 - **Always destructure `{ error }` from Supabase mutations.** `supabase.from().update()`, `.insert()`, `.delete()` return `{ data, error }` — if you `await` without checking `error`, RLS failures and DB errors are silently swallowed (HTTP 200, no rows affected, no exception). Always do: `const { error } = await supabase.from(...).update(...); if (error) throw error;`. This was the root cause of the payment exempt toggle bug.
+- **Planning Board state uses `weeks[]`, not `slots[]`.** `MusclePlanState.weeks: WeekData[]` with `currentWeekIndex`. Each `WeekData` has its own `slots[]`. Use `getCurrentSlots(state)` (exported from `useMuscleBuilderState`) to get the active week's slots. All reducer slot actions are scoped to the current week automatically via `withUpdatedCurrentWeek()`. `slot_config` JSONB writes `{ weeks: [...] }` — backward compat reads old `{ slots }` and bare array formats. When converting, dayIndex is offset per week (W1=1-7, W2=8-14).
 - **Mobile Planning Board uses Drawer, not Popover.** `MobileDayDetail.tsx` uses a vaul `Drawer` (bottom sheet) for slot editing — not a `Popover`. The desktop `MuscleSlotCard.tsx` still uses `Popover` with `side="right"`. When adding new mobile slot editing features, add them to the Drawer content, not a Popover.
 - **All 3 roles have mobile bottom navigation.** Client (`getClientMobileNavItems` in `ClientSidebar.tsx`), Coach (`getCoachMobileNavItems` in `CoachSidebar.tsx`), and Admin (`getAdminMobileNavItems` in `AdminSidebar.tsx`). All wired via lazy-loaded `memo` components in `App.tsx`. Bottom nav is `h-16` (64px) — **all layout content areas must use `pb-24 md:pb-8`** to prevent content from hiding behind it.
 - **Button touch targets on mobile.** `button.tsx` uses `min-h-[44px] md:min-h-0` on `default`, `sm`, and `icon` sizes. This ensures 44px minimum touch targets on mobile without affecting desktop layout. All buttons have `active:scale-[0.98]` press feedback and `touch-manipulation`.

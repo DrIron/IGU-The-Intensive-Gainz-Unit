@@ -45,6 +45,8 @@ interface MobileDayDetailProps {
   highlightedMuscleId?: string | null;
   onSetAllSets?: (muscleId: string, sets: number) => void;
   onReorderSlot?: (dayIndex: number, fromIndex: number, toIndex: number) => void;
+  weekCount?: number;
+  onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
 }
 
 const musclesByRegion = new Map<BodyRegion, typeof MUSCLE_GROUPS>();
@@ -83,6 +85,8 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onPasteDay,
   highlightedMuscleId,
   onReorderSlot,
+  weekCount,
+  onApplyToRemaining,
 }: MobileDayDetailProps) {
   const [pickerOpen, setPickerOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -293,6 +297,8 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                       canMoveDown={index < daySlots.length - 1}
                       onMoveUp={onReorderSlot ? () => onReorderSlot(selectedDayIndex, index, index - 1) : undefined}
                       onMoveDown={onReorderSlot ? () => onReorderSlot(selectedDayIndex, index, index + 1) : undefined}
+                      weekCount={weekCount}
+                      onApplyToRemaining={onApplyToRemaining}
                     />
                   );
                 })}
@@ -362,6 +368,8 @@ interface MobileSlotRowProps {
   canMoveDown?: boolean;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  weekCount?: number;
+  onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
 }
 
 const MobileSlotRow = memo(function MobileSlotRow({
@@ -383,6 +391,8 @@ const MobileSlotRow = memo(function MobileSlotRow({
   canMoveDown,
   onMoveUp,
   onMoveDown,
+  weekCount,
+  onApplyToRemaining,
 }: MobileSlotRowProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -591,6 +601,25 @@ const MobileSlotRow = memo(function MobileSlotRow({
               <p>Working set: RIR &le; 5 or RPE &ge; 5</p>
               <p>Only working sets count for TUST</p>
             </div>
+
+            {onApplyToRemaining && weekCount && weekCount > 1 && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full text-xs border-primary/30 text-primary hover:bg-primary/5 mt-2"
+                onClick={() => {
+                  onApplyToRemaining(slot.id, {
+                    sets: slot.sets, repMin: slot.repMin, repMax: slot.repMax,
+                    tempo: slot.tempo, rir: slot.rir, rpe: slot.rpe,
+                    exercise: slot.exercise ? { ...slot.exercise } : undefined,
+                    setsDetail: slot.setsDetail ? [...slot.setsDetail] : undefined,
+                  });
+                  setPopoverOpen(false);
+                }}
+              >
+                Apply slot to remaining weeks
+              </Button>
+            )}
           </div>
           </ScrollArea>
         </DrawerContent>

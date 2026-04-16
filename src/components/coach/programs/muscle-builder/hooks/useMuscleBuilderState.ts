@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { withTimeout } from "@/lib/withTimeout";
-import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType } from "@/types/muscle-builder";
+import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType, WeekData } from "@/types/muscle-builder";
 import { ACTIVITY_MAP } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
 
@@ -15,10 +15,17 @@ const DEFAULT_GLOBAL_PRESCRIPTION_COLUMNS = ['rep_range', 'tempo', 'rir', 'rpe',
 // ============================================================
 
 type Action =
-  | { type: 'LOAD_TEMPLATE'; payload: { name: string; description: string; slots: MuscleSlotData[]; templateId: string; globalClientInputs?: string[]; globalPrescriptionColumns?: string[] } }
+  | { type: 'LOAD_TEMPLATE'; payload: { name: string; description: string; weeks: WeekData[]; templateId: string; globalClientInputs?: string[]; globalPrescriptionColumns?: string[] } }
   | { type: 'SET_NAME'; name: string }
   | { type: 'SET_DESCRIPTION'; description: string }
   | { type: 'SELECT_DAY'; dayIndex: number }
+  | { type: 'SELECT_WEEK'; weekIndex: number }
+  | { type: 'ADD_WEEK' }
+  | { type: 'REMOVE_WEEK'; weekIndex: number }
+  | { type: 'DUPLICATE_WEEK'; weekIndex: number }
+  | { type: 'SET_WEEK_LABEL'; weekIndex: number; label: string }
+  | { type: 'TOGGLE_DELOAD'; weekIndex: number }
+  | { type: 'APPLY_SLOT_TO_REMAINING'; slotId: string; fields: Partial<MuscleSlotData> }
   | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string; sets?: number }
   | { type: 'REMOVE_MUSCLE'; slotId: string }
   | { type: 'SET_SETS'; slotId: string; sets: number }
@@ -49,14 +56,17 @@ type Action =
   | { type: 'REDO' };
 
 // ============================================================
-// Reducer
+// Helpers
 // ============================================================
+
+const EMPTY_WEEK: WeekData = { slots: [] };
 
 const initialState: MusclePlanState = {
   templateId: null,
   name: 'Untitled Muscle Plan',
   description: '',
-  slots: [],
+  weeks: [{ ...EMPTY_WEEK }],
+  currentWeekIndex: 0,
   selectedDayIndex: 1,
   isDirty: false,
   isSaving: false,
@@ -64,13 +74,23 @@ const initialState: MusclePlanState = {
   globalPrescriptionColumns: DEFAULT_GLOBAL_PRESCRIPTION_COLUMNS,
 };
 
+function getCurrentSlots(state: MusclePlanState): MuscleSlotData[] {
+  return state.weeks[state.currentWeekIndex]?.slots ?? [];
+}
+
+function withUpdatedCurrentWeek(state: MusclePlanState, updater: (slots: MuscleSlotData[]) => MuscleSlotData[]): MusclePlanState {
+  const weeks = state.weeks.map((w, i) =>
+    i === state.currentWeekIndex ? { ...w, slots: updater(w.slots) } : w
+  );
+  return { ...state, weeks, isDirty: true };
+}
+
 function getMaxSortOrder(slots: MuscleSlotData[], dayIndex: number): number {
   const daySlots = slots.filter(s => s.dayIndex === dayIndex);
   if (daySlots.length === 0) return -1;
   return Math.max(...daySlots.map(s => s.sortOrder));
 }
 
-/** Create per-set detail array from flat slot values */
 function createSetsDetailFromFlat(slot: MuscleSlotData): SetPrescription[] {
   return Array.from({ length: slot.sets }, (_, i) => ({
     set_number: i + 1,
@@ -83,11 +103,9 @@ function createSetsDetailFromFlat(slot: MuscleSlotData): SetPrescription[] {
   }));
 }
 
-/** Sync setsDetail length with sets count (grow/shrink) */
 function syncSetsDetailLength(setsDetail: SetPrescription[], newCount: number): SetPrescription[] {
   if (setsDetail.length === newCount) return setsDetail;
   if (newCount < setsDetail.length) return setsDetail.slice(0, newCount);
-  // Grow: clone last row for new entries
   const lastRow = setsDetail[setsDetail.length - 1] || { set_number: 0, rest_seconds: 90 };
   const newRows: SetPrescription[] = [];
   for (let i = setsDetail.length; i < newCount; i++) {
@@ -96,7 +114,6 @@ function syncSetsDetailLength(setsDetail: SetPrescription[], newCount: number): 
   return [...setsDetail, ...newRows];
 }
 
-/** Ensure every slot has a unique id and rep range (backward compat for saved data) */
 function hydrateSlotIds(slots: MuscleSlotData[]): MuscleSlotData[] {
   return slots.map(s => ({
     ...s,
@@ -106,7 +123,26 @@ function hydrateSlotIds(slots: MuscleSlotData[]): MuscleSlotData[] {
   }));
 }
 
+function deepCloneWeek(week: WeekData): WeekData {
+  return {
+    ...week,
+    slots: week.slots.map(s => ({
+      ...s,
+      id: crypto.randomUUID(),
+      exercise: s.exercise ? { ...s.exercise } : undefined,
+      replacements: s.replacements ? s.replacements.map(r => ({ ...r })) : undefined,
+      setsDetail: s.setsDetail ? s.setsDetail.map(sd => ({ ...sd })) : undefined,
+    })),
+  };
+}
+
+// ============================================================
+// Reducer
+// ============================================================
+
 function reducer(state: MusclePlanState, action: Action): MusclePlanState {
+  const slots = getCurrentSlots(state);
+
   switch (action.type) {
     case 'LOAD_TEMPLATE':
       return {
@@ -114,7 +150,8 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         templateId: action.payload.templateId,
         name: action.payload.name,
         description: action.payload.description,
-        slots: hydrateSlotIds(action.payload.slots),
+        weeks: action.payload.weeks.map(w => ({ ...w, slots: hydrateSlotIds(w.slots) })),
+        currentWeekIndex: 0,
         globalClientInputs: action.payload.globalClientInputs || DEFAULT_GLOBAL_CLIENT_INPUTS,
         globalPrescriptionColumns: action.payload.globalPrescriptionColumns || DEFAULT_GLOBAL_PRESCRIPTION_COLUMNS,
         isDirty: false,
@@ -130,6 +167,82 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
     case 'SELECT_DAY':
       return { ...state, selectedDayIndex: action.dayIndex };
 
+    case 'SELECT_WEEK':
+      return { ...state, currentWeekIndex: Math.min(action.weekIndex, state.weeks.length - 1) };
+
+    // ---- Week management ----
+
+    case 'ADD_WEEK': {
+      const lastWeek = state.weeks[state.weeks.length - 1] || EMPTY_WEEK;
+      const newWeek = deepCloneWeek(lastWeek);
+      return { ...state, weeks: [...state.weeks, newWeek], currentWeekIndex: state.weeks.length, isDirty: true };
+    }
+
+    case 'REMOVE_WEEK': {
+      if (state.weeks.length <= 1) return state;
+      const weeks = state.weeks.filter((_, i) => i !== action.weekIndex);
+      const newIndex = Math.min(state.currentWeekIndex, weeks.length - 1);
+      return { ...state, weeks, currentWeekIndex: newIndex, isDirty: true };
+    }
+
+    case 'DUPLICATE_WEEK': {
+      const source = state.weeks[action.weekIndex];
+      if (!source) return state;
+      const cloned = deepCloneWeek(source);
+      const weeks = [...state.weeks];
+      weeks.splice(action.weekIndex + 1, 0, cloned);
+      return { ...state, weeks, currentWeekIndex: action.weekIndex + 1, isDirty: true };
+    }
+
+    case 'SET_WEEK_LABEL': {
+      const weeks = state.weeks.map((w, i) =>
+        i === action.weekIndex ? { ...w, label: action.label || undefined } : w
+      );
+      return { ...state, weeks, isDirty: true };
+    }
+
+    case 'TOGGLE_DELOAD': {
+      const week = state.weeks[action.weekIndex];
+      if (!week) return state;
+      const wasDeload = week.isDeload;
+      const updatedSlots = wasDeload
+        ? week.slots // turning OFF: slots stay as-is, coach uses undo if needed
+        : week.slots.map(s => ({
+            ...s,
+            sets: Math.max(1, Math.ceil(s.sets * 0.6)),
+            setsDetail: s.setsDetail
+              ? s.setsDetail.slice(0, Math.max(1, Math.ceil(s.sets * 0.6)))
+              : undefined,
+          }));
+      const weeks = state.weeks.map((w, i) =>
+        i === action.weekIndex
+          ? { ...w, isDeload: !wasDeload, label: !wasDeload ? (w.label || 'Deload') : w.label, slots: updatedSlots }
+          : w
+      );
+      return { ...state, weeks, isDirty: true };
+    }
+
+    case 'APPLY_SLOT_TO_REMAINING': {
+      const sourceSlot = slots.find(s => s.id === action.slotId);
+      if (!sourceSlot) return state;
+      const { dayIndex, sortOrder } = sourceSlot;
+      const weeks = state.weeks.map((w, wi) => {
+        if (wi <= state.currentWeekIndex) return w;
+        const updatedSlots = w.slots.map(s => {
+          if (s.dayIndex !== dayIndex || s.sortOrder !== sortOrder) return s;
+          const merged = { ...s, ...action.fields };
+          if (action.fields.exercise) {
+            merged.exercise = { ...action.fields.exercise };
+          }
+          return merged;
+        });
+        return { ...w, slots: updatedSlots };
+      });
+      return { ...state, weeks, isDirty: true };
+    }
+
+    // ---- Slot operations (scoped to current week) ----
+
     case 'ADD_MUSCLE': {
       const newSlot: MuscleSlotData = {
         id: crypto.randomUUID(),
@@ -138,47 +251,32 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         sets: action.sets ?? 3,
         repMin: 8,
         repMax: 12,
-        sortOrder: getMaxSortOrder(state.slots, action.dayIndex) + 1,
+        sortOrder: getMaxSortOrder(slots, action.dayIndex) + 1,
       };
-      return { ...state, slots: [...state.slots, newSlot], isDirty: true };
+      return withUpdatedCurrentWeek(state, s => [...s, newSlot]);
     }
 
     case 'REMOVE_MUSCLE':
-      return {
-        ...state,
-        slots: state.slots.filter(s => s.id !== action.slotId),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s => s.filter(sl => sl.id !== action.slotId));
 
     case 'SET_SETS':
-      return {
-        ...state,
-        slots: state.slots.map(s =>
-          s.id === action.slotId
-            ? { ...s, sets: Math.max(1, Math.min(20, action.sets)) }
-            : s
-        ),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => sl.id === action.slotId ? { ...sl, sets: Math.max(1, Math.min(20, action.sets)) } : sl)
+      );
 
     case 'SET_REPS':
-      return {
-        ...state,
-        slots: state.slots.map(s =>
-          s.id === action.slotId
-            ? { ...s, repMin: Math.max(1, Math.min(100, action.repMin)), repMax: Math.max(1, Math.min(100, action.repMax)) }
-            : s
-        ),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => sl.id === action.slotId
+          ? { ...sl, repMin: Math.max(1, Math.min(100, action.repMin)), repMax: Math.max(1, Math.min(100, action.repMax)) }
+          : sl)
+      );
 
     case 'SET_SLOT_DETAILS':
-      return {
-        ...state,
-        slots: state.slots.map(s => {
-          if (s.id !== action.slotId) return s;
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => {
+          if (sl.id !== action.slotId) return sl;
           const updated = {
-            ...s,
+            ...sl,
             ...(action.sets != null && { sets: Math.max(1, Math.min(20, action.sets)) }),
             ...(action.repMin != null && { repMin: Math.max(1, Math.min(100, action.repMin)) }),
             ...(action.repMax != null && { repMax: Math.max(1, Math.min(100, action.repMax)) }),
@@ -186,139 +284,104 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
             ...(action.rir !== undefined && { rir: action.rir }),
             ...(action.rpe !== undefined && { rpe: action.rpe }),
           };
-          // Sync setsDetail length when sets count changes
           if (action.sets != null && updated.setsDetail) {
             updated.setsDetail = syncSetsDetailLength(updated.setsDetail, updated.sets);
           }
           return updated;
-        }),
-        isDirty: true,
-      };
+        })
+      );
 
     case 'REORDER': {
-      const daySlots = state.slots
+      const daySlots = slots
         .filter(s => s.dayIndex === action.dayIndex)
         .sort((a, b) => a.sortOrder - b.sortOrder);
-      const otherSlots = state.slots.filter(s => s.dayIndex !== action.dayIndex);
-
+      const otherSlots = slots.filter(s => s.dayIndex !== action.dayIndex);
       const [moved] = daySlots.splice(action.fromIndex, 1);
       daySlots.splice(action.toIndex, 0, moved);
-
       const reordered = daySlots.map((s, i) => ({ ...s, sortOrder: i }));
-      return { ...state, slots: [...otherSlots, ...reordered], isDirty: true };
+      return withUpdatedCurrentWeek(state, () => [...otherSlots, ...reordered]);
     }
 
     case 'MOVE_MUSCLE': {
-      const slot = state.slots.find(s => s.id === action.slotId);
+      const slot = slots.find(s => s.id === action.slotId);
       if (!slot) return state;
-
-      const withoutMoved = state.slots.filter(s => s.id !== action.slotId);
-
-      // Get target day slots sorted
+      const withoutMoved = slots.filter(s => s.id !== action.slotId);
       const targetSlots = withoutMoved
         .filter(s => s.dayIndex === action.toDay)
         .sort((a, b) => a.sortOrder - b.sortOrder);
-
-      const movedSlot: MuscleSlotData = {
-        ...slot,
-        dayIndex: action.toDay,
-        sortOrder: action.toIndex,
-      };
-
+      const movedSlot: MuscleSlotData = { ...slot, dayIndex: action.toDay, sortOrder: action.toIndex };
       targetSlots.splice(action.toIndex, 0, movedSlot);
       const reorderedTarget = targetSlots.map((s, i) => ({ ...s, sortOrder: i }));
-
       const otherSlots = withoutMoved.filter(s => s.dayIndex !== action.toDay);
-      return { ...state, slots: [...otherSlots, ...reorderedTarget], isDirty: true };
+      return withUpdatedCurrentWeek(state, () => [...otherSlots, ...reorderedTarget]);
     }
 
     case 'SET_ALL_SETS_FOR_MUSCLE':
-      return {
-        ...state,
-        slots: state.slots.map(s =>
-          s.muscleId === action.muscleId
-            ? { ...s, sets: Math.max(1, Math.min(20, action.sets)) }
-            : s
-        ),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => sl.muscleId === action.muscleId ? { ...sl, sets: Math.max(1, Math.min(20, action.sets)) } : sl)
+      );
 
     case 'PASTE_DAY': {
-      const sourceSlots = state.slots
+      const sourceSlots = slots
         .filter(s => s.dayIndex === action.fromDayIndex)
         .sort((a, b) => a.sortOrder - b.sortOrder);
       if (sourceSlots.length === 0) return state;
-      const maxOrder = getMaxSortOrder(state.slots, action.toDayIndex);
+      const maxOrder = getMaxSortOrder(slots, action.toDayIndex);
       const newSlots = sourceSlots.map((s, i) => ({
         ...s,
         id: crypto.randomUUID(),
         dayIndex: action.toDayIndex,
         sortOrder: maxOrder + 1 + i,
       }));
-      return { ...state, slots: [...state.slots, ...newSlots], isDirty: true };
+      return withUpdatedCurrentWeek(state, s => [...s, ...newSlots]);
     }
 
     case 'LOAD_PRESET':
       return {
         ...state,
-        slots: hydrateSlotIds(action.slots),
+        weeks: [{ slots: hydrateSlotIds(action.slots) }],
+        currentWeekIndex: 0,
         name: action.name ?? state.name,
         isDirty: true,
       };
 
     case 'CLEAR_ALL':
-      return { ...state, slots: [], isDirty: true };
+      return { ...state, weeks: [{ slots: [] }], currentWeekIndex: 0, isDirty: true };
 
     case 'SET_EXERCISE':
-      return {
-        ...state,
-        slots: state.slots.map(s =>
-          s.id === action.slotId ? { ...s, exercise: action.exercise } : s
-        ),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => sl.id === action.slotId ? { ...sl, exercise: action.exercise } : sl)
+      );
 
     case 'CLEAR_EXERCISE':
-      return {
-        ...state,
-        slots: state.slots.map(s =>
-          s.id === action.slotId ? { ...s, exercise: undefined } : s
-        ),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => sl.id === action.slotId ? { ...sl, exercise: undefined } : sl)
+      );
 
     case 'ADD_REPLACEMENT':
-      return {
-        ...state,
-        slots: state.slots.map(s =>
-          s.id === action.slotId
-            ? { ...s, replacements: [...(s.replacements || []), action.exercise] }
-            : s
-        ),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => sl.id === action.slotId
+          ? { ...sl, replacements: [...(sl.replacements || []), action.exercise] }
+          : sl)
+      );
 
     case 'REMOVE_REPLACEMENT':
-      return {
-        ...state,
-        slots: state.slots.map(s => {
-          if (s.id !== action.slotId || !s.replacements) return s;
-          const updated = s.replacements.filter((_, i) => i !== action.replacementIndex);
-          return { ...s, replacements: updated.length > 0 ? updated : undefined };
-        }),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => {
+          if (sl.id !== action.slotId || !sl.replacements) return sl;
+          const updated = sl.replacements.filter((_, i) => i !== action.replacementIndex);
+          return { ...sl, replacements: updated.length > 0 ? updated : undefined };
+        })
+      );
 
     case 'TOGGLE_PER_SET':
-      return {
-        ...state,
-        slots: state.slots.map(s => {
-          if (s.id !== action.slotId) return s;
-          if (s.setsDetail) {
-            // Turn OFF: clear setsDetail, keep flat values from first row
-            const first = s.setsDetail[0];
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => {
+          if (sl.id !== action.slotId) return sl;
+          if (sl.setsDetail) {
+            const first = sl.setsDetail[0];
             return {
-              ...s,
+              ...sl,
               setsDetail: undefined,
               ...(first?.rep_range_min != null && { repMin: first.rep_range_min }),
               ...(first?.rep_range_max != null && { repMax: first.rep_range_max }),
@@ -327,55 +390,41 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
               ...(first?.rpe !== undefined && { rpe: first.rpe }),
             };
           }
-          // Turn ON: initialize from flat values
-          return { ...s, setsDetail: createSetsDetailFromFlat(s) };
-        }),
-        isDirty: true,
-      };
+          return { ...sl, setsDetail: createSetsDetailFromFlat(sl) };
+        })
+      );
 
     case 'UPDATE_SET_DETAIL':
-      return {
-        ...state,
-        slots: state.slots.map(s => {
-          if (s.id !== action.slotId || !s.setsDetail) return s;
-          const updated = s.setsDetail.map((set, i) =>
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => {
+          if (sl.id !== action.slotId || !sl.setsDetail) return sl;
+          const updated = sl.setsDetail.map((set, i) =>
             i === action.setIndex ? { ...set, [action.field]: action.value } : set
           );
-          return { ...s, setsDetail: updated };
-        }),
-        isDirty: true,
-      };
+          return { ...sl, setsDetail: updated };
+        })
+      );
 
     case 'SET_SLOT_COLUMNS':
-      return {
-        ...state,
-        slots: state.slots.map(s =>
-          s.id === action.slotId ? { ...s, prescriptionColumns: action.columns } : s
-        ),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => sl.id === action.slotId ? { ...sl, prescriptionColumns: action.columns } : sl)
+      );
 
     case 'SET_EXERCISE_INSTRUCTIONS':
-      return {
-        ...state,
-        slots: state.slots.map(s => {
-          if (s.id !== action.slotId || !s.exercise) return s;
-          return { ...s, exercise: { ...s.exercise, instructions: action.instructions || undefined } };
-        }),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => {
+          if (sl.id !== action.slotId || !sl.exercise) return sl;
+          return { ...sl, exercise: { ...sl.exercise, instructions: action.instructions || undefined } };
+        })
+      );
 
     case 'SET_GLOBAL_CLIENT_INPUTS':
       return { ...state, globalClientInputs: action.columns, isDirty: true };
 
     case 'SET_SLOT_CLIENT_INPUTS':
-      return {
-        ...state,
-        slots: state.slots.map(s =>
-          s.id === action.slotId ? { ...s, clientInputColumns: action.columns } : s
-        ),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => sl.id === action.slotId ? { ...sl, clientInputColumns: action.columns } : sl)
+      );
 
     case 'ADD_ACTIVITY': {
       const activity = ACTIVITY_MAP.get(action.activityId);
@@ -386,27 +435,21 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         sets: 1,
         repMin: 0,
         repMax: 0,
-        sortOrder: getMaxSortOrder(state.slots, action.dayIndex) + 1,
+        sortOrder: getMaxSortOrder(slots, action.dayIndex) + 1,
         activityType: action.activityType,
         activityId: action.activityId,
         activityName: activity?.label || action.activityId,
         duration: 30,
       };
-      return { ...state, slots: [...state.slots, newSlot], isDirty: true };
+      return withUpdatedCurrentWeek(state, s => [...s, newSlot]);
     }
 
     case 'SET_ACTIVITY_DETAILS':
-      return {
-        ...state,
-        slots: state.slots.map(s =>
-          s.id === action.slotId ? { ...s, ...action.details } : s
-        ),
-        isDirty: true,
-      };
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => sl.id === action.slotId ? { ...sl, ...action.details } : sl)
+      );
 
     case 'MARK_SAVED':
-      // Preserve isDirty if an undo happened during the save flight (isDirty was restored to true).
-      // Without this, the undo's changes would silently not auto-save.
       return { ...state, templateId: action.templateId, isDirty: state.isDirty, isSaving: false };
 
     case 'SAVING':
@@ -426,9 +469,8 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
 
 const MAX_HISTORY = 50;
 
-/** Actions that don't mutate plan content — skip history for these */
 const NON_UNDOABLE: Set<string> = new Set([
-  'SELECT_DAY', 'SAVING', 'MARK_SAVED', 'SAVE_ERROR', 'LOAD_TEMPLATE', 'UNDO', 'REDO',
+  'SELECT_DAY', 'SELECT_WEEK', 'SAVING', 'MARK_SAVED', 'SAVE_ERROR', 'LOAD_TEMPLATE', 'UNDO', 'REDO',
 ]);
 
 interface UndoableState {
@@ -460,7 +502,6 @@ function undoableReducer(state: UndoableState, action: Action): UndoableState {
 
   const newCurrent = reducer(state.current, action);
 
-  // Don't push to history for non-undoable actions or no-op
   if (NON_UNDOABLE.has(action.type) || newCurrent === state.current) {
     return { ...state, current: newCurrent };
   }
@@ -468,13 +509,21 @@ function undoableReducer(state: UndoableState, action: Action): UndoableState {
   return {
     past: [...state.past, state.current].slice(-MAX_HISTORY),
     current: newCurrent,
-    future: [], // clear redo stack on new action
+    future: [],
   };
 }
 
 // ============================================================
 // Hook
 // ============================================================
+
+function buildSlotConfig(state: MusclePlanState): Record<string, unknown> {
+  return {
+    weeks: state.weeks,
+    globalClientInputs: state.globalClientInputs,
+    globalPrescriptionColumns: state.globalPrescriptionColumns,
+  } as unknown as Record<string, unknown>;
+}
 
 export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: string) {
   const [{ current: state, past, future }, dispatch] = useReducer(undoableReducer, {
@@ -505,18 +554,30 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
         return;
       }
 
-      // slot_config can be: array (old format) or object { slots, globalClientInputs, globalPrescriptionColumns }
+      // slot_config formats: array (v1), { slots } (v2), { weeks } (v3)
       const raw = data.slot_config as unknown;
-      let slots: MuscleSlotData[] = [];
+      let weeks: WeekData[] = [{ slots: [] }];
       let globalClientInputs: string[] | undefined;
       let globalPrescriptionColumns: string[] | undefined;
+
       if (Array.isArray(raw)) {
-        slots = raw as MuscleSlotData[];
-      } else if (raw && typeof raw === 'object' && 'slots' in raw) {
-        const obj = raw as { slots: MuscleSlotData[]; globalClientInputs?: string[]; globalPrescriptionColumns?: string[] };
-        slots = obj.slots || [];
-        globalClientInputs = obj.globalClientInputs;
-        globalPrescriptionColumns = obj.globalPrescriptionColumns;
+        // v1: bare array of slots
+        weeks = [{ slots: raw as MuscleSlotData[] }];
+      } else if (raw && typeof raw === 'object') {
+        const obj = raw as Record<string, unknown>;
+        if ('weeks' in obj && Array.isArray(obj.weeks)) {
+          // v3: multi-week format
+          weeks = (obj.weeks as WeekData[]).map(w => ({
+            slots: w.slots || [],
+            label: w.label,
+            isDeload: w.isDeload,
+          }));
+        } else if ('slots' in obj) {
+          // v2: single-week object format
+          weeks = [{ slots: (obj.slots as MuscleSlotData[]) || [] }];
+        }
+        globalClientInputs = obj.globalClientInputs as string[] | undefined;
+        globalPrescriptionColumns = obj.globalPrescriptionColumns as string[] | undefined;
       }
 
       dispatch({
@@ -525,7 +586,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
           templateId: data.id,
           name: data.name,
           description: data.description || '',
-          slots,
+          weeks,
           globalClientInputs,
           globalPrescriptionColumns,
         },
@@ -553,7 +614,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
             .update({
               name: s.name,
               description: s.description || null,
-              slot_config: { slots: s.slots, globalClientInputs: s.globalClientInputs, globalPrescriptionColumns: s.globalPrescriptionColumns } as unknown as Record<string, unknown>,
+              slot_config: buildSlotConfig(s),
               updated_at: new Date().toISOString(),
             })
             .eq('id', s.templateId),
@@ -568,11 +629,11 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
     }, 2000);
 
     return () => clearTimeout(autoSaveTimerRef.current);
-  }, [state.isDirty, state.templateId, state.isSaving, state.slots, state.name, state.description]);
+  }, [state.isDirty, state.templateId, state.isSaving, state.weeks, state.name, state.description]);
 
   // Save
   const save = useCallback(async () => {
-    clearTimeout(autoSaveTimerRef.current); // cancel pending auto-save to prevent race
+    clearTimeout(autoSaveTimerRef.current);
     dispatch({ type: 'SAVING' });
 
     try {
@@ -583,7 +644,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
             .update({
               name: state.name,
               description: state.description || null,
-              slot_config: { slots: state.slots, globalClientInputs: state.globalClientInputs, globalPrescriptionColumns: state.globalPrescriptionColumns } as unknown as Record<string, unknown>,
+              slot_config: buildSlotConfig(state),
               updated_at: new Date().toISOString(),
             })
             .eq('id', state.templateId),
@@ -601,7 +662,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
               coach_id: coachUserId,
               name: state.name,
               description: state.description || null,
-              slot_config: { slots: state.slots, globalClientInputs: state.globalClientInputs, globalPrescriptionColumns: state.globalPrescriptionColumns } as unknown as Record<string, unknown>,
+              slot_config: buildSlotConfig(state),
             })
             .select('id')
             .single(),
@@ -614,11 +675,11 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
       }
 
       toast({ title: 'Muscle plan saved' });
-    } catch (error: any) {
+    } catch (error: unknown) {
       dispatch({ type: 'SAVE_ERROR' });
       toast({ title: 'Error saving', description: sanitizeErrorForUser(error), variant: 'destructive' });
     }
-  }, [state.templateId, state.name, state.description, state.slots, coachUserId, toast]);
+  }, [state.templateId, state.name, state.description, state.weeks, coachUserId, toast]);
 
   // Save as preset
   const saveAsPreset = useCallback(async () => {
@@ -631,7 +692,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
             coach_id: coachUserId,
             name: state.name,
             description: state.description || null,
-            slot_config: { slots: state.slots, globalClientInputs: state.globalClientInputs, globalPrescriptionColumns: state.globalPrescriptionColumns } as unknown as Record<string, unknown>,
+            slot_config: buildSlotConfig(state),
             is_preset: true,
           })
           .select('id')
@@ -644,12 +705,14 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
       dispatch({ type: 'SAVE_ERROR' }); // just stop isSaving — don't change templateId
       toast({ title: 'Saved as preset' });
       return data.id;
-    } catch (error: any) {
+    } catch (error: unknown) {
       dispatch({ type: 'SAVE_ERROR' });
       toast({ title: 'Error saving preset', description: sanitizeErrorForUser(error), variant: 'destructive' });
       return null;
     }
-  }, [coachUserId, state.name, state.description, state.slots, toast]);
+  }, [coachUserId, state.name, state.description, state.weeks, toast]);
 
   return { state, dispatch, save, saveAsPreset, canUndo, canRedo };
 }
+
+export { getCurrentSlots };

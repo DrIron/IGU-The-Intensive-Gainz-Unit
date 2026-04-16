@@ -48,6 +48,8 @@ interface DayColumnProps {
   onPasteDay?: (dayIndex: number) => void;
   highlightedMuscleId?: string | null;
   onSetAllSets?: (muscleId: string, sets: number) => void;
+  weekCount?: number;
+  onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
 }
 
 export const DayColumn = memo(function DayColumn({
@@ -76,6 +78,8 @@ export const DayColumn = memo(function DayColumn({
   onPasteDay,
   highlightedMuscleId,
   onSetAllSets,
+  weekCount,
+  onApplyToRemaining,
 }: DayColumnProps) {
   const [addOpen, setAddOpen] = useState(false);
   const [expandedParent, setExpandedParent] = useState<string | null>(null);
@@ -321,6 +325,8 @@ export const DayColumn = memo(function DayColumn({
                           onSetSlotColumns={onSetSlotColumns}
                           isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
                           onSetAllSets={onSetAllSets}
+                          weekCount={weekCount}
+                          onApplyToRemaining={onApplyToRemaining}
                         />
                       );
                     } else {

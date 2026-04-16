@@ -41,12 +41,14 @@ import { ExercisePickerDialog } from "../ExercisePickerDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Settings2 } from "lucide-react";
 
-import { useMuscleBuilderState } from "./hooks/useMuscleBuilderState";
+import { useMuscleBuilderState, getCurrentSlots } from "./hooks/useMuscleBuilderState";
 import { useMusclePlanVolume } from "./hooks/useMusclePlanVolume";
 import { WeeklyCalendar } from "./WeeklyCalendar";
+import { WeekTabStrip } from "./WeekTabStrip";
 import { MusclePalette } from "./MusclePalette";
 import { VolumeOverview } from "./VolumeOverview";
 import { FrequencyHeatmap } from "./FrequencyHeatmap";
+import { ProgressionOverview } from "./ProgressionOverview";
 import { PresetSelector } from "./PresetSelector";
 import { ConvertToProgram } from "./ConvertToProgram";
 
@@ -64,8 +66,9 @@ export function MuscleBuilderPage({
   onOpenProgram,
 }: MuscleBuilderPageProps) {
   const { state, dispatch, save, saveAsPreset, canUndo, canRedo } = useMuscleBuilderState(coachUserId, existingTemplateId);
+  const currentWeekSlots = getCurrentSlots(state);
   const { volumeEntries, summary, frequencyMatrix, placementCounts, consecutiveDayWarnings } =
-    useMusclePlanVolume(state.slots);
+    useMusclePlanVolume(currentWeekSlots);
   const { toast } = useToast();
 
   const [showClearDialog, setShowClearDialog] = useState(false);
@@ -193,7 +196,7 @@ export function MuscleBuilderPage({
   // #2 — Delete with undo
   const handleRemoveMuscle = useCallback(
     (slotId: string) => {
-      const slot = state.slots.find(s => s.id === slotId);
+      const slot = currentWeekSlots.find(s => s.id === slotId);
       dispatch({ type: 'REMOVE_MUSCLE', slotId });
       const muscle = slot ? getMuscleDisplay(slot.muscleId) : null;
       const dayName = slot ? DAYS_OF_WEEK[slot.dayIndex - 1] : '';
@@ -211,7 +214,7 @@ export function MuscleBuilderPage({
         ),
       });
     },
-    [state.slots, dispatch, toast]
+    [currentWeekSlots, dispatch, toast]
   );
 
   const handleLoadPreset = useCallback(
@@ -334,7 +337,7 @@ export function MuscleBuilderPage({
   // #6 — Volume bar click → scroll to first day with muscle
   const handleMuscleClick = useCallback(
     (muscleId: string) => {
-      const slot = state.slots.find(s => resolveParentMuscleId(s.muscleId) === muscleId);
+      const slot = currentWeekSlots.find(s => resolveParentMuscleId(s.muscleId) === muscleId);
       if (!slot) return;
 
       dispatch({ type: 'SELECT_DAY', dayIndex: slot.dayIndex });
@@ -348,10 +351,40 @@ export function MuscleBuilderPage({
       setHighlightedMuscleId(muscleId);
       highlightTimeoutRef.current = setTimeout(() => setHighlightedMuscleId(null), 1500);
     },
-    [state.slots, dispatch]
+    [currentWeekSlots, dispatch]
   );
 
-  const isEmpty = state.slots.length === 0;
+  const isEmpty = currentWeekSlots.length === 0;
+
+  const handleSelectWeek = useCallback(
+    (weekIndex: number) => dispatch({ type: 'SELECT_WEEK', weekIndex }),
+    [dispatch]
+  );
+  const handleAddWeek = useCallback(() => dispatch({ type: 'ADD_WEEK' }), [dispatch]);
+  const handleRemoveWeek = useCallback(
+    (weekIndex: number) => dispatch({ type: 'REMOVE_WEEK', weekIndex }),
+    [dispatch]
+  );
+  const handleDuplicateWeek = useCallback(
+    (weekIndex: number) => dispatch({ type: 'DUPLICATE_WEEK', weekIndex }),
+    [dispatch]
+  );
+  const handleSetWeekLabel = useCallback(
+    (weekIndex: number, label: string) => dispatch({ type: 'SET_WEEK_LABEL', weekIndex, label }),
+    [dispatch]
+  );
+  const handleToggleDeload = useCallback(
+    (weekIndex: number) => dispatch({ type: 'TOGGLE_DELOAD', weekIndex }),
+    [dispatch]
+  );
+
+  const handleApplyToRemaining = useCallback(
+    (slotId: string, fields: Record<string, unknown>) => {
+      dispatch({ type: 'APPLY_SLOT_TO_REMAINING', slotId, fields: fields as Partial<MuscleSlotData> });
+      toast({ title: 'Applied to remaining weeks' });
+    },
+    [dispatch, toast]
+  );
 
   return (
     <DragDropContext onDragEnd={handleDragEnd}>
@@ -530,9 +563,21 @@ export function MuscleBuilderPage({
               <PresetSelector coachUserId={coachUserId} onSelectPreset={handleLoadPreset} />
             )}
 
+            {/* Week Tab Strip */}
+            <WeekTabStrip
+              weeks={state.weeks}
+              currentWeekIndex={state.currentWeekIndex}
+              onSelectWeek={handleSelectWeek}
+              onAddWeek={handleAddWeek}
+              onRemoveWeek={handleRemoveWeek}
+              onDuplicateWeek={handleDuplicateWeek}
+              onSetWeekLabel={handleSetWeekLabel}
+              onToggleDeload={handleToggleDeload}
+            />
+
             {/* Weekly Calendar */}
             <WeeklyCalendar
-              slots={state.slots}
+              slots={currentWeekSlots}
               selectedDayIndex={state.selectedDayIndex}
               onSelectDay={handleSelectDay}
               onSetSlotDetails={handleSetSlotDetails}
@@ -554,6 +599,8 @@ export function MuscleBuilderPage({
               highlightedMuscleId={highlightedMuscleId}
               onSetAllSets={handleSetAllSets}
               onReorderSlot={handleReorderSlot}
+              weekCount={state.weeks.length}
+              onApplyToRemaining={state.weeks.length > 1 ? handleApplyToRemaining : undefined}
             />
 
             {/* #4 — First-time onboarding guide */}
@@ -592,6 +639,9 @@ export function MuscleBuilderPage({
                 <TabsList>
                   <TabsTrigger value="volume">Volume</TabsTrigger>
                   <TabsTrigger value="frequency">Frequency</TabsTrigger>
+                  {state.weeks.length > 1 && (
+                    <TabsTrigger value="progression">Progression</TabsTrigger>
+                  )}
                 </TabsList>
                 <TabsContent value="volume" className="mt-3">
                   <VolumeOverview
@@ -602,17 +652,28 @@ export function MuscleBuilderPage({
                 </TabsContent>
                 <TabsContent value="frequency" className="mt-3">
                   <FrequencyHeatmap
-                    slots={state.slots}
+                    slots={currentWeekSlots}
                     frequencyMatrix={frequencyMatrix}
                     consecutiveDayWarnings={consecutiveDayWarnings}
                   />
                 </TabsContent>
+                {state.weeks.length > 1 && (
+                  <TabsContent value="progression" className="mt-3">
+                    <ProgressionOverview
+                      weeks={state.weeks}
+                      currentWeekIndex={state.currentWeekIndex}
+                      onSelectWeek={handleSelectWeek}
+                      onSetExerciseInstructions={handleSetExerciseInstructions}
+                      onApplyToRemaining={handleApplyToRemaining}
+                    />
+                  </TabsContent>
+                )}
               </Tabs>
             )}
 
             {/* Convert to Program Dialog */}
             <ConvertToProgram
-              slots={state.slots}
+              weeks={state.weeks}
               summary={summary}
               planName={state.name}
               coachUserId={coachUserId}

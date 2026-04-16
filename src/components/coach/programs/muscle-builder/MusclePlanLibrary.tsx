@@ -33,13 +33,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { getMuscleDisplay, type MuscleSlotData } from "@/types/muscle-builder";
+import { getMuscleDisplay, type MuscleSlotData, type WeekData } from "@/types/muscle-builder";
 
 interface MusclePlan {
   id: string;
   name: string;
   description: string | null;
-  slot_config: MuscleSlotData[];
+  weeks: WeekData[];
   is_preset: boolean;
   converted_program_id: string | null;
   created_at: string;
@@ -53,11 +53,28 @@ interface MusclePlanLibraryProps {
   onBack: () => void;
 }
 
-function planStats(slots: MuscleSlotData[]) {
-  const days = new Set(slots.map(s => s.dayIndex));
-  const totalSets = slots.reduce((sum, s) => sum + s.sets, 0);
-  const muscles = new Set(slots.map(s => s.muscleId));
-  return { trainingDays: days.size, totalSets, muscleCount: muscles.size };
+function planStats(weeks: WeekData[]) {
+  const firstWeekSlots = weeks[0]?.slots || [];
+  const days = new Set(firstWeekSlots.map(s => s.dayIndex));
+  const totalSets = firstWeekSlots.reduce((sum, s) => sum + s.sets, 0);
+  const muscles = new Set(firstWeekSlots.map(s => s.muscleId));
+  return { trainingDays: days.size, totalSets, muscleCount: muscles.size, weekCount: weeks.length };
+}
+
+function parseWeeksFromSlotConfig(raw: unknown): WeekData[] {
+  if (Array.isArray(raw)) {
+    return [{ slots: raw as MuscleSlotData[] }];
+  }
+  if (raw && typeof raw === 'object') {
+    const obj = raw as Record<string, unknown>;
+    if ('weeks' in obj && Array.isArray(obj.weeks)) {
+      return (obj.weeks as WeekData[]).map(w => ({ slots: w.slots || [], label: w.label, isDeload: w.isDeload }));
+    }
+    if ('slots' in obj) {
+      return [{ slots: (obj.slots as MuscleSlotData[]) || [] }];
+    }
+  }
+  return [{ slots: [] }];
 }
 
 function timeAgo(dateStr: string): string {
@@ -90,12 +107,10 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
 
       if (error) throw error;
       setPlans(
-        (data || []).map(d => {
-          // slot_config can be array (old format) or object { slots, ... } (new format)
-          const raw = d.slot_config as unknown;
-          const slots = Array.isArray(raw) ? raw as MuscleSlotData[] : (raw && typeof raw === 'object' && 'slots' in raw) ? (raw as { slots: MuscleSlotData[] }).slots || [] : [];
-          return { ...d, slot_config: slots };
-        })
+        (data || []).map(d => ({
+          ...d,
+          weeks: parseWeeksFromSlotConfig(d.slot_config as unknown),
+        }))
       );
     } catch (error: any) {
       toast({ title: "Error loading plans", description: sanitizeErrorForUser(error), variant: "destructive" });
@@ -128,7 +143,7 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
           coach_id: coachUserId,
           name: `${plan.name} (Copy)`,
           description: plan.description,
-          slot_config: { slots: plan.slot_config } as unknown as Record<string, unknown>,
+          slot_config: { weeks: plan.weeks } as unknown as Record<string, unknown>,
         });
 
       if (error) throw error;
@@ -218,10 +233,11 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredPlans.map(plan => {
-            const stats = planStats(plan.slot_config);
+            const stats = planStats(plan.weeks);
+            const firstWeekSlots = plan.weeks[0]?.slots || [];
             // Get top 4 muscle labels for preview
             const muscleCounts = new Map<string, number>();
-            for (const s of plan.slot_config) {
+            for (const s of firstWeekSlots) {
               muscleCounts.set(s.muscleId, (muscleCounts.get(s.muscleId) || 0) + s.sets);
             }
             const topMuscles = [...muscleCounts.entries()]
@@ -266,6 +282,12 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
                     <p className="text-sm text-muted-foreground line-clamp-2">{plan.description}</p>
                   )}
                   <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+                    {stats.weekCount > 1 && (
+                      <>
+                        <span>{stats.weekCount} weeks</span>
+                        <span>&middot;</span>
+                      </>
+                    )}
                     <span>{stats.trainingDays} days</span>
                     <span>&middot;</span>
                     <span>{stats.muscleCount} muscles</span>

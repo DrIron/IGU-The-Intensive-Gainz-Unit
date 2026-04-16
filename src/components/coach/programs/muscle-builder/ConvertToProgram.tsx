@@ -13,11 +13,11 @@ import { Loader2, AlertTriangle, Dumbbell, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { withTimeout } from "@/lib/withTimeout";
-import { getMuscleDisplay, getActivityDisplay, MUSCLE_TO_EXERCISE_FILTER, DAYS_OF_WEEK, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_COLORS, resolveParentMuscleId, type MuscleSlotData, type ActivityType } from "@/types/muscle-builder";
+import { getMuscleDisplay, getActivityDisplay, MUSCLE_TO_EXERCISE_FILTER, DAYS_OF_WEEK, ACTIVITY_TYPE_LABELS, ACTIVITY_TYPE_COLORS, resolveParentMuscleId, type MuscleSlotData, type WeekData, type ActivityType } from "@/types/muscle-builder";
 import type { VolumeSummary } from "./hooks/useMusclePlanVolume";
 
 interface ConvertToProgramProps {
-  slots: MuscleSlotData[];
+  weeks: WeekData[];
   summary: VolumeSummary;
   planName: string;
   coachUserId: string;
@@ -30,7 +30,7 @@ interface ConvertToProgramProps {
 }
 
 export const ConvertToProgram = memo(function ConvertToProgram({
-  slots,
+  weeks,
   summary,
   planName,
   coachUserId,
@@ -44,57 +44,78 @@ export const ConvertToProgram = memo(function ConvertToProgram({
   const [converting, setConverting] = useState(false);
   const { toast } = useToast();
 
-  // Group slots by training day for the preview
-  const dayBreakdown = useMemo(() => {
-    const map = new Map<number, MuscleSlotData[]>();
-    for (const slot of slots) {
-      const day = map.get(slot.dayIndex) || [];
-      day.push(slot);
-      map.set(slot.dayIndex, day);
-    }
-    // Sort by day index and sort slots within each day
-    return Array.from(map.entries())
-      .sort(([a], [b]) => a - b)
-      .map(([dayIndex, daySlots]) => ({
-        dayIndex,
-        daySlots: [...daySlots].sort((a, b) => a.sortOrder - b.sortOrder),
-        totalSets: daySlots.reduce((sum, s) => sum + s.sets, 0),
-      }));
-  }, [slots]);
+  const allSlots = useMemo(() => weeks.flatMap(w => w.slots), [weeks]);
+  const weekCount = weeks.length;
 
-  // Count slots with/without exercises for the warning
+  // Group slots by week then by training day for the preview
+  const weekBreakdowns = useMemo(() => {
+    return weeks.map((week, wi) => {
+      const map = new Map<number, MuscleSlotData[]>();
+      for (const slot of week.slots) {
+        const day = map.get(slot.dayIndex) || [];
+        day.push(slot);
+        map.set(slot.dayIndex, day);
+      }
+      return {
+        weekIndex: wi,
+        label: week.label || `Week ${wi + 1}`,
+        isDeload: week.isDeload,
+        days: Array.from(map.entries())
+          .sort(([a], [b]) => a - b)
+          .map(([dayIndex, daySlots]) => ({
+            dayIndex,
+            daySlots: [...daySlots].sort((a, b) => a.sortOrder - b.sortOrder),
+            totalSets: daySlots.reduce((sum, s) => sum + s.sets, 0),
+          })),
+      };
+    });
+  }, [weeks]);
+
   const exerciseStats = useMemo(() => {
-    const withExercise = slots.filter(s => s.exercise).length;
-    const withoutExercise = slots.length - withExercise;
+    const withExercise = allSlots.filter(s => s.exercise).length;
+    const withoutExercise = allSlots.length - withExercise;
     return { withExercise, withoutExercise };
-  }, [slots]);
+  }, [allSlots]);
 
   const handleConvert = useCallback(async () => {
     setConverting(true);
     try {
-      // Auto-save if dirty
       if (isDirty && onSave) {
         await onSave();
       }
 
-      // Build the slot array with muscle labels for the RPC
-      // Only strength slots go through the RPC
-      const strengthSlots = slots.filter(s => !s.activityType || s.activityType === 'strength');
-      const activitySlots = slots.filter(s => s.activityType && s.activityType !== 'strength');
+      // Flatten all weeks with offset dayIndex: W0=1-7, W1=8-14, W2=15-21, etc.
+      const allStrengthSlots: (MuscleSlotData & { _offsetDayIndex: number; _weekIndex: number })[] = [];
+      const allActivitySlots: (MuscleSlotData & { _offsetDayIndex: number; _weekIndex: number })[] = [];
 
-      const rpcSlots = strengthSlots.map(s => ({
-        dayIndex: s.dayIndex,
-        muscleId: s.muscleId,
-        sets: s.sets,
-        sortOrder: s.sortOrder,
-        muscleLabel: getMuscleDisplay(s.muscleId)?.label || s.muscleId,
-      }));
+      for (let wi = 0; wi < weeks.length; wi++) {
+        const offset = wi * 7;
+        for (const slot of weeks[wi].slots) {
+          const offsetSlot = { ...slot, _offsetDayIndex: slot.dayIndex + offset, _weekIndex: wi };
+          if (!slot.activityType || slot.activityType === 'strength') {
+            allStrengthSlots.push(offsetSlot);
+          } else {
+            allActivitySlots.push(offsetSlot);
+          }
+        }
+      }
+
+      const rpcSlots = allStrengthSlots.map(s => {
+        const weekLabel = weekCount > 1 ? `W${s._weekIndex + 1} ` : '';
+        return {
+          dayIndex: s._offsetDayIndex,
+          muscleId: s.muscleId,
+          sets: s.sets,
+          sortOrder: s.sortOrder,
+          muscleLabel: `${weekLabel}${getMuscleDisplay(s.muscleId)?.label || s.muscleId}`,
+        };
+      });
 
       const { data, error } = await withTimeout(
         supabase.rpc("convert_muscle_plan_to_program", {
           p_coach_id: coachUserId,
           p_plan_name: planName,
-          p_plan_description: `Converted from muscle plan. ${summary.musclesTargeted} muscles, ${summary.totalSets} total sets.`,
+          p_plan_description: `Converted from muscle plan. ${weekCount} week${weekCount > 1 ? 's' : ''}, ${summary.musclesTargeted} muscles, ${summary.totalSets} total sets/week.`,
           p_muscle_template_id: templateId,
           p_day_slots: rpcSlots,
         }),
@@ -106,8 +127,8 @@ export const ConvertToProgram = memo(function ConvertToProgram({
 
       const result = data as { program_id: string; total_days: number; total_modules: number };
 
-      // Add non-strength activity modules to existing days (best-effort)
-      if (activitySlots.length > 0) {
+      // Add non-strength activity modules
+      if (allActivitySlots.length > 0) {
         try {
           const { data: days } = await supabase
             .from('program_template_days')
@@ -121,17 +142,17 @@ export const ConvertToProgram = memo(function ConvertToProgram({
               recovery: 'recovery', sport_specific: 'sport_specific',
             };
 
-            for (const slot of activitySlots) {
-              let dayId = dayMap.get(slot.dayIndex);
-              // Create day if it doesn't exist (activity-only day)
+            for (const slot of allActivitySlots) {
+              let dayId = dayMap.get(slot._offsetDayIndex);
               if (!dayId) {
-                const dayName = DAYS_OF_WEEK[slot.dayIndex - 1];
+                const dayName = DAYS_OF_WEEK[(slot.dayIndex - 1) % 7];
+                const weekLabel = weekCount > 1 ? `W${slot._weekIndex + 1} ` : '';
                 const { data: newDay } = await supabase
                   .from('program_template_days')
-                  .insert({ program_template_id: result.program_id, day_index: slot.dayIndex, day_title: `${dayName} — ${slot.activityName || 'Activity'}` })
+                  .insert({ program_template_id: result.program_id, day_index: slot._offsetDayIndex, day_title: `${weekLabel}${dayName} — ${slot.activityName || 'Activity'}` })
                   .select('id')
                   .single();
-                if (newDay) { dayId = newDay.id; dayMap.set(slot.dayIndex, dayId); }
+                if (newDay) { dayId = newDay.id; dayMap.set(slot._offsetDayIndex, dayId); }
               }
               if (dayId) {
                 await supabase.from('day_modules').insert({
@@ -151,17 +172,15 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         }
       }
 
-      // Fill exercises for each module (pre-selected first, then auto-fill for the rest)
+      // Fill exercises for each module
       let preSelectedCount = 0;
       let autoFilledCount = 0;
       try {
-        // Build rep range + intensity lookup: muscleId → queue of slot details (including exercise info)
         const slotQueue = new Map<string, MuscleSlotData[]>();
-        for (const slot of slots) {
+        for (const slot of allStrengthSlots) {
           const arr = slotQueue.get(slot.muscleId) || [];
           arr.push(slot);
           slotQueue.set(slot.muscleId, arr);
-          // Also map to parent ID as fallback
           const parentId = resolveParentMuscleId(slot.muscleId);
           if (parentId !== slot.muscleId) {
             const parentArr = slotQueue.get(parentId) || [];
@@ -170,7 +189,6 @@ export const ConvertToProgram = memo(function ConvertToProgram({
           }
         }
 
-        // 1. Get all day_modules for this program with source_muscle_id
         const { data: days } = await supabase
           .from('program_template_days')
           .select('id')
@@ -188,9 +206,7 @@ export const ConvertToProgram = memo(function ConvertToProgram({
             const meInserts: { id: string; day_module_id: string; exercise_id: string; section: string; sort_order: number; instructions?: string }[] = [];
             const prescInserts: Record<string, unknown>[] = [];
 
-            // Helper: build prescription for a module exercise
             const buildPrescription = (meId: string, slot: MuscleSlotData) => {
-              // Use per-set data if available, otherwise expand flat values
               const setsJson = slot.setsDetail && slot.setsDetail.length > 0
                 ? slot.setsDetail
                 : Array.from({ length: slot.sets || 3 }, (_, si) => {
@@ -228,7 +244,6 @@ export const ConvertToProgram = memo(function ConvertToProgram({
               return presc;
             };
 
-            // Collect modules that need auto-fill (no pre-selected exercise)
             const autoFillModules: typeof modules = [];
 
             for (const mod of modules) {
@@ -236,13 +251,11 @@ export const ConvertToProgram = memo(function ConvertToProgram({
               if (!slot) { autoFillModules.push(mod); continue; }
 
               if (slot.exercise) {
-                // Pre-selected exercise — use it directly
                 const meId = crypto.randomUUID();
                 meInserts.push({ id: meId, day_module_id: mod.id, exercise_id: slot.exercise.exerciseId, section: 'main', sort_order: 1, ...(slot.exercise.instructions ? { instructions: slot.exercise.instructions } : {}) });
                 prescInserts.push(buildPrescription(meId, slot));
                 preSelectedCount++;
 
-                // Also add replacement exercises if any
                 if (slot.replacements && slot.replacements.length > 0) {
                   for (let ri = 0; ri < slot.replacements.length; ri++) {
                     const repMeId = crypto.randomUUID();
@@ -255,7 +268,6 @@ export const ConvertToProgram = memo(function ConvertToProgram({
               }
             }
 
-            // Auto-fill remaining modules (same logic as before)
             if (autoFillModules.length > 0) {
               const muscleFilterMap = new Map<string, string[]>();
               const allPrimaryMuscles = new Set<string>();
@@ -299,8 +311,7 @@ export const ConvertToProgram = memo(function ConvertToProgram({
                       if (picked.length >= 3) break;
                     }
 
-                    // Find slot details for this module's muscle
-                    const matchingSlot = slots.find(s => s.muscleId === mod.source_muscle_id) || { repMin: 8, repMax: 12, tempo: undefined, rir: undefined, rpe: undefined } as MuscleSlotData;
+                    const matchingSlot = allSlots.find(s => s.muscleId === mod.source_muscle_id) || { repMin: 8, repMax: 12, tempo: undefined, rir: undefined, rpe: undefined } as MuscleSlotData;
 
                     for (let i = 0; i < picked.length; i++) {
                       const meId = crypto.randomUUID();
@@ -313,7 +324,6 @@ export const ConvertToProgram = memo(function ConvertToProgram({
               }
             }
 
-            // Batch insert all exercises and prescriptions
             if (meInserts.length > 0) {
               await supabase.from('module_exercises').insert(meInserts);
               await supabase.from('exercise_prescriptions').insert(prescInserts);
@@ -325,6 +335,7 @@ export const ConvertToProgram = memo(function ConvertToProgram({
       }
 
       const parts: string[] = [`${result.total_days} training days, ${result.total_modules} modules.`];
+      if (weekCount > 1) parts.unshift(`${weekCount} weeks.`);
       if (preSelectedCount > 0) parts.push(`${preSelectedCount} exercises from your selections.`);
       if (autoFilledCount > 0) parts.push(`${autoFilledCount} auto-filled.`);
 
@@ -333,10 +344,9 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         description: parts.join(' '),
       });
 
-      // Close dialog and navigate immediately
       onOpenChange(false);
       onOpenProgram?.(result.program_id);
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Conversion failed",
         description: sanitizeErrorForUser(error),
@@ -345,7 +355,10 @@ export const ConvertToProgram = memo(function ConvertToProgram({
     } finally {
       setConverting(false);
     }
-  }, [slots, summary, planName, coachUserId, templateId, isDirty, onSave, toast, onOpenChange, onOpenProgram]);
+  }, [weeks, allSlots, weekCount, summary, planName, coachUserId, templateId, isDirty, onSave, toast, onOpenChange, onOpenProgram]);
+
+  const totalModules = allSlots.length;
+  const totalTrainingDays = new Set(allSlots.map(s => s.dayIndex)).size;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -353,59 +366,69 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         <DialogHeader>
           <DialogTitle>Create Program</DialogTitle>
           <DialogDescription>
-            Convert your muscle plan into a program with {summary.trainingDays} training days
-            and {slots.length} modules.
+            Convert your muscle plan into a program with {weekCount > 1 ? `${weekCount} weeks, ` : ''}
+            {totalTrainingDays} training day{totalTrainingDays !== 1 ? 's' : ''}/week
+            {' '}and {totalModules} module{totalModules !== 1 ? 's' : ''}{weekCount > 1 ? '/week' : ''}.
           </DialogDescription>
         </DialogHeader>
 
-        {/* Day-by-day breakdown */}
         <div className="space-y-2 max-h-[50vh] overflow-y-auto">
-          {dayBreakdown.map(({ dayIndex, daySlots, totalSets }) => (
-            <div key={dayIndex} className="rounded-md border border-border/30 bg-muted/10 px-3 py-2">
-              <div className="flex items-center justify-between mb-1">
-                <span className="text-xs font-semibold">
-                  {DAYS_OF_WEEK[dayIndex - 1]}
-                </span>
-                <span className="text-[10px] font-mono text-muted-foreground">
-                  {daySlots.length} modules, {totalSets} sets
-                </span>
-              </div>
-              <div className="space-y-0.5">
-                {daySlots.map(slot => {
-                  const isStrength = !slot.activityType || slot.activityType === 'strength';
-                  if (isStrength) {
-                    const muscle = getMuscleDisplay(slot.muscleId);
-                    if (!muscle) return null;
-                    return (
-                      <div key={slot.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        <div className={`w-1.5 h-1.5 rounded-full ${muscle.colorClass}`} />
-                        <span>{muscle.label}</span>
-                        <span className="mx-1 text-border">→</span>
-                        {slot.exercise ? (
-                          <span className="text-emerald-500 font-medium truncate flex-1">{slot.exercise.name}</span>
-                        ) : (
-                          <span className="text-muted-foreground/50 italic truncate flex-1">auto-fill</span>
-                        )}
-                        <span className="ml-auto font-mono shrink-0">{slot.sets}s</span>
-                      </div>
-                    );
-                  }
-                  // Non-strength activity
-                  const typeColors = ACTIVITY_TYPE_COLORS[slot.activityType!];
-                  return (
-                    <div key={slot.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                      <div className={`w-1.5 h-1.5 rounded-full ${typeColors.colorClass}`} />
-                      <span>{slot.activityName || slot.activityId}</span>
-                      <span className="ml-auto font-mono shrink-0">{slot.duration || 30}min</span>
-                    </div>
-                  );
-                })}
-              </div>
+          {weekBreakdowns.map(({ weekIndex, label, isDeload, days }) => (
+            <div key={weekIndex}>
+              {weekCount > 1 && (
+                <div className="flex items-center gap-2 mt-2 mb-1">
+                  <span className="text-xs font-semibold">{label}</span>
+                  {isDeload && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 font-medium">Deload</span>
+                  )}
+                </div>
+              )}
+              {days.map(({ dayIndex, daySlots, totalSets }) => (
+                <div key={`${weekIndex}-${dayIndex}`} className="rounded-md border border-border/30 bg-muted/10 px-3 py-2 mb-1">
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-xs font-semibold">
+                      {DAYS_OF_WEEK[dayIndex - 1]}
+                    </span>
+                    <span className="text-[10px] font-mono text-muted-foreground">
+                      {daySlots.length} modules, {totalSets} sets
+                    </span>
+                  </div>
+                  <div className="space-y-0.5">
+                    {daySlots.map(slot => {
+                      const isStrength = !slot.activityType || slot.activityType === 'strength';
+                      if (isStrength) {
+                        const muscle = getMuscleDisplay(slot.muscleId);
+                        if (!muscle) return null;
+                        return (
+                          <div key={slot.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                            <div className={`w-1.5 h-1.5 rounded-full ${muscle.colorClass}`} />
+                            <span>{muscle.label}</span>
+                            <span className="mx-1 text-border">→</span>
+                            {slot.exercise ? (
+                              <span className="text-emerald-500 font-medium truncate flex-1">{slot.exercise.name}</span>
+                            ) : (
+                              <span className="text-muted-foreground/50 italic truncate flex-1">auto-fill</span>
+                            )}
+                            <span className="ml-auto font-mono shrink-0">{slot.sets}s</span>
+                          </div>
+                        );
+                      }
+                      const typeColors = ACTIVITY_TYPE_COLORS[slot.activityType!];
+                      return (
+                        <div key={slot.id} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                          <div className={`w-1.5 h-1.5 rounded-full ${typeColors.colorClass}`} />
+                          <span>{slot.activityName || slot.activityId}</span>
+                          <span className="ml-auto font-mono shrink-0">{slot.duration || 30}min</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>
 
-        {/* Exercise assignment status */}
         {exerciseStats.withoutExercise > 0 && (
           <div className="flex items-start gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-3 py-2">
             <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
