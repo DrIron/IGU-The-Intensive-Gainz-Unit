@@ -11,8 +11,14 @@
  * ============================================================================
  */
 
-import * as Sentry from "@sentry/react";
 import { supabase } from "@/integrations/supabase/client";
+
+// Lazy Sentry accessor — Sentry is loaded asynchronously in main.tsx
+// and stored on window.__SENTRY__. All Sentry calls are already wrapped
+// in try/catch, so they gracefully no-op if Sentry hasn't loaded yet.
+function getSentry(): typeof import("@sentry/react") | undefined {
+  return (window as unknown as Record<string, unknown>).__SENTRY__ as typeof import("@sentry/react") | undefined;
+}
 
 // Error severity levels
 export type ErrorSeverity = "info" | "warning" | "error" | "fatal";
@@ -95,32 +101,26 @@ export async function captureException(
     // Silently fail - don't cause more errors
   });
 
-  // Send to Sentry
+  // Send to Sentry (lazy — may not be loaded yet)
   try {
-    Sentry.withScope((scope) => {
-      // Set severity level
-      scope.setLevel(severity === "fatal" ? "fatal" : severity === "error" ? "error" : "warning");
-      
-      // Set tags for filtering in Sentry
-      scope.setTag("source", context.source);
-      if (context.tags) {
-        context.tags.forEach(tag => scope.setTag(tag, "true"));
-      }
-      
-      // Set user context if available
-      if (context.userId) {
-        scope.setUser({ id: context.userId });
-      }
-      
-      // Add extra context
-      scope.setExtras({
-        ...context.metadata,
-        url: loggedError.url,
+    const Sentry = getSentry();
+    if (Sentry) {
+      Sentry.withScope((scope) => {
+        scope.setLevel(severity === "fatal" ? "fatal" : severity === "error" ? "error" : "warning");
+        scope.setTag("source", context.source);
+        if (context.tags) {
+          context.tags.forEach(tag => scope.setTag(tag, "true"));
+        }
+        if (context.userId) {
+          scope.setUser({ id: context.userId });
+        }
+        scope.setExtras({
+          ...context.metadata,
+          url: loggedError.url,
+        });
+        Sentry.captureException(err);
       });
-      
-      // Capture the exception
-      Sentry.captureException(err);
-    });
+    }
   } catch {
     // Silently fail if Sentry isn't initialized
   }
@@ -160,20 +160,23 @@ export async function captureMessage(
   if (severity === "warning" || severity === "error" || severity === "fatal") {
     logToSupabase(loggedError).catch(() => {});
     
-    // Also send to Sentry
+    // Also send to Sentry (lazy — may not be loaded yet)
     try {
-      Sentry.withScope((scope) => {
-        scope.setLevel(severity === "warning" ? "warning" : "error");
-        scope.setTag("source", context.source);
-        if (context.tags) {
-          context.tags.forEach(tag => scope.setTag(tag, "true"));
-        }
-        if (context.userId) {
-          scope.setUser({ id: context.userId });
-        }
-        scope.setExtras(context.metadata || {});
-        Sentry.captureMessage(message);
-      });
+      const Sentry = getSentry();
+      if (Sentry) {
+        Sentry.withScope((scope) => {
+          scope.setLevel(severity === "warning" ? "warning" : "error");
+          scope.setTag("source", context.source);
+          if (context.tags) {
+            context.tags.forEach(tag => scope.setTag(tag, "true"));
+          }
+          if (context.userId) {
+            scope.setUser({ id: context.userId });
+          }
+          scope.setExtras(context.metadata || {});
+          Sentry.captureMessage(message);
+        });
+      }
     } catch {
       // Silently fail if Sentry isn't initialized
     }

@@ -86,8 +86,9 @@ export function AuthGuard({ children }: AuthGuardProps) {
       setLoading(false);
     });
 
-    // Safety timeout — if no auth event resolves loading within 12s, stop waiting.
-    // Mobile 3G/4G networks can take 4-8s for initial round-trips, so 6s was too tight.
+    // Safety timeout — if no auth event resolves loading within 8s, stop waiting.
+    // Was 12s, but session recovery via setSession() in client.ts now fires
+    // INITIAL_SESSION faster. 8s still accommodates slow mobile networks.
     const safetyTimer = setTimeout(() => {
       if (!mounted) return;
       setLoading((prev) => {
@@ -97,7 +98,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
         }
         return prev;
       });
-    }, 12000);
+    }, 8000);
 
     return () => {
       mounted = false;
@@ -109,7 +110,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
   if (loading) {
     return (
       <div className="flex min-h-screen items-center justify-center">
-        <div className="animate-pulse text-lg text-muted-foreground">Loading...</div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
       </div>
     );
   }

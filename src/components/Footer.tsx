@@ -1,14 +1,17 @@
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
 import { useSocialLinks, getSocialIcon, getSocialLabel } from "@/hooks/useSocialLinks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { CoachApplicationForm } from "@/components/CoachApplicationForm";
 import { supabase } from "@/integrations/supabase/client";
 import { getUTMParams } from "@/lib/utm";
 import { useToast } from "@/hooks/use-toast";
+
+const CoachApplicationForm = lazy(() =>
+  import("@/components/CoachApplicationForm").then(m => ({ default: m.CoachApplicationForm }))
+);
 
 export function Footer() {
   const [showCoachApplication, setShowCoachApplication] = useState(false);
@@ -182,10 +185,14 @@ export function Footer() {
         </div>
       </footer>
 
-      <CoachApplicationForm
-        open={showCoachApplication}
-        onOpenChange={setShowCoachApplication}
-      />
+      {showCoachApplication && (
+        <Suspense fallback={null}>
+          <CoachApplicationForm
+            open={showCoachApplication}
+            onOpenChange={setShowCoachApplication}
+          />
+        </Suspense>
+      )}
     </>
   );
 }

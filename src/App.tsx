@@ -10,7 +10,9 @@ import { GlobalErrorBoundary } from "@/components/GlobalErrorBoundary";
 import { TestEnvironmentBanner } from "@/components/TestEnvironmentBanner";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-import { RoutesDebugPanel } from "./components/admin/RoutesDebugPanel";
+const RoutesDebugPanel = lazy(() =>
+  import("./components/admin/RoutesDebugPanel").then(m => ({ default: m.RoutesDebugPanel }))
+);
 import { OnboardingGuard } from "@/components/OnboardingGuard";
 import { WaitlistGuard } from "@/components/WaitlistGuard";
 import { useTokenGuard } from "@/hooks/useTokenGuard";
@@ -68,7 +70,17 @@ const MedicalReview = lazy(() => import("./pages/onboarding/MedicalReview"));
 const AwaitingApproval = lazy(() => import("./pages/onboarding/AwaitingApproval"));
 const PaymentOnboarding = lazy(() => import("./pages/onboarding/Payment"));
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 1000 * 60 * 5,        // 5 minutes
+      gcTime: 1000 * 60 * 30,           // 30 minutes
+      refetchOnWindowFocus: false,
+      retry: 1,
+      refetchOnReconnect: 'always',
+    },
+  },
+});
 
 /** Global auth token guard - refreshes expired JWTs and intercepts 401s */
 function TokenGuard() {
@@ -160,7 +172,11 @@ const App = () => {
             <PWAUpdatePrompt />
             <TestEnvironmentBanner />
             {/* Routes Debug Panel - only shows in non-production */}
-            <RoutesDebugPanel show={!window.location.hostname.includes('theigu.com')} />
+            {!window.location.hostname.includes('theigu.com') && (
+              <Suspense fallback={null}>
+                <RoutesDebugPanel show />
+              </Suspense>
+            )}
             <div className="min-h-screen">
               <Suspense fallback={<LoadingSpinner />}>
                 <Routes>
