@@ -114,20 +114,50 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
 
       if (error) throw error;
 
-      // Get client counts separately
+      // Get client counts — include both direct coach assignments and team-plan members.
       const coachUserIds = (coachesData || []).map(c => c.user_id);
-      const { data: subsData } = await supabase
-        .from("subscriptions")
-        .select("coach_id")
-        .in("coach_id", coachUserIds)
-        .eq("status", "active");
 
-      // Count clients per coach
+      // Fetch teams owned by any of these coaches, in one query.
+      const { data: coachTeams } = await supabase
+        .from("coach_teams")
+        .select("id, coach_id")
+        .in("coach_id", coachUserIds);
+
+      // Map team_id → coach_id so we can attribute team subscriptions.
+      const teamOwnerByTeamId = new Map<string, string>();
+      for (const t of coachTeams || []) {
+        teamOwnerByTeamId.set(t.id, t.coach_id);
+      }
+      const allTeamIds = Array.from(teamOwnerByTeamId.keys());
+
+      const [
+        { data: directSubs },
+        { data: teamSubs }
+      ] = await Promise.all([
+        supabase
+          .from("subscriptions")
+          .select("coach_id")
+          .in("coach_id", coachUserIds)
+          .eq("status", "active"),
+        allTeamIds.length > 0
+          ? supabase
+              .from("subscriptions")
+              .select("team_id")
+              .in("team_id", allTeamIds)
+              .eq("status", "active")
+          : Promise.resolve({ data: [] }),
+      ]);
+
       const clientCounts = new Map<string, number>();
-      (subsData || []).forEach(sub => {
-        const count = clientCounts.get(sub.coach_id) || 0;
-        clientCounts.set(sub.coach_id, count + 1);
-      });
+      for (const sub of directSubs || []) {
+        if (!sub.coach_id) continue;
+        clientCounts.set(sub.coach_id, (clientCounts.get(sub.coach_id) || 0) + 1);
+      }
+      for (const sub of teamSubs || []) {
+        const ownerId = sub.team_id ? teamOwnerByTeamId.get(sub.team_id) : undefined;
+        if (!ownerId) continue;
+        clientCounts.set(ownerId, (clientCounts.get(ownerId) || 0) + 1);
+      }
 
       const coachesWithCounts = (coachesData || []).map(coach => ({
         ...coach,

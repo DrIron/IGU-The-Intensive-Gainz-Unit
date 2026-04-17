@@ -217,7 +217,7 @@ const App = () => {
                   <Route path="/testimonial" element={<WaitlistGuard><PublicLayout><Testimonial /></PublicLayout></WaitlistGuard>} />
                   <Route path="/client-submission/:userId" element={<AuthGuard><ClientSubmission /></AuthGuard>} />
                   <Route path="/meet-our-team" element={<WaitlistGuard><PublicLayout><MeetOurTeam /></PublicLayout></WaitlistGuard>} />
-                  <Route path="/teams" element={<PublicLayout><TeamsPage /></PublicLayout>} />
+                  <Route path="/teams" element={<WaitlistGuard><PublicLayout><TeamsPage /></PublicLayout></WaitlistGuard>} />
                   <Route path="/coach-signup" element={<PublicLayout><CoachSignup /></PublicLayout>} />
                   <Route path="/coach-password-setup" element={<CoachPasswordSetup />} />
                   <Route path="/coach-password-set" element={<CoachPasswordSetup />} />

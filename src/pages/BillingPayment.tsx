@@ -49,6 +49,7 @@ export default function BillingPayment() {
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
+  const [paymentExempt, setPaymentExempt] = useState(false);
   const isSubmittingRef = useRef(false); // Prevent double submission
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -67,7 +68,7 @@ export default function BillingPayment() {
       const [{ data: profilePublic }, { data: profilePrivate }] = await Promise.all([
         supabase
           .from("profiles_public")
-          .select("first_name")
+          .select("first_name, payment_exempt")
           .eq("id", user.id)
           .single(),
         supabase
@@ -76,12 +77,14 @@ export default function BillingPayment() {
           .eq("profile_id", user.id)
           .single()
       ]);
-      
+
       const profile = profilePublic && profilePrivate ? {
         email: profilePrivate.email,
         first_name: profilePublic.first_name,
         last_name: profilePrivate.last_name
       } : null;
+
+      setPaymentExempt(Boolean(profilePublic?.payment_exempt));
 
       if (profile) {
         setUserEmail(profile.email || user.email || "");
@@ -200,6 +203,29 @@ export default function BillingPayment() {
               <h2 className="text-xl font-semibold mb-2">No Payment Due</h2>
               <p className="text-muted-foreground mb-4">
                 You don't have any pending payments at this time.
+              </p>
+              <Button onClick={() => navigate("/dashboard")}>
+                <ArrowLeft className="h-4 w-4 mr-2" />
+                Back to Dashboard
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  if (paymentExempt) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+        <Navigation />
+        <div className="container mx-auto px-4 py-24 max-w-2xl">
+          <Card>
+            <CardContent className="pt-6 text-center">
+              <CheckCircle2 className="h-12 w-12 text-green-500 mx-auto mb-4" />
+              <h2 className="text-xl font-semibold mb-2">You're Payment Exempt</h2>
+              <p className="text-muted-foreground mb-4">
+                Your account is marked as payment-exempt. You don't need to make a payment to keep access to your plan.
               </p>
               <Button onClick={() => navigate("/dashboard")}>
                 <ArrowLeft className="h-4 w-4 mr-2" />

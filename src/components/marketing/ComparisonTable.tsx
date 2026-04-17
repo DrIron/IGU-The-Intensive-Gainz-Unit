@@ -5,6 +5,7 @@ interface FeatureRow {
   feature: string;
   team: boolean | string;
   online: boolean | string;
+  complete: boolean | string;
   hybrid: boolean | string;
   inPerson: boolean | string;
 }
@@ -15,6 +16,7 @@ const comparisonFeatures: FeatureRow[] = [
     feature: "Personalized Training Program",
     team: false,
     online: true,
+    complete: true,
     hybrid: true,
     inPerson: true,
   },
@@ -22,6 +24,7 @@ const comparisonFeatures: FeatureRow[] = [
     feature: "Group Programming",
     team: true,
     online: false,
+    complete: false,
     hybrid: false,
     inPerson: false,
   },
@@ -29,6 +32,7 @@ const comparisonFeatures: FeatureRow[] = [
     feature: "Direct Coach Messaging",
     team: false,
     online: true,
+    complete: true,
     hybrid: true,
     inPerson: true,
   },
@@ -36,6 +40,7 @@ const comparisonFeatures: FeatureRow[] = [
     feature: "Weekly Check-ins",
     team: false,
     online: true,
+    complete: true,
     hybrid: true,
     inPerson: true,
   },
@@ -43,6 +48,15 @@ const comparisonFeatures: FeatureRow[] = [
     feature: "Nutrition Coaching",
     team: false,
     online: true,
+    complete: true,
+    hybrid: true,
+    inPerson: true,
+  },
+  {
+    feature: "Dedicated Dietitian",
+    team: false,
+    online: false,
+    complete: true,
     hybrid: true,
     inPerson: true,
   },
@@ -50,6 +64,7 @@ const comparisonFeatures: FeatureRow[] = [
     feature: "Advanced Calorie Calculator",
     team: true,
     online: true,
+    complete: true,
     hybrid: true,
     inPerson: true,
   },
@@ -57,6 +72,7 @@ const comparisonFeatures: FeatureRow[] = [
     feature: "In-Person Sessions",
     team: false,
     online: false,
+    complete: false,
     hybrid: "Monthly",
     inPerson: "Weekly",
   },
@@ -64,6 +80,7 @@ const comparisonFeatures: FeatureRow[] = [
     feature: "Exercise Library Access",
     team: true,
     online: true,
+    complete: true,
     hybrid: true,
     inPerson: true,
   },
@@ -71,6 +88,7 @@ const comparisonFeatures: FeatureRow[] = [
     feature: "Discord Community",
     team: true,
     online: true,
+    complete: true,
     hybrid: true,
     inPerson: true,
   },
@@ -78,6 +96,7 @@ const comparisonFeatures: FeatureRow[] = [
     feature: "Progress Analytics",
     team: false,
     online: true,
+    complete: true,
     hybrid: true,
     inPerson: true,
   },
@@ -116,7 +135,7 @@ export function ComparisonTable() {
         Swipe to see all plans →
       </p>
       <div className="w-full overflow-x-auto">
-      <div className="min-w-[600px]">
+      <div className="min-w-[720px]">
         <table className="w-full border-collapse">
           <thead>
             <tr>
@@ -133,6 +152,12 @@ export function ComparisonTable() {
                 <div className="flex flex-col items-center gap-1">
                   <span>1:1 Online</span>
                   <span className="text-xs font-normal text-muted-foreground">40 KWD/mo</span>
+                </div>
+              </th>
+              <th className="text-center p-4 font-semibold text-foreground border-b border-border">
+                <div className="flex flex-col items-center gap-1">
+                  <span>1:1 Complete</span>
+                  <span className="text-xs font-normal text-muted-foreground">75 KWD/mo</span>
                 </div>
               </th>
               <th className="text-center p-4 font-semibold text-foreground border-b border-border bg-primary/5">
@@ -166,6 +191,9 @@ export function ComparisonTable() {
                 </td>
                 <td className="p-4 text-center border-b border-border/50">
                   <FeatureCell value={row.online} />
+                </td>
+                <td className="p-4 text-center border-b border-border/50">
+                  <FeatureCell value={row.complete} />
                 </td>
                 <td className="p-4 text-center border-b border-border/50 bg-primary/5">
                   <FeatureCell value={row.hybrid} />

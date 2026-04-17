@@ -50,19 +50,42 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
     try {
       setLoading(true);
 
-      // Get all subscriptions for this coach
-      // Use separate queries to avoid view FK issues
-      const { data: allSubscriptions, error: allSubsError } = await supabase
-        .from("subscriptions")
-        .select(`
-          id,
-          user_id,
-          status,
-          created_at
-        `)
+      // Get team IDs owned by this coach so we can include team-plan subscribers
+      // (team-plan subs set `team_id` and leave `coach_id` NULL).
+      const { data: ownedTeams } = await supabase
+        .from("coach_teams")
+        .select("id")
         .eq("coach_id", coachUserId);
+      const coachTeamIds = (ownedTeams || []).map(t => t.id);
 
-      if (allSubsError) throw allSubsError;
+      // Pull subs via two parallel queries (coach_id match OR team_id match), then merge + dedupe.
+      const [
+        { data: coachSubs, error: coachSubsError },
+        { data: teamSubs, error: teamSubsError }
+      ] = await Promise.all([
+        supabase
+          .from("subscriptions")
+          .select("id, user_id, status, created_at")
+          .eq("coach_id", coachUserId),
+        coachTeamIds.length > 0
+          ? supabase
+              .from("subscriptions")
+              .select("id, user_id, status, created_at")
+              .in("team_id", coachTeamIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (coachSubsError) throw coachSubsError;
+      if (teamSubsError) throw teamSubsError;
+
+      const seenSubIds = new Set<string>();
+      const allSubscriptions: NonNullable<typeof coachSubs> = [];
+      for (const sub of [...(coachSubs || []), ...(teamSubs || [])]) {
+        if (!seenSubIds.has(sub.id)) {
+          seenSubIds.add(sub.id);
+          allSubscriptions.push(sub);
+        }
+      }
 
       // Fetch profiles_public separately for each assigned client
       // RLS allows coaches to read profiles of clients they're assigned to
@@ -460,14 +483,36 @@ const CoachCompensationSummary = memo(function CoachCompensationSummary({ coachU
         setIsHeadCoach(coachProfile.is_head_coach || false);
       }
 
-      const { data: subs, error: subsError } = await supabase
-        .from("subscriptions")
+      // Active subs for compensation — include both direct coach assignments and team-plan members.
+      const { data: compTeams } = await supabase
+        .from("coach_teams")
         .select("id")
-        .eq("coach_id", coachUserId)
-        .eq("status", "active");
-      if (subsError) throw subsError;
+        .eq("coach_id", coachUserId);
+      const compTeamIds = (compTeams || []).map(t => t.id);
 
-      if (!subs || subs.length === 0) {
+      const [
+        { data: directSubs, error: directSubsError },
+        { data: teamSubsForComp, error: teamSubsForCompError }
+      ] = await Promise.all([
+        supabase.from("subscriptions").select("id").eq("coach_id", coachUserId).eq("status", "active"),
+        compTeamIds.length > 0
+          ? supabase.from("subscriptions").select("id").in("team_id", compTeamIds).eq("status", "active")
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (directSubsError) throw directSubsError;
+      if (teamSubsForCompError) throw teamSubsForCompError;
+
+      const seenCompIds = new Set<string>();
+      const subs: { id: string }[] = [];
+      for (const s of [...(directSubs || []), ...(teamSubsForComp || [])]) {
+        if (!seenCompIds.has(s.id)) {
+          seenCompIds.add(s.id);
+          subs.push(s);
+        }
+      }
+
+      if (subs.length === 0) {
         setLoading(false);
         return;
       }

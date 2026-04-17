@@ -173,8 +173,8 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
     ? [] // Admin and coach use sidebar navigation, not top nav
     : user
     ? [
+        // Signed-in clients: drop "Services" (they already have an active plan).
         { label: t('home'), path: "/" },
-        { label: t('services'), path: "/services" },
         { label: t('nutrition'), path: "/nutrition" },
         { label: t('ourTeam'), path: "/meet-our-team" },
       ]
@@ -252,6 +252,10 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
           { label: t('clientDirectory'), path: "/admin/clients" },
           { label: t('coaches'), path: "/admin/coaches" },
           { label: t('pricingPayouts'), path: "/admin/pricing-payouts" },
+          { label: "Billing", path: "/admin/billing" },
+          { label: "System Health", path: "/admin/system-health" },
+          { label: "Content", path: "/admin/exercises" },
+          { label: "Site Content", path: "/admin/site-content" },
         ],
         coach: [], // STRICT: Admins must use separate coach account to access coach routes
         client: []
@@ -265,7 +269,11 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
         coach: [
           { label: t('overview'), path: "/coach/dashboard" },
           { label: t('myClients'), path: "/coach/clients" },
+          { label: "Teams", path: "/coach/teams" },
+          { label: "Assignments", path: "/coach/assignments" },
           { label: t('sessions'), path: "/coach/sessions" },
+          { label: t('programs'), path: "/coach/programs" },
+          { label: "Exercise Library", path: "/coach/exercises" },
           { label: t('myProfile'), path: "/coach/profile" },
         ],
         client: []
@@ -279,6 +287,10 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
       client: [
         { label: t('overview'), section: "overview" },
         { label: t('nutrition'), section: "nutrition" },
+        { label: "Workout Calendar", path: "/client/workout/calendar" },
+        { label: "Exercise History", path: "/client/workout/history" },
+        { label: "Exercise Library", path: "/workout-library" },
+        { label: "Educational Videos", path: "/educational-videos" },
       ]
     };
   };

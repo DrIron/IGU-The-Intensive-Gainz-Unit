@@ -337,7 +337,7 @@ export const AssignTeamProgramDialog = memo(function AssignTeamProgramDialog({
                 Assigning...
               </>
             ) : (
-              `Assign to ${activeMembers.length} Members`
+              `Assign to ${activeMembers.length} ${activeMembers.length === 1 ? "Member" : "Members"}`
             )}
           </Button>
         </DialogFooter>

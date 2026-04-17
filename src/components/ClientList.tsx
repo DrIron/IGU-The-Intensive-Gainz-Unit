@@ -92,11 +92,8 @@ const clientEditSchema = z.object({
 type ClientEditFormData = z.infer<typeof clientEditSchema>;
 
 const planAbbreviations: Record<string, string> = {
-  "Female Fitness Essentials": "Fe",
-  "Body of Steel": "BoS",
-  "1:1 Online": "1:1 O",
-  "1:1 Hybrid": "1:1 H",
-  "1:1 In-Person": "1:1 I",
+  "Female Fitness Essentials": "Fe Squad",
+  "Body of Steel": "Bunz",
 };
 
 const getClientDisplayName = (client: Client): string => {

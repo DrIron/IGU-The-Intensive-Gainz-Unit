@@ -161,11 +161,13 @@ export function SessionEditorSheet({
           <div className="flex flex-col h-full">
             {/* Header */}
             <SheetHeader className="p-4 border-b space-y-3">
+              <SheetTitle className="sr-only">{title || "Edit Session"}</SheetTitle>
               <div className="flex items-center gap-2">
                 <Input
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   onBlur={handleTitleBlur}
+                  aria-label="Session title"
                   className="text-lg font-bold border-none bg-transparent p-0 h-auto focus-visible:ring-0 flex-1"
                 />
                 <Button

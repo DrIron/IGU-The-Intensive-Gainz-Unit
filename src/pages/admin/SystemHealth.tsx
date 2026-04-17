@@ -332,12 +332,12 @@ export default function SystemHealth() {
 
       {/* Overall Status Banner */}
       <Alert className={
-        overallStatus === "healthy" 
-          ? "border-green-500 bg-green-50" 
+        overallStatus === "healthy"
+          ? "border-green-500 bg-green-50 text-green-900 [&_svg]:text-green-700"
           : overallStatus === "degraded"
-            ? "border-amber-500 bg-amber-50"
+            ? "border-amber-500 bg-amber-50 text-amber-900 [&_svg]:text-amber-700"
             : overallStatus === "unhealthy"
-              ? "border-destructive bg-destructive/10"
+              ? "border-destructive bg-destructive/10 text-destructive"
               : ""
       }>
         {getStatusIcon(overallStatus)}

@@ -325,13 +325,22 @@ export const ConvertToProgram = memo(function ConvertToProgram({
             }
 
             if (meInserts.length > 0) {
-              await supabase.from('module_exercises').insert(meInserts);
-              await supabase.from('exercise_prescriptions').insert(prescInserts);
+              const { error: meInsertError } = await supabase.from('module_exercises').insert(meInserts);
+              if (meInsertError) throw meInsertError;
+              const { error: prescInsertError } = await supabase.from('exercise_prescriptions').insert(prescInserts);
+              if (prescInsertError) throw prescInsertError;
             }
           }
         }
       } catch (autoFillError) {
-        console.warn('Exercise fill failed:', autoFillError);
+        // Don't block program creation — the program scaffold already exists.
+        // But surface the failure so the coach knows they'll need to add exercises manually.
+        console.error('Exercise fill failed:', autoFillError);
+        toast({
+          title: "Program created, but exercises couldn't be added",
+          description: autoFillError instanceof Error ? autoFillError.message : "Add exercises manually in the program editor.",
+          variant: "destructive",
+        });
       }
 
       const parts: string[] = [`${result.total_days} training days, ${result.total_modules} modules.`];

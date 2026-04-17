@@ -94,8 +94,18 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
     try {
       setLoading(true);
 
-      // Get subscriptions for this coach
-      const { data: subscriptions, error: subsError } = await supabase
+      // Get team IDs owned by this coach so we can include team-plan subscribers
+      // (team-plan subs set `team_id` and leave `coach_id` NULL).
+      const { data: ownedTeams } = await supabase
+        .from("coach_teams")
+        .select("id")
+        .eq("coach_id", coachUserId);
+      const teamIds = (ownedTeams || []).map(t => t.id);
+
+      // Subscriptions where this coach is the primary OR the client is in one of their teams.
+      // PostgREST doesn't support OR across two different columns cleanly with .or() and .in(),
+      // so we run both queries in parallel and merge.
+      const coachSubsQuery = supabase
         .from("subscriptions")
         .select(`
           id,
@@ -108,8 +118,38 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
         `)
         .eq("coach_id", coachUserId);
 
-      if (subsError) throw subsError;
-      if (!subscriptions || subscriptions.length === 0) {
+      const teamSubsQuery = teamIds.length > 0
+        ? supabase
+            .from("subscriptions")
+            .select(`
+              id,
+              user_id,
+              status,
+              start_date,
+              next_billing_date,
+              service_id,
+              services!inner(name, type)
+            `)
+            .in("team_id", teamIds)
+        : Promise.resolve({ data: [], error: null });
+
+      const [{ data: coachSubs, error: coachSubsError }, { data: teamSubs, error: teamSubsError }] =
+        await Promise.all([coachSubsQuery, teamSubsQuery]);
+
+      if (coachSubsError) throw coachSubsError;
+      if (teamSubsError) throw teamSubsError;
+
+      // Merge + dedupe by subscription id (in case a sub matches both paths).
+      const seen = new Set<string>();
+      const subscriptions: NonNullable<typeof coachSubs> = [];
+      for (const sub of [...(coachSubs || []), ...(teamSubs || [])]) {
+        if (!seen.has(sub.id)) {
+          seen.add(sub.id);
+          subscriptions.push(sub);
+        }
+      }
+
+      if (subscriptions.length === 0) {
         setClients([]);
         return;
       }
