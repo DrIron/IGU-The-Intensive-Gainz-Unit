@@ -81,7 +81,7 @@ IGU is a fitness coaching platform connecting coaches with clients. It handles:
 │   │   ├── client/           # Client pages
 │   │   └── onboarding/       # Onboarding flow pages
 │   ├── App.tsx               # Main app with route definitions
-│   └── main.tsx              # Entry point (async Sentry init, i18n init)
+│   └── main.tsx              # Entry point (Sentry init, i18n init)
 ├── supabase/
 │   ├── functions/            # Edge Functions
 │   │   ├── create-tap-payment/
@@ -530,7 +530,7 @@ When understanding this codebase, read in this order:
 - Dashboard Post-Streamlining Polish — wired up PlanBillingCard cancel subscription button (was silently no-op), deleted 7 unused component files, fixed CoachWorkloadPanel N+1 with parallel queries, made CoachCard clickable to /meet-our-team, audit-driven fixes: second pipeline nav bug occurrence, CoachCompensationSummary N+1 RPC loop, nested PostgREST FK join in workoutsThisWeek, missing `{error}` destructuring across 4 files, `.single()` → `.maybeSingle()`, new reusable ClickableCard primitive with full keyboard a11y, aria-hidden on decorative icons, aria-label on icon-only button, mobile menu Escape handler + aria-labelledby (Apr 12, 2026) ✅
 - Mobile workout builder fixes — ExercisePickerDialog uses `Drawer` on mobile (clears bottom nav), new `MobileSetEditor` renders stacked card-per-set with `h-10 text-base` inputs instead of the table, Planning Board slot rows on mobile now have up/down reorder arrows threaded via new `onReorderSlot` callback to the existing `REORDER` reducer action (Apr 15, 2026) ✅
 - Phase 38: Mesocycle Support for Planning Board — multi-week mesocycles with independent week snapshots, WeekTabStrip navigation, deload auto-trim (sets × 0.6), "Apply to remaining weeks" on slot edits, ProgressionOverview (per-slot instruction arc across weeks), conversion offsets dayIndex per week (W1=1-7, W2=8-14), updated convert_muscle_plan_to_program RPC for day indices > 7 (Apr 16, 2026) ✅
-- Performance optimization — main bundle 593KB → 358KB: lazy-load Sentry SDK (async after first paint), lazy-load CoachApplicationForm + RoutesDebugPanel, vendor chunks for Sentry/i18n, non-blocking Google Fonts, React Query defaults (5min staleTime, no refetchOnWindowFocus), AuthGuard safety timeout 12s → 8s with spinner, removed dead jspdf deps (Apr 16, 2026) ✅
+- Performance optimization — main bundle 593KB → 437KB: lazy-load CoachApplicationForm + RoutesDebugPanel, vendor chunk for i18n, non-blocking Google Fonts, React Query defaults (5min staleTime, no refetchOnWindowFocus), AuthGuard safety timeout 12s → 8s with spinner, removed dead jspdf deps. Note: Sentry lazy-loading was attempted but reverted — `@sentry/react` crashes with `Cannot assign to property` when dynamically imported (ESM module namespace is frozen, Sentry's version registration tries to mutate it). (Apr 16, 2026) ✅
 
 ### Mesocycle Support for Planning Board (Apr 16, 2026)
 
@@ -2154,7 +2154,7 @@ SQL function `generate_referral_code(first_name)`:
 ### Known Limitations
 - No automated tests for components (only smoke tests)
 - No staging environment (production only)
-- Bundle size: ~358KB initial (down from 593KB after lazy Sentry, lazy CoachApplicationForm, vendor chunking for Sentry/i18n, and non-blocking fonts in Apr 2026 perf pass; originally down from 2.8MB after React.lazy + vendor chunk splitting in Phase 28)
+- Bundle size: ~437KB initial (down from 593KB after lazy CoachApplicationForm/RoutesDebugPanel, vendor chunking for i18n, non-blocking fonts, and React Query defaults in Apr 2026 perf pass; originally down from 2.8MB after React.lazy + vendor chunk splitting in Phase 28). Sentry cannot be lazy-loaded — dynamic `import("@sentry/react")` crashes due to frozen ESM module namespace.
 - `getSession()` could hang on page refresh — mitigated by Navigator lock bypass + `initializePromise` timeout + full session recovery via `setSession()` in `client.ts` + cache-first role pattern. After the timeout, the Supabase client's in-memory session is empty — `supabase.from()` queries silently use the anon key and RLS blocks everything. The `setSession()` recovery restores the full session. **Any new auth guard or component calling `getSession()` MUST have a safety timeout** (see `AuthGuard.tsx` pattern).
 - `AuthGuard` has an 8s safety timeout — if no auth event fires within 8s, loading is forced to false. Without this, the component hangs forever when `onAuthStateChange` doesn't fire due to the init deadlock.
 - Edge functions: Always handle OPTIONS before `req.json()` to avoid CORS preflight crashes
@@ -2256,7 +2256,7 @@ When asking for help:
 - Exercise library populated (107 exercises seeded) ✅ (Feb 8, 2026)
 - Mobile responsive fixes (8 critical/high items) ✅ (Feb 8, 2026)
 - End-to-end client journey testing ✅ (Feb 8, 2026)
-- Performance optimization — React.lazy + vendor chunks, 2.8MB → 441KB ✅ (Feb 8, 2026); lazy Sentry + fonts + QueryClient defaults, 593KB → 358KB ✅ (Apr 16, 2026)
+- Performance optimization — React.lazy + vendor chunks, 2.8MB → 441KB ✅ (Feb 8, 2026); fonts + QueryClient defaults + lazy components, 593KB → 437KB ✅ (Apr 16, 2026)
 - Security audit — error sanitization, rate limiting, default role trigger ✅ (Feb 8, 2026)
 - Admin QA polish — all 10 issues resolved ✅ (Feb 8, 2026)
 

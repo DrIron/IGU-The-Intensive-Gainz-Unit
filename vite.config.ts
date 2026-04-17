@@ -21,7 +21,6 @@ export default defineConfig({
           'vendor-react': ['react', 'react-dom', 'react-router-dom'],
           'vendor-supabase': ['@supabase/supabase-js'],
           'vendor-query': ['@tanstack/react-query'],
-          'vendor-sentry': ['@sentry/react'],
           'vendor-i18n': ['i18next', 'react-i18next', 'i18next-browser-languagedetector'],
           // vendor-forms also removed — only needed on auth/onboarding pages
           // vendor-dnd and vendor-charts removed from manualChunks —
