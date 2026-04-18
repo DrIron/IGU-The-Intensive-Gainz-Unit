@@ -220,6 +220,15 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
   const deleteProgram = async () => {
     if (!deleteTarget) return;
     try {
+      // A program_template may be referenced by muscle_program_templates.converted_program_id
+      // (the muscle plan that generated it) — clear that link first so the DELETE doesn't 409.
+      // Client_programs are independent copies and are NOT deleted (see modal copy).
+      const { error: unlinkError } = await supabase
+        .from("muscle_program_templates")
+        .update({ converted_program_id: null })
+        .eq("converted_program_id", deleteTarget.id);
+      if (unlinkError) throw unlinkError;
+
       const { error } = await supabase
         .from("program_templates")
         .delete()
@@ -234,9 +243,11 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
       setDeleteTarget(null);
       loadPrograms();
     } catch (error: any) {
+      // Surface the Postgres FK detail so the coach knows why (e.g. "still assigned to N clients").
+      const detail = error?.message || error?.details || sanitizeErrorForUser(error);
       toast({
         title: "Error deleting program",
-        description: sanitizeErrorForUser(error),
+        description: detail,
         variant: "destructive",
       });
     }
@@ -261,10 +272,19 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
 
   const bulkDeletePrograms = async () => {
     try {
+      const ids = Array.from(selectedIds);
+
+      // Clear muscle_program_templates.converted_program_id references to avoid FK 409s.
+      const { error: unlinkError } = await supabase
+        .from("muscle_program_templates")
+        .update({ converted_program_id: null })
+        .in("converted_program_id", ids);
+      if (unlinkError) throw unlinkError;
+
       const { error } = await supabase
         .from("program_templates")
         .delete()
-        .in("id", Array.from(selectedIds));
+        .in("id", ids);
 
       if (error) throw error;
 
@@ -276,9 +296,10 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
       setBulkDeleteOpen(false);
       loadPrograms();
     } catch (error: any) {
+      const detail = error?.message || error?.details || sanitizeErrorForUser(error);
       toast({
         title: "Error deleting programs",
-        description: sanitizeErrorForUser(error),
+        description: detail,
         variant: "destructive",
       });
     }

@@ -157,7 +157,7 @@ export function CoachDashboardLayout({
       <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
         <CoachSidebar activeSection={isTrainingMode ? "training" : activeSection} onSectionChange={setActiveSection} trainingMode={isTrainingMode} />
         
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 min-w-0">
           <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
             <div className="flex items-center gap-4">
               <div className="flex-1 min-w-0">

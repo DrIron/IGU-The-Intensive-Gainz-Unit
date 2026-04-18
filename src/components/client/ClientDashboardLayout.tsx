@@ -132,7 +132,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto p-8">
+          <main className="flex-1 min-w-0 p-8">
             <div className="max-w-7xl mx-auto flex flex-col items-center justify-center gap-4 py-12">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
               <p className="text-muted-foreground">Verifying payment status...</p>
@@ -149,7 +149,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto p-8">
+          <main className="flex-1 min-w-0 p-8">
             <div className="max-w-7xl mx-auto space-y-4">
               <div className="h-8 bg-muted animate-pulse rounded" />
               <div className="h-64 bg-muted animate-pulse rounded" />
@@ -166,7 +166,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
                 <Alert className="border-primary/50 bg-primary/10">
@@ -193,7 +193,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} isPendingApproval={true} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
                 <Alert className="border-amber-500/50 bg-amber-500/10">
@@ -217,7 +217,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} isPendingApproval={true} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
                 <Alert className="border-blue-500/50 bg-blue-500/10">
@@ -242,7 +242,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
                 <PaymentStatusDashboard userId={user.id} />
@@ -260,7 +260,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
                 <Alert className="border-destructive/50 bg-destructive/10">
@@ -285,7 +285,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
                 <Card className="border-amber-500/50 bg-amber-500/10">
@@ -330,7 +330,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
                 <CancelledSubscriptionCard
@@ -351,7 +351,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
                 <Alert className="border-destructive/50 bg-destructive/10">
@@ -387,7 +387,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
                 <Alert className="border-warning/50 bg-warning/10">
@@ -421,7 +421,7 @@ export function ClientDashboardLayout({
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
                 <ChooseTeamPrompt subscription={subscription} userId={user.id} />
@@ -505,7 +505,7 @@ export function ClientDashboardLayout({
             subscription={subscription}
             sessionBookingEnabled={subscription?.session_booking_enabled === true}
           />
-          <main className="flex-1 overflow-auto">
+          <main className="flex-1 min-w-0">
             {/* Welcome modal — shown once on first active dashboard load */}
             {isActive && user?.id && (
               <WelcomeModal
@@ -547,7 +547,7 @@ export function ClientDashboardLayout({
     <SidebarProvider defaultOpen={false}>
       <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
         <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
-        <main className="flex-1 overflow-auto">
+        <main className="flex-1 min-w-0">
           <div className="p-4 md:p-6 pb-8 safe-area-bottom">
             <div className="max-w-7xl mx-auto">
               <Alert className="border-destructive/50 bg-destructive/10">
