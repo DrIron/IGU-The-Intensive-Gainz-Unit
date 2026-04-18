@@ -15,6 +15,7 @@ import {
   BODY_REGIONS,
   BODY_REGION_LABELS,
   getMuscleDisplay,
+  getShortMuscleLabel,
   resolveParentMuscleId,
   SUBDIVISIONS_BY_PARENT,
   SUBDIVISION_MAP,
@@ -281,7 +282,8 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                       key={slot.id}
                       slot={slot}
                       muscle={muscle}
-                      label={formatSlotLabel(slot.muscleId)}
+                      label={getShortMuscleLabel(slot.muscleId)}
+                      fullLabel={formatSlotLabel(slot.muscleId)}
                       isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
                       onSetSlotDetails={onSetSlotDetails}
                       onRemove={onRemove}
@@ -352,7 +354,10 @@ const MuscleChip = memo(function MuscleChip({ muscleId, label, colorClass, onTap
 interface MobileSlotRowProps {
   slot: MuscleSlotData;
   muscle: { label: string; colorClass: string; colorHex: string };
+  /** Short label shown on the compact slot row */
   label: string;
+  /** Full label ("Pecs › Clavicular (Upper)") shown inside the drawer where there's room */
+  fullLabel: string;
   isHighlighted: boolean;
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
@@ -376,6 +381,7 @@ const MobileSlotRow = memo(function MobileSlotRow({
   slot,
   muscle,
   label,
+  fullLabel,
   isHighlighted,
   onSetSlotDetails,
   onRemove,
@@ -447,14 +453,14 @@ const MobileSlotRow = memo(function MobileSlotRow({
           </button>
         </DrawerTrigger>
         <DrawerContent className="max-h-[85vh]">
-          <DrawerTitle className="sr-only">{label}</DrawerTitle>
+          <DrawerTitle className="sr-only">{fullLabel}</DrawerTitle>
           <ScrollArea className="overflow-y-auto px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
           <div className="space-y-4">
             {/* Header with muscle label */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: muscle.colorHex }} />
-                <p className="text-base font-semibold">{label}</p>
+                <p className="text-base font-semibold">{fullLabel}</p>
               </div>
               <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setPopoverOpen(false)}>
                 Done

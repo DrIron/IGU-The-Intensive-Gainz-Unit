@@ -11,6 +11,7 @@ import { X, AlertTriangle, Dumbbell, Plus, RefreshCw, Settings2, FileText } from
 import { cn } from "@/lib/utils";
 import {
   getMuscleDisplay,
+  getShortMuscleLabel,
   MUSCLE_MAP,
   SUBDIVISION_MAP,
   type SlotExercise,
@@ -117,11 +118,15 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   const muscle = getMuscleDisplay(muscleId);
   if (!muscle) return null;
 
-  const label = formatSlotLabel(muscleId);
+  const fullLabel = formatSlotLabel(muscleId);
+  const shortLabel = getShortMuscleLabel(muscleId);
   const hasTempo = !!tempo && tempo.length === 4;
   const needsIntensity = hasTempo && rir == null && rpe == null;
   const hasExercise = !!exercise;
   const hasPerSet = !!setsDetail && setsDetail.length > 0;
+  // Exercise names are already short-ish; muscle/subdivision names benefit from compact form.
+  const displayLabel = hasExercise ? exercise.name : shortLabel;
+  const titleLabel = hasExercise ? exercise.name : fullLabel;
 
   return (
     <Draggable draggableId={`slot-${slotId}`} index={draggableIndex}>
@@ -154,10 +159,11 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
               <button
                 className="flex flex-col gap-0.5 flex-1 min-w-0 text-left"
                 onClick={e => e.stopPropagation()}
+                title={titleLabel}
               >
-                {/* Line 1 — name */}
+                {/* Line 1 — name (short for muscles, full for exercises; hover for full label) */}
                 <span className="font-medium truncate text-foreground text-[13px] leading-tight">
-                  {hasExercise ? exercise.name : label}
+                  {displayLabel}
                 </span>
                 {/* Line 2 — sets badge + tempo + status icons */}
                 <span className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground">
@@ -192,7 +198,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                   <SlotEditorPopover
                     slotId={slotId}
                     muscleId={muscleId}
-                    label={label}
+                    label={fullLabel}
                     sets={sets}
                     repMin={repMin}
                     repMax={repMax}

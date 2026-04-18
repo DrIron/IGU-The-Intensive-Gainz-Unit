@@ -326,6 +326,129 @@ export function getMuscleDisplay(muscleId: string): { label: string; colorClass:
   return { label: sub.label, colorClass: parentDef.colorClass, colorHex: parentDef.colorHex };
 }
 
+// ============================================================
+// Short labels — compact names for narrow slot cards.
+// Full label is always available via getMuscleDisplay; use these for
+// the calendar slot row only. Keep them short, unique, lowercase-friendly.
+// ============================================================
+
+/** Short label for each parent muscle (fallback when no subdivision) */
+const PARENT_SHORT_LABELS: Record<string, string> = {
+  pecs: 'Pecs',
+  shoulders: 'Delts',
+  triceps: 'Tri',
+  rotator_cuff: 'RC',
+  serratus: 'Serr',
+  lats: 'Lats',
+  upper_mid_back: 'Back',
+  elbow_flexors: 'Bi',
+  forearm: 'Frm',
+  quads: 'Quads',
+  hamstrings: 'Hams',
+  glutes: 'Glutes',
+  calves: 'Calves',
+  adductors: 'Add',
+  abductors: 'Abd',
+  hip_flexors: 'Hips',
+  tibialis: 'Tib',
+  core: 'Core',
+  neck: 'Neck',
+};
+
+/** Short sub-part, joined to the parent short label with " / " */
+const SUBDIVISION_SHORT_PARTS: Record<string, string> = {
+  // Pecs
+  pecs_clavicular: 'Upper',
+  pecs_sternal: 'Mid',
+  pecs_costal: 'Lower',
+  // Shoulders
+  shoulders_anterior: 'Front',
+  shoulders_lateral: 'Side',
+  shoulders_posterior: 'Rear',
+  // Triceps
+  triceps_long: 'Long',
+  triceps_lat_med: 'Lat+Med',
+  // Rotator Cuff
+  rotator_cuff_supraspinatus: 'Supra',
+  rotator_cuff_infraspinatus: 'Infra',
+  rotator_cuff_subscapularis: 'Subsc',
+  rotator_cuff_teres_minor: 'T.Min',
+  // Serratus
+  serratus_anterior: 'Ant',
+  // Lats
+  lats_iliac: 'Iliac',
+  lats_thoracic: 'Thor',
+  lats_lumbar: 'Lumb',
+  // Upper / Mid Back
+  upper_back_upper_traps: 'U.Trap',
+  mid_back_mid_traps: 'M.Trap',
+  mid_back_low_traps: 'L.Trap',
+  mid_back_rhomboids: 'Rhom',
+  upper_back_teres_major: 'T.Maj',
+  // Elbow Flexors
+  elbow_flexors_biceps_short: 'Bi.Sh',
+  elbow_flexors_biceps_long: 'Bi.Lg',
+  elbow_flexors_brachialis: 'Brach',
+  elbow_flexors_brachioradialis: 'B.Rad',
+  // Forearm
+  forearm_flexors: 'WFlex',
+  forearm_extensors: 'WExt',
+  forearm_digital_flexors: 'Grip',
+  forearm_digital_extensors: 'D.Ext',
+  forearm_supinators: 'Sup',
+  forearm_pronators: 'Pro',
+  // Quads
+  quads_rectus_femoris: 'RF',
+  quads_vastus_lateralis: 'VL',
+  quads_vastus_medialis: 'VM',
+  quads_vastus_intermedius: 'VI',
+  // Calves
+  calves_gastrocnemius: 'Gastr',
+  calves_soleus: 'Sol',
+  // Tibialis
+  tibialis_anterior: 'Ant',
+  // Glutes
+  glutes_max: 'Max',
+  glutes_med: 'Med',
+  glutes_min: 'Min',
+  // Hip Flexors
+  hip_flexors_rec_fem: 'RF',
+  hip_flexors_sartorius: 'Sart',
+  hip_flexors_iliacus: 'Iliac',
+  // Core
+  core_rectus_abdominis: 'RA',
+  core_internal_obliques: 'Int.Ob',
+  core_external_obliques: 'Ext.Ob',
+  core_transversus: 'TrAb',
+  core_erectors: 'Erctr',
+  core_pelvic_floor: 'Pelv',
+  // Neck
+  neck_scm: 'SCM',
+  neck_upper_traps: 'U.Trap',
+  neck_scalenes: 'Scal',
+  neck_splenius: 'Splen',
+};
+
+/**
+ * Compact label for slot cards: parent short + optional subdivision part.
+ * Examples: "Pecs", "Pecs / Upper", "Back / U.Trap", "Bi / Bi.Sh".
+ * Keep under ~16 chars so it fits a 160px column without truncation.
+ */
+export function getShortMuscleLabel(muscleId: string): string {
+  // Subdivision: join parent + sub part.
+  const sub = SUBDIVISION_MAP.get(muscleId);
+  if (sub) {
+    const parent = PARENT_SHORT_LABELS[sub.parentId] ?? sub.parentId;
+    const part = SUBDIVISION_SHORT_PARTS[muscleId];
+    return part ? `${parent} / ${part}` : parent;
+  }
+  // Parent muscle: return its short form.
+  if (PARENT_SHORT_LABELS[muscleId]) return PARENT_SHORT_LABELS[muscleId];
+  // Non-muscle (cardio/hiit/etc.) — fall back to the full label from MUSCLE_MAP.
+  const parent = MUSCLE_MAP.get(muscleId);
+  return parent?.label ?? muscleId;
+}
+
 export const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 export const BODY_REGION_LABELS: Record<BodyRegion, string> = {
