@@ -130,10 +130,12 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
           ref={provided.innerRef}
           {...provided.draggableProps}
           className={cn(
-            `group flex items-center gap-1.5 px-2 py-1.5 rounded-md border text-sm transition-all`,
+            `group flex items-stretch gap-1.5 px-2 py-1.5 rounded-md border text-sm`,
+            // Only animate hover/border when not actively dragging — CSS transitions during
+            // a drag make @hello-pangea/dnd feel laggy because every position update re-animates.
             snapshot.isDragging
               ? 'shadow-lg ring-2 ring-primary/50 bg-card'
-              : 'bg-card/50 border-border/50 hover:border-border',
+              : 'bg-card/50 border-border/50 hover:border-border transition-colors',
             isHighlighted && 'ring-2 ring-primary animate-pulse bg-primary/10',
           )}
           style={{
@@ -141,46 +143,40 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
             backgroundColor: snapshot.isDragging || isHighlighted ? undefined : `${muscle.colorHex}08`,
           }}
         >
-          {/* Drag handle */}
-          <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing shrink-0 flex items-center">
-            <div className={`w-2 h-2 rounded-full ${muscle.colorClass}`} />
+          {/* Color strip + drag handle — vertical bar keeps the card's color identity without eating horizontal space */}
+          <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing shrink-0 flex items-stretch">
+            <div className="w-1 rounded-full" style={{ backgroundColor: muscle.colorHex }} />
           </div>
 
-          {/* Clickable area → opens popover */}
+          {/* Clickable area → opens popover. Two-line layout so the name always gets full width. */}
           <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
             <PopoverTrigger asChild>
               <button
-                className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
+                className="flex flex-col gap-0.5 flex-1 min-w-0 text-left"
                 onClick={e => e.stopPropagation()}
               >
-                <span className="font-medium truncate text-foreground">
+                {/* Line 1 — name */}
+                <span className="font-medium truncate text-foreground text-[13px] leading-tight">
                   {hasExercise ? exercise.name : label}
                 </span>
-                <span
-                  className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"
-                  style={{ backgroundColor: `${muscle.colorHex}20`, color: muscle.colorHex }}
-                >
-                  {sets}s
+                {/* Line 2 — sets badge + tempo + status icons */}
+                <span className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground">
+                  <span
+                    className="px-1.5 py-0.5 rounded-full shrink-0"
+                    style={{ backgroundColor: `${muscle.colorHex}26`, color: muscle.colorHex }}
+                  >
+                    {sets}×{repMin && repMax ? `${repMin}-${repMax}` : repMin ?? repMax ?? '—'}
+                  </span>
+                  {hasTempo && <span className="shrink-0">{tempo}</span>}
+                  {hasExercise && <Dumbbell className="h-3 w-3 text-emerald-500 shrink-0" />}
+                  {hasPerSet && <Settings2 className="h-3 w-3 text-blue-400 shrink-0" />}
+                  {replacements && replacements.length > 0 && (
+                    <span className="shrink-0 text-muted-foreground/70">+{replacements.length}</span>
+                  )}
+                  {needsIntensity && !hasPerSet && (
+                    <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                  )}
                 </span>
-                {hasTempo && (
-                  <span className="text-[10px] font-mono text-muted-foreground shrink-0">
-                    {tempo}
-                  </span>
-                )}
-                {hasExercise && (
-                  <Dumbbell className="h-3 w-3 text-emerald-500 shrink-0" />
-                )}
-                {hasPerSet && (
-                  <Settings2 className="h-3 w-3 text-blue-400 shrink-0" />
-                )}
-                {replacements && replacements.length > 0 && (
-                  <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
-                    +{replacements.length}
-                  </span>
-                )}
-                {needsIntensity && !hasPerSet && (
-                  <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
-                )}
               </button>
             </PopoverTrigger>
             <PopoverContent

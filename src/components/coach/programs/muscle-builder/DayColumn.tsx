@@ -122,7 +122,9 @@ export const DayColumn = memo(function DayColumn({
     <Card
       data-day-index={dayIndex}
       className={cn(
-        `group min-w-[140px] flex-1 transition-all cursor-pointer`,
+        // transition-colors only — the previous `transition-all` animated layout shifts
+        // during drag-over, which made @hello-pangea/dnd hover feedback feel laggy.
+        `group min-w-[160px] flex-1 transition-colors cursor-pointer`,
         isSelected ? 'ring-2 ring-primary border-primary/50' : 'border-border/50 hover:border-border',
         className,
       )}
