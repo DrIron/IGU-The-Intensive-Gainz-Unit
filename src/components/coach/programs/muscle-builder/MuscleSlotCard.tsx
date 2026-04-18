@@ -184,13 +184,14 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
               </button>
             </PopoverTrigger>
             <PopoverContent
-              className="w-80 p-0"
+              className="w-[420px] max-w-[calc(100vw-2rem)] p-0"
               onClick={e => e.stopPropagation()}
               align="start"
               side="right"
               sideOffset={8}
+              collisionPadding={16}
             >
-              <ScrollArea className="max-h-[70vh]">
+              <ScrollArea className="max-h-[85vh]">
                 <div className="p-3">
                   <SlotEditorPopover
                     slotId={slotId}

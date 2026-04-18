@@ -450,7 +450,10 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       );
 
     case 'MARK_SAVED':
-      return { ...state, templateId: action.templateId, isDirty: state.isDirty, isSaving: false };
+      // Clear isDirty so auto-save doesn't immediately refire. If the user edits
+      // mid-save, the next SET_* action flips isDirty back to true and auto-save
+      // picks it up after the 2s debounce.
+      return { ...state, templateId: action.templateId, isDirty: false, isSaving: false };
 
     case 'SAVING':
       return { ...state, isSaving: true };
