@@ -96,6 +96,8 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   isHighlighted,
   onSetAllSets,
   alwaysShowControls,
+  weekCount,
+  onApplyToRemaining,
 }: MuscleSlotCardProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
