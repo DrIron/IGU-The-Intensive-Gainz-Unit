@@ -220,14 +220,23 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
   const deleteProgram = async () => {
     if (!deleteTarget) return;
     try {
-      // A program_template may be referenced by muscle_program_templates.converted_program_id
-      // (the muscle plan that generated it) — clear that link first so the DELETE doesn't 409.
-      // Client_programs are independent copies and are NOT deleted (see modal copy).
-      const { error: unlinkError } = await supabase
-        .from("muscle_program_templates")
-        .update({ converted_program_id: null })
-        .eq("converted_program_id", deleteTarget.id);
-      if (unlinkError) throw unlinkError;
+      // A program_template can be referenced by two upstream tables:
+      //  - muscle_program_templates.converted_program_id (the muscle plan that generated it)
+      //  - coach_teams.current_program_template_id (teams using this as their current program)
+      // Clear both links first so the DELETE doesn't 409.
+      // Client_programs are independent copies and survive (see modal copy).
+      const [{ error: unlinkMuscleError }, { error: unlinkTeamError }] = await Promise.all([
+        supabase
+          .from("muscle_program_templates")
+          .update({ converted_program_id: null })
+          .eq("converted_program_id", deleteTarget.id),
+        supabase
+          .from("coach_teams")
+          .update({ current_program_template_id: null })
+          .eq("current_program_template_id", deleteTarget.id),
+      ]);
+      if (unlinkMuscleError) throw unlinkMuscleError;
+      if (unlinkTeamError) throw unlinkTeamError;
 
       const { error } = await supabase
         .from("program_templates")
@@ -274,12 +283,19 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
     try {
       const ids = Array.from(selectedIds);
 
-      // Clear muscle_program_templates.converted_program_id references to avoid FK 409s.
-      const { error: unlinkError } = await supabase
-        .from("muscle_program_templates")
-        .update({ converted_program_id: null })
-        .in("converted_program_id", ids);
-      if (unlinkError) throw unlinkError;
+      // Clear upstream references to avoid FK 409s.
+      const [{ error: unlinkMuscleError }, { error: unlinkTeamError }] = await Promise.all([
+        supabase
+          .from("muscle_program_templates")
+          .update({ converted_program_id: null })
+          .in("converted_program_id", ids),
+        supabase
+          .from("coach_teams")
+          .update({ current_program_template_id: null })
+          .in("current_program_template_id", ids),
+      ]);
+      if (unlinkMuscleError) throw unlinkMuscleError;
+      if (unlinkTeamError) throw unlinkTeamError;
 
       const { error } = await supabase
         .from("program_templates")
