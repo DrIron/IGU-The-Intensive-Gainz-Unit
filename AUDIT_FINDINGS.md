@@ -1,9 +1,28 @@
-# IGU Audit Findings — 2026-04-17
+# IGU Audit Findings — 2026-04-17 (addendum 2026-04-18)
 
 Environment: https://theigu.com (production)
-Build: Apr 17, 2026, 10:29 AM
+Build: Apr 17, 2026 → rolling deploys through Apr 18
 Auditor: Claude (Opus 4.7)
-Method: Playwright live nav, logged in as admin@theigu.com (admin role)
+Method: Playwright live nav + live coach session on Apr 18
+
+---
+
+## APR 18 ADDENDUM — 8 bugs surfaced during live coach session, all fixed
+
+Added on 2026-04-18 after the real coach sat down to build and delete a program. See `AUDIT_TRIAGE.md` § "2026-04-18 FOLLOW-UP" for the detailed write-up + commit hashes. Quick index:
+
+- 🔴 **Planning Board crashed on any preset pick** — `MuscleSlotCard` missing destructured props from Phase 38. `c8429a3`
+- 🔴 **Could not delete a program** — two sequential FK 409s (`muscle_program_templates.converted_program_id`, then `coach_teams.current_program_template_id`). `7d7619b` + `f8b2a8c`
+- 🟠 **Coach dashboard didn't scroll on desktop** — nested scroll container swallowing wheel events. All 3 role layouts + AdminPageLayout, 10 sites. `7d7619b`
+- 🟠 **Save button flickered on/off with auto-save loop** — `MARK_SAVED` reducer preserved isDirty instead of clearing it. `837e70c`
+- 🟠 **Muscle names invisible in week view slot rows** — flex row with shrink-0 badges/icons squeezed the truncating name to zero width. 2-line layout. `5e4bb58`
+- 🟡 **Slot popover clipped per-set table (Rest column off-screen)** — 320 → 420px with viewport clamp + collisionPadding. `837e70c`
+- 🟡 **DnD felt laggy** — `transition-all` CSS was animating every drag position update. `5e4bb58`
+- 🟡 **Error toasts were generic "Something went wrong"** — `deleteProgram` + `ConvertToProgram` now surface the actual Postgres error detail so future FK or auto-fill failures are immediately diagnosable. `7d7619b` + `4f845f0`
+
+All 8 shipped the same day they were found. Six of eight were regressions introduced in Phase 30–38 feature work that my Playwright sweep did not hit because I wasn't exercising the real flow (pick preset → click save → delete test program). That's the strongest argument for a one-more-human-pass before launch.
+
+---
 
 ## Legend
 - 🔴 Critical — blocks core flows / security / data integrity

@@ -1,8 +1,47 @@
-# IGU Launch-Readiness Triage — 2026-04-17
+# IGU Launch-Readiness Triage — 2026-04-17 (updated 2026-04-18)
 
 Based on a full click-through audit of every admin / coach / client page on theigu.com, desktop + mobile. Full findings: `AUDIT_FINDINGS.md`.
 
 The question isn't "should we fix everything?" — it's "what blocks launch?"
+
+---
+
+## 2026-04-18 FOLLOW-UP — bugs the coach hit in real use (all fixed)
+
+Apr 18: coach (dr.ironofficial@gmail.com) sat down to build a new program and assign it to a test client. Every one of these surfaced during that single session — the same pattern as launch day will look like.
+
+### A. Coach dashboard didn't scroll on desktop [FIXED — `7d7619b`]
+All three layouts (coach / admin / client + the AdminPageLayout) had `<main class="flex-1 overflow-auto">`. That made `<main>` a scroll container that absorbed mouse-wheel events even when its content fit exactly inside it, so the outer body/html never got a chance to scroll. Replaced with `flex-1 min-w-0` across all 10 occurrences. Wheel now bubbles to the body.
+
+### B. Could not delete the Upper / Lower program [FIXED — `7d7619b` + `f8b2a8c`]
+Delete hit Postgres 409 from two different FKs in sequence:
+1. `muscle_program_templates.converted_program_id` (the muscle plan that generated the program).
+2. `coach_teams.current_program_template_id` (the Fe Squad team had Upper/Lower as its current program).
+
+Single-delete + bulk-delete now null out both references in parallel before the DELETE. The error toast also now surfaces the actual Postgres detail so future FK blockers are obvious instead of "Something went wrong".
+
+### C. Planning Board crashed the moment any preset was picked [FIXED — `c8429a3`]
+`ReferenceError: weekCount is not defined` from `MuscleSlotCard`. Phase 38 mesocycle work added `weekCount` and `onApplyToRemaining` to the props interface and used them in JSX at lines 223–224, but forgot to destructure them from the function parameters. Bug only surfaced when a MuscleSlotCard actually rendered — i.e. the instant the coach picked any preset or dropped any muscle on a day. Empty plan looked fine.
+
+### D. Save button flickered on/off with no confirmation toast [FIXED — `837e70c`]
+`MARK_SAVED` reducer was doing `isDirty: state.isDirty` — a no-op that preserved whatever isDirty was before the save. The auto-save effect then saw dirty=true, isSaving=false immediately after each save and scheduled another save in 2s. Infinite loop. The "Muscle plan saved" toast still fired but got buried in the churn of Save enable/disable cycles. Now clears `isDirty: false` on MARK_SAVED.
+
+### E. Slot popover clipped the per-set table (Rest column off-screen) [FIXED — `837e70c`]
+`PopoverContent className="w-80 p-0"` (320px) too narrow for the 5-column per-set table (# + Reps + Tempo + RIR + Rest). Widened to `w-[420px] max-w-[calc(100vw-2rem)]` with `collisionPadding={16}`, raised `max-h` 70vh → 85vh.
+
+### F. Muscle names invisible in week view slot rows [FIXED — `5e4bb58`]
+The slot row was a single flex line: `[color dot][name flex-1 min-w-0 truncate][sets badge][tempo][icons]`. At 140px-wide day columns, the shrink-0 badges + icons took all the horizontal space and the truncating name collapsed to zero width — every row just showed `● [4s] [2010] [🔗]` with no muscle or exercise name. Restructured to two lines: line 1 = full-width name, line 2 = metadata row. Color dot became a thin vertical strip.
+
+### G. DnD felt laggy [FIXED — `5e4bb58`]
+Both the slot card and the DayColumn wrapper had `transition-all`. @hello-pangea/dnd updates position many times per second during a drag, and the catch-all transition was animating each micro-update. Narrowed to `transition-colors` for hover only so drag motion is immediate. Also bumped day column min-width 140 → 160px for more breathing room for the new two-line slot layout.
+
+### H. Coach menu dropdown missing half the nav [FIXED — earlier `4f845f0`]
+Already covered in the main triage section below. Mentioning here because it was a coach-hit annoyance too.
+
+**Pattern from these 8 bugs:**
+- 6 of 8 were introduced during Phase 30–38 feature work (team plans, mesocycle, multi-session, auto-save). Not one was caught in review.
+- All 8 surfaced within the first 15 minutes a real coach sat down to use the system.
+- This is the strongest argument for one more human QA pass after these fixes deploy — my Playwright-driven audit missed every single one of these because I wasn't doing what a real coach does (pick a preset, type in a name, hit save, delete the test program).
 
 ---
 
@@ -106,21 +145,29 @@ The question isn't "should we fix everything?" — it's "what blocks launch?"
 
 ## APPLIED INLINE IN THIS AUDIT (uncommitted diff summary)
 
-| File | Change |
-|------|--------|
-| `src/pages/admin/SystemHealth.tsx` | `/admin/health` banner contrast fix |
-| `src/components/marketing/ComparisonTable.tsx` | Added 1:1 Complete column + Dedicated Dietitian row |
-| `src/components/ClientList.tsx` | Removed aggressive 1:1 abbreviations |
-| `src/pages/BillingPayment.tsx` | Guard for payment-exempt clients |
-| `src/App.tsx` | `/teams` wrapped in `WaitlistGuard` |
-| `src/components/coach/teams/AssignTeamProgramDialog.tsx` | Pluralize "1 Member" / "N Members" |
-| `src/components/Navigation.tsx` | Menu dropdown has full nav for all 3 roles; "Services" link hidden for signed-in clients |
-| `src/components/coach/programs/SessionEditorSheet.tsx` | Added `<SheetTitle>` (a11y) + title aria-label |
-| `src/components/coach/CoachMyClientsPage.tsx` | Query unions team-plan subs so coaches see team members |
-| `src/components/coach/CoachDashboardOverview.tsx` | Dashboard metrics + Compensation counts union team-plan subs |
-| `src/components/CoachManagement.tsx` | `/admin/coaches` Total Clients column attributes team subs to head coach |
-| `src/components/coach/programs/muscle-builder/ConvertToProgram.tsx` | Auto-fill errors now throw + toast instead of silent `console.warn` |
-| `supabase/migrations/20260501_deactivate_legacy_team_services.sql` | Deactivate team_fe_squad + team_bunz |
+| File | Change | Commit |
+|------|--------|--------|
+| `src/pages/admin/SystemHealth.tsx` | `/admin/health` banner contrast fix | `4f845f0` |
+| `src/components/marketing/ComparisonTable.tsx` | Added 1:1 Complete column + Dedicated Dietitian row | `4f845f0` |
+| `src/components/ClientList.tsx` | Removed aggressive 1:1 abbreviations | `4f845f0` |
+| `src/pages/BillingPayment.tsx` | Guard for payment-exempt clients | `4f845f0` |
+| `src/App.tsx` | `/teams` wrapped in `WaitlistGuard` | `4f845f0` |
+| `src/components/coach/teams/AssignTeamProgramDialog.tsx` | Pluralize "1 Member" / "N Members" | `4f845f0` |
+| `src/components/Navigation.tsx` | Menu dropdown has full nav for all 3 roles; "Services" link hidden for signed-in clients | `4f845f0` |
+| `src/components/coach/programs/SessionEditorSheet.tsx` | Added `<SheetTitle>` (a11y) + title aria-label | `4f845f0` |
+| `src/components/coach/CoachMyClientsPage.tsx` | Query unions team-plan subs so coaches see team members | `4f845f0` |
+| `src/components/coach/CoachDashboardOverview.tsx` | Dashboard metrics + Compensation counts union team-plan subs | `4f845f0` |
+| `src/components/CoachManagement.tsx` | `/admin/coaches` Total Clients column attributes team subs to head coach | `4f845f0` |
+| `src/components/coach/programs/muscle-builder/ConvertToProgram.tsx` | Auto-fill errors now throw + toast instead of silent `console.warn` | `4f845f0` |
+| `supabase/migrations/20260501_deactivate_legacy_team_services.sql` | Deactivate team_fe_squad + team_bunz | `4f845f0` |
+| `src/components/coach/CoachDashboardLayout.tsx` | Removed `overflow-auto` from `<main>` so wheel events bubble to body | `7d7619b` |
+| `src/components/admin/AdminDashboardLayout.tsx` | Same scroll fix | `7d7619b` |
+| `src/components/admin/AdminPageLayout.tsx` | Same scroll fix | `7d7619b` |
+| `src/components/client/ClientDashboardLayout.tsx` | Same scroll fix (7 occurrences) | `7d7619b` |
+| `src/components/coach/programs/ProgramLibrary.tsx` | Delete program now clears `muscle_program_templates.converted_program_id` and `coach_teams.current_program_template_id` FKs first; toasts the real Postgres error | `7d7619b` + `f8b2a8c` |
+| `src/components/coach/programs/muscle-builder/MuscleSlotCard.tsx` | Destructure `weekCount` + `onApplyToRemaining` from props (Planning Board crash fix); widen popover 320 → 420px with viewport clamp + collisionPadding; 2-line slot layout (name + metadata); no transition during drag | `c8429a3` + `837e70c` + `5e4bb58` |
+| `src/components/coach/programs/muscle-builder/hooks/useMuscleBuilderState.ts` | `MARK_SAVED` now clears `isDirty` — breaks the auto-save flicker loop | `837e70c` |
+| `src/components/coach/programs/muscle-builder/DayColumn.tsx` | `transition-all` → `transition-colors`; min-width 140 → 160px | `5e4bb58` |
 
 ---
 
