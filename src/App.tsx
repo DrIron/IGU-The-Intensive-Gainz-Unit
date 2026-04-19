@@ -105,7 +105,11 @@ const ClientMobileNavGlobal = memo(function ClientMobileNavGlobal() {
     "/educational-videos",
     "/account",
     "/billing",
+    "/payment-status",
+    "/payment-return",
   ];
+  // Hide on active workout session — distraction-free logging UI
+  if (location.pathname.startsWith("/client/workout/session/")) return null;
   const isClientRoute = clientPaths.some(p => location.pathname === p || location.pathname.startsWith(p + "/"));
 
   if (!isClientRoute) return null;
@@ -128,7 +132,7 @@ const CoachMobileNavGlobal = memo(function CoachMobileNavGlobal() {
   const location = useLocation();
   // Include standalone coach-facing routes that don't live under /coach/*
   // (e.g. the shared /coach-client-nutrition page).
-  const coachPrefixes = ["/coach", "/coach-client-nutrition"];
+  const coachPrefixes = ["/coach", "/coach-client-nutrition", "/client-submission"];
   const isCoachRoute = coachPrefixes.some(
     p => location.pathname === p || location.pathname.startsWith(p + "/")
   );
@@ -148,7 +152,10 @@ const MobileBottomNavCoach = lazy(() =>
 /** Mobile bottom nav for admin routes — persists across all authenticated admin pages */
 const AdminMobileNavGlobal = memo(function AdminMobileNavGlobal() {
   const location = useLocation();
-  const isAdminRoute = location.pathname === "/admin" || location.pathname.startsWith("/admin/");
+  const isAdminRoute =
+    location.pathname === "/admin" ||
+    location.pathname.startsWith("/admin/") ||
+    location.pathname === "/testimonials-management";
   if (!isAdminRoute) return null;
   return <MobileBottomNavAdmin />;
 });
@@ -232,7 +239,7 @@ const App = () => {
                   <Route path="/nutrition" element={<AuthGuard><OnboardingGuard><Nutrition /></OnboardingGuard></AuthGuard>} />
                   <Route path="/nutrition-team" element={<AuthGuard><OnboardingGuard><TeamNutrition /></OnboardingGuard></AuthGuard>} />
                   <Route path="/nutrition-client" element={<AuthGuard><OnboardingGuard><ClientNutrition /></OnboardingGuard></AuthGuard>} />
-                  <Route path="/coach-client-nutrition" element={<AuthGuard><CoachClientNutrition /></AuthGuard>} />
+                  <Route path="/coach-client-nutrition" element={<RoleProtectedRoute requiredRole="coach"><CoachClientNutrition /></RoleProtectedRoute>} />
                   <Route path="/payment-status" element={<AuthGuard><PaymentStatus /></AuthGuard>} />
                   <Route path="/payment-return" element={<AuthGuard><PaymentReturn /></AuthGuard>} />
                   <Route path="/billing/pay" element={<AuthGuard><BillingPayment /></AuthGuard>} />

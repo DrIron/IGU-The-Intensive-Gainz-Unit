@@ -230,7 +230,7 @@ export default function ClientSubmission() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 pt-20 pb-4 px-4">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 pt-20 pb-24 md:pb-4 px-4">
       <div className="container mx-auto max-w-4xl py-8">
         <Button 
           variant="ghost" 

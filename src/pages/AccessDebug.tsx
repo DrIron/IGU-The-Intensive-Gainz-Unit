@@ -156,7 +156,7 @@ has_role(coach): ${data.hasRoleCoachResult ?? "RPC not available"}
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
+    <div className="min-h-screen bg-background p-6 pb-24 md:pb-6">
       <div className="mx-auto max-w-2xl space-y-6">
         <div className="flex items-center justify-between">
           <div>

@@ -196,7 +196,7 @@ function TestimonialsManagementContent() {
     <div className="min-h-screen bg-background">
       <Navigation user={user} />
       
-      <div className="container mx-auto px-4 pt-24 pb-8 max-w-7xl">
+      <div className="container mx-auto px-4 pt-24 pb-24 md:pb-8 max-w-7xl">
         <Card>
           <CardHeader>
             <CardTitle className="text-3xl">Testimonials Management</CardTitle>

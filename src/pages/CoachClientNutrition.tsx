@@ -255,7 +255,7 @@ export default function CoachClientNutrition() {
     : clients;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 px-4 pt-6 pb-24 md:pb-8">
       <div className="mb-6">
         <h1 className="text-3xl font-bold mb-2">Client Nutrition</h1>
         <p className="text-muted-foreground">Manage nutrition plans for your clients</p>

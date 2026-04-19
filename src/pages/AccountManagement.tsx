@@ -473,7 +473,7 @@ export default function AccountManagement() {
     <div className="min-h-screen bg-background">
       <Navigation user={user} />
       
-      <main className="pt-24 pb-12 px-4">
+      <main className="pt-24 pb-24 md:pb-12 px-4">
         <div className="container mx-auto max-w-4xl">
           <h1 className="text-4xl font-bold mb-8">Account Settings</h1>
 
