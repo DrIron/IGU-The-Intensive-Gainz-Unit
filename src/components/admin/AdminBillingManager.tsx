@@ -351,22 +351,38 @@ export function AdminBillingManager() {
       // the IGU admin coach (same pattern as create-manual-client). Without this,
       // the sub sits with coach_id=NULL and flags the System Health "1:1 without
       // coach" warning. Admins can reassign later via the normal edit flow.
+      //
+      // Email lives on coaches_private (moved from coaches.email by migration
+      // 20260117164058 as part of the PII split). user_id joins to coaches_public
+      // so we can confirm status='approved'.
       if (newExemptStatus) {
-        const { data: adminCoach, error: adminCoachError } = await supabase
-          .from("coaches")
+        const { data: privateRow, error: privateErr } = await supabase
+          .from("coaches_private")
           .select("user_id")
           .eq("email", "dr.ironofficial@gmail.com")
-          .eq("status", "approved")
           .maybeSingle();
 
-        if (adminCoachError) throw adminCoachError;
+        if (privateErr) throw privateErr;
+
+        let adminCoachUserId: string | null = null;
+        if (privateRow?.user_id) {
+          const { data: publicRow, error: publicErr } = await supabase
+            .from("coaches_public")
+            .select("user_id, status")
+            .eq("user_id", privateRow.user_id)
+            .maybeSingle();
+          if (publicErr) throw publicErr;
+          if (publicRow?.status === "approved") {
+            adminCoachUserId = publicRow.user_id;
+          }
+        }
 
         const { error: subError } = await supabase
           .from("subscriptions")
           .update({
             status: "active",
             past_due_since: null,
-            ...(adminCoach?.user_id ? { coach_id: adminCoach.user_id } : {}),
+            ...(adminCoachUserId ? { coach_id: adminCoachUserId } : {}),
           })
           .eq("id", selectedClient.id)
           .is("coach_id", null);

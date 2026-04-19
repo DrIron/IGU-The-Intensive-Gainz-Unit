@@ -211,19 +211,34 @@ serve(async (req) => {
       console.error(JSON.stringify({ fn: "create-manual-client", step: "upsert_profiles_private", ok: false, error: "upsert_failed" }));
     }
 
-    // Find the IGU admin coach account
-    const { data: adminCoach, error: coachError } = await supabaseAdmin
-      .from("coaches")
+    // Find the IGU admin coach account. Email lives on coaches_private (moved
+    // from coaches.email by 20260117164058 PII split); user_id joins to
+    // coaches_public for the status check. This function runs as service role
+    // so RLS on coaches_private is bypassed.
+    const { data: privateRow, error: privateErr } = await supabaseAdmin
+      .from("coaches_private")
       .select("user_id")
       .eq("email", "dr.ironofficial@gmail.com")
-      .eq("status", "approved")
       .maybeSingle();
 
-    if (coachError) {
-      console.error(JSON.stringify({ fn: "create-manual-client", step: "find_admin_coach", ok: false, error: "query_failed" }));
+    if (privateErr) {
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "find_admin_coach_private", ok: false, error: "query_failed" }));
     }
 
-    const coachId = adminCoach?.user_id || null;
+    let coachId: string | null = null;
+    if (privateRow?.user_id) {
+      const { data: publicRow, error: publicErr } = await supabaseAdmin
+        .from("coaches_public")
+        .select("user_id, status")
+        .eq("user_id", privateRow.user_id)
+        .maybeSingle();
+      if (publicErr) {
+        console.error(JSON.stringify({ fn: "create-manual-client", step: "find_admin_coach_public", ok: false, error: "query_failed" }));
+      }
+      if (publicRow?.status === "approved") {
+        coachId = publicRow.user_id;
+      }
+    }
     console.log(JSON.stringify({ fn: "create-manual-client", step: "assign_coach", ok: true, coach_id: coachId }));
 
     // Ensure profiles_legacy row exists (FK required by subscriptions table)
