@@ -306,6 +306,16 @@ export function MuscleBuilderPage({
     [dispatch]
   );
 
+  const handleDeleteSetAtIndex = useCallback(
+    (slotId: string, setIndex: number) => dispatch({ type: 'DELETE_SET_AT_INDEX', slotId, setIndex }),
+    [dispatch]
+  );
+
+  const handleApplySetToRemaining = useCallback(
+    (slotId: string, fromIndex: number) => dispatch({ type: 'APPLY_SET_TO_REMAINING', slotId, fromIndex }),
+    [dispatch]
+  );
+
   const handleSetExerciseInstructions = useCallback(
     (slotId: string, instructions: string) =>
       dispatch({ type: 'SET_EXERCISE_INSTRUCTIONS', slotId, instructions }),
@@ -588,6 +598,8 @@ export function MuscleBuilderPage({
               onOpenExercisePicker={handleOpenExercisePicker}
               onTogglePerSet={handleTogglePerSet}
               onUpdateSetDetail={handleUpdateSetDetail}
+              onDeleteSetAtIndex={handleDeleteSetAtIndex}
+              onApplySetToRemaining={handleApplySetToRemaining}
               onSetExerciseInstructions={handleSetExerciseInstructions}
               onSetSlotClientInputs={handleSetSlotClientInputs}
               onSetSlotColumns={handleSetSlotColumns}

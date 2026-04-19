@@ -5,7 +5,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal } from "lucide-react";
+import { MobileSetCarousel } from "./MobileSetCarousel";
 import { cn } from "@/lib/utils";
 import {
   DAYS_OF_WEEK,
@@ -37,8 +38,11 @@ interface MobileDayDetailProps {
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   onTogglePerSet?: (slotId: string) => void;
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onDeleteSetAtIndex?: (slotId: string, setIndex: number) => void;
+  onApplySetToRemaining?: (slotId: string, fromIndex: number) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
+  onSetSlotColumns?: (slotId: string, columns: string[]) => void;
   globalClientInputs?: string[];
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
@@ -78,8 +82,11 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onOpenExercisePicker,
   onTogglePerSet,
   onUpdateSetDetail,
+  onDeleteSetAtIndex,
+  onApplySetToRemaining,
   onSetExerciseInstructions,
   onSetSlotClientInputs,
+  onSetSlotColumns,
   globalClientInputs,
   copiedDayIndex,
   onCopyDay,
@@ -292,8 +299,11 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                       onOpenExercisePicker={onOpenExercisePicker}
                       onTogglePerSet={onTogglePerSet}
                       onUpdateSetDetail={onUpdateSetDetail}
+                      onDeleteSetAtIndex={onDeleteSetAtIndex}
+                      onApplySetToRemaining={onApplySetToRemaining}
                       onSetExerciseInstructions={onSetExerciseInstructions}
                       onSetSlotClientInputs={onSetSlotClientInputs}
+                      onSetSlotColumns={onSetSlotColumns}
                       globalClientInputs={globalClientInputs}
                       canMoveUp={index > 0}
                       canMoveDown={index < daySlots.length - 1}
@@ -366,8 +376,11 @@ interface MobileSlotRowProps {
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   onTogglePerSet?: (slotId: string) => void;
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onDeleteSetAtIndex?: (slotId: string, setIndex: number) => void;
+  onApplySetToRemaining?: (slotId: string, fromIndex: number) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
+  onSetSlotColumns?: (slotId: string, columns: string[]) => void;
   globalClientInputs?: string[];
   canMoveUp?: boolean;
   canMoveDown?: boolean;
@@ -390,8 +403,11 @@ const MobileSlotRow = memo(function MobileSlotRow({
   onOpenExercisePicker,
   onTogglePerSet,
   onUpdateSetDetail,
+  onDeleteSetAtIndex,
+  onApplySetToRemaining,
   onSetExerciseInstructions,
   onSetSlotClientInputs,
+  onSetSlotColumns,
   globalClientInputs,
   canMoveUp,
   canMoveDown,
@@ -404,6 +420,7 @@ const MobileSlotRow = memo(function MobileSlotRow({
 
   const hasTempo = !!slot.tempo && slot.tempo.length === 4;
   const needsIntensity = hasTempo && slot.rir == null && slot.rpe == null;
+  const hasPerSet = !!slot.setsDetail && slot.setsDetail.length > 0;
 
   const update = useCallback(
     (details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => {
@@ -467,12 +484,37 @@ const MobileSlotRow = memo(function MobileSlotRow({
               </Button>
             </div>
 
-            {/* Sets & Rep Range side by side */}
+            {/* Sets & Rep Range side by side.
+                Pencil icon on the Sets label opens the per-set carousel —
+                if per-set isn't on yet we toggle it first so the carousel
+                has a populated setsDetail to render. */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
-                <Label className="text-xs text-muted-foreground">Sets</Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs text-muted-foreground">Sets</Label>
+                  {slot.sets > 1 && onTogglePerSet && onUpdateSetDetail && (
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (!hasPerSet) onTogglePerSet(slot.id);
+                      }}
+                      className={cn(
+                        "inline-flex items-center gap-1 text-[10px] uppercase tracking-wider rounded-full px-2 h-5 transition-colors",
+                        hasPerSet
+                          ? "bg-primary/15 text-primary"
+                          : "bg-muted text-muted-foreground hover:text-foreground hover:bg-muted/80",
+                      )}
+                      title="Customise sets"
+                      aria-pressed={hasPerSet}
+                    >
+                      <SlidersHorizontal className="h-3 w-3" />
+                      {hasPerSet ? "On" : "Customise"}
+                    </button>
+                  )}
+                </div>
                 <Input
-                  type="number" min={1} max={20} value={slot.sets}
+                  type="number" min={1} value={slot.sets}
                   onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ sets: v }); }}
                   className="h-10 text-base" inputMode="numeric"
                 />
@@ -484,18 +526,35 @@ const MobileSlotRow = memo(function MobileSlotRow({
                     type="number" min={1} max={100} value={slot.repMin ?? 8}
                     onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ repMin: v }); }}
                     className="h-10 text-base flex-1" inputMode="numeric"
+                    disabled={hasPerSet}
                   />
                   <span className="text-xs text-muted-foreground">–</span>
                   <Input
                     type="number" min={1} max={100} value={slot.repMax ?? 12}
                     onChange={e => { const v = parseInt(e.target.value); if (!isNaN(v)) update({ repMax: v }); }}
                     className="h-10 text-base flex-1" inputMode="numeric"
+                    disabled={hasPerSet}
                   />
                 </div>
               </div>
             </div>
 
-            {/* Tempo, RIR, RPE in a row */}
+            {/* Per-set carousel OR flat tempo/RIR/RPE controls. When custom
+                sets are on, each set gets its own card and the flat row would
+                contradict them, so we replace. */}
+            {hasPerSet && slot.setsDetail && onUpdateSetDetail ? (
+              <MobileSetCarousel
+                sets={slot.setsDetail}
+                activeColumns={slot.prescriptionColumns && slot.prescriptionColumns.length > 0
+                  ? slot.prescriptionColumns
+                  : ['rep_range', 'tempo', 'rir', 'rest']}
+                onUpdateSet={(index, field, value) => onUpdateSetDetail(slot.id, index, field, value)}
+                onAddSet={() => update({ sets: slot.sets + 1 })}
+                onDeleteSet={onDeleteSetAtIndex ? (index) => onDeleteSetAtIndex(slot.id, index) : undefined}
+                onSetColumns={onSetSlotColumns ? (cols) => onSetSlotColumns(slot.id, cols) : undefined}
+                onApplyToRemaining={onApplySetToRemaining ? (index) => onApplySetToRemaining(slot.id, index) : undefined}
+              />
+            ) : (
             <div className="grid grid-cols-3 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs text-muted-foreground">Tempo</Label>
@@ -531,8 +590,9 @@ const MobileSlotRow = memo(function MobileSlotRow({
                 />
               </div>
             </div>
+            )}
 
-            {needsIntensity && (
+            {needsIntensity && !hasPerSet && (
               <div className="flex items-start gap-2 rounded-md bg-amber-500/10 border border-amber-500/20 px-3 py-2">
                 <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 shrink-0" />
                 <p className="text-xs text-amber-600 dark:text-amber-400">Add RIR or RPE for TUST tracking</p>

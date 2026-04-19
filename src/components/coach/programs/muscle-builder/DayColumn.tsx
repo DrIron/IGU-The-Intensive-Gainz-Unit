@@ -37,6 +37,8 @@ interface DayColumnProps {
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   onTogglePerSet?: (slotId: string) => void;
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onDeleteSetAtIndex?: (slotId: string, setIndex: number) => void;
+  onApplySetToRemaining?: (slotId: string, fromIndex: number) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
   onSetSlotColumns?: (slotId: string, columns: string[]) => void;
@@ -67,6 +69,8 @@ export const DayColumn = memo(function DayColumn({
   onOpenExercisePicker,
   onTogglePerSet,
   onUpdateSetDetail,
+  onDeleteSetAtIndex: _onDeleteSetAtIndex,
+  onApplySetToRemaining: _onApplySetToRemaining,
   onSetExerciseInstructions,
   onSetSlotClientInputs,
   onSetSlotColumns,

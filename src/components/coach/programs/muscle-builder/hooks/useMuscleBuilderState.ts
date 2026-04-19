@@ -46,6 +46,8 @@ type Action =
   | { type: 'REMOVE_REPLACEMENT'; slotId: string; replacementIndex: number }
   | { type: 'TOGGLE_PER_SET'; slotId: string }
   | { type: 'UPDATE_SET_DETAIL'; slotId: string; setIndex: number; field: keyof SetPrescription; value: number | string | undefined }
+  | { type: 'DELETE_SET_AT_INDEX'; slotId: string; setIndex: number }
+  | { type: 'APPLY_SET_TO_REMAINING'; slotId: string; fromIndex: number }
   | { type: 'SET_SLOT_COLUMNS'; slotId: string; columns: string[] }
   | { type: 'SET_EXERCISE_INSTRUCTIONS'; slotId: string; instructions: string }
   | { type: 'SET_GLOBAL_CLIENT_INPUTS'; columns: string[] }
@@ -261,7 +263,7 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
 
     case 'SET_SETS':
       return withUpdatedCurrentWeek(state, s =>
-        s.map(sl => sl.id === action.slotId ? { ...sl, sets: Math.max(1, Math.min(20, action.sets)) } : sl)
+        s.map(sl => sl.id === action.slotId ? { ...sl, sets: Math.max(1, action.sets) } : sl)
       );
 
     case 'SET_REPS':
@@ -277,7 +279,7 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
           if (sl.id !== action.slotId) return sl;
           const updated = {
             ...sl,
-            ...(action.sets != null && { sets: Math.max(1, Math.min(20, action.sets)) }),
+            ...(action.sets != null && { sets: Math.max(1, action.sets) }),
             ...(action.repMin != null && { repMin: Math.max(1, Math.min(100, action.repMin)) }),
             ...(action.repMax != null && { repMax: Math.max(1, Math.min(100, action.repMax)) }),
             ...(action.tempo !== undefined && { tempo: action.tempo || undefined }),
@@ -318,7 +320,7 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
 
     case 'SET_ALL_SETS_FOR_MUSCLE':
       return withUpdatedCurrentWeek(state, s =>
-        s.map(sl => sl.muscleId === action.muscleId ? { ...sl, sets: Math.max(1, Math.min(20, action.sets)) } : sl)
+        s.map(sl => sl.muscleId === action.muscleId ? { ...sl, sets: Math.max(1, action.sets) } : sl)
       );
 
     case 'PASTE_DAY': {
@@ -400,6 +402,32 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
           if (sl.id !== action.slotId || !sl.setsDetail) return sl;
           const updated = sl.setsDetail.map((set, i) =>
             i === action.setIndex ? { ...set, [action.field]: action.value } : set
+          );
+          return { ...sl, setsDetail: updated };
+        })
+      );
+
+    case 'DELETE_SET_AT_INDEX':
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => {
+          if (sl.id !== action.slotId || !sl.setsDetail || sl.setsDetail.length <= 1) return sl;
+          const remaining = sl.setsDetail
+            .filter((_, i) => i !== action.setIndex)
+            .map((set, i) => ({ ...set, set_number: i + 1 }));
+          return { ...sl, setsDetail: remaining, sets: remaining.length };
+        })
+      );
+
+    case 'APPLY_SET_TO_REMAINING':
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => {
+          if (sl.id !== action.slotId || !sl.setsDetail) return sl;
+          const template = sl.setsDetail[action.fromIndex];
+          if (!template) return sl;
+          const updated = sl.setsDetail.map((set, i) =>
+            i > action.fromIndex
+              ? { ...template, set_number: i + 1 }
+              : set
           );
           return { ...sl, setsDetail: updated };
         })
