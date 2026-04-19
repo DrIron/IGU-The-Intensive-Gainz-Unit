@@ -198,10 +198,16 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
   };
 
   const handleSave = async () => {
-    if (!formData.phaseName || !formData.startingWeight) {
+    // Up-front field validation so we don't propagate NaN into the macro math
+    // and then hit a Postgres NOT NULL rejection with an opaque error.
+    const missing: string[] = [];
+    if (!formData.phaseName) missing.push("phase name");
+    if (!formData.startingWeight) missing.push("starting weight");
+    if (!formData.activityLevel) missing.push("activity level");
+    if (missing.length > 0) {
       toast({
-        title: "Missing Data",
-        description: "Please fill in required fields",
+        title: "Missing required fields",
+        description: `Please fill in: ${missing.join(", ")}.`,
         variant: "destructive",
       });
       return;
@@ -213,6 +219,25 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
       if (!user) return;
 
       const macros = calculateMacros();
+
+      // calculateMacros returns null when the starting weight is empty.
+      // We already guarded for that above, but the runtime result could
+      // still be NaN if some input is malformed (e.g. a non-numeric height).
+      if (
+        !macros ||
+        !Number.isFinite(macros.calories) ||
+        !Number.isFinite(macros.protein) ||
+        !Number.isFinite(macros.fat) ||
+        !Number.isFinite(macros.carbs)
+      ) {
+        toast({
+          title: "Couldn't calculate macros",
+          description:
+            "Check that starting weight and activity level are set. Age, height and gender improve accuracy but aren't required.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       const phaseData = {
         user_id: clientUserId,
