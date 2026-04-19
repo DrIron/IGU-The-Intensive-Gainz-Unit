@@ -59,13 +59,20 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: "prompt",
+      // autoUpdate: the service worker silently installs the new build and
+      // activates it on the next full navigation. No "New version available"
+      // toast — the only way a user notices is the refreshed page content.
+      // Every form the coach/client touches either auto-saves (Planning
+      // Board, muscle plans) or posts immediately, so a background swap
+      // never yanks in-progress input.
+      registerType: "autoUpdate",
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
         navigateFallback: "index.html",
         navigateFallbackDenylist: [/^\/api/, /^\/functions/],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
+        skipWaiting: true,
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
