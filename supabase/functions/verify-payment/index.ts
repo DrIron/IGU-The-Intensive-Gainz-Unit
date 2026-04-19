@@ -164,12 +164,13 @@ async function applyCapturedPayment(
   }
 
   // VALIDATION 2: Amount validation (if expected amount provided)
-  if (expectedAmount && Math.abs(charge.amount - expectedAmount) > 0.01) {
+  // KWD is 3-decimal (fils). 0.001 = 1 fils; 0.01 allowed 10 fils drift.
+  if (expectedAmount && Math.abs(charge.amount - expectedAmount) > 0.001) {
     console.log(JSON.stringify({ fn: "verify-payment", step: "amount_mismatch", requestId, chargeId, ok: false }));
-    return { 
-      success: false, 
-      result: 'amount_mismatch', 
-      error: `Expected ${expectedAmount} KWD, got ${charge.amount}` 
+    return {
+      success: false,
+      result: 'amount_mismatch',
+      error: `Expected ${expectedAmount} KWD, got ${charge.amount}`
     };
   }
 

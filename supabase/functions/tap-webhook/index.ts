@@ -45,10 +45,11 @@ async function verifyWebhookSignature(
   receivedSignature: string | null,
   secretKey: string
 ): Promise<{ valid: boolean; reason?: string }> {
-  // If no signature header, log warning but continue (TAP API verification is the fallback)
+  // Missing signature header is a hard reject — TAP always sends `hashstring` on real webhooks.
+  // Call site at line ~540 logs the attempt and returns 200 ignored (avoids TAP retry storms).
   if (!receivedSignature) {
-    console.warn(JSON.stringify({ fn: "tap-webhook", step: "no_hashstring_header", ok: true }));
-    return { valid: true, reason: 'no_signature_header' };
+    console.warn(JSON.stringify({ fn: "tap-webhook", step: "no_hashstring_header", ok: false }));
+    return { valid: false, reason: 'no_signature_header' };
   }
 
   try {
@@ -100,8 +101,9 @@ async function verifyWebhookSignature(
     return { valid: true };
   } catch (error) {
     console.error(JSON.stringify({ fn: "tap-webhook", step: "signature_verification_error", ok: false }));
-    // Don't fail on verification error - TAP API verification is the authoritative check
-    return { valid: true, reason: 'verification_error_bypassed' };
+    // Verification errors are rejects too — previously this silently bypassed to downstream TAP API
+    // re-verification, which meant forged/malformed webhooks could reach database writes.
+    return { valid: false, reason: 'verification_error' };
   }
 }
 
@@ -339,8 +341,8 @@ async function applyCapturedPayment(
     return { success: false, result: 'invalid_status', error: `Expected CAPTURED, got ${charge.status}` };
   }
 
-  // Validate amount
-  if (expectedAmount && Math.abs(charge.amount - expectedAmount) > 0.01) {
+  // Validate amount -- KWD is 3-decimal (fils). 0.001 = 1 fils; 0.01 allowed 10 fils drift.
+  if (expectedAmount && Math.abs(charge.amount - expectedAmount) > 0.001) {
     return { success: false, result: 'amount_mismatch', error: `Expected ${expectedAmount}, got ${charge.amount}` };
   }
 
@@ -469,6 +471,52 @@ async function applyFailedPayment(
     .eq('tap_charge_id', chargeId);
 
   return { result: 'failed' };
+}
+
+/**
+ * Apply a refund or void event (M6). TAP sends a webhook when the merchant
+ * issues a refund or voids a charge -- without this branch those webhooks
+ * were rejected as `invalid_status` and the user kept access to the service.
+ * Idempotent: re-running is safe.
+ */
+async function applyRefundedOrVoidedPayment(
+  supabase: any,
+  chargeId: string,
+  charge: any,
+  subscriptionId: string,
+  userId: string
+): Promise<{ result: string }> {
+  const now = new Date().toISOString();
+  const reason = `tap_${String(charge.status).toLowerCase()}`;
+
+  await supabase
+    .from('subscriptions')
+    .update({
+      status: 'cancelled',
+      cancelled_at: now,
+      cancellation_reason: reason,
+      tap_subscription_status: charge.status,
+      last_payment_status: charge.status,
+    })
+    .eq('id', subscriptionId);
+
+  await supabase
+    .from('subscription_payments')
+    .update({
+      status: charge.status === 'REFUNDED' ? 'refunded' : 'voided',
+      refunded_at: now,
+    })
+    .eq('tap_charge_id', chargeId);
+
+  // Revoke paid-tier role (`member`). Admin and coach roles are untouched --
+  // only paid-tier access is tied to an active subscription.
+  await supabase
+    .from('user_roles')
+    .delete()
+    .eq('user_id', userId)
+    .eq('role', 'member');
+
+  return { result: charge.status === 'REFUNDED' ? 'refunded' : 'voided' };
 }
 
 serve(async (req) => {
@@ -704,6 +752,8 @@ serve(async (req) => {
       });
     } else if (['FAILED', 'DECLINED', 'CANCELLED'].includes(charge.status)) {
       result = await applyFailedPayment(supabase, chargeId, charge, subscription.id);
+    } else if (['REFUNDED', 'VOIDED'].includes(charge.status)) {
+      result = await applyRefundedOrVoidedPayment(supabase, chargeId, charge, subscription.id, userId);
     } else {
       result = { result: 'ignored' };
     }

@@ -347,17 +347,56 @@ export function AdminBillingManager() {
 
       if (exemptError) throw exemptError;
 
-      // If setting to exempt, also activate the subscription
+      // If setting to exempt, also activate the subscription and auto-assign
+      // the IGU admin coach (same pattern as create-manual-client). Without this,
+      // the sub sits with coach_id=NULL and flags the System Health "1:1 without
+      // coach" warning. Admins can reassign later via the normal edit flow.
+      //
+      // Email lives on coaches_private (moved from coaches.email by migration
+      // 20260117164058 as part of the PII split). user_id joins to coaches_public
+      // so we can confirm status='approved'.
       if (newExemptStatus) {
+        const { data: privateRow, error: privateErr } = await supabase
+          .from("coaches_private")
+          .select("user_id")
+          .eq("email", "dr.ironofficial@gmail.com")
+          .maybeSingle();
+
+        if (privateErr) throw privateErr;
+
+        let adminCoachUserId: string | null = null;
+        if (privateRow?.user_id) {
+          const { data: publicRow, error: publicErr } = await supabase
+            .from("coaches_public")
+            .select("user_id, status")
+            .eq("user_id", privateRow.user_id)
+            .maybeSingle();
+          if (publicErr) throw publicErr;
+          if (publicRow?.status === "approved") {
+            adminCoachUserId = publicRow.user_id;
+          }
+        }
+
         const { error: subError } = await supabase
           .from("subscriptions")
           .update({
             status: "active",
             past_due_since: null,
+            ...(adminCoachUserId ? { coach_id: adminCoachUserId } : {}),
           })
-          .eq("id", selectedClient.id);
+          .eq("id", selectedClient.id)
+          .is("coach_id", null);
 
         if (subError) throw subError;
+
+        // If coach_id was already set, the above update skips via .is('coach_id', null).
+        // Still need to flip status regardless -- run a second update unscoped on coach_id.
+        const { error: statusSubError } = await supabase
+          .from("subscriptions")
+          .update({ status: "active", past_due_since: null })
+          .eq("id", selectedClient.id);
+
+        if (statusSubError) throw statusSubError;
 
         const { error: statusError } = await supabase
           .from("profiles_public")

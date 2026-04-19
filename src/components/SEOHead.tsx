@@ -18,7 +18,7 @@ interface SEOHeadProps {
 
 const DEFAULT_TITLE = "Intensive Gainz Unit | Professional Fitness Coaching";
 const DEFAULT_DESCRIPTION = "Evidence-based online coaching, team programs, and performance tracking for serious lifters. Transform your training with IGU.";
-const DEFAULT_IMAGE = "https://theigu.com/og-image.jpg";
+const DEFAULT_IMAGE = "https://theigu.com/og-image.png";
 const SITE_NAME = "Intensive Gainz Unit";
 
 export function SEOHead({

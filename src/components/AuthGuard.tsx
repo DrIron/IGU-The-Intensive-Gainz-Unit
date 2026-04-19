@@ -1,7 +1,19 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Session } from "@supabase/supabase-js";
+
+/**
+ * Build the /auth URL with a `redirect` param pointing back to `path`, unless
+ * the user is already on /auth (avoids ?redirect=/auth chains). Auth.tsx
+ * validates the param with .startsWith('/') before navigating.
+ */
+function authUrlWithRedirect(path: string): string {
+  if (path === "/auth" || path.startsWith("/auth?") || !path.startsWith("/")) {
+    return "/auth";
+  }
+  return `/auth?redirect=${encodeURIComponent(path)}`;
+}
 
 /**
  * Context to share the authenticated session with child components.
@@ -29,11 +41,15 @@ interface AuthGuardProps {
  */
 export function AuthGuard({ children }: AuthGuardProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let mounted = true;
+    // Preserve the deep-link target so the user lands back here after signing in.
+    // Do NOT preserve on SIGNED_OUT — that was an explicit logout.
+    const redirectTarget = location.pathname + location.search;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
       if (!mounted) return;
@@ -57,12 +73,12 @@ export function AuthGuard({ children }: AuthGuardProps) {
               setLoading(false);
             } else {
               setLoading(false);
-              navigate("/auth", { replace: true });
+              navigate(authUrlWithRedirect(redirectTarget), { replace: true });
             }
           } catch {
             if (mounted) {
               setLoading(false);
-              navigate("/auth", { replace: true });
+              navigate(authUrlWithRedirect(redirectTarget), { replace: true });
             }
           }
         }
@@ -105,6 +121,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
+    // location.pathname/search are intentionally NOT in deps -- AuthGuard
+    // remounts per protected route (React Router renders children conditionally),
+    // so redirectTarget is captured fresh on each mount. Re-subscribing to
+    // onAuthStateChange on every in-page nav would be wasteful.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   if (loading) {

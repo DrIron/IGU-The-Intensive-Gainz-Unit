@@ -50,6 +50,25 @@ serve(async (req) => {
       );
     }
 
+    // Payment-exempt enforcement: BillingPayment.tsx blocks the UI, but a direct POST would
+    // otherwise create a charge for an exempt user. Re-check server-side.
+    const { data: exemptProfile, error: exemptError } = await supabase
+      .from('profiles_public')
+      .select('payment_exempt')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (exemptError) {
+      console.error(JSON.stringify({ fn: "create-tap-payment", step: "exempt_check", ok: false, error: "query_failed" }));
+      throw exemptError;
+    }
+    if (exemptProfile?.payment_exempt) {
+      console.warn(JSON.stringify({ fn: "create-tap-payment", step: "exempt_blocked", ok: false, user_id: user.id }));
+      return new Response(
+        JSON.stringify({ success: false, error: 'payment_exempt' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Rate limiting: 10 requests per minute per user
     const rateCheck = checkRateLimit(`user:${user.id}`, 10, 60_000);
     if (!rateCheck.allowed) {
@@ -87,6 +106,28 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ success: false, error: 'User mismatch' }),
         { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Idempotency dedupe (M5): TAP's `reference.idempotent` field is metadata, not
+    // an HTTP-level guarantee. Before creating a charge, look for an "initiated"
+    // charge for the same (user, service) within the last 30s -- blocks the
+    // double-click / double-tap race where two charges land before either completes.
+    const dedupeCutoff = new Date(Date.now() - 30_000).toISOString();
+    const { data: recentAttempt } = await supabase
+      .from('subscription_payments')
+      .select('id, tap_charge_id, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'initiated')
+      .gte('created_at', dedupeCutoff)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recentAttempt) {
+      console.warn(JSON.stringify({ fn: "create-tap-payment", step: "dedupe_block", ok: false, user_id: userId, existing_charge: recentAttempt.tap_charge_id }));
+      return new Response(
+        JSON.stringify({ success: false, error: 'A payment request is already in progress. Please wait a moment and try again.' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 

@@ -108,7 +108,12 @@ export function useRoleGate(options: UseRoleGateOptions = {}): RoleGateState {
       }
 
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        // Safety timeout: getSession() can deadlock (see AuthGuard.tsx:48-51 pattern).
+        const result = await Promise.race([
+          supabase.auth.getSession(),
+          new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+        ]);
+        const session = result && 'data' in result ? result.data.session : null;
         const user = session?.user;
 
         if (!user) {
