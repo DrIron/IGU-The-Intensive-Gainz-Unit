@@ -466,8 +466,19 @@ Existing coach RLS only checks `subscriptions.coach_id` and `is_primary_coach_fo
 ### Planning Board state model
 `MusclePlanState.weeks: WeekData[]` with `currentWeekIndex`. Each `WeekData` has its own `slots[]`. Use `getCurrentSlots(state)` (exported from `useMuscleBuilderState`). All reducer slot actions scoped to current week via `withUpdatedCurrentWeek()`. `slot_config` JSONB writes `{ weeks, globalClientInputs, globalPrescriptionColumns }` — backward compat reads old `{ slots }` and bare array. Conversion offsets dayIndex per week (W1=1-7, W2=8-14).
 
+### Mobile bottom nav — role-specific global docks
+`src/App.tsx` renders three global nav components that self-gate by `location.pathname`:
+- **Client dock** (`ClientMobileNavGlobal`): `/dashboard`, `/client`, `/nutrition`, `/nutrition-client`, `/nutrition-team`, `/sessions`, `/workout-library`, `/educational-videos`, `/account`, `/billing`, `/payment-status`, `/payment-return`. Auto-hides on `/client/workout/session/*` (distraction-free logging).
+- **Coach dock** (`CoachMobileNavGlobal`): `/coach`, `/coach-client-nutrition`, `/client-submission`.
+- **Admin dock** (`AdminMobileNavGlobal`): `/admin/*`, `/testimonials-management`.
+
+**Rules when adding a new authenticated route:**
+1. Add its path prefix to the matching role's list (or mark intentionally nav-less, e.g. onboarding).
+2. If the route is role-specific, gate it with `RoleProtectedRoute` — don't rely on the prefix list for security. `/coach-client-nutrition` is coach-only because both coaches and admins can reach it from client directories; the dock would otherwise pick the wrong nav.
+3. A route reachable from multiple roles (e.g. `/client-submission/:userId`, opened from both coach and admin client directories) maps to ONE dock — pick the primary consumer.
+
 ### Mobile layout pb-24 rule
-Bottom nav is `h-16` — **all layout content areas must use `pb-24 md:pb-8`** to prevent content hiding behind it. Applies to `ClientDashboardLayout`, `CoachDashboardLayout`, `AdminDashboardLayout`, `AdminPageLayout`.
+Bottom nav is `h-16` — **all layout content areas must use `pb-24 md:pb-8`** to prevent content hiding behind it. Applies to `ClientDashboardLayout`, `CoachDashboardLayout`, `AdminDashboardLayout`, `AdminPageLayout`, and any standalone page that bypasses those layouts (e.g. `AccountManagement`, `TestimonialsManagement`, `ClientSubmission`, `CoachClientNutrition`, `AccessDebug`). Pages that already use `py-24` (96px ≥ 64px dock) are fine.
 
 ### Button touch targets
 `button.tsx` uses `min-h-[44px] md:min-h-0` on `default`, `sm`, `icon` sizes (Apple HIG 44px). All buttons have `active:scale-[0.98] touch-manipulation`.
