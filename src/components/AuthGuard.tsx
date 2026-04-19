@@ -121,6 +121,11 @@ export function AuthGuard({ children }: AuthGuardProps) {
       clearTimeout(safetyTimer);
       subscription.unsubscribe();
     };
+    // location.pathname/search are intentionally NOT in deps -- AuthGuard
+    // remounts per protected route (React Router renders children conditionally),
+    // so redirectTarget is captured fresh on each mount. Re-subscribing to
+    // onAuthStateChange on every in-page nav would be wasteful.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [navigate]);
 
   if (loading) {

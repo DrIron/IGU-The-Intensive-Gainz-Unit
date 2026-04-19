@@ -6,7 +6,9 @@ import { AdminSidebar } from "./AdminSidebar";
 import { Navigation } from "@/components/Navigation";
 import { Badge } from "@/components/ui/badge";
 
-const ADMIN_BUILD_VERSION = "Admin build 2025-12-13T10:30";
+const ADMIN_BUILD_VERSION = typeof __BUILD_TIMESTAMP__ !== 'undefined'
+  ? `Admin build ${new Date(__BUILD_TIMESTAMP__).toLocaleString("en-US", { month: "short", day: "numeric", year: "numeric", hour: "2-digit", minute: "2-digit" })}`
+  : "Admin build (dev)";
 
 interface AdminPageLayoutProps {
   children: React.ReactNode;
