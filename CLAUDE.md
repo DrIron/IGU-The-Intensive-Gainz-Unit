@@ -464,7 +464,24 @@ After a server-side status change (e.g., payment verification), pass `{ state: {
 Existing coach RLS only checks `subscriptions.coach_id` and `is_primary_coach_for_user()`. Team queries (`WHERE team_id = X`) need separate policies on both `subscriptions` and `profiles_public`. See migrations `20260212170000` and `20260212180000`.
 
 ### Planning Board state model
-`MusclePlanState.weeks: WeekData[]` with `currentWeekIndex`. Each `WeekData` has its own `slots[]`. Use `getCurrentSlots(state)` (exported from `useMuscleBuilderState`). All reducer slot actions scoped to current week via `withUpdatedCurrentWeek()`. `slot_config` JSONB writes `{ weeks, globalClientInputs, globalPrescriptionColumns }` — backward compat reads old `{ slots }` and bare array. Conversion offsets dayIndex per week (W1=1-7, W2=8-14).
+`MusclePlanState.weeks: WeekData[]` with `currentWeekIndex`. Each `WeekData` has its own `slots[]` **and `sessions: SessionData[]`**. Use `getCurrentSlots(state)` + `getCurrentSessions(state)` (both exported from `useMuscleBuilderState`). All reducer slot/session actions scoped to current week via `withUpdatedCurrentWeek()` / `withUpdatedCurrentWeekFull()`. `slot_config` JSONB writes `{ weeks, globalClientInputs, globalPrescriptionColumns }` — backward compat reads old `{ slots }` and bare array. Conversion offsets dayIndex per week (W1=1-7, W2=8-14).
+
+### Planning Board sessions (Apr 19)
+Day > Session > Activity. A `SessionData` = `{ id, dayIndex, name?, type: ActivityType, sortOrder }`; each `MuscleSlotData` carries a `sessionId` binding it to its session. Coaches create/rename sessions inline and can change type / duplicate-to-day / reorder / delete via each session's kebab menu.
+
+- **Migration on load**: `migrateSlotsToSessions()` in `src/types/muscle-builder.ts` wraps legacy slots (no `sessionId`) into one auto-session per `(dayIndex, activityType)`. No DB migration — it runs in the reducer's `LOAD_TEMPLATE` case.
+- **Droppable ids are `session-${uuid}`** (not `day-${n}` anymore). `handleDragEnd` in `MuscleBuilderPage.tsx` dispatches `REORDER_IN_SESSION` (same session) or `MOVE_SLOT_TO_SESSION` (across sessions). Legacy `REORDER`/`MOVE_MUSCLE` still exist but are no longer triggered by the UI.
+- **Adding a slot**: `ADD_MUSCLE`/`ADD_ACTIVITY` take an optional `sessionId`; when omitted (e.g. legacy drops), `ensureSessionForDay(sessions, dayIndex, type)` finds-or-creates a session of the right type. UI always passes `sessionId` explicitly.
+- **New reducer actions**: `ADD_SESSION`, `REMOVE_SESSION` (deletes session AND its slots), `RENAME_SESSION`, `SET_SESSION_TYPE`, `REORDER_SESSION`, `DUPLICATE_SESSION_TO_DAY`, `REORDER_IN_SESSION`, `MOVE_SLOT_TO_SESSION`.
+- **Components**: `SessionBlock.tsx` (desktop subcard with kebab menu + own Droppable + scoped "+Add"). `DayColumn.tsx` renders one per session. `MobileDayDetail.tsx` renders sessions as labeled sections with per-session inline picker (strength sessions → muscle picker; non-strength → activity picker scoped to session type).
+
+### Muscle-plan → program conversion (v2 RPC)
+Use `convert_muscle_plan_to_program_v2(p_coach_id, p_plan_name, p_plan_description, p_muscle_template_id, p_sessions)` — **one `day_modules` row per session** (not per slot). Migration `20260419100000_convert_rpc_v2_sessions.sql`.
+
+- Input `p_sessions`: `[{ id, dayIndex (absolute, week-offset applied), name?, type, sortOrder }]`. Session `type` maps to `day_modules.session_type` (`yoga_mobility` → `'mobility'`, others pass through).
+- Output: `{ program_id, total_days, total_modules, session_to_module: { client_session_id → day_module_id } }`.
+- Client (`ConvertToProgram.tsx`) then inserts one `module_exercise` per strength slot under the right module (via `session_to_module` map), with exercise auto-fill from `exercise_library` when `slot.exercise` is missing. Non-strength sessions stay module-only — the session name becomes `day_modules.title`, no `module_exercises` inserted (per-slot activity details like duration are lost on conversion, same as legacy behavior).
+- Legacy `convert_muscle_plan_to_program` (v1) still exists but is no longer called.
 
 ### Mobile bottom nav — role-specific global docks
 `src/App.tsx` renders three global nav components that self-gate by `location.pathname`:
