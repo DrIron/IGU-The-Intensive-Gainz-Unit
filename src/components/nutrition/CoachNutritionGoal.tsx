@@ -58,26 +58,20 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
 
   const loadClientData = useCallback(async () => {
     try {
-      // SECURITY: Coaches have ZERO direct access to form_submissions (PHI table).
-      // DOB is PHI and not available in form_submissions_safe.
-      // Coaches must get age from client profile or enter manually.
-      // Gender is also not available to coaches.
-      
-      // We can only check needs_medical_review from form_submissions_safe
-      const { data: safeData } = await supabase
-        .from('form_submissions_safe')
-        .select('needs_medical_review')
-        .eq('user_id', clientUserId)
-        .maybeSingle();
-      
-      // DOB is PHI and not available in form_submissions_safe for coaches
+      // SECURITY: Coaches can't read form_submissions directly (PHI). Age is low-sensitivity
+      // at year granularity and needed by the macro calculator, so we expose it through a
+      // SECURITY DEFINER RPC (get_client_age) that authorizes the caller server-side.
+      const { data: ageData, error: ageError } = await supabase.rpc('get_client_age', {
+        p_client_id: clientUserId,
+      });
+      if (ageError) {
+        console.warn('get_client_age failed, coach will enter age manually:', ageError.message);
+      }
 
-      // DOB is PHI and not available in form_submissions_safe
-      // Age must be entered manually by coaches or retrieved from a separate source
       setClientData({
-        age: null, // Coach must enter manually
-        gender: null, // Gender not accessible to coaches - enter manually
-        height_cm: null,
+        age: typeof ageData === 'number' ? ageData : null,
+        gender: null, // Gender still PHI — coach enters manually
+        height_cm: null, // Height not stored centrally yet — manual entry
         body_fat_percentage: null,
       });
     } catch (error) {
@@ -100,7 +94,10 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
         targetBodyFat: phase.target_body_fat_percentage?.toString() || "",
         currentBodyFat: "",
         height: prev.height,
-        age: prev.age,
+        // Age is derived live from DOB via the RPC. Prefer fresh DOB-based value on
+        // every open; only fall back to whatever the coach typed if the RPC
+        // returned nothing (DOB not yet entered by client).
+        age: clientData?.age != null ? clientData.age.toString() : prev.age,
         gender: prev.gender,
         activityLevel: prev.activityLevel,
         weeklyRate: [phase.weekly_rate_percentage],
@@ -116,10 +113,10 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
       // Auto-populate for new phases
       setFormData(prev => ({
         ...prev,
-        height: clientData.height_cm?.toString() || "",
-        age: clientData.age?.toString() || "",
-        gender: clientData.gender || "",
-        currentBodyFat: clientData.body_fat_percentage?.toString() || "",
+        height: clientData.height_cm?.toString() || prev.height,
+        age: clientData.age != null ? clientData.age.toString() : prev.age,
+        gender: clientData.gender || prev.gender,
+        currentBodyFat: clientData.body_fat_percentage?.toString() || prev.currentBodyFat,
       }));
     }
   }, [phase, clientData]);

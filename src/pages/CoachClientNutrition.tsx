@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -34,16 +35,28 @@ interface Coach {
 
 export default function CoachClientNutrition() {
   const { toast } = useToast();
+  const [searchParams] = useSearchParams();
+  // Accept `?client=<userId>` (preferred) or legacy `?clientId=<userId>` so a coach
+  // navigating from the client detail or My Clients page lands directly on that client.
+  const presetClientId = searchParams.get("client") || searchParams.get("clientId") || "";
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
   const [coaches, setCoaches] = useState<Coach[]>([]);
-  const [selectedClient, setSelectedClient] = useState<string>("");
+  const [selectedClient, setSelectedClient] = useState<string>(presetClientId);
   const [filter, setFilter] = useState("active");
   const [selectedCoach, setSelectedCoach] = useState<string>("all");
   const [activePhase, setActivePhase] = useState<any>(null);
   const [phaseStats, setPhaseStats] = useState<any>(null);
+
+  // When the URL param changes (e.g. user clicked another client from the page), sync.
+  useEffect(() => {
+    if (presetClientId && presetClientId !== selectedClient) {
+      setSelectedClient(presetClientId);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedClient intentionally excluded
+  }, [presetClientId]);
 
   const loadCoaches = useCallback(async () => {
     try {

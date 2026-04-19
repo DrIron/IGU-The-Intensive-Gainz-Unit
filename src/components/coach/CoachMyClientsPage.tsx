@@ -492,7 +492,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
       });
       setNutritionDialogOpen(true);
     } else {
-      navigate(`/coach-client-nutrition?clientId=${client.id}`);
+      navigate(`/coach-client-nutrition?client=${client.id}`);
     }
   };
 

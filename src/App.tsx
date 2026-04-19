@@ -125,7 +125,12 @@ const MobileBottomNavClient = lazy(() =>
 /** Mobile bottom nav for coach routes — persists across all authenticated coach pages */
 const CoachMobileNavGlobal = memo(function CoachMobileNavGlobal() {
   const location = useLocation();
-  const isCoachRoute = location.pathname === "/coach" || location.pathname.startsWith("/coach/");
+  // Include standalone coach-facing routes that don't live under /coach/*
+  // (e.g. the shared /coach-client-nutrition page).
+  const coachPrefixes = ["/coach", "/coach-client-nutrition"];
+  const isCoachRoute = coachPrefixes.some(
+    p => location.pathname === p || location.pathname.startsWith(p + "/")
+  );
   if (!isCoachRoute) return null;
   return <MobileBottomNavCoach />;
 });
