@@ -50,6 +50,7 @@ const EmailLog = lazy(() => import("./pages/admin/EmailLog"));
 const ClientSessions = lazy(() => import("./pages/ClientSessions"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const CoachDashboard = lazy(() => import("./pages/coach/CoachDashboard"));
+const StudioPreview = lazy(() => import("./pages/coach/StudioPreview"));
 const LaunchTestChecklist = lazy(() => import("./pages/admin/LaunchTestChecklist"));
 const WorkoutBuilderQA = lazy(() => import("./pages/admin/WorkoutBuilderQA"));
 const RolesDebug = lazy(() => import("./pages/admin/RolesDebug"));
@@ -197,6 +198,7 @@ const App = () => {
 
                   {/* Role-scoped Coach routes - requires coach role ONLY (admins must use separate coach account) */}
                   <Route path="/coach" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
+                  <Route path="/coach/studio-preview" element={<RoleProtectedRoute requiredRole="coach"><StudioPreview /></RoleProtectedRoute>} />
                   <Route path="/coach/:section" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
 
                   {/* Onboarding routes - allow incomplete onboarding */}
