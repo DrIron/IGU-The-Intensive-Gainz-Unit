@@ -1,16 +1,24 @@
-import { memo, useCallback } from "react";
+import { memo } from "react";
 import { DayColumn } from "./DayColumn";
 import { MobileWeekStrip } from "./MobileWeekStrip";
 import { MobileDayDetail } from "./MobileDayDetail";
-import type { MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
+import type { ActivityType, MuscleSlotData, SessionData, SlotExercise } from "@/types/muscle-builder";
 
 interface WeeklyCalendarProps {
   slots: MuscleSlotData[];
+  sessions: SessionData[];
   selectedDayIndex: number;
   onSelectDay: (dayIndex: number) => void;
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
-  onAddMuscle?: (dayIndex: number, muscleId: string) => void;
+  onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
+  onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
+  onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
+  onRenameSession: (sessionId: string, name: string) => void;
+  onSetSessionType: (sessionId: string, type: ActivityType) => void;
+  onRemoveSession: (sessionId: string) => void;
+  onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
+  onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
   onClearExercise?: (slotId: string) => void;
   onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
@@ -37,11 +45,19 @@ interface WeeklyCalendarProps {
 
 export const WeeklyCalendar = memo(function WeeklyCalendar({
   slots,
+  sessions,
   selectedDayIndex,
   onSelectDay,
   onSetSlotDetails,
   onRemove,
-  onAddMuscle,
+  onAddMuscleToSession,
+  onAddActivityToSession,
+  onAddSession,
+  onRenameSession,
+  onSetSessionType,
+  onRemoveSession,
+  onDuplicateSessionToDay,
+  onReorderSession,
   onSetExercise,
   onClearExercise,
   onAddReplacement,
@@ -67,13 +83,6 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
 }: WeeklyCalendarProps) {
   const days = [1, 2, 3, 4, 5, 6, 7];
 
-  const handleAddMuscle = useCallback(
-    (dayIndex: number, muscleId: string) => {
-      onAddMuscle?.(dayIndex, muscleId);
-    },
-    [onAddMuscle],
-  );
-
   return (
     <>
       {/* Mobile: compact week strip + inline day detail */}
@@ -85,10 +94,17 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
         />
         <MobileDayDetail
           slots={slots}
+          sessions={sessions}
           selectedDayIndex={selectedDayIndex}
           onSetSlotDetails={onSetSlotDetails}
           onRemove={onRemove}
-          onAddMuscle={handleAddMuscle}
+          onAddMuscleToSession={onAddMuscleToSession}
+          onAddActivityToSession={onAddActivityToSession}
+          onAddSession={onAddSession}
+          onRenameSession={onRenameSession}
+          onSetSessionType={onSetSessionType}
+          onRemoveSession={onRemoveSession}
+          onDuplicateSessionToDay={onDuplicateSessionToDay}
           onSetExercise={onSetExercise}
           onClearExercise={onClearExercise}
           onAddReplacement={onAddReplacement}
@@ -96,8 +112,11 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           onOpenExercisePicker={onOpenExercisePicker}
           onTogglePerSet={onTogglePerSet}
           onUpdateSetDetail={onUpdateSetDetail}
+          onDeleteSetAtIndex={onDeleteSetAtIndex}
+          onApplySetToRemaining={onApplySetToRemaining}
           onSetExerciseInstructions={onSetExerciseInstructions}
           onSetSlotClientInputs={onSetSlotClientInputs}
+          onSetSlotColumns={onSetSlotColumns}
           globalClientInputs={globalClientInputs}
           copiedDayIndex={copiedDayIndex}
           onCopyDay={onCopyDay}
@@ -116,11 +135,19 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             key={dayIndex}
             dayIndex={dayIndex}
             slots={slots}
+            sessions={sessions}
             isSelected={selectedDayIndex === dayIndex}
             onSelectDay={onSelectDay}
             onSetSlotDetails={onSetSlotDetails}
             onRemove={onRemove}
-            onAddMuscle={onAddMuscle}
+            onAddMuscleToSession={onAddMuscleToSession}
+            onAddActivityToSession={onAddActivityToSession}
+            onAddSession={onAddSession}
+            onRenameSession={onRenameSession}
+            onSetSessionType={onSetSessionType}
+            onRemoveSession={onRemoveSession}
+            onDuplicateSessionToDay={onDuplicateSessionToDay}
+            onReorderSession={onReorderSession}
             onSetExercise={onSetExercise}
             onClearExercise={onClearExercise}
             onAddReplacement={onAddReplacement}

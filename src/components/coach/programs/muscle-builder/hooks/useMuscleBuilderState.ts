@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { withTimeout } from "@/lib/withTimeout";
-import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType, WeekData } from "@/types/muscle-builder";
-import { ACTIVITY_MAP } from "@/types/muscle-builder";
+import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType, WeekData, SessionData } from "@/types/muscle-builder";
+import { ACTIVITY_MAP, migrateSlotsToSessions } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
 
 const DEFAULT_GLOBAL_CLIENT_INPUTS = ['performed_weight', 'performed_reps', 'performed_rpe'];
@@ -26,14 +26,22 @@ type Action =
   | { type: 'SET_WEEK_LABEL'; weekIndex: number; label: string }
   | { type: 'TOGGLE_DELOAD'; weekIndex: number }
   | { type: 'APPLY_SLOT_TO_REMAINING'; slotId: string; fields: Partial<MuscleSlotData> }
-  | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string; sets?: number }
+  | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string; sets?: number; sessionId?: string }
   | { type: 'REMOVE_MUSCLE'; slotId: string }
+  | { type: 'ADD_SESSION'; dayIndex: number; sessionType: ActivityType; name?: string }
+  | { type: 'REMOVE_SESSION'; sessionId: string }
+  | { type: 'RENAME_SESSION'; sessionId: string; name: string }
+  | { type: 'SET_SESSION_TYPE'; sessionId: string; sessionType: ActivityType }
+  | { type: 'REORDER_SESSION'; dayIndex: number; fromIndex: number; toIndex: number }
+  | { type: 'DUPLICATE_SESSION_TO_DAY'; sessionId: string; toDayIndex: number }
   | { type: 'SET_SETS'; slotId: string; sets: number }
   | { type: 'SET_REPS'; slotId: string; repMin: number; repMax: number }
   | { type: 'SET_SLOT_DETAILS'; slotId: string; sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }
   | { type: 'SET_ALL_SETS_FOR_MUSCLE'; muscleId: string; sets: number }
   | { type: 'REORDER'; dayIndex: number; fromIndex: number; toIndex: number }
+  | { type: 'REORDER_IN_SESSION'; sessionId: string; fromIndex: number; toIndex: number }
   | { type: 'MOVE_MUSCLE'; slotId: string; toDay: number; toIndex: number }
+  | { type: 'MOVE_SLOT_TO_SESSION'; slotId: string; toSessionId: string; toIndex: number }
   | { type: 'PASTE_DAY'; fromDayIndex: number; toDayIndex: number }
   | { type: 'LOAD_PRESET'; slots: MuscleSlotData[]; name?: string }
   | { type: 'CLEAR_ALL' }
@@ -52,7 +60,7 @@ type Action =
   | { type: 'SET_EXERCISE_INSTRUCTIONS'; slotId: string; instructions: string }
   | { type: 'SET_GLOBAL_CLIENT_INPUTS'; columns: string[] }
   | { type: 'SET_SLOT_CLIENT_INPUTS'; slotId: string; columns: string[] | undefined }
-  | { type: 'ADD_ACTIVITY'; dayIndex: number; activityId: string; activityType: ActivityType }
+  | { type: 'ADD_ACTIVITY'; dayIndex: number; activityId: string; activityType: ActivityType; sessionId?: string }
   | { type: 'SET_ACTIVITY_DETAILS'; slotId: string; details: Partial<Pick<MuscleSlotData, 'duration' | 'distance' | 'targetHrZone' | 'pace' | 'rounds' | 'workSeconds' | 'restSeconds' | 'difficulty' | 'activityNotes'>> }
   | { type: 'UNDO' }
   | { type: 'REDO' };
@@ -61,7 +69,7 @@ type Action =
 // Helpers
 // ============================================================
 
-const EMPTY_WEEK: WeekData = { slots: [] };
+const EMPTY_WEEK: WeekData = { slots: [], sessions: [] };
 
 const initialState: MusclePlanState = {
   templateId: null,
@@ -80,11 +88,51 @@ function getCurrentSlots(state: MusclePlanState): MuscleSlotData[] {
   return state.weeks[state.currentWeekIndex]?.slots ?? [];
 }
 
+function getCurrentSessions(state: MusclePlanState): SessionData[] {
+  return state.weeks[state.currentWeekIndex]?.sessions ?? [];
+}
+
 function withUpdatedCurrentWeek(state: MusclePlanState, updater: (slots: MuscleSlotData[]) => MuscleSlotData[]): MusclePlanState {
   const weeks = state.weeks.map((w, i) =>
     i === state.currentWeekIndex ? { ...w, slots: updater(w.slots) } : w
   );
   return { ...state, weeks, isDirty: true };
+}
+
+/** Update both slots and sessions arrays in the current week atomically. */
+function withUpdatedCurrentWeekFull(
+  state: MusclePlanState,
+  updater: (slots: MuscleSlotData[], sessions: SessionData[]) => { slots: MuscleSlotData[]; sessions: SessionData[] },
+): MusclePlanState {
+  const weeks = state.weeks.map((w, i) => {
+    if (i !== state.currentWeekIndex) return w;
+    const result = updater(w.slots, w.sessions ?? []);
+    return { ...w, slots: result.slots, sessions: result.sessions };
+  });
+  return { ...state, weeks, isDirty: true };
+}
+
+/**
+ * Find or create a session for (dayIndex, type). If a matching session
+ * already exists on the day, return it; otherwise append a new one.
+ * Used by ADD_MUSCLE/ADD_ACTIVITY when no explicit sessionId is provided
+ * (e.g. legacy drag-drop onto the day body).
+ */
+function ensureSessionForDay(
+  sessions: SessionData[],
+  dayIndex: number,
+  type: ActivityType,
+): { sessions: SessionData[]; sessionId: string } {
+  const existing = sessions.find(s => s.dayIndex === dayIndex && s.type === type);
+  if (existing) return { sessions, sessionId: existing.id };
+  const sameDayCount = sessions.filter(s => s.dayIndex === dayIndex).length;
+  const newSession: SessionData = {
+    id: crypto.randomUUID(),
+    dayIndex,
+    type,
+    sortOrder: sameDayCount,
+  };
+  return { sessions: [...sessions, newSession], sessionId: newSession.id };
 }
 
 function getMaxSortOrder(slots: MuscleSlotData[], dayIndex: number): number {
@@ -126,11 +174,21 @@ function hydrateSlotIds(slots: MuscleSlotData[]): MuscleSlotData[] {
 }
 
 function deepCloneWeek(week: WeekData): WeekData {
+  // Regenerate session ids AND remap slot.sessionId to the new session ids
+  // so cloned weeks don't share session identity with their source.
+  const sessionIdRemap = new Map<string, string>();
+  const newSessions: SessionData[] = (week.sessions ?? []).map(s => {
+    const newId = crypto.randomUUID();
+    sessionIdRemap.set(s.id, newId);
+    return { ...s, id: newId };
+  });
   return {
     ...week,
+    sessions: newSessions,
     slots: week.slots.map(s => ({
       ...s,
       id: crypto.randomUUID(),
+      sessionId: s.sessionId ? sessionIdRemap.get(s.sessionId) ?? s.sessionId : undefined,
       exercise: s.exercise ? { ...s.exercise } : undefined,
       replacements: s.replacements ? s.replacements.map(r => ({ ...r })) : undefined,
       setsDetail: s.setsDetail ? s.setsDetail.map(sd => ({ ...sd })) : undefined,
@@ -152,7 +210,14 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         templateId: action.payload.templateId,
         name: action.payload.name,
         description: action.payload.description,
-        weeks: action.payload.weeks.map(w => ({ ...w, slots: hydrateSlotIds(w.slots) })),
+        // Hydrate slot ids, then migrate into session-aware shape. Legacy plans
+        // (no sessions + no sessionId) collapse into one auto-session per
+        // (dayIndex, activityType). New plans with sessions preserved pass through.
+        weeks: action.payload.weeks.map(w => {
+          const hydrated = hydrateSlotIds(w.slots);
+          const migrated = migrateSlotsToSessions(hydrated, w.sessions);
+          return { ...w, slots: migrated.slots, sessions: migrated.sessions };
+        }),
         currentWeekIndex: 0,
         globalClientInputs: action.payload.globalClientInputs || DEFAULT_GLOBAL_CLIENT_INPUTS,
         globalPrescriptionColumns: action.payload.globalPrescriptionColumns || DEFAULT_GLOBAL_PRESCRIPTION_COLUMNS,
@@ -246,20 +311,115 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
     // ---- Slot operations (scoped to current week) ----
 
     case 'ADD_MUSCLE': {
-      const newSlot: MuscleSlotData = {
-        id: crypto.randomUUID(),
-        dayIndex: action.dayIndex,
-        muscleId: action.muscleId,
-        sets: action.sets ?? 3,
-        repMin: 8,
-        repMax: 12,
-        sortOrder: getMaxSortOrder(slots, action.dayIndex) + 1,
-      };
-      return withUpdatedCurrentWeek(state, s => [...s, newSlot]);
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        // Resolve target session: explicit id (if valid), else find-or-create
+        // a strength session on the target day.
+        let sessionId = action.sessionId;
+        let nextSessions = sessions;
+        if (!sessionId || !sessions.some(x => x.id === sessionId)) {
+          const ensured = ensureSessionForDay(sessions, action.dayIndex, 'strength');
+          sessionId = ensured.sessionId;
+          nextSessions = ensured.sessions;
+        }
+        const newSlot: MuscleSlotData = {
+          id: crypto.randomUUID(),
+          dayIndex: action.dayIndex,
+          muscleId: action.muscleId,
+          sets: action.sets ?? 3,
+          repMin: 8,
+          repMax: 12,
+          sortOrder: getMaxSortOrder(s, action.dayIndex) + 1,
+          sessionId,
+        };
+        return { slots: [...s, newSlot], sessions: nextSessions };
+      });
     }
 
     case 'REMOVE_MUSCLE':
       return withUpdatedCurrentWeek(state, s => s.filter(sl => sl.id !== action.slotId));
+
+    case 'ADD_SESSION':
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        const sameDayCount = sessions.filter(x => x.dayIndex === action.dayIndex).length;
+        const newSession: SessionData = {
+          id: crypto.randomUUID(),
+          dayIndex: action.dayIndex,
+          type: action.sessionType,
+          name: action.name,
+          sortOrder: sameDayCount,
+        };
+        return { slots: s, sessions: [...sessions, newSession] };
+      });
+
+    case 'REMOVE_SESSION':
+      // Drops the session AND all slots that belong to it. Coach confirms in UI.
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => ({
+        slots: s.filter(sl => sl.sessionId !== action.sessionId),
+        sessions: sessions.filter(x => x.id !== action.sessionId),
+      }));
+
+    case 'RENAME_SESSION':
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => ({
+        slots: s,
+        sessions: sessions.map(x =>
+          x.id === action.sessionId ? { ...x, name: action.name || undefined } : x,
+        ),
+      }));
+
+    case 'SET_SESSION_TYPE':
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => ({
+        slots: s,
+        sessions: sessions.map(x =>
+          x.id === action.sessionId ? { ...x, type: action.sessionType } : x,
+        ),
+      }));
+
+    case 'REORDER_SESSION': {
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        const dayOnly = sessions
+          .filter(x => x.dayIndex === action.dayIndex)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const others = sessions.filter(x => x.dayIndex !== action.dayIndex);
+        const [moved] = dayOnly.splice(action.fromIndex, 1);
+        if (!moved) return { slots: s, sessions };
+        dayOnly.splice(action.toIndex, 0, moved);
+        const reordered = dayOnly.map((x, i) => ({ ...x, sortOrder: i }));
+        return { slots: s, sessions: [...others, ...reordered] };
+      });
+    }
+
+    case 'DUPLICATE_SESSION_TO_DAY': {
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        const source = sessions.find(x => x.id === action.sessionId);
+        if (!source) return { slots: s, sessions };
+        const sameTargetDayCount = sessions.filter(x => x.dayIndex === action.toDayIndex).length;
+        const newSessionId = crypto.randomUUID();
+        const newSession: SessionData = {
+          id: newSessionId,
+          dayIndex: action.toDayIndex,
+          name: source.name,
+          type: source.type,
+          sortOrder: sameTargetDayCount,
+        };
+        // Clone the source session's slots into the new day/session with
+        // fresh ids and sortOrders that continue from the target day's tail.
+        const targetDaySlotsMax = getMaxSortOrder(s, action.toDayIndex);
+        const sourceSlots = s
+          .filter(sl => sl.sessionId === action.sessionId)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const clonedSlots: MuscleSlotData[] = sourceSlots.map((sl, i) => ({
+          ...sl,
+          id: crypto.randomUUID(),
+          dayIndex: action.toDayIndex,
+          sessionId: newSessionId,
+          sortOrder: targetDaySlotsMax + 1 + i,
+          exercise: sl.exercise ? { ...sl.exercise } : undefined,
+          replacements: sl.replacements ? sl.replacements.map(r => ({ ...r })) : undefined,
+          setsDetail: sl.setsDetail ? sl.setsDetail.map(sd => ({ ...sd })) : undefined,
+        }));
+        return { slots: [...s, ...clonedSlots], sessions: [...sessions, newSession] };
+      });
+    }
 
     case 'SET_SETS':
       return withUpdatedCurrentWeek(state, s =>
@@ -304,18 +464,87 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       return withUpdatedCurrentWeek(state, () => [...otherSlots, ...reordered]);
     }
 
+    case 'REORDER_IN_SESSION': {
+      // Reorders the slot at fromIndex inside the named session to toIndex.
+      // sortOrder lives in the flat day-level list, so we splice within the
+      // session's slice and then rewrite sortOrder for the full day so
+      // visual order still matches stored order.
+      return withUpdatedCurrentWeek(state, s => {
+        const session = getCurrentSessions(state).find(x => x.id === action.sessionId);
+        if (!session) return s;
+        const sessionSlots = s
+          .filter(sl => sl.sessionId === action.sessionId)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const [moved] = sessionSlots.splice(action.fromIndex, 1);
+        if (!moved) return s;
+        sessionSlots.splice(action.toIndex, 0, moved);
+        // Merge session slots back with other slots on the same day,
+        // preserving session visual order by flattening sessions in
+        // sessionSortOrder and rewriting sortOrder monotonically.
+        const sessions = [...getCurrentSessions(state)]
+          .filter(x => x.dayIndex === session.dayIndex)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const sessionIdToIdx = new Map(sessions.map((x, i) => [x.id, i]));
+        const daySlots = [
+          ...s.filter(sl => sl.dayIndex === session.dayIndex && sl.sessionId !== action.sessionId),
+          ...sessionSlots,
+        ].sort((a, b) => {
+          const ai = a.sessionId ? sessionIdToIdx.get(a.sessionId) ?? 999 : 999;
+          const bi = b.sessionId ? sessionIdToIdx.get(b.sessionId) ?? 999 : 999;
+          if (ai !== bi) return ai - bi;
+          return a.sortOrder - b.sortOrder;
+        }).map((sl, i) => ({ ...sl, sortOrder: i }));
+        const otherDaySlots = s.filter(sl => sl.dayIndex !== session.dayIndex);
+        return [...otherDaySlots, ...daySlots];
+      });
+    }
+
+    case 'MOVE_SLOT_TO_SESSION': {
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        const slot = s.find(sl => sl.id === action.slotId);
+        const targetSession = sessions.find(x => x.id === action.toSessionId);
+        if (!slot || !targetSession) return { slots: s, sessions };
+        const withoutMoved = s.filter(sl => sl.id !== action.slotId);
+        const targetSessionSlots = withoutMoved
+          .filter(sl => sl.sessionId === action.toSessionId)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const movedSlot: MuscleSlotData = {
+          ...slot,
+          sessionId: action.toSessionId,
+          dayIndex: targetSession.dayIndex,
+          sortOrder: action.toIndex,
+        };
+        targetSessionSlots.splice(action.toIndex, 0, movedSlot);
+        const reorderedTarget = targetSessionSlots.map((sl, i) => ({ ...sl, sortOrder: i }));
+        const otherSlots = withoutMoved.filter(sl => sl.sessionId !== action.toSessionId);
+        return { slots: [...otherSlots, ...reorderedTarget], sessions };
+      });
+    }
+
     case 'MOVE_MUSCLE': {
-      const slot = slots.find(s => s.id === action.slotId);
-      if (!slot) return state;
-      const withoutMoved = slots.filter(s => s.id !== action.slotId);
-      const targetSlots = withoutMoved
-        .filter(s => s.dayIndex === action.toDay)
-        .sort((a, b) => a.sortOrder - b.sortOrder);
-      const movedSlot: MuscleSlotData = { ...slot, dayIndex: action.toDay, sortOrder: action.toIndex };
-      targetSlots.splice(action.toIndex, 0, movedSlot);
-      const reorderedTarget = targetSlots.map((s, i) => ({ ...s, sortOrder: i }));
-      const otherSlots = withoutMoved.filter(s => s.dayIndex !== action.toDay);
-      return withUpdatedCurrentWeek(state, () => [...otherSlots, ...reorderedTarget]);
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        const slot = s.find(sl => sl.id === action.slotId);
+        if (!slot) return { slots: s, sessions };
+        // When moving across days, rebind to a session on the target day of
+        // the same type (create one if none exists).
+        let sessionId = slot.sessionId;
+        let nextSessions = sessions;
+        if (slot.dayIndex !== action.toDay) {
+          const type: ActivityType = slot.activityType || 'strength';
+          const ensured = ensureSessionForDay(sessions, action.toDay, type);
+          sessionId = ensured.sessionId;
+          nextSessions = ensured.sessions;
+        }
+        const withoutMoved = s.filter(sl => sl.id !== action.slotId);
+        const targetSlots = withoutMoved
+          .filter(sl => sl.dayIndex === action.toDay)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        const movedSlot: MuscleSlotData = { ...slot, dayIndex: action.toDay, sortOrder: action.toIndex, sessionId };
+        targetSlots.splice(action.toIndex, 0, movedSlot);
+        const reorderedTarget = targetSlots.map((sl, i) => ({ ...sl, sortOrder: i }));
+        const otherSlots = withoutMoved.filter(sl => sl.dayIndex !== action.toDay);
+        return { slots: [...otherSlots, ...reorderedTarget], sessions: nextSessions };
+      });
     }
 
     case 'SET_ALL_SETS_FOR_MUSCLE':
@@ -324,31 +553,51 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       );
 
     case 'PASTE_DAY': {
-      const sourceSlots = slots
-        .filter(s => s.dayIndex === action.fromDayIndex)
-        .sort((a, b) => a.sortOrder - b.sortOrder);
-      if (sourceSlots.length === 0) return state;
-      const maxOrder = getMaxSortOrder(slots, action.toDayIndex);
-      const newSlots = sourceSlots.map((s, i) => ({
-        ...s,
-        id: crypto.randomUUID(),
-        dayIndex: action.toDayIndex,
-        sortOrder: maxOrder + 1 + i,
-      }));
-      return withUpdatedCurrentWeek(state, s => [...s, ...newSlots]);
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        const sourceSlots = s
+          .filter(sl => sl.dayIndex === action.fromDayIndex)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        if (sourceSlots.length === 0) return { slots: s, sessions };
+        // Build a map from source sessionId to newly-cloned session for the
+        // target day, so pasted slots land in session equivalents.
+        const sourceSessionIds = new Set(sourceSlots.map(sl => sl.sessionId).filter((x): x is string => !!x));
+        const sessionRemap = new Map<string, string>();
+        const sameTargetDayCount = sessions.filter(x => x.dayIndex === action.toDayIndex).length;
+        const newSessions: SessionData[] = [];
+        let sortCursor = sameTargetDayCount;
+        for (const src of sessions) {
+          if (!sourceSessionIds.has(src.id) || src.dayIndex !== action.fromDayIndex) continue;
+          const newId = crypto.randomUUID();
+          sessionRemap.set(src.id, newId);
+          newSessions.push({ ...src, id: newId, dayIndex: action.toDayIndex, sortOrder: sortCursor++ });
+        }
+        const maxOrder = getMaxSortOrder(s, action.toDayIndex);
+        const newSlots = sourceSlots.map((sl, i) => ({
+          ...sl,
+          id: crypto.randomUUID(),
+          dayIndex: action.toDayIndex,
+          sortOrder: maxOrder + 1 + i,
+          sessionId: sl.sessionId ? sessionRemap.get(sl.sessionId) : undefined,
+        }));
+        return { slots: [...s, ...newSlots], sessions: [...sessions, ...newSessions] };
+      });
     }
 
-    case 'LOAD_PRESET':
+    case 'LOAD_PRESET': {
+      // Presets are legacy bare slot arrays — migrate into sessions on load.
+      const hydrated = hydrateSlotIds(action.slots);
+      const migrated = migrateSlotsToSessions(hydrated);
       return {
         ...state,
-        weeks: [{ slots: hydrateSlotIds(action.slots) }],
+        weeks: [{ slots: migrated.slots, sessions: migrated.sessions }],
         currentWeekIndex: 0,
         name: action.name ?? state.name,
         isDirty: true,
       };
+    }
 
     case 'CLEAR_ALL':
-      return { ...state, weeks: [{ slots: [] }], currentWeekIndex: 0, isDirty: true };
+      return { ...state, weeks: [{ slots: [], sessions: [] }], currentWeekIndex: 0, isDirty: true };
 
     case 'SET_EXERCISE':
       return withUpdatedCurrentWeek(state, s =>
@@ -456,20 +705,30 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
 
     case 'ADD_ACTIVITY': {
       const activity = ACTIVITY_MAP.get(action.activityId);
-      const newSlot: MuscleSlotData = {
-        id: crypto.randomUUID(),
-        dayIndex: action.dayIndex,
-        muscleId: '',
-        sets: 1,
-        repMin: 0,
-        repMax: 0,
-        sortOrder: getMaxSortOrder(slots, action.dayIndex) + 1,
-        activityType: action.activityType,
-        activityId: action.activityId,
-        activityName: activity?.label || action.activityId,
-        duration: 30,
-      };
-      return withUpdatedCurrentWeek(state, s => [...s, newSlot]);
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        let sessionId = action.sessionId;
+        let nextSessions = sessions;
+        if (!sessionId || !sessions.some(x => x.id === sessionId)) {
+          const ensured = ensureSessionForDay(sessions, action.dayIndex, action.activityType);
+          sessionId = ensured.sessionId;
+          nextSessions = ensured.sessions;
+        }
+        const newSlot: MuscleSlotData = {
+          id: crypto.randomUUID(),
+          dayIndex: action.dayIndex,
+          muscleId: '',
+          sets: 1,
+          repMin: 0,
+          repMax: 0,
+          sortOrder: getMaxSortOrder(s, action.dayIndex) + 1,
+          sessionId,
+          activityType: action.activityType,
+          activityId: action.activityId,
+          activityName: activity?.label || action.activityId,
+          duration: 30,
+        };
+        return { slots: [...s, newSlot], sessions: nextSessions };
+      });
     }
 
     case 'SET_ACTIVITY_DETAILS':
@@ -585,7 +844,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
         return;
       }
 
-      // slot_config formats: array (v1), { slots } (v2), { weeks } (v3)
+      // slot_config formats: array (v1), { slots } (v2), { weeks } (v3), { weeks, sessions } (v4)
       const raw = data.slot_config as unknown;
       let weeks: WeekData[] = [{ slots: [] }];
       let globalClientInputs: string[] | undefined;
@@ -597,9 +856,11 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
       } else if (raw && typeof raw === 'object') {
         const obj = raw as Record<string, unknown>;
         if ('weeks' in obj && Array.isArray(obj.weeks)) {
-          // v3: multi-week format
+          // v3/v4: multi-week format. Preserve sessions when present (v4);
+          // LOAD_TEMPLATE's migrator fills them in for legacy rows.
           weeks = (obj.weeks as WeekData[]).map(w => ({
             slots: w.slots || [],
+            sessions: w.sessions,
             label: w.label,
             isDeload: w.isDeload,
           }));
@@ -746,4 +1007,4 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
   return { state, dispatch, save, saveAsPreset, canUndo, canRedo };
 }
 
-export { getCurrentSlots };
+export { getCurrentSlots, getCurrentSessions };

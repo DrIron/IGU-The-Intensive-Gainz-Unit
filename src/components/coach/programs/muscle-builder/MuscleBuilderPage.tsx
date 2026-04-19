@@ -34,14 +34,14 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId, ACTIVITY_MAP } from "@/types/muscle-builder";
-import type { MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
+import type { ActivityType, MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
 import { AVAILABLE_CLIENT_COLUMNS } from "@/types/workout-builder";
 import { ExercisePickerDialog } from "../ExercisePickerDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Settings2 } from "lucide-react";
 
-import { useMuscleBuilderState, getCurrentSlots } from "./hooks/useMuscleBuilderState";
+import { useMuscleBuilderState, getCurrentSlots, getCurrentSessions } from "./hooks/useMuscleBuilderState";
 import { useMusclePlanVolume } from "./hooks/useMusclePlanVolume";
 import { WeeklyCalendar } from "./WeeklyCalendar";
 import { WeekTabStrip } from "./WeekTabStrip";
@@ -68,6 +68,7 @@ export function MuscleBuilderPage({
 }: MuscleBuilderPageProps) {
   const { state, dispatch, save, saveAsPreset, canUndo, canRedo } = useMuscleBuilderState(coachUserId, existingTemplateId);
   const currentWeekSlots = getCurrentSlots(state);
+  const currentWeekSessions = getCurrentSessions(state);
   const { volumeEntries, summary, frequencyMatrix, placementCounts, consecutiveDayWarnings } =
     useMusclePlanVolume(currentWeekSlots);
   const { toast } = useToast();
@@ -147,55 +148,62 @@ export function MuscleBuilderPage({
       const { source, destination, draggableId } = result;
       if (!destination) return;
 
-      // Palette → Day: ADD muscle or activity (copy)
-      if (source.droppableId === 'palette' && destination.droppableId.startsWith('day-')) {
-        const dayIndex = parseInt(destination.droppableId.replace('day-', ''));
+      // Palette → Session: ADD muscle/activity directly into a session.
+      // Droppable ids are `session-${uuid}`; palette draggables remain
+      // `palette-${muscleId}` or `palette-activity-${activityId}`.
+      if (source.droppableId === 'palette' && destination.droppableId.startsWith('session-')) {
+        const sessionId = destination.droppableId.replace('session-', '');
+        const session = currentWeekSessions.find(s => s.id === sessionId);
+        if (!session) return;
         const paletteId = draggableId.replace('palette-', '');
 
         if (paletteId.startsWith('activity-')) {
-          // Activity drop
           const activityId = paletteId.replace('activity-', '');
           const activityDef = ACTIVITY_MAP.get(activityId);
-          dispatch({ type: 'ADD_ACTIVITY', dayIndex, activityId, activityType: activityDef?.category || 'cardio' });
+          dispatch({
+            type: 'ADD_ACTIVITY',
+            dayIndex: session.dayIndex,
+            activityId,
+            activityType: activityDef?.category || session.type,
+            sessionId,
+          });
         } else {
-          // Muscle drop
-          dispatch({ type: 'ADD_MUSCLE', dayIndex, muscleId: paletteId });
+          dispatch({ type: 'ADD_MUSCLE', dayIndex: session.dayIndex, muscleId: paletteId, sessionId });
         }
         return;
       }
 
-      // Day → Same Day: REORDER
+      // Session → Same Session: REORDER within that session
       if (
-        source.droppableId.startsWith('day-') &&
+        source.droppableId.startsWith('session-') &&
         source.droppableId === destination.droppableId
       ) {
-        const dayIndex = parseInt(source.droppableId.replace('day-', ''));
+        const sessionId = source.droppableId.replace('session-', '');
         dispatch({
-          type: 'REORDER',
-          dayIndex,
+          type: 'REORDER_IN_SESSION',
+          sessionId,
           fromIndex: source.index,
           toIndex: destination.index,
         });
         return;
       }
 
-      // Day → Different Day: MOVE
+      // Session → Different Session: MOVE slot to the target session
       if (
-        source.droppableId.startsWith('day-') &&
-        destination.droppableId.startsWith('day-')
+        source.droppableId.startsWith('session-') &&
+        destination.droppableId.startsWith('session-')
       ) {
-        const toDay = parseInt(destination.droppableId.replace('day-', ''));
+        const toSessionId = destination.droppableId.replace('session-', '');
         const slotId = draggableId.replace('slot-', '');
-
         dispatch({
-          type: 'MOVE_MUSCLE',
+          type: 'MOVE_SLOT_TO_SESSION',
           slotId,
-          toDay,
+          toSessionId,
           toIndex: destination.index,
         });
       }
     },
-    [dispatch]
+    [dispatch, currentWeekSessions]
   );
 
   // ── Memoized callbacks for child components ──────────────────
@@ -216,11 +224,70 @@ export function MuscleBuilderPage({
     [dispatch]
   );
 
-  // Click/tap to add muscle (mobile inline picker + desktop popover)
-  const handleAddMuscle = useCallback(
-    (dayIndex: number, muscleId: string) => {
-      dispatch({ type: 'ADD_MUSCLE', dayIndex, muscleId });
+  // Session-scoped add (used by both desktop SessionBlock and mobile inline picker).
+  const handleAddMuscleToSession = useCallback(
+    (sessionId: string, muscleId: string) => {
+      const session = currentWeekSessions.find(s => s.id === sessionId);
+      if (!session) return;
+      dispatch({ type: 'ADD_MUSCLE', dayIndex: session.dayIndex, muscleId, sessionId });
     },
+    [currentWeekSessions, dispatch]
+  );
+
+  const handleAddActivityToSession = useCallback(
+    (sessionId: string, activityId: string, activityType: ActivityType) => {
+      const session = currentWeekSessions.find(s => s.id === sessionId);
+      if (!session) return;
+      dispatch({ type: 'ADD_ACTIVITY', dayIndex: session.dayIndex, activityId, activityType, sessionId });
+    },
+    [currentWeekSessions, dispatch]
+  );
+
+  const handleAddSession = useCallback(
+    (dayIndex: number, sessionType: ActivityType) => {
+      dispatch({ type: 'ADD_SESSION', dayIndex, sessionType });
+    },
+    [dispatch]
+  );
+
+  const handleRenameSession = useCallback(
+    (sessionId: string, name: string) => dispatch({ type: 'RENAME_SESSION', sessionId, name }),
+    [dispatch]
+  );
+
+  const handleSetSessionType = useCallback(
+    (sessionId: string, sessionType: ActivityType) => dispatch({ type: 'SET_SESSION_TYPE', sessionId, sessionType }),
+    [dispatch]
+  );
+
+  const handleRemoveSession = useCallback(
+    (sessionId: string) => {
+      // Snapshot state so the toast can surface a label even though the slots
+      // are about to be deleted. Undo restores via the shared history stack.
+      const session = currentWeekSessions.find(s => s.id === sessionId);
+      const label = session?.name?.trim() || (session ? session.type : 'session');
+      dispatch({ type: 'REMOVE_SESSION', sessionId });
+      toast({
+        title: `Removed ${label}`,
+        action: (
+          <ToastAction altText="Undo" onClick={() => dispatch({ type: 'UNDO' })}>Undo</ToastAction>
+        ),
+      });
+    },
+    [currentWeekSessions, dispatch, toast]
+  );
+
+  const handleDuplicateSessionToDay = useCallback(
+    (sessionId: string, toDayIndex: number) => {
+      dispatch({ type: 'DUPLICATE_SESSION_TO_DAY', sessionId, toDayIndex });
+      toast({ title: `Session duplicated to ${DAYS_OF_WEEK[toDayIndex - 1]}` });
+    },
+    [dispatch, toast]
+  );
+
+  const handleReorderSession = useCallback(
+    (dayIndex: number, fromIndex: number, toIndex: number) =>
+      dispatch({ type: 'REORDER_SESSION', dayIndex, fromIndex, toIndex }),
     [dispatch]
   );
 
@@ -614,11 +681,19 @@ export function MuscleBuilderPage({
             {/* Weekly Calendar */}
             <WeeklyCalendar
               slots={currentWeekSlots}
+              sessions={currentWeekSessions}
               selectedDayIndex={state.selectedDayIndex}
               onSelectDay={handleSelectDay}
               onSetSlotDetails={handleSetSlotDetails}
               onRemove={handleRemoveMuscle}
-              onAddMuscle={handleAddMuscle}
+              onAddMuscleToSession={handleAddMuscleToSession}
+              onAddActivityToSession={handleAddActivityToSession}
+              onAddSession={handleAddSession}
+              onRenameSession={handleRenameSession}
+              onSetSessionType={handleSetSessionType}
+              onRemoveSession={handleRemoveSession}
+              onDuplicateSessionToDay={handleDuplicateSessionToDay}
+              onReorderSession={handleReorderSession}
               onClearExercise={handleClearExercise}
               onRemoveReplacement={handleRemoveReplacement}
               onOpenExercisePicker={handleOpenExercisePicker}

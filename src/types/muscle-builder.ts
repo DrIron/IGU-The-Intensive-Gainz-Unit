@@ -137,6 +137,7 @@ export interface MuscleSlotData {
   rir?: number;         // Reps in Reserve (0-10)
   rpe?: number;         // Rate of Perceived Exertion (1-10, half-steps allowed)
   sortOrder: number;
+  sessionId?: string;   // FK to SessionData.id — the session this slot belongs to. Optional only for backward compat; normalized on load.
   exercise?: SlotExercise;          // Primary exercise (optional — assigned in final planning phase)
   replacements?: SlotExercise[];    // Alternative exercises client can swap to
   setsDetail?: import("@/types/workout-builder").SetPrescription[];  // Per-set overrides (when customizing individual sets)
@@ -157,10 +158,88 @@ export interface MuscleSlotData {
   activityNotes?: string;            // general notes for non-strength slot
 }
 
+// Session = a coach-defined grouping of activities within a day.
+// One day can have multiple sessions ("Push", "Z2 Cardio") — each becomes
+// its own day_module when converted to a program.
+export interface SessionData {
+  id: string;
+  dayIndex: number;     // 1-7
+  name?: string;        // Optional coach label; falls back to defaultSessionName(type)
+  type: ActivityType;   // Drives default label, color, and session_type on conversion
+  sortOrder: number;    // Order within the day (ascending)
+}
+
 export interface WeekData {
   slots: MuscleSlotData[];
+  sessions?: SessionData[];  // Optional for backward compat; normalized on load via migrateSlotsToSessions
   label?: string;
   isDeload?: boolean;
+}
+
+export function defaultSessionName(type: ActivityType): string {
+  return ACTIVITY_TYPE_LABELS[type];
+}
+
+/**
+ * Migrate a legacy week's slots (no sessionId) into the session-aware shape.
+ * Groups slots by (dayIndex, activityType||'strength') and creates one
+ * SessionData per group. Slots that already carry a sessionId matching a
+ * provided session are preserved; unmatched slots fall back to auto-grouping.
+ *
+ * Returns the normalized slots (with sessionId set) and the full sessions array.
+ */
+export function migrateSlotsToSessions(
+  slots: MuscleSlotData[],
+  existingSessions?: SessionData[],
+): { slots: MuscleSlotData[]; sessions: SessionData[] } {
+  const sessionsById = new Map<string, SessionData>();
+  if (existingSessions) {
+    for (const s of existingSessions) sessionsById.set(s.id, s);
+  }
+
+  // Group slots by (dayIndex, activityType) for auto-session creation.
+  // Preserves ordering via a composite key + first-seen order.
+  const autoSessionKey = (dayIndex: number, type: ActivityType) => `${dayIndex}:${type}`;
+  const autoSessions = new Map<string, SessionData>();
+  const sortOrderByDay = new Map<number, number>();
+
+  const nextSortOrder = (dayIndex: number): number => {
+    const existing = [...sessionsById.values()]
+      .filter(s => s.dayIndex === dayIndex)
+      .map(s => s.sortOrder);
+    const max = existing.length > 0 ? Math.max(...existing) : -1;
+    const n = sortOrderByDay.get(dayIndex) ?? max;
+    const next = n + 1;
+    sortOrderByDay.set(dayIndex, next);
+    return next;
+  };
+
+  const normalizedSlots = slots.map(slot => {
+    // Slot already bound to a known session — keep as-is.
+    if (slot.sessionId && sessionsById.has(slot.sessionId)) return slot;
+
+    const type: ActivityType = slot.activityType || 'strength';
+    const key = autoSessionKey(slot.dayIndex, type);
+    let session = autoSessions.get(key);
+    if (!session) {
+      session = {
+        id: crypto.randomUUID(),
+        dayIndex: slot.dayIndex,
+        type,
+        sortOrder: nextSortOrder(slot.dayIndex),
+      };
+      autoSessions.set(key, session);
+      sessionsById.set(session.id, session);
+    }
+    return { ...slot, sessionId: session.id };
+  });
+
+  const sessions = [...sessionsById.values()].sort((a, b) => {
+    if (a.dayIndex !== b.dayIndex) return a.dayIndex - b.dayIndex;
+    return a.sortOrder - b.sortOrder;
+  });
+
+  return { slots: normalizedSlots, sessions };
 }
 
 export interface MusclePlanState {

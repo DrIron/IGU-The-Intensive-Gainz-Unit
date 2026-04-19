@@ -1,41 +1,45 @@
 import { memo, useMemo, useState, useCallback } from "react";
-import { Droppable } from "@hello-pangea/dnd";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Copy, ClipboardPaste, Plus, ChevronRight, ChevronDown, Clock } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   estimateSessionDuration,
   formatDurationRange,
   type SetDurationInputs,
 } from "@/lib/sessionDuration";
-import { MuscleSlotCard } from "./MuscleSlotCard";
-import { ActivitySlotCard } from "./ActivitySlotCard";
+import { SessionBlock } from "./SessionBlock";
 import {
   DAYS_OF_WEEK,
-  MUSCLE_GROUPS,
-  BODY_REGIONS,
-  BODY_REGION_LABELS,
-  SUBDIVISIONS_BY_PARENT,
-  resolveParentMuscleId,
-  getMuscleDisplay,
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE_COLORS,
+  resolveParentMuscleId,
+  getMuscleDisplay,
   type ActivityType,
   type MuscleSlotData,
+  type SessionData,
   type SlotExercise,
 } from "@/types/muscle-builder";
+
+const ADDABLE_SESSION_TYPES: ActivityType[] = ['strength', 'cardio', 'hiit', 'yoga_mobility', 'recovery', 'sport_specific'];
 
 interface DayColumnProps {
   dayIndex: number;
   slots: MuscleSlotData[];
+  sessions: SessionData[];
   isSelected: boolean;
   onSelectDay: (dayIndex: number) => void;
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
-  onAddMuscle?: (dayIndex: number, muscleId: string) => void;
+  onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
+  onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
+  onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
+  onRenameSession: (sessionId: string, name: string) => void;
+  onSetSessionType: (sessionId: string, type: ActivityType) => void;
+  onRemoveSession: (sessionId: string) => void;
+  onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
+  onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
   onClearExercise?: (slotId: string) => void;
   onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
@@ -63,11 +67,19 @@ interface DayColumnProps {
 export const DayColumn = memo(function DayColumn({
   dayIndex,
   slots,
+  sessions,
   isSelected,
   onSelectDay,
   onSetSlotDetails,
   onRemove,
-  onAddMuscle,
+  onAddMuscleToSession,
+  onAddActivityToSession,
+  onAddSession,
+  onRenameSession,
+  onSetSessionType,
+  onRemoveSession,
+  onDuplicateSessionToDay,
+  onReorderSession,
   onSetExercise,
   onClearExercise,
   onAddReplacement,
@@ -91,12 +103,16 @@ export const DayColumn = memo(function DayColumn({
   weekCount,
   onApplyToRemaining,
 }: DayColumnProps) {
-  const [addOpen, setAddOpen] = useState(false);
-  const [expandedParent, setExpandedParent] = useState<string | null>(null);
+  const [addSessionOpen, setAddSessionOpen] = useState(false);
 
   const daySlots = useMemo(
-    () => slots.filter(s => s.dayIndex === dayIndex).sort((a, b) => a.sortOrder - b.sortOrder),
+    () => slots.filter(s => s.dayIndex === dayIndex),
     [slots, dayIndex]
+  );
+
+  const daySessions = useMemo(
+    () => sessions.filter(s => s.dayIndex === dayIndex).sort((a, b) => a.sortOrder - b.sortOrder),
+    [sessions, dayIndex]
   );
 
   const totalSets = useMemo(
@@ -104,10 +120,7 @@ export const DayColumn = memo(function DayColumn({
     [daySlots]
   );
 
-  // Session duration estimate (range). Each strength slot counts as one
-  // "exercise" of N sets. We synthesize SetDurationInputs from the slot's
-  // per-set detail when available, else from the slot-level tempo/reps with
-  // default rest fallback. Skips non-strength activities (cardio/HIIT/etc.).
+  // Session duration estimate (strength only)
   const sessionDuration = useMemo(() => {
     const strengthSlots = daySlots.filter(s => !s.activityType || s.activityType === 'strength');
     if (strengthSlots.length === 0) return null;
@@ -122,7 +135,6 @@ export const DayColumn = memo(function DayColumn({
           rest_seconds_max: s.rest_seconds_max,
         }));
       }
-      // Slot-level: fan out N identical sets using slot's rep range + tempo.
       return Array.from({ length: Math.max(1, slot.sets) }, () => ({
         rep_range_min: slot.repMin,
         rep_range_max: slot.repMax,
@@ -134,9 +146,7 @@ export const DayColumn = memo(function DayColumn({
     return est;
   }, [daySlots]);
 
-  // Per-day muscle distribution — drives the 2px ribbon below the header so
-  // the coach can read the body-region balance of the day without scrolling
-  // to the volume chart.
+  // Muscle-distribution ribbon — still driven by strength slots regardless of session grouping.
   const muscleDistribution = useMemo(() => {
     if (daySlots.length === 0) return [] as Array<{ id: string; colorHex: string; pct: number }>;
     const totals = new Map<string, { sets: number; colorHex: string }>();
@@ -156,40 +166,35 @@ export const DayColumn = memo(function DayColumn({
       .map(([id, { sets, colorHex }]) => ({ id, colorHex, pct: (sets / sum) * 100 }));
   }, [daySlots]);
 
-  // Group slots by activity type for collapsible sections
-  const sessionGroups = useMemo(() => {
-    const groups = new Map<string, MuscleSlotData[]>();
+  const slotsBySessionId = useMemo(() => {
+    const map = new Map<string, MuscleSlotData[]>();
     for (const slot of daySlots) {
-      const type = slot.activityType || 'strength';
-      const list = groups.get(type) || [];
+      const key = slot.sessionId || '__unassigned__';
+      const list = map.get(key) || [];
       list.push(slot);
-      groups.set(type, list);
+      map.set(key, list);
     }
-    return groups;
+    return map;
   }, [daySlots]);
 
-  const hasMultipleTypes = sessionGroups.size > 1;
-
-  const handleAddMuscle = useCallback(
-    (muscleId: string) => {
-      onAddMuscle?.(dayIndex, muscleId);
-    },
-    [onAddMuscle, dayIndex],
-  );
+  const handleAddSession = useCallback((type: ActivityType) => {
+    onAddSession(dayIndex, type);
+    setAddSessionOpen(false);
+  }, [onAddSession, dayIndex]);
 
   const hasCopied = copiedDayIndex != null;
   const isCopiedDay = copiedDayIndex === dayIndex;
+  const hasAnyContent = daySessions.length > 0 || daySlots.length > 0;
+
+  // Compute a running draggable index (hello-pangea/dnd wants unique indices
+  // per Droppable; each SessionBlock has its own Droppable, but we still pass
+  // a per-session start index so Draggable indices are stable across renders).
+  let draggableCursor = 0;
 
   return (
     <Card
       data-day-index={dayIndex}
       className={cn(
-        // transition-colors only — the previous `transition-all` animated layout shifts
-        // during drag-over, which made @hello-pangea/dnd hover feedback feel laggy.
-        // min-w-0: the parent is a CSS grid with 7 equal tracks. A min-w-[160px]
-        // here made each Card render wider than its grid cell and literally
-        // overlap the next day's column at 1440×900. The grid track is
-        // authoritative; let Card stretch to fit.
         `group min-w-0 flex-1 transition-colors cursor-pointer`,
         isSelected ? 'ring-2 ring-primary border-primary/50' : 'border-border/50 hover:border-border',
         className,
@@ -202,89 +207,39 @@ export const DayColumn = memo(function DayColumn({
             {DAYS_OF_WEEK[dayIndex - 1]}
           </span>
           <div className="flex items-center gap-1">
-            {/* Add muscle button (desktop click-to-add) */}
-            {onAddMuscle && (
-              <Popover open={addOpen} onOpenChange={setAddOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                    onClick={e => e.stopPropagation()}
-                    title="Add muscle"
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  className="w-52 p-2 max-h-80 overflow-y-auto"
+            {/* + Session — opens a quick type picker */}
+            <Popover open={addSessionOpen} onOpenChange={setAddSessionOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
                   onClick={e => e.stopPropagation()}
-                  align="start"
+                  title="Add session"
                 >
-                  {BODY_REGIONS.map(region => {
-                    const muscles = MUSCLE_GROUPS.filter(m => m.bodyRegion === region);
-                    return (
-                      <div key={region} className="mb-2 last:mb-0">
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 px-1">
-                          {BODY_REGION_LABELS[region]}
-                        </p>
-                        <div className="flex flex-col gap-0.5">
-                          {muscles.map(muscle => {
-                            const subs = SUBDIVISIONS_BY_PARENT.get(muscle.id);
-                            const isExpanded = expandedParent === muscle.id;
-                            return (
-                              <div key={muscle.id}>
-                                <div className="flex items-center gap-0.5">
-                                  <button
-                                    className="flex-1 flex items-center gap-1.5 px-1.5 py-1 rounded text-xs hover:bg-muted/50 transition-colors text-left"
-                                    onClick={() => {
-                                      handleAddMuscle(muscle.id);
-                                      setAddOpen(false);
-                                      setExpandedParent(null);
-                                    }}
-                                  >
-                                    <div className={`w-2 h-2 rounded-full shrink-0 ${muscle.colorClass}`} />
-                                    <span>{muscle.label}</span>
-                                  </button>
-                                  {subs && subs.length > 0 && (
-                                    <button
-                                      className="p-0.5 rounded hover:bg-muted/50 transition-colors"
-                                      onClick={() => setExpandedParent(isExpanded ? null : muscle.id)}
-                                    >
-                                      <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />
-                                    </button>
-                                  )}
-                                </div>
-                                {isExpanded && subs && (
-                                  <div className="ml-4 flex flex-col gap-0.5 mt-0.5">
-                                    {subs.map(sub => (
-                                      <button
-                                        key={sub.id}
-                                        className="flex items-center gap-1.5 px-1.5 py-1 rounded text-[11px] hover:bg-muted/50 transition-colors text-left text-muted-foreground"
-                                        onClick={() => {
-                                          handleAddMuscle(sub.id);
-                                          setAddOpen(false);
-                                          setExpandedParent(null);
-                                        }}
-                                      >
-                                        <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${muscle.colorClass} opacity-70`} />
-                                        <span>{sub.label}</span>
-                                      </button>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </PopoverContent>
-              </Popover>
-            )}
-            {/* Copy button */}
-            {daySlots.length > 0 && onCopyDay && (
+                  <Plus className="h-3 w-3" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent
+                className="w-44 p-1"
+                onClick={e => e.stopPropagation()}
+                align="end"
+              >
+                <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 py-1">Session type</p>
+                {ADDABLE_SESSION_TYPES.map(t => (
+                  <button
+                    key={t}
+                    className="flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted w-full text-left"
+                    onClick={() => handleAddSession(t)}
+                  >
+                    <div className={cn("w-1.5 h-1.5 rounded-full", ACTIVITY_TYPE_COLORS[t].colorClass)} />
+                    <span>{ACTIVITY_TYPE_LABELS[t]}</span>
+                  </button>
+                ))}
+              </PopoverContent>
+            </Popover>
+            {/* Copy day */}
+            {hasAnyContent && onCopyDay && (
               <Button
                 variant="ghost"
                 size="icon"
@@ -298,7 +253,6 @@ export const DayColumn = memo(function DayColumn({
                 <Copy className="h-3 w-3" />
               </Button>
             )}
-            {/* Paste button */}
             {hasCopied && !isCopiedDay && onPasteDay && (
               <Button
                 variant="ghost"
@@ -326,135 +280,82 @@ export const DayColumn = memo(function DayColumn({
             )}
           </div>
         </div>
-        {/* Per-day muscle-distribution ribbon — 2px strip of color-coded
-            segments so the coach can read body-region balance at a glance
-            without scrolling to the volume chart. */}
+        {/* Muscle-distribution ribbon */}
         {muscleDistribution.length > 0 && (
           <div
             className="mt-1.5 h-[2px] w-full flex overflow-hidden rounded-full bg-muted/30"
             aria-hidden
           >
             {muscleDistribution.map(({ id, colorHex, pct }) => (
-              <div
-                key={id}
-                style={{ width: `${pct}%`, backgroundColor: colorHex }}
-              />
+              <div key={id} style={{ width: `${pct}%`, backgroundColor: colorHex }} />
             ))}
           </div>
         )}
       </CardHeader>
       <CardContent className="p-2 pt-0">
-        <Droppable droppableId={`day-${dayIndex}`} type="MUSCLE_SLOT">
-          {(provided, snapshot) => (
-            <div
-              ref={provided.innerRef}
-              {...provided.droppableProps}
-              className={`min-h-[80px] space-y-1 rounded-md transition-colors p-1 ${
-                snapshot.isDraggingOver
-                  ? 'bg-primary/5 border border-dashed border-primary/50'
-                  : 'border border-transparent'
-              }`}
+        {daySessions.length === 0 ? (
+          // Rest day — diagonal hatch + muted badge.
+          <div
+            className="flex flex-col items-center justify-center gap-1.5 h-[80px] rounded-md border border-dashed border-border/40 text-[11px] text-muted-foreground/70"
+            style={{
+              backgroundImage:
+                'repeating-linear-gradient(45deg, hsl(var(--muted) / 0.25) 0 6px, transparent 6px 12px)',
+            }}
+          >
+            <span className="px-2 py-0.5 rounded-full bg-background/70 border border-border/40 text-[10px] uppercase tracking-wider font-medium">
+              Rest
+            </span>
+            <button
+              className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
+              onClick={e => { e.stopPropagation(); setAddSessionOpen(true); }}
             >
-              {daySlots.length === 0 && !snapshot.isDraggingOver && (
-                // Distinct rest day — diagonal hatch + muted badge. Rest days
-                // used to look identical to empty-but-planned days, which
-                // made it hard to tell at a glance whether the coach had
-                // simply not filled the column yet.
-                <div
-                  className="flex flex-col items-center justify-center gap-1.5 h-[80px] rounded-md border border-dashed border-border/40 text-[11px] text-muted-foreground/70"
-                  style={{
-                    backgroundImage:
-                      'repeating-linear-gradient(45deg, hsl(var(--muted) / 0.25) 0 6px, transparent 6px 12px)',
-                  }}
-                >
-                  <span className="px-2 py-0.5 rounded-full bg-background/70 border border-border/40 text-[10px] uppercase tracking-wider font-medium">
-                    Rest
-                  </span>
-                </div>
-              )}
-              {(() => {
-                // Render slots with optional session type headers when multiple types present
-                let globalIdx = 0;
-                const rendered: React.ReactNode[] = [];
-                const typeOrder: string[] = ['strength', 'cardio', 'hiit', 'yoga_mobility', 'recovery', 'sport_specific'];
-
-                for (const type of typeOrder) {
-                  const slotsForType = sessionGroups.get(type);
-                  if (!slotsForType || slotsForType.length === 0) continue;
-
-                  const isStrength = type === 'strength';
-                  const typeColors = ACTIVITY_TYPE_COLORS[type as ActivityType];
-                  const typeLabel = ACTIVITY_TYPE_LABELS[type as ActivityType];
-
-                  // Session group header (only when multiple types)
-                  if (hasMultipleTypes) {
-                    rendered.push(
-                      <div key={`header-${type}`} className="flex items-center gap-1.5 pt-1 pb-0.5 first:pt-0">
-                        <div className={`w-1.5 h-1.5 rounded-full ${typeColors.colorClass}`} />
-                        <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wider">{typeLabel}</span>
-                      </div>
-                    );
-                  }
-
-                  // Render slots for this type
-                  for (const slot of slotsForType) {
-                    const idx = globalIdx++;
-                    if (isStrength) {
-                      rendered.push(
-                        <MuscleSlotCard
-                          key={slot.id}
-                          slotId={slot.id}
-                          muscleId={slot.muscleId}
-                          sets={slot.sets}
-                          repMin={slot.repMin ?? 8}
-                          repMax={slot.repMax ?? 12}
-                          tempo={slot.tempo}
-                          rir={slot.rir}
-                          rpe={slot.rpe}
-                          exercise={slot.exercise}
-                          replacements={slot.replacements}
-                          setsDetail={slot.setsDetail}
-                          prescriptionColumns={slot.prescriptionColumns}
-                          clientInputColumns={slot.clientInputColumns}
-                          globalClientInputs={globalClientInputs}
-                          draggableIndex={idx}
-                          onSetSlotDetails={onSetSlotDetails}
-                          onRemove={onRemove}
-                          onSetExercise={onSetExercise}
-                          onClearExercise={onClearExercise}
-                          onAddReplacement={onAddReplacement}
-                          onRemoveReplacement={onRemoveReplacement}
-                          onOpenExercisePicker={onOpenExercisePicker}
-                          onTogglePerSet={onTogglePerSet}
-                          onUpdateSetDetail={onUpdateSetDetail}
-                          onSetExerciseInstructions={onSetExerciseInstructions}
-                          onSetSlotClientInputs={onSetSlotClientInputs}
-                          onSetSlotColumns={onSetSlotColumns}
-                          isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
-                          onSetAllSets={onSetAllSets}
-                          weekCount={weekCount}
-                          onApplyToRemaining={onApplyToRemaining}
-                        />
-                      );
-                    } else {
-                      rendered.push(
-                        <ActivitySlotCard
-                          key={slot.id}
-                          slot={slot}
-                          draggableIndex={idx}
-                          onRemove={onRemove}
-                          onSetActivityDetails={onSetActivityDetails}
-                        />
-                      );
-                    }
-                  }
-                }
-                return rendered;
-              })()}
-              {provided.placeholder}
-            </div>
-          )}
-        </Droppable>
+              Add session
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            {daySessions.map((session, i) => {
+              const sessionSlots = slotsBySessionId.get(session.id) || [];
+              const startIdx = draggableCursor;
+              draggableCursor += sessionSlots.length;
+              return (
+                <SessionBlock
+                  key={session.id}
+                  session={session}
+                  slots={sessionSlots}
+                  draggableStartIndex={startIdx}
+                  sessionPosition={i}
+                  daySessionsCount={daySessions.length}
+                  highlightedMuscleId={highlightedMuscleId}
+                  globalClientInputs={globalClientInputs}
+                  weekCount={weekCount}
+                  onSetSlotDetails={onSetSlotDetails}
+                  onRemove={onRemove}
+                  onSetExercise={onSetExercise}
+                  onClearExercise={onClearExercise}
+                  onAddReplacement={onAddReplacement}
+                  onRemoveReplacement={onRemoveReplacement}
+                  onOpenExercisePicker={onOpenExercisePicker}
+                  onTogglePerSet={onTogglePerSet}
+                  onUpdateSetDetail={onUpdateSetDetail}
+                  onSetExerciseInstructions={onSetExerciseInstructions}
+                  onSetSlotClientInputs={onSetSlotClientInputs}
+                  onSetSlotColumns={onSetSlotColumns}
+                  onSetActivityDetails={onSetActivityDetails}
+                  onSetAllSets={onSetAllSets}
+                  onApplyToRemaining={onApplyToRemaining}
+                  onAddMuscleToSession={onAddMuscleToSession}
+                  onAddActivityToSession={onAddActivityToSession}
+                  onRenameSession={onRenameSession}
+                  onSetSessionType={onSetSessionType}
+                  onRemoveSession={onRemoveSession}
+                  onDuplicateSessionToDay={onDuplicateSessionToDay}
+                  onReorderSession={onReorderSession}
+                />
+              );
+            })}
+          </div>
+        )}
       </CardContent>
     </Card>
   );

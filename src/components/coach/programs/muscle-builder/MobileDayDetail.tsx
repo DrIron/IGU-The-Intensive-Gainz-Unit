@@ -6,7 +6,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal, Clock } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal, Clock, MoreVertical, Trash2 } from "lucide-react";
 import { MobileSetCarousel } from "./MobileSetCarousel";
 import { cn } from "@/lib/utils";
 import {
@@ -21,22 +31,37 @@ import {
   SUBDIVISIONS,
   BODY_REGIONS,
   BODY_REGION_LABELS,
+  ACTIVITY_TYPE_LABELS,
+  ACTIVITY_TYPE_COLORS,
+  ACTIVITIES_BY_CATEGORY,
   getMuscleDisplay,
   getShortMuscleLabel,
   resolveParentMuscleId,
+  defaultSessionName,
   SUBDIVISIONS_BY_PARENT,
   SUBDIVISION_MAP,
+  type ActivityType,
   type MuscleSlotData,
+  type SessionData,
   type SlotExercise,
   type BodyRegion,
 } from "@/types/muscle-builder";
 
+const SESSION_TYPES: ActivityType[] = ['strength', 'cardio', 'hiit', 'yoga_mobility', 'recovery', 'sport_specific'];
+
 interface MobileDayDetailProps {
   slots: MuscleSlotData[];
+  sessions: SessionData[];
   selectedDayIndex: number;
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
-  onAddMuscle: (dayIndex: number, muscleId: string) => void;
+  onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
+  onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
+  onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
+  onRenameSession: (sessionId: string, name: string) => void;
+  onSetSessionType: (sessionId: string, type: ActivityType) => void;
+  onRemoveSession: (sessionId: string) => void;
+  onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
   onClearExercise?: (slotId: string) => void;
   onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
@@ -79,10 +104,17 @@ function formatSlotLabel(muscleId: string): string {
 
 export const MobileDayDetail = memo(function MobileDayDetail({
   slots,
+  sessions,
   selectedDayIndex,
   onSetSlotDetails,
   onRemove,
-  onAddMuscle,
+  onAddMuscleToSession,
+  onAddActivityToSession,
+  onAddSession,
+  onRenameSession,
+  onSetSessionType,
+  onRemoveSession,
+  onDuplicateSessionToDay,
   onClearExercise,
   onRemoveReplacement,
   onOpenExercisePicker,
@@ -102,13 +134,32 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   weekCount,
   onApplyToRemaining,
 }: MobileDayDetailProps) {
-  const [pickerOpen, setPickerOpen] = useState(false);
+  // pickerSessionId: when non-null, the inline picker is scoped to adding
+  // slots to this session. Null = no picker open.
+  const [pickerSessionId, setPickerSessionId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [addSessionOpen, setAddSessionOpen] = useState(false);
 
   const daySlots = useMemo(
     () => slots.filter(s => s.dayIndex === selectedDayIndex).sort((a, b) => a.sortOrder - b.sortOrder),
     [slots, selectedDayIndex],
   );
+
+  const daySessions = useMemo(
+    () => sessions.filter(s => s.dayIndex === selectedDayIndex).sort((a, b) => a.sortOrder - b.sortOrder),
+    [sessions, selectedDayIndex],
+  );
+
+  const slotsBySessionId = useMemo(() => {
+    const map = new Map<string, MuscleSlotData[]>();
+    for (const slot of daySlots) {
+      const key = slot.sessionId || '__unassigned__';
+      const list = map.get(key) || [];
+      list.push(slot);
+      map.set(key, list);
+    }
+    return map;
+  }, [daySlots]);
 
   const totalSets = useMemo(
     () => daySlots.reduce((sum, s) => sum + s.sets, 0),
@@ -143,11 +194,22 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   const hasCopied = copiedDayIndex != null;
   const isCopiedDay = copiedDayIndex === selectedDayIndex;
 
+  const pickerSession = pickerSessionId ? daySessions.find(s => s.id === pickerSessionId) : null;
+
   const handleAddMuscle = useCallback(
     (muscleId: string) => {
-      onAddMuscle(selectedDayIndex, muscleId);
+      if (!pickerSessionId) return;
+      onAddMuscleToSession(pickerSessionId, muscleId);
     },
-    [onAddMuscle, selectedDayIndex],
+    [onAddMuscleToSession, pickerSessionId],
+  );
+
+  const handleAddActivity = useCallback(
+    (activityId: string, type: ActivityType) => {
+      if (!pickerSessionId) return;
+      onAddActivityToSession(pickerSessionId, activityId, type);
+    },
+    [onAddActivityToSession, pickerSessionId],
   );
 
   const filteredItems = useMemo(() => {
@@ -213,165 +275,339 @@ export const MobileDayDetail = memo(function MobileDayDetail({
       </CardHeader>
 
       <CardContent className="p-3 pt-0 space-y-2">
-        {pickerOpen ? (
-          /* -- Inline Muscle Picker -- */
+        {pickerSessionId && pickerSession ? (
+          /* -- Inline Picker scoped to a session --
+             Strength sessions get the muscle picker; other types list
+             their own activities so coach doesn't mix types by accident. */
           <div className="space-y-3">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-medium text-muted-foreground">Add Muscle</span>
+              <span className="text-xs font-medium text-muted-foreground">
+                Add to {pickerSession.name?.trim() || defaultSessionName(pickerSession.type)}
+              </span>
               <Button
                 variant="ghost"
                 size="sm"
                 className="h-6 text-xs"
-                onClick={() => { setPickerOpen(false); setSearch(""); }}
+                onClick={() => { setPickerSessionId(null); setSearch(""); }}
               >
                 Done
               </Button>
             </div>
 
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search muscles..."
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                className="pl-8 h-8 text-sm"
-                autoFocus
-              />
-            </div>
-
-            {filteredItems ? (
-              <div className="flex flex-wrap gap-1.5">
-                {filteredItems.parents.map(muscle => (
-                  <MuscleChip
-                    key={muscle.id}
-                    muscleId={muscle.id}
-                    label={muscle.label}
-                    colorClass={muscle.colorClass}
-                    onTap={handleAddMuscle}
+            {pickerSession.type === 'strength' ? (
+              <>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search muscles..."
+                    value={search}
+                    onChange={e => setSearch(e.target.value)}
+                    className="pl-8 h-8 text-sm"
+                    autoFocus
                   />
-                ))}
-                {filteredItems.subs.map(sub => {
-                  const parent = MUSCLE_MAP.get(sub.parentId);
-                  if (!parent) return null;
-                  return (
-                    <MuscleChip
-                      key={sub.id}
-                      muscleId={sub.id}
-                      label={sub.label}
-                      colorClass={parent.colorClass}
-                      onTap={handleAddMuscle}
-                      isSubdivision
-                    />
-                  );
-                })}
-                {filteredItems.parents.length === 0 && filteredItems.subs.length === 0 && (
-                  <p className="text-xs text-muted-foreground py-2">
-                    {search ? `No muscles match "${search}"` : "No muscles found"}
-                  </p>
-                )}
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {BODY_REGIONS.map(region => {
-                  const muscles = musclesByRegion.get(region) || [];
-                  return (
-                    <div key={region}>
-                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
-                        {BODY_REGION_LABELS[region]}
+                </div>
+                {filteredItems ? (
+                  <div className="flex flex-wrap gap-1.5">
+                    {filteredItems.parents.map(muscle => (
+                      <MuscleChip
+                        key={muscle.id}
+                        muscleId={muscle.id}
+                        label={muscle.label}
+                        colorClass={muscle.colorClass}
+                        onTap={handleAddMuscle}
+                      />
+                    ))}
+                    {filteredItems.subs.map(sub => {
+                      const parent = MUSCLE_MAP.get(sub.parentId);
+                      if (!parent) return null;
+                      return (
+                        <MuscleChip
+                          key={sub.id}
+                          muscleId={sub.id}
+                          label={sub.label}
+                          colorClass={parent.colorClass}
+                          onTap={handleAddMuscle}
+                          isSubdivision
+                        />
+                      );
+                    })}
+                    {filteredItems.parents.length === 0 && filteredItems.subs.length === 0 && (
+                      <p className="text-xs text-muted-foreground py-2">
+                        {search ? `No muscles match "${search}"` : "No muscles found"}
                       </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {muscles.map(muscle => (
-                          <MuscleChip
-                            key={muscle.id}
-                            muscleId={muscle.id}
-                            label={muscle.label}
-                            colorClass={muscle.colorClass}
-                            onTap={handleAddMuscle}
-                          />
-                        ))}
-                      </div>
-                      {muscles.map(muscle => {
-                        const subs = SUBDIVISIONS_BY_PARENT.get(muscle.id);
-                        if (!subs || subs.length === 0) return null;
-                        return (
-                          <div key={`${muscle.id}-subs`} className="flex flex-wrap gap-1 mt-1 ml-2">
-                            {subs.map(sub => (
+                    )}
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {BODY_REGIONS.map(region => {
+                      const muscles = musclesByRegion.get(region) || [];
+                      return (
+                        <div key={region}>
+                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
+                            {BODY_REGION_LABELS[region]}
+                          </p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {muscles.map(muscle => (
                               <MuscleChip
-                                key={sub.id}
-                                muscleId={sub.id}
-                                label={sub.label}
+                                key={muscle.id}
+                                muscleId={muscle.id}
+                                label={muscle.label}
                                 colorClass={muscle.colorClass}
                                 onTap={handleAddMuscle}
-                                isSubdivision
                               />
                             ))}
                           </div>
-                        );
-                      })}
+                          {muscles.map(muscle => {
+                            const subs = SUBDIVISIONS_BY_PARENT.get(muscle.id);
+                            if (!subs || subs.length === 0) return null;
+                            return (
+                              <div key={`${muscle.id}-subs`} className="flex flex-wrap gap-1 mt-1 ml-2">
+                                {subs.map(sub => (
+                                  <MuscleChip
+                                    key={sub.id}
+                                    muscleId={sub.id}
+                                    label={sub.label}
+                                    colorClass={muscle.colorClass}
+                                    onTap={handleAddMuscle}
+                                    isSubdivision
+                                  />
+                                ))}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-wrap gap-1.5">
+                {(ACTIVITIES_BY_CATEGORY.get(pickerSession.type) || []).map(activity => (
+                  <button
+                    key={activity.id}
+                    onClick={() => handleAddActivity(activity.id, pickerSession.type)}
+                    className="inline-flex items-center gap-1.5 rounded-md bg-card/50 hover:bg-card border px-2.5 py-1.5 text-sm border-border/50 active:scale-95 transition-all"
+                  >
+                    <div className={cn("w-2 h-2 rounded-full shrink-0", activity.colorClass)} />
+                    <span className="text-foreground">{activity.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        ) : (
+          /* -- Sessions list -- */
+          <>
+            {daySessions.length === 0 ? (
+              <div className="flex flex-col items-center justify-center gap-1.5 py-4 text-xs text-muted-foreground/60">
+                <span>Rest day</span>
+                <button
+                  className="underline underline-offset-2 hover:text-foreground"
+                  onClick={() => setAddSessionOpen(true)}
+                >
+                  Add session
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {daySessions.map(session => {
+                  const sessionSlots = (slotsBySessionId.get(session.id) || [])
+                    .slice()
+                    .sort((a, b) => a.sortOrder - b.sortOrder);
+                  const typeColors = ACTIVITY_TYPE_COLORS[session.type];
+                  return (
+                    <div key={session.id} className="rounded-md border border-border/40 bg-muted/20 p-2 space-y-1.5">
+                      <MobileSessionHeader
+                        session={session}
+                        typeColorClass={typeColors.colorClass}
+                        onRenameSession={onRenameSession}
+                        onSetSessionType={onSetSessionType}
+                        onRemoveSession={onRemoveSession}
+                        onDuplicateSessionToDay={onDuplicateSessionToDay}
+                      />
+                      {sessionSlots.length === 0 ? (
+                        <p className="text-[11px] text-muted-foreground/60 italic py-1 text-center">
+                          Empty session
+                        </p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {sessionSlots.map((slot, index) => {
+                            // index within the day's full ordered slot list drives
+                            // the existing day-level REORDER. Compute it fresh so
+                            // arrows still act as expected across sessions.
+                            const dayIdx = daySlots.findIndex(s => s.id === slot.id);
+                            const muscle = getMuscleDisplay(slot.muscleId);
+                            if (!muscle) return null;
+                            return (
+                              <MobileSlotRow
+                                key={slot.id}
+                                slot={slot}
+                                muscle={muscle}
+                                label={getShortMuscleLabel(slot.muscleId)}
+                                fullLabel={formatSlotLabel(slot.muscleId)}
+                                isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
+                                onSetSlotDetails={onSetSlotDetails}
+                                onRemove={onRemove}
+                                onClearExercise={onClearExercise}
+                                onRemoveReplacement={onRemoveReplacement}
+                                onOpenExercisePicker={onOpenExercisePicker}
+                                onTogglePerSet={onTogglePerSet}
+                                onUpdateSetDetail={onUpdateSetDetail}
+                                onDeleteSetAtIndex={onDeleteSetAtIndex}
+                                onApplySetToRemaining={onApplySetToRemaining}
+                                onSetExerciseInstructions={onSetExerciseInstructions}
+                                onSetSlotClientInputs={onSetSlotClientInputs}
+                                onSetSlotColumns={onSetSlotColumns}
+                                globalClientInputs={globalClientInputs}
+                                canMoveUp={index > 0}
+                                canMoveDown={index < sessionSlots.length - 1}
+                                onMoveUp={onReorderSlot && dayIdx > 0 ? () => onReorderSlot(selectedDayIndex, dayIdx, dayIdx - 1) : undefined}
+                                onMoveDown={onReorderSlot && dayIdx < daySlots.length - 1 ? () => onReorderSlot(selectedDayIndex, dayIdx, dayIdx + 1) : undefined}
+                                weekCount={weekCount}
+                                onApplyToRemaining={onApplyToRemaining}
+                              />
+                            );
+                          })}
+                        </div>
+                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="w-full h-8 text-xs text-muted-foreground justify-start"
+                        onClick={() => { setPickerSessionId(session.id); setSearch(""); }}
+                      >
+                        <Plus className="h-3.5 w-3.5 mr-1.5" />
+                        {session.type === 'strength' ? 'Add muscle' : 'Add activity'}
+                      </Button>
                     </div>
                   );
                 })}
               </div>
             )}
-          </div>
-        ) : (
-          /* -- Slot List -- */
-          <>
-            {daySlots.length === 0 ? (
-              <div className="flex items-center justify-center h-16 text-xs text-muted-foreground/50">
-                Rest day &mdash; tap + to add muscles
-              </div>
-            ) : (
-              <div className="space-y-1.5">
-                {daySlots.map((slot, index) => {
-                  const muscle = getMuscleDisplay(slot.muscleId);
-                  if (!muscle) return null;
-                  return (
-                    <MobileSlotRow
-                      key={slot.id}
-                      slot={slot}
-                      muscle={muscle}
-                      label={getShortMuscleLabel(slot.muscleId)}
-                      fullLabel={formatSlotLabel(slot.muscleId)}
-                      isHighlighted={highlightedMuscleId != null && resolveParentMuscleId(slot.muscleId) === highlightedMuscleId}
-                      onSetSlotDetails={onSetSlotDetails}
-                      onRemove={onRemove}
-                      onClearExercise={onClearExercise}
-                      onRemoveReplacement={onRemoveReplacement}
-                      onOpenExercisePicker={onOpenExercisePicker}
-                      onTogglePerSet={onTogglePerSet}
-                      onUpdateSetDetail={onUpdateSetDetail}
-                      onDeleteSetAtIndex={onDeleteSetAtIndex}
-                      onApplySetToRemaining={onApplySetToRemaining}
-                      onSetExerciseInstructions={onSetExerciseInstructions}
-                      onSetSlotClientInputs={onSetSlotClientInputs}
-                      onSetSlotColumns={onSetSlotColumns}
-                      globalClientInputs={globalClientInputs}
-                      canMoveUp={index > 0}
-                      canMoveDown={index < daySlots.length - 1}
-                      onMoveUp={onReorderSlot ? () => onReorderSlot(selectedDayIndex, index, index - 1) : undefined}
-                      onMoveDown={onReorderSlot ? () => onReorderSlot(selectedDayIndex, index, index + 1) : undefined}
-                      weekCount={weekCount}
-                      onApplyToRemaining={onApplyToRemaining}
-                    />
-                  );
-                })}
-              </div>
-            )}
 
-            <Button
-              variant="outline"
-              size="sm"
-              className="w-full h-9 text-xs"
-              onClick={() => setPickerOpen(true)}
-            >
-              <Plus className="h-3.5 w-3.5 mr-1.5" />
-              Add Muscle
-            </Button>
+            {/* + Session at day level */}
+            <DropdownMenu open={addSessionOpen} onOpenChange={setAddSessionOpen}>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm" className="w-full h-9 text-xs">
+                  <Plus className="h-3.5 w-3.5 mr-1.5" />
+                  Add session
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-44" align="center">
+                {SESSION_TYPES.map(t => (
+                  <DropdownMenuItem
+                    key={t}
+                    onClick={() => { onAddSession(selectedDayIndex, t); setAddSessionOpen(false); }}
+                  >
+                    <div className={cn("w-1.5 h-1.5 rounded-full mr-2", ACTIVITY_TYPE_COLORS[t].colorClass)} />
+                    {ACTIVITY_TYPE_LABELS[t]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
           </>
         )}
       </CardContent>
     </Card>
+  );
+});
+
+/* -- Mobile session header: colored dot + tap-to-rename + kebab -- */
+
+interface MobileSessionHeaderProps {
+  session: SessionData;
+  typeColorClass: string;
+  onRenameSession: (sessionId: string, name: string) => void;
+  onSetSessionType: (sessionId: string, type: ActivityType) => void;
+  onRemoveSession: (sessionId: string) => void;
+  onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
+}
+
+const MobileSessionHeader = memo(function MobileSessionHeader({
+  session,
+  typeColorClass,
+  onRenameSession,
+  onSetSessionType,
+  onRemoveSession,
+  onDuplicateSessionToDay,
+}: MobileSessionHeaderProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(session.name ?? '');
+
+  const commit = () => {
+    onRenameSession(session.id, draft.trim());
+    setEditing(false);
+  };
+
+  return (
+    <div className="flex items-center gap-2 min-w-0">
+      <div className={cn("w-2 h-2 rounded-full shrink-0", typeColorClass)} />
+      {editing ? (
+        <Input
+          autoFocus
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => {
+            if (e.key === 'Enter') commit();
+            if (e.key === 'Escape') { setDraft(session.name ?? ''); setEditing(false); }
+          }}
+          className="h-7 text-sm px-1.5 py-0 flex-1 min-w-0"
+          placeholder={defaultSessionName(session.type)}
+        />
+      ) : (
+        <button
+          type="button"
+          className="text-xs font-semibold uppercase tracking-wider text-foreground/80 truncate flex-1 min-w-0 text-left"
+          onClick={() => { setDraft(session.name ?? ''); setEditing(true); }}
+        >
+          {session.name?.trim() || defaultSessionName(session.type)}
+        </button>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" aria-label="Session actions">
+            <MoreVertical className="h-3.5 w-3.5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem onClick={() => { setDraft(session.name ?? ''); setEditing(true); }}>
+            Rename
+          </DropdownMenuItem>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>Change type</DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {SESSION_TYPES.map(t => (
+                <DropdownMenuItem key={t} disabled={t === session.type} onClick={() => onSetSessionType(session.id, t)}>
+                  <div className={cn("w-1.5 h-1.5 rounded-full mr-2", ACTIVITY_TYPE_COLORS[t].colorClass)} />
+                  {ACTIVITY_TYPE_LABELS[t]}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <Copy className="h-3 w-3 mr-2" /> Duplicate to day
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {DAYS_OF_WEEK.map((day, i) => (
+                <DropdownMenuItem key={day} onClick={() => onDuplicateSessionToDay(session.id, i + 1)}>
+                  {day}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onClick={() => onRemoveSession(session.id)}
+          >
+            <Trash2 className="h-3 w-3 mr-2" /> Delete session
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
   );
 });
 
