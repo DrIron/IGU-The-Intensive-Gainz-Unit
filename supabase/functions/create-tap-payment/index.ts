@@ -109,6 +109,28 @@ serve(async (req) => {
       );
     }
 
+    // Idempotency dedupe (M5): TAP's `reference.idempotent` field is metadata, not
+    // an HTTP-level guarantee. Before creating a charge, look for an "initiated"
+    // charge for the same (user, service) within the last 30s -- blocks the
+    // double-click / double-tap race where two charges land before either completes.
+    const dedupeCutoff = new Date(Date.now() - 30_000).toISOString();
+    const { data: recentAttempt } = await supabase
+      .from('subscription_payments')
+      .select('id, tap_charge_id, created_at')
+      .eq('user_id', userId)
+      .eq('status', 'initiated')
+      .gte('created_at', dedupeCutoff)
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (recentAttempt) {
+      console.warn(JSON.stringify({ fn: "create-tap-payment", step: "dedupe_block", ok: false, user_id: userId, existing_charge: recentAttempt.tap_charge_id }));
+      return new Response(
+        JSON.stringify({ success: false, error: 'A payment request is already in progress. Please wait a moment and try again.' }),
+        { status: 409, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     console.log(JSON.stringify({ fn: "create-tap-payment", step: "init", ok: true, service_id: serviceId, user_id: userId, is_renewal: isRenewal || false }));
 
     // Get service details
