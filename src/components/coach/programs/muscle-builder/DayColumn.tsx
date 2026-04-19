@@ -128,7 +128,11 @@ export const DayColumn = memo(function DayColumn({
       className={cn(
         // transition-colors only — the previous `transition-all` animated layout shifts
         // during drag-over, which made @hello-pangea/dnd hover feedback feel laggy.
-        `group min-w-[160px] flex-1 transition-colors cursor-pointer`,
+        // min-w-0: the parent is a CSS grid with 7 equal tracks. A min-w-[160px]
+        // here made each Card render wider than its grid cell and literally
+        // overlap the next day's column at 1440×900. The grid track is
+        // authoritative; let Card stretch to fit.
+        `group min-w-0 flex-1 transition-colors cursor-pointer`,
         isSelected ? 'ring-2 ring-primary border-primary/50' : 'border-border/50 hover:border-border',
         className,
       )}

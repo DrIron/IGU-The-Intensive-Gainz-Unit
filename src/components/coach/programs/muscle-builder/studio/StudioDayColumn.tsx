@@ -68,7 +68,10 @@ export const StudioDayColumn = memo(function StudioDayColumn({
       data-day-index={dayIndex}
       onClick={() => onSelectDay(dayIndex)}
       className={cn(
-        "relative flex flex-col min-w-[170px] flex-1",
+        // min-w-0 rather than a fixed min-w — when StudioDayColumn renders
+        // inside a CSS grid it must obey the track width, otherwise columns
+        // overlap on <1440 viewports.
+        "relative flex flex-col min-w-0 flex-1",
         "bg-[hsl(220_14%_6.5%)]",
         "border border-white/[0.06]",
         "transition-colors duration-150",
