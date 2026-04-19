@@ -355,7 +355,7 @@ export function AdminBillingManager() {
         const { data: adminCoach, error: adminCoachError } = await supabase
           .from("coaches")
           .select("user_id")
-          .eq("email", "driron.admin@theigu.com")
+          .eq("email", "dr.ironofficial@gmail.com")
           .eq("status", "approved")
           .maybeSingle();
 

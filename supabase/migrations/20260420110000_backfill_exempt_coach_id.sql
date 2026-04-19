@@ -5,7 +5,7 @@
 --   AdminBillingManager.handleTogglePaymentExempt activated a sub and set
 --   profiles_public.payment_exempt=true, but never assigned coach_id. The
 --   parallel create-manual-client edge function DOES assign to the IGU
---   admin coach (driron.admin@theigu.com). Result: exempt clients toggled
+--   admin coach (dr.ironofficial@gmail.com). Result: exempt clients toggled
 --   via the admin UI ended up with coach_id=NULL, flagging as orphans on
 --   /admin/health.
 --
@@ -22,7 +22,7 @@ FROM public.coaches c, public.profiles_public p
 WHERE s.coach_id IS NULL
   AND s.user_id = p.id
   AND p.payment_exempt = true
-  AND c.email = 'driron.admin@theigu.com'
+  AND c.email = 'dr.ironofficial@gmail.com'
   AND c.status = 'approved';
 
 -- Sanity check: surface any remaining orphans (payment-exempt, no coach).

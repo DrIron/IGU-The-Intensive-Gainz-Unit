@@ -215,7 +215,7 @@ serve(async (req) => {
     const { data: adminCoach, error: coachError } = await supabaseAdmin
       .from("coaches")
       .select("user_id")
-      .eq("email", "driron.admin@theigu.com")
+      .eq("email", "dr.ironofficial@gmail.com")
       .eq("status", "approved")
       .maybeSingle();
 
