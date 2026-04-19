@@ -50,6 +50,25 @@ serve(async (req) => {
       );
     }
 
+    // Payment-exempt enforcement: BillingPayment.tsx blocks the UI, but a direct POST would
+    // otherwise create a charge for an exempt user. Re-check server-side.
+    const { data: exemptProfile, error: exemptError } = await supabase
+      .from('profiles_public')
+      .select('payment_exempt')
+      .eq('id', user.id)
+      .maybeSingle();
+    if (exemptError) {
+      console.error(JSON.stringify({ fn: "create-tap-payment", step: "exempt_check", ok: false, error: "query_failed" }));
+      throw exemptError;
+    }
+    if (exemptProfile?.payment_exempt) {
+      console.warn(JSON.stringify({ fn: "create-tap-payment", step: "exempt_blocked", ok: false, user_id: user.id }));
+      return new Response(
+        JSON.stringify({ success: false, error: 'payment_exempt' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Rate limiting: 10 requests per minute per user
     const rateCheck = checkRateLimit(`user:${user.id}`, 10, 60_000);
     if (!rateCheck.allowed) {

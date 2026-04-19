@@ -56,6 +56,7 @@ export const StudioSlotCard = memo(function StudioSlotCard({
   onOpen,
 }: StudioSlotCardProps) {
   const [isHover, setIsHover] = useState(false);
+  const handleOpen = useCallback(() => onOpen(slotId), [slotId, onOpen]);
 
   const muscle = getMuscleDisplay(muscleId);
   if (!muscle) return null;
@@ -69,8 +70,6 @@ export const StudioSlotCard = memo(function StudioSlotCard({
   const displayLabel = hasExercise
     ? exercise!.name
     : getShortMuscleLabel(muscleId);
-
-  const handleOpen = useCallback(() => onOpen(slotId), [slotId, onOpen]);
 
   return (
     <Draggable draggableId={`slot-${slotId}`} index={draggableIndex}>

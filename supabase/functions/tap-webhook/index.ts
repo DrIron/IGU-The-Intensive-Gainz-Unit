@@ -45,10 +45,11 @@ async function verifyWebhookSignature(
   receivedSignature: string | null,
   secretKey: string
 ): Promise<{ valid: boolean; reason?: string }> {
-  // If no signature header, log warning but continue (TAP API verification is the fallback)
+  // Missing signature header is a hard reject — TAP always sends `hashstring` on real webhooks.
+  // Call site at line ~540 logs the attempt and returns 200 ignored (avoids TAP retry storms).
   if (!receivedSignature) {
-    console.warn(JSON.stringify({ fn: "tap-webhook", step: "no_hashstring_header", ok: true }));
-    return { valid: true, reason: 'no_signature_header' };
+    console.warn(JSON.stringify({ fn: "tap-webhook", step: "no_hashstring_header", ok: false }));
+    return { valid: false, reason: 'no_signature_header' };
   }
 
   try {
@@ -100,8 +101,9 @@ async function verifyWebhookSignature(
     return { valid: true };
   } catch (error) {
     console.error(JSON.stringify({ fn: "tap-webhook", step: "signature_verification_error", ok: false }));
-    // Don't fail on verification error - TAP API verification is the authoritative check
-    return { valid: true, reason: 'verification_error_bypassed' };
+    // Verification errors are rejects too — previously this silently bypassed to downstream TAP API
+    // re-verification, which meant forged/malformed webhooks could reach database writes.
+    return { valid: false, reason: 'verification_error' };
   }
 }
 

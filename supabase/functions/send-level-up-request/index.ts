@@ -70,7 +70,7 @@ serve(async (req) => {
     const result = await sendEmail({
       from: EMAIL_FROM_ADMIN,
       to: REPLY_TO_ADMIN,
-      subject: `Level-Up Request: ${coachName} — ${currentLevel} → ${targetLevel}`,
+      subject: `Level-Up Request: ${coachName} -- ${currentLevel} -> ${targetLevel}`,
       html,
       replyTo: coachEmail,
     });
