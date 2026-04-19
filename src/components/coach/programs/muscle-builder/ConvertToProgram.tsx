@@ -240,6 +240,7 @@ export const ConvertToProgram = memo(function ConvertToProgram({
                 rest_seconds: firstSet.rest_seconds ?? 90,
                 sets_json: setsJson,
               };
+              if (firstSet.rest_seconds_max != null) presc.rest_seconds_max = firstSet.rest_seconds_max;
               if (firstSet.tempo ?? slot.tempo) presc.tempo = firstSet.tempo ?? slot.tempo;
               return presc;
             };

@@ -4,8 +4,13 @@ import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { Copy, ClipboardPaste, Plus, ChevronRight, ChevronDown } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, ChevronRight, ChevronDown, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  estimateSessionDuration,
+  formatDurationRange,
+  type SetDurationInputs,
+} from "@/lib/sessionDuration";
 import { MuscleSlotCard } from "./MuscleSlotCard";
 import { ActivitySlotCard } from "./ActivitySlotCard";
 import {
@@ -15,6 +20,7 @@ import {
   BODY_REGION_LABELS,
   SUBDIVISIONS_BY_PARENT,
   resolveParentMuscleId,
+  getMuscleDisplay,
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE_COLORS,
   type ActivityType,
@@ -97,6 +103,58 @@ export const DayColumn = memo(function DayColumn({
     () => daySlots.filter(s => !s.activityType || s.activityType === 'strength').reduce((sum, s) => sum + s.sets, 0),
     [daySlots]
   );
+
+  // Session duration estimate (range). Each strength slot counts as one
+  // "exercise" of N sets. We synthesize SetDurationInputs from the slot's
+  // per-set detail when available, else from the slot-level tempo/reps with
+  // default rest fallback. Skips non-strength activities (cardio/HIIT/etc.).
+  const sessionDuration = useMemo(() => {
+    const strengthSlots = daySlots.filter(s => !s.activityType || s.activityType === 'strength');
+    if (strengthSlots.length === 0) return null;
+    const exercises: SetDurationInputs[][] = strengthSlots.map(slot => {
+      if (slot.setsDetail && slot.setsDetail.length > 0) {
+        return slot.setsDetail.map(s => ({
+          reps: s.reps,
+          rep_range_min: s.rep_range_min,
+          rep_range_max: s.rep_range_max,
+          tempo: s.tempo,
+          rest_seconds: s.rest_seconds,
+          rest_seconds_max: s.rest_seconds_max,
+        }));
+      }
+      // Slot-level: fan out N identical sets using slot's rep range + tempo.
+      return Array.from({ length: Math.max(1, slot.sets) }, () => ({
+        rep_range_min: slot.repMin,
+        rep_range_max: slot.repMax,
+        tempo: slot.tempo,
+      }));
+    });
+    const est = estimateSessionDuration(exercises);
+    if (est.minSeconds === 0 && est.maxSeconds === 0) return null;
+    return est;
+  }, [daySlots]);
+
+  // Per-day muscle distribution — drives the 2px ribbon below the header so
+  // the coach can read the body-region balance of the day without scrolling
+  // to the volume chart.
+  const muscleDistribution = useMemo(() => {
+    if (daySlots.length === 0) return [] as Array<{ id: string; colorHex: string; pct: number }>;
+    const totals = new Map<string, { sets: number; colorHex: string }>();
+    for (const slot of daySlots) {
+      if (slot.activityType && slot.activityType !== 'strength') continue;
+      const parentId = resolveParentMuscleId(slot.muscleId);
+      const display = getMuscleDisplay(parentId);
+      if (!display) continue;
+      const entry = totals.get(parentId);
+      if (entry) entry.sets += slot.sets;
+      else totals.set(parentId, { sets: slot.sets, colorHex: display.colorHex });
+    }
+    const sum = [...totals.values()].reduce((s, e) => s + e.sets, 0);
+    if (sum === 0) return [];
+    return [...totals.entries()]
+      .sort(([, a], [, b]) => b.sets - a.sets)
+      .map(([id, { sets, colorHex }]) => ({ id, colorHex, pct: (sets / sum) * 100 }));
+  }, [daySlots]);
 
   // Group slots by activity type for collapsible sections
   const sessionGroups = useMemo(() => {
@@ -255,8 +313,35 @@ export const DayColumn = memo(function DayColumn({
             {totalSets > 0 && (
               <span className="text-[10px] font-mono text-muted-foreground">{totalSets} sets</span>
             )}
+            {sessionDuration && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground"
+                title={sessionDuration.inferred
+                  ? "Estimate assumes 2-4s/rep tempo and 60-120s rest when not set"
+                  : "Estimated session duration"}
+              >
+                <Clock className="h-2.5 w-2.5" aria-hidden />
+                {formatDurationRange(sessionDuration.minSeconds, sessionDuration.maxSeconds)}
+              </span>
+            )}
           </div>
         </div>
+        {/* Per-day muscle-distribution ribbon — 2px strip of color-coded
+            segments so the coach can read body-region balance at a glance
+            without scrolling to the volume chart. */}
+        {muscleDistribution.length > 0 && (
+          <div
+            className="mt-1.5 h-[2px] w-full flex overflow-hidden rounded-full bg-muted/30"
+            aria-hidden
+          >
+            {muscleDistribution.map(({ id, colorHex, pct }) => (
+              <div
+                key={id}
+                style={{ width: `${pct}%`, backgroundColor: colorHex }}
+              />
+            ))}
+          </div>
+        )}
       </CardHeader>
       <CardContent className="p-2 pt-0">
         <Droppable droppableId={`day-${dayIndex}`} type="MUSCLE_SLOT">
@@ -271,8 +356,20 @@ export const DayColumn = memo(function DayColumn({
               }`}
             >
               {daySlots.length === 0 && !snapshot.isDraggingOver && (
-                <div className="flex items-center justify-center h-[80px] text-[11px] text-muted-foreground/50">
-                  Rest day
+                // Distinct rest day — diagonal hatch + muted badge. Rest days
+                // used to look identical to empty-but-planned days, which
+                // made it hard to tell at a glance whether the coach had
+                // simply not filled the column yet.
+                <div
+                  className="flex flex-col items-center justify-center gap-1.5 h-[80px] rounded-md border border-dashed border-border/40 text-[11px] text-muted-foreground/70"
+                  style={{
+                    backgroundImage:
+                      'repeating-linear-gradient(45deg, hsl(var(--muted) / 0.25) 0 6px, transparent 6px 12px)',
+                  }}
+                >
+                  <span className="px-2 py-0.5 rounded-full bg-background/70 border border-border/40 text-[10px] uppercase tracking-wider font-medium">
+                    Rest
+                  </span>
                 </div>
               )}
               {(() => {

@@ -51,6 +51,7 @@ import { FrequencyHeatmap } from "./FrequencyHeatmap";
 import { ProgressionOverview } from "./ProgressionOverview";
 import { PresetSelector } from "./PresetSelector";
 import { ConvertToProgram } from "./ConvertToProgram";
+import { SaveStatusBadge, type SaveState } from "./SaveStatusBadge";
 
 interface MuscleBuilderPageProps {
   coachUserId: string;
@@ -74,6 +75,36 @@ export function MuscleBuilderPage({
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
+
+  // Save status — derived from reducer state + two local pieces
+  // (lastSavedAt so we can show "Saved 3s ago"; saveError so the badge can
+  // render "Save failed — retry" without us having to surface it separately).
+  const [lastSavedAt, setLastSavedAt] = useState<number | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const wasSaving = useRef(false);
+  useEffect(() => {
+    if (wasSaving.current && !state.isSaving) {
+      // Just finished a save (or save attempt)
+      if (state.isDirty) {
+        // Save attempt failed — reducer fires SAVE_ERROR which keeps isDirty=true.
+        setSaveError("please retry");
+      } else {
+        setLastSavedAt(Date.now());
+        setSaveError(null);
+      }
+    }
+    wasSaving.current = state.isSaving;
+  }, [state.isSaving, state.isDirty]);
+
+  const saveState: SaveState = state.isSaving
+    ? "saving"
+    : saveError
+      ? "error"
+      : state.isDirty
+        ? "dirty"
+        : lastSavedAt
+          ? "saved"
+          : "idle";
 
   // #9 — Copy Day
   const [copiedDayIndex, setCopiedDayIndex] = useState<number | null>(null);
@@ -516,17 +547,12 @@ export function MuscleBuilderPage({
                 </PopoverContent>
               </Popover>
             )}
-            <Button variant="outline" size="sm" onClick={save} disabled={state.isSaving || !state.isDirty}>
-              {state.isSaving ? (
-                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-              ) : (
-                <Save className="h-4 w-4 mr-1" />
-              )}
-              Save
-              {state.isDirty && (
-                <span className="ml-1 w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />
-              )}
-            </Button>
+            <SaveStatusBadge
+              state={saveState}
+              lastSavedAt={lastSavedAt}
+              errorMessage={saveError}
+              onSave={save}
+            />
             {!isEmpty && (
               <Button size="sm" onClick={() => setShowConvertDialog(true)}>
                 <Zap className="h-4 w-4 mr-1" />

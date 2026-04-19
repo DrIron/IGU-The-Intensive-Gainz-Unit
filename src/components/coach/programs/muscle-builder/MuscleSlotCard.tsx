@@ -486,9 +486,33 @@ function SlotEditorPopover({
                     )}
                     {activeColumns.includes('rest') && (
                       <td className="px-0.5 py-0.5">
-                        <Input type="number" min={0} max={600} value={set.rest_seconds ?? ''} placeholder="90"
-                          onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rest_seconds', v != null && !isNaN(v) ? v : undefined); }}
-                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
+                        {/* Rest as a range: two stacked numerics, "to" label between.
+                            Auto-swap on blur if min > max -- coach never gets blocked. */}
+                        <div className="flex items-center gap-0.5">
+                          <Input type="number" min={0} max={3600} value={set.rest_seconds ?? ''} placeholder="min"
+                            onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rest_seconds', v != null && !isNaN(v) ? v : undefined); }}
+                            onBlur={() => {
+                              const lo = set.rest_seconds;
+                              const hi = set.rest_seconds_max;
+                              if (lo != null && hi != null && lo > hi) {
+                                onUpdateSetDetail(i, 'rest_seconds', hi);
+                                onUpdateSetDetail(i, 'rest_seconds_max', lo);
+                              }
+                            }}
+                            className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
+                          <span className="text-[9px] text-muted-foreground select-none">–</span>
+                          <Input type="number" min={0} max={3600} value={set.rest_seconds_max ?? ''} placeholder="max"
+                            onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rest_seconds_max', v != null && !isNaN(v) ? v : undefined); }}
+                            onBlur={() => {
+                              const lo = set.rest_seconds;
+                              const hi = set.rest_seconds_max;
+                              if (lo != null && hi != null && lo > hi) {
+                                onUpdateSetDetail(i, 'rest_seconds', hi);
+                                onUpdateSetDetail(i, 'rest_seconds_max', lo);
+                              }
+                            }}
+                            className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
+                        </div>
                       </td>
                     )}
                     {activeColumns.includes('time') && (

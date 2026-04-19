@@ -2,12 +2,18 @@ import { memo, useMemo, useState, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/ui/drawer";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal, Clock } from "lucide-react";
 import { MobileSetCarousel } from "./MobileSetCarousel";
 import { cn } from "@/lib/utils";
+import {
+  estimateSessionDuration,
+  formatDurationRange,
+  type SetDurationInputs,
+} from "@/lib/sessionDuration";
 import {
   DAYS_OF_WEEK,
   MUSCLE_GROUPS,
@@ -109,6 +115,31 @@ export const MobileDayDetail = memo(function MobileDayDetail({
     [daySlots],
   );
 
+  const sessionDuration = useMemo(() => {
+    const strengthSlots = daySlots.filter(s => !s.activityType || s.activityType === 'strength');
+    if (strengthSlots.length === 0) return null;
+    const exercises: SetDurationInputs[][] = strengthSlots.map(slot => {
+      if (slot.setsDetail && slot.setsDetail.length > 0) {
+        return slot.setsDetail.map(s => ({
+          reps: s.reps,
+          rep_range_min: s.rep_range_min,
+          rep_range_max: s.rep_range_max,
+          tempo: s.tempo,
+          rest_seconds: s.rest_seconds,
+          rest_seconds_max: s.rest_seconds_max,
+        }));
+      }
+      return Array.from({ length: Math.max(1, slot.sets) }, () => ({
+        rep_range_min: slot.repMin,
+        rep_range_max: slot.repMax,
+        tempo: slot.tempo,
+      }));
+    });
+    const est = estimateSessionDuration(exercises);
+    if (est.minSeconds === 0 && est.maxSeconds === 0) return null;
+    return est;
+  }, [daySlots]);
+
   const hasCopied = copiedDayIndex != null;
   const isCopiedDay = copiedDayIndex === selectedDayIndex;
 
@@ -142,6 +173,17 @@ export const MobileDayDetail = memo(function MobileDayDetail({
             {totalSets > 0 && (
               <span className="text-[10px] font-mono text-muted-foreground">
                 {totalSets} sets
+              </span>
+            )}
+            {sessionDuration && (
+              <span
+                className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground"
+                title={sessionDuration.inferred
+                  ? "Estimate assumes 2-4s/rep tempo and 60-120s rest when not set"
+                  : "Estimated session duration"}
+              >
+                <Clock className="h-2.5 w-2.5" aria-hidden />
+                {formatDurationRange(sessionDuration.minSeconds, sessionDuration.maxSeconds)}
               </span>
             )}
           </div>
@@ -630,6 +672,20 @@ const MobileSlotRow = memo(function MobileSlotRow({
                     <Plus className="h-4 w-4 mr-1.5" />
                     Choose Exercise
                   </Button>
+                )}
+
+                {slot.exercise && onSetExerciseInstructions && (
+                  <div className="space-y-1.5">
+                    <Label className="text-xs text-muted-foreground">
+                      Instructions (optional)
+                    </Label>
+                    <Textarea
+                      value={slot.exercise.instructions ?? ""}
+                      placeholder="Cues, setup, tempo notes for this exercise…"
+                      className="min-h-[72px] text-sm"
+                      onChange={(e) => onSetExerciseInstructions(slot.id, e.target.value)}
+                    />
+                  </div>
                 )}
 
                 {slot.exercise && (

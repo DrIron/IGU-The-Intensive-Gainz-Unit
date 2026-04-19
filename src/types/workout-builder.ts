@@ -210,7 +210,11 @@ export interface ExercisePrescription {
   rir?: number;
   rpe?: number;
   percent_1rm?: number;
+  // Rest is a RANGE. `rest_seconds` is the lower bound; `rest_seconds_max` is
+  // the upper bound. When `rest_seconds_max` is absent, coaches/clients see a
+  // single rest value (backward compat with the old single-field data).
   rest_seconds?: number;
+  rest_seconds_max?: number;
   time_seconds?: number;
   distance_meters?: number;
   notes?: string;
@@ -325,8 +329,12 @@ export function getColumnValue(
       return prescription.rpe ?? null;
     case 'percent_1rm':
       return prescription.percent_1rm ?? null;
-    case 'rest':
-      return prescription.rest_seconds ?? null;
+    case 'rest': {
+      const lo = prescription.rest_seconds;
+      const hi = prescription.rest_seconds_max;
+      if (lo != null && hi != null && lo !== hi) return `${lo}-${hi}`;
+      return lo ?? hi ?? null;
+    }
     case 'time':
       return prescription.time_seconds ?? null;
     case 'distance':
@@ -378,7 +386,14 @@ export function setColumnValue(
       updated.percent_1rm = typeof value === 'number' ? value : parseFloat(value as string) || undefined;
       break;
     case 'rest':
-      updated.rest_seconds = typeof value === 'number' ? value : parseInt(value as string) || undefined;
+      if (typeof value === 'string' && value.includes('-')) {
+        const [lo, hi] = value.split('-').map(v => parseInt(v.trim(), 10));
+        updated.rest_seconds = Number.isFinite(lo) ? lo : undefined;
+        updated.rest_seconds_max = Number.isFinite(hi) ? hi : undefined;
+      } else {
+        updated.rest_seconds = typeof value === 'number' ? value : parseInt(value as string) || undefined;
+        updated.rest_seconds_max = undefined;
+      }
       break;
     case 'time':
       updated.time_seconds = typeof value === 'number' ? value : parseInt(value as string) || undefined;
@@ -409,6 +424,7 @@ export interface SetPrescription {
   rpe?: number;
   percent_1rm?: number;
   rest_seconds?: number;
+  rest_seconds_max?: number;
   time_seconds?: number;
   distance_meters?: number;
   band_resistance?: string;
@@ -474,6 +490,7 @@ export function legacyPrescriptionToSets(prescription: ExercisePrescription): Se
       rpe: prescription.rpe,
       percent_1rm: prescription.percent_1rm,
       rest_seconds: prescription.rest_seconds,
+      rest_seconds_max: prescription.rest_seconds_max,
       time_seconds: prescription.time_seconds,
       distance_meters: prescription.distance_meters,
       notes: prescription.notes,

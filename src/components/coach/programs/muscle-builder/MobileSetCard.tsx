@@ -193,15 +193,55 @@ function SetFieldRow({
 
     case "rest_seconds":
       return (
-        <NumericRow
-          label={field.label}
-          value={set.rest_seconds}
-          onChange={(v) => onUpdate("rest_seconds", v)}
-          placeholder="e.g. 90"
-          min={0}
-          max={3600}
-          suffix="s"
-        />
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">{field.label} (range in seconds)</Label>
+          <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
+            <Input
+              type="number"
+              inputMode="numeric"
+              placeholder="min"
+              min={0}
+              max={3600}
+              className="h-11 text-base tabular-nums"
+              value={set.rest_seconds ?? ""}
+              onChange={(e) =>
+                onUpdate("rest_seconds", e.target.value === "" ? undefined : parseInt(e.target.value, 10))
+              }
+              onBlur={() => {
+                // Auto-swap if coach typed them out of order. Silent — no
+                // toast. The idea is to forgive sloppy input rather than
+                // block the flow.
+                const lo = set.rest_seconds;
+                const hi = set.rest_seconds_max;
+                if (lo != null && hi != null && lo > hi) {
+                  onUpdate("rest_seconds", hi);
+                  onUpdate("rest_seconds_max", lo);
+                }
+              }}
+            />
+            <span className="text-muted-foreground text-sm select-none">to</span>
+            <Input
+              type="number"
+              inputMode="numeric"
+              placeholder="max"
+              min={0}
+              max={3600}
+              className="h-11 text-base tabular-nums"
+              value={set.rest_seconds_max ?? ""}
+              onChange={(e) =>
+                onUpdate("rest_seconds_max", e.target.value === "" ? undefined : parseInt(e.target.value, 10))
+              }
+              onBlur={() => {
+                const lo = set.rest_seconds;
+                const hi = set.rest_seconds_max;
+                if (lo != null && hi != null && lo > hi) {
+                  onUpdate("rest_seconds", hi);
+                  onUpdate("rest_seconds_max", lo);
+                }
+              }}
+            />
+          </div>
+        </div>
       );
 
     case "time_seconds":

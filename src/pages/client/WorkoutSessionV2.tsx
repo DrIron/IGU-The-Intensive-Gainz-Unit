@@ -67,6 +67,7 @@ interface SetPrescription {
   rir?: number;
   rpe?: number;
   rest_seconds?: number;
+  rest_seconds_max?: number;
   tempo?: string;
   weight_suggestion?: string;
   notes?: string;
@@ -93,6 +94,7 @@ interface Exercise {
     rep_range_max?: number;
     tempo?: string;
     rest_seconds?: number;
+    rest_seconds_max?: number;
     intensity_type?: string;
     intensity_value?: number;
     sets_json?: SetPrescription[];
@@ -401,7 +403,9 @@ function SetRow({
           {prescription.rest_seconds && prescription.rest_seconds > 0 && (
             <Badge variant="outline" className="text-xs">
               <Clock className="w-3 h-3 mr-1" />
-              {prescription.rest_seconds}s
+              {prescription.rest_seconds_max && prescription.rest_seconds_max !== prescription.rest_seconds
+                ? `${prescription.rest_seconds}-${prescription.rest_seconds_max}s`
+                : `${prescription.rest_seconds}s`}
             </Badge>
           )}
         </div>
