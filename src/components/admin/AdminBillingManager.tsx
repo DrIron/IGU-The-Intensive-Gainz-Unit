@@ -347,17 +347,40 @@ export function AdminBillingManager() {
 
       if (exemptError) throw exemptError;
 
-      // If setting to exempt, also activate the subscription
+      // If setting to exempt, also activate the subscription and auto-assign
+      // the IGU admin coach (same pattern as create-manual-client). Without this,
+      // the sub sits with coach_id=NULL and flags the System Health "1:1 without
+      // coach" warning. Admins can reassign later via the normal edit flow.
       if (newExemptStatus) {
+        const { data: adminCoach, error: adminCoachError } = await supabase
+          .from("coaches")
+          .select("user_id")
+          .eq("email", "driron.admin@theigu.com")
+          .eq("status", "approved")
+          .maybeSingle();
+
+        if (adminCoachError) throw adminCoachError;
+
         const { error: subError } = await supabase
           .from("subscriptions")
           .update({
             status: "active",
             past_due_since: null,
+            ...(adminCoach?.user_id ? { coach_id: adminCoach.user_id } : {}),
           })
-          .eq("id", selectedClient.id);
+          .eq("id", selectedClient.id)
+          .is("coach_id", null);
 
         if (subError) throw subError;
+
+        // If coach_id was already set, the above update skips via .is('coach_id', null).
+        // Still need to flip status regardless -- run a second update unscoped on coach_id.
+        const { error: statusSubError } = await supabase
+          .from("subscriptions")
+          .update({ status: "active", past_due_since: null })
+          .eq("id", selectedClient.id);
+
+        if (statusSubError) throw statusSubError;
 
         const { error: statusError } = await supabase
           .from("profiles_public")
