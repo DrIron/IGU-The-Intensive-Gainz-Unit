@@ -66,6 +66,41 @@ See `CLAUDE.md` for the current architecture, load-bearing rules, and gotchas.
 
 ---
 
+## Planning Board sessions — Day > Session > Activity (Apr 19, 2026)
+
+Introduced a coach-defined **session** layer between Day and Activity. Each day can hold multiple sessions (e.g. "Push" + "Z2 Cardio"); slots belong to a session; conversion produces **one `day_modules` row per session** instead of per slot. Fixes the fragmented client workout view where a single training day rendered as 5+ unrelated modules.
+
+**Data model (no DB migration on `muscle_program_templates`):**
+- `SessionData = { id, dayIndex, name?, type: ActivityType, sortOrder }` — new type in `src/types/muscle-builder.ts`
+- `WeekData` gains `sessions?: SessionData[]`
+- `MuscleSlotData` gains `sessionId?: string`
+- `slot_config` JSONB now writes `{ weeks: [{ slots, sessions, label?, isDeload? }], globalClientInputs, globalPrescriptionColumns }` — backward compat reads the v3 shape and auto-migrates missing sessions on load via `migrateSlotsToSessions()` (groups legacy slots by `(dayIndex, activityType)`).
+
+**New reducer actions (8):** `ADD_SESSION`, `REMOVE_SESSION` (drops session + its slots), `RENAME_SESSION`, `SET_SESSION_TYPE`, `REORDER_SESSION`, `DUPLICATE_SESSION_TO_DAY`, `REORDER_IN_SESSION`, `MOVE_SLOT_TO_SESSION`. `ADD_MUSCLE` / `ADD_ACTIVITY` now take optional `sessionId`; `ensureSessionForDay()` find-or-creates when omitted. `deepCloneWeek()` regenerates session ids and remaps `slot.sessionId` so cloned weeks don't share identity. `getCurrentSessions(state)` exported.
+
+**Drag-drop:** Droppable ids changed from `day-${n}` to `session-${uuid}`. `handleDragEnd` in `MuscleBuilderPage.tsx` dispatches `REORDER_IN_SESSION` (same session) or `MOVE_SLOT_TO_SESSION` (across sessions, including cross-day). Legacy `REORDER` / `MOVE_MUSCLE` preserved in the reducer but no longer triggered by the UI.
+
+**UI:**
+- `SessionBlock.tsx` (new) — desktop subcard: colored dot + inline-editable name + kebab menu (rename / change type / duplicate to day / move up-down / delete) + own Droppable + "+Add muscle|activity" scoped to session type.
+- `DayColumn.tsx` rewritten to render one `SessionBlock` per session; "+ Session" type picker replaces the old "+ Muscle" popover.
+- `MobileDayDetail.tsx` rewritten — sessions as labeled sections with per-session inline picker. Strength sessions → muscle picker; non-strength → activities scoped to session type (no mixing types within a session).
+- `WeeklyCalendar.tsx` threads sessions + handlers through to both desktop and mobile.
+
+**Conversion (v2 RPC) — one module per session:**
+- Migration `20260419100000_convert_rpc_v2_sessions.sql` — new RPC `convert_muscle_plan_to_program_v2(p_coach_id, p_plan_name, p_plan_description, p_muscle_template_id, p_sessions)`.
+- Input `p_sessions`: `[{ id, dayIndex (absolute, week-offset applied), name?, type, sortOrder }]`. Session `type` maps to `day_modules.session_type` (`yoga_mobility` → `'mobility'`, others pass through).
+- Output: `{ program_id, total_days, total_modules, session_to_module: { client_session_id → day_module_id } }`.
+- `ConvertToProgram.tsx` calls v2 then inserts `module_exercises` (one per strength slot) under the right module via the returned map, with exercise auto-fill from `exercise_library` for slots missing `slot.exercise`. Non-strength sessions stay module-only (title = session name). Per-slot activity details like duration/pace are lost on conversion — same as legacy behavior.
+- Legacy `convert_muscle_plan_to_program` (v1) preserved but no longer called.
+
+**Files:**
+- New (2): `SessionBlock.tsx`, `supabase/migrations/20260419100000_convert_rpc_v2_sessions.sql`.
+- Modified (7): `muscle-builder.ts`, `useMuscleBuilderState.ts`, `DayColumn.tsx`, `MobileDayDetail.tsx`, `WeeklyCalendar.tsx`, `MuscleBuilderPage.tsx`, `ConvertToProgram.tsx`.
+
+Commit: `60942af`.
+
+---
+
 ## Phase 38: Mesocycle Support for Planning Board (Apr 16, 2026)
 
 Planning Board now designs full mesocycles (multi-week blocks). Each week is an independent snapshot — coaches build Week 1, add weeks as deep clones, then edit per-week exercise instructions for progression. "Apply to remaining weeks" propagates changes forward via positional matching (dayIndex + sortOrder).
