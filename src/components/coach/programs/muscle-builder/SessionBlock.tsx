@@ -155,8 +155,11 @@ export const SessionBlock = memo(function SessionBlock({
     <div
       className={cn(
         // Subcard styling — subtle background + border so sessions read as
-        // a group without competing with the outer day Card.
-        "rounded-md border border-border/40 bg-muted/20 p-1.5 space-y-1",
+        // a group without competing with the outer day Card. Side padding
+        // kept minimal because the outer DayColumn is already 140px on
+        // lg:grid-cols-7 and every pixel of interior width matters for
+        // muscle slot labels.
+        "rounded-md border border-border/40 bg-muted/20 px-1 py-1.5 space-y-1",
       )}
     >
       {/* Header: dot + name + kebab */}
@@ -179,7 +182,11 @@ export const SessionBlock = memo(function SessionBlock({
         ) : (
           <button
             type="button"
-            className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground truncate flex-1 min-w-0 text-left hover:text-foreground transition-colors"
+            // Kept mixed case + no tracking so default labels like "Strength"
+            // fit inside 140px day columns. Uppercase + tracking-wider
+            // pushed "Strength" past the available width and truncated to
+            // "STR…" in testing.
+            className="text-[11px] font-semibold text-muted-foreground truncate flex-1 min-w-0 text-left hover:text-foreground transition-colors"
             onClick={e => { e.stopPropagation(); setNameDraft(session.name ?? ''); setIsEditingName(true); }}
             title="Rename session"
           >
@@ -191,7 +198,10 @@ export const SessionBlock = memo(function SessionBlock({
             <Button
               variant="ghost"
               size="icon"
-              className="h-5 w-5 shrink-0 opacity-60 hover:opacity-100"
+              // Always faintly visible so the menu is discoverable — hovering
+              // brightens. Previous opacity-0 group-hover pattern meant you
+              // had to know the menu was there to find it.
+              className="h-5 w-5 shrink-0 opacity-50 hover:opacity-100 transition-opacity"
               onClick={e => e.stopPropagation()}
               aria-label="Session actions"
             >
@@ -266,7 +276,10 @@ export const SessionBlock = memo(function SessionBlock({
             ref={provided.innerRef}
             {...provided.droppableProps}
             className={cn(
-              "space-y-1 rounded transition-colors min-h-[28px] p-0.5",
+              // No interior padding — the parent's px-1 already gives the
+              // slot cards breathing room and we need every pixel of
+              // horizontal space for muscle labels.
+              "space-y-1 rounded transition-colors min-h-[28px]",
               snapshot.isDraggingOver && "bg-primary/5 outline outline-1 outline-dashed outline-primary/40",
             )}
           >
