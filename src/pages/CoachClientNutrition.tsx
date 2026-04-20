@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Navigation } from "@/components/Navigation";
+import { ChevronLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
@@ -255,11 +257,22 @@ export default function CoachClientNutrition() {
     : clients;
 
   return (
-    <div className="space-y-6 px-4 pt-6 pb-24 md:pb-8">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-2">Client Nutrition</h1>
-        <p className="text-muted-foreground">Manage nutrition plans for your clients</p>
-      </div>
+    <>
+      <Navigation user={user} userRole="coach" />
+      <div className="space-y-6 px-4 pt-6 pb-24 md:pb-8 max-w-7xl mx-auto">
+        <div className="mb-6 space-y-3">
+          <Link
+            to="/coach"
+            className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ChevronLeft className="h-3 w-3" />
+            Coach Dashboard
+          </Link>
+          <div>
+            <h1 className="text-3xl font-bold mb-2">Client Nutrition</h1>
+            <p className="text-muted-foreground">Manage nutrition plans for your clients</p>
+          </div>
+        </div>
 
       {loading ? (
         <div className="flex items-center justify-center h-64">
@@ -545,6 +558,7 @@ export default function CoachClientNutrition() {
           )}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }
