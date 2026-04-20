@@ -25,6 +25,23 @@ interface CoachNutritionGoalProps {
   onPhaseUpdated: () => void;
 }
 
+// The DB column goal_type has a CHECK constraint on
+//   ('fat_loss' | 'maintenance' | 'muscle_gain')
+// but the coach form has always worked in the shorter ('loss' | 'gain' |
+// 'maintenance') vocabulary -- matches the Select labels and the enum in
+// `calculateNutritionGoals`. We round-trip the two forms here so the DB
+// keeps its legacy enum values while the form state stays compact.
+const FORM_TO_DB_GOAL: Record<string, string> = {
+  loss: "fat_loss",
+  gain: "muscle_gain",
+  maintenance: "maintenance",
+};
+const DB_TO_FORM_GOAL: Record<string, string> = {
+  fat_loss: "loss",
+  muscle_gain: "gain",
+  maintenance: "maintenance",
+};
+
 export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: CoachNutritionGoalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
@@ -69,7 +86,7 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
       setFormData(prev => ({
         phaseName: phase.phase_name || "",
         startDate: new Date(phase.start_date),
-        goalType: phase.goal_type,
+        goalType: DB_TO_FORM_GOAL[phase.goal_type] || phase.goal_type,
         startingWeight: phase.starting_weight_kg?.toString() || prev.startingWeight,
         targetWeight: phase.target_weight_kg?.toString() || "",
         targetBodyFat: phase.target_body_fat_percentage?.toString() || "",
@@ -242,7 +259,7 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
         coach_id: user.id,
         phase_name: formData.phaseName,
         start_date: formData.startDate.toISOString(),
-        goal_type: formData.goalType,
+        goal_type: FORM_TO_DB_GOAL[formData.goalType] || formData.goalType,
         starting_weight_kg: parseFloat(formData.startingWeight),
         target_weight_kg: formData.targetWeight ? parseFloat(formData.targetWeight) : null,
         target_body_fat_percentage: formData.targetBodyFat ? parseFloat(formData.targetBodyFat) : null,
