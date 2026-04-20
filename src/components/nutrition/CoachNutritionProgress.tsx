@@ -98,12 +98,15 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
     if (phase) loadAllData();
   }, [phase, loadAllData]);
 
-  const signedExpectedChange =
-    phase.goal_type === "loss"
-      ? -(phase.weekly_rate_percentage || 0)
-      : phase.goal_type === "gain"
-      ? phase.weekly_rate_percentage || 0
-      : 0;
+  // Handle both the DB enum (fat_loss / muscle_gain) and the form short form
+  // (loss / gain) -- see CoachNutritionGoal FORM_TO_DB_GOAL mapping.
+  const isLossGoal = phase.goal_type === "fat_loss" || phase.goal_type === "loss";
+  const isGainGoal = phase.goal_type === "muscle_gain" || phase.goal_type === "gain";
+  const signedExpectedChange = isLossGoal
+    ? -(phase.weekly_rate_percentage || 0)
+    : isGainGoal
+    ? phase.weekly_rate_percentage || 0
+    : 0;
 
   const handleCreateAdjustment = async (
     weekNumber: number,
