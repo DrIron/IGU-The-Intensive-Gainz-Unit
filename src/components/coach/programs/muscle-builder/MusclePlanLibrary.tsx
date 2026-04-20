@@ -15,7 +15,6 @@ import {
   Trash2,
   MoreVertical,
   Dumbbell,
-  ArrowLeft,
   ArrowRightLeft,
 } from "lucide-react";
 import {
@@ -181,21 +180,11 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="icon" onClick={onBack}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
-          <div>
-            <h2 className="text-2xl font-bold">Muscle Plans</h2>
-            <p className="text-muted-foreground">Design workouts starting from muscle groups</p>
-          </div>
-        </div>
-        <Button onClick={onNewPlan}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Plan
-        </Button>
+      {/* Header — the outer hub provides the title; this subheading is for context. */}
+      <div>
+        <p className="text-sm text-muted-foreground">
+          Planning Board drafts. Each draft is a multi-week mesocycle you can convert into a program.
+        </p>
       </div>
 
       {/* Search */}

@@ -15,8 +15,12 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { CalendarRange, Layers } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -30,15 +34,29 @@ import { AssignFromLibraryDialog } from "./AssignFromLibraryDialog";
 
 type ProgramTemplate = Tables<"program_templates"> & {
   program_template_days?: { id: string }[];
+  /** When set, this program was converted from a Planning Board muscle plan
+   *  and can be reopened via "Edit in Planning Board". Populated client-side
+   *  from a reverse lookup on muscle_program_templates.converted_program_id. */
+  source_muscle_plan_id?: string | null;
 };
+
+interface MacrocycleOption {
+  id: string;
+  name: string;
+}
 
 interface ProgramLibraryProps {
   coachUserId: string;
   onCreateProgram: () => void;
   onEditProgram: (programId: string) => void;
+  /** When provided, shows the "Edit in Planning Board" menu item on programs
+   *  that have a source muscle plan. The handler receives the muscle plan id
+   *  (not the program id) and is expected to open Planning Board on a
+   *  duplicate of that plan. */
+  onEditInPlanningBoard?: (musclePlanId: string) => void;
 }
 
-export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: ProgramLibraryProps) {
+export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, onEditInPlanningBoard }: ProgramLibraryProps) {
   const [programs, setPrograms] = useState<ProgramTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -48,6 +66,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<{ programId: string; programTitle: string; mode: "client" | "team" } | null>(null);
+  const [macrocycleOptions, setMacrocycleOptions] = useState<MacrocycleOption[]>([]);
   const { toast } = useToast();
   const PAGE_SIZE = 12;
 
@@ -63,7 +82,43 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
         .order("updated_at", { ascending: false });
 
       if (error) throw error;
-      setPrograms(data || []);
+
+      // Reverse-lookup each program's source muscle plan (if any). This powers
+      // the "Edit in Planning Board" action — hidden when no source plan exists.
+      const ids = (data ?? []).map(p => p.id);
+      const reverseMap = new Map<string, string>();
+      if (ids.length > 0) {
+        const { data: plans, error: planErr } = await supabase
+          .from("muscle_program_templates")
+          .select("id, converted_program_id")
+          .in("converted_program_id", ids);
+        if (!planErr) {
+          for (const plan of plans ?? []) {
+            if (plan.converted_program_id) reverseMap.set(plan.converted_program_id, plan.id);
+          }
+        }
+      }
+
+      // Load macrocycle options for the "Add to macrocycle..." submenu.
+      try {
+        const { data: macros } = await supabase
+          // @ts-expect-error macrocycles types not yet regenerated
+          .from("macrocycles")
+          .select("id, name")
+          .eq("coach_id", coachUserId)
+          .order("updated_at", { ascending: false });
+        setMacrocycleOptions(((macros as Array<{ id: string; name: string }>) ?? []));
+      } catch {
+        // Macrocycles migration not applied yet -- gracefully empty.
+        setMacrocycleOptions([]);
+      }
+
+      setPrograms(
+        (data ?? []).map(p => ({
+          ...p,
+          source_muscle_plan_id: reverseMap.get(p.id) ?? null,
+        })),
+      );
     } catch (error: any) {
       toast({
         title: "Error loading programs",
@@ -74,6 +129,56 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
       setLoading(false);
     }
   }, [coachUserId, toast]);
+
+  /** Append this program as the next mesocycle of a macrocycle.
+   *  If macrocycleId is null, we create a new macrocycle named after the program
+   *  and add this as its first block. */
+  const addToMacrocycle = useCallback(
+    async (programId: string, programTitle: string, macrocycleId: string | null) => {
+      try {
+        let targetId = macrocycleId;
+        if (!targetId) {
+          const { data: newMacro, error: createErr } = await supabase
+            // @ts-expect-error types not regenerated
+            .from("macrocycles")
+            .insert({ coach_id: coachUserId, name: programTitle, description: null })
+            .select("id")
+            .single();
+          if (createErr) throw createErr;
+          targetId = (newMacro as { id: string }).id;
+        }
+
+        // Find next sequence in the target macrocycle.
+        const { data: existing } = await supabase
+          // @ts-expect-error types not regenerated
+          .from("macrocycle_mesocycles")
+          .select("sequence, program_template_id")
+          .eq("macrocycle_id", targetId);
+        const rows = (existing ?? []) as Array<{ sequence: number; program_template_id: string }>;
+        if (rows.some(r => r.program_template_id === programId)) {
+          toast({ title: "Already in that macrocycle" });
+          return;
+        }
+        const nextSeq = rows.length === 0 ? 0 : Math.max(...rows.map(r => r.sequence)) + 1;
+
+        const { error: insertErr } = await supabase
+          // @ts-expect-error types not regenerated
+          .from("macrocycle_mesocycles")
+          .insert({ macrocycle_id: targetId, program_template_id: programId, sequence: nextSeq });
+        if (insertErr) throw insertErr;
+
+        toast({ title: "Added to macrocycle" });
+        loadPrograms();
+      } catch (e: any) {
+        toast({
+          title: "Error adding to macrocycle",
+          description: sanitizeErrorForUser(e),
+          variant: "destructive",
+        });
+      }
+    },
+    [coachUserId, toast, loadPrograms],
+  );
 
   const hasFetched = useRef(false);
 
@@ -372,16 +477,13 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row gap-4 justify-between items-start sm:items-center">
-        <div>
-          <h2 className="text-2xl font-bold">Program Library</h2>
-          <p className="text-muted-foreground">Create and manage your workout program templates</p>
-        </div>
-        <Button onClick={onCreateProgram}>
-          <Plus className="h-4 w-4 mr-2" />
-          Create Program
-        </Button>
+      {/* Header — the outer hub already provides title + primary action,
+          so we keep this lean. Empty-state CTA still offers Create. */}
+      <div>
+        <p className="text-sm text-muted-foreground">
+          Completed mesocycles (multi-week program templates). Reuse them inside macrocycles or
+          assign standalone.
+        </p>
       </div>
 
       {/* Search and Filters */}
@@ -491,6 +593,16 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
                         <Edit className="h-4 w-4 mr-2" />
                         Edit
                       </DropdownMenuItem>
+                      {/* Shown only when this program was originally converted from a
+                          Planning Board muscle plan AND the parent page wants this option. */}
+                      {onEditInPlanningBoard && program.source_muscle_plan_id && (
+                        <DropdownMenuItem
+                          onClick={() => onEditInPlanningBoard(program.source_muscle_plan_id!)}
+                        >
+                          <Layers className="h-4 w-4 mr-2" />
+                          Edit in Planning Board
+                        </DropdownMenuItem>
+                      )}
                       <DropdownMenuItem onClick={() => duplicateProgram(program)}>
                         <Copy className="h-4 w-4 mr-2" />
                         Duplicate
@@ -504,6 +616,29 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram }: 
                         <Users className="h-4 w-4 mr-2" />
                         Assign to Team
                       </DropdownMenuItem>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger>
+                          <CalendarRange className="h-4 w-4 mr-2" />
+                          Add to macrocycle
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuItem
+                            onClick={() => addToMacrocycle(program.id, program.title, null)}
+                          >
+                            <Plus className="h-4 w-4 mr-2" />
+                            New macrocycle with this
+                          </DropdownMenuItem>
+                          {macrocycleOptions.length > 0 && <DropdownMenuSeparator />}
+                          {macrocycleOptions.map(m => (
+                            <DropdownMenuItem
+                              key={m.id}
+                              onClick={() => addToMacrocycle(program.id, program.title, m.id)}
+                            >
+                              {m.name}
+                            </DropdownMenuItem>
+                          ))}
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
                       <DropdownMenuSeparator />
                       <DropdownMenuItem
                         className="text-destructive focus:text-destructive"
