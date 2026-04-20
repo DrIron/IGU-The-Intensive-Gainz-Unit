@@ -124,7 +124,13 @@ CREATE POLICY "coaches can delete own macrocycle_mesocycles"
 
 -- 5. Extend assign_program_to_client to accept optional macrocycle_id
 -- so the macrocycle RPC can stamp the link on each fanned-out client_program.
--- The previous signature stays compatible because p_macrocycle_id defaults to NULL.
+-- CREATE OR REPLACE only matches an existing function by identical parameter
+-- list — adding a new parameter (even with DEFAULT) creates an overload
+-- instead, causing ambiguity on GRANT. Drop the prior 6-arg signature first.
+DROP FUNCTION IF EXISTS public.assign_program_to_client(
+  UUID, UUID, UUID, UUID, DATE, UUID
+);
+
 CREATE OR REPLACE FUNCTION public.assign_program_to_client(
   p_coach_id UUID,
   p_client_id UUID,
