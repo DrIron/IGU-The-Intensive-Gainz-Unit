@@ -147,6 +147,8 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
           dateOfBirthField="date_of_birth"
           showGender={true}
           genderField="gender"
+          showHeight={true}
+          heightCmField="height_cm"
         />
       </div>
 

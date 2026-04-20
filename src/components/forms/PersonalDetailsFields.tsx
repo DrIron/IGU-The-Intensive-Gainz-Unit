@@ -32,6 +32,9 @@ interface PersonalDetailsFieldsProps<T extends FieldValues> {
   dateOfBirthField?: Path<T>;
   genderField?: Path<T>;
   showGender?: boolean;
+  /** Optional height field (cm). Defaults to hidden. */
+  heightCmField?: Path<T>;
+  showHeight?: boolean;
 }
 
 export function PersonalDetailsFields<T extends FieldValues>({
@@ -47,6 +50,8 @@ export function PersonalDetailsFields<T extends FieldValues>({
   dateOfBirthField = "dateOfBirth" as Path<T>,
   genderField = "gender" as Path<T>,
   showGender = true,
+  heightCmField = "heightCm" as Path<T>,
+  showHeight = false,
 }: PersonalDetailsFieldsProps<T>) {
   return (
     <div className="space-y-4">
@@ -189,6 +194,37 @@ export function PersonalDetailsFields<T extends FieldValues>({
                     <Label htmlFor="female" className="font-normal cursor-pointer">Female</Label>
                   </div>
                 </RadioGroup>
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      )}
+
+      {showHeight && (
+        <FormField
+          control={control}
+          name={heightCmField}
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>Height (cm)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  min={100}
+                  max={250}
+                  step={1}
+                  placeholder="170"
+                  {...field}
+                  // react-hook-form stores numbers, but the input emits strings.
+                  // Coerce on change so zod can validate min/max without NaN.
+                  value={field.value ?? ""}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    field.onChange(raw === "" ? undefined : Number(raw));
+                  }}
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
