@@ -76,9 +76,14 @@ export function useNutritionPermissions({ clientUserId }: UseNutritionPermission
       const isDietitian = isDietitianRole || approvedSlugs.includes('dietitian');
       const isMobilityCoach = approvedSlugs.includes('mobility_coach');
 
-      // Check if client has a dietitian assigned
-      const { data: hasDietitianData } = await supabase
-        .rpc('client_has_dietitian', { p_client_id: clientUserId });
+      // Check if client has a dietitian assigned. Param name must match the
+      // function signature exactly (p_client_uid) -- see generated types
+      // and migration 20260207100001_dietitian_tables_functions.sql.
+      const { data: hasDietitianData, error: hasDietitianError } = await supabase
+        .rpc('client_has_dietitian', { p_client_uid: clientUserId });
+      if (hasDietitianError) {
+        console.error('[useNutritionPermissions] client_has_dietitian RPC failed:', hasDietitianError);
+      }
 
       const clientHasDietitian = !!hasDietitianData;
 
@@ -131,12 +136,18 @@ export function useNutritionPermissions({ clientUserId }: UseNutritionPermission
         currentUserRole = 'self';
       }
 
-      // Call the RPC function to determine edit permission
-      const { data: canEditData } = await supabase
+      // Call the RPC function to determine edit permission.
+      // Param names MUST match the function signature (p_actor_uid / p_client_uid);
+      // a mismatch makes PostgREST return a function-not-found error and canEditData
+      // comes back undefined -> canEdit falls through to false silently.
+      const { data: canEditData, error: canEditError } = await supabase
         .rpc('can_edit_nutrition', {
-          p_actor_id: user.id,
-          p_client_id: clientUserId
+          p_actor_uid: user.id,
+          p_client_uid: clientUserId
         });
+      if (canEditError) {
+        console.error('[useNutritionPermissions] can_edit_nutrition RPC failed:', canEditError);
+      }
 
       // Determine final canEdit value
       // Admin always can edit

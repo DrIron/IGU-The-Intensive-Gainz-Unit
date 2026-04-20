@@ -270,12 +270,16 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
           .update(phaseData)
           .eq('id', phase.id);
       } else {
-        // Deactivate old phases
-        await supabase
+        // Deactivate old phases -- without the { error } destructure, an RLS
+        // denial here returns 0 rows with no exception, the insert proceeds,
+        // and the coach sees a success toast for a save that never happened.
+        const { error: deactivateError } = await supabase
           .from('nutrition_phases')
           .update({ is_active: false })
           .eq('user_id', clientUserId)
           .eq('is_active', true);
+
+        if (deactivateError) throw deactivateError;
 
         result = await supabase
           .from('nutrition_phases')
