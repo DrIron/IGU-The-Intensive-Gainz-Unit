@@ -164,7 +164,7 @@ export function useMacrocycle(macrocycleId: string | null) {
 
       const jrows = (junctions ?? []) as JunctionRow[];
       const programIds = jrows.map(j => j.program_template_id);
-      let programMap = new Map<string, { title: string; description: string | null }>();
+      const programMap = new Map<string, { title: string; description: string | null }>();
       if (programIds.length > 0) {
         const { data: programs, error: pErr } = await supabase
           .from("program_templates")

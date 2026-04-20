@@ -232,7 +232,7 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         }
       }
 
-      let exercisesByMuscle = new Map<string, { id: string; primary_muscle: string }[]>();
+      const exercisesByMuscle = new Map<string, { id: string; primary_muscle: string }[]>();
       if (unplacedMuscleIds.size > 0) {
         const { data: exercises } = await supabase
           .from('exercise_library')
