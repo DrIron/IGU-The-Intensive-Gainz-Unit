@@ -475,6 +475,67 @@ Day > Session > Activity. A `SessionData` = `{ id, dayIndex, name?, type: Activi
 - **New reducer actions**: `ADD_SESSION`, `REMOVE_SESSION` (deletes session AND its slots), `RENAME_SESSION`, `SET_SESSION_TYPE`, `REORDER_SESSION`, `DUPLICATE_SESSION_TO_DAY`, `REORDER_IN_SESSION`, `MOVE_SLOT_TO_SESSION`.
 - **Components**: `SessionBlock.tsx` (desktop subcard with kebab menu + own Droppable + scoped "+Add"). `DayColumn.tsx` renders one per session. `MobileDayDetail.tsx` renders sessions as labeled sections with per-session inline picker (strength sessions → muscle picker; non-strength → activity picker scoped to session type).
 
+### Nutrition — client demographics access (coach auto-populate)
+Coaches don't have direct SELECT on `profiles_private` (PII). Three SECURITY DEFINER
+RPCs expose the fields the nutrition goal calculator needs, with the same auth
+check: client-self OR admin OR primary coach OR active care-team member.
+
+```sql
+get_client_age(p_client_id)        -- INTEGER years   (migration 20260502)
+get_client_gender(p_client_id)     -- TEXT ('male'|'female'|NULL)  (20260420120000)
+get_client_height_cm(p_client_id)  -- INTEGER cm      (20260420120000)
+```
+
+Height is on `profiles_private.height_cm` (INT, `BETWEEN 100 AND 250`). Gender +
+DOB were already there. DOB is deliberately never exposed through an RPC — only
+derived age. `submit-onboarding` edge function writes `gender / date_of_birth /
+height_cm` when provided.
+
+Frontend hook: `src/hooks/useClientDemographics.ts` parallel-fires the 3 RPCs +
+a `weight_logs` lookup for latest weight, returns `{ age, gender, heightCm,
+latestWeightKg, latestWeightLoggedAt, isLoading }`. Used by `CoachNutritionGoal`
+to pre-fill Age / Gender / Height / Starting Weight with a "from profile" or
+"last logged Xd ago" hint. Coach types to override — once touched, further
+demographic refreshes don't clobber the coach's value.
+
+### Nutrition — coach page structure (3 tabs)
+`/coach-client-nutrition` layout after Apr 20 redesign:
+
+1. **Hero `NutritionPhaseCard`** (rendered above the tabs when an active phase
+   exists) — phase name + goal badge, hero `kcal` number, `MacroDistributionRibbon`
+   (red/amber/blue stacked bars for P/F/C with gram labels below),
+   `expected vs actual` rate strip in monospace, status badge `On Track / Ahead /
+   Behind / No data yet`, colored left rail matching the status.
+
+2. **Tabs**:
+   - **Overview**: `CoachNutritionGoal` (phase form) + `StepProgressDisplay` +
+     `StepRecommendationCard`.
+   - **Adjustments**: `CoachNutritionProgress` renders a grid of
+     `NutritionAdjustmentWeekCard` (one per week, 2-up on desktop). Each card
+     has inline pills (`↑ Increase` / `↓ Decrease` opens a popover for amount +
+     notes; `Diet break` / `Delay` direct-fire). Pending adjustments show
+     Approve / Reject + 4-cell macro delta. Below the grid: `DietBreakManager`
+     + `RefeedDayScheduler` side-by-side.
+   - **History**: `CoachNutritionGraphs` + `CoachNutritionNotes`.
+
+Permission gates: all editable components wrap in `<NutritionPermissionGate
+clientUserId={selectedClient}>` which consumes `useNutritionPermissions`. Never
+pass a hardcoded `canEdit={true}` — the gate flips coaches to read-only when the
+client has a dietitian assigned (`can_edit_nutrition` RPC enforces the same
+rule server-side).
+
+Macro math lives in `src/utils/nutritionCalculations.ts` (`calculateNutritionGoals`).
+The coach form and self-service calorie calculator both call it — never
+reimplement BMR / TDEE / macros inline.
+
+### Nutrition — goal_type enum mismatch (legacy)
+The form Select uses the short form (`loss` / `gain` / `maintenance`) but the
+DB CHECK constraint is `goal_type IN ('fat_loss', 'maintenance', 'muscle_gain')`.
+`CoachNutritionGoal` round-trips through `FORM_TO_DB_GOAL` / `DB_TO_FORM_GOAL`
+lookup tables. `NutritionPhaseCard` exposes a `normalizeGoalType()` helper and
+`CoachNutritionProgress.signedExpectedChange` accepts both vocabularies. If you
+ever touch any nutrition_phases consumer, accept both enum shapes.
+
 ### Muscle-plan → program conversion (v2 RPC)
 Use `convert_muscle_plan_to_program_v2(p_coach_id, p_plan_name, p_plan_description, p_muscle_template_id, p_sessions)` — **one `day_modules` row per session** (not per slot). Migration `20260419100000_convert_rpc_v2_sessions.sql`.
 

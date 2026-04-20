@@ -63,6 +63,59 @@ See `CLAUDE.md` for the current architecture, load-bearing rules, and gotchas.
 - Mobile workout builder fixes — ExercisePickerDialog uses Drawer on mobile, MobileSetEditor (Apr 15, 2026)
 - Phase 38: Mesocycle Support for Planning Board — multi-week mesocycles, WeekTabStrip, deload auto-trim (Apr 16, 2026)
 - Performance optimization — main bundle 593KB → 437KB: lazy components, vendor chunk, non-blocking fonts (Apr 16, 2026)
+- Planning Board sessions — Day > Session > Activity layer, v2 conversion RPC (Apr 19, 2026)
+- Coach nutrition redesign — demographics reuse via 3 SECURITY DEFINER RPCs, Planning-Board-style hero card + week-card grid, 6 tabs → 3 (Apr 20, 2026)
+
+---
+
+## Coach nutrition redesign — demographics reuse + Planning-Board-style card (Apr 20, 2026)
+
+Coach nutrition page was a form-heavy 6-tab view that re-asked for age / gender / height / weight on every phase creation, lost the top navbar on desktop, and (silently) never saved successfully because the form enum was out of sync with the DB CHECK constraint. Rebuilt end-to-end in three landed PRs (#49, #50, #51) plus a lint fix.
+
+**Data layer (PR #49, migration `20260420120000_client_demographics_access.sql`):**
+- New column `profiles_private.height_cm INT` (`BETWEEN 100 AND 250`).
+- Two new RPCs matching `get_client_age` auth pattern: `get_client_gender(p_client_id) RETURNS TEXT` and `get_client_height_cm(p_client_id) RETURNS INTEGER`. Caller must be the client themselves, admin, primary coach, or active care-team member. DOB still deliberately not exposed — only derived age.
+- `submit-onboarding` Zod schema accepts `height_cm` and writes to `profiles_private.height_cm`.
+
+**Hook + permission gate (PR #49):**
+- `src/hooks/useClientDemographics.ts` — parallel-fires the 3 RPCs + a latest `weight_logs` lookup. Returns `{ age, gender, heightCm, latestWeightKg, latestWeightLoggedAt, isLoading }`.
+- Earlier commit `eab2096` (Apr 20) fixed two bugs that masked everything else: `useNutritionPermissions` was calling `can_edit_nutrition` and `client_has_dietitian` with wrong param names (`p_actor_id` / `p_client_id` vs the SQL signature `p_actor_uid` / `p_client_uid`) — silently returned null → `canEdit` always false. Second, `CoachNutritionGoal` wasn't destructuring `{ error }` on the "deactivate old phases" mutation, so RLS denials produced phantom success toasts.
+
+**Pre-fill UX (PR #49, `CoachNutritionGoal`):**
+- Age / Gender / Height / Starting Weight pre-fill from the hook. Each field flips a per-field `overrides.X` flag on touch, so further demographic refreshes don't clobber the coach's value.
+- `"from profile"` hint under the pre-filled fields; `"last logged 2d ago"` under starting weight via `formatDistanceToNow`.
+- Inline macro math dropped — now calls the exported `calculateNutritionGoals()` from `src/utils/nutritionCalculations.ts` (the same function powering the self-service calculator). Partial-data fallback preserved.
+
+**Nav fix (PR #49, `CoachClientNutrition`):**
+- Page was rendering a bare `<div>` with no layout wrapper, so the desktop IGU navbar never mounted. Now wraps in `<Navigation user={user} userRole="coach" />` + `ChevronLeft` breadcrumb to `/coach` + `max-w-7xl mx-auto`. Mobile dock was already fine via `CoachMobileNavGlobal`.
+
+**Planning-Board vocabulary (PR #50):**
+- `MacroDistributionRibbon.tsx` — horizontal stacked bar for protein / fat / carb energy split, self-normalizes to displayed grams so it stays stable while the coach is still typing.
+- `NutritionPhaseCard.tsx` — hero card above the tabs when an active phase exists. Phase name + goal badge, 3xl-4xl `kcal` number, macro ribbon, `expected vs actual` rate strip in monospace, status badge (`On Track` / `Ahead` / `Behind` / `No data yet`), status-colored left rail. `normalizeGoalType()` helper so logic works with both `fat_loss|loss` vocabularies.
+- `NutritionAdjustmentWeekCard.tsx` — replaces the old Accordion-per-week. 2-up grid on desktop, 1-up on mobile. Colored status rail (pending amber / approved green / rejected red / diet-break amber / delayed grey), avg weight as 22px hero, deviation strip in monospace. Inline pill row `↑ Increase / ↓ Decrease / Diet break / Delay` when no adjustment. Increase/Decrease open a small `Popover` (not modal) for amount + notes. Existing adjustment shows a 4-cell macro delta grid + Approve/Reject buttons.
+
+**Page refactor (PR #50, `CoachClientNutrition`):**
+- 6 tabs → 3:
+  - **Overview**: `CoachNutritionGoal` phase form + Step progress + Step recommendations.
+  - **Adjustments**: `CoachNutritionProgress` (week-card grid) + `DietBreakManager` + `RefeedDayScheduler` side-by-side.
+  - **History**: `CoachNutritionGraphs` + `CoachNutritionNotes`.
+- Dropped the hardcoded `canEdit={true}` on `DietBreakManager / RefeedDayScheduler / StepRecommendationCard`. All now consume `canEdit` from `useNutritionPermissions` via `NutritionPermissionGate`, so coaches with a dietitian assigned automatically see read-only UI.
+
+**Enum mismatch fix (PR #51):**
+- Form Select has always used the short form (`loss` / `gain` / `maintenance`) but `nutrition_phases.goal_type` CHECK constraint is `('fat_loss', 'maintenance', 'muscle_gain')`. Every new-phase save was returning 400 silently. `CoachNutritionGoal` now round-trips through `FORM_TO_DB_GOAL` / `DB_TO_FORM_GOAL` lookups; `NutritionPhaseCard` and `CoachNutritionProgress` normalize both vocabularies. No DB change — the filter query in `CoachClientNutrition` has always used the DB values correctly.
+
+**Live-verified on prod:** new phase saves cleanly → hero card renders with correct `kcal` + macro ribbon + status badge → client-side `/dashboard` Daily Targets and `/nutrition-client` Week Progress header pull the exact same macros → `expected -0.75% / wk` + `actual --` strip shows correct "No data yet" state before any weigh-ins.
+
+**Deferred follow-ups:**
+- `ScheduledEventsCalendar` — merge of DietBreakManager + RefeedDayScheduler into one mini-calendar with color-coded days. Both work side-by-side in Adjustments for now.
+- Mobile drawer pass — convert DietBreakManager / RefeedDayScheduler / CoachNutritionGoal editor from `Dialog` to vaul `Drawer` on mobile, matching the planning-board `MobileDayDetail` pattern.
+- Onboarding form height input — column + RPC live, but the intake form doesn't collect height yet. Client can set via `/account` for now.
+
+**Files:**
+- New (6): `supabase/migrations/20260420120000_client_demographics_access.sql`, `src/hooks/useClientDemographics.ts`, `src/components/nutrition/MacroDistributionRibbon.tsx`, `NutritionPhaseCard.tsx`, `NutritionAdjustmentWeekCard.tsx`, plus a `fix/nutrition-goal-type-enum` commit.
+- Modified (6): `supabase/functions/submit-onboarding/index.ts`, `src/components/nutrition/CoachNutritionGoal.tsx`, `CoachNutritionProgress.tsx`, `src/hooks/useNutritionPermissions.ts`, `src/pages/CoachClientNutrition.tsx`.
+
+Commits: `eab2096` (permission gate + silent save fix), `7466e8e` (#49), `d15089a` (#50), `896e232` (#51).
 
 ---
 
