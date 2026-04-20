@@ -8,7 +8,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Filter } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { CoachNutritionGoal } from "@/components/nutrition/CoachNutritionGoal";
 import { CoachNutritionProgress } from "@/components/nutrition/CoachNutritionProgress";
 import { CoachNutritionGraphs } from "@/components/nutrition/CoachNutritionGraphs";
@@ -18,6 +17,7 @@ import { RefeedDayScheduler } from "@/components/nutrition/RefeedDayScheduler";
 import { StepProgressDisplay } from "@/components/nutrition/StepProgressDisplay";
 import { StepRecommendationCard } from "@/components/nutrition/StepRecommendationCard";
 import { NutritionPermissionGate } from "@/components/nutrition/NutritionPermissionGate";
+import { NutritionPhaseCard } from "@/components/nutrition/NutritionPhaseCard";
 
 interface Client {
   id: string;
@@ -379,25 +379,6 @@ export default function CoachClientNutrition() {
                   </div>
                 </div>
 
-                {/* Quick Stats */}
-                {selectedClient && activePhase && phaseStats && (
-                  <div className="grid grid-cols-3 gap-4 pt-4 border-t">
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Current Calories</p>
-                      <p className="text-2xl font-bold">{activePhase.daily_calories}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Phase Progress</p>
-                      <p className="text-2xl font-bold">Week {phaseStats.currentWeek}</p>
-                    </div>
-                    <div className="space-y-1">
-                      <p className="text-sm text-muted-foreground">Pending Alerts</p>
-                      <Badge variant={phaseStats.pendingAdjustments > 0 ? "destructive" : "secondary"}>
-                        {phaseStats.pendingAdjustments}
-                      </Badge>
-                    </div>
-                </div>
-              )}
             </CardContent>
           </Card>
 
@@ -422,53 +403,64 @@ export default function CoachClientNutrition() {
             </Card>
           )}
 
-          {/* Client Tabs */}
-          {selectedClient && (
-              <Tabs defaultValue="progress" className="w-full">
-                <TabsList className="grid w-full grid-cols-6">
-                  <TabsTrigger value="goal">Goal</TabsTrigger>
-                  <TabsTrigger value="progress">Progress</TabsTrigger>
-                  <TabsTrigger value="diet-breaks">Diet Breaks</TabsTrigger>
-                  <TabsTrigger value="steps">Steps</TabsTrigger>
-                  <TabsTrigger value="graphs">Graphs</TabsTrigger>
-                  <TabsTrigger value="notes">Notes</TabsTrigger>
-                </TabsList>
+          {/* Hero phase card -- always visible when a phase exists. */}
+          {selectedClient && activePhase && (
+            <NutritionPhaseCard
+              phase={activePhase}
+              weeksElapsed={phaseStats?.currentWeek}
+              latestAverageWeight={phaseStats?.currentWeight}
+              onScrollToAdjustments={() => {
+                const el = document.getElementById("nutrition-adjustments");
+                if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}
+            />
+          )}
 
-                <TabsContent value="goal">
-                  <CoachNutritionGoal 
-                    clientUserId={selectedClient} 
+          {/* 3-tab layout: Overview (phase goal + steps), Adjustments (weekly review +
+              diet breaks + refeeds), History (graphs + notes). The permission gates
+              no longer take a hardcoded canEdit={true} -- they read the right value
+              from useNutritionPermissions so coaches with a dietitian assigned see
+              read-only UI automatically. */}
+          {selectedClient && (
+            <Tabs defaultValue="overview" className="w-full">
+              <TabsList className="grid w-full grid-cols-3">
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="adjustments">Adjustments</TabsTrigger>
+                <TabsTrigger value="history">History</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-6">
+                <NutritionPermissionGate clientUserId={selectedClient}>
+                  <CoachNutritionGoal
+                    clientUserId={selectedClient}
                     phase={activePhase}
                     onPhaseUpdated={loadClientPhase}
                   />
-                </TabsContent>
+                </NutritionPermissionGate>
 
-                <TabsContent value="progress">
-                  {activePhase ? (
+                <div className="space-y-6">
+                  <StepProgressDisplay userId={selectedClient} />
+                  <NutritionPermissionGate clientUserId={selectedClient}>
+                    <StepRecommendationCard
+                      clientUserId={selectedClient}
+                      canEdit
+                      onRecommendationUpdated={loadClientPhase}
+                    />
+                  </NutritionPermissionGate>
+                </div>
+              </TabsContent>
+
+              <TabsContent value="adjustments" className="space-y-6">
+                <div id="nutrition-adjustments" />
+                {activePhase ? (
+                  <>
                     <CoachNutritionProgress phase={activePhase} onAdjustmentMade={loadClientPhase} />
-                  ) : (
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-center space-y-2 py-4">
-                          <p className="text-muted-foreground">
-                            No measurements available for your coaching period.
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Create a nutrition goal for this client to start tracking progress.
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="diet-breaks">
-                  {activePhase ? (
-                    <div className="space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <NutritionPermissionGate clientUserId={selectedClient}>
                         <DietBreakManager
                           phase={activePhase}
                           clientUserId={selectedClient}
-                          canEdit={true}
+                          canEdit
                           onBreakUpdated={loadClientPhase}
                         />
                       </NutritionPermissionGate>
@@ -476,75 +468,44 @@ export default function CoachClientNutrition() {
                         <RefeedDayScheduler
                           phase={activePhase}
                           clientUserId={selectedClient}
-                          canEdit={true}
+                          canEdit
                           onRefeedUpdated={loadClientPhase}
                         />
                       </NutritionPermissionGate>
                     </div>
-                  ) : (
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-center space-y-2 py-4">
-                          <p className="text-muted-foreground">
-                            Create a nutrition goal first to manage diet breaks.
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
+                  </>
+                ) : (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-center space-y-2 py-4">
+                        <p className="text-muted-foreground">
+                          Create a nutrition phase from the Overview tab before adjusting.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
 
-                <TabsContent value="steps">
-                  <div className="space-y-6">
-                    <StepProgressDisplay userId={selectedClient} />
-                    <NutritionPermissionGate clientUserId={selectedClient}>
-                      <StepRecommendationCard
-                        clientUserId={selectedClient}
-                        canEdit={true}
-                        onRecommendationUpdated={loadClientPhase}
-                      />
-                    </NutritionPermissionGate>
-                  </div>
-                </TabsContent>
-
-                <TabsContent value="graphs">
-                  {activePhase ? (
+              <TabsContent value="history" className="space-y-6">
+                {activePhase ? (
+                  <>
                     <CoachNutritionGraphs phase={activePhase} />
-                  ) : (
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-center space-y-2 py-4">
-                          <p className="text-muted-foreground">
-                            No measurements available for your coaching period.
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Create a nutrition goal for this client to start tracking graphs.
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-
-                <TabsContent value="notes">
-                  {activePhase ? (
                     <CoachNutritionNotes phase={activePhase} />
-                  ) : (
-                    <Card>
-                      <CardContent className="pt-6">
-                        <div className="text-center space-y-2 py-4">
-                          <p className="text-muted-foreground">
-                            No measurements available for your coaching period.
-                          </p>
-                          <p className="text-sm text-muted-foreground">
-                            Create a nutrition goal for this client to add notes.
-                          </p>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-                </TabsContent>
-              </Tabs>
+                  </>
+                ) : (
+                  <Card>
+                    <CardContent className="pt-6">
+                      <div className="text-center space-y-2 py-4">
+                        <p className="text-muted-foreground">
+                          No phase yet -- history will populate once the first phase is saved.
+                        </p>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+              </TabsContent>
+            </Tabs>
           )}
 
           {!selectedClient && filteredClients.length > 0 && (
