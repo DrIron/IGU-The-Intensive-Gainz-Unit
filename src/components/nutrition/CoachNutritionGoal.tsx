@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +13,11 @@ import { Save } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { CalendarIcon } from "lucide-react";
-import { format } from "date-fns";
+import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { useClientDemographics } from "@/hooks/useClientDemographics";
+import { calculateNutritionGoals } from "@/utils/nutritionCalculations";
 
 interface CoachNutritionGoalProps {
   clientUserId: string;
@@ -23,17 +25,18 @@ interface CoachNutritionGoalProps {
   onPhaseUpdated: () => void;
 }
 
-interface ClientData {
-  age: number | null;
-  gender: string | null;
-  height_cm: number | null;
-  body_fat_percentage: number | null;
-}
-
 export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: CoachNutritionGoalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
-  const [clientData, setClientData] = useState<ClientData | null>(null);
+  const demographics = useClientDemographics(clientUserId);
+  // Track which auto-populated fields the coach has manually overridden so the
+  // "from profile" hint dims once touched.
+  const [overrides, setOverrides] = useState<{ age: boolean; gender: boolean; height: boolean; weight: boolean }>({
+    age: false,
+    gender: false,
+    height: false,
+    weight: false,
+  });
   const [formData, setFormData] = useState({
     phaseName: "",
     startDate: new Date(),
@@ -56,49 +59,28 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
     coachNotes: "",
   });
 
-  const loadClientData = useCallback(async () => {
-    try {
-      // SECURITY: Coaches can't read form_submissions directly (PHI). Age is low-sensitivity
-      // at year granularity and needed by the macro calculator, so we expose it through a
-      // SECURITY DEFINER RPC (get_client_age) that authorizes the caller server-side.
-      const { data: ageData, error: ageError } = await supabase.rpc('get_client_age', {
-        p_client_id: clientUserId,
-      });
-      if (ageError) {
-        console.warn('get_client_age failed, coach will enter age manually:', ageError.message);
-      }
-
-      setClientData({
-        age: typeof ageData === 'number' ? ageData : null,
-        gender: null, // Gender still PHI — coach enters manually
-        height_cm: null, // Height not stored centrally yet — manual entry
-        body_fat_percentage: null,
-      });
-    } catch (error) {
-      console.error('Error loading client data:', error);
-    }
-  }, [clientUserId]);
-
-  useEffect(() => {
-    loadClientData();
-  }, [loadClientData]);
-
+  // Auto-populate from stored demographics (age/gender/height via SECURITY DEFINER
+  // RPCs, latest weight via weight_logs). The coach can type to override; once a
+  // field is touched, `overrides.X` flips and further demographic refreshes won't
+  // clobber the coach's value. On editing an existing phase, we always show the
+  // phase's own values first and let the coach pull in demographics if they want.
   useEffect(() => {
     if (phase) {
       setFormData(prev => ({
         phaseName: phase.phase_name || "",
         startDate: new Date(phase.start_date),
         goalType: phase.goal_type,
-        startingWeight: phase.starting_weight_kg?.toString() || "",
+        startingWeight: phase.starting_weight_kg?.toString() || prev.startingWeight,
         targetWeight: phase.target_weight_kg?.toString() || "",
         targetBodyFat: phase.target_body_fat_percentage?.toString() || "",
-        currentBodyFat: "",
-        height: prev.height,
-        // Age is derived live from DOB via the RPC. Prefer fresh DOB-based value on
-        // every open; only fall back to whatever the coach typed if the RPC
-        // returned nothing (DOB not yet entered by client).
-        age: clientData?.age != null ? clientData.age.toString() : prev.age,
-        gender: prev.gender,
+        currentBodyFat: prev.currentBodyFat,
+        height: overrides.height
+          ? prev.height
+          : (demographics.heightCm?.toString() || prev.height),
+        age: overrides.age
+          ? prev.age
+          : (demographics.age != null ? demographics.age.toString() : prev.age),
+        gender: overrides.gender ? prev.gender : (demographics.gender || prev.gender),
         activityLevel: prev.activityLevel,
         weeklyRate: [phase.weekly_rate_percentage],
         proteinIntake: [phase.protein_intake_g_per_kg],
@@ -109,91 +91,107 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
         dietBreakDuration: phase.diet_break_duration_weeks?.toString() || "",
         coachNotes: phase.coach_notes || "",
       }));
-    } else if (clientData) {
-      // Auto-populate for new phases
+    } else {
       setFormData(prev => ({
         ...prev,
-        height: clientData.height_cm?.toString() || prev.height,
-        age: clientData.age != null ? clientData.age.toString() : prev.age,
-        gender: clientData.gender || prev.gender,
-        currentBodyFat: clientData.body_fat_percentage?.toString() || prev.currentBodyFat,
+        age: overrides.age
+          ? prev.age
+          : (demographics.age != null ? demographics.age.toString() : prev.age),
+        gender: overrides.gender ? prev.gender : (demographics.gender || prev.gender),
+        height: overrides.height
+          ? prev.height
+          : (demographics.heightCm?.toString() || prev.height),
+        startingWeight: overrides.weight
+          ? prev.startingWeight
+          : (demographics.latestWeightKg != null ? demographics.latestWeightKg.toString() : prev.startingWeight),
       }));
     }
-  }, [phase, clientData]);
+  }, [phase, demographics, overrides]);
 
+  // Small helper: "from profile" or "last logged 2d ago"-style hint text under an auto-populated field.
+  const demographicHint = (
+    field: "age" | "gender" | "height" | "weight",
+    hasValue: boolean,
+  ): string | null => {
+    if (overrides[field]) return null;
+    if (!hasValue) return null;
+    if (field === "weight" && demographics.latestWeightLoggedAt) {
+      try {
+        return `last logged ${formatDistanceToNow(new Date(demographics.latestWeightLoggedAt), { addSuffix: true })}`;
+      } catch {
+        return "from latest weight log";
+      }
+    }
+    return "from profile";
+  };
+
+  // Macro math lives in one place -- `calculateNutritionGoals` also powers the
+  // self-service calculator so coach + client see identical outputs. This
+  // wrapper just parses form strings into the structured input and deals with
+  // partial-data fallbacks (no height/age/gender -> a rough BMR estimate).
   const calculateMacros = () => {
     const w = parseFloat(formData.startingWeight);
+    if (!w || !Number.isFinite(w)) return null;
+
+    const activity = parseFloat(formData.activityLevel);
+    if (!Number.isFinite(activity) || activity <= 0) return null;
+
+    const goal =
+      formData.goalType === "maintenance" || formData.goalType === "loss" || formData.goalType === "gain"
+        ? formData.goalType
+        : "maintenance";
+    const rate = formData.weeklyRate[0] ?? 0;
+    const proteinPerKg = formData.proteinIntake[0] ?? 0;
+    const fatPercentage = formData.fatIntake[0] ?? 0;
+
     const h = parseFloat(formData.height);
-    const age = parseInt(formData.age);
+    const age = parseInt(formData.age, 10);
     const bodyFatValue = formData.currentBodyFat ? parseFloat(formData.currentBodyFat) : null;
+    const gender = formData.gender === "male" || formData.gender === "female" ? formData.gender : null;
+    const haveMifflinInputs = Number.isFinite(h) && Number.isFinite(age) && !!gender;
+    const haveBodyFat = bodyFatValue !== null && Number.isFinite(bodyFatValue) && bodyFatValue > 0;
 
-    if (!w) return null;
-
-    // STEP 1 — Calculate BMR (following same logic as CalorieCalculator)
-    let bmr: number;
-    if (bodyFatValue !== null && bodyFatValue > 0) {
-      // Use Katch-McArdle if body fat % is provided
-      const leanMass = w * (1 - bodyFatValue / 100);
-      bmr = 370 + 21.6 * leanMass;
-    } else if (h && age && formData.gender) {
-      // Use Mifflin-St Jeor if no body fat %
-      if (formData.gender === "male") {
-        bmr = 10 * w + 6.25 * h - 5 * age + 5;
-      } else {
-        bmr = 10 * w + 6.25 * h - 5 * age - 161;
-      }
-    } else {
-      // Fallback to simplified calculation
-      bmr = w * 24;
+    if (!haveMifflinInputs && !haveBodyFat) {
+      // Rough fallback mirroring the pre-refactor behavior: BMR ~ weight * 24.
+      // Emit a shape compatible with the shared result for downstream consumers.
+      const bmr = w * 24;
+      const tdee = bmr * activity;
+      const calories =
+        goal === "loss"
+          ? tdee - ((rate / 100) * w * 7700) / 7
+          : goal === "gain"
+          ? tdee + ((rate / 100) * w * 7700) / (4.33 * 7)
+          : tdee;
+      const proteinG = w * proteinPerKg;
+      const fatG = (calories * (fatPercentage / 100)) / 9;
+      const carbG = (calories - proteinG * 4 - fatG * 9) / 4;
+      return {
+        calories: Math.round(calories),
+        protein: Math.round(proteinG),
+        fat: Math.round(fatG),
+        carbs: Math.round(carbG),
+      };
     }
 
-    // STEP 2 — Calculate TDEE (using selected activity level)
-    const activityMultiplier = parseFloat(formData.activityLevel);
-    const tdee = bmr * activityMultiplier;
-    
-    // STEP 3 — Goal-Adjusted Calories
-    let targetCalories: number;
-    
-    if (formData.goalType === 'maintenance') {
-      targetCalories = tdee;
-    } else if (formData.goalType === 'loss') {
-      // Weekly rate: Each 1% weekly change requires ~7700 kcal × 1% of bodyweight
-      const weeklyDeficit = (formData.weeklyRate[0] / 100) * w * 7700;
-      targetCalories = tdee - (weeklyDeficit / 7);
-    } else if (formData.goalType === 'gain') {
-      // Monthly rate: Each 1% monthly change requires ~7700 kcal × 1% of bodyweight
-      const monthlySurplus = (formData.weeklyRate[0] / 100) * w * 7700;
-      targetCalories = tdee + (monthlySurplus / (4.33 * 7)); // 4.33 weeks per month * 7 days
-    } else {
-      targetCalories = tdee;
-    }
-
-    // STEP 4 — Calculate Macros
-    // Protein (g) - based on FFM if enabled, otherwise total weight
-    const proteinMultiplier = formData.proteinIntake[0];
-    let proteinG: number;
-    
-    if (formData.proteinBasedOnFFM && bodyFatValue !== null && bodyFatValue > 0) {
-      const fatFreeMass = w * (1 - bodyFatValue / 100);
-      proteinG = fatFreeMass * proteinMultiplier;
-    } else {
-      proteinG = w * proteinMultiplier;
-    }
-    const proteinCal = proteinG * 4;
-
-    // Fat (g)
-    const fatCal = targetCalories * (formData.fatIntake[0] / 100);
-    const fatG = fatCal / 9;
-    
-    // Carbs (g) - remainder after protein and fat
-    const carbCal = targetCalories - (proteinCal + fatCal);
-    const carbG = carbCal / 4;
+    const result = calculateNutritionGoals({
+      weight: w,
+      height: haveMifflinInputs ? h : 0,
+      age: haveMifflinInputs ? age : 0,
+      gender: haveMifflinInputs ? (gender as "male" | "female") : "male",
+      bodyFat: haveBodyFat ? bodyFatValue! : null,
+      activityLevel: activity,
+      goal,
+      rateOfChange: rate,
+      proteinPerKg,
+      useFFM: formData.proteinBasedOnFFM,
+      fatPercentage,
+    });
 
     return {
-      calories: Math.round(targetCalories),
-      protein: Math.round(proteinG),
-      fat: Math.round(fatG),
-      carbs: Math.round(carbG),
+      calories: result.calories,
+      protein: result.protein,
+      fat: result.fat,
+      carbs: result.carbs,
     };
   };
 
@@ -346,14 +344,29 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
             <Label>Age</Label>
             <Input
               type="number"
+              inputMode="numeric"
               value={formData.age}
-              onChange={(e) => setFormData({ ...formData, age: e.target.value })}
+              onChange={(e) => {
+                setOverrides((o) => ({ ...o, age: true }));
+                setFormData({ ...formData, age: e.target.value });
+              }}
               placeholder="25"
             />
+            {demographicHint("age", demographics.age != null) && (
+              <p className="text-[10px] text-muted-foreground leading-none">
+                {demographicHint("age", demographics.age != null)}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Gender</Label>
-            <Select value={formData.gender} onValueChange={(value) => setFormData({ ...formData, gender: value })}>
+            <Select
+              value={formData.gender}
+              onValueChange={(value) => {
+                setOverrides((o) => ({ ...o, gender: true }));
+                setFormData({ ...formData, gender: value });
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Select" />
               </SelectTrigger>
@@ -362,16 +375,30 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
                 <SelectItem value="female">Female</SelectItem>
               </SelectContent>
             </Select>
+            {demographicHint("gender", demographics.gender != null) && (
+              <p className="text-[10px] text-muted-foreground leading-none">
+                {demographicHint("gender", demographics.gender != null)}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Height (cm)</Label>
             <Input
               type="number"
               step="0.1"
+              inputMode="decimal"
               value={formData.height}
-              onChange={(e) => setFormData({ ...formData, height: e.target.value })}
+              onChange={(e) => {
+                setOverrides((o) => ({ ...o, height: true }));
+                setFormData({ ...formData, height: e.target.value });
+              }}
               placeholder="170"
             />
+            {demographicHint("height", demographics.heightCm != null) && (
+              <p className="text-[10px] text-muted-foreground leading-none">
+                {demographicHint("height", demographics.heightCm != null)}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Current BF%</Label>
@@ -420,9 +447,18 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
             <Input
               type="number"
               step="0.1"
+              inputMode="decimal"
               value={formData.startingWeight}
-              onChange={(e) => setFormData({ ...formData, startingWeight: e.target.value })}
+              onChange={(e) => {
+                setOverrides((o) => ({ ...o, weight: true }));
+                setFormData({ ...formData, startingWeight: e.target.value });
+              }}
             />
+            {demographicHint("weight", demographics.latestWeightKg != null) && (
+              <p className="text-[10px] text-muted-foreground leading-none">
+                {demographicHint("weight", demographics.latestWeightKg != null)}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Target Weight (kg)</Label>
