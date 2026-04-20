@@ -70,7 +70,6 @@ export function useMacrocycleList(coachUserId: string) {
     try {
       setLoading(true);
       const { data: macros, error: macroErr } = await supabase
-        // @ts-expect-error macrocycles table types not yet regenerated
         .from("macrocycles")
         .select("*")
         .eq("coach_id", coachUserId)
@@ -143,7 +142,6 @@ export function useMacrocycle(macrocycleId: string | null) {
     try {
       setLoading(true);
       const { data: macro, error: macroErr } = await supabase
-        // @ts-expect-error macrocycles table types not yet regenerated
         .from("macrocycles")
         .select("*")
         .eq("id", macrocycleId)
@@ -155,7 +153,6 @@ export function useMacrocycle(macrocycleId: string | null) {
       }
 
       const { data: junctions, error: jErr } = await supabase
-        // @ts-expect-error junction types not regenerated
         .from("macrocycle_mesocycles")
         .select("*")
         .eq("macrocycle_id", macrocycleId)

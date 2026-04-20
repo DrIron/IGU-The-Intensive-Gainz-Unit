@@ -8,7 +8,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   Drawer,
@@ -121,40 +120,49 @@ export function MacrocycleEditor({
     );
   }, [macrocycle]);
 
+  // A single in-flight creation promise so `ensureMacroRow` and the
+  // debounced `saveMeta` can't both INSERT a row for the same editor.
+  // Before this ref, typing a name + clicking a mesocycle within 600ms
+  // would race to create two orphan macrocycle rows.
+  const creationPromiseRef = useRef<Promise<string> | null>(null);
+
+  /** Resolve the macrocycle id, creating the row once if needed.
+   *  Concurrent callers share the same in-flight promise. */
+  const ensureMacroRow = useCallback(async (): Promise<string> => {
+    if (macroId) return macroId;
+    if (creationPromiseRef.current) return creationPromiseRef.current;
+    const p = (async () => {
+      const { data, error } = await supabase
+        .from("macrocycles")
+        .insert({ coach_id: coachUserId, name, description: description || null })
+        .select("id")
+        .single();
+      if (error) throw error;
+      const id = (data as { id: string }).id;
+      setMacroId(id);
+      return id;
+    })();
+    creationPromiseRef.current = p;
+    try {
+      return await p;
+    } finally {
+      // Keep the resolved/rejected promise on the ref briefly so near-
+      // simultaneous callers after await still see the same settled value.
+      // macroId state is the long-term source of truth via setMacroId above.
+      creationPromiseRef.current = null;
+    }
+  }, [coachUserId, macroId, name, description]);
+
   // Debounced auto-save for header metadata (name + description).
   const metaTimerRef = useRef<ReturnType<typeof setTimeout>>();
   const saveMeta = useCallback(
     async (next: { name?: string; description?: string }) => {
-      // Need a row — create one on first keystroke if needed.
-      let id = macroId;
-      if (!id) {
-        setSaving(true);
-        try {
-          const { data, error } = await supabase
-            // @ts-expect-error types not regenerated
-            .from("macrocycles")
-            .insert({
-              coach_id: coachUserId,
-              name: next.name ?? name,
-              description: next.description ?? description ?? null,
-            })
-            .select("id")
-            .single();
-          if (error) throw error;
-          id = (data as { id: string }).id;
-          setMacroId(id);
-        } catch (e: unknown) {
-          toast({ title: "Error creating macrocycle", description: sanitizeErrorForUser(e), variant: "destructive" });
-          return;
-        } finally {
-          setSaving(false);
-        }
-        return;
-      }
       setSaving(true);
       try {
+        // Coalesce with ensureMacroRow so the first INSERT wins; subsequent
+        // saveMeta runs always take the UPDATE path.
+        const id = await ensureMacroRow();
         const { error } = await supabase
-          // @ts-expect-error types not regenerated
           .from("macrocycles")
           .update({
             ...(next.name !== undefined ? { name: next.name } : {}),
@@ -169,7 +177,7 @@ export function MacrocycleEditor({
         setSaving(false);
       }
     },
-    [coachUserId, macroId, name, description, toast],
+    [ensureMacroRow, toast],
   );
 
   const handleHeaderChange = useCallback(
@@ -182,21 +190,6 @@ export function MacrocycleEditor({
     [saveMeta],
   );
 
-  /** Ensure we have a macrocycle row before inserting a junction. */
-  const ensureMacroRow = useCallback(async (): Promise<string> => {
-    if (macroId) return macroId;
-    const { data, error } = await supabase
-      // @ts-expect-error types not regenerated
-      .from("macrocycles")
-      .insert({ coach_id: coachUserId, name, description: description || null })
-      .select("id")
-      .single();
-    if (error) throw error;
-    const id = (data as { id: string }).id;
-    setMacroId(id);
-    return id;
-  }, [coachUserId, macroId, name, description]);
-
   const addBlock = useCallback(
     async (programTemplateId: string) => {
       if (blocks.some(b => b.programTemplateId === programTemplateId)) {
@@ -208,7 +201,6 @@ export function MacrocycleEditor({
         const id = await ensureMacroRow();
         const nextSequence = blocks.length === 0 ? 0 : Math.max(...blocks.map(b => b.sequence)) + 1;
         const { error } = await supabase
-          // @ts-expect-error types not regenerated
           .from("macrocycle_mesocycles")
           .insert({
             macrocycle_id: id,
@@ -226,41 +218,31 @@ export function MacrocycleEditor({
     [blocks, ensureMacroRow, reload, toast],
   );
 
+  /** Replace the macrocycle's block list atomically via the RPC. The naive
+   *  DELETE+INSERT pattern runs across two PostgREST round-trips — if the
+   *  INSERT fails the macrocycle is left permanently empty, which is how
+   *  the RPC earns its keep. */
+  const replaceBlockOrder = useCallback(
+    async (programTemplateIds: string[]) => {
+      if (!macroId) return;
+      const { error } = await supabase.rpc("reorder_macrocycle_blocks", {
+        p_macrocycle_id: macroId,
+        p_program_template_ids: programTemplateIds,
+      });
+      if (error) throw error;
+    },
+    [macroId],
+  );
+
   const removeBlock = useCallback(
     async (programTemplateId: string) => {
       if (!macroId) return;
       setSaving(true);
       try {
-        const { error } = await supabase
-          // @ts-expect-error types not regenerated
-          .from("macrocycle_mesocycles")
-          .delete()
-          .eq("macrocycle_id", macroId)
-          .eq("program_template_id", programTemplateId);
-        if (error) throw error;
-        // Re-number remaining blocks so sequences stay contiguous.
         const remaining = blocks
           .filter(b => b.programTemplateId !== programTemplateId)
-          .map((b, i) => ({ ...b, sequence: i }));
-        if (remaining.length > 0) {
-          // Delete + reinsert is simplest given the junction's UNIQUE(macro, sequence) constraint.
-          await supabase
-            // @ts-expect-error types not regenerated
-            .from("macrocycle_mesocycles")
-            .delete()
-            .eq("macrocycle_id", macroId);
-          const { error: insErr } = await supabase
-            // @ts-expect-error types not regenerated
-            .from("macrocycle_mesocycles")
-            .insert(
-              remaining.map(b => ({
-                macrocycle_id: macroId,
-                program_template_id: b.programTemplateId,
-                sequence: b.sequence,
-              })),
-            );
-          if (insErr) throw insErr;
-        }
+          .map(b => b.programTemplateId);
+        await replaceBlockOrder(remaining);
         await reload();
       } catch (e: unknown) {
         toast({ title: "Error removing mesocycle", description: sanitizeErrorForUser(e), variant: "destructive" });
@@ -268,10 +250,10 @@ export function MacrocycleEditor({
         setSaving(false);
       }
     },
-    [macroId, blocks, reload, toast],
+    [macroId, blocks, replaceBlockOrder, reload, toast],
   );
 
-  /** Swap two blocks by position (for arrow reorder). Full re-number via delete + reinsert. */
+  /** Swap two blocks by position (for arrow reorder). Atomic via RPC. */
   const moveBlock = useCallback(
     async (fromIdx: number, toIdx: number) => {
       if (!macroId) return;
@@ -281,24 +263,7 @@ export function MacrocycleEditor({
         const reordered = [...blocks];
         const [moved] = reordered.splice(fromIdx, 1);
         reordered.splice(toIdx, 0, moved);
-        const resequenced = reordered.map((b, i) => ({ ...b, sequence: i }));
-
-        await supabase
-          // @ts-expect-error types not regenerated
-          .from("macrocycle_mesocycles")
-          .delete()
-          .eq("macrocycle_id", macroId);
-        const { error: insErr } = await supabase
-          // @ts-expect-error types not regenerated
-          .from("macrocycle_mesocycles")
-          .insert(
-            resequenced.map(b => ({
-              macrocycle_id: macroId,
-              program_template_id: b.programTemplateId,
-              sequence: b.sequence,
-            })),
-          );
-        if (insErr) throw insErr;
+        await replaceBlockOrder(reordered.map(b => b.programTemplateId));
         await reload();
       } catch (e: unknown) {
         toast({ title: "Reorder failed", description: sanitizeErrorForUser(e), variant: "destructive" });

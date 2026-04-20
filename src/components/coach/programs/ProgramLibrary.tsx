@@ -102,7 +102,6 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
       // Load macrocycle options for the "Add to macrocycle..." submenu.
       try {
         const { data: macros } = await supabase
-          // @ts-expect-error macrocycles types not yet regenerated
           .from("macrocycles")
           .select("id, name")
           .eq("coach_id", coachUserId)
@@ -139,7 +138,6 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
         let targetId = macrocycleId;
         if (!targetId) {
           const { data: newMacro, error: createErr } = await supabase
-            // @ts-expect-error types not regenerated
             .from("macrocycles")
             .insert({ coach_id: coachUserId, name: programTitle, description: null })
             .select("id")
@@ -150,7 +148,6 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
 
         // Find next sequence in the target macrocycle.
         const { data: existing } = await supabase
-          // @ts-expect-error types not regenerated
           .from("macrocycle_mesocycles")
           .select("sequence, program_template_id")
           .eq("macrocycle_id", targetId);
@@ -162,14 +159,13 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
         const nextSeq = rows.length === 0 ? 0 : Math.max(...rows.map(r => r.sequence)) + 1;
 
         const { error: insertErr } = await supabase
-          // @ts-expect-error types not regenerated
           .from("macrocycle_mesocycles")
           .insert({ macrocycle_id: targetId, program_template_id: programId, sequence: nextSeq });
         if (insertErr) throw insertErr;
 
         toast({ title: "Added to macrocycle" });
         loadPrograms();
-      } catch (e: any) {
+      } catch (e: unknown) {
         toast({
           title: "Error adding to macrocycle",
           description: sanitizeErrorForUser(e),

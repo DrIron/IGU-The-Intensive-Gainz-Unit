@@ -42,7 +42,11 @@ type Detail =
 export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   const { canBuildPrograms, isLoading: permissionsLoading } = useSubrolePermissions(coachUserId);
   const isMobile = useIsMobile();
-  const { macrocycles } = useMacrocycleList(coachUserId);
+  // `reload` refreshes the macrocycle list — we call it after closing the
+  // editor so newly-created macrocycles appear in the tab count/card grid.
+  // The hook's internal hasFetched guard blocks the initial effect from
+  // refiring, but explicit reload bypasses it.
+  const { macrocycles, reload: reloadMacrocycles } = useMacrocycleList(coachUserId);
 
   // Default tab: macrocycles if any exist, else mesocycles. Controlled once
   // the hook resolves — before that we show macrocycles which loads cleanly
@@ -54,7 +58,13 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   const [activeTab, setActiveTab] = useState<TabKey>(defaultTab);
   const [detail, setDetail] = useState<Detail>({ kind: "none" });
 
-  const closeDetail = useCallback(() => setDetail({ kind: "none" }), []);
+  // Closing a detail view may have mutated the data we're landing back on
+  // (e.g. coach just created a new macrocycle). Always refresh the list
+  // when returning to the hub so the tab badge and grid show fresh state.
+  const closeDetail = useCallback(() => {
+    setDetail({ kind: "none" });
+    reloadMacrocycles();
+  }, [reloadMacrocycles]);
 
   // Nav handlers from child components
   const openMacrocycle = useCallback((id: string) => setDetail({ kind: "macrocycle", id }), []);

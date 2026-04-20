@@ -72,7 +72,6 @@ export const MacrocycleLibrary = memo(function MacrocycleLibrary({
     try {
       // Junction rows cascade; client_programs.macrocycle_id SET NULL keeps assignments intact.
       const { error } = await supabase
-        // @ts-expect-error types not regenerated
         .from("macrocycles")
         .delete()
         .eq("id", deleteTarget.id);

@@ -956,6 +956,7 @@ export type Database = {
           created_at: string
           ended_at: string | null
           id: string
+          macrocycle_id: string | null
           primary_coach_id: string
           source_template_id: string | null
           start_date: string
@@ -970,6 +971,7 @@ export type Database = {
           created_at?: string
           ended_at?: string | null
           id?: string
+          macrocycle_id?: string | null
           primary_coach_id: string
           source_template_id?: string | null
           start_date: string
@@ -984,6 +986,7 @@ export type Database = {
           created_at?: string
           ended_at?: string | null
           id?: string
+          macrocycle_id?: string | null
           primary_coach_id?: string
           source_template_id?: string | null
           start_date?: string
@@ -995,6 +998,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "client_programs_macrocycle_id_fkey"
+            columns: ["macrocycle_id"]
+            isOneToOne: false
+            referencedRelation: "macrocycles"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "client_programs_primary_coach_id_fkey"
             columns: ["primary_coach_id"]
@@ -1049,15 +1059,26 @@ export type Database = {
       coach_applications: {
         Row: {
           certifications: string[] | null
+          coaching_modality: string | null
+          coaching_philosophy: string | null
           created_at: string
+          credentials_json: Json | null
+          current_client_count: number | null
           date_of_birth: string
           email: string
+          evidence_based_approach: string | null
           first_name: string
           gender: string | null
           id: string
+          interview_completed_at: string | null
+          interview_notes: string | null
+          interview_scheduled_at: string | null
+          interview_zoom_link: string | null
           last_name: string
+          max_capacity: number | null
           motivation: string | null
           notes: string | null
+          occupation: string | null
           phone_number: string | null
           requested_subroles: string[] | null
           resume_url: string | null
@@ -1069,15 +1090,26 @@ export type Database = {
         }
         Insert: {
           certifications?: string[] | null
+          coaching_modality?: string | null
+          coaching_philosophy?: string | null
           created_at?: string
+          credentials_json?: Json | null
+          current_client_count?: number | null
           date_of_birth: string
           email: string
+          evidence_based_approach?: string | null
           first_name: string
           gender?: string | null
           id?: string
+          interview_completed_at?: string | null
+          interview_notes?: string | null
+          interview_scheduled_at?: string | null
+          interview_zoom_link?: string | null
           last_name: string
+          max_capacity?: number | null
           motivation?: string | null
           notes?: string | null
+          occupation?: string | null
           phone_number?: string | null
           requested_subroles?: string[] | null
           resume_url?: string | null
@@ -1089,15 +1121,26 @@ export type Database = {
         }
         Update: {
           certifications?: string[] | null
+          coaching_modality?: string | null
+          coaching_philosophy?: string | null
           created_at?: string
+          credentials_json?: Json | null
+          current_client_count?: number | null
           date_of_birth?: string
           email?: string
+          evidence_based_approach?: string | null
           first_name?: string
           gender?: string | null
           id?: string
+          interview_completed_at?: string | null
+          interview_notes?: string | null
+          interview_scheduled_at?: string | null
+          interview_zoom_link?: string | null
           last_name?: string
+          max_capacity?: number | null
           motivation?: string | null
           notes?: string | null
+          occupation?: string | null
           phone_number?: string | null
           requested_subroles?: string[] | null
           resume_url?: string | null
@@ -1329,6 +1372,77 @@ export type Database = {
           },
         ]
       }
+      coach_content_completions: {
+        Row: {
+          coach_user_id: string
+          completed_at: string
+          content_id: string
+          id: string
+          time_spent_seconds: number | null
+        }
+        Insert: {
+          coach_user_id: string
+          completed_at?: string
+          content_id: string
+          id?: string
+          time_spent_seconds?: number | null
+        }
+        Update: {
+          coach_user_id?: string
+          completed_at?: string
+          content_id?: string
+          id?: string
+          time_spent_seconds?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_content_completions_content_id_fkey"
+            columns: ["content_id"]
+            isOneToOne: false
+            referencedRelation: "coach_educational_content"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      coach_educational_content: {
+        Row: {
+          created_at: string
+          description: string | null
+          duration_minutes: number
+          id: string
+          is_active: boolean
+          is_required: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+          video_url: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          sort_order?: number
+          title: string
+          updated_at?: string
+          video_url: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean
+          is_required?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+          video_url?: string
+        }
+        Relationships: []
+      }
       coach_nutrition_notes: {
         Row: {
           coach_id: string
@@ -1442,6 +1556,44 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_payout_rates: {
+        Row: {
+          created_at: string | null
+          id: string
+          level: Database["public"]["Enums"]["professional_level"]
+          payout_kwd: number
+          role: string
+          service_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          level?: Database["public"]["Enums"]["professional_level"]
+          payout_kwd: number
+          role: string
+          service_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          level?: Database["public"]["Enums"]["professional_level"]
+          payout_kwd?: number
+          role?: string
+          service_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_payout_rates_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coach_service_limits: {
         Row: {
           coach_id: string
@@ -1494,39 +1646,63 @@ export type Database = {
       coach_teams: {
         Row: {
           coach_id: string
+          cover_image_url: string | null
           created_at: string | null
           current_program_template_id: string | null
+          cycle_start_date: string | null
+          cycle_weeks: number | null
           description: string | null
           id: string
           is_active: boolean | null
+          is_public: boolean | null
           max_members: number | null
           name: string
+          session_duration_min: number | null
+          sessions_per_week: number | null
           tags: string[] | null
+          training_goal: string | null
           updated_at: string | null
+          waitlist_enabled: boolean | null
         }
         Insert: {
           coach_id: string
+          cover_image_url?: string | null
           created_at?: string | null
           current_program_template_id?: string | null
+          cycle_start_date?: string | null
+          cycle_weeks?: number | null
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_public?: boolean | null
           max_members?: number | null
           name: string
+          session_duration_min?: number | null
+          sessions_per_week?: number | null
           tags?: string[] | null
+          training_goal?: string | null
           updated_at?: string | null
+          waitlist_enabled?: boolean | null
         }
         Update: {
           coach_id?: string
+          cover_image_url?: string | null
           created_at?: string | null
           current_program_template_id?: string | null
+          cycle_start_date?: string | null
+          cycle_weeks?: number | null
           description?: string | null
           id?: string
           is_active?: boolean | null
+          is_public?: boolean | null
           max_members?: number | null
           name?: string
+          session_duration_min?: number | null
+          sessions_per_week?: number | null
           tags?: string[] | null
+          training_goal?: string | null
           updated_at?: string | null
+          waitlist_enabled?: boolean | null
         }
         Relationships: [
           {
@@ -2493,6 +2669,48 @@ export type Database = {
         }
         Relationships: []
       }
+      email_types: {
+        Row: {
+          body_sections: Json | null
+          category: string
+          description: string | null
+          edge_function: string
+          id: string
+          is_enabled: boolean
+          label: string
+          sort_order: number | null
+          subject_template: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          body_sections?: Json | null
+          category: string
+          description?: string | null
+          edge_function: string
+          id: string
+          is_enabled?: boolean
+          label: string
+          sort_order?: number | null
+          subject_template?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          body_sections?: Json | null
+          category?: string
+          description?: string | null
+          edge_function?: string
+          id?: string
+          is_enabled?: boolean
+          label?: string
+          sort_order?: number | null
+          subject_template?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
+      }
       exercise_library: {
         Row: {
           anatomical_name: string | null
@@ -2505,9 +2723,17 @@ export type Database = {
           id: string
           is_active: boolean
           is_global: boolean
+          machine_brand: string | null
+          movement_pattern: string | null
+          movement_pattern_id: string | null
+          muscle_group: string | null
           name: string
           primary_muscle: string
+          resistance_profiles: string[] | null
           secondary_muscles: string[] | null
+          setup_instructions: string | null
+          setup_points: string[] | null
+          subdivision: string | null
           tags: string[] | null
           updated_at: string
         }
@@ -2522,9 +2748,17 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_global?: boolean
+          machine_brand?: string | null
+          movement_pattern?: string | null
+          movement_pattern_id?: string | null
+          muscle_group?: string | null
           name: string
           primary_muscle: string
+          resistance_profiles?: string[] | null
           secondary_muscles?: string[] | null
+          setup_instructions?: string | null
+          setup_points?: string[] | null
+          subdivision?: string | null
           tags?: string[] | null
           updated_at?: string
         }
@@ -2539,9 +2773,17 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_global?: boolean
+          machine_brand?: string | null
+          movement_pattern?: string | null
+          movement_pattern_id?: string | null
+          muscle_group?: string | null
           name?: string
           primary_muscle?: string
+          resistance_profiles?: string[] | null
           secondary_muscles?: string[] | null
+          setup_instructions?: string | null
+          setup_points?: string[] | null
+          subdivision?: string | null
           tags?: string[] | null
           updated_at?: string
         }
@@ -2559,6 +2801,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "coaches_client_safe"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "exercise_library_movement_pattern_id_fkey"
+            columns: ["movement_pattern_id"]
+            isOneToOne: false
+            referencedRelation: "movement_patterns"
+            referencedColumns: ["id"]
           },
         ]
       }
@@ -2627,6 +2876,7 @@ export type Database = {
           rep_range_max: number | null
           rep_range_min: number | null
           rest_seconds: number | null
+          rest_seconds_max: number | null
           set_count: number
           sets_json: Json | null
           tempo: string | null
@@ -2648,6 +2898,7 @@ export type Database = {
           rep_range_max?: number | null
           rep_range_min?: number | null
           rest_seconds?: number | null
+          rest_seconds_max?: number | null
           set_count?: number
           sets_json?: Json | null
           tempo?: string | null
@@ -2669,6 +2920,7 @@ export type Database = {
           rep_range_max?: number | null
           rep_range_min?: number | null
           rest_seconds?: number | null
+          rest_seconds_max?: number | null
           set_count?: number
           sets_json?: Json | null
           tempo?: string | null
@@ -3438,6 +3690,7 @@ export type Database = {
           created_at: string
           email: string
           id: string
+          invited_at: string | null
           name: string | null
           source: string
           utm_campaign: string | null
@@ -3452,6 +3705,7 @@ export type Database = {
           created_at?: string
           email: string
           id?: string
+          invited_at?: string | null
           name?: string | null
           source?: string
           utm_campaign?: string | null
@@ -3466,6 +3720,7 @@ export type Database = {
           created_at?: string
           email?: string
           id?: string
+          invited_at?: string | null
           name?: string | null
           source?: string
           utm_campaign?: string | null
@@ -3505,6 +3760,143 @@ export type Database = {
           version?: number
         }
         Relationships: []
+      }
+      macrocycle_mesocycles: {
+        Row: {
+          macrocycle_id: string
+          program_template_id: string
+          sequence: number
+        }
+        Insert: {
+          macrocycle_id: string
+          program_template_id: string
+          sequence: number
+        }
+        Update: {
+          macrocycle_id?: string
+          program_template_id?: string
+          sequence?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "macrocycle_mesocycles_macrocycle_id_fkey"
+            columns: ["macrocycle_id"]
+            isOneToOne: false
+            referencedRelation: "macrocycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "macrocycle_mesocycles_program_template_id_fkey"
+            columns: ["program_template_id"]
+            isOneToOne: false
+            referencedRelation: "program_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      macrocycles: {
+        Row: {
+          coach_id: string
+          created_at: string
+          description: string | null
+          id: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          coach_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          coach_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "macrocycles_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "macrocycles_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches_client_safe"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      medical_reviews: {
+        Row: {
+          created_at: string
+          flagged_at: string
+          id: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          flagged_at?: string
+          id?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          flagged_at?: string
+          id?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "medical_reviews_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_reviews_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "medical_reviews_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       module_exercises: {
         Row: {
@@ -3697,6 +4089,39 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      movement_patterns: {
+        Row: {
+          created_at: string
+          execution_points: string[] | null
+          execution_text: string | null
+          id: string
+          movement: string
+          muscle_group: string
+          subdivision: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          execution_points?: string[] | null
+          execution_text?: string | null
+          id?: string
+          movement: string
+          muscle_group: string
+          subdivision?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          execution_points?: string[] | null
+          execution_text?: string | null
+          id?: string
+          movement?: string
+          muscle_group?: string
+          subdivision?: string | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       muscle_program_templates: {
         Row: {
@@ -4620,6 +5045,7 @@ export type Database = {
           email: string
           full_name: string | null
           gender: string | null
+          height_cm: number | null
           last_name: string | null
           phone: string | null
           profile_id: string
@@ -4631,6 +5057,7 @@ export type Database = {
           email: string
           full_name?: string | null
           gender?: string | null
+          height_cm?: number | null
           last_name?: string | null
           phone?: string | null
           profile_id: string
@@ -4642,6 +5069,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           gender?: string | null
+          height_cm?: number | null
           last_name?: string | null
           phone?: string | null
           profile_id?: string
@@ -5820,6 +6248,58 @@ export type Database = {
         }
         Relationships: []
       }
+      team_waitlist: {
+        Row: {
+          created_at: string
+          email: string
+          id: string
+          notified_at: string | null
+          status: string
+          team_id: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          id?: string
+          notified_at?: string | null
+          status?: string
+          team_id: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          id?: string
+          notified_at?: string | null
+          status?: string
+          team_id?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "team_waitlist_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "coach_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_waitlist_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "team_waitlist_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       testimonials: {
         Row: {
           coach_id: string | null
@@ -6074,6 +6554,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      waitlist_settings: {
+        Row: {
+          heading: string | null
+          id: string
+          is_enabled: boolean
+          subheading: string | null
+          updated_at: string | null
+          updated_by: string | null
+        }
+        Insert: {
+          heading?: string | null
+          id?: string
+          is_enabled?: boolean
+          subheading?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Update: {
+          heading?: string | null
+          id?: string
+          is_enabled?: boolean
+          subheading?: string | null
+          updated_at?: string | null
+          updated_by?: string | null
+        }
+        Relationships: []
       }
       weekly_progress: {
         Row: {
@@ -6488,10 +6995,22 @@ export type Database = {
           updated_at: string
         }[]
       }
+      assign_macrocycle_to_client: {
+        Args: {
+          p_client_id: string
+          p_coach_id: string
+          p_macrocycle_id: string
+          p_start_date: string
+          p_subscription_id: string
+          p_team_id?: string
+        }
+        Returns: Json
+      }
       assign_program_to_client: {
         Args: {
           p_client_id: string
           p_coach_id: string
+          p_macrocycle_id?: string
           p_start_date: string
           p_subscription_id: string
           p_team_id?: string
@@ -6535,6 +7054,10 @@ export type Database = {
           table_name: string
         }[]
       }
+      check_training_completion: {
+        Args: { p_coach_user_id: string }
+        Returns: Json
+      }
       cleanup_expired_discount_applications: { Args: never; Returns: number }
       client_has_dietitian: { Args: { p_client_uid: string }; Returns: boolean }
       convert_muscle_plan_to_program: {
@@ -6544,6 +7067,16 @@ export type Database = {
           p_muscle_template_id?: string
           p_plan_description: string
           p_plan_name: string
+        }
+        Returns: Json
+      }
+      convert_muscle_plan_to_program_v2: {
+        Args: {
+          p_coach_id: string
+          p_muscle_template_id?: string
+          p_plan_description: string
+          p_plan_name: string
+          p_sessions?: Json
         }
         Returns: Json
       }
@@ -6592,6 +7125,7 @@ export type Database = {
           total_monthly_revenue: number
         }[]
       }
+      get_client_age: { Args: { p_client_id: string }; Returns: number }
       get_client_from_day_module: {
         Args: { p_module_id: string }
         Returns: string
@@ -6609,6 +7143,8 @@ export type Database = {
         Returns: string
       }
       get_client_from_thread: { Args: { p_thread_id: string }; Returns: string }
+      get_client_gender: { Args: { p_client_id: string }; Returns: string }
+      get_client_height_cm: { Args: { p_client_id: string }; Returns: number }
       get_client_medical_flags: {
         Args: { p_client_user_id: string }
         Returns: {
@@ -7377,3 +7913,5 @@ export const Constants = {
     },
   },
 } as const
+A new version of Supabase CLI is available: v2.90.0 (currently installed v2.78.1)
+We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
