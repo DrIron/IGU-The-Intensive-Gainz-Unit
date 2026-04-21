@@ -154,45 +154,47 @@ export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Overall Progress */}
-        <div className="text-center p-4 bg-muted/50 rounded-lg">
-          <p className={`text-4xl font-bold ${getAdherenceColor(overallPercent)}`}>
-            {overallPercent}%
-          </p>
-          <p className="text-sm text-muted-foreground mt-1">Overall Completion</p>
-          <Progress value={overallPercent} className="mt-3 h-2" />
-        </div>
-
-        {/* Per-Module Breakdown */}
-        {moduleBreakdown.length > 0 && (
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">By Module Type</p>
-            {moduleBreakdown.map((item) => (
-              <div key={item.module_type} className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Badge variant="outline" className="text-xs">
-                    {getModuleTypeLabel(item.module_type)}
-                  </Badge>
-                  <span className="text-sm text-muted-foreground">
-                    {item.completed}/{item.total}
-                  </span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Progress value={item.percent} className="w-20 h-2" />
-                  <span className={`text-sm font-medium w-10 text-right ${getAdherenceColor(item.percent)}`}>
-                    {item.percent}%
-                  </span>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {moduleBreakdown.length === 0 && (
-          <div className="text-center py-4 text-muted-foreground">
+        {/* When there is no workout data for the week we skip the big percentage
+            number entirely -- showing "0%" in red the moment the week starts
+            feels punishing even though nothing's wrong yet. The empty state
+            replaces the hero ring. */}
+        {moduleBreakdown.length === 0 ? (
+          <div className="text-center py-6 text-muted-foreground bg-muted/30 rounded-lg">
             <TrendingUp className="h-8 w-8 mx-auto mb-2 opacity-30" aria-hidden="true" />
-            <p className="text-sm">No workout data this week yet</p>
+            <p className="text-sm">No workouts scheduled this week yet</p>
+            <p className="text-[11px] mt-1">Tap to view your calendar.</p>
           </div>
+        ) : (
+          <>
+            <div className="text-center p-4 bg-muted/50 rounded-lg">
+              <p className={`text-4xl font-bold ${getAdherenceColor(overallPercent)}`}>
+                {overallPercent}%
+              </p>
+              <p className="text-sm text-muted-foreground mt-1">Overall Completion</p>
+              <Progress value={overallPercent} className="mt-3 h-2" />
+            </div>
+            <div className="space-y-3">
+              <p className="text-sm font-medium text-muted-foreground">By Module Type</p>
+              {moduleBreakdown.map((item) => (
+                <div key={item.module_type} className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Badge variant="outline" className="text-xs">
+                      {getModuleTypeLabel(item.module_type)}
+                    </Badge>
+                    <span className="text-sm text-muted-foreground">
+                      {item.completed}/{item.total}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Progress value={item.percent} className="w-20 h-2" />
+                    <span className={`text-sm font-medium w-10 text-right ${getAdherenceColor(item.percent)}`}>
+                      {item.percent}%
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
         )}
       </CardContent>
     </ClickableCard>
