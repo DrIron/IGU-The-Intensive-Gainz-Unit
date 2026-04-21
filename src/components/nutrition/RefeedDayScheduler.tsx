@@ -9,14 +9,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogTrigger,
+} from "@/components/ui/responsive-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { UtensilsCrossed, CalendarIcon, Plus, Loader2, CheckCircle, XCircle } from "lucide-react";
@@ -281,21 +278,17 @@ export function RefeedDayScheduler({
             <CardDescription>Schedule high-carb refeed days</CardDescription>
           </div>
           {canEdit && (
-            <Dialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
-              <DialogTrigger asChild>
+            <ResponsiveDialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
+              <ResponsiveDialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="h-4 w-4 mr-1" />
                   Schedule Refeed
                 </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Schedule Refeed Day</DialogTitle>
-                  <DialogDescription>
-                    Plan a higher calorie, high-carb day
-                  </DialogDescription>
-                </DialogHeader>
-
+              </ResponsiveDialogTrigger>
+              <ResponsiveDialogContent
+                title="Schedule Refeed Day"
+                description="Plan a higher calorie, high-carb day"
+              >
                 <div className="space-y-4 py-4">
                   <div className="space-y-2">
                     <Label>Date</Label>
@@ -376,16 +369,16 @@ export function RefeedDayScheduler({
                   </div>
                 </div>
 
-                <DialogFooter>
+                <ResponsiveDialogFooter>
                   <Button variant="outline" onClick={() => setShowScheduleDialog(false)}>
                     Cancel
                   </Button>
                   <Button onClick={handleScheduleRefeed} disabled={saving}>
                     {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Schedule'}
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </ResponsiveDialogFooter>
+              </ResponsiveDialogContent>
+            </ResponsiveDialog>
           )}
         </div>
       </CardHeader>
@@ -518,15 +511,11 @@ export function RefeedDayScheduler({
         )}
 
         {/* Log actuals dialog */}
-        <Dialog open={showLogDialog} onOpenChange={setShowLogDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Log Refeed Day</DialogTitle>
-              <DialogDescription>
-                Record actual intake for this refeed day
-              </DialogDescription>
-            </DialogHeader>
-
+        <ResponsiveDialog open={showLogDialog} onOpenChange={setShowLogDialog}>
+          <ResponsiveDialogContent
+            title="Log Refeed Day"
+            description="Record actual intake for this refeed day"
+          >
             {selectedRefeed && (
               <div className="space-y-4 py-4">
                 <div className="p-3 rounded-lg bg-muted/50">
@@ -602,16 +591,16 @@ export function RefeedDayScheduler({
               </div>
             )}
 
-            <DialogFooter>
+            <ResponsiveDialogFooter>
               <Button variant="outline" onClick={() => setShowLogDialog(false)}>
                 Cancel
               </Button>
               <Button onClick={handleLogActuals} disabled={saving}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Save'}
               </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+            </ResponsiveDialogFooter>
+          </ResponsiveDialogContent>
+        </ResponsiveDialog>
       </CardContent>
     </Card>
   );

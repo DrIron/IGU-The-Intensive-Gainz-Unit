@@ -9,14 +9,11 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+  ResponsiveDialogFooter,
+  ResponsiveDialogTrigger,
+} from "@/components/ui/responsive-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import {
@@ -279,21 +276,17 @@ export function DietBreakManager({
             <CardDescription>Schedule and manage diet break periods</CardDescription>
           </div>
           {canEdit && (
-            <Dialog open={showDialog} onOpenChange={setShowDialog}>
-              <DialogTrigger asChild>
+            <ResponsiveDialog open={showDialog} onOpenChange={setShowDialog}>
+              <ResponsiveDialogTrigger asChild>
                 <Button size="sm">
                   <Plus className="h-4 w-4 mr-1" />
                   Schedule Break
                 </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Schedule Diet Break</DialogTitle>
-                  <DialogDescription>
-                    Plan a diet break period with maintenance calories
-                  </DialogDescription>
-                </DialogHeader>
-
+              </ResponsiveDialogTrigger>
+              <ResponsiveDialogContent
+                title="Schedule Diet Break"
+                description="Plan a diet break period with maintenance calories"
+              >
                 <div className="space-y-4 py-4">
                   {/* Maintenance calculation info */}
                   <Alert className="bg-blue-50 border-blue-200">
@@ -382,7 +375,7 @@ export function DietBreakManager({
                   </div>
                 </div>
 
-                <DialogFooter>
+                <ResponsiveDialogFooter>
                   <Button variant="outline" onClick={() => setShowDialog(false)}>
                     Cancel
                   </Button>
@@ -396,9 +389,9 @@ export function DietBreakManager({
                       'Schedule Break'
                     )}
                   </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </ResponsiveDialogFooter>
+              </ResponsiveDialogContent>
+            </ResponsiveDialog>
           )}
         </div>
       </CardHeader>
