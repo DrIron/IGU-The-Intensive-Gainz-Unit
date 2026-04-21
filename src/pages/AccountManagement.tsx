@@ -63,6 +63,7 @@ interface ProfileData {
   date_of_birth: string | null;
   gender: string | null;
   height_cm: number | null;
+  activity_level: string | null;
 }
 
 export default function AccountManagement() {
@@ -82,6 +83,7 @@ export default function AccountManagement() {
     date_of_birth: "",
     gender: "",
     height_cm: null,
+    activity_level: null,
   });
   const [formData, setFormData] = useState({
     email: "",
@@ -94,6 +96,9 @@ export default function AccountManagement() {
     gender: "",
     // Stored as string so the Input behaves; coerced to number on save.
     height_cm: "",
+    // Empty string = no answer yet; saves as null. Values match the
+    // Mifflin-St Jeor multipliers the rest of the nutrition code uses.
+    activity_level: "",
     requested_coach_id: "",
     currentPassword: "",
     newPassword: "",
@@ -143,7 +148,7 @@ export default function AccountManagement() {
       const [{ data: profilePublic, error: publicError }, { data: profilePrivate, error: privateError }] = await Promise.all([
         supabase
           .from("profiles_public")
-          .select("first_name")
+          .select("first_name, activity_level")
           .eq("id", userId)
           .single(),
         supabase
@@ -165,6 +170,7 @@ export default function AccountManagement() {
         date_of_birth: profilePrivate?.date_of_birth || null,
         gender: profilePrivate?.gender || null,
         height_cm: profilePrivate?.height_cm ?? null,
+        activity_level: profilePublic?.activity_level ?? null,
       };
 
       setProfileData(data);
@@ -193,6 +199,7 @@ export default function AccountManagement() {
         date_of_birth: data.date_of_birth || "",
         gender: data.gender || "",
         height_cm: data.height_cm != null ? String(data.height_cm) : "",
+        activity_level: data.activity_level || "",
       }));
     } catch (error: any) {
       console.error("Error fetching profile:", error);
@@ -266,6 +273,7 @@ export default function AccountManagement() {
           .update({
             first_name: formData.first_name,
             display_name: formData.full_name || `${formData.first_name} ${formData.last_name}`,
+            activity_level: formData.activity_level || null,
           })
           .eq("id", user.id),
         supabase
@@ -598,6 +606,28 @@ export default function AccountManagement() {
                           Used by the nutrition calculator. Coaches see this through a secure RPC -- your raw profile data stays private.
                         </p>
                       </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="activity_level">Activity Level</Label>
+                      <Select
+                        value={formData.activity_level}
+                        onValueChange={(value) => setFormData({ ...formData, activity_level: value })}
+                      >
+                        <SelectTrigger id="activity_level">
+                          <SelectValue placeholder="Select your typical activity" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="1.2">Sedentary (desk job, little exercise)</SelectItem>
+                          <SelectItem value="1.375">Light (1-3x/week)</SelectItem>
+                          <SelectItem value="1.55">Moderate (3-5x/week)</SelectItem>
+                          <SelectItem value="1.725">Very active (6-7x/week)</SelectItem>
+                          <SelectItem value="1.9">Extremely active (2x/day or manual labor)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Used by the calorie calculator and coach to size your macros. Update it when your routine changes.
+                      </p>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

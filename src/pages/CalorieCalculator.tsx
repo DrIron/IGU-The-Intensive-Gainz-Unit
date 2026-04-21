@@ -60,11 +60,16 @@ export default function CalorieCalculator() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      const [profileRes, phaseRes] = await Promise.all([
+      const [profileRes, publicRes, phaseRes] = await Promise.all([
         supabase
           .from("profiles_private")
           .select("date_of_birth, gender, height_cm")
           .eq("profile_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("profiles_public")
+          .select("activity_level")
+          .eq("id", user.id)
           .maybeSingle(),
         supabase
           .from("nutrition_phases")
@@ -75,11 +80,13 @@ export default function CalorieCalculator() {
       ]);
 
       const profile = profileRes.data;
+      const publicProfile = publicRes.data;
       const phase = phaseRes.data;
 
       if (profile?.date_of_birth) setDateOfBirth(profile.date_of_birth);
       if (profile?.gender) setGender(profile.gender);
       if (profile?.height_cm != null) setHeight(String(profile.height_cm));
+      if (publicProfile?.activity_level) setActivityLevel(publicProfile.activity_level);
 
       if (phase?.id) {
         const { data: lastWeight } = await supabase

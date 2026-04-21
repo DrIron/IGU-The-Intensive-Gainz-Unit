@@ -57,6 +57,7 @@ const formSchema = z.object({
   gender: z.enum(['male', 'female']).optional(),
   date_of_birth: z.string().max(20).trim().optional(),
   height_cm: z.number().int().min(100).max(250).optional(),
+  activity_level: z.enum(["1.2", "1.375", "1.55", "1.725", "1.9"]).optional(),
   discord_username: z.string().max(100).trim().optional(),
   plan_name: z.string().min(1).max(100),
   focus_areas: z.array(z.string().max(50)).optional(),
@@ -397,6 +398,10 @@ Deno.serve(async (req) => {
 
     if (isTeamPlan && newStatus === 'pending_payment') {
       profilePublicUpdate.payment_deadline = paymentDeadline.toISOString();
+    }
+
+    if (validatedData.activity_level) {
+      profilePublicUpdate.activity_level = validatedData.activity_level;
     }
 
     const { error: profilePublicError } = await supabase
