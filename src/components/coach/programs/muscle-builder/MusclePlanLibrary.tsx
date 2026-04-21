@@ -211,12 +211,9 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
               : "Try a different search term"
           }
           action={
-            plans.length === 0 ? (
-              <Button onClick={onNewPlan}>
-                <Plus className="h-4 w-4 mr-2" />
-                New Plan
-              </Button>
-            ) : undefined
+            plans.length === 0
+              ? { label: "New Plan", onClick: onNewPlan }
+              : undefined
           }
         />
       ) : (

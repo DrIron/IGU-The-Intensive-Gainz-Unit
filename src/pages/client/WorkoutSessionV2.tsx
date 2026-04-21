@@ -1172,8 +1172,15 @@ function WorkoutSessionV2Content() {
     }));
   };
 
-  // Complete a set (mark as done + start rest timer + evaluate progression)
-  const completeSet = (
+  // Complete a set (mark as done + PERSIST IMMEDIATELY + start rest timer +
+  // evaluate progression).
+  //
+  // Previously this only toggled local `completed: true` state. The DB write
+  // was deferred to the top-bar Save or Complete Workout buttons, so
+  // navigating away between a check-click and a Save-click lost the log.
+  // Now every check writes its single set via upsert with visible error
+  // feedback — the top-bar Save remains for batch/notes flushes.
+  const completeSet = async (
     exerciseId: string,
     setIndex: number,
     restSeconds?: number
@@ -1184,6 +1191,44 @@ function WorkoutSessionV2Content() {
         i === setIndex ? { ...log, completed: true } : log
       ),
     }));
+
+    // Per-set upsert — write-through so closing the tab never loses this set.
+    const exerciseForSave = module?.exercises.find((e) => e.id === exerciseId);
+    const logForSave = setLogsRef.current[exerciseId]?.[setIndex];
+    if (user && exerciseForSave && logForSave) {
+      const { error } = await supabase
+        .from("exercise_set_logs")
+        .upsert(
+          {
+            client_module_exercise_id: exerciseId,
+            set_index: logForSave.set_index,
+            prescribed: exerciseForSave.prescription_snapshot_json,
+            performed_reps: logForSave.performed_reps,
+            performed_load: logForSave.performed_load,
+            performed_rir: logForSave.performed_rir,
+            performed_rpe: logForSave.performed_rpe,
+            notes: logForSave.notes || null,
+            created_by_user_id: user.id,
+          },
+          { onConflict: "client_module_exercise_id,set_index" },
+        );
+      if (error) {
+        // Revert the local "completed" flag so the coach/client isn't misled
+        // about a set that didn't actually save.
+        setSetLogs((prev) => ({
+          ...prev,
+          [exerciseId]: prev[exerciseId].map((log, i) =>
+            i === setIndex ? { ...log, completed: false } : log
+          ),
+        }));
+        toast({
+          title: "Set didn't save",
+          description: sanitizeErrorForUser(error),
+          variant: "destructive",
+        });
+        return;
+      }
+    }
 
     // Start rest timer if there's rest time and not the last set
     const exercise = module?.exercises.find((e) => e.id === exerciseId);
@@ -1336,19 +1381,23 @@ function WorkoutSessionV2Content() {
         });
       });
 
+      // Per CLAUDE.md: always destructure { error } on supabase mutations.
+      // The prior version silently dropped RLS/constraint failures and let the
+      // session runner render a "Progress saved" toast when nothing persisted.
       for (const log of allLogs) {
-        await supabase
+        const { error } = await supabase
           .from("exercise_set_logs")
           .upsert(log, {
             onConflict: "client_module_exercise_id,set_index",
           });
+        if (error) throw error;
       }
 
       toast({
         title: "Progress saved",
         description: "Your workout data has been saved",
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast({
         title: "Error saving",
         description: sanitizeErrorForUser(error),

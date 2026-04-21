@@ -101,15 +101,18 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
         return;
       }
 
-      // Fetch program name separately (FK join from client_programs to programs is unreliable in PostgREST)
+      // Fetch program title from the template separately (FK join from
+      // client_programs to program_templates is unreliable in PostgREST per
+      // CLAUDE.md). Previous version queried a dead table `programs`, which
+      // returned 404 on prod and left the card stuck on "Your Program".
       let programName = 'Your Program';
       if (program.source_template_id) {
-        const { data: programData } = await supabase
-          .from("programs")
-          .select("name")
+        const { data: templateData } = await supabase
+          .from("program_templates")
+          .select("title")
           .eq("id", program.source_template_id)
           .maybeSingle();
-        if (programData?.name) programName = programData.name;
+        if (templateData?.title) programName = templateData.title;
       }
 
       const days = program.client_program_days;

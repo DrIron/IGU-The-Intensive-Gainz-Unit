@@ -556,12 +556,7 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
           icon={BookOpen}
           title="No programs yet"
           description="Create your first program template to get started"
-          action={
-            <Button onClick={onCreateProgram}>
-              <Plus className="h-4 w-4 mr-2" />
-              Create Program
-            </Button>
-          }
+          action={{ label: "Create Program", onClick: onCreateProgram }}
         />
       ) : (
         <>
