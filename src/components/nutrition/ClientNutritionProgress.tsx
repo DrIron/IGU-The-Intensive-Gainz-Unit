@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, CalendarIcon } from "lucide-react";
+import { Plus, Trash2, CalendarIcon, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -112,6 +112,18 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
       return;
     }
 
+    // Same 30-250 kg clamp used by LogTodayCard -- catches common typos
+    // (e.g. "250" typed as "25.0" kg).
+    const w = parseFloat(newWeight);
+    if (!Number.isFinite(w) || w < 30 || w > 250) {
+      toast({
+        title: "Invalid weight",
+        description: "Enter a weight between 30 and 250 kg",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
@@ -121,7 +133,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
         phase_id: phase.id,
         user_id: user.id,
         log_date: format(newWeightDate, 'yyyy-MM-dd'),
-        weight_kg: parseFloat(newWeight),
+        weight_kg: w,
         week_number: currentWeek
       });
 
@@ -147,6 +159,10 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
   };
 
   const deleteWeightLog = async (id: string) => {
+    // Native confirm is ugly but it's one tap on mobile and saves us a
+    // dialog component plumbing pass. If we ever redesign this component
+    // (it's already a 585-line monolith) we can promote to AlertDialog.
+    if (!window.confirm("Delete this weight log? This can't be undone.")) return;
     try {
       const { error } = await supabase.from('weight_logs').delete().eq('id', id);
       if (error) throw error;
@@ -160,6 +176,17 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
   const addCircumferenceLog = async () => {
     if (!circumDate) {
       toast({ title: "Missing Data", description: "Please select a date", variant: "destructive" });
+      return;
+    }
+
+    // Require at least one measurement -- without this guard, the form would
+    // insert a row with all four columns NULL. Silent data loss.
+    if (!waist && !chest && !hips && !thighs) {
+      toast({
+        title: "Nothing to save",
+        description: "Enter at least one measurement (waist, chest/hips, or thighs).",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -352,7 +379,16 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
             </div>
             <div className="space-y-2">
               <Label>Weight (kg)</Label>
-              <Input type="number" step="0.1" value={newWeight} onChange={(e) => setNewWeight(e.target.value)} placeholder="75.5" />
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.1"
+                min={30}
+                max={250}
+                value={newWeight}
+                onChange={(e) => setNewWeight(e.target.value)}
+                placeholder="75.5"
+              />
             </div>
             <div className="space-y-2">
               <Label>&nbsp;</Label>
@@ -471,11 +507,14 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Body Fat %</Label>
-                <Input 
-                  type="number" 
-                  step="0.1" 
-                  value={bodyFat} 
-                  onChange={(e) => setBodyFat(e.target.value)} 
+                <Input
+                  type="number"
+                  inputMode="decimal"
+                  step="0.1"
+                  min={3}
+                  max={55}
+                  value={bodyFat}
+                  onChange={(e) => setBodyFat(e.target.value)}
                   placeholder="e.g. 15.5"
                 />
               </div>
@@ -575,9 +614,37 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
             </div>
           )}
 
-          <Button onClick={saveAdherenceAndNotes} disabled={loading} className="w-full">
-            Save Week {currentWeek} Progress
-          </Button>
+          {/* Gate the save behind the minimum weigh-ins instead of letting the
+              user click Save and get a destructive toast. Count this-week rows
+              client-side the same way saveAdherenceAndNotes does. */}
+          {(() => {
+            const weekStart = new Date(new Date(phase.start_date).getTime() + (currentWeek - 1) * 7 * 24 * 60 * 60 * 1000);
+            const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
+            const thisWeekCount = weightLogs.filter((log: any) => {
+              const d = new Date(log.log_date);
+              return d >= weekStart && d < weekEnd;
+            }).length;
+            const notEnough = thisWeekCount < 3;
+            return (
+              <>
+                {notEnough && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg border border-amber-500/30 bg-amber-500/10 text-sm">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-amber-500 mt-0.5" aria-hidden />
+                    <p>
+                      You need <span className="font-mono font-semibold">{3 - thisWeekCount}</span> more weigh-in{3 - thisWeekCount === 1 ? "" : "s"} this week before you can save the check-in.
+                    </p>
+                  </div>
+                )}
+                <Button
+                  onClick={saveAdherenceAndNotes}
+                  disabled={loading || notEnough || !followedCalories || !trackedAccurately || !physicalChanges}
+                  className="w-full"
+                >
+                  Save Week {currentWeek} Progress
+                </Button>
+              </>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>

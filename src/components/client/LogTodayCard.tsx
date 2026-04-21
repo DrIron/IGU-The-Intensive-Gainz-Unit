@@ -113,8 +113,11 @@ export function LogTodayCard({ userId, phaseId, phaseStartDate, onLogged }: LogT
 
   const saveWeight = async () => {
     const w = parseFloat(weightInput);
-    if (!Number.isFinite(w) || w < 20 || w > 300) {
-      toast({ title: "Enter a weight between 20 and 300 kg", variant: "destructive" });
+    // 30-250 kg covers the realistic human range; tighter than the permissive
+    // 20-300 earlier so a fat-finger (e.g. typing 250 instead of 25.0 kg) is
+    // much less likely to produce a valid-looking entry.
+    if (!Number.isFinite(w) || w < 30 || w > 250) {
+      toast({ title: "Enter a weight between 30 and 250 kg", variant: "destructive" });
       return;
     }
     setSavingWeight(true);
@@ -221,8 +224,8 @@ export function LogTodayCard({ userId, phaseId, phaseStartDate, onLogged }: LogT
                 type="number"
                 inputMode="decimal"
                 step={0.1}
-                min={20}
-                max={300}
+                min={30}
+                max={250}
                 placeholder="Weight (kg)"
                 value={weightInput}
                 onChange={(e) => setWeightInput(e.target.value)}

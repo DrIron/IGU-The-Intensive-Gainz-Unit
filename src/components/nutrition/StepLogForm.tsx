@@ -136,6 +136,7 @@ export function StepLogForm({ userId, onLogAdded }: StepLogFormProps) {
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm("Delete this step log? This can't be undone.")) return;
     try {
       const { error } = await supabase.from('step_logs').delete().eq('id', id);
       if (error) throw error;
