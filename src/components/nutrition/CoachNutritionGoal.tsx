@@ -48,11 +48,12 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
   const demographics = useClientDemographics(clientUserId);
   // Track which auto-populated fields the coach has manually overridden so the
   // "from profile" hint dims once touched.
-  const [overrides, setOverrides] = useState<{ age: boolean; gender: boolean; height: boolean; weight: boolean }>({
+  const [overrides, setOverrides] = useState<{ age: boolean; gender: boolean; height: boolean; weight: boolean; activity: boolean }>({
     age: false,
     gender: false,
     height: false,
     weight: false,
+    activity: false,
   });
   const [formData, setFormData] = useState({
     phaseName: "",
@@ -98,7 +99,9 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
           ? prev.age
           : (demographics.age != null ? demographics.age.toString() : prev.age),
         gender: overrides.gender ? prev.gender : (demographics.gender || prev.gender),
-        activityLevel: prev.activityLevel,
+        activityLevel: overrides.activity
+          ? prev.activityLevel
+          : (demographics.activityLevel || prev.activityLevel),
         weeklyRate: [phase.weekly_rate_percentage],
         proteinIntake: [phase.protein_intake_g_per_kg],
         fatIntake: [phase.fat_intake_percentage],
@@ -121,13 +124,16 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
         startingWeight: overrides.weight
           ? prev.startingWeight
           : (demographics.latestWeightKg != null ? demographics.latestWeightKg.toString() : prev.startingWeight),
+        activityLevel: overrides.activity
+          ? prev.activityLevel
+          : (demographics.activityLevel || prev.activityLevel),
       }));
     }
   }, [phase, demographics, overrides]);
 
   // Small helper: "from profile" or "last logged 2d ago"-style hint text under an auto-populated field.
   const demographicHint = (
-    field: "age" | "gender" | "height" | "weight",
+    field: "age" | "gender" | "height" | "weight" | "activity",
     hasValue: boolean,
   ): string | null => {
     if (overrides[field]) return null;
@@ -429,7 +435,13 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
           </div>
           <div className="space-y-2">
             <Label>Activity Level</Label>
-            <Select value={formData.activityLevel} onValueChange={(value) => setFormData({ ...formData, activityLevel: value })}>
+            <Select
+              value={formData.activityLevel}
+              onValueChange={(value) => {
+                setOverrides((o) => ({ ...o, activity: true }));
+                setFormData({ ...formData, activityLevel: value });
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -441,6 +453,11 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
                 <SelectItem value="1.9">Extremely Active (2x/day)</SelectItem>
               </SelectContent>
             </Select>
+            {demographicHint("activity", demographics.activityLevel != null) && (
+              <p className="text-[10px] text-muted-foreground leading-none">
+                {demographicHint("activity", demographics.activityLevel != null)}
+              </p>
+            )}
           </div>
         </div>
 
