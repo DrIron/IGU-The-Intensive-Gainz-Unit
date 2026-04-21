@@ -18,6 +18,7 @@ import { StepProgressDisplay } from "@/components/nutrition/StepProgressDisplay"
 import { StepRecommendationCard } from "@/components/nutrition/StepRecommendationCard";
 import { NutritionPermissionGate } from "@/components/nutrition/NutritionPermissionGate";
 import { NutritionPhaseCard } from "@/components/nutrition/NutritionPhaseCard";
+import { ScheduledEventsCalendar } from "@/components/nutrition/ScheduledEventsCalendar";
 
 interface Client {
   id: string;
@@ -455,6 +456,9 @@ export default function CoachClientNutrition() {
                 {activePhase ? (
                   <>
                     <CoachNutritionProgress phase={activePhase} onAdjustmentMade={loadClientPhase} />
+                    {/* Unified read-only view of scheduled diet breaks + refeeds.
+                        Scheduling still happens in the two cards below. */}
+                    <ScheduledEventsCalendar phaseId={activePhase.id} />
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <NutritionPermissionGate clientUserId={selectedClient}>
                         <DietBreakManager
