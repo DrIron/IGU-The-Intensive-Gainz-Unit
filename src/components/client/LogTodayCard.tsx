@@ -28,6 +28,12 @@ interface LogTodayCardProps {
   phaseId: string | null;
   /** Phase start date (ISO) to compute `weight_logs.week_number`. */
   phaseStartDate?: string | null;
+  /**
+   * Fired after a successful weight or step save. Parents that render their
+   * own aggregations (e.g. the weekly ribbon on /nutrition-client) can use
+   * this to bump a refresh key and re-fetch.
+   */
+  onLogged?: (kind: "weight" | "steps") => void;
 }
 
 interface TodayState {
@@ -38,7 +44,7 @@ interface TodayState {
 
 const today = () => format(new Date(), "yyyy-MM-dd");
 
-export function LogTodayCard({ userId, phaseId, phaseStartDate }: LogTodayCardProps) {
+export function LogTodayCard({ userId, phaseId, phaseStartDate, onLogged }: LogTodayCardProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [savingWeight, setSavingWeight] = useState(false);
@@ -137,6 +143,7 @@ export function LogTodayCard({ userId, phaseId, phaseStartDate }: LogTodayCardPr
       toast({ title: "Weight logged" });
       setWeightInput("");
       await load();
+      onLogged?.("weight");
     } catch (err: unknown) {
       toast({ title: "Couldn't save weight", description: sanitizeErrorForUser(err), variant: "destructive" });
     } finally {
@@ -167,6 +174,7 @@ export function LogTodayCard({ userId, phaseId, phaseStartDate }: LogTodayCardPr
       toast({ title: "Steps logged" });
       setStepsInput("");
       await load();
+      onLogged?.("steps");
     } catch (err: unknown) {
       toast({ title: "Couldn't save steps", description: sanitizeErrorForUser(err), variant: "destructive" });
     } finally {
