@@ -62,6 +62,7 @@ interface ProfileData {
   last_name: string | null;
   date_of_birth: string | null;
   gender: string | null;
+  height_cm: number | null;
 }
 
 export default function AccountManagement() {
@@ -80,6 +81,7 @@ export default function AccountManagement() {
     last_name: "",
     date_of_birth: "",
     gender: "",
+    height_cm: null,
   });
   const [formData, setFormData] = useState({
     email: "",
@@ -90,6 +92,8 @@ export default function AccountManagement() {
     last_name: "",
     date_of_birth: "",
     gender: "",
+    // Stored as string so the Input behaves; coerced to number on save.
+    height_cm: "",
     requested_coach_id: "",
     currentPassword: "",
     newPassword: "",
@@ -144,7 +148,7 @@ export default function AccountManagement() {
           .single(),
         supabase
           .from("profiles_private")
-          .select("email, phone, full_name, last_name, date_of_birth, gender")
+          .select("email, phone, full_name, last_name, date_of_birth, gender, height_cm")
           .eq("profile_id", userId)
           .single()
       ]);
@@ -160,6 +164,7 @@ export default function AccountManagement() {
         last_name: profilePrivate?.last_name || null,
         date_of_birth: profilePrivate?.date_of_birth || null,
         gender: profilePrivate?.gender || null,
+        height_cm: profilePrivate?.height_cm ?? null,
       };
 
       setProfileData(data);
@@ -187,6 +192,7 @@ export default function AccountManagement() {
         last_name: data.last_name || "",
         date_of_birth: data.date_of_birth || "",
         gender: data.gender || "",
+        height_cm: data.height_cm != null ? String(data.height_cm) : "",
       }));
     } catch (error: any) {
       console.error("Error fetching profile:", error);
@@ -270,6 +276,9 @@ export default function AccountManagement() {
             last_name: formData.last_name,
             date_of_birth: formData.date_of_birth || null,
             gender: formData.gender || null,
+            // Coerce to number; empty string becomes null so the Zod check on
+            // the column (BETWEEN 100 AND 250) doesn't fire on clear.
+            height_cm: formData.height_cm.trim() === "" ? null : Number(formData.height_cm),
           })
           .eq("profile_id", user.id)
       ]);
@@ -556,20 +565,39 @@ export default function AccountManagement() {
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label htmlFor="gender">Gender</Label>
-                      <Select
-                        value={formData.gender}
-                        onValueChange={(value) => setFormData({ ...formData, gender: value })}
-                      >
-                        <SelectTrigger id="gender">
-                          <SelectValue placeholder="Select gender" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="male">Male</SelectItem>
-                          <SelectItem value="female">Female</SelectItem>
-                        </SelectContent>
-                      </Select>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label htmlFor="gender">Gender</Label>
+                        <Select
+                          value={formData.gender}
+                          onValueChange={(value) => setFormData({ ...formData, gender: value })}
+                        >
+                          <SelectTrigger id="gender">
+                            <SelectValue placeholder="Select gender" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="male">Male</SelectItem>
+                            <SelectItem value="female">Female</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="height_cm">Height (cm)</Label>
+                        <Input
+                          id="height_cm"
+                          type="number"
+                          inputMode="numeric"
+                          min={100}
+                          max={250}
+                          step={1}
+                          placeholder="170"
+                          value={formData.height_cm}
+                          onChange={(e) => setFormData({ ...formData, height_cm: e.target.value })}
+                        />
+                        <p className="text-xs text-muted-foreground">
+                          Used by the nutrition calculator. Coaches see this through a secure RPC -- your raw profile data stays private.
+                        </p>
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
