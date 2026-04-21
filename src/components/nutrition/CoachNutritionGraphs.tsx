@@ -15,6 +15,7 @@ export function CoachNutritionGraphs({ phase }: CoachNutritionGraphsProps) {
   const [weightData, setWeightData] = useState<any[]>([]);
   const [weeklyAverages, setWeeklyAverages] = useState<any[]>([]);
   const [circumferenceData, setCircumferenceData] = useState<any[]>([]);
+  const [bodyFatData, setBodyFatData] = useState<any[]>([]);
   const [adjustments, setAdjustments] = useState<any[]>([]);
 
   const loadGraphData = useCallback(async () => {
@@ -22,16 +23,19 @@ export function CoachNutritionGraphs({ phase }: CoachNutritionGraphsProps) {
     try {
       setLoading(true);
 
-      // Fetch all data
-      const [weightsRes, circumRes, adjustmentsRes] = await Promise.all([
+      // body_fat_logs is keyed by user, not phase -- scope to entries on/after
+      // phase.start_date so older history from earlier phases doesn't leak in.
+      const [weightsRes, circumRes, adjustmentsRes, bodyFatRes] = await Promise.all([
         supabase.from('weight_logs').select('*').eq('phase_id', phase.id).order('log_date', { ascending: true }),
         supabase.from('circumference_logs').select('*').eq('phase_id', phase.id).order('log_date', { ascending: true }),
-        supabase.from('nutrition_adjustments').select('*').eq('phase_id', phase.id).eq('status', 'approved').order('week_number', { ascending: true })
+        supabase.from('nutrition_adjustments').select('*').eq('phase_id', phase.id).eq('status', 'approved').order('week_number', { ascending: true }),
+        supabase.from('body_fat_logs').select('log_date, body_fat_percentage, method').eq('user_id', phase.user_id).gte('log_date', phase.start_date).order('log_date', { ascending: true }),
       ]);
 
       const weights = weightsRes.data || [];
       const circum = circumRes.data || [];
       const adjs = adjustmentsRes.data || [];
+      const bfs = bodyFatRes.data || [];
 
       // Process weight data for daily chart
       const processedWeights = weights.map(log => ({
@@ -69,9 +73,16 @@ export function CoachNutritionGraphs({ phase }: CoachNutritionGraphsProps) {
         thighs: log.thighs_cm ? parseFloat(String(log.thighs_cm)) : null
       }));
 
+      const processedBodyFat = bfs.map(log => ({
+        date: new Date(log.log_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        bodyFat: parseFloat(String(log.body_fat_percentage)),
+        method: log.method,
+      }));
+
       setWeightData(processedWeights);
       setWeeklyAverages(weeklyAvgs);
       setCircumferenceData(processedCircum);
+      setBodyFatData(processedBodyFat);
       setAdjustments(adjs);
     } catch (error: any) {
       console.error('Error loading graph data:', error);
@@ -303,6 +314,36 @@ export function CoachNutritionGraphs({ phase }: CoachNutritionGraphsProps) {
 
         {/* Body Measurements Chart */}
         <TabsContent value="measurements" className="space-y-4">
+          {bodyFatData.length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Body Fat %</CardTitle>
+                <CardDescription>Every body fat log since phase start</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={bodyFatData}>
+                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                    <XAxis dataKey="date" className="text-xs" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                    <YAxis
+                      className="text-xs"
+                      tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                      label={{ value: 'Body Fat %', angle: -90, position: 'insideLeft', fill: 'hsl(var(--muted-foreground))' }}
+                    />
+                    <Tooltip
+                      contentStyle={{
+                        backgroundColor: 'hsl(var(--card))',
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px',
+                      }}
+                    />
+                    <Line type="monotone" dataKey="bodyFat" stroke="#f59e0b" strokeWidth={2} dot={{ r: 4 }} name="Body Fat %" />
+                  </LineChart>
+                </ResponsiveContainer>
+              </CardContent>
+            </Card>
+          )}
+
           {circumferenceData.length > 0 ? (
             <Card>
               <CardHeader>
@@ -375,14 +416,14 @@ export function CoachNutritionGraphs({ phase }: CoachNutritionGraphsProps) {
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          ) : (
+          ) : bodyFatData.length === 0 ? (
             <Card>
               <CardHeader>
                 <CardTitle>No Measurement Data</CardTitle>
-                <CardDescription>Client hasn't logged any body measurements yet</CardDescription>
+                <CardDescription>Client hasn't logged any body fat % or circumference yet</CardDescription>
               </CardHeader>
             </Card>
-          )}
+          ) : null}
         </TabsContent>
       </Tabs>
     </div>
