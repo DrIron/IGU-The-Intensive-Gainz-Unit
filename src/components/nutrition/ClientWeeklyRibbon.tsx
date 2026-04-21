@@ -22,6 +22,12 @@ interface ClientWeeklyRibbonProps {
   phaseId: string | null;
   /** Current phase week number (1-based). */
   weekNumber: number;
+  /**
+   * Opaque change key — bump it from the parent after a successful log in
+   * another component (e.g. LogTodayCard) to force the ribbon to re-fetch.
+   * Default 0 means "fetch once per userId/phaseId/weekNumber".
+   */
+  refreshKey?: number;
 }
 
 interface WeeklyCounts {
@@ -30,7 +36,7 @@ interface WeeklyCounts {
   checkInDone: boolean;
 }
 
-export function ClientWeeklyRibbon({ userId, phaseId, weekNumber }: ClientWeeklyRibbonProps) {
+export function ClientWeeklyRibbon({ userId, phaseId, weekNumber, refreshKey = 0 }: ClientWeeklyRibbonProps) {
   const [counts, setCounts] = useState<WeeklyCounts>({ weighIns: 0, stepDays: 0, checkInDone: false });
   const [loading, setLoading] = useState(true);
   const hasFetched = useRef<string | null>(null);
@@ -83,11 +89,11 @@ export function ClientWeeklyRibbon({ userId, phaseId, weekNumber }: ClientWeekly
   }, [userId, phaseId, weekNumber]);
 
   useEffect(() => {
-    const key = `${userId}:${phaseId}:${weekNumber}`;
+    const key = `${userId}:${phaseId}:${weekNumber}:${refreshKey}`;
     if (hasFetched.current === key) return;
     hasFetched.current = key;
     load();
-  }, [userId, phaseId, weekNumber, load]);
+  }, [userId, phaseId, weekNumber, refreshKey, load]);
 
   return (
     <div className="grid grid-cols-3 gap-2">

@@ -63,6 +63,9 @@ export default function ClientNutrition() {
   const [latestAverageWeight, setLatestAverageWeight] = useState<number | null>(null);
   const [latestActualChangePercent, setLatestActualChangePercent] = useState<number | null>(null);
   const [error, setError] = useState(false);
+  // Bumped when LogTodayCard finishes a save so the ribbon re-fetches without
+  // reloading the page. Any integer change forces the ribbon's useEffect to fire.
+  const [ribbonRefreshKey, setRibbonRefreshKey] = useState(0);
 
   const loadActivePhase = useCallback(async () => {
     try {
@@ -265,6 +268,7 @@ export default function ClientNutrition() {
                 userId={user.id}
                 phaseId={activePhase.id}
                 weekNumber={currentWeekNumber}
+                refreshKey={ribbonRefreshKey}
               />
             )}
 
@@ -281,6 +285,7 @@ export default function ClientNutrition() {
                     userId={user.id}
                     phaseId={activePhase.id}
                     phaseStartDate={activePhase.start_date ?? null}
+                    onLogged={() => setRibbonRefreshKey((k) => k + 1)}
                   />
                 )}
                 <p className="text-[11px] text-muted-foreground mt-3">
