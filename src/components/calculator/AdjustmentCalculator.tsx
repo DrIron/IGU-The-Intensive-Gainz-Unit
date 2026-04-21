@@ -174,7 +174,10 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
       adjustmentMessage = "✅ You're exactly on track. No calorie adjustment needed.";
     } else {
       if (goalType === "loss") {
-        if (deltaKg < 0) {
+        // deltaKg = expectedChange - actualChange; both negative during fat loss.
+        // Ex. expected -0.6, actual -0.8 -> delta +0.2 -> lost MORE than planned.
+        // Ex. expected -0.6, actual -0.5 -> delta -0.1 -> lost LESS than planned.
+        if (deltaKg > 0) {
           adjustmentMessage = "You lost more than expected. Consider increasing calories slightly to protect lean mass.";
         } else {
           adjustmentMessage = "You lost less than expected. Decrease calories to reach target rate.";
