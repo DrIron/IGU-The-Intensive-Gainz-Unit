@@ -5,6 +5,7 @@ import { CoachCard } from "./CoachCard";
 import { PlanBillingCard } from "./PlanBillingCard";
 import { PaymentAttentionBanner } from "./PaymentAttentionBanner";
 import { AlertsCard } from "./AlertsCard";
+import { LogTodayCard } from "./LogTodayCard";
 import { MyCareTeamCard } from "./MyCareTeamCard";
 import { TodaysWorkoutHero } from "./TodaysWorkoutHero";
 import { AdherenceSummaryCard } from "./AdherenceSummaryCard";
@@ -145,6 +146,17 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         subscription={subscription}
         weeklyLogsCount={weeklyLogsCount}
       />
+
+      {/* Inline weight + steps logging. The AlertsCard above still routes to
+          /nutrition-client for heavier tracking (BF%, circumference, weekly
+          check-in); this card handles the daily two-input habit loop. */}
+      {user?.id && (
+        <LogTodayCard
+          userId={user.id}
+          phaseId={activePhase?.id ?? null}
+          phaseStartDate={activePhase?.start_date ?? null}
+        />
+      )}
 
       {/* Hero: Today's Workout */}
       <TodaysWorkoutHero userId={user?.id} />
