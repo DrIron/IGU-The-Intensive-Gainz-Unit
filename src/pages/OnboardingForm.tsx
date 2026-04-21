@@ -64,6 +64,12 @@ const formSchema = z.object({
   country_code: z.string().min(1, "Country code is required"),
   date_of_birth: z.string().min(1, "Date of birth is required"),
   gender: z.enum(["male", "female"]).optional(),
+  height_cm: z
+    .number({ invalid_type_error: "Enter height in cm" })
+    .int("Height must be a whole number")
+    .min(100, "Height must be at least 100 cm")
+    .max(250, "Height must be at most 250 cm")
+    .optional(),
   discord_username: z.string().optional(),
   plan_name: z.string().min(1, "Please select a plan"),
   focus_areas: z.array(z.string()).optional(),
