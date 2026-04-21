@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { StepLogForm } from "./StepLogForm";
 import { BodyFatLogForm } from "./BodyFatLogForm";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { calculateFatFreeMass } from "@/types/nutrition-phase22";
 
 interface ClientNutritionProgressProps {
   phase: any;
@@ -228,18 +229,44 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
       return;
     }
 
+    const bfNum = parseFloat(bodyFat);
+    // Same 3-55% clamp as BodyFatLogForm -- catches "1.5" / "5.5" typos.
+    if (!Number.isFinite(bfNum) || bfNum < 3 || bfNum > 55) {
+      toast({ title: "Invalid body fat", description: "Please enter a valid body fat percentage (3-55%)", variant: "destructive" });
+      return;
+    }
+
     try {
       setLoading(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Update or insert into weekly_progress
+      // Dual-write: the detailed history table feeds coach graphs + the
+      // demographics hook's "last logged" pre-fill on the coach form; the
+      // weekly_progress row is what the weekly check-in aggregation reads.
+      // Keep both in sync so neither side shows stale data.
+      const latestWeightKg = weightLogs[0]?.weight_kg;
+      const ffm = typeof latestWeightKg === 'number' ? calculateFatFreeMass(latestWeightKg, bfNum) : null;
+
+      const { error: logError } = await supabase.from('body_fat_logs').upsert({
+        user_id: user.id,
+        log_date: format(new Date(), 'yyyy-MM-dd'),
+        body_fat_percentage: bfNum,
+        // Match BodyFatLogForm's default so the unique (user_id, log_date, method)
+        // key collapses same-day logs from either entry point into one row.
+        method: 'bioelectrical',
+        fat_free_mass_kg: ffm,
+      }, {
+        onConflict: 'user_id,log_date,method',
+      });
+      if (logError) throw logError;
+
       const { error } = await supabase.from('weekly_progress').upsert({
         user_id: user.id,
         goal_id: phase.id,
         week_number: currentWeek,
         week_start_date: new Date(new Date(phase.start_date).getTime() + (currentWeek - 1) * 7 * 24 * 60 * 60 * 1000).toISOString(),
-        body_fat_percentage: parseFloat(bodyFat),
+        body_fat_percentage: bfNum,
       }, {
         onConflict: 'user_id,goal_id,week_number'
       });
