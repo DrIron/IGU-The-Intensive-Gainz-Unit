@@ -22,6 +22,9 @@ export interface ClientDemographics {
   latestWeightKg: number | null;
   latestWeightLoggedAt: string | null;
   activityLevel: string | null;
+  /** Most recent body_fat_logs entry (detailed history table). */
+  latestBodyFatPercentage: number | null;
+  latestBodyFatLoggedAt: string | null;
   isLoading: boolean;
 }
 
@@ -32,6 +35,8 @@ const EMPTY: ClientDemographics = {
   latestWeightKg: null,
   latestWeightLoggedAt: null,
   activityLevel: null,
+  latestBodyFatPercentage: null,
+  latestBodyFatLoggedAt: null,
   isLoading: false,
 };
 
@@ -44,7 +49,7 @@ export function useClientDemographics(clientUserId: string | null | undefined): 
     // is destructured; errors are logged but do not throw -- a single RPC
     // failure must not block the rest (e.g. a client with no gender stored
     // should still get age + height).
-    const [ageRes, genderRes, heightRes, weightRes, publicRes] = await Promise.all([
+    const [ageRes, genderRes, heightRes, weightRes, publicRes, bodyFatRes] = await Promise.all([
       supabase.rpc("get_client_age", { p_client_id: userId }),
       supabase.rpc("get_client_gender" as never, { p_client_id: userId } as never),
       supabase.rpc("get_client_height_cm" as never, { p_client_id: userId } as never),
@@ -62,6 +67,16 @@ export function useClientDemographics(clientUserId: string | null | undefined): 
         .select("activity_level")
         .eq("id", userId)
         .maybeSingle(),
+      // Latest body fat % from the detailed body_fat_logs table. Existing RLS
+      // allows coaches to read via the care-team relationship check on
+      // body_fat_logs.user_id -> subscriptions.coach_id.
+      supabase
+        .from("body_fat_logs")
+        .select("body_fat_percentage, log_date")
+        .eq("user_id", userId)
+        .order("log_date", { ascending: false })
+        .limit(1)
+        .maybeSingle(),
     ]);
 
     if (ageRes.error) console.warn("[useClientDemographics] get_client_age:", ageRes.error.message);
@@ -69,6 +84,7 @@ export function useClientDemographics(clientUserId: string | null | undefined): 
     if (heightRes.error) console.warn("[useClientDemographics] get_client_height_cm:", heightRes.error.message);
     if (weightRes.error) console.warn("[useClientDemographics] weight_logs:", weightRes.error.message);
     if (publicRes.error) console.warn("[useClientDemographics] profiles_public:", publicRes.error.message);
+    if (bodyFatRes.error) console.warn("[useClientDemographics] body_fat_logs:", bodyFatRes.error.message);
 
     const rawGender = (genderRes.data as string | null) ?? null;
     const gender = rawGender === "male" || rawGender === "female" ? rawGender : null;
@@ -80,6 +96,8 @@ export function useClientDemographics(clientUserId: string | null | undefined): 
       latestWeightKg: weightRes.data?.weight_kg ?? null,
       latestWeightLoggedAt: weightRes.data?.log_date ?? null,
       activityLevel: (publicRes.data as { activity_level: string | null } | null)?.activity_level ?? null,
+      latestBodyFatPercentage: bodyFatRes.data?.body_fat_percentage ?? null,
+      latestBodyFatLoggedAt: bodyFatRes.data?.log_date ?? null,
       isLoading: false,
     });
   }, []);

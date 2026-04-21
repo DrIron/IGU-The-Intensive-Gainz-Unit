@@ -48,12 +48,13 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
   const demographics = useClientDemographics(clientUserId);
   // Track which auto-populated fields the coach has manually overridden so the
   // "from profile" hint dims once touched.
-  const [overrides, setOverrides] = useState<{ age: boolean; gender: boolean; height: boolean; weight: boolean; activity: boolean }>({
+  const [overrides, setOverrides] = useState<{ age: boolean; gender: boolean; height: boolean; weight: boolean; activity: boolean; bodyFat: boolean }>({
     age: false,
     gender: false,
     height: false,
     weight: false,
     activity: false,
+    bodyFat: false,
   });
   const [formData, setFormData] = useState({
     phaseName: "",
@@ -91,7 +92,11 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
         startingWeight: phase.starting_weight_kg?.toString() || prev.startingWeight,
         targetWeight: phase.target_weight_kg?.toString() || "",
         targetBodyFat: phase.target_body_fat_percentage?.toString() || "",
-        currentBodyFat: prev.currentBodyFat,
+        currentBodyFat: overrides.bodyFat
+          ? prev.currentBodyFat
+          : (demographics.latestBodyFatPercentage != null
+              ? String(demographics.latestBodyFatPercentage)
+              : prev.currentBodyFat),
         height: overrides.height
           ? prev.height
           : (demographics.heightCm?.toString() || prev.height),
@@ -127,13 +132,18 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
         activityLevel: overrides.activity
           ? prev.activityLevel
           : (demographics.activityLevel || prev.activityLevel),
+        currentBodyFat: overrides.bodyFat
+          ? prev.currentBodyFat
+          : (demographics.latestBodyFatPercentage != null
+              ? String(demographics.latestBodyFatPercentage)
+              : prev.currentBodyFat),
       }));
     }
   }, [phase, demographics, overrides]);
 
   // Small helper: "from profile" or "last logged 2d ago"-style hint text under an auto-populated field.
   const demographicHint = (
-    field: "age" | "gender" | "height" | "weight" | "activity",
+    field: "age" | "gender" | "height" | "weight" | "activity" | "bodyFat",
     hasValue: boolean,
   ): string | null => {
     if (overrides[field]) return null;
@@ -143,6 +153,13 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
         return `last logged ${formatDistanceToNow(new Date(demographics.latestWeightLoggedAt), { addSuffix: true })}`;
       } catch {
         return "from latest weight log";
+      }
+    }
+    if (field === "bodyFat" && demographics.latestBodyFatLoggedAt) {
+      try {
+        return `last logged ${formatDistanceToNow(new Date(demographics.latestBodyFatLoggedAt), { addSuffix: true })}`;
+      } catch {
+        return "from latest body fat log";
       }
     }
     return "from profile";
@@ -427,11 +444,22 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
             <Label>Current BF%</Label>
             <Input
               type="number"
+              inputMode="decimal"
               step="0.1"
+              min={3}
+              max={55}
               value={formData.currentBodyFat}
-              onChange={(e) => setFormData({ ...formData, currentBodyFat: e.target.value })}
+              onChange={(e) => {
+                setOverrides((o) => ({ ...o, bodyFat: true }));
+                setFormData({ ...formData, currentBodyFat: e.target.value });
+              }}
               placeholder="20"
             />
+            {demographicHint("bodyFat", demographics.latestBodyFatPercentage != null) && (
+              <p className="text-[10px] text-muted-foreground leading-none">
+                {demographicHint("bodyFat", demographics.latestBodyFatPercentage != null)}
+              </p>
+            )}
           </div>
           <div className="space-y-2">
             <Label>Activity Level</Label>
