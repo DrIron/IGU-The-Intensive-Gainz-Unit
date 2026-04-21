@@ -44,25 +44,60 @@ export default function CalorieCalculator() {
   // CMS content
   const { data: cmsContent } = useSiteContent("calorie-calculator");
 
-  // Load user data on mount if logged in
+  // Load user data on mount if logged in.
+  //
+  // We pull every field the user has already given us elsewhere so they don't
+  // re-enter it here:
+  //   - date_of_birth, gender, height_cm  -> profiles_private (added height Apr 21)
+  //   - latest weight                     -> weight_logs (scoped to their active phase)
+  //   - current goal_type                 -> nutrition_phases (active phase, DB enum
+  //                                            fat_loss/muscle_gain/maintenance, mapped to
+  //                                            the calculator's loss/gain/maintenance
+  //                                            vocabulary the same way CoachNutritionGoal does)
+  // Any field the user doesn't have yet stays empty.
   useEffect(() => {
     const loadUserData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        // Use profiles_private for own user PII (date_of_birth, gender)
-        const { data: profile } = await supabase
+      if (!user) return;
+
+      const [profileRes, phaseRes] = await Promise.all([
+        supabase
           .from("profiles_private")
-          .select("date_of_birth, gender")
+          .select("date_of_birth, gender, height_cm")
           .eq("profile_id", user.id)
+          .maybeSingle(),
+        supabase
+          .from("nutrition_phases")
+          .select("id, goal_type")
+          .eq("user_id", user.id)
+          .eq("is_active", true)
+          .maybeSingle(),
+      ]);
+
+      const profile = profileRes.data;
+      const phase = phaseRes.data;
+
+      if (profile?.date_of_birth) setDateOfBirth(profile.date_of_birth);
+      if (profile?.gender) setGender(profile.gender);
+      if (profile?.height_cm != null) setHeight(String(profile.height_cm));
+
+      if (phase?.id) {
+        const { data: lastWeight } = await supabase
+          .from("weight_logs")
+          .select("weight_kg")
+          .eq("phase_id", phase.id)
+          .order("log_date", { ascending: false })
+          .limit(1)
           .maybeSingle();
-        
-        if (profile) {
-          if (profile.date_of_birth) setDateOfBirth(profile.date_of_birth);
-          if (profile.gender) setGender(profile.gender);
-        }
+        if (lastWeight?.weight_kg != null) setWeight(String(lastWeight.weight_kg));
+
+        // DB enum -> calculator short form.
+        if (phase.goal_type === "fat_loss") setGoal("loss");
+        else if (phase.goal_type === "muscle_gain") setGoal("gain");
+        else if (phase.goal_type === "maintenance") setGoal("maintenance");
       }
     };
-    
+
     loadUserData();
   }, []);
 
