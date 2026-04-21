@@ -82,10 +82,13 @@ export function BodyFatLogForm({ userId, currentWeight, onLogAdded }: BodyFatLog
     }
 
     const bodyFatNum = parseFloat(bodyFat);
-    if (isNaN(bodyFatNum) || bodyFatNum < 1 || bodyFatNum > 60) {
+    // 3-55% covers the medically possible range for living humans. Below 3%
+    // is fatal; above ~55% is the extreme of obesity. Tightening from 1-60%
+    // catches common typos (e.g. "15" typed as "1.5" or "55" as "5.5").
+    if (isNaN(bodyFatNum) || bodyFatNum < 3 || bodyFatNum > 55) {
       toast({
         title: "Invalid Body Fat",
-        description: "Please enter a valid body fat percentage (1-60%)",
+        description: "Please enter a valid body fat percentage (3-55%)",
         variant: "destructive",
       });
       return;
@@ -136,6 +139,7 @@ export function BodyFatLogForm({ userId, currentWeight, onLogAdded }: BodyFatLog
   };
 
   const handleDelete = async (id: string) => {
+    if (!window.confirm("Delete this body fat log? This can't be undone.")) return;
     try {
       const { error } = await supabase.from('body_fat_logs').delete().eq('id', id);
       if (error) throw error;
@@ -200,8 +204,8 @@ export function BodyFatLogForm({ userId, currentWeight, onLogAdded }: BodyFatLog
               type="number"
               inputMode="decimal"
               step="0.1"
-              min="1"
-              max="60"
+              min="3"
+              max="55"
               value={bodyFat}
               onChange={(e) => setBodyFat(e.target.value)}
               placeholder="e.g. 15.5"
