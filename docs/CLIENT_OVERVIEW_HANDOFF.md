@@ -120,10 +120,33 @@ src/
 - Workouts tab: empty-state card `"Workouts tab coming soon"`
 - tsc + lint + build must be clean
 
-**PR B — Workouts tab**
+**PR B — Entry-point rewire** (see §10a below)
+
+**PR C — Workouts tab**
 - Fetch `client_programs` for `clientUserId` (use three separate queries — **never** nested PostgREST FK joins on `client_programs`, see CLAUDE.md)
 - Render program list → drill-down into day_modules/client_day_modules
 - Reuse existing workout-viewer components if any exist
+
+## 10a. Entry points — rewire in PR B
+
+Today several places on the coach side click into client-specific views. After PR A lands, re-target these to `/coach/clients/:clientUserId` so the coach lands in the new shell instead of the fragmented standalone pages. Do them in **one focused PR** after the shell is verified live.
+
+| File | Line(s) | Today | Change to |
+|---|---|---|---|
+| `src/components/coach/CoachDashboardLayout.tsx` | ~93 (`handleViewClientDetail`) | Sets local state; layout swaps to inline `CoachClientDetail` panel | `navigate(\`/coach/clients/${clientId}\`)` and remove the inline panel branch |
+| `src/components/coach/CoachMyClientsPage.tsx` | ~495 (`handleViewNutrition`) | `navigate(\`/coach-client-nutrition?client=${client.id}\`)` | `navigate(\`/coach/clients/${client.id}?tab=nutrition\`)` |
+| `src/components/coach/CoachMyClientsPage.tsx` | ~671 (dropdown "View Submission") | `navigate(\`/client-submission/${client.id}\`)` | Either leave (separate concern) or `navigate(\`/coach/clients/${client.id}\`)` |
+| `src/components/coach/CoachMyClientsPage.tsx` | ~825 | `navigate('/coach-client-nutrition')` (context-free) | Remove — the new shell only makes sense with a specific client |
+| `src/components/coach/CoachClientDetail.tsx` | ~497 | `window.open(\`/coach-client-nutrition?client=${clientUserId}\`, '_blank')` | `navigate(\`/coach/clients/${clientUserId}?tab=nutrition\`)` — same tab |
+| `src/components/coach/ClientActivityFeed.tsx` | ~202 | `navigate(\`/coach/clients?client=${activity.clientId}\`)` (goes to list, not detail) | `navigate(\`/coach/clients/${activity.clientId}\`)` |
+| `src/components/coach/MyAssignmentsPanel.tsx` | ~203, ~211, ~255 | `onClientSelect?.(assignment.client_id)` → parent handler | Unchanged if parent (CoachDashboardLayout) is updated above. Verify. |
+
+**Do NOT touch in PR B:**
+- `src/components/coach/NeedsAttentionAlerts.tsx:101` — `/coach/clients?filter=pending` is the filtered *list* view, still needed.
+- `src/components/coach/CoachTodaysTasks.tsx:37` — also goes to filtered list.
+- Existing `/coach-client-nutrition` route itself — deleting the route is a later PR (after entry-point rewire is soaked for a day).
+
+The inline `CoachClientDetail` panel that `CoachDashboardLayout` renders today becomes dead once entry points reroute. Flag it for removal in the ship-plan comment; don't delete yet.
 
 ## 11. Testing checklist before merge
 
