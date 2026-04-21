@@ -4,6 +4,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { ActivityLevelField } from "@/components/forms/ActivityLevelField";
 
 interface ServiceSpecificStepProps {
   form: UseFormReturn<any>;
@@ -194,6 +195,8 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
           )}
         />
 
+        <ActivityLevelField form={form} />
+
         <FormField
           control={form.control}
           name="gym_access_type"
@@ -311,6 +314,8 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
             </FormItem>
           )}
         />
+
+        <ActivityLevelField form={form} />
 
         <FormField
           control={form.control}

@@ -35,6 +35,10 @@ const formSchema = z.object({
   training_experience: z.string().optional(),
   training_goals: z.string().optional(),
   training_days_per_week: z.string().optional(),
+  // Mifflin-St Jeor multiplier -- one of the five canonical values. Optional
+  // here so older in-progress form data keeps validating; the UI only surfaces
+  // it for 1:1 plans, which are the ones that trigger nutrition coaching.
+  activity_level: z.enum(["1.2", "1.375", "1.55", "1.725", "1.9"]).optional(),
   preferred_training_times: z.array(z.string()).optional(),
   gym_access_type: z.string().optional(),
   preferred_gym_location: z.string().optional(),
