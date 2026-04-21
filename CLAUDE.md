@@ -87,6 +87,8 @@ hasPermission(roles, 'view_phi');
 //    ClientDashboardLayout handles the limited UI. Non-dashboard paths redirect TO /dashboard.
 ```
 
+**`requiredRole="coach"` excludes admins by design.** The `hasRequiredRole()` switch in `RoleProtectedRoute.tsx` returns `userRoles.includes("coach")` only — an admin lacking the coach role cannot reach coach routes. Intentional separation; if admin access to a coach-only surface is needed (e.g. troubleshooting a client's nutrition), add an admin-specific route or loosen the guard explicitly — don't assume admin bypasses.
+
 ### 3. Route Registry
 
 All routes in `src/lib/routeConfig.ts`:
@@ -491,12 +493,44 @@ DOB were already there. DOB is deliberately never exposed through an RPC — onl
 derived age. `submit-onboarding` edge function writes `gender / date_of_birth /
 height_cm` when provided.
 
+**DOB source-of-truth rule:** `get_client_age` reads `profiles_private.date_of_birth`
+first, then falls back to `form_submissions.date_of_birth` for legacy clients
+(see migration `20260421300000_get_client_age_profiles_private.sql`). Every
+other DOB read in the app (`/account`, `/calorie-calculator`, onboarding
+write) uses `profiles_private`. **Any new RPC or read path that needs DOB
+must do the same** — don't read `form_submissions` directly, or you'll return
+NULL for any client who edited their DOB post-onboarding.
+
 Frontend hook: `src/hooks/useClientDemographics.ts` parallel-fires the 3 RPCs +
 a `weight_logs` lookup for latest weight, returns `{ age, gender, heightCm,
 latestWeightKg, latestWeightLoggedAt, isLoading }`. Used by `CoachNutritionGoal`
 to pre-fill Age / Gender / Height / Starting Weight with a "from profile" or
 "last logged Xd ago" hint. Coach types to override — once touched, further
 demographic refreshes don't clobber the coach's value.
+
+### Client Overview shell — `/coach/clients/:clientUserId`
+Coach-facing primary page that consolidates per-client tooling into one URL with tabs (`?tab=overview|nutrition|workouts`). Spec: `docs/CLIENT_OVERVIEW_HANDOFF.md`. History writeup: `docs/history.md` § "Client Overview shell — PR A".
+
+**Locked contract — `src/components/client-overview/types.ts`:**
+```ts
+interface ClientContext {
+  clientUserId: string;
+  profile: { id, firstName, lastName, displayName, avatarUrl, status };
+  subscription: { id, status, serviceType, serviceName } | null;
+  viewerRole: "coach" | "admin" | "dietitian";
+}
+interface ClientOverviewTabProps { context: ClientContext; }
+```
+
+Rules:
+- The shell (`src/pages/CoachClientOverview.tsx`) is the **only** place that resolves profile / subscription / viewer role. Tabs receive `context` via props and must never refetch identity.
+- Tab-scoped data (phase, programs, adherence) is the tab's job.
+- Add a tab by creating `src/components/client-overview/tabs/<Name>Tab.tsx` that accepts `{ context }: ClientOverviewTabProps`, then wire it in `ClientOverviewTabs.tsx`.
+- `profile.lastName` is always `null` in the context — `profiles_public` doesn't carry it and coaches can't read `profiles_private`. Tabs needing PII must gate themselves.
+- `viewerRole` precedence: `admin` → `dietitian` (approved subrole) → `coach`. Admin branch currently unreachable because the route is wrapped in `RoleProtectedRoute requiredRole="coach"`; the resolver keeps the branch for the future admin-access PR.
+- Route is already in `coachPrefixes` in `src/App.tsx` for mobile dock visibility.
+
+The legacy `/coach-client-nutrition` route is still live alongside the shell. Full port of that page now lives inside the Nutrition tab; the old route is deprecated in a later PR once entry-point rewire soaks.
 
 ### Nutrition — coach page structure (3 tabs)
 `/coach-client-nutrition` layout after Apr 20 redesign:
@@ -535,6 +569,35 @@ DB CHECK constraint is `goal_type IN ('fat_loss', 'maintenance', 'muscle_gain')`
 lookup tables. `NutritionPhaseCard` exposes a `normalizeGoalType()` helper and
 `CoachNutritionProgress.signedExpectedChange` accepts both vocabularies. If you
 ever touch any nutrition_phases consumer, accept both enum shapes.
+
+### Nutrition — body fat lives in two tables, keep them in sync
+Body fat % is written to both `weekly_progress.body_fat_percentage` (coach
+aggregate, indexed by week) and `body_fat_logs` (detailed per-day history,
+feeds coach graphs + `useClientDemographics.latestBodyFatPercentage` for the
+coach-form pre-fill). Write paths:
+- `ClientNutritionProgress.saveBodyFat` (weekly check-in) dual-writes both,
+  upserting `body_fat_logs` on `(user_id, log_date, method)` to collapse
+  same-day entries.
+- `BodyFatLogForm.handleSubmit` (standalone logger) writes `body_fat_logs` only.
+
+**Any new write path must hit both, or any new read path must union them.**
+Drift here silently hides data — `CoachNutritionGraphs` "Body Measurements"
+tab fell back to an "empty" state for months because it only read
+`circumference_logs` (PR #69 fixed). When adding a new nutrition log table,
+grep every chart/history view before shipping.
+
+### Nutrition — sign-sensitive adjustment math
+`AdjustmentCalculator.calculateAdjustment()` uses `deltaKg = expected - actual`.
+Both values are negative during fat loss; both positive during muscle gain.
+Message and math can easily flip out of alignment — PR #70 fixed a case where
+"You lost more than expected" fired while the math recommended decreasing
+calories (opposite advice). Comment worked examples right next to the branch:
+
+```ts
+// Ex. expected -0.6, actual -0.8 -> delta +0.2 -> lost MORE than planned.
+// Ex. expected -0.6, actual -0.5 -> delta -0.1 -> lost LESS than planned.
+if (deltaKg > 0) { /* lost more */ } else { /* lost less */ }
+```
 
 ### Muscle-plan → program conversion (v2 RPC)
 Use `convert_muscle_plan_to_program_v2(p_coach_id, p_plan_name, p_plan_description, p_muscle_template_id, p_sessions)` — **one `day_modules` row per session** (not per slot). Migration `20260419100000_convert_rpc_v2_sessions.sql`.
