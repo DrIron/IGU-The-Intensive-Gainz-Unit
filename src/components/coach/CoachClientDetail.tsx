@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -67,6 +68,7 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
   const [showDirectCalendar, setShowDirectCalendar] = useState(false);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const { toast } = useToast();
+  const navigate = useNavigate();
   const { canBuildPrograms, canAssignWorkouts } = useSubrolePermissions(currentUserId || undefined);
 
   const checkCurrentUserRole = useCallback(async () => {
@@ -494,7 +496,7 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
         <Card>
           <CardContent className="py-6 text-center">
             <p className="text-muted-foreground mb-3">View detailed nutrition data for this client</p>
-            <Button variant="outline" onClick={() => window.open(`/coach-client-nutrition?client=${clientUserId}`, '_blank')}>
+            <Button variant="outline" onClick={() => navigate(`/coach/clients/${clientUserId}?tab=nutrition`)}>
               Open Nutrition Dashboard
             </Button>
           </CardContent>

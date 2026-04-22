@@ -91,9 +91,12 @@ export function CoachDashboardLayout({
   };
 
   const handleViewClientDetail = (clientId: string) => {
-    setSelectedClientId(clientId);
+    navigate(`/coach/clients/${clientId}`);
   };
 
+  // Kept temporarily; the inline CoachClientDetail render block below becomes
+  // dead once every caller navigates. Removal lives in a follow-up PR per
+  // docs/CLIENT_OVERVIEW_HANDOFF.md §10a.
   const handleBackFromClientDetail = () => {
     setSelectedClientId(null);
   };
