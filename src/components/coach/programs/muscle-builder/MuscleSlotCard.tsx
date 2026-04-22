@@ -135,7 +135,11 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
           ref={provided.innerRef}
           {...provided.draggableProps}
           className={cn(
-            `group flex items-stretch gap-1.5 px-2 py-1.5 rounded-md border text-sm`,
+            // Tight horizontal padding (px-1.5) because every pixel of
+            // interior width matters for muscle/exercise labels inside a
+            // 140px day column. Vertical spacing kept at py-1.5 for
+            // readability on the sets/tempo badge line.
+            `group flex items-stretch gap-1 px-1.5 py-1.5 rounded-md border text-sm`,
             // Only animate hover/border when not actively dragging — CSS transitions during
             // a drag make @hello-pangea/dnd feel laggy because every position update re-animates.
             snapshot.isDragging

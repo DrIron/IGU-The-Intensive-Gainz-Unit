@@ -909,12 +909,18 @@ function WorkoutSessionV2Content() {
 
   const [setLogs, setSetLogs] = useState<Record<string, SetLog[]>>({});
   const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+  // `token` increments each time a fresh timer starts so <RestTimer> remounts
+  // via its `key` prop and the internal countdown resets. Without it, a second
+  // completeSet while the previous timer is still running keeps the stale
+  // `remaining` state (React doesn't re-run useState(duration) on prop change).
   const [restTimer, setRestTimer] = useState<{
     active: boolean;
     duration: number;
+    token: number;
   }>({
     active: false,
     duration: 0,
+    token: 0,
   });
   const [swapExerciseId, setSwapExerciseId] = useState<string | null>(null);
   const [showSwapPicker, setShowSwapPicker] = useState(false);
@@ -1241,7 +1247,11 @@ function WorkoutSessionV2Content() {
       restSeconds > 0 &&
       setIndex < prescriptions.length - 1
     ) {
-      setRestTimer({ active: true, duration: restSeconds });
+      setRestTimer((prev) => ({
+        active: true,
+        duration: restSeconds,
+        token: prev.token + 1,
+      }));
     }
 
     // Evaluate progression suggestion if enabled
@@ -1579,9 +1589,14 @@ function WorkoutSessionV2Content() {
         {/* Rest timer */}
         {restTimer.active && (
           <RestTimer
+            key={restTimer.token}
             duration={restTimer.duration}
-            onComplete={() => setRestTimer({ active: false, duration: 0 })}
-            onSkip={() => setRestTimer({ active: false, duration: 0 })}
+            onComplete={() =>
+              setRestTimer((prev) => ({ active: false, duration: 0, token: prev.token }))
+            }
+            onSkip={() =>
+              setRestTimer((prev) => ({ active: false, duration: 0, token: prev.token }))
+            }
           />
         )}
 

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Search, Play, Dumbbell } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
@@ -151,16 +152,16 @@ export function ExerciseLibrary() {
       {/* Exercise Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredExercises?.map((exercise) => (
-          <Card
+          <ClickableCard
             key={exercise.id}
-            className="hover:border-primary/50 transition-colors cursor-pointer"
+            ariaLabel={`View ${exercise.name} details`}
             onClick={() => setSelectedExercise(exercise)}
           >
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between gap-2">
                 <CardTitle className="text-base leading-tight">{exercise.name}</CardTitle>
                 {exercise.default_video_url && (
-                  <Play className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                  <Play className="h-4 w-4 text-muted-foreground flex-shrink-0" aria-hidden="true" />
                 )}
               </div>
               {exercise.anatomical_name && exercise.anatomical_name !== exercise.name && (
@@ -196,7 +197,7 @@ export function ExerciseLibrary() {
                 </p>
               )}
             </CardContent>
-          </Card>
+          </ClickableCard>
         ))}
       </div>
 
