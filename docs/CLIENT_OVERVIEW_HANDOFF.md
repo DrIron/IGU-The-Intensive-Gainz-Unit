@@ -2,6 +2,23 @@
 
 > **You are building the coach-facing "Client Overview" shell.** Another Claude is in charge of the Nutrition tab (already scaffolded — see below). Do not touch nutrition files. Read this whole doc before coding.
 
+## Status (Apr 21, 2026)
+
+**PR A shipped** — shell + Overview tab + Workouts placeholder + route wiring. See `docs/history.md` for the writeup.
+
+Landed files:
+- `src/pages/CoachClientOverview.tsx` — shell, route target for `/coach/clients/:clientUserId`
+- `src/components/client-overview/ClientOverviewHeader.tsx` — identity + status rail + service badges + demographics micro-line + "Submission" quick action
+- `src/components/client-overview/ClientOverviewTabs.tsx` — tab strip, `?tab=` URL sync
+- `src/components/client-overview/tabs/OverviewTab.tsx` — phase week + last workout + last weigh-in + pending-adjustments nudge
+- `src/components/client-overview/tabs/WorkoutsTab.tsx` — placeholder (replaced in PR C)
+- Route + `/coach/clients` mobile-nav prefix wired in `src/App.tsx`
+
+Remaining per §10 ship plan:
+- **PR B** — entry-point rewire (§10a). Not yet started.
+- **PR C** — Workouts tab. Handed to a dedicated Claude; replaces the `WorkoutsTab.tsx` placeholder.
+- Old `/coach-client-nutrition` route still live; deprecation is a later PR after entry-point rewire soaks.
+
 ## 1. Project context
 
 - **Repo:** `/Users/HasDash/Desktop/intensive-gainz-unit-main`
