@@ -5,6 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -584,9 +585,21 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
             <div className="space-y-3">
               {pageClients.map((client) => {
                 const isProcessing = processingApproval === client.id || processingDecline === client.id;
-                
+                const handleRowClick = () => {
+                  if (onViewClient) {
+                    onViewClient(client.id);
+                  } else {
+                    navigate(`/coach/clients/${client.id}`);
+                  }
+                };
+
                 return (
-                  <div key={client.id} className="flex items-center justify-between p-3 rounded-lg border bg-background">
+                  <ClickableCard
+                    key={client.id}
+                    ariaLabel={`Open ${getClientDisplayName(client)}'s profile`}
+                    onClick={handleRowClick}
+                    className="flex items-center justify-between p-3 rounded-lg shadow-none"
+                  >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-medium truncate">{getClientDisplayName(client)}</span>
@@ -616,7 +629,11 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                     </div>
                     
                     {/* Mobile-friendly action buttons - always visible, not hidden in dropdown */}
-                    <div className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-2 sm:ml-3">
+                    <div
+                      className="flex items-center gap-1.5 sm:gap-2 shrink-0 ml-2 sm:ml-3"
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
                       {showActions && (
                         <>
                           <Button
@@ -685,7 +702,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                         </DropdownMenuContent>
                       </DropdownMenu>
                     </div>
-                  </div>
+                  </ClickableCard>
                 );
               })}
             </div>
@@ -820,53 +837,53 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           <div className="space-y-3">
             <h3 className="text-lg font-semibold">Quick Actions</h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+              <ClickableCard
+                ariaLabel="Manage client nutrition"
                 onClick={() => navigate('/coach-client-nutrition')}
               >
                 <CardContent className="flex items-center gap-4 p-4">
-                  <div className="p-3 rounded-lg bg-primary/10">
+                  <div className="p-3 rounded-lg bg-primary/10" aria-hidden="true">
                     <Utensils className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1">
                     <p className="font-medium">Manage Nutrition</p>
                     <p className="text-xs text-muted-foreground">View & update client plans</p>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 </CardContent>
-              </Card>
+              </ClickableCard>
 
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+              <ClickableCard
+                ariaLabel="Open exercise library"
                 onClick={() => navigate('/coach/exercises')}
               >
                 <CardContent className="flex items-center gap-4 p-4">
-                  <div className="p-3 rounded-lg bg-primary/10">
+                  <div className="p-3 rounded-lg bg-primary/10" aria-hidden="true">
                     <Library className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1">
                     <p className="font-medium">Exercise Library</p>
                     <p className="text-xs text-muted-foreground">Browse workouts</p>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 </CardContent>
-              </Card>
+              </ClickableCard>
 
-              <Card 
-                className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+              <ClickableCard
+                ariaLabel="Open educational videos"
                 onClick={() => navigate('/educational-videos')}
               >
                 <CardContent className="flex items-center gap-4 p-4">
-                  <div className="p-3 rounded-lg bg-primary/10">
+                  <div className="p-3 rounded-lg bg-primary/10" aria-hidden="true">
                     <Dumbbell className="h-5 w-5 text-primary" />
                   </div>
                   <div className="flex-1">
                     <p className="font-medium">Educational Videos</p>
                     <p className="text-xs text-muted-foreground">Learning resources</p>
                   </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                  <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
                 </CardContent>
-              </Card>
+              </ClickableCard>
             </div>
           </div>
         </TabsContent>

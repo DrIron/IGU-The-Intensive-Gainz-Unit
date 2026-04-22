@@ -176,8 +176,22 @@ export interface WeekData {
   isDeload?: boolean;
 }
 
+// Default names shown as the session header inside DayColumn (140px at
+// lg:grid-cols-7). The long `ACTIVITY_TYPE_LABELS` forms (e.g. "Yoga /
+// Mobility", "Sport-Specific") get truncated to "Yoga /…" inside the
+// session card — auto-abbreviate so the default label always fits.
+// Coach-entered custom names bypass this.
+const SESSION_TYPE_SHORT_LABELS: Record<ActivityType, string> = {
+  strength: 'Strength',
+  cardio: 'Cardio',
+  hiit: 'HIIT',
+  yoga_mobility: 'Yoga',
+  recovery: 'Recovery',
+  sport_specific: 'Sport',
+};
+
 export function defaultSessionName(type: ActivityType): string {
-  return ACTIVITY_TYPE_LABELS[type];
+  return SESSION_TYPE_SHORT_LABELS[type];
 }
 
 /**
