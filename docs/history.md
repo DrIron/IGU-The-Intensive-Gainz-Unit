@@ -66,6 +66,7 @@ See `CLAUDE.md` for the current architecture, load-bearing rules, and gotchas.
 - Planning Board sessions — Day > Session > Activity layer, v2 conversion RPC (Apr 19, 2026)
 - Coach nutrition redesign — demographics reuse via 3 SECURITY DEFINER RPCs, Planning-Board-style hero card + week-card grid, 6 tabs → 3 (Apr 20, 2026)
 - Client Overview shell — one URL per client at `/coach/clients/:clientUserId`, tabbed (Overview / Nutrition / Workouts), locked `ClientContext` contract (Apr 21, 2026)
+- Client Overview — PR B entry-point rewire + Workouts tab + admin sibling route + production walk-through (Apr 22, 2026)
 
 ---
 
@@ -120,10 +121,47 @@ The shell is the only place that resolves identity. Tabs get one `context` prop 
 **Build delta:** +1 chunk `CoachClientOverview-*.js` at ~21 KB gzipped 7 KB. tsc / lint / build all clean; 0 new lint warnings.
 
 **Deferred to follow-up PRs:**
-- PR B — entry-point rewire per §10a of the handoff (`CoachDashboardLayout.handleViewClientDetail`, `CoachMyClientsPage.handleViewNutrition`, `CoachClientDetail` nutrition link, `ClientActivityFeed.navigate`). Not done yet because the Workouts tab is still a placeholder — rewiring too early drops coaches into a half-built shell.
-- PR C — Workouts tab proper (dedicated Claude).
-- Admin access to the shell. Currently blocked by the coach-only guard; separate PR will relax.
-- `/coach-client-nutrition` route removal (once entry-point rewire is verified live for a day).
+- PR B — entry-point rewire per §10a of the handoff. **Shipped Apr 22 (#80); see next section.**
+- PR C — Workouts tab proper. **Shipped Apr 22 (#78).**
+- Admin access to the shell. **Sibling route `/admin/clients/:id` open as #81; see next section.**
+- `/coach-client-nutrition` route removal. Still pending — one more day of soak on the rewire before it goes.
+
+---
+
+## Client Overview — PR B entry-point rewire + admin access + walk-through (Apr 22, 2026)
+
+Day after PR A landed, closed out the handover in three moves.
+
+**PR B — entry-point rewire (merged as `97e1db1`, PR #80).** Every coach surface that previously dropped into the filtered list view, the legacy nutrition route, or the inline `CoachClientDetail` panel now navigates to the unified shell:
+- `CoachDashboardLayout.handleViewClientDetail`: `setSelectedClientId(...)` → `navigate(`/coach/clients/${id}`)`. The inline render branch stays temporarily; deletion lives in PR C once this soaks.
+- `CoachMyClientsPage.handleViewNutrition`: `/coach-client-nutrition?client=X` → `/coach/clients/X?tab=nutrition`.
+- `CoachMyClientsPage` Quick Actions: removed the context-free "Manage Nutrition" card (the shell only makes sense with a specific client). Grid tightens 3 → 2 cols; unused `Utensils` import dropped.
+- `CoachClientDetail` nutrition button: `window.open(..., '_blank')` → `navigate('/coach/clients/:id?tab=nutrition')` (same tab).
+- `ClientActivityFeed`: row click navigates directly to the detail view (`/coach/clients/:id`) instead of the filtered list (`/coach/clients?client=X`).
+- **Intentionally untouched:** `NeedsAttentionAlerts:101` and `CoachTodaysTasks:37` still point at `/coach/clients?filter=pending` — those are list links, not detail links.
+- `MyAssignmentsPanel` inherits the new behaviour through its `onClientSelect` prop (wired to `handleViewClientDetail`), no local change needed.
+
+**Walk-through on production.** After merge + Vercel deploy (prod is on `e5a9c3d` + `97e1db1`):
+- All three tabs render with correct content for an active client (header demographics ribbon, phase tile, last-workout tile, last-weigh-in tile; Nutrition hero card + inner tabs; Workouts pulse + active program list).
+- Deep links `?tab=nutrition` and `?tab=workouts` work; `setSearchParams({ replace: true })` keeps history clean.
+- `/coach/clients/<bogus-uuid>` → friendly `NotFoundState` card, not the router catch-all.
+- Mobile viewport (390×844): header stacks, tab strip sticky under the navbar, 3 tiles stack full-width with status rails intact, coach bottom dock visible (`/coach/clients` is in `coachPrefixes`).
+- Network audit: client-identity fetches fire 1x each as the contract promises (profile, subscription, user_roles for the client). Nit — the coach's own `user_roles` / `user_subroles` fetch 3x from unrelated components (Navigation, `useNutritionPermissions`, `RoleProtectedRoute`); pre-existing, out of scope for the shell.
+- First diagnosis was wrong: initial "production is stale" call was off because `CoachClientOverview` is a lazy chunk (not in `index-*.js`). Bundle grep missed it; the route was deployed the whole time. Re-testing after logging in showed the shell rendering correctly.
+
+**PR #81 — admin sibling route (open).** CLAUDE.md's Route Protection note is explicit that `requiredRole="coach"` excludes admins by design, and warns against generalizing the shared `hasRequiredRole()` switch. Rather than loosen, added a sibling route:
+```tsx
+<Route path="/admin/clients/:clientUserId" element={<RoleProtectedRoute requiredRole="admin"><CoachClientOverview /></RoleProtectedRoute>} />
+```
+One line under the admin block. Admins get their own URL; the admin mobile dock already matches anything under `/admin/`, so dock rendering is automatic. The shell's `viewerRole` resolver already returned `"admin"` for admin users — the branch just wasn't reachable before. `/admin/:section` and `/admin/clients/:clientUserId` have different depths so they don't collide.
+
+**Still outstanding:**
+- **PR C** — remove `/coach-client-nutrition` route + the inline `CoachClientDetail` render branch in `CoachDashboardLayout`. Soak for a day first.
+- **Audit SQL cleanup** — `supabase/migrations/20260422110000_cleanup_audit_artifacts.sql` (one-shot prod cleanup for AUDIT 2026-04-21 test rows).
+- **Local tree hygiene** on the main working copy — leftover staged reverts from the three-Claude parallel cycle; `git reset --hard origin/main` drops them once the user OKs.
+- **Design polish pass** — user flagged potential palette / consistency gaps vs. the rest of the site. Not yet scoped.
+
+**Process note — macOS quarantine + `gh api` bypass.** PR B was composed in a worktree off `origin/main` (non-destructive to the user's messy main tree). Worktree git was clean for PR B. PR #81 hit the CLAUDE.md macOS quarantine issue — `git checkout` hung on xattr stats, and the documented `xattr -cr .` remedy fails on `.git/objects` (read-only blobs, `Permission denied`). Workaround: composed the change off the fetched raw file, created the branch via `gh api -X POST /repos/:owner/:repo/git/refs`, and pushed the updated content via `gh api -X PUT /repos/:owner/:repo/contents/:path` (commits server-side, no local git). Worth capturing as a pattern for small surgical PRs when local git is uncooperative — though relocating the project off Desktop or recreating the worktree from a clean clone is still the better long-term fix.
 
 ---
 
