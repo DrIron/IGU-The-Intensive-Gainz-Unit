@@ -202,6 +202,7 @@ const App = () => {
 
                   {/* Role-scoped Admin routes - requires admin role */}
                   <Route path="/admin" element={<RoleProtectedRoute requiredRole="admin"><AdminDashboard /></RoleProtectedRoute>} />
+                  <Route path="/admin/clients/:clientUserId" element={<RoleProtectedRoute requiredRole="admin"><CoachClientOverview /></RoleProtectedRoute>} />
                   <Route path="/admin/:section" element={<RoleProtectedRoute requiredRole="admin"><AdminDashboard /></RoleProtectedRoute>} />
 
                   {/* Role-scoped Coach routes - requires coach role ONLY (admins must use separate coach account) */}
