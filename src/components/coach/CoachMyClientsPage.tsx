@@ -14,7 +14,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/components/ui/empty-state";
 import { 
   Users, Search, Eye, Activity, AlertCircle, TrendingUp, TrendingDown,
-  Dumbbell, Utensils, Library, MoreVertical, MessageSquare, ArrowRight,
+  Dumbbell, Library, MoreVertical, MessageSquare, ArrowRight,
   Check, X, Mail, Phone, DollarSign, Calendar, UserCheck, Clock, CreditCard,
   AlertTriangle, RefreshCw, Loader2, Inbox
 } from "lucide-react";
@@ -493,7 +493,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
       });
       setNutritionDialogOpen(true);
     } else {
-      navigate(`/coach-client-nutrition?client=${client.id}`);
+      navigate(`/coach/clients/${client.id}?tab=nutrition`);
     }
   };
 
@@ -836,23 +836,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           {/* Quick Actions */}
           <div className="space-y-3">
             <h3 className="text-lg font-semibold">Quick Actions</h3>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <ClickableCard
-                ariaLabel="Manage client nutrition"
-                onClick={() => navigate('/coach-client-nutrition')}
-              >
-                <CardContent className="flex items-center gap-4 p-4">
-                  <div className="p-3 rounded-lg bg-primary/10" aria-hidden="true">
-                    <Utensils className="h-5 w-5 text-primary" />
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-medium">Manage Nutrition</p>
-                    <p className="text-xs text-muted-foreground">View & update client plans</p>
-                  </div>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-                </CardContent>
-              </ClickableCard>
-
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <ClickableCard
                 ariaLabel="Open exercise library"
                 onClick={() => navigate('/coach/exercises')}
