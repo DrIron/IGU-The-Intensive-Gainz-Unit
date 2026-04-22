@@ -537,7 +537,8 @@ export function ProgramCalendarBuilder({
   const toggleModuleStatus = async (moduleId: string, currentStatus: string) => {
     try {
       const newStatus = currentStatus === "published" ? "draft" : "published";
-      await supabase.from("day_modules").update({ status: newStatus }).eq("id", moduleId);
+      const { error } = await supabase.from("day_modules").update({ status: newStatus }).eq("id", moduleId);
+      if (error) throw error;
       hasFetched.current = false;
       await loadProgramStructure();
       hasFetched.current = true;
@@ -546,6 +547,41 @@ export function ProgramCalendarBuilder({
       toast({ title: "Error updating status", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
+
+  /** Bulk-publish every draft module across ALL weeks in this program.
+   *  Addresses the audit finding that converted programs land all-draft and
+   *  a coach who forgets to toggle each session individually ends up
+   *  assigning a program that delivers zero sessions to the client. */
+  const publishAllDrafts = useCallback(async () => {
+    // Gather draft module ids across every week/day currently loaded.
+    const draftIds = weeks.flatMap(w =>
+      w.days.flatMap(d => d.sessions.filter(s => s.status !== "published").map(s => s.id)),
+    );
+    if (draftIds.length === 0) {
+      toast({ title: "Nothing to publish", description: "All modules are already published." });
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from("day_modules")
+        .update({ status: "published" })
+        .in("id", draftIds);
+      if (error) throw error;
+      hasFetched.current = false;
+      await loadProgramStructure();
+      hasFetched.current = true;
+      toast({
+        title: "Published",
+        description: `${draftIds.length} module${draftIds.length === 1 ? "" : "s"} now visible to clients.`,
+      });
+    } catch (error: unknown) {
+      toast({
+        title: "Bulk publish failed",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    }
+  }, [weeks, loadProgramStructure, toast]);
 
   const deleteSession = async (moduleId: string) => {
     try {
@@ -757,6 +793,15 @@ export function ProgramCalendarBuilder({
 
         {!readOnly && (
           <div className="flex items-center gap-2">
+            {/* Bulk publish -- surfaces a single action for converted programs
+                whose modules default to draft. Hidden when everything is
+                already published so the header isn't cluttered. */}
+            {weeks.some(w => w.days.some(d => d.sessions.some(s => s.status !== "published"))) && (
+              <Button variant="outline" onClick={publishAllDrafts}>
+                <Eye className="h-4 w-4 mr-2" />
+                Publish all
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setShowCopyWeekDialog(true)}>
               <Copy className="h-4 w-4 mr-2" />
               Copy Week

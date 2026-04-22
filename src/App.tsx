@@ -40,6 +40,7 @@ const Nutrition = lazy(() => import("./pages/Nutrition"));
 const TeamNutrition = lazy(() => import("./pages/TeamNutrition"));
 const ClientNutrition = lazy(() => import("./pages/ClientNutrition"));
 const CoachClientNutrition = lazy(() => import("./pages/CoachClientNutrition"));
+const CoachClientOverview = lazy(() => import("./pages/CoachClientOverview"));
 const PaymentStatus = lazy(() => import("./pages/PaymentStatus"));
 const PaymentReturn = lazy(() => import("./pages/PaymentReturn"));
 const BillingPayment = lazy(() => import("./pages/BillingPayment"));
@@ -132,7 +133,7 @@ const CoachMobileNavGlobal = memo(function CoachMobileNavGlobal() {
   const location = useLocation();
   // Include standalone coach-facing routes that don't live under /coach/*
   // (e.g. the shared /coach-client-nutrition page).
-  const coachPrefixes = ["/coach", "/coach-client-nutrition", "/client-submission"];
+  const coachPrefixes = ["/coach", "/coach/clients", "/coach-client-nutrition", "/client-submission"];
   const isCoachRoute = coachPrefixes.some(
     p => location.pathname === p || location.pathname.startsWith(p + "/")
   );
@@ -206,6 +207,7 @@ const App = () => {
                   {/* Role-scoped Coach routes - requires coach role ONLY (admins must use separate coach account) */}
                   <Route path="/coach" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
                   <Route path="/coach/studio-preview" element={<RoleProtectedRoute requiredRole="coach"><StudioPreview /></RoleProtectedRoute>} />
+                  <Route path="/coach/clients/:clientUserId" element={<RoleProtectedRoute requiredRole="coach"><CoachClientOverview /></RoleProtectedRoute>} />
                   <Route path="/coach/:section" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
 
                   {/* Onboarding routes - allow incomplete onboarding */}

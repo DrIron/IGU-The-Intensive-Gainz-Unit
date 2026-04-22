@@ -65,6 +65,65 @@ See `CLAUDE.md` for the current architecture, load-bearing rules, and gotchas.
 - Performance optimization — main bundle 593KB → 437KB: lazy components, vendor chunk, non-blocking fonts (Apr 16, 2026)
 - Planning Board sessions — Day > Session > Activity layer, v2 conversion RPC (Apr 19, 2026)
 - Coach nutrition redesign — demographics reuse via 3 SECURITY DEFINER RPCs, Planning-Board-style hero card + week-card grid, 6 tabs → 3 (Apr 20, 2026)
+- Client Overview shell — one URL per client at `/coach/clients/:clientUserId`, tabbed (Overview / Nutrition / Workouts), locked `ClientContext` contract (Apr 21, 2026)
+
+---
+
+## Client Overview shell — PR A (Apr 21, 2026)
+
+Coaches were fragmented across `/coach-client-nutrition?client=…`, `/client-submission/:userId`, and an inline `CoachClientDetail` panel inside the coach dashboard. Consolidated into one URL per client: `/coach/clients/:clientUserId?tab=overview|nutrition|workouts`. PR A is the shell + Overview tab + route wiring; Workouts tab and entry-point rewire land later. Spec: `docs/CLIENT_OVERVIEW_HANDOFF.md`.
+
+**The contract (`src/components/client-overview/types.ts`, locked):**
+
+```ts
+interface ClientContext {
+  clientUserId: string;
+  profile: { id, firstName, lastName, displayName, avatarUrl, status };
+  subscription: { id, status, serviceType, serviceName } | null;
+  viewerRole: "coach" | "admin" | "dietitian";
+}
+interface ClientOverviewTabProps { context: ClientContext; }
+```
+
+The shell is the only place that resolves identity. Tabs get one `context` prop and must not refetch profile / subscription / roles. Tab-scoped data (phase, programs, etc.) stays the tab's responsibility.
+
+**Shell (`src/pages/CoachClientOverview.tsx`):**
+- `useParams` reads `clientUserId` from the route.
+- Parallel `Promise.all`: `profiles_public` by id, `subscriptions` + `services!inner` most recent, `user_roles`, `user_subroles` (approved) for viewer role resolution.
+- `lastName` deliberately stays `null` in the context — `profiles_public` doesn't carry it, and coaches can't read `profiles_private`. Tabs needing PII gate themselves.
+- `viewerRole` precedence: `admin` → `dietitian` (subrole) → `coach`. Admin branch currently unreachable because the route is wrapped in `RoleProtectedRoute requiredRole="coach"`; kept in the resolver so the contract stays honest when admin access lands.
+- Four load states: `loading | not-found | error | ready`. RLS-empty profile rows fall through to a friendly not-found card (no crash, no leak).
+
+**Header (`ClientOverviewHeader.tsx`):**
+- Echoes the `NutritionPhaseCard` vocabulary: thin colored status rail on the left edge, avatar + name, subscription/service badges, monospace demographics micro-line (`age | gender | height | weight (last logged Xd ago)`) via `useClientDemographics`.
+- Rail color keyed to subscription status (or profile status when no subscription): `active → emerald`, `pending* → amber`, `suspended/payment_failed → destructive`, `cancelled/inactive → muted`.
+- One quick action for PR A: `Submission` → `/client-submission/:userId`. More actions land with PR B/C.
+
+**Tab strip (`ClientOverviewTabs.tsx`):**
+- `?tab=overview|nutrition|workouts`, defaults to `overview`, unknown values fall back safely.
+- `setSearchParams({ replace: true })` on change so tab clicks don't spam history.
+- `sticky top-16` under the navbar so mobile users keep the strip in view while scrolling a long tab.
+
+**Overview tab (`tabs/OverviewTab.tsx`):**
+- At-a-glance "is this client OK?": three stat tiles (nutrition phase week, last workout, last weigh-in) with status-colored rails matching the header vocabulary.
+- Last workout obeys CLAUDE.md's rule: no nested PostgREST FK joins on `client_programs`. Three separate queries — `client_programs` by user id → `client_program_days` by program ids → `client_day_modules` with `completed_at NOT NULL`, ordered desc, limit 1.
+- Pending-adjustments nudge at the top: amber-rail card if `nutrition_adjustments.status = 'pending'` for the active phase, with an inline `Review` button that deep-links to `?tab=nutrition`.
+
+**Nutrition tab slot:** drops in the pre-scaffolded `NutritionTab.tsx` (different owner) unchanged. Feature parity with `/coach-client-nutrition` minus the client picker (shell owns selection). The old `/coach-client-nutrition` page stays live until PR B soaks.
+
+**Workouts tab:** placeholder empty-state card. PR C (separate Claude) replaces it with program list + drill-down.
+
+**Route + mobile nav (`src/App.tsx`):**
+- `<Route path="/coach/clients/:clientUserId" element={<RoleProtectedRoute requiredRole="coach"><CoachClientOverview /></RoleProtectedRoute>} />` placed above `/coach/:section` so `:section` doesn't swallow it.
+- `/coach/clients` appended to `coachPrefixes` (harmless duplicate of `/coach` prefix, but matches the spec and keeps the mobile dock explicit if `/coach` is ever tightened).
+
+**Build delta:** +1 chunk `CoachClientOverview-*.js` at ~21 KB gzipped 7 KB. tsc / lint / build all clean; 0 new lint warnings.
+
+**Deferred to follow-up PRs:**
+- PR B — entry-point rewire per §10a of the handoff (`CoachDashboardLayout.handleViewClientDetail`, `CoachMyClientsPage.handleViewNutrition`, `CoachClientDetail` nutrition link, `ClientActivityFeed.navigate`). Not done yet because the Workouts tab is still a placeholder — rewiring too early drops coaches into a half-built shell.
+- PR C — Workouts tab proper (dedicated Claude).
+- Admin access to the shell. Currently blocked by the coach-only guard; separate PR will relax.
+- `/coach-client-nutrition` route removal (once entry-point rewire is verified live for a day).
 
 ---
 
@@ -983,3 +1042,46 @@ Force-redirects unauthenticated visitors to a branded waitlist page when enabled
 - ❌ Exercise history sheet UI — deferred
 
 Spec: `/docs/WORKOUT_BUILDER_SPEC.md` (1,303 lines).
+
+---
+
+## Nutrition full-system audit + fix round (Apr 21, 2026)
+
+End-to-end live test of every nutrition surface (client, coach, calculator, team, admin) with Hasan Dashti as the signed-in client and a coach account for the coach-side pass. Goal was measurement-sync correctness (enter once, flow everywhere) and catching drift between the redesign and surrounding code. Eleven PRs shipped. Documented here so the classes of bug don't recur.
+
+### Bugs found and shipped
+
+**#61** Weight/BF validator ranges + delete confirms + weekly check-in gate. Weight allowed 20-300 kg (accepted typos like "25" meaning "250"); tightened to 30-250. Body fat allowed 1-60%; tightened to 3-55%. Check-in Save button was post-validating "need 3+ weigh-ins" via toast after click — moved to render-time disabled button + amber alert so the gate is visible before the user clicks.
+
+**#63** `profiles_public.activity_level` column added; `/account` + `/calorie-calculator` + onboarding edge function + coach form all read/write it. Biggest re-asked field outside the weight/BF pair. Calculator pre-fills all 5 measurement inputs (DOB, gender, height, weight, activity, goal) for signed-in users; previously only DOB + gender pre-filled.
+
+**#64** Coach form's Current BF% now pre-fills from latest `body_fat_logs` entry via `useClientDemographics.latestBodyFatPercentage` with a "last logged Xd ago" hint.
+
+**#65** Client weekly check-in `saveBodyFat` was only upserting `weekly_progress`; `body_fat_logs` (coach graphs + coach-form pre-fill source) stayed stale until the client opened the standalone `BodyFatLogForm`. Now dual-writes with `(user_id, log_date, method='bioelectrical')` unique-key collapse.
+
+**#66** `get_client_age` RPC read from `form_submissions.date_of_birth` — but the rest of the app (calculator, `/account`, onboarding, Hasan specifically) uses `profiles_private.date_of_birth`. Hasan's coach page showed Age empty. Fix: read `profiles_private` first, fall back to `form_submissions` for legacy clients. **Root cause class:** SECURITY DEFINER RPCs must read from the same table the rest of the app reads/writes; pick the source-of-truth once.
+
+**#67 → #68 (reverted)** Onboarding activity_level field — shipped then reverted per user direction. Activity stays editable only on `/calculator` and `/account`.
+
+**#69** Coach History "Body Measurements" tab rendered "No Measurement Data" even when `body_fat_logs` had entries — loader only fetched `circumference_logs`. Added BF line chart (user-scoped, clipped to `phase.start_date`). **Root cause class:** when adding a new log table, grep every existing chart/history view for whether they were updated.
+
+**#70** `AdjustmentCalculator` message branch was flipped for fat loss: `deltaKg < 0` (lost LESS than expected) fired "You lost more than expected. Consider increasing calories" while the math simultaneously recommended decreasing. Message and math disagreed. Added worked examples in the comment so the sign convention is obvious next read. **Root cause class:** for sign-sensitive math with negative deltas, write the examples next to the branches.
+
+**#71** `TeamNutrition` used `pb-12` (48px) but the client mobile dock is `h-16` (64px) — bottom content clipped under the dock. Aligned with the `pb-24 md:pb-12` rule in CLAUDE.md.
+
+**#72 / #73** Client-overview handoff scaffolding — locked `ClientContext` type, drop-in `NutritionTab`, 13-section handoff doc for the parallel Claude (shell + header + Overview tab + Workouts tab + entry-point rewire table).
+
+### Deferred gaps (known, logged against the client-overview restructure)
+
+- **TeamNutrition uses legacy `NutritionGoal` + `NutritionProgress`** (459 + 983 lines). Inline BMR/TDEE math diverges from shared `calculateNutritionGoals()`. No `useClientDemographics`, no `NutritionPhaseCard`, no `body_fat_logs`. Fix alongside shell migration.
+- **Admin has no nutrition UI.** `RoleProtectedRoute({ requiredRole: "coach" })` returns `userRoles.includes("coach")` only — admins fail. Intentional separation (coaches vs admin ops) but leaves admins with no troubleshooting path. Either loosen the guard or add an admin-specific view when the shell lands.
+- **Duplicate "All Notes (0)" / "Notes (0)" coach History tabs.** Functionally distinct (all vs non-reminder subset) but visually identical at zero. Cosmetic polish.
+- **`AdjustmentCalculator` crash on tab click after coach login.** 20 console errors, GlobalErrorBoundary fired; non-reproducible signed-out. Browser session locked before a second attempt. Re-test with a fresh coach session.
+
+### Rules worth carrying forward (now in CLAUDE.md)
+
+1. **DOB source-of-truth is `profiles_private.date_of_birth`.** Any SECURITY DEFINER RPC that needs DOB or age reads from there first; `form_submissions` is a legacy fallback for pre-migration clients only.
+2. **`body_fat_logs` writes must dual-target or reads must consolidate.** Two tables store BF% (`weekly_progress.body_fat_percentage` for coach aggregate, `body_fat_logs` for detailed history). Any new write path has to hit both, or any new read path has to union them. Drift here silently hides data.
+3. **`RoleProtectedRoute({ requiredRole: "coach" })` blocks admins by design.** Documented decision, not oversight. If admin needs access to a coach-only surface, either add a parallel admin route or loosen the guard explicitly.
+4. **Signed-delta math needs worked examples.** When expected and actual can both be negative (fat loss) or both positive (muscle gain), put two comment examples directly above the branch so the next reader isn't tempted to "simplify" them.
+5. **Single source of truth for macro math is `src/utils/nutritionCalculations.ts#calculateNutritionGoals`.** No inline BMR/TDEE. If you find one (e.g. the legacy `NutritionGoal.tsx` still has one), route it through the shared function as part of your touch.

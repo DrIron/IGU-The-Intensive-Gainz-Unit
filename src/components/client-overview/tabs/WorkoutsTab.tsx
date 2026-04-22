@@ -239,25 +239,27 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
 /* ------------------------------------------------------------------ */
 
 function EmptyState({ onGoToPrograms }: { onGoToPrograms: () => void }) {
-  return (
-    <Card>
-      <CardContent className="py-12">
-        <div className="flex flex-col items-center text-center gap-3 text-muted-foreground">
-          <div className="p-3 rounded-full bg-muted">
-            <Dumbbell className="h-6 w-6" aria-hidden="true" />
-          </div>
-          <div>
-            <p className="font-medium text-foreground">No programs yet</p>
-            <p className="text-sm mt-1 max-w-xs">
-              Assign a program from your library or inject a direct session to
-              start this client on a workout track.
-            </p>
-          </div>
-          <Button size="sm" onClick={onGoToPrograms}>
-            Go to Programs
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+    return (                        
+      <Card>                     
+        <CardContent className="py-12">
+          <div className="flex flex-col items-center text-center gap-3
+  text-muted-foreground">     
+            <div className="p-3 rounded-full bg-muted">
+              <Dumbbell className="h-6 w-6" aria-hidden="true" />
+            </div>              
+            <div>                            
+              <p className="font-medium text-foreground">No programs yet</p>   
+              <p className="text-sm mt-1 max-w-xs">                          
+                Assign a program from your library or inject a direct session  
+  to                                                                         
+                start this client on a workout track.                          
+              </p>                                                             
+            </div>                                                             
+            <Button size="sm" onClick={onGoToPrograms}>                        
+              Go to Programs                                                   
+            </Button>            
+          </div>                          
+        </CardContent>                                                       
+      </Card>                                                                  
+    );                            
+  }                                        
