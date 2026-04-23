@@ -1252,6 +1252,39 @@ export type Database = {
           },
         ]
       }
+      coach_client_messages: {
+        Row: {
+          client_id: string
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          id: string
+          message: string
+          read_by: string[]
+          sender_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          message: string
+          read_by?: string[]
+          sender_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          message?: string
+          read_by?: string[]
+          sender_id?: string
+        }
+        Relationships: []
+      }
       coach_client_relationships: {
         Row: {
           client_id: string
@@ -2647,6 +2680,7 @@ export type Database = {
       }
       email_notifications: {
         Row: {
+          context_id: string | null
           id: string
           notification_type: string
           sent_at: string | null
@@ -2654,6 +2688,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          context_id?: string | null
           id?: string
           notification_type: string
           sent_at?: string | null
@@ -2661,6 +2696,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          context_id?: string | null
           id?: string
           notification_type?: string
           sent_at?: string | null
@@ -7352,6 +7388,10 @@ export type Database = {
           table_name: string
         }[]
       }
+      get_unread_message_count: {
+        Args: { p_client_id: string }
+        Returns: number
+      }
       get_user_subroles: { Args: { p_user_id: string }; Returns: string[] }
       get_views_without_security_invoker: {
         Args: never
@@ -7475,6 +7515,10 @@ export type Database = {
       }
       mark_care_team_message_read: {
         Args: { p_message_id: string }
+        Returns: undefined
+      }
+      mark_coach_client_thread_read: {
+        Args: { p_client_id: string }
         Returns: undefined
       }
       mark_video_complete: { Args: { p_video_id: string }; Returns: boolean }
