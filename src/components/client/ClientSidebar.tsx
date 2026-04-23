@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -11,6 +12,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getClientNavItems } from "@/lib/routeConfig";
+import { supabase } from "@/integrations/supabase/client";
+import { useUnreadMessageCount } from "@/hooks/useUnreadMessageCount";
 import { CreditCard, User } from "lucide-react";
 
 interface ClientSidebarProps {
@@ -31,6 +34,7 @@ const groups = [
   { id: "nutrition", label: "Nutrition", routeIds: ["nutrition"] },
   { id: "workouts", label: "Workouts", routeIds: ["client-workout-calendar", "client-workout-history", "workout-library"] },
   { id: "resources", label: "Resources", routeIds: ["educational-videos", "sessions"] },
+  { id: "messages", label: "Messages", routeIds: ["client-messages"] },
 ];
 
 export function ClientSidebar({ 
@@ -45,6 +49,20 @@ export function ClientSidebar({
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Viewer id for the unread-messages badge. One getUser call; no refetch.
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getUser().then(({ data }) => {
+      if (cancelled) return;
+      setViewerId(data.user?.id ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+  const { count: unreadMessages } = useUnreadMessageCount(viewerId);
 
   // Check if user is active client (for content access)
   const isActiveClient = profile?.status === 'active' && subscription?.status === 'active';
@@ -118,7 +136,11 @@ export function ClientSidebar({
                   {groupItems.map((item) => {
                     const Icon = item.icon;
                     const active = isActive(item.path);
-                    
+                    const badge =
+                      item.id === "client-messages"
+                        ? formatUnreadBadge(unreadMessages)
+                        : null;
+
                     return (
                       <SidebarMenuItem key={item.id}>
                         <SidebarMenuButton
@@ -127,7 +149,27 @@ export function ClientSidebar({
                           title={collapsed ? item.label : undefined}
                         >
                           {Icon && <Icon className="h-4 w-4" />}
-                          {!collapsed && <span>{item.label}</span>}
+                          {!collapsed && (
+                            <span className="flex-1 flex items-center justify-between gap-2">
+                              <span>{item.label}</span>
+                              {badge && (
+                                <span
+                                  className="min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold leading-none flex items-center justify-center tabular-nums"
+                                  aria-label={`${badge} unread`}
+                                >
+                                  {badge}
+                                </span>
+                              )}
+                            </span>
+                          )}
+                          {collapsed && badge && (
+                            <span
+                              className="absolute top-1 right-1 min-w-[16px] h-[16px] px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-semibold leading-none flex items-center justify-center tabular-nums"
+                              aria-label={`${badge} unread`}
+                            >
+                              {badge}
+                            </span>
+                          )}
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     );
@@ -161,6 +203,11 @@ export function ClientSidebar({
   );
 }
 
+function formatUnreadBadge(count: number): string | null {
+  if (!count || count <= 0) return null;
+  return count >= 100 ? "99+" : String(count);
+}
+
 /**
  * Get nav items for mobile bottom navigation.
  * Returns simplified list for mobile use.
@@ -172,11 +219,11 @@ export function getClientMobileNavItems() {
     "nutrition": "Nutrition",
     "client-workout-calendar": "Calendar",
     "workout-library": "Library",
+    "client-messages": "Messages",
   };
+  const mobileIds = ["client-dashboard", "nutrition", "client-workout-calendar", "workout-library", "client-messages"];
   return routeNavItems
-    .filter(item =>
-      ["client-dashboard", "nutrition", "client-workout-calendar", "workout-library"].includes(item.id)
-    )
+    .filter(item => mobileIds.includes(item.id))
     .map(item => ({
       path: item.path,
       label: MOBILE_LABELS[item.id] ?? item.label,
