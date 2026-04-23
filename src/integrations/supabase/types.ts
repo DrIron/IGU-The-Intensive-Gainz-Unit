@@ -1252,6 +1252,38 @@ export type Database = {
           },
         ]
       }
+      coach_client_message_edits: {
+        Row: {
+          edited_at: string
+          edited_by: string | null
+          id: string
+          message_id: string
+          previous_message: string
+        }
+        Insert: {
+          edited_at?: string
+          edited_by?: string | null
+          id?: string
+          message_id: string
+          previous_message: string
+        }
+        Update: {
+          edited_at?: string
+          edited_by?: string | null
+          id?: string
+          message_id?: string
+          previous_message?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_client_message_edits_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "coach_client_messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coach_client_messages: {
         Row: {
           client_id: string
