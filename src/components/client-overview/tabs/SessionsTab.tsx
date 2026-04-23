@@ -2,9 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { format, formatDistanceToNowStrict, isFuture } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import {
   Calendar as CalendarIcon,
   CalendarClock,
+  ChevronDown,
+  ChevronUp,
   Clock,
   Loader2,
   Sparkles,
@@ -12,6 +15,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { formatSnakeCase } from "@/lib/statusUtils";
+import { DirectClientCalendar } from "@/components/coach/programs/DirectClientCalendar";
 import type { ClientOverviewTabProps } from "../types";
 
 interface DirectSession {
@@ -41,21 +45,25 @@ interface AddonLog {
  *  - Addon session logs joined via `addon_purchases -> addon_services` so
  *    the coach sees a booking's service name, not a bare purchase id.
  *
- * Editing / creation stays on the legacy `DirectClientCalendar` builder
- * for now -- this tab is intentionally view-only so it can ship with
- * no dialog surface and no RLS assumptions.
+ * Primary coach or admin also gets a collapsible `DirectClientCalendar`
+ * below the lists so they can schedule / edit sessions without leaving
+ * the tab. Other viewers see the read-only digest only.
  */
 export function SessionsTab({ context }: ClientOverviewTabProps) {
-  const { clientUserId } = context;
+  const { clientUserId, subscription, viewerRole, profile } = context;
   const [direct, setDirect] = useState<DirectSession[]>([]);
   const [addons, setAddons] = useState<AddonLog[]>([]);
   const [loading, setLoading] = useState(true);
+  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [coachId, setCoachId] = useState<string | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const hasFetched = useRef<string | null>(null);
 
   const load = useCallback(async (userId: string) => {
     setLoading(true);
 
-    const [directRes, purchasesRes] = await Promise.all([
+    const [authRes, directRes, purchasesRes, subRes] = await Promise.all([
+      supabase.auth.getUser(),
       supabase
         .from("direct_calendar_sessions")
         .select(
@@ -68,7 +76,17 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
         .from("addon_purchases")
         .select("id, addon_service_id")
         .eq("client_id", userId),
+      subscription?.id
+        ? supabase
+            .from("subscriptions")
+            .select("coach_id")
+            .eq("id", subscription.id)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null } as { data: { coach_id: string | null } | null; error: null }),
     ]);
+
+    setViewerId(authRes.data?.user?.id ?? null);
+    setCoachId(subRes.data?.coach_id ?? null);
 
     if (directRes.error) {
       console.warn("[SessionsTab] direct sessions:", directRes.error.message);
@@ -130,16 +148,26 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
       })),
     );
     setLoading(false);
-  }, []);
+  }, [subscription?.id]);
 
   useEffect(() => {
-    if (hasFetched.current === clientUserId) return;
-    hasFetched.current = clientUserId;
+    const key = `${clientUserId}:${subscription?.id ?? "none"}`;
+    if (hasFetched.current === key) return;
+    hasFetched.current = key;
     load(clientUserId).catch((err) => {
       console.error("[SessionsTab] unexpected:", err);
       setLoading(false);
     });
-  }, [clientUserId, load]);
+  }, [clientUserId, subscription?.id, load]);
+
+  const isPrimaryCoach = Boolean(viewerId && coachId && viewerId === coachId);
+  const isAdmin = viewerRole === "admin";
+  const canManageCalendar =
+    (isPrimaryCoach || isAdmin) && subscription?.id && viewerId;
+  const clientName =
+    profile.firstName?.trim() ||
+    profile.displayName?.trim() ||
+    "this client";
 
   if (loading) {
     return (
@@ -165,67 +193,96 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
   const past = direct.filter((s) => !upcoming.includes(s));
 
   const empty = direct.length === 0 && addons.length === 0;
-  if (empty) {
-    return (
-      <Card>
-        <CardContent className="py-12 text-center space-y-3">
-          <div className="flex justify-center">
-            <div className="p-3 rounded-full bg-muted">
-              <CalendarClock
-                className="h-5 w-5 text-muted-foreground"
-                aria-hidden="true"
-              />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <p className="font-medium">No ad-hoc sessions yet</p>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">
-              Direct calendar sessions a coach schedules outside the recurring
-              program, and addon bookings, will appear here once any are
-              logged.
-            </p>
-          </div>
-        </CardContent>
-      </Card>
-    );
-  }
 
   return (
     <div className="space-y-6">
-      {upcoming.length > 0 && (
-        <SessionListCard
-          icon={<CalendarIcon className="h-4 w-4" aria-hidden="true" />}
-          title="Upcoming"
-          emphasis
-        >
-          {upcoming.map((s) => (
-            <SessionRow key={s.id} session={s} emphasis />
-          ))}
-        </SessionListCard>
+      {canManageCalendar && (
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setCalendarOpen((v) => !v)}
+            aria-expanded={calendarOpen}
+          >
+            <CalendarIcon className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+            {calendarOpen ? "Hide calendar" : "Open calendar"}
+            {calendarOpen ? (
+              <ChevronUp className="h-3.5 w-3.5 ml-1" aria-hidden="true" />
+            ) : (
+              <ChevronDown className="h-3.5 w-3.5 ml-1" aria-hidden="true" />
+            )}
+          </Button>
+        </div>
       )}
 
-      {past.length > 0 && (
-        <SessionListCard
-          icon={<Clock className="h-4 w-4" aria-hidden="true" />}
-          title="Recent sessions"
-          subtitle={`Last ${Math.min(past.length, 30)} direct calendar sessions`}
-        >
-          {past.map((s) => (
-            <SessionRow key={s.id} session={s} />
-          ))}
-        </SessionListCard>
+      {empty ? (
+        <Card>
+          <CardContent className="py-12 text-center space-y-3">
+            <div className="flex justify-center">
+              <div className="p-3 rounded-full bg-muted">
+                <CalendarClock
+                  className="h-5 w-5 text-muted-foreground"
+                  aria-hidden="true"
+                />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <p className="font-medium">No ad-hoc sessions yet</p>
+              <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                Direct calendar sessions a coach schedules outside the recurring
+                program, and addon bookings, will appear here once any are
+                logged.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <>
+          {upcoming.length > 0 && (
+            <SessionListCard
+              icon={<CalendarIcon className="h-4 w-4" aria-hidden="true" />}
+              title="Upcoming"
+              emphasis
+            >
+              {upcoming.map((s) => (
+                <SessionRow key={s.id} session={s} emphasis />
+              ))}
+            </SessionListCard>
+          )}
+
+          {past.length > 0 && (
+            <SessionListCard
+              icon={<Clock className="h-4 w-4" aria-hidden="true" />}
+              title="Recent sessions"
+              subtitle={`Last ${Math.min(past.length, 30)} direct calendar sessions`}
+            >
+              {past.map((s) => (
+                <SessionRow key={s.id} session={s} />
+              ))}
+            </SessionListCard>
+          )}
+
+          {addons.length > 0 && (
+            <SessionListCard
+              icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
+              title="Addon bookings"
+              subtitle="Recent addon session logs"
+            >
+              {addons.map((a) => (
+                <AddonRow key={a.id} log={a} />
+              ))}
+            </SessionListCard>
+          )}
+        </>
       )}
 
-      {addons.length > 0 && (
-        <SessionListCard
-          icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
-          title="Addon bookings"
-          subtitle="Recent addon session logs"
-        >
-          {addons.map((a) => (
-            <AddonRow key={a.id} log={a} />
-          ))}
-        </SessionListCard>
+      {canManageCalendar && calendarOpen && viewerId && subscription?.id && (
+        <DirectClientCalendar
+          clientUserId={clientUserId}
+          coachUserId={viewerId}
+          subscriptionId={subscription.id}
+          clientName={clientName}
+        />
       )}
     </div>
   );
