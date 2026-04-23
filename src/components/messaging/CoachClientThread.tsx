@@ -153,6 +153,65 @@ export function CoachClientThread({
     });
   }, [clientUserId, load]);
 
+  // Realtime: apply INSERT / UPDATE events for this thread as they land.
+  // Sender avatars are resolved lazily -- when an unknown sender_id shows
+  // up we fire a one-off profiles_public lookup so the row renders with
+  // a name instead of "Someone".
+  useEffect(() => {
+    if (!clientUserId) return;
+
+    const channel = supabase
+      .channel(`ccm-thread:${clientUserId}`)
+      .on(
+        "postgres_changes" as never,
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "coach_client_messages",
+          filter: `client_id=eq.${clientUserId}`,
+        },
+        (payload: { new: Message }) => {
+          const incoming = payload.new;
+          setMessages((prev) =>
+            prev.some((m) => m.id === incoming.id) ? prev : [...prev, incoming],
+          );
+          setSenders((prev) => {
+            if (prev[incoming.sender_id]) return prev;
+            supabase
+              .from("profiles_public")
+              .select("id, first_name, display_name, avatar_url")
+              .eq("id", incoming.sender_id)
+              .maybeSingle()
+              .then(({ data }) => {
+                if (!data) return;
+                setSenders((s) => ({ ...s, [data.id]: data }));
+              });
+            return prev;
+          });
+        },
+      )
+      .on(
+        "postgres_changes" as never,
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "coach_client_messages",
+          filter: `client_id=eq.${clientUserId}`,
+        },
+        (payload: { new: Message }) => {
+          const updated = payload.new;
+          setMessages((prev) =>
+            prev.map((m) => (m.id === updated.id ? { ...m, ...updated } : m)),
+          );
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [clientUserId]);
+
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;

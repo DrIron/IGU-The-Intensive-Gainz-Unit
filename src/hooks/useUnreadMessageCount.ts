@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const POLL_INTERVAL_MS = 60_000;
+// Slow-path fallback -- realtime usually fires the update within a
+// second or two, but if the socket drops or the client is behind a
+// proxy that breaks websockets, this safety net still catches new
+// messages. Bumped from 60s to 5min now that realtime is authoritative.
+const FALLBACK_POLL_MS = 5 * 60 * 1000;
 
 interface UnreadState {
   count: number;
@@ -11,16 +15,15 @@ interface UnreadState {
 /**
  * Per-thread unread count for the authenticated viewer.
  *
- * Backed by the SECURITY DEFINER RPC `get_unread_message_count`, which
- * scopes to a single client's thread and filters out the caller's own
- * messages. RLS + the RPC's internal auth check ensure unauthorised
- * viewers get 0 without an error.
+ * Backed by `get_unread_message_count` (SECURITY DEFINER). Refresh is
+ * now primarily Supabase realtime on the thread's rows -- any INSERT /
+ * UPDATE / DELETE of `coach_client_messages` filtered to this
+ * `client_id` triggers a recount. Safety nets:
+ *   - 5-minute fallback poll in case the realtime socket drops.
+ *   - Tab-focus refresh in case the tab was backgrounded while the
+ *     socket missed a heartbeat.
  *
- * Refresh strategy: initial fetch + poll every 60s + on tab focus.
- * Cheap enough for the nav badge; no realtime subscription.
- *
- * Pass `null` / `undefined` for `clientUserId` to pause fetching (e.g.
- * before the viewer's id has resolved).
+ * Pass `null` / `undefined` for `clientUserId` to pause fetching.
  */
 export function useUnreadMessageCount(
   clientUserId: string | null | undefined,
@@ -38,7 +41,6 @@ export function useUnreadMessageCount(
       p_client_id: clientUserId,
     });
     if (error) {
-      // Expected for unauthorised viewers or a missing thread -- treat as 0.
       console.warn("[useUnreadMessageCount]", error.message);
       setCount(0);
     } else {
@@ -50,12 +52,34 @@ export function useUnreadMessageCount(
   useEffect(() => {
     let cancelled = false;
     setIsLoading(!!clientUserId);
-
     fetchCount();
+
+    if (!clientUserId) return;
+
+    // Realtime: any insert / update / delete on this client's thread
+    // invalidates the cached count. Channel name includes the client
+    // id so parallel mounts don't share state.
+    const channel = supabase
+      .channel(`ccm-unread:${clientUserId}`)
+      .on(
+        // Supabase realtime accepts a string for event and we want
+        // all of them; '*' covers INSERT / UPDATE / DELETE.
+        "postgres_changes" as never,
+        {
+          event: "*",
+          schema: "public",
+          table: "coach_client_messages",
+          filter: `client_id=eq.${clientUserId}`,
+        },
+        () => {
+          if (!cancelled) fetchCount();
+        },
+      )
+      .subscribe();
 
     const interval = window.setInterval(() => {
       if (!cancelled) fetchCount();
-    }, POLL_INTERVAL_MS);
+    }, FALLBACK_POLL_MS);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible" && !cancelled) fetchCount();
@@ -64,6 +88,7 @@ export function useUnreadMessageCount(
 
     return () => {
       cancelled = true;
+      supabase.removeChannel(channel);
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
     };
