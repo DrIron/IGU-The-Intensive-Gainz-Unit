@@ -72,7 +72,7 @@ See `CLAUDE.md` for the current architecture, load-bearing rules, and gotchas.
 
 ## Client Overview shell — PR A (Apr 21, 2026)
 
-Coaches were fragmented across `/coach-client-nutrition?client=…`, `/client-submission/:userId`, and an inline `CoachClientDetail` panel inside the coach dashboard. Consolidated into one URL per client: `/coach/clients/:clientUserId?tab=overview|nutrition|workouts`. PR A is the shell + Overview tab + route wiring; Workouts tab and entry-point rewire land later. Spec: `docs/CLIENT_OVERVIEW_HANDOFF.md`.
+Coaches were fragmented across `/coach-client-nutrition?client=…`, `/client-submission/:userId`, and an inline `CoachClientDetail` panel inside the coach dashboard. Consolidated into one URL per client: `/coach/clients/:clientUserId?tab=overview|nutrition|workouts`. PR A is the shell + Overview tab + route wiring; Workouts tab and entry-point rewire land later. (Original handoff spec `docs/CLIENT_OVERVIEW_HANDOFF.md` retired after the shell was fully expanded — see § "Client Overview expansion — 8 sections + Messages".)
 
 **The contract (`src/components/client-overview/types.ts`, locked):**
 
@@ -1123,3 +1123,48 @@ End-to-end live test of every nutrition surface (client, coach, calculator, team
 3. **`RoleProtectedRoute({ requiredRole: "coach" })` blocks admins by design.** Documented decision, not oversight. If admin needs access to a coach-only surface, either add a parallel admin route or loosen the guard explicitly.
 4. **Signed-delta math needs worked examples.** When expected and actual can both be negative (fat loss) or both positive (muscle gain), put two comment examples directly above the branch so the next reader isn't tempted to "simplify" them.
 5. **Single source of truth for macro math is `src/utils/nutritionCalculations.ts#calculateNutritionGoals`.** No inline BMR/TDEE. If you find one (e.g. the legacy `NutritionGoal.tsx` still has one), route it through the shared function as part of your touch.
+
+---
+
+## Client Overview expansion — 8 sections + Messages (Apr 23, 2026)
+
+Built out the full Client Overview shell from the 3-tab starter into an 8-section coach-primary surface with realtime messaging, and shipped a standalone `/coach` crash fix along the way. Sixteen PRs across one session.
+
+**Shell structure:** horizontal tab strip (`?tab=overview|nutrition|workouts`) → sticky left rail on desktop / horizontal pill scroller on mobile, 8 slugs: `overview` (existing), `progress`, `nutrition` (existing), `workouts` (existing), `sessions`, `messages`, `care-team`, `profile`. `ClientOverviewNav` accepts an optional `badgeCounts` prop; only `messages` currently populates it.
+
+### Sections shipped
+- **Progress (#84)** — composes `CoachNutritionGraphs` (phase-scoped: weight / body-fat / circumference / adjustments) + `VolumeChart` (client-scoped from `exercise_set_logs`). Empty state when no phase, volume still renders.
+- **Profile & Info (#85)** — 3 read-only cards: demographics (`useClientDemographics`), subscription (from context, zero fetches), onboarding (`form_submissions_safe` for coach-safe fields + deep-link to the PHI-gated submission page).
+- **Care Team (#86)** — composes existing `CareTeamCard` (gated to primary coach / admin) + `CareTeamMessagesPanel` (staff-only chat). Tab fetches `subscriptions.coach_id` + `coaches_directory` to compute `isPrimaryCoach`.
+- **Sessions (#87)** — read-only lists for `direct_calendar_sessions` (upcoming + recent) and `addon_session_logs` (joined via `addon_purchases.addon_service_id → addon_services.name` in JS, never nested FK joins).
+- **Sessions + calendar polish (#93)** — collapsible `DirectClientCalendar` button for primary coach / admin. Embedded under the lists, empty-state still reachable.
+
+### Messages stack (Phase 3)
+
+Four user decisions shaped it: shared group thread with care team (not per-staff threads), one thread per client, refresh-on-open (no realtime at first → later added), text only, in-app badge + Resend email with 30-minute throttle.
+
+- **Backend (#88)** — table `coach_client_messages` + RLS (client + care team + admin) + RPCs `mark_coach_client_thread_read` and `get_unread_message_count` + `email_notifications.context_id` column for per-thread throttling + edge function `send-coach-client-message-email` (deployed `--no-verify-jwt`, validates caller JWT internally).
+- **Coach UI (#89)** — `MessagesTab` + shared `CoachClientThread.tsx`. Auto-resolves senders from `profiles_public`, day dividers (Today / Yesterday / `EEEE, MMM d`), Cmd/Ctrl+Enter send, `mark_coach_client_thread_read` on mount, email fire-and-forget after insert.
+- **Client route (#90)** — `/messages` under `AuthGuard` + `OnboardingGuard`, same thread component with `viewerIsClient=true`. New client sidebar group + 5th mobile dock item (Home / Nutrition / Calendar / Library / Messages).
+- **Polish α (#91)** — mobile `useIsMobile()` Drawer composer, own-message kebab with Edit (inline textarea, optimistic + rollback) / Delete (confirm → soft-delete). RLS already allowed sender-only UPDATE; no schema change needed.
+- **Polish β (#92)** — `useUnreadMessageCount` hook + red count badges on coach `ClientOverviewNav` and client `ClientSidebar`.
+- **Coach directory badge (#95)** — new RPC `get_unread_message_counts_for_staff()` returns `{client_id, unread_count}` for every thread the caller can see in one query, consumed by `useStaffUnreadCounts` + `CoachMyClientsPage`. Avoids the N+1 if you call per-thread `get_unread_message_count` per row.
+- **Realtime (#96)** — Supabase realtime on `coach_client_messages` filtered by `client_id`. `useUnreadMessageCount` and `CoachClientThread` both subscribe; 60s poll dropped to a 5-minute fallback, tab-focus refresh kept. Lazy sender lookup when an unknown id streams in.
+- **Edit history audit (#97)** — table `coach_client_message_edits` + `AFTER UPDATE` trigger `record_coach_client_message_edit` that snapshots `OLD.message` whenever the text actually changes. The "edited" label becomes a clickable `Popover` that lazy-loads prior versions.
+
+### Other shipped
+
+- **`/coach` null-user crash fix (#94)** — unrelated pre-existing bug I tripped while testing. `CoachDashboardLayout.renderContent()` accessed `user.id` in every branch without a guard; when `loading` settled to false with `currentUser === null` (expired session / failed refresh), `GlobalErrorBoundary` caught the throw and the user saw "Something went wrong" instead of a sign-in prompt. Added a defensive early-return with a loader + "Session not available" card + sign-in button. Upstream auth-refresh race is a separate follow-up.
+
+### Incident: conflict markers shipped to main + recovered (#98)
+
+During the cascade of merging the Messages stack, I resolved conflicts on the #92 branch but ran `git add -u` with the tab files still in `AA` (unresolved) state. Git accepted the commit with conflict markers intact, the squash-merge landed them on main, and Vercel production + subsequent PR previews failed for ~3 minutes. #98 restored the four affected files (`ClientOverviewNav.tsx`, `ClientOverviewTabs.tsx`, `CareTeamTab.tsx`, `ProfileInfoTab.tsx`) to their last-intended states and the next production build was green.
+
+**Rule carried forward:** before committing a merge, `git status --short` should show zero `AA` / `UU` rows. If it does, `git add -u` is not enough — either `git checkout --ours` / `--theirs` each file first, or open the file and manually remove markers. The only way a squash-merged commit can contain conflict markers is if the staged index already contained them — a one-second check would have caught it.
+
+### Rules worth carrying forward (now in CLAUDE.md)
+
+1. **`care_team_messages` vs `coach_client_messages` are separate, don't conflate.** The former is staff-only by explicit RLS (client excluded); the latter is the shared coach ↔ client thread. Two different surfaces, two different components, two different tables.
+2. **Email throttling rides on `email_notifications.context_id`.** Per-(recipient, thread) dedup, not per-(recipient) — otherwise a coach with 5 messaging clients cross-throttles. Fail open on dedup errors; prefer delivering.
+3. **Add a new section → update `SECTION_SLUGS` in `sections.ts` too.** The nav renders from that array; the switch in `ClientOverviewTabs.tsx` relies on exhaustive checks against the slug type.
+4. **`git status --short` before committing a merge.** Any `AA` / `UU` means conflict markers still live in the staged index. See #98 incident.

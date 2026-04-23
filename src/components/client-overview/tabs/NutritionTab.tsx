@@ -26,9 +26,9 @@ interface PhaseStats {
  *
  * Port of /coach-client-nutrition minus the client picker (the shell resolves
  * the client upstream). Feature parity: same 3-inner-tab layout (Overview /
- * Adjustments / History), same permission gates, same hero card. Remove the
- * shell's /coach-client-nutrition route only after this tab is live in the
- * shell -- see docs/CLIENT_OVERVIEW_HANDOFF.md.
+ * Adjustments / History), same permission gates, same hero card. Deprecation
+ * of the legacy /coach-client-nutrition route rides in a later PR once the
+ * shell soaks.
  */
 export function NutritionTab({ context }: ClientOverviewTabProps) {
   const { clientUserId } = context;
