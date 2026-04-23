@@ -1,6 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams, useLocation, useNavigate } from "react-router-dom";
+import { useSearchParams, useLocation, useNavigate, Link } from "react-router-dom";
+import { Loader2 } from "lucide-react";
 import { SidebarProvider } from "@/components/ui/sidebar";
+import { Button } from "@/components/ui/button";
 import { CoachSidebar } from "./CoachSidebar";
 import CoachProfile from "@/components/CoachProfile";
 import { ExerciseLibrary } from "./ExerciseLibrary";
@@ -106,6 +108,30 @@ export function CoachDashboardLayout({
   }, []);
 
   const renderContent = () => {
+    // Defensive guard: the parent (CoachDashboard) is supposed to wait for
+    // auth to resolve before rendering this layout, but the user prop is
+    // typed `any` and there's a real-world race where `loading` flips to
+    // false with `currentUser === null` (expired session, failed refresh).
+    // Without this branch, every `case` below crashes on `user.id` and the
+    // GlobalErrorBoundary swallows the page -- the user lands on "Something
+    // went wrong" instead of a login prompt.
+    if (!user?.id) {
+      return (
+        <div className="flex flex-col items-center justify-center gap-4 py-20 text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" aria-hidden="true" />
+          <div className="space-y-1 max-w-sm">
+            <p className="font-medium">Session not available</p>
+            <p className="text-sm text-muted-foreground">
+              We couldn't load your coach account. Try signing in again.
+            </p>
+          </div>
+          <Button asChild variant="outline" size="sm">
+            <Link to="/auth">Sign in</Link>
+          </Button>
+        </div>
+      );
+    }
+
     // Training mode: only show training + profile
     if (isTrainingMode) {
       if (activeSection === "profile") {
