@@ -1,6 +1,9 @@
 <<<<<<< HEAD
 =======
 <<<<<<< HEAD
+=======
+<<<<<<< HEAD
+>>>>>>> origin/main
 >>>>>>> origin/main
 import { Users } from "lucide-react";
 import type { ClientOverviewTabProps } from "../types";
@@ -13,6 +16,8 @@ export function CareTeamTab(_props: ClientOverviewTabProps) {
       title="Care Team"
       description="Roster of every professional working with this client -- coach, dietitian, physio, and more -- plus a threaded conversation shared across the whole team."
     />
+<<<<<<< HEAD
+=======
 <<<<<<< HEAD
 =======
 =======
@@ -152,6 +157,7 @@ export function CareTeamTab({ context }: ClientOverviewTabProps) {
 
       <CareTeamMessagesPanel clientId={clientUserId} />
     </div>
+>>>>>>> origin/main
 >>>>>>> origin/main
 >>>>>>> origin/main
   );

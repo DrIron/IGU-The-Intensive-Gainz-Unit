@@ -2,6 +2,10 @@ import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ClientOverviewNav } from "./ClientOverviewNav";
 import { SECTION_SLUGS, type SectionSlug } from "./sections";
+<<<<<<< HEAD
+import { useUnreadMessageCount } from "@/hooks/useUnreadMessageCount";
+=======
+>>>>>>> origin/main
 import { OverviewTab } from "./tabs/OverviewTab";
 import { ProgressTab } from "./tabs/ProgressTab";
 import { NutritionTab } from "./tabs/NutritionTab";
@@ -35,6 +39,7 @@ interface ClientOverviewTabsProps {
  */
 export function ClientOverviewTabs({ context }: ClientOverviewTabsProps) {
   const [searchParams, setSearchParams] = useSearchParams();
+  const { count: unreadMessages } = useUnreadMessageCount(context.clientUserId);
 
   const activeSlug = useMemo<SectionSlug>(() => {
     const raw = searchParams.get("tab");
@@ -57,7 +62,15 @@ export function ClientOverviewTabs({ context }: ClientOverviewTabsProps) {
 
   return (
     <div className="md:flex md:gap-6 md:items-start">
+<<<<<<< HEAD
+      <ClientOverviewNav
+        activeSlug={activeSlug}
+        onSelect={handleSelect}
+        badgeCounts={{ messages: unreadMessages }}
+      />
+=======
       <ClientOverviewNav activeSlug={activeSlug} onSelect={handleSelect} />
+>>>>>>> origin/main
       <section className="flex-1 min-w-0 mt-4 md:mt-0">
         <SectionPanel slug={activeSlug} context={context} />
       </section>
