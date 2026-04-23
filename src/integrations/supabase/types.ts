@@ -7395,6 +7395,13 @@ export type Database = {
         Args: { p_client_id: string }
         Returns: number
       }
+      get_unread_message_counts_for_staff: {
+        Args: never
+        Returns: {
+          client_id: string
+          unread_count: number
+        }[]
+      }
       get_user_subroles: { Args: { p_user_id: string }; Returns: string[] }
       get_views_without_security_invoker: {
         Args: never
