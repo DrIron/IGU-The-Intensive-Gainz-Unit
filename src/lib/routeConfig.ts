@@ -142,6 +142,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "billing-pay", path: "/billing/pay", label: "Billing Payment", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },
   { id: "educational-videos", path: "/educational-videos", label: "Educational Videos", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: true, icon: Video, navOrder: 6 },
   { id: "sessions", path: "/sessions", label: "Sessions", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: true, icon: CalendarDays, navOrder: 7 },
+  { id: "client-messages", path: "/messages", label: "Messages", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: true, icon: MessageSquare, navOrder: 8 },
   { id: "access-debug", path: "/access-debug", label: "Access Debug", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },
 ];
 

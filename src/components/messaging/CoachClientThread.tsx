@@ -12,7 +12,30 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, Send, MessageSquare } from "lucide-react";
+import {
+  Loader2,
+  Send,
+  MessageSquare,
+  MoreVertical,
+  Pencil,
+  Trash2,
+} from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  Drawer,
+  DrawerClose,
+  DrawerContent,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
 const MAX_MESSAGE_LENGTH = 4000;
@@ -38,10 +61,6 @@ interface SenderProfile {
 export interface CoachClientThreadProps {
   clientUserId: string;
   viewerUserId: string;
-  /**
-   * Client side sets this true so the thread header reads "Your care team"
-   * instead of "{client}". No policy difference -- purely cosmetic.
-   */
   viewerIsClient?: boolean;
   className?: string;
 }
@@ -49,24 +68,17 @@ export interface CoachClientThreadProps {
 /**
  * Shared thread view for the coach<->client messaging surface.
  *
- * Backing data:
- *   - `coach_client_messages` (one flat thread per client). RLS lets the
- *     client themselves and every active care-team member read / write.
- *   - Sender display resolved against `profiles_public` (coach-safe; no
- *     PII exposed here).
+ * Desktop: inline composer at the bottom of the card.
+ * Mobile (`useIsMobile()`): composer collapses to a button that opens a
+ * vaul Drawer with a bigger textarea and safe-area-aware send button,
+ * matching the convention used by MobileDayDetail / ExercisePickerDialog.
  *
- * Behaviour:
- *   - Loads the thread in chronological order on mount.
- *   - Fires `mark_coach_client_thread_read` RPC on mount (silent).
- *   - Composer submits via button or Cmd/Ctrl + Enter. After a successful
- *     insert it fires `send-coach-client-message-email` edge function
- *     fire-and-forget. Email throttle (30 min per recipient per thread)
- *     lives on the edge function; the UI does not try to debounce.
- *   - Soft-deleted rows render as "[message deleted]" placeholders so
- *     the conversation stays coherent.
- *
- * Re-used by both the coach-side MessagesTab and the client-side
- * /messages route so the two surfaces stay in sync.
+ * Own messages show a kebab menu with Edit / Delete actions:
+ *   - Edit -> inline textarea replaces the bubble; Save issues an
+ *     UPDATE (RLS: sender-only) and stamps edited_at.
+ *   - Delete -> confirm via window.confirm, then UPDATE sets deleted_at.
+ *     The row stays rendered as a muted "[message deleted]" placeholder
+ *     so the conversation doesn't develop holes.
  */
 export function CoachClientThread({
   clientUserId,
@@ -74,17 +86,19 @@ export function CoachClientThread({
   viewerIsClient: _viewerIsClient,
   className,
 }: CoachClientThreadProps) {
+  const isMobile = useIsMobile();
   const [messages, setMessages] = useState<Message[]>([]);
   const [senders, setSenders] = useState<Record<string, SenderProfile>>({});
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const hasFetched = useRef<string | null>(null);
 
-  // Load thread + resolve sender display data.
   const load = useCallback(async (threadKey: string) => {
     setLoading(true);
     setError(null);
@@ -105,8 +119,6 @@ export function CoachClientThread({
     const rows = (data ?? []) as Message[];
     setMessages(rows);
 
-    // Resolve distinct senders in one batch. profiles is a view, but
-    // profiles_public is a base table -- safe to query directly.
     const distinctIds = Array.from(new Set(rows.map((r) => r.sender_id)));
     if (distinctIds.length > 0) {
       const { data: profiles, error: profilesErr } = await supabase
@@ -121,7 +133,6 @@ export function CoachClientThread({
       setSenders(map);
     }
 
-    // Fire-and-forget: mark thread read for the viewer.
     supabase
       .rpc("mark_coach_client_thread_read", { p_client_id: threadKey })
       .then(({ error: readErr }) => {
@@ -142,8 +153,6 @@ export function CoachClientThread({
     });
   }, [clientUserId, load]);
 
-  // Keep the viewport pinned to the newest message after messages land or
-  // a new one is appended.
   useEffect(() => {
     if (!scrollRef.current) return;
     scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -180,9 +189,8 @@ export function CoachClientThread({
     setMessages((prev) => [...prev, data as Message]);
     setDraft("");
     setSending(false);
+    setMobileOpen(false);
 
-    // Fire-and-forget email notification. The edge function verifies the
-    // caller's JWT matches sender_id and throttles per (recipient, thread).
     supabase.functions
       .invoke("send-coach-client-message-email", {
         body: { message_id: data.id },
@@ -192,15 +200,66 @@ export function CoachClientThread({
       });
   }, [draft, sending, clientUserId, viewerUserId]);
 
-  const handleKeyDown = useCallback(
-    (e: KeyboardEvent<HTMLTextAreaElement>) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
-        e.preventDefault();
-        handleSend();
+  const handleSaveEdit = useCallback(
+    async (id: string, nextBody: string) => {
+      const trimmed = nextBody.trim();
+      if (!trimmed) return;
+      if (trimmed.length > MAX_MESSAGE_LENGTH) {
+        setError(`Message too long (${trimmed.length}/${MAX_MESSAGE_LENGTH})`);
+        return;
+      }
+
+      const prev = messages.find((m) => m.id === id);
+      if (!prev || prev.message === trimmed) {
+        setEditingId(null);
+        return;
+      }
+
+      const nowIso = new Date().toISOString();
+      setMessages((all) =>
+        all.map((m) => (m.id === id ? { ...m, message: trimmed, edited_at: nowIso } : m)),
+      );
+      setEditingId(null);
+
+      const { error: updateError } = await supabase
+        .from("coach_client_messages")
+        .update({ message: trimmed, edited_at: nowIso })
+        .eq("id", id);
+
+      if (updateError) {
+        console.error("[CoachClientThread] edit:", updateError.message);
+        setError(updateError.message);
+        // Roll back optimistic edit.
+        setMessages((all) =>
+          all.map((m) => (m.id === id ? { ...m, message: prev.message, edited_at: prev.edited_at } : m)),
+        );
       }
     },
-    [handleSend],
+    [messages],
   );
+
+  const handleDelete = useCallback(async (id: string) => {
+    const confirmed = window.confirm("Delete this message? It will show as '[message deleted]' to everyone in the thread.");
+    if (!confirmed) return;
+
+    const nowIso = new Date().toISOString();
+    setMessages((all) =>
+      all.map((m) => (m.id === id ? { ...m, deleted_at: nowIso } : m)),
+    );
+
+    const { error: updateError } = await supabase
+      .from("coach_client_messages")
+      .update({ deleted_at: nowIso })
+      .eq("id", id);
+
+    if (updateError) {
+      console.error("[CoachClientThread] delete:", updateError.message);
+      setError(updateError.message);
+      setMessages((all) =>
+        all.map((m) => (m.id === id ? { ...m, deleted_at: null } : m)),
+      );
+    }
+  }, []);
 
   const grouped = useMemo(() => groupByDay(messages), [messages]);
 
@@ -230,6 +289,11 @@ export function CoachClientThread({
                     message={m}
                     sender={senders[m.sender_id]}
                     isOwn={m.sender_id === viewerUserId}
+                    isEditing={editingId === m.id}
+                    onEditStart={() => setEditingId(m.id)}
+                    onEditCancel={() => setEditingId(null)}
+                    onEditSave={(next) => handleSaveEdit(m.id, next)}
+                    onDelete={() => handleDelete(m.id)}
                   />
                 ))}
               </div>
@@ -237,34 +301,91 @@ export function CoachClientThread({
           )}
         </div>
 
-        <div className="border-t p-3 md:p-4 flex items-end gap-2">
-          <Textarea
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={handleKeyDown}
-            disabled={sending}
-            placeholder="Write a message... (Cmd/Ctrl + Enter to send)"
-            rows={2}
-            maxLength={MAX_MESSAGE_LENGTH}
-            className="flex-1 min-h-[60px] max-h-[200px] resize-none text-base md:text-sm"
-            aria-label="Message composer"
-          />
-          <Button
-            onClick={handleSend}
-            disabled={!draft.trim() || sending}
-            size="sm"
-            className="shrink-0"
-          >
-            {sending ? (
-              <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-            ) : (
-              <>
-                <Send className="h-4 w-4 mr-1" aria-hidden="true" />
-                Send
-              </>
-            )}
-          </Button>
-        </div>
+        {isMobile ? (
+          <Drawer open={mobileOpen} onOpenChange={setMobileOpen}>
+            <DrawerTrigger asChild>
+              <button
+                type="button"
+                className="border-t w-full text-left px-4 py-3 text-sm text-muted-foreground bg-card hover:bg-muted/50 transition-colors touch-manipulation active:scale-[0.995] flex items-center justify-between min-h-[56px]"
+              >
+                Write a message...
+                <Send className="h-4 w-4" aria-hidden="true" />
+              </button>
+            </DrawerTrigger>
+            <DrawerContent className="max-h-[92vh] flex flex-col">
+              <DrawerHeader className="text-left">
+                <DrawerTitle>Write a message</DrawerTitle>
+              </DrawerHeader>
+              <div className="flex-1 overflow-y-auto px-4">
+                <Textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  placeholder="Type your message..."
+                  rows={8}
+                  maxLength={MAX_MESSAGE_LENGTH}
+                  className="w-full resize-none h-10 min-h-[160px] text-base"
+                  aria-label="Message composer"
+                  autoFocus
+                />
+              </div>
+              <DrawerFooter className="pb-[env(safe-area-inset-bottom)] flex-row gap-2">
+                <DrawerClose asChild>
+                  <Button variant="outline" className="flex-1">
+                    Cancel
+                  </Button>
+                </DrawerClose>
+                <Button
+                  onClick={handleSend}
+                  disabled={!draft.trim() || sending}
+                  className="flex-1"
+                >
+                  {sending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-1" aria-hidden="true" />
+                      Send
+                    </>
+                  )}
+                </Button>
+              </DrawerFooter>
+            </DrawerContent>
+          </Drawer>
+        ) : (
+          <div className="border-t p-3 md:p-4 flex items-end gap-2">
+            <Textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              disabled={sending}
+              placeholder="Write a message... (Cmd/Ctrl + Enter to send)"
+              rows={2}
+              maxLength={MAX_MESSAGE_LENGTH}
+              className="flex-1 min-h-[60px] max-h-[200px] resize-none text-sm"
+              aria-label="Message composer"
+            />
+            <Button
+              onClick={handleSend}
+              disabled={!draft.trim() || sending}
+              size="sm"
+              className="shrink-0"
+            >
+              {sending ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-1" aria-hidden="true" />
+                  Send
+                </>
+              )}
+            </Button>
+          </div>
+        )}
 
         {error && (
           <div className="border-t bg-destructive/10 px-4 py-2 text-xs text-destructive">
@@ -316,15 +437,27 @@ function DayDivider({ label }: { label: string }) {
   );
 }
 
+interface MessageRowProps {
+  message: Message;
+  sender: SenderProfile | undefined;
+  isOwn: boolean;
+  isEditing: boolean;
+  onEditStart: () => void;
+  onEditCancel: () => void;
+  onEditSave: (next: string) => void;
+  onDelete: () => void;
+}
+
 function MessageRow({
   message,
   sender,
   isOwn,
-}: {
-  message: Message;
-  sender: SenderProfile | undefined;
-  isOwn: boolean;
-}) {
+  isEditing,
+  onEditStart,
+  onEditCancel,
+  onEditSave,
+  onDelete,
+}: MessageRowProps) {
   const name = isOwn
     ? "You"
     : sender?.display_name || sender?.first_name || "Someone";
@@ -334,11 +467,12 @@ function MessageRow({
       .toUpperCase();
   const when = format(new Date(message.created_at), "h:mm a");
   const isDeleted = message.deleted_at !== null;
+  const canActOnOwn = isOwn && !isDeleted;
 
   return (
     <div
       className={cn(
-        "flex gap-3",
+        "group flex gap-3",
         isOwn ? "flex-row-reverse text-right" : "flex-row",
       )}
     >
@@ -349,22 +483,106 @@ function MessageRow({
         </AvatarFallback>
       </Avatar>
       <div className={cn("min-w-0 max-w-[75%] space-y-1", isOwn && "items-end")}>
-        <p className="font-mono text-[11px] text-muted-foreground tabular-nums">
-          {name} <span className="opacity-60">· {when}</span>
-          {message.edited_at && <span className="opacity-60"> · edited</span>}
-        </p>
-        <div
-          className={cn(
-            "inline-block rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words text-left",
-            isDeleted
-              ? "bg-muted text-muted-foreground italic"
-              : isOwn
-                ? "bg-primary/10 text-foreground"
-                : "bg-muted text-foreground",
+        <p className="font-mono text-[11px] text-muted-foreground tabular-nums flex items-center gap-1.5 justify-start">
+          <span className={cn(isOwn && "order-2")}>
+            {name} <span className="opacity-60">· {when}</span>
+            {message.edited_at && !isDeleted && (
+              <span className="opacity-60"> · edited</span>
+            )}
+          </span>
+          {canActOnOwn && !isEditing && (
+            <span className={cn("opacity-0 group-hover:opacity-100 transition-opacity", isOwn && "order-1")}>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    aria-label="Message actions"
+                    className="inline-flex items-center justify-center h-6 w-6 rounded hover:bg-muted text-muted-foreground touch-manipulation"
+                  >
+                    <MoreVertical className="h-3.5 w-3.5" aria-hidden="true" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align={isOwn ? "start" : "end"} className="min-w-[140px]">
+                  <DropdownMenuItem onClick={onEditStart}>
+                    <Pencil className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
+                    Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+                    <Trash2 className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </span>
           )}
-        >
-          {isDeleted ? "[message deleted]" : message.message}
-        </div>
+        </p>
+        {isEditing ? (
+          <EditBubble
+            initial={message.message}
+            onSave={onEditSave}
+            onCancel={onEditCancel}
+          />
+        ) : (
+          <div
+            className={cn(
+              "inline-block rounded-lg px-3 py-2 text-sm whitespace-pre-wrap break-words text-left",
+              isDeleted
+                ? "bg-muted text-muted-foreground italic"
+                : isOwn
+                  ? "bg-primary/10 text-foreground"
+                  : "bg-muted text-foreground",
+            )}
+          >
+            {isDeleted ? "[message deleted]" : message.message}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function EditBubble({
+  initial,
+  onSave,
+  onCancel,
+}: {
+  initial: string;
+  onSave: (next: string) => void;
+  onCancel: () => void;
+}) {
+  const [value, setValue] = useState(initial);
+  const isDirty = value.trim().length > 0 && value !== initial;
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === "Escape") {
+      e.preventDefault();
+      onCancel();
+    }
+    if ((e.metaKey || e.ctrlKey) && e.key === "Enter") {
+      e.preventDefault();
+      if (isDirty) onSave(value);
+    }
+  };
+
+  return (
+    <div className="inline-flex flex-col gap-1 w-full text-left">
+      <Textarea
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={handleKeyDown}
+        autoFocus
+        rows={3}
+        maxLength={MAX_MESSAGE_LENGTH}
+        className="text-sm resize-none"
+        aria-label="Edit message"
+      />
+      <div className="flex gap-2 justify-end">
+        <Button size="sm" variant="ghost" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button size="sm" onClick={() => onSave(value)} disabled={!isDirty}>
+          Save
+        </Button>
       </div>
     </div>
   );
