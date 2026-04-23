@@ -33,6 +33,11 @@ const SECTIONS: readonly SectionDef[] = [
 interface ClientOverviewNavProps {
   activeSlug: SectionSlug;
   onSelect: (slug: SectionSlug) => void;
+  /**
+   * Optional per-slug counter badges (e.g. unread messages). Zero / nullish
+   * entries render nothing. Values >= 100 render as "99+".
+   */
+  badgeCounts?: Partial<Record<SectionSlug, number>>;
 }
 
 /**
@@ -45,7 +50,11 @@ interface ClientOverviewNavProps {
  * Mobile: horizontal scroller that hugs below the top nav, same sections
  * in icon-over-label pills. Arrow keys cycle through rows on both layouts.
  */
-export function ClientOverviewNav({ activeSlug, onSelect }: ClientOverviewNavProps) {
+export function ClientOverviewNav({
+  activeSlug,
+  onSelect,
+  badgeCounts,
+}: ClientOverviewNavProps) {
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLButtonElement>, idx: number) => {
       const horizontal = e.key === "ArrowRight" || e.key === "ArrowLeft";
@@ -74,6 +83,7 @@ export function ClientOverviewNav({ activeSlug, onSelect }: ClientOverviewNavPro
           {SECTIONS.map((section, idx) => {
             const isActive = section.slug === activeSlug;
             const Icon = section.icon;
+            const badge = formatBadge(badgeCounts?.[section.slug]);
             return (
               <li key={section.slug}>
                 <button
@@ -83,7 +93,7 @@ export function ClientOverviewNav({ activeSlug, onSelect }: ClientOverviewNavPro
                   onKeyDown={(e) => handleKeyDown(e, idx)}
                   aria-current={isActive ? "page" : undefined}
                   className={cn(
-                    "flex flex-col items-center justify-center gap-1 px-3 rounded-lg border text-xs min-w-[84px] min-h-[56px] touch-manipulation active:scale-[0.98] transition-colors",
+                    "relative flex flex-col items-center justify-center gap-1 px-3 rounded-lg border text-xs min-w-[84px] min-h-[56px] touch-manipulation active:scale-[0.98] transition-colors",
                     "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
                     isActive
                       ? "border-emerald-500/50 bg-emerald-500/10 text-foreground"
@@ -92,6 +102,14 @@ export function ClientOverviewNav({ activeSlug, onSelect }: ClientOverviewNavPro
                 >
                   <Icon className="h-4 w-4" aria-hidden="true" />
                   <span className="leading-none whitespace-nowrap">{section.label}</span>
+                  {badge && (
+                    <span
+                      className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold leading-none flex items-center justify-center tabular-nums"
+                      aria-label={`${badge} unread`}
+                    >
+                      {badge}
+                    </span>
+                  )}
                 </button>
               </li>
             );
@@ -104,6 +122,7 @@ export function ClientOverviewNav({ activeSlug, onSelect }: ClientOverviewNavPro
         {SECTIONS.map((section, idx) => {
           const isActive = section.slug === activeSlug;
           const Icon = section.icon;
+          const badge = formatBadge(badgeCounts?.[section.slug]);
           return (
             <li key={section.slug}>
               <button
@@ -132,12 +151,20 @@ export function ClientOverviewNav({ activeSlug, onSelect }: ClientOverviewNavPro
                   />
                   <span
                     className={cn(
-                      "text-sm",
+                      "text-sm flex-1",
                       isActive ? "font-medium text-foreground" : "text-muted-foreground",
                     )}
                   >
                     {section.label}
                   </span>
+                  {badge && (
+                    <span
+                      className="ml-auto shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold leading-none flex items-center justify-center tabular-nums"
+                      aria-label={`${badge} unread`}
+                    >
+                      {badge}
+                    </span>
+                  )}
                 </span>
               </button>
             </li>
@@ -146,4 +173,9 @@ export function ClientOverviewNav({ activeSlug, onSelect }: ClientOverviewNavPro
       </ul>
     </nav>
   );
+}
+
+function formatBadge(count: number | undefined): string | null {
+  if (!count || count <= 0) return null;
+  return count >= 100 ? "99+" : String(count);
 }
