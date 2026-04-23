@@ -27,6 +27,11 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Drawer,
   DrawerClose,
   DrawerContent,
@@ -487,7 +492,11 @@ function MessageRow({
           <span className={cn(isOwn && "order-2")}>
             {name} <span className="opacity-60">· {when}</span>
             {message.edited_at && !isDeleted && (
-              <span className="opacity-60"> · edited</span>
+              <>
+                {" "}
+                <span className="opacity-60">·</span>{" "}
+                <EditHistoryTrigger messageId={message.id} />
+              </>
             )}
           </span>
           {canActOnOwn && !isEditing && (
@@ -603,5 +612,87 @@ function EmptyThread() {
         No messages yet. Say hi to start the conversation.
       </p>
     </div>
+  );
+}
+
+interface EditRow {
+  id: string;
+  previous_message: string;
+  edited_at: string;
+}
+
+/**
+ * Clickable "edited" chip that opens a popover listing prior versions
+ * of the message (newest-first). Lazy-loads from coach_client_message_edits
+ * so the cost is only paid when someone cares to look.
+ */
+function EditHistoryTrigger({ messageId }: { messageId: string }) {
+  const [open, setOpen] = useState(false);
+  const [history, setHistory] = useState<EditRow[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open || history !== null || loading) return;
+    setLoading(true);
+    setError(null);
+    supabase
+      .from("coach_client_message_edits")
+      .select("id, previous_message, edited_at")
+      .eq("message_id", messageId)
+      .order("edited_at", { ascending: false })
+      .then(({ data, error: fetchError }) => {
+        if (fetchError) {
+          console.warn("[EditHistoryTrigger]", fetchError.message);
+          setError("Couldn't load history");
+        } else {
+          setHistory((data ?? []) as EditRow[]);
+        }
+        setLoading(false);
+      });
+  }, [open, history, loading, messageId]);
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="underline opacity-60 hover:opacity-100 transition-opacity focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded"
+          aria-label="Show edit history"
+        >
+          edited
+        </button>
+      </PopoverTrigger>
+      <PopoverContent align="start" className="w-80 p-3 space-y-2 text-left">
+        <p className="text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+          Previous versions
+        </p>
+        {loading ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+            Loading...
+          </div>
+        ) : error ? (
+          <p className="text-xs text-destructive">{error}</p>
+        ) : history && history.length > 0 ? (
+          <ul className="space-y-2 max-h-60 overflow-y-auto">
+            {history.map((row) => (
+              <li key={row.id} className="space-y-0.5">
+                <p className="font-mono text-[10px] text-muted-foreground tabular-nums">
+                  {format(new Date(row.edited_at), "MMM d, h:mm a")}
+                </p>
+                <p className="text-xs whitespace-pre-wrap break-words text-muted-foreground">
+                  {row.previous_message}
+                </p>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            No previous versions recorded.
+          </p>
+        )}
+      </PopoverContent>
+    </Popover>
   );
 }
