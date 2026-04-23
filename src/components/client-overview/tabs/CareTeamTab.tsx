@@ -1,3 +1,16 @@
+<<<<<<< HEAD
+import { Users } from "lucide-react";
+import type { ClientOverviewTabProps } from "../types";
+import { ComingSoonPanel } from "./_ComingSoon";
+
+export function CareTeamTab(_props: ClientOverviewTabProps) {
+  return (
+    <ComingSoonPanel
+      icon={Users}
+      title="Care Team"
+      description="Roster of every professional working with this client -- coach, dietitian, physio, and more -- plus a threaded conversation shared across the whole team."
+    />
+=======
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Users, Loader2 } from "lucide-react";
@@ -134,5 +147,6 @@ export function CareTeamTab({ context }: ClientOverviewTabProps) {
 
       <CareTeamMessagesPanel clientId={clientUserId} />
     </div>
+>>>>>>> origin/main
   );
 }
