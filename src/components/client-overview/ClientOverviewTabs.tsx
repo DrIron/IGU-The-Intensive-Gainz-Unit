@@ -1,63 +1,93 @@
 import { useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ClientOverviewNav } from "./ClientOverviewNav";
+import { SECTION_SLUGS, type SectionSlug } from "./sections";
 import { OverviewTab } from "./tabs/OverviewTab";
+import { ProgressTab } from "./tabs/ProgressTab";
 import { NutritionTab } from "./tabs/NutritionTab";
 import { WorkoutsTab } from "./tabs/WorkoutsTab";
+import { SessionsTab } from "./tabs/SessionsTab";
+import { MessagesTab } from "./tabs/MessagesTab";
+import { CareTeamTab } from "./tabs/CareTeamTab";
+import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
 import type { ClientContext } from "./types";
 
-const TAB_VALUES = ["overview", "nutrition", "workouts"] as const;
-type TabValue = (typeof TAB_VALUES)[number];
-
-const DEFAULT_TAB: TabValue = "overview";
+const DEFAULT_SLUG: SectionSlug = "overview";
+const SLUG_SET = new Set<string>(SECTION_SLUGS);
 
 interface ClientOverviewTabsProps {
   context: ClientContext;
 }
 
 /**
- * Tab strip for the Client Overview page. Deep-links via `?tab=...` and
- * syncs the URL on selection so a coach can share a link that opens on
- * a specific tab. Unknown values fall back to "overview".
+ * Orchestrates the Client Overview shell's secondary nav. Composes the
+ * sidebar (left rail on desktop / horizontal scroller on mobile) with the
+ * content panel for the active section. Deep-links via `?tab=<slug>` and
+ * syncs the URL on selection so the coach can share a link that opens on
+ * a specific section. Unknown slugs fall back to "overview".
+ *
+ * Backwards compat: the previous `?tab=overview|nutrition|workouts` URLs
+ * still work -- those slugs remain in the registry.
+ *
+ * The shell (`CoachClientOverview.tsx`) owns all identity fetching
+ * (profile / subscription / viewer role). This component is a layout-only
+ * pass-through and does NOT refetch any of that data.
  */
 export function ClientOverviewTabs({ context }: ClientOverviewTabsProps) {
   const [searchParams, setSearchParams] = useSearchParams();
 
-  const activeTab = useMemo<TabValue>(() => {
+  const activeSlug = useMemo<SectionSlug>(() => {
     const raw = searchParams.get("tab");
-    return TAB_VALUES.includes(raw as TabValue) ? (raw as TabValue) : DEFAULT_TAB;
+    return raw && SLUG_SET.has(raw) ? (raw as SectionSlug) : DEFAULT_SLUG;
   }, [searchParams]);
 
-  const handleChange = useCallback(
-    (next: string) => {
+  const handleSelect = useCallback(
+    (next: SectionSlug) => {
+      if (next === activeSlug) return;
       const nextParams = new URLSearchParams(searchParams);
-      if (next === DEFAULT_TAB) {
+      if (next === DEFAULT_SLUG) {
         nextParams.delete("tab");
       } else {
         nextParams.set("tab", next);
       }
       setSearchParams(nextParams, { replace: true });
     },
-    [searchParams, setSearchParams],
+    [activeSlug, searchParams, setSearchParams],
   );
 
   return (
-    <Tabs value={activeTab} onValueChange={handleChange} className="w-full">
-      <TabsList className="grid w-full grid-cols-3 sticky top-16 z-10 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
-        <TabsTrigger value="overview">Overview</TabsTrigger>
-        <TabsTrigger value="nutrition">Nutrition</TabsTrigger>
-        <TabsTrigger value="workouts">Workouts</TabsTrigger>
-      </TabsList>
-
-      <TabsContent value="overview" className="mt-6">
-        <OverviewTab context={context} />
-      </TabsContent>
-      <TabsContent value="nutrition" className="mt-6">
-        <NutritionTab context={context} />
-      </TabsContent>
-      <TabsContent value="workouts" className="mt-6">
-        <WorkoutsTab context={context} />
-      </TabsContent>
-    </Tabs>
+    <div className="md:flex md:gap-6 md:items-start">
+      <ClientOverviewNav activeSlug={activeSlug} onSelect={handleSelect} />
+      <section className="flex-1 min-w-0 mt-4 md:mt-0">
+        <SectionPanel slug={activeSlug} context={context} />
+      </section>
+    </div>
   );
+}
+
+function SectionPanel({
+  slug,
+  context,
+}: {
+  slug: SectionSlug;
+  context: ClientContext;
+}) {
+  switch (slug) {
+    case "overview":
+      return <OverviewTab context={context} />;
+    case "progress":
+      return <ProgressTab context={context} />;
+    case "nutrition":
+      return <NutritionTab context={context} />;
+    case "workouts":
+      return <WorkoutsTab context={context} />;
+    case "sessions":
+      return <SessionsTab context={context} />;
+    case "messages":
+      return <MessagesTab context={context} />;
+    case "care-team":
+      return <CareTeamTab context={context} />;
+    case "profile":
+      return <ProfileInfoTab context={context} />;
+  }
 }
