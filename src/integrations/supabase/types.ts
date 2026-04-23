@@ -1252,6 +1252,39 @@ export type Database = {
           },
         ]
       }
+      coach_client_messages: {
+        Row: {
+          client_id: string
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          id: string
+          message: string
+          read_by: string[]
+          sender_id: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          message: string
+          read_by?: string[]
+          sender_id: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          message?: string
+          read_by?: string[]
+          sender_id?: string
+        }
+        Relationships: []
+      }
       coach_client_relationships: {
         Row: {
           client_id: string
@@ -2647,6 +2680,7 @@ export type Database = {
       }
       email_notifications: {
         Row: {
+          context_id: string | null
           id: string
           notification_type: string
           sent_at: string | null
@@ -2654,6 +2688,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          context_id?: string | null
           id?: string
           notification_type: string
           sent_at?: string | null
@@ -2661,6 +2696,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          context_id?: string | null
           id?: string
           notification_type?: string
           sent_at?: string | null
@@ -5095,6 +5131,7 @@ export type Database = {
       profiles_public: {
         Row: {
           activation_completed_at: string | null
+          activity_level: string | null
           avatar_url: string | null
           created_at: string | null
           display_name: string | null
@@ -5109,6 +5146,7 @@ export type Database = {
         }
         Insert: {
           activation_completed_at?: string | null
+          activity_level?: string | null
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
@@ -5123,6 +5161,7 @@ export type Database = {
         }
         Update: {
           activation_completed_at?: string | null
+          activity_level?: string | null
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
@@ -7352,6 +7391,10 @@ export type Database = {
           table_name: string
         }[]
       }
+      get_unread_message_count: {
+        Args: { p_client_id: string }
+        Returns: number
+      }
       get_user_subroles: { Args: { p_user_id: string }; Returns: string[] }
       get_views_without_security_invoker: {
         Args: never
@@ -7477,8 +7520,16 @@ export type Database = {
         Args: { p_message_id: string }
         Returns: undefined
       }
+      mark_coach_client_thread_read: {
+        Args: { p_client_id: string }
+        Returns: undefined
+      }
       mark_video_complete: { Args: { p_video_id: string }; Returns: boolean }
       process_care_team_discharges: { Args: never; Returns: number }
+      reorder_macrocycle_blocks: {
+        Args: { p_macrocycle_id: string; p_program_template_ids: string[] }
+        Returns: Json
+      }
       scan_phi_plaintext_violations: {
         Args: never
         Returns: {
