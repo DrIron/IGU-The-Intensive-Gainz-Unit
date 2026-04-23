@@ -97,8 +97,7 @@ export function CoachDashboardLayout({
   };
 
   // Kept temporarily; the inline CoachClientDetail render block below becomes
-  // dead once every caller navigates. Removal lives in a follow-up PR per
-  // docs/CLIENT_OVERVIEW_HANDOFF.md §10a.
+  // dead once every caller navigates. Removal is a follow-up PR.
   const handleBackFromClientDetail = () => {
     setSelectedClientId(null);
   };

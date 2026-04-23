@@ -509,7 +509,7 @@ to pre-fill Age / Gender / Height / Starting Weight with a "from profile" or
 demographic refreshes don't clobber the coach's value.
 
 ### Client Overview shell — `/coach/clients/:clientUserId`
-Coach-facing primary page that consolidates per-client tooling into one URL with tabs (`?tab=overview|nutrition|workouts`). Spec: `docs/CLIENT_OVERVIEW_HANDOFF.md`. History writeup: `docs/history.md` § "Client Overview shell — PR A".
+Coach-facing primary page that consolidates per-client tooling into one URL with a secondary nav (`?tab=<slug>`). History writeup: `docs/history.md` § "Client Overview shell — PR A" and § "Client Overview expansion — 8 sections + Messages".
 
 **Locked contract — `src/components/client-overview/types.ts`:**
 ```ts
@@ -525,12 +525,64 @@ interface ClientOverviewTabProps { context: ClientContext; }
 Rules:
 - The shell (`src/pages/CoachClientOverview.tsx`) is the **only** place that resolves profile / subscription / viewer role. Tabs receive `context` via props and must never refetch identity.
 - Tab-scoped data (phase, programs, adherence) is the tab's job.
-- Add a tab by creating `src/components/client-overview/tabs/<Name>Tab.tsx` that accepts `{ context }: ClientOverviewTabProps`, then wire it in `ClientOverviewTabs.tsx`.
+- Add a tab by creating `src/components/client-overview/tabs/<Name>Tab.tsx` that accepts `{ context }: ClientOverviewTabProps`, then wire it in `ClientOverviewTabs.tsx` and add its slug to `SECTION_SLUGS` in `src/components/client-overview/sections.ts`.
 - `profile.lastName` is always `null` in the context — `profiles_public` doesn't carry it and coaches can't read `profiles_private`. Tabs needing PII must gate themselves.
 - `viewerRole` precedence: `admin` → `dietitian` (approved subrole) → `coach`. Admin branch currently unreachable because the route is wrapped in `RoleProtectedRoute requiredRole="coach"`; the resolver keeps the branch for the future admin-access PR.
 - Route is already in `coachPrefixes` in `src/App.tsx` for mobile dock visibility.
 
-The legacy `/coach-client-nutrition` route is still live alongside the shell. Full port of that page now lives inside the Nutrition tab; the old route is deprecated in a later PR once entry-point rewire soaks.
+**Layout:** `ClientOverviewNav` renders the 8 section buttons — sticky left rail on desktop (`md:w-56 lg:w-64`), horizontal pill scroller on mobile. Emerald `w-1` status rail marks the active row (same vocabulary as `NutritionPhaseCard`). Arrow keys cycle rows. Optional `badgeCounts: Partial<Record<SectionSlug, number>>` prop renders per-slug unread counters.
+
+**Sections (8):**
+| Slug | File | What |
+|---|---|---|
+| `overview` | `OverviewTab.tsx` | Phase / last workout / last weigh-in / pending adjustments nudge |
+| `progress` | `ProgressTab.tsx` | `CoachNutritionGraphs` (phase-scoped) + `VolumeChart` (client-scoped) |
+| `nutrition` | `NutritionTab.tsx` | Full port of `/coach-client-nutrition` |
+| `workouts` | `WorkoutsTab.tsx` | Program list + drill-down + session log viewer + adherence pulse |
+| `sessions` | `SessionsTab.tsx` | Read-only digest of `direct_calendar_sessions` + `addon_session_logs`; primary coach / admin also gets a collapsible `DirectClientCalendar` |
+| `messages` | `MessagesTab.tsx` | Mounts `CoachClientThread` (see "Messages system" below) |
+| `care-team` | `CareTeamTab.tsx` | `CareTeamCard` + `CareTeamMessagesPanel` gated to primary coach / admin |
+| `profile` | `ProfileInfoTab.tsx` | Demographics (via `useClientDemographics`) + subscription + `form_submissions_safe` summary, read-only |
+
+The legacy `/coach-client-nutrition` route is still live alongside the shell; the old route is deprecated in a later PR once entry-point rewire soaks.
+
+### Messages system — coach ↔ client + care-team
+
+Two separate surfaces, two separate tables. Don't conflate.
+
+**`care_team_messages` (staff only, existing):** RLS explicitly excludes the client — "IMPORTANT: Client CANNOT see these messages" (migration `20260207100007`). Rendered inside the **Care Team** tab via `CareTeamMessagesPanel`. Used for discussions *about* a client between the coach / dietitian / physio / etc.
+
+**`coach_client_messages` (new, Apr 23 — migration `20260504000000`):** Flat one-thread-per-client. RLS: the client themselves + any active care-team member + admin can read/write. Soft-delete via `deleted_at` (no DELETE policy); edits allowed only by the sender. Schema:
+```sql
+coach_client_messages (
+  id, client_id, sender_id,
+  message TEXT CHECK (char_length BETWEEN 1 AND 4000),
+  read_by UUID[], edited_at, deleted_at, created_at
+)
+```
+
+**RPCs (SECURITY DEFINER):**
+- `mark_coach_client_thread_read(p_client_id)` — adds viewer to `read_by` for all unread messages in the thread.
+- `get_unread_message_count(p_client_id)` — per-thread count for the caller (used by `useUnreadMessageCount`).
+- `get_unread_message_counts_for_staff()` — batch version, returns `{client_id, unread_count}` for every thread the staff user can see in one round-trip (used by `useStaffUnreadCounts` on the coach client directory).
+
+**Edit history audit (migration `20260504200000`):** `coach_client_message_edits(id, message_id, edited_by, previous_message, edited_at)` + `AFTER UPDATE` trigger `record_coach_client_message_edit` that copies `OLD.message` whenever it changes. Clicking the "edited" chip on a message opens a popover listing prior versions.
+
+**Email notifications:** Edge function `send-coach-client-message-email` (deployed with `--no-verify-jwt` — internal JWT validation). Fires after INSERT from the client (fire-and-forget). Throttle: at most one email per `(recipient, thread)` per 30 minutes, tracked via `email_notifications.context_id = client_id`. Window tunable via `COACH_CLIENT_MESSAGE_EMAIL_WINDOW_MIN` env var. Fails open on dedup-read errors — prefer delivering over silently dropping.
+
+**Shared thread UI:** `src/components/messaging/CoachClientThread.tsx` is rendered by both `MessagesTab` (coach side) and `/pages/ClientMessages.tsx` (client route at `/messages`). Features:
+- Mobile: vaul `Drawer` composer. Desktop: inline textarea + Cmd/Ctrl+Enter to send.
+- Own-message kebab: Edit (inline textarea, optimistic with rollback) / Delete (confirm → soft-delete).
+- Realtime subscription on `postgres_changes event='*' filter='client_id=eq.X'`. Applies INSERTs and UPDATEs in place (lazy-resolves unknown senders from `profiles_public`). 5-minute fallback poll + tab-focus refresh in case the websocket drops.
+- Mark-read RPC fires on mount (fire-and-forget, silent).
+- Fires `send-coach-client-message-email` after successful INSERT.
+
+**Unread badges** surface on three places — all reuse the same realtime + poll pattern via `useUnreadMessageCount` (per-thread) or `useStaffUnreadCounts` (batch):
+- Coach `ClientOverviewNav` → `Messages` row.
+- Coach `CoachMyClientsPage` → destructive badge next to the service pill on each client.
+- Client `ClientSidebar` → `Messages` item (desktop), corner dot when sidebar collapsed.
+
+**Client route `/messages`:** added to `ClientMobileNavGlobal` prefix list + `getClientMobileNavItems` (5th mobile dock item) + `routeConfig.ts` as `client-messages`.
 
 ### Nutrition — coach page structure (3 tabs)
 `/coach-client-nutrition` layout after Apr 20 redesign:
