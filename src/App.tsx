@@ -49,6 +49,7 @@ const PendingClientsPage = lazy(() => import("./pages/coach/PendingClientsPage")
 const ClientDiagnostics = lazy(() => import("./pages/admin/ClientDiagnostics"));
 const EmailLog = lazy(() => import("./pages/admin/EmailLog"));
 const ClientSessions = lazy(() => import("./pages/ClientSessions"));
+const ClientMessages = lazy(() => import("./pages/ClientMessages"));
 const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
 const CoachDashboard = lazy(() => import("./pages/coach/CoachDashboard"));
 const StudioPreview = lazy(() => import("./pages/coach/StudioPreview"));
@@ -102,6 +103,7 @@ const ClientMobileNavGlobal = memo(function ClientMobileNavGlobal() {
     "/nutrition-client",
     "/nutrition-team",
     "/sessions",
+    "/messages",
     "/workout-library",
     "/educational-videos",
     "/account",
@@ -248,6 +250,7 @@ const App = () => {
                   <Route path="/educational-videos" element={<AuthGuard><OnboardingGuard><EducationalVideos /></OnboardingGuard></AuthGuard>} />
                   <Route path="/coach/pending-clients" element={<RoleProtectedRoute requiredRole="coach"><PendingClientsPage /></RoleProtectedRoute>} />
                   <Route path="/sessions" element={<AuthGuard><OnboardingGuard><ClientSessions /></OnboardingGuard></AuthGuard>} />
+                  <Route path="/messages" element={<AuthGuard><OnboardingGuard><ClientMessages /></OnboardingGuard></AuthGuard>} />
                   <Route path="/admin/client-diagnostics" element={<RoleProtectedRoute requiredRole="admin"><ClientDiagnostics /></RoleProtectedRoute>} />
                   <Route path="/admin/email-log" element={<RoleProtectedRoute requiredRole="admin"><EmailLog /></RoleProtectedRoute>} />
                   <Route path="/admin/workout-qa" element={<RoleProtectedRoute requiredRole="admin"><WorkoutBuilderQA /></RoleProtectedRoute>} />

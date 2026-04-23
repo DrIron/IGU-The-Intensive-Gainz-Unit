@@ -31,6 +31,7 @@ const groups = [
   { id: "nutrition", label: "Nutrition", routeIds: ["nutrition"] },
   { id: "workouts", label: "Workouts", routeIds: ["client-workout-calendar", "client-workout-history", "workout-library"] },
   { id: "resources", label: "Resources", routeIds: ["educational-videos", "sessions"] },
+  { id: "messages", label: "Messages", routeIds: ["client-messages"] },
 ];
 
 export function ClientSidebar({ 
@@ -172,11 +173,11 @@ export function getClientMobileNavItems() {
     "nutrition": "Nutrition",
     "client-workout-calendar": "Calendar",
     "workout-library": "Library",
+    "client-messages": "Messages",
   };
+  const mobileIds = ["client-dashboard", "nutrition", "client-workout-calendar", "workout-library", "client-messages"];
   return routeNavItems
-    .filter(item =>
-      ["client-dashboard", "nutrition", "client-workout-calendar", "workout-library"].includes(item.id)
-    )
+    .filter(item => mobileIds.includes(item.id))
     .map(item => ({
       path: item.path,
       label: MOBILE_LABELS[item.id] ?? item.label,
