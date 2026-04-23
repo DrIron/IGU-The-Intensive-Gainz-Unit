@@ -5131,6 +5131,7 @@ export type Database = {
       profiles_public: {
         Row: {
           activation_completed_at: string | null
+          activity_level: string | null
           avatar_url: string | null
           created_at: string | null
           display_name: string | null
@@ -5145,6 +5146,7 @@ export type Database = {
         }
         Insert: {
           activation_completed_at?: string | null
+          activity_level?: string | null
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
@@ -5159,6 +5161,7 @@ export type Database = {
         }
         Update: {
           activation_completed_at?: string | null
+          activity_level?: string | null
           avatar_url?: string | null
           created_at?: string | null
           display_name?: string | null
@@ -7523,6 +7526,10 @@ export type Database = {
       }
       mark_video_complete: { Args: { p_video_id: string }; Returns: boolean }
       process_care_team_discharges: { Args: never; Returns: number }
+      reorder_macrocycle_blocks: {
+        Args: { p_macrocycle_id: string; p_program_template_ids: string[] }
+        Returns: Json
+      }
       scan_phi_plaintext_violations: {
         Args: never
         Returns: {
