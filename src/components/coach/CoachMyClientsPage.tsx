@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { useStaffUnreadCounts } from "@/hooks/useStaffUnreadCounts";
 import { 
   Users, Search, Eye, Activity, AlertCircle, TrendingUp, TrendingDown,
   Dumbbell, Library, MoreVertical, MessageSquare, ArrowRight,
@@ -69,6 +70,10 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   const [clients, setClients] = useState<CoachClient[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+
+  // One RPC returns the (client_id -> unread_count) map for the whole
+  // roster. Avoids N round trips if we polled per row.
+  const { counts: unreadCounts } = useStaffUnreadCounts();
   
   // Filter state
   const [planFilter, setPlanFilter] = useState<string>('all');
@@ -606,6 +611,16 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                         {client.service_name && (
                           <Badge variant="outline" className="text-xs shrink-0">
                             {client.service_name}
+                          </Badge>
+                        )}
+                        {unreadCounts[client.id] > 0 && (
+                          <Badge
+                            variant="destructive"
+                            className="text-[10px] shrink-0 gap-1 px-1.5 h-5"
+                            aria-label={`${unreadCounts[client.id]} unread ${unreadCounts[client.id] === 1 ? "message" : "messages"}`}
+                          >
+                            <MessageSquare className="h-3 w-3" aria-hidden="true" />
+                            {unreadCounts[client.id] >= 100 ? "99+" : unreadCounts[client.id]}
                           </Badge>
                         )}
                       </div>
