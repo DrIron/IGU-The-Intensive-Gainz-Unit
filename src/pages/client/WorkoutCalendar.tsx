@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -26,23 +28,22 @@ interface DayData {
 function WorkoutCalendarContent() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [daysData, setDaysData] = useState<Record<string, DayData>>({});
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [user, setUser] = useState<any>(null);
+  const user = sessionUser;
 
   useDocumentTitle({
     title: "Workout Calendar",
     description: "View your workout schedule",
   });
 
-  const loadCalendarData = useCallback(async () => {
+  const loadCalendarData = useCallback(async (currentUser: SupabaseUser | null) => {
     try {
       setLoading(true);
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) return;
-      setUser(currentUser);
 
       const monthStart = startOfMonth(currentMonth);
       const monthEnd = endOfMonth(currentMonth);
@@ -95,8 +96,9 @@ function WorkoutCalendarContent() {
   }, [currentMonth, toast]);
 
   useEffect(() => {
-    loadCalendarData();
-  }, [loadCalendarData]);
+    if (sessionLoading) return;
+    loadCalendarData(sessionUser ?? null);
+  }, [sessionUser, sessionLoading, loadCalendarData]);
 
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),

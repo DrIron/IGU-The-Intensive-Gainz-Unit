@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -33,24 +35,23 @@ interface LogEntry {
 function ExerciseHistoryContent() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [exercisesLoading, setExercisesLoading] = useState(true);
   const [exercises, setExercises] = useState<ExerciseOption[]>([]);
   const [selectedExercise, setSelectedExercise] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [user, setUser] = useState<any>(null);
+  const user = sessionUser;
 
   useDocumentTitle({
     title: "Exercise History",
     description: "View your exercise performance history",
   });
 
-  const loadExercises = useCallback(async () => {
+  const loadExercises = useCallback(async (currentUser: SupabaseUser | null) => {
     try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
       if (!currentUser) return;
-      setUser(currentUser);
 
       // Get unique exercises the user has logged
       const { data, error } = await supabase
@@ -149,9 +150,15 @@ function ExerciseHistoryContent() {
     }
   }, [selectedExercise, user, toast]);
 
+  // Keyed on session state so the effect retries once session resolves.
+  const hasLoadedExercises = useRef<string | null>(null);
   useEffect(() => {
-    loadExercises();
-  }, [loadExercises]);
+    const key = sessionUser?.id ?? (sessionLoading ? "__waiting__" : "__unauth__");
+    if (hasLoadedExercises.current === key) return;
+    hasLoadedExercises.current = key;
+    if (sessionLoading) return;
+    loadExercises(sessionUser ?? null);
+  }, [sessionUser, sessionLoading, loadExercises]);
 
   useEffect(() => {
     if (selectedExercise) {
