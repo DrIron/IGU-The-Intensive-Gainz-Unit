@@ -35,6 +35,13 @@ Sentry.init({
   environment: import.meta.env.MODE,
   enabled: import.meta.env.PROD || !!import.meta.env.VITE_SENTRY_DEBUG,
 
+  // 10% performance sampling: catches slow transactions + N+1 patterns
+  // without multiplying event volume / Sentry quota cost by 10x. Errors
+  // are still sampled at 100% (Sentry's default `sampleRate`). Session
+  // Replay stays off for now (would need `replayIntegration()` + privacy
+  // review -- replay captures DOM + user input).
+  tracesSampleRate: 0.1,
+
   // Filter out noisy errors
   ignoreErrors: [
     /chrome-extension:/,
