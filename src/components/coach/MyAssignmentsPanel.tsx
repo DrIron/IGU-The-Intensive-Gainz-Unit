@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -57,16 +59,14 @@ interface MyAssignmentsPanelProps {
 
 export function MyAssignmentsPanel({ onClientSelect }: MyAssignmentsPanelProps) {
   const { toast } = useToast();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [dischargingAssignment, setDischargingAssignment] = useState<Assignment | null>(null);
 
-  const fetchAssignments = useCallback(async () => {
+  const fetchAssignments = useCallback(async (user: SupabaseUser) => {
     try {
       setLoading(true);
-      
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
       // Fetch assignments where current user is the specialist (not primary coach)
       const { data, error } = await supabase
@@ -129,8 +129,13 @@ export function MyAssignmentsPanel({ onClientSelect }: MyAssignmentsPanelProps) 
   }, [toast]);
 
   useEffect(() => {
-    fetchAssignments();
-  }, [fetchAssignments]);
+    if (sessionLoading) return;
+    if (!sessionUser) {
+      setLoading(false);
+      return;
+    }
+    fetchAssignments(sessionUser);
+  }, [sessionUser, sessionLoading, fetchAssignments]);
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n.charAt(0)).join('').toUpperCase().slice(0, 2);
