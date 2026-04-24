@@ -1,6 +1,6 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { PaymentStatusDashboard } from "@/components/PaymentStatusDashboard";
 import { Navigation } from "@/components/Navigation";
 import { Loader2 } from "lucide-react";
@@ -8,30 +8,22 @@ import { ErrorFallback } from "@/components/ui/error-fallback";
 
 export default function PaymentStatus() {
   const navigate = useNavigate();
+  const { user, isLoading: sessionLoading } = useAuthSession();
   const [userId, setUserId] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+  const loading = sessionLoading || (!userId && !error);
 
-  const checkAuth = useCallback(async () => {
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        navigate("/auth");
-        return;
-      }
-
-      setUserId(user.id);
-    } catch (err) {
-      if (import.meta.env.DEV) console.error("Auth error:", err);
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }, [navigate]);
-
+  // Reactive to `useAuthSession` so a late-arriving session (post-setSession
+  // recovery in client.ts) still resolves userId -- a mount-time auth.getUser
+  // could cache null forever.
   useEffect(() => {
-    checkAuth();
-  }, [checkAuth]);
+    if (sessionLoading) return;
+    if (!user) {
+      navigate("/auth");
+      return;
+    }
+    setUserId(user.id);
+  }, [user, sessionLoading, navigate]);
 
   if (loading) {
     return (

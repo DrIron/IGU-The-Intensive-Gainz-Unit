@@ -1,6 +1,8 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { ErrorFallback } from "@/components/ui/error-fallback";
@@ -8,12 +10,11 @@ import { ErrorFallback } from "@/components/ui/error-fallback";
 export default function Nutrition() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [error, setError] = useState(false);
 
-  const checkAccessAndRedirect = useCallback(async () => {
+  const checkAccessAndRedirect = useCallback(async (user: SupabaseUser | null) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-
       // Not logged in -> public calculator
       if (!user) {
         navigate('/calorie-calculator');
@@ -103,9 +104,17 @@ export default function Nutrition() {
     }
   }, [navigate, toast]);
 
+  // Keyed on session state so the effect retries once a late-arriving
+  // session resolves (the `useAuthSession` -> onAuthStateChange pattern,
+  // not a one-shot auth.getUser at mount that could cache null).
+  const hasChecked = useRef<string | null>(null);
   useEffect(() => {
-    checkAccessAndRedirect();
-  }, [checkAccessAndRedirect]);
+    const key = sessionUser?.id ?? (sessionLoading ? "__waiting__" : "__unauth__");
+    if (hasChecked.current === key) return;
+    hasChecked.current = key;
+    if (sessionLoading) return;
+    checkAccessAndRedirect(sessionUser ?? null);
+  }, [sessionUser, sessionLoading, checkAccessAndRedirect]);
 
   if (error) {
     return (

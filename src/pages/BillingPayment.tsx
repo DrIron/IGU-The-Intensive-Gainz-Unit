@@ -1,11 +1,13 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Navigation } from "@/components/Navigation";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { PaymentHistoryCard } from "@/components/client/PaymentHistoryCard";
@@ -53,15 +55,15 @@ export default function BillingPayment() {
   const isSubmittingRef = useRef(false); // Prevent double submission
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
 
-  const loadBillingData = useCallback(async () => {
+  const loadBillingData = useCallback(async (user: SupabaseUser | null) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate("/auth");
         return;
       }
-      
+
       setUserId(user.id);
 
       // Get profile info - split query for public/private data (RLS secured)
@@ -127,9 +129,15 @@ export default function BillingPayment() {
     }
   }, [navigate, toast]);
 
+  // Keyed on session state so the effect retries once session resolves.
+  const hasLoaded = useRef<string | null>(null);
   useEffect(() => {
-    loadBillingData();
-  }, [loadBillingData]);
+    const key = sessionUser?.id ?? (sessionLoading ? "__waiting__" : "__unauth__");
+    if (hasLoaded.current === key) return;
+    hasLoaded.current = key;
+    if (sessionLoading) return;
+    loadBillingData(sessionUser ?? null);
+  }, [sessionUser, sessionLoading, loadBillingData]);
 
   const handlePayment = useCallback(async () => {
     if (!subscription || !userId || processingPayment || isSubmittingRef.current) {

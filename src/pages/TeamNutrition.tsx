@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Navigation } from "@/components/Navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Calculator, TrendingUp } from "lucide-react";
 import { NutritionGoal } from "@/components/nutrition/NutritionGoal";
 import { NutritionProgress } from "@/components/nutrition/NutritionProgress";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { useToast } from "@/hooks/use-toast";
 import { ErrorFallback } from "@/components/ui/error-fallback";
 
@@ -13,15 +15,14 @@ export default function TeamNutrition() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const activeTab = searchParams.get("tab") || "goal";
 
-  const loadUser = useCallback(async () => {
+  const loadUser = useCallback(async (user: SupabaseUser | null) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      
       if (!user) {
         navigate('/nutrition');
         return;
@@ -81,13 +82,17 @@ export default function TeamNutrition() {
     }
   }, [navigate, toast]);
 
-  const hasFetched = useRef(false);
+  // Keyed on session state so the effect retries once session resolves
+  // (vs. a one-shot auth.getUser at mount that caches null on the race).
+  const hasFetched = useRef<string | null>(null);
 
   useEffect(() => {
-    if (hasFetched.current) return;
-    hasFetched.current = true;
-    loadUser();
-  }, [loadUser]);
+    const key = sessionUser?.id ?? (sessionLoading ? "__waiting__" : "__unauth__");
+    if (hasFetched.current === key) return;
+    hasFetched.current = key;
+    if (sessionLoading) return;
+    loadUser(sessionUser ?? null);
+  }, [sessionUser, sessionLoading, loadUser]);
 
   if (loading) {
     return (
