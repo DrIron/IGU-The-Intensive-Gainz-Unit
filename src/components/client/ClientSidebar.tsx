@@ -1,4 +1,3 @@
-import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import {
   Sidebar,
@@ -12,7 +11,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getClientNavItems } from "@/lib/routeConfig";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { useUnreadMessageCount } from "@/hooks/useUnreadMessageCount";
 import { CreditCard, User } from "lucide-react";
 
@@ -50,18 +49,12 @@ export function ClientSidebar({
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Viewer id for the unread-messages badge. One getUser call; no refetch.
-  const [viewerId, setViewerId] = useState<string | null>(null);
-  useEffect(() => {
-    let cancelled = false;
-    supabase.auth.getUser().then(({ data }) => {
-      if (cancelled) return;
-      setViewerId(data.user?.id ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  // Viewer id for the unread-messages badge. Uses `useAuthSession` so a
+  // late-arriving session (post-setSession recovery in client.ts) still
+  // propagates -- a one-shot `auth.getUser()` call at mount could resolve
+  // to null mid-race and leave the badge permanently blank.
+  const { user } = useAuthSession();
+  const viewerId = user?.id ?? null;
   const { count: unreadMessages } = useUnreadMessageCount(viewerId);
 
   // Check if user is active client (for content access)

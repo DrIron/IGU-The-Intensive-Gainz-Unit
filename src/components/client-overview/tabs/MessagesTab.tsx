@@ -1,7 +1,6 @@
-import { useEffect, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { CoachClientThread } from "@/components/messaging/CoachClientThread";
 import type { ClientOverviewTabProps } from "../types";
 
@@ -13,28 +12,14 @@ import type { ClientOverviewTabProps } from "../types";
  * empty thread and a disabled composer (insert returns an RLS error,
  * which the thread surfaces inline).
  *
- * Identity is still single-sourced in the shell. This tab only needs
- * the VIEWER's user id (for styling "You" rows and insert's sender_id),
- * which doesn't live on `ClientContext` -- one auth.getUser() call
- * fetches it once per mount.
+ * Identity is still single-sourced in the shell for `clientUserId`.
+ * The VIEWER's user id (for styling "You" rows and insert's sender_id)
+ * comes from `useAuthSession` so a late-arriving session propagates
+ * instead of being cached as null by a one-shot `auth.getUser()` call.
  */
 export function MessagesTab({ context }: ClientOverviewTabProps) {
-  const [viewerId, setViewerId] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    supabase.auth.getUser().then(({ data, error }) => {
-      if (cancelled) return;
-      if (error) {
-        console.warn("[MessagesTab] getUser:", error.message);
-        return;
-      }
-      setViewerId(data.user?.id ?? null);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { user } = useAuthSession();
+  const viewerId = user?.id ?? null;
 
   if (!viewerId) {
     return (
