@@ -2,6 +2,7 @@
 ## Comprehensive Discovery Report
 **Date:** February 2, 2026
 **Production URL:** https://theigu.com
+**Status:** Historical origin-story doc. Platform is live in production since Feb 2026; see `CLAUDE.md` for current-state reference and `docs/history.md` for the phase-by-phase build log.
 
 ---
 
@@ -102,18 +103,12 @@ IGU (Intensive Gainz Unit) is a comprehensive fitness coaching platform under Dr
 
 ---
 
-## 4. LAUNCH CONTEXT (February 2026)
+## 4. LAUNCH (historical)
 
+Original targets from Feb 2, 2026:
 - **Timeline:** ~4 weeks
 - **Initial Clients:** 12-15 (existing clients + social media)
 - **Team:** 2 exercise coaches + 1-2 dieticians
 - **Content Status:** Exercise library needs population from YouTube
 
----
-
-## 5. PRE-LAUNCH PRIORITIES
-
-1. **Exercise Library Population** - Add exercises from YouTube channel
-2. **Dashboard UX Improvements** - Optimize client/coach/admin views
-3. **QA Testing** - Run through all user flows
-4. **Mobile Responsive Testing** - Ensure gym-friendly experience
+All four pre-launch priorities (exercise library seeding, dashboard UX pass, QA sweep, mobile testing) landed before go-live. For the phase-by-phase build log, see `docs/history.md`.
