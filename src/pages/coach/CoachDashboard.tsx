@@ -30,7 +30,7 @@ export default function CoachDashboard() {
   const [loading, setLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [hasCoachRole, setHasCoachRole] = useState(false);
-  const hasLoadedData = useRef(false);
+  const hasLoadedData = useRef<string | null>(null);
 
   const { cachedRoles, cachedUserId, setCachedRoles } = useRoleCache();
   const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
@@ -56,15 +56,19 @@ export default function CoachDashboard() {
       const userId = cachedUserId || sessionUser?.id;
 
       if (!userId) {
-        // Only redirect to auth if:
-        // 1. No cached user ID AND
-        // 2. Session loading is complete AND
-        // 3. No session user
+        // Three sub-paths:
+        //  - session still resolving -> stay in loading state (do NOT setLoading(false))
+        //  - session resolved with no user -> redirect to /auth + clear loading
+        //  - session not loading but somehow no sessionUser either -> same as above
         if (!sessionLoading && !sessionUser) {
           if (import.meta.env.DEV) console.log('[CoachDashboard] No user found (cache empty, session empty), redirecting to auth');
           navigate("/auth");
+          setLoading(false);
         } else if (sessionLoading) {
           if (import.meta.env.DEV) console.log('[CoachDashboard] No cache, waiting for session...');
+          // Intentionally leave loading=true -- the loading-screen spinner
+          // stays up while the session resolves. The safety-net timeout
+          // (5s) in the useEffect below bails if this never completes.
         }
         return;
       }
@@ -121,29 +125,39 @@ export default function CoachDashboard() {
       }
     } catch (error: any) {
       if (import.meta.env.DEV) console.error("[CoachDashboard] Error loading user data:", error);
-    } finally {
-      setLoading(false);
     }
+    // Every path that reaches here has set currentUser + hasCoachRole
+    // (or otherwise navigated away). Clearing loading here -- rather than
+    // in a `finally` -- means the "still waiting for session" early return
+    // can stay in the loading state without flipping into the dashboard
+    // render with a null user.
+    setLoading(false);
   }, [sessionUser, cachedUserId, sessionLoading, navigate, setCachedRoles, cachedRoles, toast]);
 
   useEffect(() => {
-    // Prevent infinite loop - only load once
-    if (hasLoadedData.current) {
-      return;
-    }
-    hasLoadedData.current = true;
+    // Re-run whenever the (cached user id, session user, session loading)
+    // tuple changes. Key the guard on the resolved userId so the effect
+    // can retry once a late-arriving session delivers a user -- the old
+    // hasLoadedData.current=true short-circuit permanently blocked that
+    // retry, leaving the page stuck in loading if the session was slow.
+    const userId = cachedUserId || sessionUser?.id || null;
+    const key = userId ?? (sessionLoading ? "__waiting__" : "__unauth__");
+    if (hasLoadedData.current === key) return;
+    hasLoadedData.current = key;
 
     const timeout = setTimeout(() => {
-      if (loading) {
-        if (import.meta.env.DEV) console.error("[CoachDashboard] Loading timeout - forcing render");
-        setLoading(false);
-      }
+      setLoading((current) => {
+        if (current && import.meta.env.DEV) {
+          console.error("[CoachDashboard] Loading timeout - forcing render");
+        }
+        return false;
+      });
     }, 5000);
 
     loadUserData();
 
     return () => clearTimeout(timeout);
-  }, [loadUserData, loading]);
+  }, [loadUserData, cachedUserId, sessionUser, sessionLoading]);
 
   const handleSectionChange = (newSection: string) => {
     let urlPath = newSection;
