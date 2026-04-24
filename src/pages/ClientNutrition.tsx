@@ -1,9 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
 import { ClientNutritionProgress } from "@/components/nutrition/ClientNutritionProgress";
@@ -47,6 +49,7 @@ import { differenceInCalendarWeeks, differenceInDays } from "date-fns";
 export default function ClientNutrition() {
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [loading, setLoading] = useState(true);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [activePhase, setActivePhase] = useState<any>(null);
@@ -67,9 +70,8 @@ export default function ClientNutrition() {
   // reloading the page. Any integer change forces the ribbon's useEffect to fire.
   const [ribbonRefreshKey, setRibbonRefreshKey] = useState(0);
 
-  const loadActivePhase = useCallback(async () => {
+  const loadActivePhase = useCallback(async (user: SupabaseUser | null) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       const { data: phase, error: phaseError } = await supabase
@@ -160,9 +162,8 @@ export default function ClientNutrition() {
     }
   }, [toast]);
 
-  const loadUser = useCallback(async () => {
+  const loadUser = useCallback(async (user: SupabaseUser | null) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) {
         navigate("/nutrition");
         return;
@@ -195,7 +196,7 @@ export default function ClientNutrition() {
 
       setUser(user);
       setUserGender(profilePrivate?.gender || null);
-      loadActivePhase();
+      loadActivePhase(user);
     } catch (err) {
       console.error("Error loading user:", err);
       setError(true);
@@ -203,12 +204,14 @@ export default function ClientNutrition() {
     }
   }, [navigate, toast, loadActivePhase]);
 
-  const hasFetched = useRef(false);
+  const hasFetched = useRef<string | null>(null);
   useEffect(() => {
-    if (hasFetched.current) return;
-    hasFetched.current = true;
-    loadUser();
-  }, [loadUser]);
+    const key = sessionUser?.id ?? (sessionLoading ? "__waiting__" : "__unauth__");
+    if (hasFetched.current === key) return;
+    hasFetched.current = key;
+    if (sessionLoading) return;
+    loadUser(sessionUser ?? null);
+  }, [sessionUser, sessionLoading, loadUser]);
 
   if (error) {
     return (

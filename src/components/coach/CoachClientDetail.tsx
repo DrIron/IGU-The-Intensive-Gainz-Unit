@@ -1,6 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -56,6 +58,7 @@ interface PrimaryCoach {
 }
 
 export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailProps) {
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [clientInfo, setClientInfo] = useState<ClientInfo | null>(null);
   const [medicalFlags, setMedicalFlags] = useState<MedicalFlags | null>(null);
   const [primaryCoach, setPrimaryCoach] = useState<PrimaryCoach | null>(null);
@@ -71,11 +74,8 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
   const navigate = useNavigate();
   const { canBuildPrograms, canAssignWorkouts } = useSubrolePermissions(currentUserId || undefined);
 
-  const checkCurrentUserRole = useCallback(async () => {
+  const checkCurrentUserRole = useCallback(async (user: SupabaseUser) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
       setCurrentUserId(user.id);
 
       // Check if current user is admin
@@ -91,11 +91,8 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
     }
   }, []);
 
-  const loadClientInfo = useCallback(async () => {
+  const loadClientInfo = useCallback(async (user: SupabaseUser) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-      
       // Get profile info from profiles_public ONLY (non-sensitive data)
       // Coaches cannot access profiles_private (email, phone, DOB, gender)
       const { data: profile } = await supabase
@@ -219,9 +216,11 @@ export function CoachClientDetail({ clientUserId, onBack }: CoachClientDetailPro
   }, [clientUserId]);
 
   useEffect(() => {
-    loadClientInfo();
-    checkCurrentUserRole();
-  }, [loadClientInfo, checkCurrentUserRole]);
+    if (sessionLoading) return;
+    if (!sessionUser) return;
+    loadClientInfo(sessionUser);
+    checkCurrentUserRole(sessionUser);
+  }, [sessionUser, sessionLoading, loadClientInfo, checkCurrentUserRole]);
 
   const handleRequestAdminReview = () => {
     toast({

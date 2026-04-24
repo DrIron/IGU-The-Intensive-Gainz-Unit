@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,21 +20,20 @@ import { format, addDays, startOfWeek } from "date-fns";
 import { BodyFatProgressGraph } from "./BodyFatProgressGraph";
 import { TeamWeightProgressGraph } from "./TeamWeightProgressGraph";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { useAuthSession } from "@/hooks/useAuthSession";
 
 export function NutritionProgress() {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [activeGoal, setActiveGoal] = useState<any>(null);
   const [weeklyProgress, setWeeklyProgress] = useState<any[]>([]);
   const [currentWeek, setCurrentWeek] = useState(1);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set([1]));
 
-  const loadData = useCallback(async () => {
+  const loadData = useCallback(async (user: SupabaseUser) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       // Load active goal
       const { data: goal, error: goalError } = await supabase
         .from('nutrition_goals')
@@ -86,8 +86,13 @@ export function NutritionProgress() {
   }, [toast]);
 
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    if (sessionLoading) return;
+    if (!sessionUser) {
+      setLoading(false);
+      return;
+    }
+    loadData(sessionUser);
+  }, [sessionUser, sessionLoading, loadData]);
 
   const toggleWeek = (week: number) => {
     const newExpanded = new Set(expandedWeeks);
