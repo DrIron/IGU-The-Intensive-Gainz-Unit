@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, DollarSign, Clock, TrendingUp, Users } from "lucide-react";
@@ -27,16 +29,21 @@ export function CoachEarningsSummary() {
     isHeadCoach: false,
   });
 
-  useEffect(() => {
-    loadEarnings();
-  }, []);
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
 
-  const loadEarnings = async () => {
+  useEffect(() => {
+    if (sessionLoading) return;
+    if (!sessionUser) {
+      setLoading(false);
+      return;
+    }
+    loadEarnings(sessionUser);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionUser, sessionLoading]);
+
+  const loadEarnings = async (user: SupabaseUser) => {
     try {
       setLoading(true);
-
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
       // Get coach record
       const { data: coach } = await supabase

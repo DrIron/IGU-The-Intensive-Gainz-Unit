@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -39,6 +41,7 @@ interface CoachContactData {
 
 export default function CoachProfile() {
   const { toast } = useToast();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [loading, setLoading] = useState(false);
   const [contactData, setContactData] = useState<CoachContactData | null>(null);
   const [coachData, setCoachData] = useState<CoachData | null>(null);
@@ -63,13 +66,14 @@ export default function CoachProfile() {
   const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
-    fetchCoachData();
-  }, []);
+    if (sessionLoading) return;
+    if (!sessionUser) return;
+    fetchCoachData(sessionUser);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionUser, sessionLoading]);
 
-  const fetchCoachData = async () => {
+  const fetchCoachData = async (user: SupabaseUser) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
 
       // Fetch coach profile from coaches_public table (public fields only)
       const { data, error } = await supabase
