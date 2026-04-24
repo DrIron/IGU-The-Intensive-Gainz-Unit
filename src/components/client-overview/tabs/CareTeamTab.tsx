@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Users, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { CareTeamCard } from "@/components/coach/CareTeamCard";
 import { CareTeamMessagesPanel } from "@/components/nutrition/CareTeamMessagesPanel";
 import type { ClientOverviewTabProps } from "../types";
@@ -33,16 +34,16 @@ interface PrimaryCoach {
  */
 export function CareTeamTab({ context }: ClientOverviewTabProps) {
   const { clientUserId, subscription, viewerRole } = context;
+  const { user } = useAuthSession();
+  const viewerId = user?.id ?? null;
   const [primaryCoach, setPrimaryCoach] = useState<PrimaryCoach | null>(null);
   const [nextBillingDate, setNextBillingDate] = useState<string | null>(null);
   const [isPrimaryCoach, setIsPrimaryCoach] = useState(false);
   const [loading, setLoading] = useState(true);
   const hasFetched = useRef<string | null>(null);
 
-  const load = useCallback(async (subscriptionId: string) => {
+  const load = useCallback(async (subscriptionId: string, viewerUserId: string | null) => {
     setLoading(true);
-    const { data: authData } = await supabase.auth.getUser();
-    const viewerId = authData?.user?.id ?? null;
 
     const { data: sub, error: subErr } = await supabase
       .from("subscriptions")
@@ -53,7 +54,7 @@ export function CareTeamTab({ context }: ClientOverviewTabProps) {
 
     const coachId = sub?.coach_id ?? null;
     setNextBillingDate(sub?.next_billing_date ?? null);
-    setIsPrimaryCoach(Boolean(viewerId && coachId && viewerId === coachId));
+    setIsPrimaryCoach(Boolean(viewerUserId && coachId && viewerUserId === coachId));
 
     if (coachId) {
       const { data: coach, error: coachErr } = await supabase
@@ -71,7 +72,11 @@ export function CareTeamTab({ context }: ClientOverviewTabProps) {
   }, []);
 
   useEffect(() => {
-    const key = `${clientUserId}:${subscription?.id ?? "none"}`;
+    // Key on viewerId too so the effect re-runs once `useAuthSession`
+    // resolves -- a mount-time null viewer would otherwise freeze
+    // `isPrimaryCoach = false` even when the late-arriving session
+    // matches the subscription's coach.
+    const key = `${clientUserId}:${subscription?.id ?? "none"}:${viewerId ?? "pending"}`;
     if (hasFetched.current === key) return;
     hasFetched.current = key;
 
@@ -80,11 +85,11 @@ export function CareTeamTab({ context }: ClientOverviewTabProps) {
       return;
     }
 
-    load(subscription.id).catch((err) => {
+    load(subscription.id, viewerId).catch((err) => {
       console.error("[CareTeamTab] unexpected:", err);
       setLoading(false);
     });
-  }, [clientUserId, subscription?.id, load]);
+  }, [clientUserId, subscription?.id, viewerId, load]);
 
   if (!subscription) {
     return (

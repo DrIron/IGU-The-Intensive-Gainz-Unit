@@ -1,10 +1,9 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Loader2, MessageSquare } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
-import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { CoachClientThread } from "@/components/messaging/CoachClientThread";
 
 /**
@@ -13,29 +12,17 @@ import { CoachClientThread } from "@/components/messaging/CoachClientThread";
  * side uses), scoped to the authenticated user as both the thread key and
  * the viewer.
  *
- * No identity refetch is done beyond `auth.getUser()` (the page doesn't
- * live inside the coach overview shell that owns that resolution).
- * Mobile dock visibility is handled by the `/messages` prefix added to
- * `clientPaths` in App.tsx.
+ * Identity comes from `useAuthSession`, which subscribes to
+ * `onAuthStateChange`. A late-arriving session (when `client.ts`'s
+ * setSession recovery fires after an `initializePromise` timeout) still
+ * propagates into this page, instead of being cached as "Not signed in"
+ * by a one-shot `auth.getUser()` call (the race PR #103 fixed on the
+ * coach dashboard).
  */
 export default function ClientMessages() {
-  const [viewerId, setViewerId] = useState<string | null>(null);
-  const [loadError, setLoadError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    supabase.auth.getUser().then(({ data, error }) => {
-      if (cancelled) return;
-      if (error || !data.user) {
-        setLoadError(error?.message ?? "Not signed in");
-        return;
-      }
-      setViewerId(data.user.id);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { user, isLoading } = useAuthSession();
+  const viewerId = user?.id ?? null;
+  const showNotSignedIn = !isLoading && !user;
 
   return (
     <>
@@ -60,10 +47,10 @@ export default function ClientMessages() {
           </div>
         </div>
 
-        {loadError ? (
+        {showNotSignedIn ? (
           <Card>
             <CardContent className="py-10 text-center space-y-3">
-              <p className="text-sm text-destructive">{loadError}</p>
+              <p className="text-sm text-destructive">Not signed in</p>
               <Button asChild variant="outline" size="sm">
                 <Link to="/auth">Sign in</Link>
               </Button>

@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { ServiceCard } from "@/components/ServiceCard";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthNavigation } from "@/hooks/useAuthNavigation";
+import { useAuthSession } from "@/hooks/useAuthSession";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Dumbbell, Star, ChevronLeft, ChevronRight, Target, MessageSquare, Apple, TrendingUp, FlaskConical, Calendar } from "lucide-react";
 // Hero image served from public/ for preloading (stable URL, no Vite hash)
 const gymHeroBg = "/gym-hero-bg.jpg";
@@ -114,10 +116,16 @@ export default function Index() {
     Calendar,
   };
 
-  const checkUserAndRedirect = useCallback(async () => {
-    try {
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+  // Resolved via `useAuthSession` so late-arriving sessions (post-setSession
+  // recovery in client.ts) still trigger the redirect. The old one-shot
+  // `auth.getUser()` + `hasFetched.current = true` combo was the same
+  // permanent short-circuit PR #103 fixed on CoachDashboard -- it left
+  // authenticated users stuck on the public home page when the GoTrueClient
+  // `initializePromise` timed out before their first render.
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
 
+  const checkUserAndRedirect = useCallback(async (currentUser: SupabaseUser | null) => {
+    try {
       if (currentUser) {
         // Authenticated users should go to their dashboard
         const { data: roles } = await supabase
@@ -148,7 +156,12 @@ export default function Index() {
     setLoading(false);
   }, [navigate]);
 
-  const hasFetched = useRef(false);
+  const hasLoadedPublic = useRef(false);
+  // Keyed on resolved userId / "__waiting__" / "__unauth__" so the effect
+  // retries when sessionUser transitions from null -> resolved. Booleans
+  // here would permanently short-circuit the retry, which is the exact
+  // bug PR #103 documented on CoachDashboard.
+  const hasAuthChecked = useRef<string | null>(null);
 
   const loadTeamPlanSettings = useCallback(async () => {
     try {
@@ -243,22 +256,34 @@ export default function Index() {
     }
   }, []);
 
+  // Public, session-independent data loads immediately so anonymous visitors
+  // don't wait for auth to resolve.
   useEffect(() => {
-    if (hasFetched.current) return;
-    hasFetched.current = true;
+    if (hasLoadedPublic.current) return;
+    hasLoadedPublic.current = true;
 
     // Timeout to prevent hanging
     const timeout = setTimeout(() => {
       setLoading(false);
     }, 3000);
 
-    checkUserAndRedirect();
     loadTeamPlanSettings();
     loadTestimonials();
     loadServices(); // Load services for all users (pricing is public)
 
     return () => clearTimeout(timeout);
-  }, [checkUserAndRedirect, loadTeamPlanSettings, loadTestimonials, loadServices]);
+  }, [loadTeamPlanSettings, loadTestimonials, loadServices]);
+
+  // Redirect logic fires once the session resolves (or definitively doesn't).
+  // Waiting on `sessionLoading` avoids a mount-time `auth.getUser()` race
+  // where a logged-in user would see the public home page and get stuck.
+  useEffect(() => {
+    const key = sessionUser?.id ?? (sessionLoading ? "__waiting__" : "__unauth__");
+    if (hasAuthChecked.current === key) return;
+    hasAuthChecked.current = key;
+    if (sessionLoading) return;
+    checkUserAndRedirect(sessionUser ?? null);
+  }, [sessionUser, sessionLoading, checkUserAndRedirect]);
 
   const handleServiceSelect = async (serviceId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
