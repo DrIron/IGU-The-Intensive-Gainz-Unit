@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Navigation } from "@/components/Navigation";
 import { ChevronLeft } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Filter } from "lucide-react";
 import { CoachNutritionGoal } from "@/components/nutrition/CoachNutritionGoal";
@@ -38,6 +40,7 @@ interface Coach {
 
 export default function CoachClientNutrition() {
   const { toast } = useToast();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [searchParams] = useSearchParams();
   // Accept `?client=<userId>` (preferred) or legacy `?clientId=<userId>` so a coach
   // navigating from the client detail or My Clients page lands directly on that client.
@@ -83,9 +86,8 @@ export default function CoachClientNutrition() {
     }
   }, []);
 
-  const loadClients = useCallback(async () => {
+  const loadClients = useCallback(async (user: SupabaseUser | null) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
       // Check if user is admin
@@ -145,8 +147,7 @@ export default function CoachClientNutrition() {
     }
   }, [toast]);
 
-  const loadUser = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+  const loadUser = useCallback(async (user: SupabaseUser | null) => {
     setUser(user);
     if (user) {
       // Check if admin
@@ -163,7 +164,7 @@ export default function CoachClientNutrition() {
       if (adminStatus) {
         loadCoaches();
       }
-      loadClients();
+      loadClients(user);
     }
   }, [loadCoaches, loadClients]);
 
@@ -229,13 +230,16 @@ export default function CoachClientNutrition() {
     }
   }, [selectedClient, clients, filter]);
 
-  const hasFetchedUser = useRef(false);
+  const hasFetchedUser = useRef<string | null>(null);
 
   useEffect(() => {
-    if (hasFetchedUser.current) return;
-    hasFetchedUser.current = true;
-    loadUser();
-  }, [loadUser]);
+    // Keyed on session state so a late-arriving session re-triggers load.
+    const key = sessionUser?.id ?? (sessionLoading ? "__waiting__" : "__unauth__");
+    if (hasFetchedUser.current === key) return;
+    hasFetchedUser.current = key;
+    if (sessionLoading) return;
+    loadUser(sessionUser ?? null);
+  }, [sessionUser, sessionLoading, loadUser]);
 
   useEffect(() => {
     if (selectedClient) {

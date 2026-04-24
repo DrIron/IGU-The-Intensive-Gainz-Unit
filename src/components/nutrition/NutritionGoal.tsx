@@ -1,8 +1,10 @@
 import { useState, useEffect, useCallback } from "react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { Loader2, Edit } from "lucide-react";
 import { StepWizardGoalSetting } from "@/components/calculator/StepWizardGoalSetting";
 import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
@@ -10,6 +12,7 @@ import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 export function NutritionGoal() {
   const { toast } = useToast();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [activeGoal, setActiveGoal] = useState<any>(null);
@@ -34,11 +37,8 @@ export function NutritionGoal() {
   const [stepsGoal, setStepsGoal] = useState("");
   const [result, setResult] = useState<any>(null);
 
-  const loadActiveGoal = useCallback(async () => {
+  const loadActiveGoal = useCallback(async (user: SupabaseUser) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
       const { data, error } = await supabase
         .from('nutrition_goals')
         .select('*')
@@ -94,8 +94,13 @@ export function NutritionGoal() {
   }, [toast]);
 
   useEffect(() => {
-    loadActiveGoal();
-  }, [loadActiveGoal]);
+    if (sessionLoading) return;
+    if (!sessionUser) {
+      setLoading(false);
+      return;
+    }
+    loadActiveGoal(sessionUser);
+  }, [sessionUser, sessionLoading, loadActiveGoal]);
 
   const calculateCalories = () => {
     const weightNum = parseFloat(weight);

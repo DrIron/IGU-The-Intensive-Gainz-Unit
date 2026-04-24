@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, ChevronLeft, UserX } from "lucide-react";
 import { Navigation } from "@/components/Navigation";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { ClientOverviewHeader } from "@/components/client-overview/ClientOverviewHeader";
 import { ClientOverviewTabs } from "@/components/client-overview/ClientOverviewTabs";
 import type {
@@ -34,19 +36,13 @@ type LoadState =
  */
 export default function CoachClientOverview() {
   const { clientUserId } = useParams<{ clientUserId: string }>();
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [user, setUser] = useState<{ id: string } | null>(null);
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const hasFetched = useRef<string | null>(null);
 
-  const load = useCallback(async (targetClientId: string) => {
+  const load = useCallback(async (targetClientId: string, viewer: SupabaseUser) => {
     setState({ kind: "loading" });
-
-    const { data: authData, error: authErr } = await supabase.auth.getUser();
-    if (authErr || !authData?.user) {
-      setState({ kind: "error", message: "Not signed in." });
-      return;
-    }
-    const viewer = authData.user;
     setUser({ id: viewer.id });
 
     // Parallelise the three identity reads. RLS decides what comes back --
@@ -148,13 +144,21 @@ export default function CoachClientOverview() {
       setState({ kind: "error", message: "Missing client id." });
       return;
     }
-    if (hasFetched.current === clientUserId) return;
-    hasFetched.current = clientUserId;
-    load(clientUserId).catch((err) => {
+    // Key the ref on clientUserId + viewer state so the effect retries when
+    // a late-arriving session propagates through useAuthSession.
+    const key = `${clientUserId}:${sessionUser?.id ?? (sessionLoading ? "__waiting__" : "__unauth__")}`;
+    if (hasFetched.current === key) return;
+    hasFetched.current = key;
+    if (sessionLoading) return;
+    if (!sessionUser) {
+      setState({ kind: "error", message: "Not signed in." });
+      return;
+    }
+    load(clientUserId, sessionUser).catch((err) => {
       console.error("[CoachClientOverview] unexpected:", err);
       setState({ kind: "error", message: "Failed to load client." });
     });
-  }, [clientUserId, load]);
+  }, [clientUserId, sessionUser, sessionLoading, load]);
 
   return (
     <>
