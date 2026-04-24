@@ -1,7 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
-const POLL_INTERVAL_MS = 60_000;
+// Slow-path fallback -- realtime usually fires the update within a
+// second or two, but if the socket drops or the client is behind a
+// proxy that breaks websockets, this safety net still catches new
+// messages. Matches the cadence used by useUnreadMessageCount.
+const FALLBACK_POLL_MS = 5 * 60 * 1000;
 
 interface StaffUnreadState {
   /** Map of client_id -> unread message count for the current viewer. */
@@ -18,8 +22,10 @@ interface StaffUnreadState {
  * instead of calling `useUnreadMessageCount(clientId)` per row, which
  * would create N queries.
  *
- * Refresh: initial fetch + 60s poll + on tab visibility. No realtime
- * subscription; matches the "refresh on open" design decision.
+ * Refresh: realtime subscription on any change to coach_client_messages
+ * invalidates the cached map (no per-client filter -- we care about every
+ * thread the viewer can see). Safety nets: 5-minute fallback poll in
+ * case the socket drops, tab-focus refresh after a backgrounded tab.
  *
  * Returns `{}` silently on auth loss or missing table -- the RPC is
  * scoped internally, so unauthorised callers get an empty result set
@@ -55,9 +61,31 @@ export function useStaffUnreadCounts(enabled: boolean = true): StaffUnreadState 
     setIsLoading(enabled);
     fetchCounts();
 
+    if (!enabled) return;
+
+    // Realtime: any change anywhere in coach_client_messages invalidates
+    // the cached counts. RLS filters at the DB layer, so our subscription
+    // only receives rows we're authorised to see. No client_id filter on
+    // the channel -- the batch RPC aggregates across every client the
+    // caller can access, so every event is potentially interesting.
+    const channel = supabase
+      .channel("ccm-staff-unread")
+      .on(
+        "postgres_changes" as never,
+        {
+          event: "*",
+          schema: "public",
+          table: "coach_client_messages",
+        },
+        () => {
+          if (!cancelled) fetchCounts();
+        },
+      )
+      .subscribe();
+
     const interval = window.setInterval(() => {
       if (!cancelled) fetchCounts();
-    }, POLL_INTERVAL_MS);
+    }, FALLBACK_POLL_MS);
 
     const onVisibility = () => {
       if (document.visibilityState === "visible" && !cancelled) fetchCounts();
@@ -66,6 +94,7 @@ export function useStaffUnreadCounts(enabled: boolean = true): StaffUnreadState 
 
     return () => {
       cancelled = true;
+      supabase.removeChannel(channel);
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibility);
     };
