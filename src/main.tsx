@@ -6,14 +6,13 @@ import App from "./App.tsx";
 import "./index.css";
 
 // Initialize Sentry as early as possible.
-// DSN comes from VITE_SENTRY_DSN; the hardcoded fallback matches the active
-// `javascript-react` project in the `igu-the-intensive-gainz-unit` Sentry org.
-// The previous fallback DSN ended in project id ...480046160, which is a
-// separate (orphaned) project -- events landed there but nobody watched it,
-// so the dashboard showed 0 captured events for 30+ days. Once VITE_SENTRY_DSN
-// is confirmed set in every Vercel environment, delete the fallback.
-const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN
-  || "https://83c5d33453db27cb12b872be6d9b4dd0@o4510780833923072.ingest.de.sentry.io/4510786489352273";
+// DSN comes from VITE_SENTRY_DSN, set in Vercel for Production + Preview.
+// No fallback: a missing/empty DSN should fail loud at init time rather
+// than silently route events to a stale baked-in project. Verified
+// end-to-end on theigu.com 2026-04-25 -- env-var-sourced events land in
+// the watched `javascript-react` project (id 4510786489352273) under the
+// `igu-the-intensive-gainz-unit` Sentry org.
+const SENTRY_DSN = import.meta.env.VITE_SENTRY_DSN;
 
 // De-dupe identical errors within a 5s window so a runaway loop (e.g. an
 // effect throwing on every render) doesn't exhaust the project's ingestion
