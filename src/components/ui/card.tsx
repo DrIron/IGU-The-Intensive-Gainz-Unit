@@ -29,7 +29,13 @@ const CardDescription = React.forwardRef<HTMLParagraphElement, React.HTMLAttribu
 CardDescription.displayName = "CardDescription";
 
 const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
-  ({ className, ...props }, ref) => <div ref={ref} className={cn("p-4 pt-0 md:p-6 md:pt-0", className)} {...props} />,
+  // shadcn ships `pt-0 md:pt-0` so CardContent sits flush under a CardHeader,
+  // but that broke every header-less card in the codebase: consumers who
+  // wrote `<CardContent className="p-4">` got the default's `md:pt-0` back at
+  // the dashboard width and content pinned to the top edge. Dropping pt-0
+  // here costs ~16-24px of extra header/content gap on with-header cards
+  // (a mild loosening) and fixes everything else without a sweep.
+  ({ className, ...props }, ref) => <div ref={ref} className={cn("p-4 md:p-6", className)} {...props} />,
 );
 CardContent.displayName = "CardContent";
 
