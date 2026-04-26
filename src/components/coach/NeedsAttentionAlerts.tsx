@@ -17,6 +17,10 @@ interface AttentionMetrics {
   pendingApprovals: number;
   nutritionAdjustmentsPending: number;
   clientsNoLogThisWeek: number;
+  // Track the actual user_ids so a single-item alert can deep-link straight
+  // to that client's overview instead of dumping the coach on the full list.
+  nutritionAdjustmentClientIds: string[];
+  inactiveClientIds: string[];
 }
 
 export function NeedsAttentionAlerts({ coachUserId, onNavigate }: NeedsAttentionAlertsProps) {
@@ -24,6 +28,8 @@ export function NeedsAttentionAlerts({ coachUserId, onNavigate }: NeedsAttention
     pendingApprovals: 0,
     nutritionAdjustmentsPending: 0,
     clientsNoLogThisWeek: 0,
+    nutritionAdjustmentClientIds: [],
+    inactiveClientIds: [],
   });
   const [loading, setLoading] = useState(true);
   const [dismissed, setDismissed] = useState(false);
@@ -38,15 +44,32 @@ export function NeedsAttentionAlerts({ coachUserId, onNavigate }: NeedsAttention
         .eq("coach_id", coachUserId)
         .eq("status", "pending");
 
-      // Get pending nutrition adjustments
-      const { count: nutritionCount } = await supabase
+      // Get pending nutrition adjustments + collect the client user_ids so
+      // the alert can deep-link to a single client when only one is pending.
+      const { data: pendingAdjustments } = await supabase
         .from("nutrition_adjustments")
         .select(`
           id,
-          nutrition_phases!inner(coach_id)
-        `, { count: "exact", head: true })
+          nutrition_phases!inner(coach_id, user_id)
+        `)
         .eq("nutrition_phases.coach_id", coachUserId)
         .eq("status", "pending");
+
+      const adjustmentClientIds = Array.from(
+        new Set(
+          (pendingAdjustments ?? [])
+            // PostgREST FK joins return the related row inline; types can
+            // surface it as either a single object or an array depending on
+            // the relationship cardinality, so normalise both shapes.
+            .map(row => {
+              const phase = row.nutrition_phases as { user_id?: string } | { user_id?: string }[] | null;
+              if (!phase) return null;
+              if (Array.isArray(phase)) return phase[0]?.user_id ?? null;
+              return phase.user_id ?? null;
+            })
+            .filter((id): id is string => !!id),
+        ),
+      );
 
       // Get clients with no weight logs this week
       const weekStart = new Date();
@@ -58,7 +81,7 @@ export function NeedsAttentionAlerts({ coachUserId, onNavigate }: NeedsAttention
         .eq("coach_id", coachUserId)
         .eq("is_active", true);
 
-      let noLogCount = 0;
+      const inactiveIds: string[] = [];
       if (activePhases && activePhases.length > 0) {
         for (const phase of activePhases) {
           const { data: recentLogs } = await supabase
@@ -69,15 +92,17 @@ export function NeedsAttentionAlerts({ coachUserId, onNavigate }: NeedsAttention
             .limit(1);
 
           if (!recentLogs || recentLogs.length === 0) {
-            noLogCount++;
+            inactiveIds.push(phase.user_id);
           }
         }
       }
 
       setMetrics({
         pendingApprovals: pendingCount || 0,
-        nutritionAdjustmentsPending: nutritionCount || 0,
-        clientsNoLogThisWeek: noLogCount,
+        nutritionAdjustmentsPending: adjustmentClientIds.length,
+        clientsNoLogThisWeek: inactiveIds.length,
+        nutritionAdjustmentClientIds: adjustmentClientIds,
+        inactiveClientIds: inactiveIds,
       });
     } catch (error) {
       console.error("Error fetching attention metrics:", error);
@@ -130,21 +155,40 @@ export function NeedsAttentionAlerts({ coachUserId, onNavigate }: NeedsAttention
     },
     {
       count: metrics.nutritionAdjustmentsPending,
-      label: "Nutrition Adjustments",
+      label: metrics.nutritionAdjustmentsPending === 1 ? "Nutrition Adjustment" : "Nutrition Adjustments",
       icon: Scale,
       color: "text-orange-500",
       bgColor: "bg-orange-500/10",
       borderColor: "border-orange-500/30",
-      action: () => handleNavigate('nutrition'),
+      action: () => {
+        // Single-client case: open that client's Nutrition tab, which is
+        // where the Adjustments review surface lives.
+        if (metrics.nutritionAdjustmentClientIds.length === 1) {
+          navigate(`/coach/clients/${metrics.nutritionAdjustmentClientIds[0]}?tab=nutrition`);
+          return;
+        }
+        handleNavigate('nutrition');
+      },
     },
     {
       count: metrics.clientsNoLogThisWeek,
-      label: "Clients Inactive 7+ Days",
+      label: metrics.clientsNoLogThisWeek === 1 ? "Client Inactive 7+ Days" : "Clients Inactive 7+ Days",
       icon: Activity,
       color: "text-yellow-500",
       bgColor: "bg-yellow-500/10",
       borderColor: "border-yellow-500/30",
-      action: () => handleNavigate('clients', 'inactive'),
+      action: () => {
+        // Single-client case: open that client's Nutrition tab so the coach
+        // immediately sees the missing weigh-in instead of guessing from a
+        // generic list (the list page's "at-risk" filter uses a different
+        // definition than no-weight-log-this-week, so a query-string filter
+        // wouldn't even surface the right person).
+        if (metrics.inactiveClientIds.length === 1) {
+          navigate(`/coach/clients/${metrics.inactiveClientIds[0]}?tab=nutrition`);
+          return;
+        }
+        handleNavigate('clients', 'inactive');
+      },
     },
   ].filter(item => item.count > 0);
 
