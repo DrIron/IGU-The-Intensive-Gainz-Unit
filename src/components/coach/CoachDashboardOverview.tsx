@@ -445,7 +445,13 @@ const CoachOverviewStats = memo(function CoachOverviewStats({ metrics, onNavigat
           onClick={stat.onClick}
           className="h-full"
         >
-          <CardContent className="h-full px-4 py-6 flex items-center gap-4">
+          {/* shadcn CardContent ships `pt-0 md:pt-0` so content sits flush
+              under a CardHeader -- without one (these are header-less stat
+              tiles) that becomes "glued to the top". Using `p-4 md:p-6`
+              (the same all-sides shape) lets tailwind-merge actually drop
+              the pt-0 override, and h-full + items-center then centers the
+              row inside a stretched card. */}
+          <CardContent className="h-full p-4 md:p-6 flex items-center gap-4">
             <div className={`inline-flex items-center justify-center p-2.5 rounded-lg ${stat.color} shrink-0`}>
               <stat.icon className="h-5 w-5" aria-hidden="true" />
             </div>

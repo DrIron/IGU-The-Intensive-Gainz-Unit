@@ -148,7 +148,7 @@ export function AdminMetricsCards() {
           className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30 h-full"
           onClick={card.onClick}
         >
-          <CardContent className="h-full px-4 py-6 flex items-center gap-4">
+          <CardContent className="h-full p-4 md:p-6 flex items-center gap-4">
             <div className={`inline-flex items-center justify-center p-2.5 rounded-lg ${card.color} shrink-0`}>
               <card.icon className="h-5 w-5" />
             </div>

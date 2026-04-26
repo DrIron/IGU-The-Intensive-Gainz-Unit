@@ -147,7 +147,7 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
     <div className="space-y-6">
       {stats.pendingAdjustments > 0 && (
         <Card className="border-amber-500/30 bg-amber-500/5">
-          <CardContent className="p-4 flex items-center gap-3">
+          <CardContent className="p-4 md:p-6 flex items-center gap-3">
             <AlertCircle className="h-5 w-5 text-amber-600 shrink-0" aria-hidden="true" />
             <div className="flex-1 min-w-0">
               <p className="font-medium text-sm">
@@ -212,7 +212,7 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
 
       {!loading && !stats.phaseName && !stats.lastWorkoutAt && !stats.lastWeighInKg && (
         <Card>
-          <CardContent className="py-10 text-center text-sm text-muted-foreground">
+          <CardContent className="p-10 text-center text-sm text-muted-foreground">
             <Calendar className="h-6 w-6 mx-auto mb-2 opacity-50" aria-hidden="true" />
             Nothing recorded for this client yet. Start a nutrition phase or assign a
             program from the relevant tabs.
