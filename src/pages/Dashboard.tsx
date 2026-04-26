@@ -10,6 +10,9 @@ import { useRoleCache } from "@/hooks/useRoleCache";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { TIMEOUTS } from "@/lib/constants";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { captureException } from "@/lib/errorLogging";
+import { Button } from "@/components/ui/button";
+import { AlertCircle } from "lucide-react";
 
 interface Profile {
   status: string;
@@ -64,6 +67,7 @@ function DashboardContent() {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<{ id: string; email: string | null } | null>(null);
   const hasLoadedData = useRef(false);
@@ -115,29 +119,61 @@ function DashboardContent() {
       const user = sessionUser || { id: userId, email: null };
       setCurrentUser(user);
 
-      // Load profile with timeout
-      try {
+      // Load profile -- one attempt, then a single retry if the first lost
+      // the auth race (JWT not yet attached -> RLS returns 0 rows -> .single()
+      // would throw, so use .maybeSingle() to keep the response shape clean).
+      // After two failures we surface an error state with a Reload button
+      // instead of leaving the layout stuck on its !profile skeleton forever
+      // (Mubarak repro, Apr 26).
+      const fetchProfileOnce = async () => {
         const profilePromise = supabase
           .from("profiles_public")
           .select("*")
           .eq("id", userId)
-          .single();
+          .maybeSingle();
 
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Profile query timeout')), TIMEOUTS.ROLES_QUERY)
         );
 
-        const { data, error } = await Promise.race([
-          profilePromise,
-          timeoutPromise
-        ]) as { data: Profile | null; error: Error | null };
+        return Promise.race([profilePromise, timeoutPromise]) as Promise<{
+          data: Profile | null;
+          error: { message: string } | null;
+        }>;
+      };
 
-        if (!error) setProfile(data);
+      let profileData: Profile | null = null;
+      let profileError: { message: string } | null = null;
+      try {
+        const first = await fetchProfileOnce();
+        profileData = first.data;
+        profileError = first.error;
+        if (!profileData && !profileError) {
+          // Successful query but zero rows -- usually the JWT-not-yet-attached
+          // race against an RLS-self policy. Wait briefly then retry.
+          await new Promise(r => setTimeout(r, 1500));
+          const second = await fetchProfileOnce();
+          profileData = second.data;
+          profileError = second.error;
+        }
       } catch (e) {
-        if (import.meta.env.DEV) console.warn("[Dashboard] Profile query timed out");
+        profileError = { message: e instanceof Error ? e.message : 'Profile query failed' };
       }
 
-      // Check roles with timeout
+      if (profileData) {
+        setProfile(profileData);
+        setProfileLoadFailed(false);
+      } else {
+        setProfileLoadFailed(true);
+        captureException(profileError ?? new Error('Profile load returned null after retry'), {
+          source: 'Dashboard.loadUserData.profile',
+          severity: 'error',
+          metadata: { userId, hadError: !!profileError },
+        });
+      }
+
+      // Check roles with timeout. Falls back to cachedRoles on miss/timeout
+      // so a transient JWT race doesn't mis-route a coach/admin to /dashboard.
       let roles: string[] = cachedRoles || [];
       try {
         const rolesPromise = supabase
@@ -159,7 +195,11 @@ function DashboardContent() {
           setCachedRoles(roles, userId);
         }
       } catch (e) {
-        if (import.meta.env.DEV) console.warn("[Dashboard] Roles query timed out, using cached roles");
+        captureException(e, {
+          source: 'Dashboard.loadUserData.roles',
+          severity: 'warning',
+          metadata: { userId, fellBackToCache: roles.length > 0 },
+        });
       }
 
       // Role-based redirects
@@ -213,7 +253,11 @@ function DashboardContent() {
 
         if (!error) setSubscription(data);
       } catch (e) {
-        if (import.meta.env.DEV) console.warn("[Dashboard] Subscription query timed out");
+        captureException(e, {
+          source: 'Dashboard.loadUserData.subscription',
+          severity: 'warning',
+          metadata: { userId },
+        });
       }
     } catch (error: unknown) {
       if (import.meta.env.DEV) console.error("[Dashboard] Error loading data:", error);
@@ -255,6 +299,35 @@ function DashboardContent() {
 
   if (loading) {
     return <LoadingSpinner />;
+  }
+
+  // Profile fetch failed twice -- show a recoverable error state instead of
+  // letting ClientDashboardLayout sit on its !profile skeleton forever.
+  if (profileLoadFailed && !profile) {
+    const handleReload = () => {
+      hasLoadedData.current = false;
+      setProfileLoadFailed(false);
+      setLoading(true);
+      loadUserData();
+    };
+    return (
+      <>
+        <Navigation user={currentUser} userRole="client" onSectionChange={handleSectionChange} activeSection={activeSection} />
+        <main className="flex min-h-screen items-center justify-center p-6">
+          <div className="max-w-sm space-y-4 text-center">
+            <AlertCircle className="h-10 w-10 text-destructive mx-auto" aria-hidden="true" />
+            <h1 className="text-lg font-semibold">We couldn't load your dashboard</h1>
+            <p className="text-sm text-muted-foreground">
+              Your session may need to refresh. Tap reload to try again -- if this keeps happening, sign out and back in.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button onClick={handleReload}>Reload</Button>
+              <Button variant="outline" onClick={() => navigate('/auth')}>Sign out</Button>
+            </div>
+          </div>
+        </main>
+      </>
+    );
   }
 
   return (
