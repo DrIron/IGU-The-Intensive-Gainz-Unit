@@ -194,7 +194,7 @@ export function NeedsAttentionAlerts({ coachUserId, onNavigate }: NeedsAttention
 
   return (
     <Card className="border-amber-500/30 bg-amber-500/5">
-      <CardContent className="p-4">
+      <CardContent className="p-4 md:p-6">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="flex items-center gap-3">
             <div className="inline-flex items-center justify-center p-2 rounded-full bg-amber-500/15">
