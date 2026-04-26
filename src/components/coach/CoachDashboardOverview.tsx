@@ -445,7 +445,7 @@ const CoachOverviewStats = memo(function CoachOverviewStats({ metrics, onNavigat
           onClick={stat.onClick}
           className="h-full"
         >
-          <CardContent className="px-4 py-6 flex items-center gap-4">
+          <CardContent className="h-full px-4 py-6 flex items-center gap-4">
             <div className={`inline-flex items-center justify-center p-2.5 rounded-lg ${stat.color} shrink-0`}>
               <stat.icon className="h-5 w-5" aria-hidden="true" />
             </div>

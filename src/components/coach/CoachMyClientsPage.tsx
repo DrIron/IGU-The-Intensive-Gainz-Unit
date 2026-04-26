@@ -12,12 +12,13 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useStaffUnreadCounts } from "@/hooks/useStaffUnreadCounts";
-import { 
+import {
   Users, Search, Eye, Activity, AlertCircle, TrendingUp, TrendingDown,
   Dumbbell, Library, MoreVertical, MessageSquare, ArrowRight,
   Check, X, Mail, Phone, DollarSign, Calendar, UserCheck, Clock, CreditCard,
-  AlertTriangle, RefreshCw, Loader2, Inbox
+  AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -90,6 +91,11 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   // Per-section pagination
   const [sectionPages, setSectionPages] = useState<Record<string, number>>({});
   const CLIENTS_PER_PAGE = 20;
+
+  // Per-section collapse state. `undefined` means "use default" — sections
+  // with zero clients default to collapsed so the queue isn't dominated by
+  // empty-state cards. Coach can toggle and the explicit choice sticks.
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   // Ref for pending section (auto-scroll when needed)
   const pendingRef = useRef<HTMLDivElement>(null);
@@ -565,19 +571,43 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
       default: ''
     };
 
+    // Empty sections collapse by default so the queue doesn't waste a full
+    // viewport on three "0 clients" states. Coach can re-open with one click;
+    // explicit toggles override the default.
+    const isCollapsed = collapsedSections[sectionKey] ?? filteredClients.length === 0;
+    const setOpen = (open: boolean) =>
+      setCollapsedSections(prev => ({ ...prev, [sectionKey]: !open }));
+
     return (
       <Card ref={sectionRef} className={variantStyles[variant]}>
-        <CardHeader className="pb-3">
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center gap-2 text-base">
-              <Icon className={`h-5 w-5 ${iconStyles[variant]}`} />
-              {title}
-            </span>
-            <Badge variant="secondary" className={`font-medium ${badgeStyles[variant]}`}>
-              {filteredClients.length}
-            </Badge>
-          </CardTitle>
-        </CardHeader>
+        <Collapsible open={!isCollapsed} onOpenChange={setOpen}>
+          <CollapsibleTrigger asChild>
+            <button
+              type="button"
+              className="w-full text-left"
+              aria-expanded={!isCollapsed}
+              aria-label={`${isCollapsed ? "Expand" : "Collapse"} ${title} section`}
+            >
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-base">
+                    <Icon className={`h-5 w-5 ${iconStyles[variant]}`} />
+                    {title}
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <Badge variant="secondary" className={`font-medium ${badgeStyles[variant]}`}>
+                      {filteredClients.length}
+                    </Badge>
+                    <ChevronDown
+                      className={`h-4 w-4 text-muted-foreground transition-transform ${isCollapsed ? '' : 'rotate-180'}`}
+                      aria-hidden="true"
+                    />
+                  </span>
+                </CardTitle>
+              </CardHeader>
+            </button>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
         <CardContent>
           {filteredClients.length === 0 ? (
             <EmptyState
@@ -731,6 +761,8 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
             </>
           )}
         </CardContent>
+          </CollapsibleContent>
+        </Collapsible>
       </Card>
     );
   };
