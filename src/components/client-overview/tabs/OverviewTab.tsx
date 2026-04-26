@@ -247,11 +247,11 @@ function StatTile({
   emptyLabel,
 }: StatTileProps) {
   return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-0">
-        <div className="flex">
+    <Card className="overflow-hidden h-full">
+      <CardContent className="p-0 h-full">
+        <div className="flex h-full">
           <div aria-hidden="true" className={cn("w-1 shrink-0", railColor)} />
-          <div className="flex-1 p-4 md:p-5 space-y-2">
+          <div className="flex-1 p-4 md:p-5 flex flex-col justify-center gap-2">
             <div className="flex items-center justify-between gap-2">
               <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide">
                 {icon}

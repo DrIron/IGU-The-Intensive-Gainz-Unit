@@ -110,15 +110,15 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <Card 
-        className="border-destructive/50 hover:shadow-lg transition-shadow cursor-pointer"
+      <Card
+        className="border-destructive/50 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col"
         onClick={() => missedLogsCount > 0 && onNavigateToClients('missed-logs')}
       >
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium">Missed Logs</CardTitle>
           <AlertCircle className="h-4 w-4 text-destructive" />
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 flex flex-col justify-center">
           <div className="text-2xl font-bold">{missedLogsCount}</div>
           <p className="text-xs text-muted-foreground">
             1:1 clients haven't logged nutrition this week
@@ -126,15 +126,15 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
         </CardContent>
       </Card>
 
-      <Card 
-        className="border-orange-500/50 hover:shadow-lg transition-shadow cursor-pointer"
+      <Card
+        className="border-orange-500/50 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col"
         onClick={() => paymentIssuesCount > 0 && onNavigateToClients('payment-issues')}
       >
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium">Payment Issues</CardTitle>
           <FileWarning className="h-4 w-4 text-orange-500" />
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 flex flex-col justify-center">
           <div className="text-2xl font-bold">{paymentIssuesCount}</div>
           <p className="text-xs text-muted-foreground">
             Clients with payment problems
@@ -142,15 +142,15 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
         </CardContent>
       </Card>
 
-      <Card 
-        className="border-primary/50 hover:shadow-lg transition-shadow cursor-pointer"
+      <Card
+        className="border-primary/50 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col"
         onClick={() => newSignupsCount > 0 && onNavigateToClients('new-signups')}
       >
         <CardHeader className="flex flex-row items-center justify-between pb-2">
           <CardTitle className="text-sm font-medium">New Signups</CardTitle>
           <UserPlus className="h-4 w-4 text-primary" />
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex-1 flex flex-col justify-center">
           <div className="text-2xl font-bold">{newSignupsCount}</div>
           <p className="text-xs text-muted-foreground">
             New clients joined this week
