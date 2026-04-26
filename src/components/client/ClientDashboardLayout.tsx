@@ -130,7 +130,7 @@ export function ClientDashboardLayout({
   if (verifying) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0 p-8">
             <div className="max-w-7xl mx-auto flex flex-col items-center justify-center gap-4 py-12">
@@ -147,7 +147,7 @@ export function ClientDashboardLayout({
   if (!profile) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0 p-8">
             <div className="max-w-7xl mx-auto space-y-4">
@@ -164,7 +164,7 @@ export function ClientDashboardLayout({
   if (isPending && !hasSubscription) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
@@ -191,7 +191,7 @@ export function ClientDashboardLayout({
   if (isNeedsMedicalReview) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} isPendingApproval={true} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
@@ -215,7 +215,7 @@ export function ClientDashboardLayout({
   if (isPendingCoachApproval && hasSubscription && subStatus === "pending") {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} isPendingApproval={true} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
@@ -240,7 +240,7 @@ export function ClientDashboardLayout({
   if (isPendingPayment && hasSubscription && subStatus === "pending" && !profile?.payment_exempt) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
@@ -258,7 +258,7 @@ export function ClientDashboardLayout({
   if (isSuspended) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
@@ -283,7 +283,7 @@ export function ClientDashboardLayout({
   if (isCancelledBoth) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
@@ -328,7 +328,7 @@ export function ClientDashboardLayout({
   if (isCancelled || isExpired) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
@@ -349,7 +349,7 @@ export function ClientDashboardLayout({
   if (isHardLocked && !isCancelled && !isExpired) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
@@ -385,7 +385,7 @@ export function ClientDashboardLayout({
   if (isInactiveLike && !isCancelled && !isExpired && !isHardLocked) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
@@ -419,7 +419,7 @@ export function ClientDashboardLayout({
   if (isActive && needsTeamSelection) {
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
@@ -496,7 +496,7 @@ export function ClientDashboardLayout({
 
     return (
       <SidebarProvider defaultOpen={false}>
-        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+        <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
           <ClientSidebar 
             activeSection={activeSection} 
             onSectionChange={setActiveSection}
@@ -545,7 +545,7 @@ export function ClientDashboardLayout({
   // 11. Unexpected state → Generic error
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+      <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
         <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
         <main className="flex-1 min-w-0">
           <div className="p-4 md:p-6 pb-8 safe-area-bottom">
@@ -594,7 +594,7 @@ function OverviewSection({ profile, subscription, user, needsOnboarding, navigat
           <Card className="border-border/50 shadow-2xl">
             <CardHeader className="text-center">
               <div className="flex justify-center mb-4">
-                <div className="p-3 rounded-full bg-gradient-to-r from-primary to-accent">
+                <div className="inline-flex items-center justify-center p-3 rounded-full bg-gradient-to-r from-primary to-accent">
                   <Dumbbell className="h-8 w-8 text-white" />
                 </div>
               </div>

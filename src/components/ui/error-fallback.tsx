@@ -19,7 +19,7 @@ export function ErrorFallback({
     <div className="min-h-[400px] flex items-center justify-center p-4">
       <Card className="max-w-md w-full border-destructive/30 bg-destructive/5">
         <CardHeader className="text-center pb-4">
-          <div className="mx-auto mb-4 p-3 rounded-full bg-destructive/10 w-fit">
+          <div className="mx-auto mb-4 inline-flex items-center justify-center p-3 rounded-full bg-destructive/10 w-fit">
             <AlertCircle className="h-8 w-8 text-destructive" />
           </div>
           <CardTitle className="text-xl">{title}</CardTitle>

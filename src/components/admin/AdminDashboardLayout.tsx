@@ -142,7 +142,7 @@ export function AdminDashboardLayout({
 
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-16">
+      <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
         <AdminSidebar 
           activeSection={activeSection} 
           onSectionChange={setActiveSection} 

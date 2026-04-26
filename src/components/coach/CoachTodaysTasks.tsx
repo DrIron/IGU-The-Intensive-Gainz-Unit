@@ -102,7 +102,7 @@ export function CoachTodaysTasks({
                 >
                   <div className="flex items-center gap-3">
                     <div className={cn(
-                      "p-2 rounded-full",
+                      "inline-flex items-center justify-center p-2 rounded-full",
                       isActive && task.urgent ? "bg-destructive/10" : "bg-muted"
                     )}>
                       <Icon className={cn(

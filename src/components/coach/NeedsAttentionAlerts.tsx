@@ -149,52 +149,45 @@ export function NeedsAttentionAlerts({ coachUserId, onNavigate }: NeedsAttention
   ].filter(item => item.count > 0);
 
   return (
-    <Card className="border-2 border-amber-500/30 bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-background">
+    <Card className="border-amber-500/30 bg-amber-500/5">
       <CardContent className="p-4">
-        <div className="flex items-start justify-between gap-4">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="flex items-center gap-3">
-            <div className="p-2 rounded-full bg-amber-500/20">
-              <Bell className="h-5 w-5 text-amber-500" />
+            <div className="inline-flex items-center justify-center p-2 rounded-full bg-amber-500/15">
+              <Bell className="h-4 w-4 text-amber-500" />
             </div>
-            <div>
-              <h3 className="font-semibold flex items-center gap-2">
-                Needs Your Attention
-                <Badge variant="secondary" className="bg-amber-500/20 text-amber-600">
-                  {totalAttentionItems} {totalAttentionItems === 1 ? 'item' : 'items'}
-                </Badge>
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Review these items to keep your clients on track
+            <div className="leading-tight">
+              <h3 className="font-semibold text-sm">Needs Your Attention</h3>
+              <p className="text-xs text-muted-foreground">
+                {totalAttentionItems} {totalAttentionItems === 1 ? 'item' : 'items'} to review
               </p>
             </div>
           </div>
+
+          <div className="flex flex-wrap gap-2 flex-1">
+            {alertItems.map((item, index) => (
+              <button
+                key={index}
+                onClick={item.action}
+                className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm transition-colors hover:bg-background/40 ${item.bgColor} ${item.borderColor}`}
+              >
+                <item.icon className={`h-4 w-4 ${item.color}`} />
+                <span className={`font-semibold ${item.color}`}>{item.count}</span>
+                <span className="text-muted-foreground">{item.label}</span>
+                <ChevronRight className={`h-3.5 w-3.5 ${item.color}`} />
+              </button>
+            ))}
+          </div>
+
           <Button
             variant="ghost"
             size="icon"
-            className="h-8 w-8 text-muted-foreground hover:text-foreground"
+            className="h-7 w-7 text-muted-foreground hover:text-foreground ml-auto"
             onClick={() => setDismissed(true)}
+            aria-label="Dismiss"
           >
             <X className="h-4 w-4" />
           </Button>
-        </div>
-
-        <div className="flex flex-wrap gap-3 mt-4">
-          {alertItems.map((item, index) => (
-            <button
-              key={index}
-              onClick={item.action}
-              className={`flex items-center gap-3 px-4 py-3 rounded-lg border-2 transition-all hover:scale-[1.02] ${item.bgColor} ${item.borderColor}`}
-            >
-              <div className={`p-1.5 rounded-full ${item.bgColor}`}>
-                <item.icon className={`h-4 w-4 ${item.color}`} />
-              </div>
-              <div className="text-left">
-                <p className={`text-2xl font-bold ${item.color}`}>{item.count}</p>
-                <p className="text-xs text-muted-foreground">{item.label}</p>
-              </div>
-              <ChevronRight className={`h-4 w-4 ${item.color} ml-2`} />
-            </button>
-          ))}
         </div>
       </CardContent>
     </Card>

@@ -219,7 +219,7 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
         <Card>
           <CardContent className="py-12 text-center space-y-3">
             <div className="flex justify-center">
-              <div className="p-3 rounded-full bg-muted">
+              <div className="inline-flex items-center justify-center p-3 rounded-full bg-muted">
                 <CalendarClock
                   className="h-5 w-5 text-muted-foreground"
                   aria-hidden="true"

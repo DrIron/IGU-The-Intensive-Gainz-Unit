@@ -244,7 +244,7 @@ function EmptyState({ onGoToPrograms }: { onGoToPrograms: () => void }) {
         <CardContent className="py-12">
           <div className="flex flex-col items-center text-center gap-3
   text-muted-foreground">     
-            <div className="p-3 rounded-full bg-muted">
+            <div className="inline-flex items-center justify-center p-3 rounded-full bg-muted">
               <Dumbbell className="h-6 w-6" aria-hidden="true" />
             </div>              
             <div>                            

@@ -53,7 +53,7 @@ export function QuickActionsGrid({ profile, subscription, sessionBookingEnabled 
           onClick={action.onClick}
         >
           <CardContent className="p-4 flex flex-col items-center text-center gap-2">
-            <div className="p-2 rounded-lg bg-primary/10">
+            <div className="inline-flex items-center justify-center p-2 rounded-lg bg-primary/10">
               <action.icon className="h-6 w-6 text-primary" />
             </div>
             <div>

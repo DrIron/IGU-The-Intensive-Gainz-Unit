@@ -81,7 +81,7 @@ export function EmptyState({
         className
       )}
     >
-      <div className="rounded-full bg-muted p-3 mb-4">
+      <div className="inline-flex items-center justify-center rounded-full bg-muted p-3 mb-4">
         <Icon className={cn("text-muted-foreground", sizes.icon)} />
       </div>
       

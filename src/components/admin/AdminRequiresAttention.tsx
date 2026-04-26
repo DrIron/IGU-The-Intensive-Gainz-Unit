@@ -112,7 +112,7 @@ export function AdminRequiresAttention() {
   if (items.length === 0) {
     return (
       <div className="flex items-center gap-3 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
-        <div className="p-2 bg-green-100 dark:bg-green-900/50 rounded-full">
+        <div className="inline-flex items-center justify-center p-2 bg-green-100 dark:bg-green-900/50 rounded-full">
           <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
         </div>
         <p className="text-sm text-green-700 dark:text-green-300">

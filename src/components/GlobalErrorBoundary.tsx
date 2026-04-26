@@ -65,7 +65,7 @@ export class GlobalErrorBoundary extends React.Component<
         <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
           <Card className="max-w-md w-full border-destructive/30 bg-card shadow-xl">
             <CardHeader className="text-center pb-4">
-              <div className="mx-auto mb-4 p-4 rounded-full bg-destructive/10 w-fit">
+              <div className="mx-auto mb-4 inline-flex items-center justify-center p-4 rounded-full bg-destructive/10 w-fit">
                 <AlertCircle className="h-10 w-10 text-destructive" />
               </div>
               <CardTitle className="text-2xl">Something went wrong</CardTitle>

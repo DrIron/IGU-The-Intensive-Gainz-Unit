@@ -660,7 +660,7 @@ function EmptyThread() {
   return (
     <div className="py-10 text-center space-y-2">
       <div className="flex justify-center">
-        <div className="p-3 rounded-full bg-muted">
+        <div className="inline-flex items-center justify-center p-3 rounded-full bg-muted">
           <MessageSquare
             className="h-5 w-5 text-muted-foreground"
             aria-hidden="true"

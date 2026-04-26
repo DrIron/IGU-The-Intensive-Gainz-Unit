@@ -299,11 +299,11 @@ export function SecurityChecklist() {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               {failCount === 0 ? (
-                <div className="p-3 rounded-full bg-emerald-100 dark:bg-emerald-900/30">
+                <div className="inline-flex items-center justify-center p-3 rounded-full bg-emerald-100 dark:bg-emerald-900/30">
                   <ShieldCheck className="h-8 w-8 text-emerald-600 dark:text-emerald-500" />
                 </div>
               ) : (
-                <div className="p-3 rounded-full bg-destructive/10">
+                <div className="inline-flex items-center justify-center p-3 rounded-full bg-destructive/10">
                   <ShieldAlert className="h-8 w-8 text-destructive" />
                 </div>
               )}

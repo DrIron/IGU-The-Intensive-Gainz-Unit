@@ -390,7 +390,7 @@ const CoachTeamsSummaryCard = memo(function CoachTeamsSummaryCard({
         <CardDescription>Team plan management</CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="flex items-center gap-6">
+        <div className="flex items-center justify-center gap-8 text-center">
           <div>
             <p className="text-2xl font-bold tabular-nums">{teamCount}</p>
             <p className="text-xs text-muted-foreground">Teams</p>
@@ -443,13 +443,16 @@ const CoachOverviewStats = memo(function CoachOverviewStats({ metrics, onNavigat
           key={stat.label}
           ariaLabel={`${stat.label}: ${stat.value}`}
           onClick={stat.onClick}
+          className="h-full"
         >
-          <CardContent className="p-4">
-            <div className={`inline-flex p-2 rounded-lg ${stat.color} mb-3`}>
+          <CardContent className="px-4 py-6 flex items-center gap-4">
+            <div className={`inline-flex items-center justify-center p-2.5 rounded-lg ${stat.color} shrink-0`}>
               <stat.icon className="h-5 w-5" aria-hidden="true" />
             </div>
-            <p className="text-2xl font-bold tabular-nums">{stat.value}</p>
-            <p className="text-sm text-muted-foreground">{stat.label}</p>
+            <div className="min-w-0">
+              <p className="text-2xl font-bold tabular-nums leading-tight">{stat.value}</p>
+              <p className="text-sm text-muted-foreground">{stat.label}</p>
+            </div>
           </CardContent>
         </ClickableCard>
       ))}
@@ -593,11 +596,11 @@ const CoachCompensationSummary = memo(function CoachCompensationSummary({ coachU
         </div>
       </CardHeader>
       <CardContent>
-        <div className="flex items-baseline gap-2">
+        <div className="flex items-baseline justify-center gap-2">
           <span className="text-2xl font-bold tracking-tight tabular-nums">{totalPayout} KWD</span>
           <span className="text-sm text-muted-foreground">/ month</span>
         </div>
-        <p className="text-xs text-muted-foreground mt-1">
+        <p className="text-xs text-muted-foreground mt-1 text-center">
           {clientCount} active client{clientCount !== 1 ? "s" : ""}
         </p>
       </CardContent>

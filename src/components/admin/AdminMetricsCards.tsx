@@ -145,24 +145,26 @@ export function AdminMetricsCards() {
       {cards.map((card) => (
         <Card
           key={card.label}
-          className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30"
+          className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30 h-full"
           onClick={card.onClick}
         >
-          <CardContent className="p-4">
-            <div className={`inline-flex p-2 rounded-lg ${card.color} mb-3`}>
+          <CardContent className="px-4 py-6 flex items-center gap-4">
+            <div className={`inline-flex items-center justify-center p-2.5 rounded-lg ${card.color} shrink-0`}>
               <card.icon className="h-5 w-5" />
             </div>
-            <p className="text-2xl font-bold">{card.value}</p>
-            <p className="text-sm text-muted-foreground">{card.label}</p>
-            {card.subtitle && (
-              <p className={`text-xs mt-1 ${
-                card.label === "Pending Approvals" && metrics.pendingApprovals > 0
-                  ? "text-red-600 dark:text-red-400 font-medium"
-                  : "text-muted-foreground"
-              }`}>
-                {card.subtitle}
-              </p>
-            )}
+            <div className="min-w-0">
+              <p className="text-2xl font-bold leading-tight">{card.value}</p>
+              <p className="text-sm text-muted-foreground">{card.label}</p>
+              {card.subtitle && (
+                <p className={`text-xs mt-1 ${
+                  card.label === "Pending Approvals" && metrics.pendingApprovals > 0
+                    ? "text-red-600 dark:text-red-400 font-medium"
+                    : "text-muted-foreground"
+                }`}>
+                  {card.subtitle}
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
       ))}

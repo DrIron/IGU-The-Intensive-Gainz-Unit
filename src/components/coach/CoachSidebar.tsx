@@ -74,7 +74,7 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
   if (trainingMode) {
     return (
       <Sidebar
-        className={`hidden md:flex ${collapsed ? "w-16 pt-16" : "w-64 pt-16"}`}
+        className={`hidden md:flex pt-[var(--app-top-offset)] ${collapsed ? "w-16" : "w-64"}`}
         collapsible="icon"
       >
         <SidebarContent>
@@ -108,7 +108,7 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
 
   return (
     <Sidebar
-      className={`hidden md:flex ${collapsed ? "w-16 pt-16" : "w-64 pt-16"}`}
+      className={`hidden md:flex pt-[var(--app-top-offset)] ${collapsed ? "w-16" : "w-64"}`}
       collapsible="icon"
     >
       <SidebarContent>

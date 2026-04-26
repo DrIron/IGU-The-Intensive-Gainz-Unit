@@ -151,7 +151,7 @@ export function CoachEarningsSummary() {
       <CardContent>
         <div className="grid gap-4 md:grid-cols-4">
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded-lg">
+            <div className="inline-flex items-center justify-center p-2 bg-primary/10 rounded-lg">
               <TrendingUp className="h-5 w-5 text-primary" />
             </div>
             <div>
@@ -161,7 +161,7 @@ export function CoachEarningsSummary() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-green-500/10 rounded-lg">
+            <div className="inline-flex items-center justify-center p-2 bg-green-500/10 rounded-lg">
               <DollarSign className="h-5 w-5 text-green-600" />
             </div>
             <div>
@@ -171,7 +171,7 @@ export function CoachEarningsSummary() {
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="p-2 bg-orange-500/10 rounded-lg">
+            <div className="inline-flex items-center justify-center p-2 bg-orange-500/10 rounded-lg">
               <Clock className="h-5 w-5 text-orange-600" />
             </div>
             <div>
@@ -182,7 +182,7 @@ export function CoachEarningsSummary() {
 
           {summary.addonEarnings > 0 && (
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-blue-500/10 rounded-lg">
+              <div className="inline-flex items-center justify-center p-2 bg-blue-500/10 rounded-lg">
                 <DollarSign className="h-5 w-5 text-blue-600" />
               </div>
               <div>
