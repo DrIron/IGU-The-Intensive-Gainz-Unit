@@ -13,18 +13,14 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Plus, ChevronRight, ArrowUp, ArrowDown, Trash2, Copy } from "lucide-react";
+import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { MuscleSlotCard } from "./MuscleSlotCard";
 import { ActivitySlotCard } from "./ActivitySlotCard";
+import { SessionAddPicker } from "./SessionAddPicker";
 import {
-  MUSCLE_GROUPS,
-  BODY_REGIONS,
-  BODY_REGION_LABELS,
-  SUBDIVISIONS_BY_PARENT,
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE_COLORS,
-  ACTIVITIES_BY_CATEGORY,
   DAYS_OF_WEEK,
   defaultSessionName,
   resolveParentMuscleId,
@@ -69,6 +65,8 @@ interface SessionBlockProps {
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
+  placementCounts?: Map<string, number>;
+  recentMuscleIds?: string[];
 }
 
 /**
@@ -113,11 +111,12 @@ export const SessionBlock = memo(function SessionBlock({
   onRemoveSession,
   onDuplicateSessionToDay,
   onReorderSession,
+  placementCounts,
+  recentMuscleIds,
 }: SessionBlockProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(session.name ?? '');
   const [addOpen, setAddOpen] = useState(false);
-  const [expandedParent, setExpandedParent] = useState<string | null>(null);
 
   const typeColors = ACTIVITY_TYPE_COLORS[session.type];
   const isStrength = session.type === 'strength';
@@ -138,7 +137,6 @@ export const SessionBlock = memo(function SessionBlock({
     (muscleId: string) => {
       onAddMuscleToSession(session.id, muscleId);
       setAddOpen(false);
-      setExpandedParent(null);
     },
     [onAddMuscleToSession, session.id],
   );
@@ -153,18 +151,20 @@ export const SessionBlock = memo(function SessionBlock({
 
   return (
     <div
-      className={cn(
-        // Subcard styling — subtle background + border so sessions read as
-        // a group without competing with the outer day Card. Side padding
-        // kept minimal because the outer DayColumn is already 140px on
-        // lg:grid-cols-7 and every pixel of interior width matters for
-        // muscle slot labels.
-        "rounded-md border border-border/40 bg-muted/20 px-1 py-1.5 space-y-1",
-      )}
+      // Flat colored-accent layout: 2px left bar (session-type color) carries
+      // the type signal so we drop the per-session border + tinted bg. This
+      // saves ~8px of horizontal width and one layer of visual nesting in
+      // the already-cramped 140px day columns at lg:grid-cols-7.
+      // `group/session` lets the inline `+` reveal on hover only; the kebab
+      // stays faintly visible at all times (opacity-50) so coaches can still
+      // discover session actions, while the name keeps every available pixel
+      // when not hovering.
+      className="group/session border-l-2 pl-2 space-y-1"
+      style={{ borderLeftColor: typeColors.colorHex }}
     >
-      {/* Header: dot + name + kebab */}
-      <div className="flex items-center gap-1.5 min-w-0">
-        <div className={cn("w-1.5 h-1.5 rounded-full shrink-0", typeColors.colorClass)} />
+      {/* Header: name + inline + + kebab. Colored dot dropped — left bar
+          already carries the type signal, gives the name another ~10px. */}
+      <div className="flex items-center gap-1 min-w-0">
         {isEditingName ? (
           <Input
             autoFocus
@@ -193,6 +193,41 @@ export const SessionBlock = memo(function SessionBlock({
             {displayName}
           </button>
         )}
+        {/* Inline + opens the same picker the bottom-row button used to.
+            Hidden until session-row hover so the session name keeps every
+            pixel during scanning. */}
+        <Popover open={addOpen} onOpenChange={setAddOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon"
+              // Always faintly visible. The right-rail palette used to be the
+              // discoverable add path, but with that gone the inline "+" is
+              // the only one left -- hover-only would hide it from tablets
+              // and any pointer-less device.
+              className="h-5 w-5 shrink-0 opacity-50 hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 transition-opacity"
+              onClick={e => e.stopPropagation()}
+              aria-label={isStrength ? 'Add muscle' : 'Add activity'}
+              title={isStrength ? 'Add muscle' : 'Add activity'}
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-60 p-2 max-h-80 overflow-y-auto"
+            onClick={e => e.stopPropagation()}
+            align="end"
+          >
+            <SessionAddPicker
+              sessionType={session.type}
+              placementCounts={placementCounts}
+              recentMuscleIds={recentMuscleIds}
+              onAddMuscle={handleAddMuscle}
+              onAddActivity={handleAddActivity}
+              variant="compact"
+            />
+          </PopoverContent>
+        </Popover>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
@@ -342,96 +377,6 @@ export const SessionBlock = memo(function SessionBlock({
           </div>
         )}
       </Droppable>
-
-      {/* Add affordance — muscles for strength sessions, activities of the
-          session's type for non-strength. Keeps the add flow scoped to the
-          session type so coaches don't accidentally mix types. */}
-      <Popover open={addOpen} onOpenChange={setAddOpen}>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="w-full h-6 text-[10px] text-muted-foreground hover:text-foreground justify-start px-1.5"
-            onClick={e => e.stopPropagation()}
-          >
-            <Plus className="h-3 w-3 mr-1" />
-            {isStrength ? 'Add muscle' : 'Add activity'}
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent
-          className="w-52 p-2 max-h-80 overflow-y-auto"
-          onClick={e => e.stopPropagation()}
-          align="start"
-        >
-          {isStrength ? (
-            BODY_REGIONS.map(region => {
-              const muscles = MUSCLE_GROUPS.filter(m => m.bodyRegion === region);
-              return (
-                <div key={region} className="mb-2 last:mb-0">
-                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1 px-1">
-                    {BODY_REGION_LABELS[region]}
-                  </p>
-                  <div className="flex flex-col gap-0.5">
-                    {muscles.map(muscle => {
-                      const subs = SUBDIVISIONS_BY_PARENT.get(muscle.id);
-                      const isExpanded = expandedParent === muscle.id;
-                      return (
-                        <div key={muscle.id}>
-                          <div className="flex items-center gap-0.5">
-                            <button
-                              className="flex-1 flex items-center gap-1.5 px-1.5 py-1 rounded text-xs hover:bg-muted/50 transition-colors text-left"
-                              onClick={() => handleAddMuscle(muscle.id)}
-                            >
-                              <div className={cn("w-2 h-2 rounded-full shrink-0", muscle.colorClass)} />
-                              <span>{muscle.label}</span>
-                            </button>
-                            {subs && subs.length > 0 && (
-                              <button
-                                className="p-0.5 rounded hover:bg-muted/50 transition-colors"
-                                onClick={() => setExpandedParent(isExpanded ? null : muscle.id)}
-                              >
-                                <ChevronRight className={cn("h-3 w-3 text-muted-foreground transition-transform", isExpanded && "rotate-90")} />
-                              </button>
-                            )}
-                          </div>
-                          {isExpanded && subs && (
-                            <div className="ml-4 flex flex-col gap-0.5 mt-0.5">
-                              {subs.map(sub => (
-                                <button
-                                  key={sub.id}
-                                  className="flex items-center gap-1.5 px-1.5 py-1 rounded text-[11px] hover:bg-muted/50 transition-colors text-left text-muted-foreground"
-                                  onClick={() => handleAddMuscle(sub.id)}
-                                >
-                                  <div className={cn("w-1.5 h-1.5 rounded-full shrink-0 opacity-70", muscle.colorClass)} />
-                                  <span>{sub.label}</span>
-                                </button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })
-          ) : (
-            // Non-strength session: list activities scoped to the session's type
-            <div className="flex flex-col gap-0.5">
-              {(ACTIVITIES_BY_CATEGORY.get(session.type) || []).map(activity => (
-                <button
-                  key={activity.id}
-                  className="flex items-center gap-1.5 px-1.5 py-1 rounded text-xs hover:bg-muted/50 transition-colors text-left"
-                  onClick={() => handleAddActivity(activity.id)}
-                >
-                  <div className={cn("w-2 h-2 rounded-full shrink-0", activity.colorClass)} />
-                  <span>{activity.label}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </PopoverContent>
-      </Popover>
     </div>
   );
 });

@@ -62,6 +62,8 @@ interface DayColumnProps {
   onSetAllSets?: (muscleId: string, sets: number) => void;
   weekCount?: number;
   onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
+  placementCounts?: Map<string, number>;
+  recentMuscleIds?: string[];
 }
 
 export const DayColumn = memo(function DayColumn({
@@ -102,6 +104,8 @@ export const DayColumn = memo(function DayColumn({
   onSetAllSets,
   weekCount,
   onApplyToRemaining,
+  placementCounts,
+  recentMuscleIds,
 }: DayColumnProps) {
   const [addSessionOpen, setAddSessionOpen] = useState(false);
 
@@ -202,11 +206,11 @@ export const DayColumn = memo(function DayColumn({
       onClick={() => onSelectDay(dayIndex)}
     >
       <CardHeader className="p-2 pb-1">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-semibold text-muted-foreground">
+        <div className="flex items-center justify-between gap-1 min-w-0">
+          <span className="text-sm font-semibold text-muted-foreground truncate">
             {DAYS_OF_WEEK[dayIndex - 1]}
           </span>
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-1 shrink-0">
             {/* + Session — opens a quick type picker */}
             <Popover open={addSessionOpen} onOpenChange={setAddSessionOpen}>
               <PopoverTrigger asChild>
@@ -264,12 +268,14 @@ export const DayColumn = memo(function DayColumn({
                 <ClipboardPaste className="h-3 w-3" />
               </Button>
             )}
-            {totalSets > 0 && (
-              <span className="text-[10px] font-mono text-muted-foreground">{totalSets} sets</span>
-            )}
+          </div>
+        </div>
+        {(totalSets > 0 || sessionDuration) && (
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-mono text-muted-foreground">
+            {totalSets > 0 && <span>{totalSets} sets</span>}
             {sessionDuration && (
               <span
-                className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground"
+                className="inline-flex items-center gap-0.5"
                 title={sessionDuration.inferred
                   ? "Estimate assumes 2-4s/rep tempo and 60-120s rest when not set"
                   : "Estimated session duration"}
@@ -279,7 +285,7 @@ export const DayColumn = memo(function DayColumn({
               </span>
             )}
           </div>
-        </div>
+        )}
         {/* Muscle-distribution ribbon */}
         {muscleDistribution.length > 0 && (
           <div
@@ -351,6 +357,8 @@ export const DayColumn = memo(function DayColumn({
                   onRemoveSession={onRemoveSession}
                   onDuplicateSessionToDay={onDuplicateSessionToDay}
                   onReorderSession={onReorderSession}
+                  placementCounts={placementCounts}
+                  recentMuscleIds={recentMuscleIds}
                 />
               );
             })}

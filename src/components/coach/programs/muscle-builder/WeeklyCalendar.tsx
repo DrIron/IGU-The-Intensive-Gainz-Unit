@@ -41,6 +41,8 @@ interface WeeklyCalendarProps {
   onReorderSlot?: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   weekCount?: number;
   onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
+  placementCounts?: Map<string, number>;
+  recentMuscleIds?: string[];
 }
 
 export const WeeklyCalendar = memo(function WeeklyCalendar({
@@ -80,6 +82,8 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onReorderSlot,
   weekCount,
   onApplyToRemaining,
+  placementCounts,
+  recentMuscleIds,
 }: WeeklyCalendarProps) {
   const days = [1, 2, 3, 4, 5, 6, 7];
 
@@ -126,6 +130,8 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           onReorderSlot={onReorderSlot}
           weekCount={weekCount}
           onApplyToRemaining={onApplyToRemaining}
+          placementCounts={placementCounts}
+          recentMuscleIds={recentMuscleIds}
         />
       </div>
       {/* Desktop: responsive grid */}
@@ -169,6 +175,8 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onSetAllSets={onSetAllSets}
             weekCount={weekCount}
             onApplyToRemaining={onApplyToRemaining}
+            placementCounts={placementCounts}
+            recentMuscleIds={recentMuscleIds}
           />
         ))}
       </div>

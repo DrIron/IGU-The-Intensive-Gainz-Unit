@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,13 +11,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
 import { ToastAction } from "@/components/ui/toast";
 import {
   ArrowLeft,
@@ -25,15 +18,15 @@ import {
   Trash2,
   Loader2,
   Bookmark,
-  Palette,
   ChevronRight,
   X,
   Zap,
   Undo2,
   Redo2,
+  Plus,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId, ACTIVITY_MAP } from "@/types/muscle-builder";
+import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId } from "@/types/muscle-builder";
 import type { ActivityType, MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
 import { AVAILABLE_CLIENT_COLUMNS } from "@/types/workout-builder";
@@ -45,7 +38,6 @@ import { useMuscleBuilderState, getCurrentSlots, getCurrentSessions } from "./ho
 import { useMusclePlanVolume } from "./hooks/useMusclePlanVolume";
 import { WeeklyCalendar } from "./WeeklyCalendar";
 import { WeekTabStrip } from "./WeekTabStrip";
-import { MusclePalette } from "./MusclePalette";
 import { VolumeOverview } from "./VolumeOverview";
 import { FrequencyHeatmap } from "./FrequencyHeatmap";
 import { ProgressionOverview } from "./ProgressionOverview";
@@ -73,9 +65,30 @@ export function MuscleBuilderPage({
     useMusclePlanVolume(currentWeekSlots);
   const { toast } = useToast();
 
+  // Recently-used muscles in the current week, most-recent first, deduped.
+  // Drives the "Recently used" row at the top of every session picker so a
+  // coach scaffolding "Pecs > Pecs > Pecs" across days doesn't have to scan
+  // the body-region accordion three times.
+  const recentMuscleIds = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    // sortOrder is monotonic per session; higher = added later. We want
+    // newest-first across the entire week, so sort all slots by sortOrder desc.
+    const sorted = currentWeekSlots
+      .filter(s => !s.activityType || s.activityType === 'strength')
+      .slice()
+      .sort((a, b) => b.sortOrder - a.sortOrder);
+    for (const slot of sorted) {
+      if (seen.has(slot.muscleId)) continue;
+      seen.add(slot.muscleId);
+      out.push(slot.muscleId);
+      if (out.length >= 5) break;
+    }
+    return out;
+  }, [currentWeekSlots]);
+
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
-  const [mobilePaletteOpen, setMobilePaletteOpen] = useState(false);
 
   // Save status — derived from reducer state + two local pieces
   // (lastSavedAt so we can show "Saved 3s ago"; saveError so the badge can
@@ -148,31 +161,6 @@ export function MuscleBuilderPage({
       const { source, destination, draggableId } = result;
       if (!destination) return;
 
-      // Palette → Session: ADD muscle/activity directly into a session.
-      // Droppable ids are `session-${uuid}`; palette draggables remain
-      // `palette-${muscleId}` or `palette-activity-${activityId}`.
-      if (source.droppableId === 'palette' && destination.droppableId.startsWith('session-')) {
-        const sessionId = destination.droppableId.replace('session-', '');
-        const session = currentWeekSessions.find(s => s.id === sessionId);
-        if (!session) return;
-        const paletteId = draggableId.replace('palette-', '');
-
-        if (paletteId.startsWith('activity-')) {
-          const activityId = paletteId.replace('activity-', '');
-          const activityDef = ACTIVITY_MAP.get(activityId);
-          dispatch({
-            type: 'ADD_ACTIVITY',
-            dayIndex: session.dayIndex,
-            activityId,
-            activityType: activityDef?.category || session.type,
-            sessionId,
-          });
-        } else {
-          dispatch({ type: 'ADD_MUSCLE', dayIndex: session.dayIndex, muscleId: paletteId, sessionId });
-        }
-        return;
-      }
-
       // Session → Same Session: REORDER within that session
       if (
         source.droppableId.startsWith('session-') &&
@@ -203,7 +191,7 @@ export function MuscleBuilderPage({
         });
       }
     },
-    [dispatch, currentWeekSessions]
+    [dispatch]
   );
 
   // ── Memoized callbacks for child components ──────────────────
@@ -544,24 +532,6 @@ export function MuscleBuilderPage({
               </Button>
             </div>
 
-            {/* Palette trigger — hidden on mobile (inline picker replaces it), visible on tablet */}
-            <Sheet open={mobilePaletteOpen} onOpenChange={setMobilePaletteOpen}>
-              <SheetTrigger asChild>
-                <Button variant="outline" size="sm" className="hidden sm:inline-flex lg:hidden">
-                  <Palette className="h-4 w-4 mr-2" />
-                  Muscles
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="bottom" className="h-[60vh]">
-                <SheetHeader>
-                  <SheetTitle>Muscle Palette</SheetTitle>
-                </SheetHeader>
-                <div className="mt-4 overflow-y-auto">
-                  <MusclePalette placementCounts={placementCounts} />
-                </div>
-              </SheetContent>
-            </Sheet>
-
             {!isEmpty && (
               <>
                 <Button variant="ghost" size="sm" onClick={() => setShowClearDialog(true)}>
@@ -658,9 +628,9 @@ export function MuscleBuilderPage({
         )}
 
         {/* ── Main Layout ─────────────────────────────────────── */}
-        <div className="flex gap-4">
-          {/* Left: Calendar + Analytics */}
-          <div className="flex-1 space-y-4 min-w-0">
+        {/* Single full-width column. Right-rail palette was removed in favor
+            of the per-session inline picker. */}
+        <div className="space-y-4 min-w-0">
             {/* Empty state: show presets */}
             {isEmpty && (
               <PresetSelector coachUserId={coachUserId} onSelectPreset={handleLoadPreset} />
@@ -714,6 +684,8 @@ export function MuscleBuilderPage({
               onReorderSlot={handleReorderSlot}
               weekCount={state.weeks.length}
               onApplyToRemaining={state.weeks.length > 1 ? handleApplyToRemaining : undefined}
+              placementCounts={placementCounts}
+              recentMuscleIds={recentMuscleIds}
             />
 
             {/* #4 — First-time onboarding guide */}
@@ -722,7 +694,7 @@ export function MuscleBuilderPage({
                 <h3 className="text-sm font-semibold mb-4">How to build a muscle plan</h3>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                   {[
-                    { step: 1, title: 'Pick a preset', desc: 'Start from a template above, or drag muscles manually' },
+                    { step: 1, title: 'Pick a preset', desc: 'Start from a template above, or add a session and place muscles' },
                     { step: 2, title: 'Adjust sets', desc: 'Use the number input on each muscle card' },
                     { step: 3, title: 'Check volume', desc: 'Review analytics below to stay in productive range' },
                     { step: 4, title: 'Convert', desc: 'Turn your plan into a program with exercises' },
@@ -739,9 +711,9 @@ export function MuscleBuilderPage({
                   ))}
                 </div>
                 <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border/30 text-xs text-muted-foreground">
-                  <Palette className="h-3.5 w-3.5" />
-                  <span className="hidden sm:inline">Drag muscles from the palette on the right, or click + on any day</span>
-                  <span className="sm:hidden">Tap a day, then tap + Add Muscle</span>
+                  <Plus className="h-3.5 w-3.5" />
+                  <span className="hidden sm:inline">Hover any session and click + to add a muscle or activity</span>
+                  <span className="sm:hidden">Tap a day, then tap + Add muscle</span>
                 </div>
               </div>
             )}
@@ -797,12 +769,6 @@ export function MuscleBuilderPage({
               open={showConvertDialog}
               onOpenChange={setShowConvertDialog}
             />
-          </div>
-
-          {/* Right: Muscle Palette (desktop) */}
-          <div className="hidden lg:block w-64 shrink-0 border-l border-border/50 pl-4">
-            <MusclePalette placementCounts={placementCounts} />
-          </div>
         </div>
       </div>
 

@@ -16,8 +16,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Copy, ClipboardPaste, Plus, X, Search, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal, Clock, MoreVertical, Trash2 } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, X, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal, Clock, MoreVertical, Trash2 } from "lucide-react";
 import { MobileSetCarousel } from "./MobileSetCarousel";
+import { SessionAddPicker } from "./SessionAddPicker";
 import { cn } from "@/lib/utils";
 import {
   estimateSessionDuration,
@@ -26,25 +27,18 @@ import {
 } from "@/lib/sessionDuration";
 import {
   DAYS_OF_WEEK,
-  MUSCLE_GROUPS,
   MUSCLE_MAP,
-  SUBDIVISIONS,
-  BODY_REGIONS,
-  BODY_REGION_LABELS,
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE_COLORS,
-  ACTIVITIES_BY_CATEGORY,
   getMuscleDisplay,
   getShortMuscleLabel,
   resolveParentMuscleId,
   defaultSessionName,
-  SUBDIVISIONS_BY_PARENT,
   SUBDIVISION_MAP,
   type ActivityType,
   type MuscleSlotData,
   type SessionData,
   type SlotExercise,
-  type BodyRegion,
 } from "@/types/muscle-builder";
 
 const SESSION_TYPES: ActivityType[] = ['strength', 'cardio', 'hiit', 'yoga_mobility', 'recovery', 'sport_specific'];
@@ -83,11 +77,8 @@ interface MobileDayDetailProps {
   onReorderSlot?: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   weekCount?: number;
   onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
-}
-
-const musclesByRegion = new Map<BodyRegion, typeof MUSCLE_GROUPS>();
-for (const region of BODY_REGIONS) {
-  musclesByRegion.set(region, MUSCLE_GROUPS.filter(m => m.bodyRegion === region));
+  placementCounts?: Map<string, number>;
+  recentMuscleIds?: string[];
 }
 
 /** Format slot label: subdivisions show "Parent > Sub", parents show their label */
@@ -133,11 +124,12 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onReorderSlot,
   weekCount,
   onApplyToRemaining,
+  placementCounts,
+  recentMuscleIds,
 }: MobileDayDetailProps) {
   // pickerSessionId: when non-null, the inline picker is scoped to adding
   // slots to this session. Null = no picker open.
   const [pickerSessionId, setPickerSessionId] = useState<string | null>(null);
-  const [search, setSearch] = useState("");
   const [addSessionOpen, setAddSessionOpen] = useState(false);
 
   const daySlots = useMemo(
@@ -205,48 +197,36 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   );
 
   const handleAddActivity = useCallback(
-    (activityId: string, type: ActivityType) => {
-      if (!pickerSessionId) return;
-      onAddActivityToSession(pickerSessionId, activityId, type);
+    (activityId: string) => {
+      if (!pickerSessionId || !pickerSession) return;
+      onAddActivityToSession(pickerSessionId, activityId, pickerSession.type);
     },
-    [onAddActivityToSession, pickerSessionId],
+    [onAddActivityToSession, pickerSessionId, pickerSession],
   );
-
-  const filteredItems = useMemo(() => {
-    if (!search.trim()) return null;
-    const q = search.toLowerCase();
-    const parents = MUSCLE_GROUPS.filter(
-      m => m.label.toLowerCase().includes(q) || m.id.toLowerCase().includes(q),
-    );
-    const subs = SUBDIVISIONS.filter(
-      s => s.label.toLowerCase().includes(q) || s.id.toLowerCase().includes(q),
-    );
-    return { parents, subs };
-  }, [search]);
 
   return (
     <Card className="border-border/50">
       <CardHeader className="p-3 pb-2">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold">
+        <div className="flex items-center justify-between gap-2 min-w-0">
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <span className="text-sm font-semibold truncate">
               {DAYS_OF_WEEK[selectedDayIndex - 1]}
             </span>
-            {totalSets > 0 && (
-              <span className="text-[10px] font-mono text-muted-foreground">
-                {totalSets} sets
-              </span>
-            )}
-            {sessionDuration && (
-              <span
-                className="inline-flex items-center gap-0.5 text-[10px] font-mono text-muted-foreground"
-                title={sessionDuration.inferred
-                  ? "Estimate assumes 2-4s/rep tempo and 60-120s rest when not set"
-                  : "Estimated session duration"}
-              >
-                <Clock className="h-2.5 w-2.5" aria-hidden />
-                {formatDurationRange(sessionDuration.minSeconds, sessionDuration.maxSeconds)}
-              </span>
+            {(totalSets > 0 || sessionDuration) && (
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-mono text-muted-foreground">
+                {totalSets > 0 && <span>{totalSets} sets</span>}
+                {sessionDuration && (
+                  <span
+                    className="inline-flex items-center gap-0.5"
+                    title={sessionDuration.inferred
+                      ? "Estimate assumes 2-4s/rep tempo and 60-120s rest when not set"
+                      : "Estimated session duration"}
+                  >
+                    <Clock className="h-2.5 w-2.5" aria-hidden />
+                    {formatDurationRange(sessionDuration.minSeconds, sessionDuration.maxSeconds)}
+                  </span>
+                )}
+              </div>
             )}
           </div>
           <div className="flex items-center gap-1">
@@ -276,9 +256,10 @@ export const MobileDayDetail = memo(function MobileDayDetail({
 
       <CardContent className="p-3 pt-0 space-y-2">
         {pickerSessionId && pickerSession ? (
-          /* -- Inline Picker scoped to a session --
-             Strength sessions get the muscle picker; other types list
-             their own activities so coach doesn't mix types by accident. */
+          /* -- Inline picker scoped to a session.
+                Shared SessionAddPicker handles search, recents, counts, and
+                the strength-vs-activity branch so the desktop popover and
+                this drawer stay aligned. */
           <div className="space-y-3">
             <div className="flex items-center justify-between">
               <span className="text-xs font-medium text-muted-foreground">
@@ -288,113 +269,20 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                 variant="ghost"
                 size="sm"
                 className="h-6 text-xs"
-                onClick={() => { setPickerSessionId(null); setSearch(""); }}
+                onClick={() => setPickerSessionId(null)}
               >
                 Done
               </Button>
             </div>
-
-            {pickerSession.type === 'strength' ? (
-              <>
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search muscles..."
-                    value={search}
-                    onChange={e => setSearch(e.target.value)}
-                    className="pl-8 h-8 text-sm"
-                    autoFocus
-                  />
-                </div>
-                {filteredItems ? (
-                  <div className="flex flex-wrap gap-1.5">
-                    {filteredItems.parents.map(muscle => (
-                      <MuscleChip
-                        key={muscle.id}
-                        muscleId={muscle.id}
-                        label={muscle.label}
-                        colorClass={muscle.colorClass}
-                        onTap={handleAddMuscle}
-                      />
-                    ))}
-                    {filteredItems.subs.map(sub => {
-                      const parent = MUSCLE_MAP.get(sub.parentId);
-                      if (!parent) return null;
-                      return (
-                        <MuscleChip
-                          key={sub.id}
-                          muscleId={sub.id}
-                          label={sub.label}
-                          colorClass={parent.colorClass}
-                          onTap={handleAddMuscle}
-                          isSubdivision
-                        />
-                      );
-                    })}
-                    {filteredItems.parents.length === 0 && filteredItems.subs.length === 0 && (
-                      <p className="text-xs text-muted-foreground py-2">
-                        {search ? `No muscles match "${search}"` : "No muscles found"}
-                      </p>
-                    )}
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {BODY_REGIONS.map(region => {
-                      const muscles = musclesByRegion.get(region) || [];
-                      return (
-                        <div key={region}>
-                          <p className="text-[10px] uppercase tracking-wider text-muted-foreground mb-1.5">
-                            {BODY_REGION_LABELS[region]}
-                          </p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {muscles.map(muscle => (
-                              <MuscleChip
-                                key={muscle.id}
-                                muscleId={muscle.id}
-                                label={muscle.label}
-                                colorClass={muscle.colorClass}
-                                onTap={handleAddMuscle}
-                              />
-                            ))}
-                          </div>
-                          {muscles.map(muscle => {
-                            const subs = SUBDIVISIONS_BY_PARENT.get(muscle.id);
-                            if (!subs || subs.length === 0) return null;
-                            return (
-                              <div key={`${muscle.id}-subs`} className="flex flex-wrap gap-1 mt-1 ml-2">
-                                {subs.map(sub => (
-                                  <MuscleChip
-                                    key={sub.id}
-                                    muscleId={sub.id}
-                                    label={sub.label}
-                                    colorClass={muscle.colorClass}
-                                    onTap={handleAddMuscle}
-                                    isSubdivision
-                                  />
-                                ))}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex flex-wrap gap-1.5">
-                {(ACTIVITIES_BY_CATEGORY.get(pickerSession.type) || []).map(activity => (
-                  <button
-                    key={activity.id}
-                    onClick={() => handleAddActivity(activity.id, pickerSession.type)}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-card/50 hover:bg-card border px-2.5 py-1.5 text-sm border-border/50 active:scale-95 transition-all"
-                  >
-                    <div className={cn("w-2 h-2 rounded-full shrink-0", activity.colorClass)} />
-                    <span className="text-foreground">{activity.label}</span>
-                  </button>
-                ))}
-              </div>
-            )}
+            <SessionAddPicker
+              sessionType={pickerSession.type}
+              placementCounts={placementCounts}
+              recentMuscleIds={recentMuscleIds}
+              onAddMuscle={handleAddMuscle}
+              onAddActivity={handleAddActivity}
+              variant="roomy"
+              autoFocusSearch
+            />
           </div>
         ) : (
           /* -- Sessions list -- */
@@ -417,7 +305,14 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                     .sort((a, b) => a.sortOrder - b.sortOrder);
                   const typeColors = ACTIVITY_TYPE_COLORS[session.type];
                   return (
-                    <div key={session.id} className="rounded-md border border-border/40 bg-muted/20 p-2 space-y-1.5">
+                    <div
+                      key={session.id}
+                      // Match desktop: 2px colored left bar carries the type
+                      // signal so we drop the bordered subcard. Saves a layer
+                      // of visual nesting and aligns with DayColumn / SessionBlock.
+                      className="border-l-2 pl-2 space-y-1.5"
+                      style={{ borderLeftColor: typeColors.colorHex }}
+                    >
                       <MobileSessionHeader
                         session={session}
                         typeColorClass={typeColors.colorClass}
@@ -475,7 +370,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                         variant="ghost"
                         size="sm"
                         className="w-full h-8 text-xs text-muted-foreground justify-start"
-                        onClick={() => { setPickerSessionId(session.id); setSearch(""); }}
+                        onClick={() => setPickerSessionId(session.id)}
                       >
                         <Plus className="h-3.5 w-3.5 mr-1.5" />
                         {session.type === 'strength' ? 'Add muscle' : 'Add activity'}
@@ -608,32 +503,6 @@ const MobileSessionHeader = memo(function MobileSessionHeader({
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
-  );
-});
-
-/* -- Tappable muscle chip for the picker -- */
-
-interface MuscleChipProps {
-  muscleId: string;
-  label: string;
-  colorClass: string;
-  onTap: (muscleId: string) => void;
-  isSubdivision?: boolean;
-}
-
-const MuscleChip = memo(function MuscleChip({ muscleId, label, colorClass, onTap, isSubdivision }: MuscleChipProps) {
-  return (
-    <button
-      onClick={() => onTap(muscleId)}
-      className={`inline-flex items-center gap-1.5 rounded-md bg-card/50 hover:bg-card border active:scale-95 transition-all ${
-        isSubdivision
-          ? 'px-2 py-1 text-xs border-dashed border-border/40'
-          : 'px-2.5 py-1.5 text-sm border-border/50'
-      }`}
-    >
-      <div className={`w-2 h-2 rounded-full shrink-0 ${colorClass}`} style={isSubdivision ? { opacity: 0.7 } : undefined} />
-      <span className={isSubdivision ? 'text-muted-foreground' : 'text-foreground'}>{label}</span>
-    </button>
   );
 });
 
