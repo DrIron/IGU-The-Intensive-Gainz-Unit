@@ -45,7 +45,12 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
   const navigate = useNavigate();
 
   const loadDashboardData = useCallback(async () => {
-    if (!user?.id) return;
+    // user.id is now guaranteed by the useEffect gate below; defensive guard
+    // only -- if it ever fires we still flip loading so the skeleton clears.
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
 
     try {
       // Load coach info - subscriptions.coach_id references coaches.user_id
@@ -118,10 +123,14 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
   }, [user?.id, subscription?.coach_id]);
 
   useEffect(() => {
-    if (hasFetched.current) return;
+    // Wait for user.id before marking the fetch as done. Without this gate,
+    // a first render with user undefined flipped hasFetched=true, the
+    // early-return inside loadDashboardData skipped setLoading(false), and
+    // the dashboard sat on its skeleton forever (April 26 -- Mubarak's repro).
+    if (hasFetched.current || !user?.id) return;
     hasFetched.current = true;
     loadDashboardData();
-  }, [loadDashboardData]);
+  }, [user?.id, loadDashboardData]);
 
   if (loading) {
     return (

@@ -171,10 +171,13 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
   const hasFetched = useRef(false);
 
   useEffect(() => {
-    if (hasFetched.current) return;
+    // Same gate as the other dashboard children: don't lock hasFetched until
+    // userId is actually present. Otherwise an initial render with userId
+    // undefined burns the one allowed run on a noop query.
+    if (hasFetched.current || !userId) return;
     hasFetched.current = true;
     fetchTodayWorkout();
-  }, [fetchTodayWorkout]);
+  }, [userId, fetchTodayWorkout]);
 
   const handleStartWorkout = () => {
     if (workout && workout.modules.length > 0) {

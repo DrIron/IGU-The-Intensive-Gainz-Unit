@@ -100,10 +100,13 @@ export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
   const hasFetched = useRef(false);
 
   useEffect(() => {
-    if (hasFetched.current) return;
+    // Wait for userId before locking hasFetched -- otherwise a first render
+    // with userId undefined fires a noop query and the next render with the
+    // real id is gated out (same pattern as NewClientOverview, Apr 26).
+    if (hasFetched.current || !userId) return;
     hasFetched.current = true;
     fetchAdherenceData();
-  }, [fetchAdherenceData]);
+  }, [userId, fetchAdherenceData]);
 
   const getModuleTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
