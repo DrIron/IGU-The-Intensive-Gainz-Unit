@@ -411,31 +411,32 @@ function SlotEditorPopover({
           </div>
 
           {/* Dynamic per-set table.
-              Columns are explicitly width-matched to their input content so
-              toggling columns on/off doesn't dump the leftover space into
-              the only width-less column (rep_range was absorbing all of
-              it, leaving a visible gap between Reps and Tempo). Switched
-              the table off `w-full` for the same reason -- with overflow-x
-              on the parent, the table now sizes to content and stays
-              within the 420px popover instead of stretching column widths
-              past their inputs.
-              `tabular-nums` keeps the digit columns lined up. */}
+              Each column is explicitly width-matched to its input contents
+              with comfortable breathing room: 4-digit timing inputs (tempo,
+              time) get w-14, dual-input ranges (reps, rest) get a w-[NN]
+              that covers two inputs + separator, and the digit-bearing
+              cells share `tabular-nums` so they line up vertically.
+              The table itself does NOT use w-full -- so it sizes to the
+              sum of column widths instead of stretching the only un-sized
+              column. Default 5-column layout (rep_range/tempo/rir/rpe/rest)
+              fits the 420px popover. Adding more columns pushes the table
+              wider, and the parent's overflow-x-auto handles the scroll. */}
           <div className="overflow-x-auto rounded-md border border-border/30">
             <table className="text-[11px] tabular-nums">
               <thead>
                 <tr className="bg-muted/30">
-                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-7">#</th>
-                  {activeColumns.includes('rep_range') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-[88px]">Reps</th>}
-                  {activeColumns.includes('reps') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-10">Reps</th>}
-                  {activeColumns.includes('weight') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-12">Wt</th>}
-                  {activeColumns.includes('tempo') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-12">Tempo</th>}
-                  {activeColumns.includes('rir') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-9">RIR</th>}
-                  {activeColumns.includes('rpe') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-9">RPE</th>}
-                  {activeColumns.includes('percent_1rm') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">%1RM</th>}
-                  {activeColumns.includes('rest') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-[88px]">Rest</th>}
-                  {activeColumns.includes('time') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">Time</th>}
-                  {activeColumns.includes('distance') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">Dist</th>}
-                  {activeColumns.includes('notes') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-20">Notes</th>}
+                  <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-8">#</th>
+                  {activeColumns.includes('rep_range') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-[100px]">Reps</th>}
+                  {activeColumns.includes('reps') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-12">Reps</th>}
+                  {activeColumns.includes('weight') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-14">Wt</th>}
+                  {activeColumns.includes('tempo') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-16">Tempo</th>}
+                  {activeColumns.includes('rir') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-10">RIR</th>}
+                  {activeColumns.includes('rpe') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-12">RPE</th>}
+                  {activeColumns.includes('percent_1rm') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-14">%1RM</th>}
+                  {activeColumns.includes('rest') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-[112px]">Rest</th>}
+                  {activeColumns.includes('time') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-16">Time</th>}
+                  {activeColumns.includes('distance') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-16">Dist</th>}
+                  {activeColumns.includes('notes') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-32">Notes</th>}
                 </tr>
               </thead>
               <tbody>
@@ -447,11 +448,11 @@ function SlotEditorPopover({
                         <div className="flex items-center gap-0.5">
                           <Input type="number" min={1} max={100} value={set.rep_range_min ?? ''}
                             onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rep_range_min', v != null && !isNaN(v) ? v : undefined); }}
-                            className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
+                            className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
                           <span className="text-muted-foreground text-[9px]">-</span>
                           <Input type="number" min={1} max={100} value={set.rep_range_max ?? ''}
                             onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rep_range_max', v != null && !isNaN(v) ? v : undefined); }}
-                            className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
+                            className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
                         </div>
                       </td>
                     )}
@@ -459,42 +460,42 @@ function SlotEditorPopover({
                       <td className="px-0.5 py-0.5">
                         <Input type="number" min={1} max={100} value={set.reps ?? ''}
                           onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'reps', v != null && !isNaN(v) ? v : undefined); }}
-                          className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
+                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
                       </td>
                     )}
                     {activeColumns.includes('weight') && (
                       <td className="px-0.5 py-0.5">
                         <Input type="number" min={0} max={999} value={set.weight ?? ''} placeholder="kg"
                           onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value); onUpdateSetDetail(i, 'weight', v != null && !isNaN(v) ? v : undefined); }}
-                          className="h-6 text-[11px] w-11 px-1" onClick={e => e.stopPropagation()} />
+                          className="h-6 text-[11px] w-12 px-1" onClick={e => e.stopPropagation()} />
                       </td>
                     )}
                     {activeColumns.includes('tempo') && (
                       <td className="px-0.5 py-0.5">
                         <Input type="text" maxLength={4} inputMode="numeric" value={set.tempo ?? ''} placeholder="3120"
                           onChange={e => { const v = e.target.value.replace(/[^0-9]/g, '').slice(0, 4); onUpdateSetDetail(i, 'tempo', v || undefined); }}
-                          className="h-6 text-[11px] font-mono w-11 px-1" onClick={e => e.stopPropagation()} />
+                          className="h-6 text-[11px] font-mono w-14 px-1" onClick={e => e.stopPropagation()} />
                       </td>
                     )}
                     {activeColumns.includes('rir') && (
                       <td className="px-0.5 py-0.5">
                         <Input type="number" min={0} max={10} value={set.rir ?? ''} placeholder="2"
                           onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rir', v != null && !isNaN(v) ? Math.max(0, Math.min(10, v)) : undefined); }}
-                          className="h-6 text-[11px] w-8 px-1" onClick={e => e.stopPropagation()} />
+                          className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
                       </td>
                     )}
                     {activeColumns.includes('rpe') && (
                       <td className="px-0.5 py-0.5">
                         <Input type="number" min={1} max={10} step={0.5} value={set.rpe ?? ''} placeholder="8"
                           onChange={e => { const v = e.target.value === '' ? undefined : parseFloat(e.target.value); onUpdateSetDetail(i, 'rpe', v != null && !isNaN(v) ? Math.max(1, Math.min(10, v)) : undefined); }}
-                          className="h-6 text-[11px] w-8 px-1" onClick={e => e.stopPropagation()} />
+                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
                       </td>
                     )}
                     {activeColumns.includes('percent_1rm') && (
                       <td className="px-0.5 py-0.5">
                         <Input type="number" min={0} max={120} value={set.percent_1rm ?? ''} placeholder="%"
                           onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'percent_1rm', v != null && !isNaN(v) ? v : undefined); }}
-                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
+                          className="h-6 text-[11px] w-12 px-1" onClick={e => e.stopPropagation()} />
                       </td>
                     )}
                     {activeColumns.includes('rest') && (
@@ -512,7 +513,7 @@ function SlotEditorPopover({
                                 onUpdateSetDetail(i, 'rest_seconds_max', lo);
                               }
                             }}
-                            className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
+                            className="h-6 text-[11px] w-12 px-1" onClick={e => e.stopPropagation()} />
                           <span className="text-[9px] text-muted-foreground select-none">–</span>
                           <Input type="number" min={0} max={3600} value={set.rest_seconds_max ?? ''} placeholder="max"
                             onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'rest_seconds_max', v != null && !isNaN(v) ? v : undefined); }}
@@ -524,7 +525,7 @@ function SlotEditorPopover({
                                 onUpdateSetDetail(i, 'rest_seconds_max', lo);
                               }
                             }}
-                            className="h-6 text-[11px] w-9 px-1" onClick={e => e.stopPropagation()} />
+                            className="h-6 text-[11px] w-12 px-1" onClick={e => e.stopPropagation()} />
                         </div>
                       </td>
                     )}
@@ -532,21 +533,21 @@ function SlotEditorPopover({
                       <td className="px-0.5 py-0.5">
                         <Input type="number" min={0} max={7200} value={set.time_seconds ?? ''} placeholder="sec"
                           onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'time_seconds', v != null && !isNaN(v) ? v : undefined); }}
-                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
+                          className="h-6 text-[11px] w-14 px-1" onClick={e => e.stopPropagation()} />
                       </td>
                     )}
                     {activeColumns.includes('distance') && (
                       <td className="px-0.5 py-0.5">
                         <Input type="number" min={0} max={99999} value={set.distance_meters ?? ''} placeholder="m"
                           onChange={e => { const v = e.target.value === '' ? undefined : parseInt(e.target.value); onUpdateSetDetail(i, 'distance_meters', v != null && !isNaN(v) ? v : undefined); }}
-                          className="h-6 text-[11px] w-10 px-1" onClick={e => e.stopPropagation()} />
+                          className="h-6 text-[11px] w-14 px-1" onClick={e => e.stopPropagation()} />
                       </td>
                     )}
                     {activeColumns.includes('notes') && (
                       <td className="px-0.5 py-0.5">
                         <Input type="text" value={set.notes ?? ''} placeholder="..."
                           onChange={e => onUpdateSetDetail(i, 'notes', e.target.value || undefined)}
-                          className="h-6 text-[11px] w-20 px-1" onClick={e => e.stopPropagation()} />
+                          className="h-6 text-[11px] w-32 px-1" onClick={e => e.stopPropagation()} />
                       </td>
                     )}
                   </tr>
