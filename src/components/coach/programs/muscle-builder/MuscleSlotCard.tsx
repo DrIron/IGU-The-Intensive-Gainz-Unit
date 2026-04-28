@@ -410,20 +410,29 @@ function SlotEditorPopover({
             )}
           </div>
 
-          {/* Dynamic per-set table */}
+          {/* Dynamic per-set table.
+              Columns are explicitly width-matched to their input content so
+              toggling columns on/off doesn't dump the leftover space into
+              the only width-less column (rep_range was absorbing all of
+              it, leaving a visible gap between Reps and Tempo). Switched
+              the table off `w-full` for the same reason -- with overflow-x
+              on the parent, the table now sizes to content and stays
+              within the 420px popover instead of stretching column widths
+              past their inputs.
+              `tabular-nums` keeps the digit columns lined up. */}
           <div className="overflow-x-auto rounded-md border border-border/30">
-            <table className="w-full text-[11px]">
+            <table className="text-[11px] tabular-nums">
               <thead>
                 <tr className="bg-muted/30">
                   <th className="px-1.5 py-1 text-left font-medium text-muted-foreground w-7">#</th>
-                  {activeColumns.includes('rep_range') && <th className="px-1 py-1 text-left font-medium text-muted-foreground">Reps</th>}
+                  {activeColumns.includes('rep_range') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-[88px]">Reps</th>}
                   {activeColumns.includes('reps') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-10">Reps</th>}
                   {activeColumns.includes('weight') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-12">Wt</th>}
                   {activeColumns.includes('tempo') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-12">Tempo</th>}
                   {activeColumns.includes('rir') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-9">RIR</th>}
                   {activeColumns.includes('rpe') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-9">RPE</th>}
                   {activeColumns.includes('percent_1rm') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">%1RM</th>}
-                  {activeColumns.includes('rest') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">Rest</th>}
+                  {activeColumns.includes('rest') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-[88px]">Rest</th>}
                   {activeColumns.includes('time') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">Time</th>}
                   {activeColumns.includes('distance') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-11">Dist</th>}
                   {activeColumns.includes('notes') && <th className="px-1 py-1 text-left font-medium text-muted-foreground w-20">Notes</th>}
