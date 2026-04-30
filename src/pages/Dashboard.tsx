@@ -268,8 +268,19 @@ function DashboardContent() {
   }, [sessionUser, cachedUserId, sessionLoading, navigate, cachedRoles, setCachedRoles, searchParams, toast]);
 
   useEffect(() => {
-    // Prevent infinite loop - only load once
     if (hasLoadedData.current) {
+      return;
+    }
+    // Don't lock the ref until we actually have a user to load. On a cold
+    // mount sessionUser is briefly undefined; loadUserData would early-
+    // return on `sessionLoading` without flipping `loading` or surfacing
+    // an error, and the ref-lock would then block the re-run when
+    // sessionUser later arrived -- profile stays null and the layout sits
+    // on its !profile skeleton forever (Apr 28 client repro). Holding the
+    // ref open until userId is present lets the effect fire fresh on the
+    // next render that has the session attached.
+    const userId = sessionUser?.id || cachedUserId;
+    if (!userId && sessionLoading) {
       return;
     }
     hasLoadedData.current = true;
@@ -285,7 +296,7 @@ function DashboardContent() {
 
     return () => clearTimeout(timeout);
   // eslint-disable-next-line react-hooks/exhaustive-deps -- loading excluded to prevent timeout leak on re-fire
-  }, [cachedUserId, sessionUser, loadUserData]);
+  }, [cachedUserId, sessionUser, sessionLoading, loadUserData]);
 
   const handleSectionChange = (section: string) => {
     setActiveSection(section);
