@@ -173,16 +173,31 @@ export function ProfessionalLevelManager() {
     const edit = getCoachEdit(coach);
     setSavingCoach(coach.user_id);
     try {
-      const { error } = await supabase
-        .from("coaches")
+      // coach_level / is_head_coach / head_coach_specialisation only exist on
+      // `coaches_public`. Filtering on user_id (UNIQUE on both `coaches` and
+      // `coaches_public`) — coaches.id and coaches_public.id are independent
+      // PKs aligned only by historical migration, not by FK.
+      // Note: `create-coach-account` does NOT seed a coaches_public row today,
+      // so coaches added via the standard signup flow have no row here and
+      // this update would match 0 rows silently. The .select() row-count guard
+      // surfaces that as a real error instead of a fake "Saved" toast. To be
+      // revisited in the column-ownership refactor.
+      const { data, error } = await supabase
+        .from("coaches_public")
         .update({
           coach_level: edit.coach_level,
           is_head_coach: edit.is_head_coach,
           head_coach_specialisation: edit.head_coach_specialisation || null,
         })
-        .eq("user_id", coach.user_id);
+        .eq("user_id", coach.user_id)
+        .select("user_id");
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Coach profile row not found in coaches_public. This coach may have been added via a flow that doesn't seed coaches_public. Contact engineering."
+        );
+      }
 
       toast({
         title: "Saved",

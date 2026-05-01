@@ -188,6 +188,23 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
 
     try {
       if (editingCoach) {
+        // KNOWN-BROKEN — DO NOT "fix" by splitting writes.
+        // This update writes columns that don't exist on `coaches`:
+        //   date_of_birth, instagram_url, tiktok_url, snapchat_url, youtube_url
+        // PostgREST rejects the whole call with `42703: column "X" of relation
+        // "coaches" does not exist` and the Save action fails loudly with a
+        // destructive toast. No data is saved.
+        //
+        // The intuitive fix (split across `coaches` + `coaches_private`) would
+        // introduce read-after-write drift on first_name / last_name /
+        // location / nickname: those columns exist on BOTH `coaches` and
+        // `coaches_public`, but `fetchCoaches` reads from `coaches_full` (=
+        // coaches_public + coaches_private). Writing to `coaches` while reading
+        // from `coaches_public` means saving "Hassan" then reloading shows
+        // "Hasan" — drift accelerates.
+        //
+        // Defer until the column-ownership refactor. See CLAUDE.md
+        // "Coach data — partitioned writes, no sync, drift exists today".
         const { error } = await supabase
           .from("coaches")
           .update({
