@@ -106,15 +106,21 @@ export const ROUTE_REGISTRY = {
 
 ```typescript
 type ClientStatus =
-  | 'pending'                // Intake form incomplete
+  | 'pending'                // DB-default initial state; intake form not yet submitted
   | 'needs_medical_review'   // PAR-Q flagged
   | 'pending_coach_approval'
   | 'pending_payment'
+  | 'approved'               // Legacy DB value — treat as alias for pending_payment
   | 'active'
-  | 'suspended' | 'cancelled';
+  | 'inactive'
+  | 'suspended'
+  | 'cancelled'
+  | 'expired';
 ```
 
-Note: `'new'` is NOT a valid `account_status` enum value (past trigger bugs referenced it — don't reintroduce).
+The TS union mirrors the `account_status` DB enum 1:1 (10 values, verified May 2026). If you add or remove a value, write a Postgres migration alongside the type change.
+
+Note: `'new'` is NOT a valid `account_status` enum value (past trigger bugs referenced it — don't reintroduce). The TS type used to include it as a phantom; removed in the May 2026 column-alignment pass.
 
 ### 5. Database Schema (Key Tables)
 
@@ -413,15 +419,27 @@ git add -A && git commit -m "…" && git push  # Vercel auto-deploys on main
 ### Branding: always "IGU", never "Dr Iron"
 Platform name is IGU (The Intensive Gainz Unit). Live site `theigu.com`. Emails, UI, navbar, meta tags — all IGU.
 
-### Coach data lives in TWO tables — keep in sync
-- `coaches` — canonical base table (has `status`, `first_name`, etc.)
-- `coaches_public` — separate base table (NOT a view)
-- `coaches_full` — view joining `coaches_public` + `coaches_private`; most admin UI reads from it
+### Coach data — partitioned writes, no sync, drift exists today
 
-**If you update `coaches.status`, update `coaches_public.status` too.** Otherwise `coaches_full` returns the wrong status and filters hide the coach.
+Three tables hold coach data with overlapping but NON-IDENTICAL schemas:
+- `coaches` — admin/role-management facing. Owns: status, last_assigned_at, max_*_clients, age, gender.
+- `coaches_public` — client-facing profile. Owns: profile_picture_url, bio, short_bio, qualifications, specializations, nickname, location, display_name, coach_level, is_head_coach, head_coach_specialisation, instagram_url, tiktok_url, youtube_url.
+- `coaches_private` — sensitive contacts. Syncs socials → `coaches_public` via `sync_coaches_public_socials_trigger`.
+- `coaches_full` — view joining coaches_public + coaches_private. Most admin UI reads from it.
 
-### `coaches_public` is also a VIEW (confusingly) in some auto-populated contexts
-Actually a base table — but there's historical confusion because at one point `coaches_public` auto-populated from `coaches` via a view. Today: both base tables, both need manual sync.
+NO DB-level sync between `coaches` and `coaches_public`. No shared write utility either. Writes are partitioned by code path:
+
+    Admin / signup / onboarding → writes `coaches`
+    Coach self-service profile  → writes `coaches_public`
+
+Result: 7/17 overlapping columns drift in production today (verified May 2026).
+
+Known bugs: ProfessionalLevelManager and CoachManagement write columns to `coaches` that don't exist there (coach_level, instagram_url, date_of_birth, etc). Those writes silently fail.
+
+A column-ownership refactor is planned. Until then:
+- DO NOT add new code that writes overlapping columns on either side.
+- DO NOT introduce a "sync both tables" pattern — that's fiction.
+- If you must write a duplicated field, target the table the relevant feature already uses; flag in PR description.
 
 ### `profiles` is a VIEW
 Joins `profiles_public` + `profiles_private`. Cannot use PostgREST FK joins — FK `subscriptions_user_id_fkey` references `profiles_legacy`, not the view. Always use separate direct queries.

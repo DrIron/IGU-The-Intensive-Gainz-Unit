@@ -19,16 +19,22 @@
 // =============================================================================
 
 /**
- * Client account statuses - matches database `account_status` enum.
- * Order represents the typical onboarding progression.
+ * Client account statuses — matches the database `account_status` enum
+ * 1:1 (verified May 2026). Order roughly follows the typical onboarding
+ * progression. If you add or remove a value here, mirror the change in a
+ * Postgres migration (`ALTER TYPE account_status ADD VALUE …`).
+ *
+ * `'new'` is intentionally NOT in this list — it has never been a valid
+ * `account_status` enum value. The DB-default initial state is `'pending'`
+ * (set on profiles_public INSERT). See CLAUDE.md "Column and enum names
+ * that have tripped past fixes".
  */
 export type ClientStatus =
-  | "new"                    // Just created, no form submitted
-  | "pending"                // Form submitted, basic validation
+  | "pending"                // DB-default initial state; intake form not yet submitted
   | "needs_medical_review"   // PAR-Q flagged medical concerns
   | "pending_coach_approval" // Medical cleared, awaiting coach assignment
   | "pending_payment"        // Approved, awaiting payment
-  | "approved"               // Legacy: same as pending_payment
+  | "approved"               // Legacy DB value — treat as alias for pending_payment
   | "active"                 // Fully onboarded, can access dashboard
   | "inactive"               // Temporarily inactive (grace period ended)
   | "suspended"              // Admin suspended (payment issues, etc.)
@@ -40,7 +46,6 @@ export type ClientStatus =
  * Users in these states must complete onboarding first.
  */
 export const BLOCKED_CLIENT_STATUSES: ClientStatus[] = [
-  "new",
   "pending",
   "needs_medical_review",
   "pending_coach_approval",
@@ -137,8 +142,12 @@ export const CLIENT_ONBOARDING_STEPS: OnboardingStep[] = [
     label: "Complete Intake Form",
     description: "Tell us about yourself and your goals",
     route: "/onboarding",
-    activeStatuses: ["new", "pending"],
-    completedWhen: (s) => !["new"].includes(s),
+    activeStatuses: ["pending"],
+    // Once the profile row exists at all, status is at least 'pending', so
+    // intake is considered complete from a step-progression perspective.
+    // (Previous version excluded the phantom 'new' status — see commit
+    // dropping `'new'` from ClientStatus.)
+    completedWhen: () => true,
   },
   {
     id: "medical",
@@ -146,7 +155,7 @@ export const CLIENT_ONBOARDING_STEPS: OnboardingStep[] = [
     description: "PAR-Q health assessment",
     route: "/onboarding/medical-review",
     activeStatuses: ["needs_medical_review"],
-    completedWhen: (s) => !["new", "pending", "needs_medical_review"].includes(s),
+    completedWhen: (s) => !["pending", "needs_medical_review"].includes(s),
   },
   {
     id: "approval",
@@ -154,7 +163,7 @@ export const CLIENT_ONBOARDING_STEPS: OnboardingStep[] = [
     description: "Get matched with your coach",
     route: "/onboarding/awaiting-approval",
     activeStatuses: ["pending_coach_approval"],
-    completedWhen: (s) => !["new", "pending", "needs_medical_review", "pending_coach_approval"].includes(s),
+    completedWhen: (s) => !["pending", "needs_medical_review", "pending_coach_approval"].includes(s),
   },
   {
     id: "payment",
@@ -238,7 +247,8 @@ export function getOnboardingProgress(status: ClientStatus | string | null): num
  * Key is current status, value is array of valid next statuses.
  */
 export const CLIENT_STATUS_TRANSITIONS: Record<ClientStatus, ClientStatus[]> = {
-  new: ["pending"],
+  // 'pending' is the DB-default initial state — there is no transition INTO
+  // 'pending' from a fresher state, only re-entry from cancelled/expired.
   pending: ["needs_medical_review", "pending_coach_approval", "pending_payment"],
   needs_medical_review: ["pending_coach_approval", "cancelled"],
   pending_coach_approval: ["pending_payment", "cancelled"],

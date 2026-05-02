@@ -39,8 +39,15 @@ interface ClientStatusOverrideProps {
   onStatusChange?: (newStatus: string) => void;
 }
 
+// Admin-writable statuses. Mirrors the `account_status` DB enum minus a few
+// values held back deliberately:
+//   - `'new'` — never a valid DB enum value (rejected on write).
+//   - `'approved'` — DB-real but legacy alias for 'pending_payment'. Read
+//     paths normalize approved → pending_payment (see ClientPipelineSection
+//     L218). Keeping it off the admin write list keeps the legacy value on a
+//     path to eventual deprecation. If you need the equivalent state, set
+//     `'pending_payment'` directly.
 const ALL_STATUSES: ClientStatus[] = [
-  "new",
   "pending",
   "needs_medical_review",
   "pending_coach_approval",
