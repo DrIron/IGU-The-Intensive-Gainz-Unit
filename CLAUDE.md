@@ -556,14 +556,14 @@ Rules:
 |---|---|---|
 | `overview` | `OverviewTab.tsx` | Phase / last workout / last weigh-in / pending adjustments nudge |
 | `progress` | `ProgressTab.tsx` | `CoachNutritionGraphs` (phase-scoped) + `VolumeChart` (client-scoped) |
-| `nutrition` | `NutritionTab.tsx` | Full port of `/coach-client-nutrition` |
+| `nutrition` | `NutritionTab.tsx` | Phase hero + 3-tab inner layout (Overview / Adjustments / History) — canonical coach nutrition surface |
 | `workouts` | `WorkoutsTab.tsx` | Program list + drill-down + session log viewer + adherence pulse |
 | `sessions` | `SessionsTab.tsx` | Read-only digest of `direct_calendar_sessions` + `addon_session_logs`; primary coach / admin also gets a collapsible `DirectClientCalendar` |
 | `messages` | `MessagesTab.tsx` | Mounts `CoachClientThread` (see "Messages system" below) |
 | `care-team` | `CareTeamTab.tsx` | `CareTeamCard` + `CareTeamMessagesPanel` gated to primary coach / admin |
 | `profile` | `ProfileInfoTab.tsx` | Demographics (via `useClientDemographics`) + subscription + `form_submissions_safe` summary, read-only |
 
-The legacy `/coach-client-nutrition` route is still live alongside the shell; the old route is deprecated in a later PR once entry-point rewire soaks.
+`/coach-client-nutrition` is a redirect stub: `?client=<userId>` → `/coach/clients/<userId>?tab=nutrition`, no param → `/coach`. Kept only for old bookmarks; remove after a release with no 404s on the path.
 
 ### Messages system — coach ↔ client + care-team
 
@@ -603,8 +603,8 @@ coach_client_messages (
 
 **Client route `/messages`:** added to `ClientMobileNavGlobal` prefix list + `getClientMobileNavItems` (5th mobile dock item) + `routeConfig.ts` as `client-messages`.
 
-### Nutrition — coach page structure (3 tabs)
-`/coach-client-nutrition` layout after Apr 20 redesign:
+### Nutrition tab — 3-tab inner layout
+`NutritionTab` (canonical, mounted under the Client Overview shell at `?tab=nutrition`):
 
 1. **Hero `NutritionPhaseCard`** (rendered above the tabs when an active phase
    exists) — phase name + goal badge, hero `kcal` number, `MacroDistributionRibbon`
@@ -681,16 +681,16 @@ Use `convert_muscle_plan_to_program_v2(p_coach_id, p_plan_name, p_plan_descripti
 ### Mobile bottom nav — role-specific global docks
 `src/App.tsx` renders three global nav components that self-gate by `location.pathname`:
 - **Client dock** (`ClientMobileNavGlobal`): `/dashboard`, `/client`, `/nutrition`, `/nutrition-client`, `/nutrition-team`, `/sessions`, `/workout-library`, `/educational-videos`, `/account`, `/billing`, `/payment-status`, `/payment-return`. Auto-hides on `/client/workout/session/*` (distraction-free logging).
-- **Coach dock** (`CoachMobileNavGlobal`): `/coach`, `/coach-client-nutrition`, `/client-submission`.
+- **Coach dock** (`CoachMobileNavGlobal`): `/coach`, `/client-submission`.
 - **Admin dock** (`AdminMobileNavGlobal`): `/admin/*`, `/testimonials-management`.
 
 **Rules when adding a new authenticated route:**
 1. Add its path prefix to the matching role's list (or mark intentionally nav-less, e.g. onboarding).
-2. If the route is role-specific, gate it with `RoleProtectedRoute` — don't rely on the prefix list for security. `/coach-client-nutrition` is coach-only because both coaches and admins can reach it from client directories; the dock would otherwise pick the wrong nav.
+2. If the route is role-specific, gate it with `RoleProtectedRoute` — don't rely on the prefix list for security.
 3. A route reachable from multiple roles (e.g. `/client-submission/:userId`, opened from both coach and admin client directories) maps to ONE dock — pick the primary consumer.
 
 ### Mobile layout pb-24 rule
-Bottom nav is `h-16` — **all layout content areas must use `pb-24 md:pb-8`** to prevent content hiding behind it. Applies to `ClientDashboardLayout`, `CoachDashboardLayout`, `AdminDashboardLayout`, `AdminPageLayout`, and any standalone page that bypasses those layouts (e.g. `AccountManagement`, `TestimonialsManagement`, `ClientSubmission`, `CoachClientNutrition`, `AccessDebug`). Pages that already use `py-24` (96px ≥ 64px dock) are fine.
+Bottom nav is `h-16` — **all layout content areas must use `pb-24 md:pb-8`** to prevent content hiding behind it. Applies to `ClientDashboardLayout`, `CoachDashboardLayout`, `AdminDashboardLayout`, `AdminPageLayout`, and any standalone page that bypasses those layouts (e.g. `AccountManagement`, `TestimonialsManagement`, `ClientSubmission`, `AccessDebug`). Pages that already use `py-24` (96px ≥ 64px dock) are fine.
 
 ### Button touch targets
 `button.tsx` uses `min-h-[44px] md:min-h-0` on `default`, `sm`, `icon` sizes (Apple HIG 44px). All buttons have `active:scale-[0.98] touch-manipulation`.

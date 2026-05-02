@@ -24,11 +24,12 @@ interface PhaseStats {
 /**
  * Coach-facing nutrition tab for the Client Overview page.
  *
- * Port of /coach-client-nutrition minus the client picker (the shell resolves
- * the client upstream). Feature parity: same 3-inner-tab layout (Overview /
- * Adjustments / History), same permission gates, same hero card. Deprecation
- * of the legacy /coach-client-nutrition route rides in a later PR once the
- * shell soaks.
+ * Canonical surface for managing a client's nutrition. The legacy
+ * /coach-client-nutrition route is now a redirect stub (see App.tsx
+ * `CoachClientNutritionRedirect`); this component is the only entry.
+ * 3-inner-tab layout (Overview / Adjustments / History), with shared
+ * permission gates and hero card. Client identity comes from the shell's
+ * `context.clientUserId`.
  */
 export function NutritionTab({ context }: ClientOverviewTabProps) {
   const { clientUserId } = context;
@@ -39,6 +40,10 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
   const loadClientPhase = useCallback(async () => {
     if (!clientUserId) return;
 
+    // TODO: completed phases not visible from the shell. Legacy
+    // /coach-client-nutrition exposed a phase-status filter; the shell
+    // currently only loads the active phase. Surface as a phase-history
+    // selector or admin-tab if coaches ask for it.
     const { data: phaseData, error } = await supabase
       .from("nutrition_phases")
       .select("*")

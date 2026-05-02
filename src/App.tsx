@@ -3,7 +3,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate, useSearchParams } from "react-router-dom";
 import { RoleProtectedRoute } from "@/components/RoleProtectedRoute";
 import { AuthGuard } from "@/components/AuthGuard";
 import { GlobalErrorBoundary } from "@/components/GlobalErrorBoundary";
@@ -39,7 +39,6 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const Nutrition = lazy(() => import("./pages/Nutrition"));
 const TeamNutrition = lazy(() => import("./pages/TeamNutrition"));
 const ClientNutrition = lazy(() => import("./pages/ClientNutrition"));
-const CoachClientNutrition = lazy(() => import("./pages/CoachClientNutrition"));
 const CoachClientOverview = lazy(() => import("./pages/CoachClientOverview"));
 const PaymentStatus = lazy(() => import("./pages/PaymentStatus"));
 const PaymentReturn = lazy(() => import("./pages/PaymentReturn"));
@@ -134,14 +133,30 @@ const MobileBottomNavClient = lazy(() =>
 const CoachMobileNavGlobal = memo(function CoachMobileNavGlobal() {
   const location = useLocation();
   // Include standalone coach-facing routes that don't live under /coach/*
-  // (e.g. the shared /coach-client-nutrition page).
-  const coachPrefixes = ["/coach", "/coach/clients", "/coach-client-nutrition", "/client-submission"];
+  // (e.g. the shared client-submission page).
+  const coachPrefixes = ["/coach", "/coach/clients", "/client-submission"];
   const isCoachRoute = coachPrefixes.some(
     p => location.pathname === p || location.pathname.startsWith(p + "/")
   );
   if (!isCoachRoute) return null;
   return <MobileBottomNavCoach />;
 });
+
+/**
+ * Redirects the legacy /coach-client-nutrition?client=X (and ?clientId=X)
+ * URL to the per-client Client Overview shell with the nutrition tab open.
+ * Without a client param, falls back to the coach dashboard's My Clients.
+ * Kept only for old bookmarks/external links — no UI surface still links
+ * to /coach-client-nutrition. Remove after a release with no 404s.
+ */
+function CoachClientNutritionRedirect() {
+  const [searchParams] = useSearchParams();
+  const clientId = searchParams.get("client") || searchParams.get("clientId");
+  const target = clientId
+    ? `/coach/clients/${clientId}?tab=nutrition`
+    : "/coach";
+  return <Navigate to={target} replace />;
+}
 
 const MobileBottomNavCoach = lazy(() =>
   Promise.all([
@@ -243,7 +258,7 @@ const App = () => {
                   <Route path="/nutrition" element={<AuthGuard><OnboardingGuard><Nutrition /></OnboardingGuard></AuthGuard>} />
                   <Route path="/nutrition-team" element={<AuthGuard><OnboardingGuard><TeamNutrition /></OnboardingGuard></AuthGuard>} />
                   <Route path="/nutrition-client" element={<AuthGuard><OnboardingGuard><ClientNutrition /></OnboardingGuard></AuthGuard>} />
-                  <Route path="/coach-client-nutrition" element={<RoleProtectedRoute requiredRole="coach"><CoachClientNutrition /></RoleProtectedRoute>} />
+                  <Route path="/coach-client-nutrition" element={<CoachClientNutritionRedirect />} />
                   <Route path="/payment-status" element={<AuthGuard><PaymentStatus /></AuthGuard>} />
                   <Route path="/payment-return" element={<AuthGuard><PaymentReturn /></AuthGuard>} />
                   <Route path="/billing/pay" element={<AuthGuard><BillingPayment /></AuthGuard>} />
