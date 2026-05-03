@@ -216,6 +216,14 @@ Deno.serve(async (req) => {
       await supabaseClient.from('coach_service_limits').delete().eq('coach_id', coachRow.id);
     }
 
+    // Coach data lives in 3 tables. coaches_private cascades from coaches
+    // via coach_public_id pre-Phase-3 of the column-ownership refactor, but
+    // Phase 3 drops that FK (D4). coaches_public has never had an FK back
+    // to coaches and orphans without explicit delete (Phase 0b empirical
+    // confirmation). Delete in dependency order: private → public → coaches.
+    await supabaseClient.from('coaches_private').delete().eq('user_id', userId);
+    await supabaseClient.from('coaches_public').delete().eq('user_id', userId);
+
     await supabaseClient.from('coaches').delete().eq('user_id', userId);
 
     await supabaseClient.from('user_roles').delete().eq('user_id', userId);

@@ -170,86 +170,50 @@ serve(async (req) => {
       throw profilesLegacyError;
     }
 
-    // Check if coach profile already exists
-    const { data: existingCoach } = await supabaseAdmin
-      .from('coaches')
-      .select('id')
-      .eq('user_id', userId)
-      .maybeSingle();
+    // Route all 3-table writes through upsert_coach_full(...) RPC (D3 of
+    // the coach column-ownership refactor — docs/COACH_TABLES_REFACTOR_PLAN.md).
+    // The RPC writes coaches + coaches_public + coaches_private atomically
+    // inside one transaction; partial writes are impossible. This also
+    // structurally fixes the seed bug where coaches_public was never
+    // populated for new coaches (§ 6 of the plan).
+    const publicPayload: Record<string, unknown> = {
+      first_name,
+      last_name,
+      location,
+      nickname,
+    };
+    if (certifications) publicPayload.qualifications = certifications;
+    if (specializations) publicPayload.specializations = specializations;
 
-    let coachData;
-
-    if (existingCoach) {
-      // Update existing coach profile - public fields only
-      const updateData: any = {
-        first_name,
-        last_name,
-        location,
-        status: applicationId ? 'active' : 'pending',
-        nickname,
-      };
-
-      // Add optional fields if provided
-      if (certifications) updateData.qualifications = certifications;
-      if (specializations) updateData.specializations = specializations;
-
-      const { data, error: updateError } = await supabaseAdmin
-        .from('coaches')
-        .update(updateData)
-        .eq('user_id', userId)
-        .select()
-        .single();
-
-      if (updateError) throw updateError;
-      coachData = data;
-    } else {
-      // Create new coach profile - public fields only
-      const insertData: any = {
-        user_id: userId,
-        first_name,
-        last_name,
-        location,
-        status: applicationId ? 'active' : 'pending',
-        nickname,
-      };
-
-      // Add optional fields if provided
-      if (certifications) insertData.qualifications = certifications;
-      if (specializations) insertData.specializations = specializations;
-
-      const { data, error: insertError } = await supabaseAdmin
-        .from('coaches')
-        .insert(insertData)
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-      coachData = data;
-    }
-
-    // Create or update coaches_private record with all sensitive/private data
-    const contactData: any = {
-      coach_public_id: coachData.id,
-      user_id: userId,
-      email: email,
+    const privatePayload: Record<string, unknown> = {
+      email,
       date_of_birth: date_of_birth ?? null,
       instagram_url: instagram_url ?? null,
       tiktok_url: tiktok_url ?? null,
       snapchat_url: snapchat_url ?? null,
       youtube_url: youtube_url ?? null,
     };
-    if (phoneNumber) contactData.whatsapp_number = phoneNumber;
+    if (phoneNumber) privatePayload.whatsapp_number = phoneNumber;
 
-    const { error: contactError } = await supabaseAdmin
-      .from('coaches_private')
-      .upsert(contactData, {
-        onConflict: 'coach_public_id',
-      });
+    const { data: rpcResult, error: rpcError } = await supabaseAdmin.rpc('upsert_coach_full', {
+      p_user_id: userId,
+      p_public: publicPayload,
+      p_private: privatePayload,
+      p_admin: { status: applicationId ? 'active' : 'pending' },
+    });
 
-    if (contactError) {
-      console.error('Error upserting coaches_private:', contactError);
-      // Don't fail the whole operation - contacts table might not be ready
+    if (rpcError) throw rpcError;
+    if (!rpcResult || (rpcResult as { ok?: boolean }).ok !== true) {
+      throw new Error('upsert_coach_full did not return ok: ' + JSON.stringify(rpcResult));
     }
+
+    // Refetch the coaches row for the response + downstream link/email.
+    const { data: coachData, error: fetchError } = await supabaseAdmin
+      .from('coaches')
+      .select('*')
+      .eq('user_id', userId)
+      .single();
+    if (fetchError) throw fetchError;
 
     let passwordResetLink = null;
     try {
