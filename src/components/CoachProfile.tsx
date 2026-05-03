@@ -214,7 +214,10 @@ export default function CoachProfile() {
 
       if (error) throw error;
 
-      // Update private info in coaches_private table (sensitive fields including gender)
+      // Update private info in coaches_private. Key flipped from
+      // coach_public_id → user_id: coaches_private.coach_public_id is
+      // misnamed (it FKs to coaches.id, not coaches_public.id) and gets
+      // dropped in Phase 3 of the column-ownership refactor (D4).
       const { error: contactError } = await supabase
         .from("coaches_private")
         .update({
@@ -226,7 +229,7 @@ export default function CoachProfile() {
           snapchat_url: formData.snapchat_url || null,
           youtube_url: formData.youtube_url || null,
         })
-        .eq("coach_public_id", coachData.id);
+        .eq("user_id", coachData.user_id);
 
       if (contactError) {
         console.error("Error updating contact info:", contactError);

@@ -128,11 +128,12 @@ Deno.serve(async (req) => {
           }
 
           if (step.recipient === "coach") {
-            // Send coach notification
+            // Send coach notification. first_name/last_name read from
+            // coaches_public (canonical home post column-ownership refactor).
             if (!sub.coach_id) continue;
 
             const { data: coach } = await supabase
-              .from("coaches")
+              .from("coaches_public")
               .select("user_id, first_name, last_name")
               .eq("user_id", sub.coach_id)
               .maybeSingle();

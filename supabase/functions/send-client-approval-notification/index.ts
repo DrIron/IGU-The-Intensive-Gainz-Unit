@@ -52,10 +52,12 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get coach basic info from coaches table (no PII)
+    // Get coach basic info from coaches_public (canonical home for
+    // first_name/last_name post column-ownership refactor). coachId is the
+    // coach's user_id (per the API contract, see filter below at line 82).
     const { data: coach, error: coachError } = await supabase
-      .from('coaches')
-      .select('id, first_name, last_name')
+      .from('coaches_public')
+      .select('user_id, first_name, last_name')
       .eq('user_id', coachId)
       .single();
 
@@ -67,11 +69,12 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Get coach email from coaches_private (server-side only, never returned to client)
+    // Get coach email from coaches_private. Key flipped from coach_public_id
+    // → user_id (D4 of column-ownership refactor drops coach_public_id in Phase 3).
     const { data: coachContact } = await supabase
       .from('coaches_private')
       .select('email')
-      .eq('coach_public_id', coach.id)
+      .eq('user_id', coachId)
       .maybeSingle();
 
     // Get subscription information

@@ -28,10 +28,11 @@ Deno.serve(async (req) => {
     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
 
-    // Get coach basic info from coaches table
+    // Get coach first_name from coaches_public (canonical home post
+    // column-ownership refactor).
     const { data: coach } = await supabase
-      .from('coaches')
-      .select('id, first_name')
+      .from('coaches_public')
+      .select('user_id, first_name')
       .eq('user_id', coachUserId)
       .single();
 
@@ -43,11 +44,12 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Get coach email from coaches_private table (server-side access only)
+    // Get coach email from coaches_private. Key flipped from coach_public_id
+    // → user_id (D4 of column-ownership refactor drops coach_public_id in Phase 3).
     const { data: contactInfo } = await supabase
       .from('coaches_private')
       .select('email')
-      .eq('coach_public_id', coach.id)
+      .eq('user_id', coachUserId)
       .maybeSingle();
 
     if (!contactInfo?.email) {

@@ -306,13 +306,35 @@ export function SystemHealthView() {
 
       const noCoachArr: Issue[] = [];
       for (const sub of noCoachSubs || []) {
+        // Replaced PostgREST FK join (`coaches:preferred_coach_id (...)`)
+        // with separate queries — first_name/last_name moved to
+        // coaches_public per the column-ownership refactor.
         const { data: formSubmission } = await supabase
           .from("form_submissions")
-          .select("preferred_coach_id, coaches:preferred_coach_id (first_name, last_name)")
+          .select("preferred_coach_id")
           .eq("user_id", (sub as any).user_id)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle();
+
+        let preferredCoachName = "None specified";
+        if (formSubmission?.preferred_coach_id) {
+          const { data: coachRow } = await supabase
+            .from("coaches")
+            .select("user_id")
+            .eq("id", formSubmission.preferred_coach_id)
+            .maybeSingle();
+          if (coachRow?.user_id) {
+            const { data: profileRow } = await supabase
+              .from("coaches_public")
+              .select("first_name, last_name")
+              .eq("user_id", coachRow.user_id)
+              .maybeSingle();
+            if (profileRow) {
+              preferredCoachName = `${profileRow.first_name || ""} ${profileRow.last_name || ""}`.trim() || "None specified";
+            }
+          }
+        }
 
         // Active 1:1 without coach is critical, pending is warning
         const severity: Severity = (sub as any).status === "active" ? "critical" : "warning";
@@ -326,9 +348,7 @@ export function SystemHealthView() {
           serviceName: (sub as any).services?.name || "Unknown",
           subscriptionStatus: (sub as any).status,
           createdAt: (sub as any).created_at,
-          preferredCoach: formSubmission?.coaches
-            ? `${(formSubmission.coaches as any).first_name || ""} ${(formSubmission.coaches as any).last_name || ""}`.trim()
-            : "None specified",
+          preferredCoach: preferredCoachName,
         });
       }
       setOneToOneNoCoach(noCoachArr);

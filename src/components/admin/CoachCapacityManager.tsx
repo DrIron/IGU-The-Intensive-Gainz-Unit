@@ -68,14 +68,29 @@ export function CoachCapacityManager() {
         return;
       }
 
-      // Load coach details
-      const { data: coachesData, error: coachesError } = await supabase
+      // Load coach details — id+user_id from coaches with status filter,
+      // first_name/last_name from coaches_public (canonical home post
+      // column-ownership refactor).
+      const { data: activeRows, error: coachesError } = await supabase
         .from('coaches')
-        .select('id, user_id, first_name, last_name')
+        .select('id, user_id')
         .eq('status', 'active')
         .in('user_id', coachUserIds);
 
       if (coachesError) throw coachesError;
+
+      const activeUserIds = (activeRows || []).map(c => c.user_id).filter(Boolean);
+      const { data: profiles } = await supabase
+        .from('coaches_public')
+        .select('user_id, first_name, last_name')
+        .in('user_id', activeUserIds);
+      const profileByUserId = new Map((profiles || []).map(p => [p.user_id, p]));
+
+      const coachesData = (activeRows || []).map(c => ({
+        ...c,
+        first_name: profileByUserId.get(c.user_id)?.first_name ?? '',
+        last_name: profileByUserId.get(c.user_id)?.last_name ?? '',
+      }));
 
       // Load all services
       const { data: servicesData, error: servicesError } = await supabase

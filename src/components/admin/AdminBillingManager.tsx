@@ -366,14 +366,18 @@ export function AdminBillingManager() {
 
         let adminCoachUserId: string | null = null;
         if (privateRow?.user_id) {
-          const { data: publicRow, error: publicErr } = await supabase
-            .from("coaches_public")
+          // status canonical home is coaches (D-3 column-ownership refactor).
+          // coaches_public.status is deprecated — refactor Phase 3 will drop
+          // that column. Reading from coaches.status closes the stale-read
+          // window opened by the Phase 1A check_training_completion fix.
+          const { data: coachRow, error: coachErr } = await supabase
+            .from("coaches")
             .select("user_id, status")
             .eq("user_id", privateRow.user_id)
             .maybeSingle();
-          if (publicErr) throw publicErr;
-          if (publicRow?.status === "approved") {
-            adminCoachUserId = publicRow.user_id;
+          if (coachErr) throw coachErr;
+          if (coachRow?.status === "approved") {
+            adminCoachUserId = coachRow.user_id;
           }
         }
 

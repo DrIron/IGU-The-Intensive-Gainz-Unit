@@ -175,15 +175,47 @@ export function CoachPaymentCalculator() {
     try {
       setLoadingMonthly(true);
 
+      // Replaced PostgREST FK join (`coaches(...)`) with separate queries:
+      // first_name/last_name moved to coaches_public per the column-ownership
+      // refactor. We synthesize `payment.coaches` so the rendering at the
+      // table cell `payment.coaches.first_name` keeps working.
       const { data, error } = await supabase
         .from('monthly_coach_payments' as any)
-        .select('*, coaches(first_name, last_name)')
+        .select('*')
         .order('payment_month', { ascending: false })
         .limit(100);
 
       if (error) throw error;
 
-      setMonthlyPayments((data as any) || []);
+      const payments = (data as any[]) || [];
+      const coachIds = [...new Set(payments.map(p => p.coach_id).filter(Boolean))];
+      let enriched: any[] = payments;
+      if (coachIds.length > 0) {
+        const { data: coachRows } = await supabase
+          .from('coaches')
+          .select('id, user_id')
+          .in('id', coachIds);
+        const userIdByCoachId = new Map((coachRows || []).map(c => [c.id, c.user_id]));
+        const userIds = [...new Set((coachRows || []).map(c => c.user_id).filter(Boolean))];
+        const { data: profileRows } = await supabase
+          .from('coaches_public')
+          .select('user_id, first_name, last_name')
+          .in('user_id', userIds);
+        const profileByUserId = new Map((profileRows || []).map(p => [p.user_id, p]));
+        enriched = payments.map(p => {
+          const userId = userIdByCoachId.get(p.coach_id);
+          const profile = userId ? profileByUserId.get(userId) : null;
+          return {
+            ...p,
+            coaches: {
+              first_name: profile?.first_name ?? '',
+              last_name: profile?.last_name ?? '',
+            },
+          };
+        });
+      }
+
+      setMonthlyPayments(enriched);
     } catch (error: any) {
       console.error('Error loading monthly payments:', error);
     } finally {
@@ -236,13 +268,29 @@ export function CoachPaymentCalculator() {
         return;
       }
 
-      const { data: coachDetails, error: coachError } = await supabase
+      // Replaced select('*') with explicit list — first_name/last_name
+      // are read from coaches_public (canonical home post column-ownership
+      // refactor) and merged so downstream consumers (e.g. line 577 render
+      // of `coach.first_name`) keep working.
+      const { data: rawCoachDetails, error: coachError } = await supabase
         .from('coaches')
-        .select('*')
+        .select('id, user_id, status, max_onetoone_clients, max_team_clients, last_assigned_at')
         .eq('status', 'active')
         .in('user_id', coachUserIds);
 
       if (coachError) throw coachError;
+
+      const activeUserIds = (rawCoachDetails || []).map(c => c.user_id).filter(Boolean);
+      const { data: profileRows } = await supabase
+        .from('coaches_public')
+        .select('user_id, first_name, last_name, coach_level, is_head_coach')
+        .in('user_id', activeUserIds);
+      const profileByUserId = new Map((profileRows || []).map(p => [p.user_id, p]));
+
+      const coachDetails = (rawCoachDetails || []).map(c => ({
+        ...c,
+        ...(profileByUserId.get(c.user_id) ?? {}),
+      }));
 
       // Load service pricing from NEW table
       const { data: servicePricing } = await supabase

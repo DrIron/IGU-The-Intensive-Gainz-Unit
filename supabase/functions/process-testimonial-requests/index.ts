@@ -106,11 +106,12 @@ Deno.serve(async (req) => {
           continue;
         }
 
-        // Get coach name for personalization
+        // Get coach name for personalization. first_name lives on
+        // coaches_public per the column-ownership refactor.
         let coachName = "your coach";
         if (sub.coach_id) {
           const { data: coach } = await supabase
-            .from("coaches")
+            .from("coaches_public")
             .select("first_name")
             .eq("user_id", sub.coach_id)
             .maybeSingle();

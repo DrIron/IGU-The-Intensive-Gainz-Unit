@@ -475,10 +475,10 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Get coach name - coaches can view their own profile via coaches table
-      // This is a coach-initiated action, not client-facing
+      // Get coach name from coaches_public (canonical home for first_name/
+      // last_name post column-ownership refactor).
       const { data: coachData } = await supabase
-        .from('coaches')
+        .from('coaches_public')
         .select('first_name, last_name')
         .eq('user_id', user.id)
         .single();

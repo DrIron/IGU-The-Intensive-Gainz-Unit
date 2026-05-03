@@ -201,12 +201,29 @@ Deno.serve(async (req) => {
       );
     }
 
-    const { data: coachDetails, error: coachError } = await supabase
+    // id+user_id from coaches; first_name/last_name from coaches_public
+    // (canonical home post column-ownership refactor).
+    const { data: rawCoaches, error: coachError } = await supabase
       .from('coaches')
-      .select('id, user_id, first_name, last_name')
+      .select('id, user_id')
       .in('user_id', coachUserIds);
 
     if (coachError) throw coachError;
+
+    const detailUserIds = (rawCoaches || []).map((c: any) => c.user_id).filter(Boolean);
+    const { data: profiles } = detailUserIds.length === 0
+      ? { data: [] as { user_id: string; first_name: string | null; last_name: string | null }[] }
+      : await supabase
+          .from('coaches_public')
+          .select('user_id, first_name, last_name')
+          .in('user_id', detailUserIds);
+    const profileByUserId = new Map((profiles || []).map((p: any) => [p.user_id, p]));
+
+    const coachDetails = (rawCoaches || []).map((c: any) => ({
+      ...c,
+      first_name: profileByUserId.get(c.user_id)?.first_name ?? '',
+      last_name: profileByUserId.get(c.user_id)?.last_name ?? '',
+    }));
 
     // ═══════════════════════════════════════════════════════════════════════════
     // STEP 3: Load services (for type categorization only)

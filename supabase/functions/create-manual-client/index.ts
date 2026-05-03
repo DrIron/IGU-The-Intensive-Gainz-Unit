@@ -122,10 +122,11 @@ serve(async (req) => {
         }
       }
 
-      // 3) Check coaches table
+      // 3) Check coaches_private (email lives on coaches_private, not coaches —
+      //    coaches.email does not exist; original query was a silent bug)
       if (!userId) {
         const { data: coachUser } = await supabaseAdmin
-          .from('coaches')
+          .from('coaches_private')
           .select('user_id')
           .ilike('email', email)
           .maybeSingle();

@@ -47,13 +47,14 @@ export function CoachReassignmentSection({
   const loadCoachesWithCapacity = useCallback(async () => {
     setLoading(true);
     try {
-      // Get all coaches with service limits for this service
+      // Get coach service limits, then bulk-fetch coach details from
+      // coaches (status, ids) and coaches_public (profile fields). FK-join
+      // pattern (`coaches!inner(...)`) was rewritten as separate queries
+      // because first_name/last_name/specializations live on coaches_public
+      // post column-ownership refactor.
       const { data: serviceLimits, error: limitsError } = await supabase
         .from('coach_service_limits')
-        .select(`
-          max_clients,
-          coaches!inner(id, user_id, first_name, last_name, specializations, status)
-        `)
+        .select('max_clients, coach_id')
         .eq('service_id', serviceId);
 
       if (limitsError) throw limitsError;
@@ -64,11 +65,35 @@ export function CoachReassignmentSection({
         return;
       }
 
+      const coachIds = [...new Set(serviceLimits.map(l => l.coach_id).filter(Boolean))];
+      const { data: coachRows } = await supabase
+        .from('coaches')
+        .select('id, user_id, status')
+        .in('id', coachIds);
+      const coachById = new Map((coachRows || []).map(c => [c.id, c]));
+
+      const userIds = [...new Set((coachRows || []).map(c => c.user_id).filter(Boolean))];
+      const { data: profileRows } = await supabase
+        .from('coaches_public')
+        .select('user_id, first_name, last_name, specializations')
+        .in('user_id', userIds);
+      const profileByUserId = new Map((profileRows || []).map(p => [p.user_id, p]));
+
       // Build coaches list with capacity info
       const coachesWithCapacity: CoachWithCapacity[] = [];
 
       for (const limit of serviceLimits) {
-        const coach = limit.coaches as any;
+        const coachRow = coachById.get(limit.coach_id);
+        if (!coachRow) continue;
+        const profile = profileByUserId.get(coachRow.user_id);
+        const coach = {
+          id: coachRow.id,
+          user_id: coachRow.user_id,
+          status: coachRow.status,
+          first_name: profile?.first_name ?? '',
+          last_name: profile?.last_name ?? '',
+          specializations: profile?.specializations ?? [],
+        } as any;
 
         // Only include active or approved coaches
         if (coach.status !== 'active' && coach.status !== 'approved') {

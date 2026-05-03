@@ -150,13 +150,28 @@ export function PayoutRatesManager() {
 
   const loadCoachSummaries = async () => {
     try {
-      // Get coaches
-      const { data: coachData } = await supabase
+      // Get active coaches (status from coaches), then enrich with
+      // first_name/last_name from coaches_public per the column-ownership
+      // refactor.
+      const { data: activeRows } = await supabase
         .from("coaches")
-        .select("id, user_id, first_name, last_name")
+        .select("id, user_id")
         .eq("status", "active");
 
-      if (!coachData) return;
+      if (!activeRows || activeRows.length === 0) return;
+
+      const userIds = activeRows.map(c => c.user_id).filter(Boolean);
+      const { data: profiles } = await supabase
+        .from("coaches_public")
+        .select("user_id, first_name, last_name")
+        .in("user_id", userIds);
+      const profileByUserId = new Map((profiles || []).map(p => [p.user_id, p]));
+
+      const coachData = activeRows.map(c => ({
+        ...c,
+        first_name: profileByUserId.get(c.user_id)?.first_name ?? "",
+        last_name: profileByUserId.get(c.user_id)?.last_name ?? "",
+      }));
 
       // Get service pricing from NEW table
       const { data: servicePricing } = await supabase

@@ -148,16 +148,19 @@ export default function CoachSignup() {
       }
 
       // SECURITY: Do NOT update status - only admin can activate coaches
-      // This prevents privilege escalation where coaches approve themselves
+      // This prevents privilege escalation where coaches approve themselves.
+      // Coach self-service writes go to coaches_public, which is the
+      // canonical home for client-facing profile fields after the
+      // column-ownership refactor. user_id is UNIQUE on coaches_public —
+      // single-key filter is sufficient.
       const { error } = await supabase
-        .from("coaches")
+        .from("coaches_public")
         .update({
           bio: formData.bio.trim(),
           qualifications,
           specializations: formData.specializations,
           // status field intentionally excluded - admin-only
         })
-        .eq("id", coachId)
         .eq("user_id", user.id);
 
       if (error) throw error;

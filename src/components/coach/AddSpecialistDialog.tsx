@@ -124,13 +124,30 @@ export function AddSpecialistDialog({
     try {
       setLoading(true);
       
-      // Fetch all active coaches with specialties
-      const { data, error } = await supabase
+      // Fetch active coaches' status from coaches; first_name / last_name /
+      // specialties / profile_picture_url from coaches_public (canonical
+      // home per column-ownership refactor).
+      const { data: activeRows, error } = await supabase
         .from("coaches")
-        .select("id, user_id, first_name, last_name, specialties, profile_picture_url")
+        .select("id, user_id")
         .eq("status", "active");
 
       if (error) throw error;
+
+      const activeUserIds = (activeRows || []).map(c => c.user_id).filter(Boolean);
+      const { data: profiles } = await supabase
+        .from("coaches_public")
+        .select("user_id, first_name, last_name, specialties, profile_picture_url")
+        .in("user_id", activeUserIds);
+      const profileByUserId = new Map((profiles || []).map(p => [p.user_id, p]));
+
+      const data = (activeRows || []).map(c => ({
+        ...c,
+        first_name: profileByUserId.get(c.user_id)?.first_name ?? "",
+        last_name: profileByUserId.get(c.user_id)?.last_name ?? "",
+        specialties: profileByUserId.get(c.user_id)?.specialties ?? [],
+        profile_picture_url: profileByUserId.get(c.user_id)?.profile_picture_url ?? null,
+      }));
 
       // Filter out specialists already on the team for the same specialty
       const existingMap = new Set(

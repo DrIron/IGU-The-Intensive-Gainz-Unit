@@ -87,14 +87,24 @@ export function DayModuleEditor({
 
   const loadCareTeamCoaches = async () => {
     try {
-      // For now, just list active coaches that could be assigned
-      const { data, error } = await supabase
+      // Active coaches: status filter on coaches; first_name / last_name /
+      // specialties from coaches_public (canonical home post column-
+      // ownership refactor).
+      const { data: activeRows, error } = await supabase
         .from("coaches")
-        .select("user_id, first_name, last_name, specialties")
+        .select("user_id")
         .eq("status", "active")
         .limit(20);
 
       if (error) throw error;
+
+      const activeUserIds = (activeRows || []).map(c => c.user_id).filter(Boolean);
+      const { data } = activeUserIds.length === 0
+        ? { data: [] as { user_id: string; first_name: string | null; last_name: string | null; specialties: string[] | null }[] }
+        : await supabase
+            .from("coaches_public")
+            .select("user_id, first_name, last_name, specialties")
+            .in("user_id", activeUserIds);
 
       const coaches: CareTeamCoach[] = (data || []).map((coach) => ({
         id: coach.user_id,

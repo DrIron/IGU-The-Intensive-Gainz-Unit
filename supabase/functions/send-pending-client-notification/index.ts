@@ -41,15 +41,32 @@ const handler = async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    // Get coach email server-side if not provided
+    // Get coach email server-side if not provided. Prefer coachUserId
+    // (filter coaches_private on user_id) over the legacy coachId path
+    // — coach_public_id drops in Phase 3 of column-ownership refactor.
     let coachEmail = requestData.coachEmail;
-    if (!coachEmail && coachId) {
+    if (!coachEmail && coachUserId) {
       const { data: contactData } = await supabase
         .from('coaches_private')
         .select('email')
-        .eq('coach_public_id', coachId)
+        .eq('user_id', coachUserId)
         .single();
       coachEmail = contactData?.email;
+    } else if (!coachEmail && coachId) {
+      // Legacy fallback: translate coaches.id → user_id, then query.
+      const { data: coachRow } = await supabase
+        .from('coaches')
+        .select('user_id')
+        .eq('id', coachId)
+        .maybeSingle();
+      if (coachRow?.user_id) {
+        const { data: contactData } = await supabase
+          .from('coaches_private')
+          .select('email')
+          .eq('user_id', coachRow.user_id)
+          .single();
+        coachEmail = contactData?.email;
+      }
     }
 
     if (!coachEmail) {

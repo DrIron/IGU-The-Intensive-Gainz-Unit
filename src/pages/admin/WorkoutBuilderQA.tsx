@@ -57,12 +57,21 @@ export default function WorkoutBuilderQA() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // 1. Get or create test coaches
-      const { data: coaches } = await supabase
+      // 1. Get or create test coaches. status filter stays on coaches;
+      // first_name/specialties read from coaches_public (canonical home
+      // post column-ownership refactor).
+      const { data: activeCoaches } = await supabase
         .from("coaches")
-        .select("user_id, first_name, specialties")
+        .select("user_id")
         .eq("status", "active")
         .limit(3);
+      const activeCoachUserIds = (activeCoaches || []).map(c => c.user_id);
+      const { data: coaches } = activeCoachUserIds.length === 0
+        ? { data: [] as { user_id: string; first_name: string | null; specialties: string[] | null }[] }
+        : await supabase
+            .from("coaches_public")
+            .select("user_id, first_name, specialties")
+            .in("user_id", activeCoachUserIds);
 
       if (!coaches || coaches.length < 1) {
         throw new Error("Need at least 1 active coach. Create coaches first.");

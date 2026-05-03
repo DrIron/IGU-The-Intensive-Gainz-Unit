@@ -502,10 +502,13 @@ Deno.serve(async (req) => {
       if (coachPreferenceType === 'specific' && requestedCoachId) {
         console.log(JSON.stringify({ fn: "submit-onboarding", step: "coach_preference", ok: true, coach_id: requestedCoachId }));
         
-        // Get the coach's user_id from the coaches table
+        // Get the coach's user_id + status from the coaches table.
+        // first_name/last_name are no longer selected here — they moved to
+        // coaches_public per the column-ownership refactor and weren't
+        // read by any caller anyway.
         const { data: requestedCoach, error: coachError } = await supabaseServiceRole
           .from('coaches')
-          .select('user_id, first_name, last_name, status')
+          .select('user_id, status')
           .eq('id', requestedCoachId)
           .maybeSingle();
         
@@ -846,27 +849,29 @@ Deno.serve(async (req) => {
     // FLOW 4: Send notification to coach for 1:1 plans
     if (isOneToOne && coachUserId && subscription && newStatus === 'pending_coach_approval') {
       try {
-        // Get coach basic info from coaches table
-        const { data: coachData } = await supabaseServiceRole
-          .from('coaches')
-          .select('id, first_name, last_name')
-          .eq('user_id', coachUserId)
-          .maybeSingle();
-        
-        if (coachData) {
-          // Get coach email from coaches_private table (server-side access)
+        // Get coach first_name from coaches_public (canonical home post
+        // column-ownership refactor). We need coaches.id only for the
+        // legacy notification API; query both.
+        const [{ data: coachRow }, { data: profileData }] = await Promise.all([
+          supabaseServiceRole.from('coaches').select('id').eq('user_id', coachUserId).maybeSingle(),
+          supabaseServiceRole.from('coaches_public').select('first_name, last_name').eq('user_id', coachUserId).maybeSingle(),
+        ]);
+
+        if (profileData) {
+          // Get coach email from coaches_private. Key flipped from
+          // coach_public_id → user_id (D4 refactor drops the FK in Phase 3).
           const { data: contactData } = await supabaseServiceRole
             .from('coaches_private')
             .select('email')
-            .eq('coach_public_id', coachData.id)
+            .eq('user_id', coachUserId)
             .maybeSingle();
-          
+
           if (contactData?.email) {
             await supabaseServiceRole.functions.invoke('send-pending-client-notification', {
               body: {
                 coachUserId,
                 coachEmail: contactData.email,
-                coachFirstName: coachData.first_name,
+                coachFirstName: profileData.first_name,
                 clientFirstName: validatedData.first_name,
                 clientLastName: validatedData.last_name,
                 clientEmail: validatedData.email,

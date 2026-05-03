@@ -20,12 +20,13 @@ export function CoachWorkloadPanel() {
 
   const loadWorkload = useCallback(async () => {
     try {
-      // Two queries total instead of N+1: fetch all coaches and all active
-      // subscriptions, then aggregate in JS. Scales cleanly past 15+ coaches.
+      // Three queries: status + capacity from coaches; first_name/last_name
+      // from coaches_public (canonical home per column-ownership refactor);
+      // active subscriptions for the count map.
       const [coachesResult, subsResult] = await Promise.all([
         supabase
           .from("coaches")
-          .select("user_id, first_name, last_name, max_onetoone_clients, max_team_clients")
+          .select("user_id, max_onetoone_clients, max_team_clients")
           .eq("status", "active"),
         supabase
           .from("subscriptions")
@@ -36,13 +37,26 @@ export function CoachWorkloadPanel() {
       if (coachesResult.error) throw coachesResult.error;
       if (subsResult.error) throw subsResult.error;
 
-      const coachData = coachesResult.data;
+      const activeCoaches = coachesResult.data || [];
       const subsData = subsResult.data;
 
-      if (!coachData) {
+      if (activeCoaches.length === 0) {
         setLoading(false);
         return;
       }
+
+      const userIds = activeCoaches.map(c => c.user_id).filter(Boolean);
+      const { data: profiles } = await supabase
+        .from("coaches_public")
+        .select("user_id, first_name, last_name")
+        .in("user_id", userIds);
+      const profileByUserId = new Map((profiles || []).map(p => [p.user_id, p]));
+
+      const coachData = activeCoaches.map(c => ({
+        ...c,
+        first_name: profileByUserId.get(c.user_id)?.first_name ?? "",
+        last_name: profileByUserId.get(c.user_id)?.last_name ?? "",
+      }));
 
       // Build coach_id → active client count map
       const countByCoach = new Map<string, number>();

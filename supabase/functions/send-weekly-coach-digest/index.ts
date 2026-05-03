@@ -37,14 +37,25 @@ Deno.serve(async (req) => {
       now.getTime() - 7 * 24 * 60 * 60 * 1000
     ).toISOString();
 
-    const { data: coaches, error: coachError } = await supabase
+    // Status filter on coaches; first_name/last_name from coaches_public
+    // (canonical home post column-ownership refactor).
+    const { data: activeRows, error: coachError } = await supabase
       .from("coaches")
-      .select("user_id, first_name, last_name")
+      .select("user_id")
       .in("status", ["active", "approved"]);
 
     if (coachError) {
       throw new Error(`Failed to fetch coaches: ${coachError.message}`);
     }
+
+    const activeUserIds = (activeRows || []).map((c: any) => c.user_id).filter(Boolean);
+    const { data: profiles } = activeUserIds.length === 0
+      ? { data: [] as { user_id: string; first_name: string | null; last_name: string | null }[] }
+      : await supabase
+          .from("coaches_public")
+          .select("user_id, first_name, last_name")
+          .in("user_id", activeUserIds);
+    const coaches = profiles;
 
     if (!coaches || coaches.length === 0) {
       console.log("No active coaches found");

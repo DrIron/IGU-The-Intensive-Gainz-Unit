@@ -66,9 +66,12 @@ Deno.serve(async (req) => {
 
     console.log('Sending payment notifications for month:', payment_month);
 
+    // Replaced PostgREST FK join (`coaches(...)`) with separate queries:
+    // first_name/last_name now live on coaches_public (column-ownership
+    // refactor), and coaches_private keys on user_id (D4 drops coach_public_id).
     const { data: payments, error: paymentsError } = await supabase
       .from('monthly_coach_payments')
-      .select('*, coaches(id, first_name, last_name, user_id)')
+      .select('*')
       .eq('payment_month', payment_month);
 
     if (paymentsError) throw paymentsError;
@@ -80,24 +83,47 @@ Deno.serve(async (req) => {
       );
     }
 
+    const coachIds = [...new Set(payments.map((p: any) => p.coach_id).filter(Boolean))];
+    const { data: coachRows } = await supabase
+      .from('coaches')
+      .select('id, user_id')
+      .in('id', coachIds);
+    const userIdByCoachId = new Map((coachRows || []).map((c: any) => [c.id, c.user_id]));
+
+    const userIds = [...new Set((coachRows || []).map((c: any) => c.user_id).filter(Boolean))];
+    const { data: profileRows } = await supabase
+      .from('coaches_public')
+      .select('user_id, first_name, last_name')
+      .in('user_id', userIds);
+    const profileByUserId = new Map((profileRows || []).map((p: any) => [p.user_id, p]));
+
+    const { data: contactRows } = await supabase
+      .from('coaches_private')
+      .select('user_id, email')
+      .in('user_id', userIds);
+    const emailByUserId = new Map((contactRows || []).map((c: any) => [c.user_id, c.email]));
+
     const monthName = new Date(payment_month).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
     const emailResults = [];
 
     for (const payment of payments) {
-      const coach = payment.coaches;
+      const userId = userIdByCoachId.get(payment.coach_id);
+      const profile = userId ? profileByUserId.get(userId) : null;
+      const coach = {
+        id: payment.coach_id,
+        user_id: userId,
+        first_name: profile?.first_name ?? '',
+        last_name: profile?.last_name ?? '',
+      };
       const breakdown = payment.client_breakdown;
 
-      const { data: contactInfo, error: contactError } = await supabase
-        .from('coaches_private')
-        .select('email')
-        .eq('coach_public_id', coach.id)
-        .maybeSingle();
-
-      if (contactError || !contactInfo?.email) {
-        console.error(`No email found for coach ${coach.id}:`, contactError);
+      const email = userId ? emailByUserId.get(userId) : null;
+      if (!email) {
+        console.error(`No email found for coach ${coach.id}`);
         emailResults.push({ coach_id: coach.id, coach_name: `${coach.first_name} ${coach.last_name}`, success: false, error: 'No email found' });
         continue;
       }
+      const contactInfo = { email };
 
       const content = [
         greeting(coach.first_name),

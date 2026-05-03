@@ -65,25 +65,40 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Look up coach - support both legacy coach_id and new coach_user_id
+    // Look up coach. coaches gives us id+user_id+status; first_name and
+    // last_name come from coaches_public (canonical home post column-
+    // ownership refactor).
     let coachQuery = supabaseClient
       .from("coaches")
-      .select("id, user_id, first_name, last_name");
-    
+      .select("id, user_id");
+
     if (coach_user_id) {
       coachQuery = coachQuery.eq("user_id", coach_user_id);
     } else if (coach_id) {
       coachQuery = coachQuery.eq("id", coach_id);
     }
-    
-    const { data: coach, error: coachError } = await coachQuery.single();
 
-    if (coachError || !coach) {
+    const { data: coachRow, error: coachError } = await coachQuery.single();
+
+    if (coachError || !coachRow) {
       return new Response(
         JSON.stringify({ error: "Coach not found" }),
         { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+
+    const { data: coachProfile } = await supabaseClient
+      .from("coaches_public")
+      .select("first_name, last_name")
+      .eq("user_id", coachRow.user_id)
+      .maybeSingle();
+
+    const coach = {
+      id: coachRow.id,
+      user_id: coachRow.user_id,
+      first_name: coachProfile?.first_name ?? "",
+      last_name: coachProfile?.last_name ?? "",
+    };
 
     // Check if user is an active client of this coach
     const { data: subscription, error: subError } = await supabaseClient
@@ -108,11 +123,13 @@ Deno.serve(async (req) => {
     ]);
     const clientProfile = { ...publicProfile, ...privateProfile };
 
-    // Get coach contact info from coaches_private (server-side access)
+    // Get coach contact info from coaches_private. Key flipped from
+    // coach_public_id → user_id (D4 of column-ownership refactor drops
+    // coach_public_id in Phase 3).
     const { data: contactInfo, error: contactError } = await supabaseClient
       .from("coaches_private")
       .select("email, whatsapp_number")
-      .eq("coach_public_id", coach_id)
+      .eq("user_id", coach.user_id)
       .single();
 
     if (contactError || !contactInfo) {

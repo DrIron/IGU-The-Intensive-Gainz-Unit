@@ -188,37 +188,28 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
 
     try {
       if (editingCoach) {
-        // KNOWN-BROKEN — DO NOT "fix" by splitting writes.
-        // This update writes columns that don't exist on `coaches`:
-        //   date_of_birth, instagram_url, tiktok_url, snapchat_url, youtube_url
-        // PostgREST rejects the whole call with `42703: column "X" of relation
-        // "coaches" does not exist` and the Save action fails loudly with a
-        // destructive toast. No data is saved.
-        //
-        // The intuitive fix (split across `coaches` + `coaches_private`) would
-        // introduce read-after-write drift on first_name / last_name /
-        // location / nickname: those columns exist on BOTH `coaches` and
-        // `coaches_public`, but `fetchCoaches` reads from `coaches_full` (=
-        // coaches_public + coaches_private). Writing to `coaches` while reading
-        // from `coaches_public` means saving "Hassan" then reloading shows
-        // "Hasan" — drift accelerates.
-        //
-        // Defer until the column-ownership refactor. See CLAUDE.md
-        // "Coach data — partitioned writes, no sync, drift exists today".
-        const { error } = await supabase
-          .from("coaches")
-          .update({
+        // Route admin coach writes through upsert_coach_full(...) RPC (D3
+        // of the column-ownership refactor). Single funnel writes coaches +
+        // coaches_public + coaches_private atomically. fetchCoaches reads
+        // from coaches_full (= coaches_public + coaches_private), so the
+        // write/read alignment is correct.
+        const { error } = await supabase.rpc("upsert_coach_full", {
+          p_user_id: editingCoach.user_id,
+          p_public: {
             first_name: formData.first_name,
             last_name: formData.last_name,
-            date_of_birth: formData.date_of_birth || null,
             location: formData.location,
             nickname: formData.nickname,
-            instagram_url: formData.instagram_url,
-            tiktok_url: formData.tiktok_url,
-            snapchat_url: formData.snapchat_url,
-            youtube_url: formData.youtube_url,
-          })
-          .eq("id", editingCoach.id);
+          },
+          p_private: {
+            date_of_birth: formData.date_of_birth || null,
+            instagram_url: formData.instagram_url || null,
+            tiktok_url: formData.tiktok_url || null,
+            snapchat_url: formData.snapchat_url || null,
+            youtube_url: formData.youtube_url || null,
+          },
+          p_admin: {},
+        });
 
         if (error) throw error;
 

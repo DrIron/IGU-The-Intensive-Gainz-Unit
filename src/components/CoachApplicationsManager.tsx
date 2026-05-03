@@ -290,8 +290,12 @@ export function CoachApplicationsManager() {
             .in('slug', selectedApp.requested_subroles);
 
           if (subroleDefsData && subroleDefsData.length > 0) {
+            // `coaches.email` does not exist (PII split moved email to
+            // coaches_private). Original query was a silent bug — returned
+            // 0 rows and skipped the subrole inserts. Switching to
+            // coaches_private resolves it.
             const { data: coachData } = await supabase
-              .from('coaches')
+              .from('coaches_private')
               .select('user_id')
               .eq('email', selectedApp.email)
               .maybeSingle();
