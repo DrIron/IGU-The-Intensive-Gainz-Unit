@@ -419,27 +419,53 @@ git add -A && git commit -m "…" && git push  # Vercel auto-deploys on main
 ### Branding: always "IGU", never "Dr Iron"
 Platform name is IGU (The Intensive Gainz Unit). Live site `theigu.com`. Emails, UI, navbar, meta tags — all IGU.
 
-### Coach data — partitioned writes, no sync, drift exists today
+### Coach data — column-ownership refactor in progress (Phase 1 complete, Phase 3 pending)
 
-Three tables hold coach data with overlapping but NON-IDENTICAL schemas:
-- `coaches` — admin/role-management facing. Owns: status, last_assigned_at, max_*_clients, age, gender.
-- `coaches_public` — client-facing profile. Owns: profile_picture_url, bio, short_bio, qualifications, specializations, nickname, location, display_name, coach_level, is_head_coach, head_coach_specialisation, instagram_url, tiktok_url, youtube_url.
-- `coaches_private` — sensitive contacts. Syncs socials → `coaches_public` via `sync_coaches_public_socials_trigger`.
-- `coaches_full` — view joining coaches_public + coaches_private. Most admin UI reads from it.
+Three tables hold coach data with overlapping schemas. The column-ownership refactor (see `docs/COACH_TABLES_REFACTOR_PLAN.md`) is mid-flight:
 
-NO DB-level sync between `coaches` and `coaches_public`. No shared write utility either. Writes are partitioned by code path:
+- **Phase 1 complete (May 2026):** all admin write paths route through the `upsert_coach_full(...)` SECURITY DEFINER RPC; backfills aligned all duplicate columns; missing-row seed bug structurally fixed; `delete-account` cascade gap closed; PLM + CoachManagement KNOWN-BROKEN UPDATEs replaced; AdminBillingManager redirected to `coaches.status`.
+- **Phase 2 — soak (current):** drift-monitor cron + manual smoke tests. 7 consecutive zero-drift days unlocks Phase 3.
+- **Phase 3 — destructive (pending):** drops the duplicate columns; rebuilds `coaches_full` view + `admin_get_coaches_full()` RPC on `user_id`; drops `coaches_private.coach_public_id` FK + column atomically with `sync_coaches_public_socials()` rewrite.
 
-    Admin / signup / onboarding → writes `coaches`
-    Coach self-service profile  → writes `coaches_public`
+**Current canonical homes (post-Phase-1, soak window):**
+- `coaches` — admin/role-management lifecycle: `status`, `last_assigned_at`, `max_*_clients`, `age`, `gender`. Profile columns (`first_name`, `last_name`, `nickname`, `bio`, `short_bio`, `location`, `profile_picture_url`, `qualifications`, `specializations`, `specialties`) still physically exist here for backward-compat but are DEPRECATED — drop in Phase 3.
+- `coaches_public` — client-facing profile: `first_name`, `last_name`, `nickname`, `bio`, `short_bio`, `location`, `profile_picture_url`, `qualifications`, `specializations`, `specialties`, `display_name`, `coach_level`, `is_head_coach`, `head_coach_specialisation`, `instagram_url`, `tiktok_url`, `youtube_url`. Columns `status`, `max_*_clients`, `last_assigned_at` still exist here too but are DEPRECATED — drop in Phase 3.
+- `coaches_private` — sensitive contacts: `email`, `phone`, `whatsapp_number`, `date_of_birth`, `gender`, `instagram_url`, `tiktok_url`, `snapchat_url`, `youtube_url`. Syncs socials → `coaches_public` via `sync_coaches_public_socials_trigger`. The `coach_public_id` column is DEPRECATED — drop in Phase 3 (D4); always join on `user_id`.
+- `coaches_full` — view joining coaches_public + coaches_private. Most admin UI reads from it. **View rebuild is part of Phase 3** to use `user_id` joins.
 
-Result: 7/17 overlapping columns drift in production today (verified May 2026).
+**Write rules (post-Phase-1, soak window):**
 
-Known bugs: ProfessionalLevelManager and CoachManagement write columns to `coaches` that don't exist there (coach_level, instagram_url, date_of_birth, etc). Those writes silently fail.
+```sql
+-- Admin coach writes (create-coach-account, CoachManagement.tsx) MUST go through:
+SELECT upsert_coach_full(
+  p_user_id := <uuid>,
+  p_public  := jsonb {first_name, last_name, nickname, location, bio, ...},
+  p_private := jsonb {email, date_of_birth, instagram_url, ...},
+  p_admin   := jsonb {status, max_onetoone_clients, ...}
+);
+```
 
-A column-ownership refactor is planned. Until then:
-- DO NOT add new code that writes overlapping columns on either side.
-- DO NOT introduce a "sync both tables" pattern — that's fiction.
-- If you must write a duplicated field, target the table the relevant feature already uses; flag in PR description.
+The RPC is SECURITY DEFINER, admin-OR-service-role gated, and writes all three tables atomically inside one transaction. The seed-bug pattern (where one table got written but not the others) is structurally impossible.
+
+- `submit-onboarding` is the ONE admin path NOT routed through the RPC — its only `coaches` write is the single-column `last_assigned_at` UPDATE (line 714-717), which stays direct.
+- Coach self-service (`CoachProfile.tsx`) writes `coaches_public` directly — single-table, single-purpose, no RPC indirection needed.
+
+**Pending-Phase-3 caveats — flag in PR if you violate these:**
+- DO NOT write `coaches.{first_name, last_name, nickname, bio, short_bio, location, profile_picture_url, qualifications, specializations, specialties, age, gender}`. Those columns drop in Phase 3 — write through `coaches_public` (or via `upsert_coach_full` for admin paths).
+- DO NOT write `coaches_public.{status, max_onetoone_clients, max_team_clients, last_assigned_at}`. Those drop in Phase 3 — write to `coaches`.
+- DO NOT use `coaches_private.coach_public_id` as a filter — drops in Phase 3 (D4); use `user_id` instead. The FK is misnamed (it actually references `coaches.id`, not `coaches_public.id`).
+- Socials are the one cross-table sync exception (D2 of the refactor): writes to `coaches_private.{instagram,tiktok,youtube}_url` mirror to `coaches_public` via the existing trigger. Don't introduce additional sync triggers.
+
+**Verification:**
+```sql
+-- Drift query (Pattern A — should return 0 rows)
+SELECT COUNT(*) FROM coaches c JOIN coaches_public cp USING (user_id)
+WHERE c.first_name IS DISTINCT FROM cp.first_name
+   OR c.last_name  IS DISTINCT FROM cp.last_name
+   -- ... see docs/COACH_TABLES_REFACTOR_PLAN.md § 9 for the full version
+;
+```
+Pattern B columns (`status`, `max_*_clients`, `last_assigned_at`) intentionally drift until Phase 3 drops them.
 
 ### `profiles` is a VIEW
 Joins `profiles_public` + `profiles_private`. Cannot use PostgREST FK joins — FK `subscriptions_user_id_fkey` references `profiles_legacy`, not the view. Always use separate direct queries.
