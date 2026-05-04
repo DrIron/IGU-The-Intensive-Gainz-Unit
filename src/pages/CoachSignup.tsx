@@ -153,7 +153,12 @@ export default function CoachSignup() {
       // canonical home for client-facing profile fields after the
       // column-ownership refactor. user_id is UNIQUE on coaches_public —
       // single-key filter is sufficient.
-      const { error } = await supabase
+      //
+      // .select() row-count guard: PostgREST returns 204 / no error if
+      // RLS silently denies. Without the guard, the "Saved" toast would
+      // fire while no data persisted (defense-in-depth — same pattern as
+      // ProfessionalLevelManager's saveCoach).
+      const { data, error } = await supabase
         .from("coaches_public")
         .update({
           bio: formData.bio.trim(),
@@ -161,9 +166,15 @@ export default function CoachSignup() {
           specializations: formData.specializations,
           // status field intentionally excluded - admin-only
         })
-        .eq("user_id", user.id);
+        .eq("user_id", user.id)
+        .select("user_id");
 
       if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error(
+          "Coach profile row not found in coaches_public. Your account may not be fully provisioned yet. Contact engineering."
+        );
+      }
 
       toast({
         title: "Profile submitted!",
