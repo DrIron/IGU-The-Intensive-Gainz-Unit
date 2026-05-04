@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText, Sliders, Tag, Award } from "lucide-react";
+import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText, Sliders, Tag, Award, CheckCircle2 } from "lucide-react";
 import { CoachCapacityManager } from "@/components/admin/CoachCapacityManager";
 import { CoachLoadOverview } from "@/components/admin/CoachLoadOverview";
 import { CoachApplicationsManager } from "@/components/CoachApplicationsManager";
@@ -285,6 +285,35 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     setDialogOpen(true);
   };
 
+  const handleActivate = async (coach: Coach) => {
+    try {
+      // Route through upsert_coach_full RPC so admin status flips share the
+      // same atomic + auth-gated path as other admin coach writes (D3 of the
+      // column-ownership refactor). Closes the gap where directly-created
+      // coaches had no admin UI to transition pending → active.
+      const { error } = await supabase.rpc("upsert_coach_full", {
+        p_user_id: coach.user_id,
+        p_public: {},
+        p_private: {},
+        p_admin: { status: "active" },
+      });
+
+      if (error) throw error;
+
+      toast({
+        title: "Coach activated",
+        description: `${coach.first_name} ${coach.last_name} is now active.`,
+      });
+      fetchCoaches();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDelete = async (coach: Coach) => {
     try {
       const { error } = await supabase.functions.invoke('delete-account', {
@@ -484,6 +513,16 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
                       <Edit className="mr-2 h-4 w-4" />
                       Edit Coach Information
                     </DropdownMenuItem>
+
+                    {coach.status === "pending" && (
+                      <DropdownMenuItem
+                        onClick={() => handleActivate(coach)}
+                        className="text-green-600 focus:text-green-600"
+                      >
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                        Activate Coach
+                      </DropdownMenuItem>
+                    )}
 
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
