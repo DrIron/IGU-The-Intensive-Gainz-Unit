@@ -88,11 +88,17 @@ export default function CoachProfile() {
       // Note: gender is stored in coaches_private now
       setCoachData({ ...data, gender: null });
       
-      // Fetch contact/private info from coaches_private table
+      // Fetch contact/private info from coaches_private table.
+      // Key flipped from coach_public_id → user_id (D4 of column-ownership
+      // refactor drops coach_public_id in Phase 3). For existing coaches with
+      // backfill-aligned IDs the old filter happened to work; for new coaches
+      // (independent UUIDs) the old filter returned 0 rows. The companion
+      // UPDATE at the bottom of this file already flipped to user_id; this
+      // matches it.
       const { data: contact } = await supabase
         .from("coaches_private")
         .select("email, whatsapp_number, date_of_birth, gender, instagram_url, tiktok_url, snapchat_url, youtube_url")
-        .eq("coach_public_id", data.id)
+        .eq("user_id", data.user_id)
         .maybeSingle();
       
       setContactData(contact);
