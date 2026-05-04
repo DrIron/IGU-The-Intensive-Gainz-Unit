@@ -1,4 +1,4 @@
--- Coach refactor follow-up: TWO bugs in upsert_coach_full surfaced in
+-- Coach refactor follow-up: THREE bugs in upsert_coach_full surfaced in
 -- prod smoke tests on May 4, 2026:
 --
 -- (1) NOT NULL violation on coaches_private.email when admin updated an
@@ -20,7 +20,18 @@
 -- caller doesn't pass status; let the column default handle new INSERTs
 -- and have ON CONFLICT preserve existing via `COALESCE(v_status, ...)`.
 --
--- BOTH fixes are in the body below.
+-- (3) first_name / last_name regression: same shape as bug (2) but for
+-- profile fields. v_first_name and v_last_name fell back to '' (empty
+-- string) when the caller omitted them, then the ON CONFLICT used
+-- `COALESCE(EXCLUDED.first_name, ...)` — but '' is non-null, so COALESCE
+-- propagated '' as the new value, blanking existing names. Surfaced when
+-- the new "Activate Coach" admin button (commit 7af9622) called the RPC
+-- with `p_public: {}` and silently blanked the coach's first_name and
+-- last_name. Fix: keep v_first_name/v_last_name nullable when caller
+-- omits, use them (NOT EXCLUDED) in the ON CONFLICT COALESCE so omitted
+-- = preserve.
+--
+-- All three fixes are in the body below.
 
 CREATE OR REPLACE FUNCTION public.upsert_coach_full(
   p_user_id  UUID,
@@ -60,8 +71,11 @@ BEGIN
     RAISE EXCEPTION 'p_user_id is required' USING ERRCODE = '22023';
   END IF;
 
+  -- Keep v_first_name / v_last_name nullable when caller omits, so the
+  -- ON CONFLICT COALESCE preserves existing values rather than blanking.
+  -- The INSERT path explicitly COALESCEs to '' as the NOT NULL fallback.
   v_first_name := p_public->>'first_name';
-  v_last_name  := COALESCE(p_public->>'last_name', '');
+  v_last_name  := p_public->>'last_name';
   -- Don't force a default — let it be NULL when caller doesn't supply it.
   -- For new INSERTs, the coaches.status column default ('pending') applies.
   -- For UPDATEs, the ON CONFLICT COALESCE preserves the existing status.
@@ -76,7 +90,7 @@ BEGIN
   VALUES (
     p_user_id,
     COALESCE(v_first_name, ''),
-    v_last_name,
+    COALESCE(v_last_name, ''),
     p_public->>'nickname',
     p_public->>'bio',
     p_public->>'short_bio',
@@ -91,8 +105,8 @@ BEGIN
     NULLIF(p_admin->>'last_assigned_at', '')::timestamptz
   )
   ON CONFLICT (user_id) DO UPDATE SET
-    first_name           = COALESCE(EXCLUDED.first_name, coaches.first_name),
-    last_name            = COALESCE(EXCLUDED.last_name, coaches.last_name),
+    first_name           = COALESCE(v_first_name, coaches.first_name),
+    last_name            = COALESCE(v_last_name, coaches.last_name),
     nickname             = COALESCE(EXCLUDED.nickname, coaches.nickname),
     bio                  = COALESCE(EXCLUDED.bio, coaches.bio),
     short_bio            = COALESCE(EXCLUDED.short_bio, coaches.short_bio),
@@ -117,7 +131,7 @@ BEGIN
   VALUES (
     p_user_id,
     COALESCE(v_first_name, ''),
-    v_last_name,
+    COALESCE(v_last_name, ''),
     p_public->>'nickname',
     p_public->>'bio',
     p_public->>'short_bio',
@@ -132,8 +146,8 @@ BEGIN
     NULLIF(p_admin->>'last_assigned_at', '')::timestamptz
   )
   ON CONFLICT (user_id) DO UPDATE SET
-    first_name           = COALESCE(EXCLUDED.first_name, coaches_public.first_name),
-    last_name            = COALESCE(EXCLUDED.last_name, coaches_public.last_name),
+    first_name           = COALESCE(v_first_name, coaches_public.first_name),
+    last_name            = COALESCE(v_last_name, coaches_public.last_name),
     nickname             = COALESCE(EXCLUDED.nickname, coaches_public.nickname),
     bio                  = COALESCE(EXCLUDED.bio, coaches_public.bio),
     short_bio            = COALESCE(EXCLUDED.short_bio, coaches_public.short_bio),

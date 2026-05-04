@@ -1185,3 +1185,74 @@ rather than raising and getting wrapped by PostgREST).
 
 If Phase 0 surfaces anything that changes the migration shape, I'll come
 back with a delta before opening 1A.
+
+---
+
+## Phase 1 retrospective (May 3-4, 2026)
+
+Phase 1 (1A + 1B + 1C) shipped in one extended session. End-to-end prod
+smoke testing on May 4 caught **5 follow-up bugs** that the original plan
+didn't anticipate. All fixed in the same session. The plan above remains
+the source of truth for Phase 2/3; this retrospective captures what
+landed, what was pulled forward, and what's still pending.
+
+### Bugs caught + fixed during prod smoke testing
+
+| # | Symptom | Root cause | Fix | Commit |
+|---|---|---|---|---|
+| 1 | "null value in column id of relation coaches_public" on first new-coach RPC call | `coaches_public.id` was NOT NULL with no default. Pre-Phase-1, the only INSERT path was the one-time backfill which supplied `id` explicitly | `ALTER TABLE coaches_public ALTER COLUMN id SET DEFAULT gen_random_uuid()` | `23132fc` |
+| 2 | Coach signup profile submit silently zero-rowed under simulated RLS denial | `CoachSignup.tsx` 1C edit was missing the `.select()` row-count guard pattern from PLM | Added `.select("user_id")` + row-count check + descriptive error | `b9ba515` |
+| 3 | New coach's profile page (post-signup) didn't load DOB / gender / IG URL | 1C edit only flipped `coaches_private` WRITE key from `coach_public_id` → `user_id`; the READ in `fetchCoachData` was missed. Hasan worked by ID-alignment coincidence | Flipped `.eq("coach_public_id", data.id)` → `.eq("user_id", data.user_id)` in CoachProfile.tsx fetchCoachData | `27cb431` |
+| 4 | Admin edit coach via CoachManagement → "null value in column email of relation coaches_private" | Admin form treats email as read-only → `p_private` had DOB+URLs but no email. INSERT-with-ON-CONFLICT fails NOT NULL check before conflict resolution | RPC now SELECTs existing private row, COALESCEs payload with existing values, then INSERTs/UPDATEs. Look up by `coach_public_id OR user_id` for FK-misnaming defense | `0d13b7d` |
+| 5 | Same admin edit silently demoted active coach to pending | RPC's `v_status := COALESCE(p_admin->>'status', 'pending')` defaulted to `'pending'`, then propagated as EXCLUDED.status during ON CONFLICT | Keep `v_status` null when caller omits; let column default handle new INSERTs and ON CONFLICT preserve existing via `COALESCE(v_status, table.status)` | `0d13b7d` (folded with #4) |
+
+All five surfaced ONLY because we ran end-to-end smoke tests post-Phase-1.
+Static analysis + Cowork's audits would not have caught them.
+
+### Pulled forward from Phase 3
+
+**`coaches_full` view + `admin_get_coaches_full()` RPC rebuild** —
+originally Phase 3 migration 6, shipped early as `20260504170000` /
+commit `39c5797`. Reason: the misnamed `coach_public_id` JOIN was
+breaking admin reads of new coaches (email "—" in admin table). Same
+column shape, same column sources, only the JOIN key changed to
+`user_id`. Phase 3 (proper) will additionally re-source `status` /
+`max_*_clients` / `last_assigned_at` from `coaches` before dropping the
+deprecated columns.
+
+### Closed in Phase 1 (originally non-scope but adjacent)
+
+**Admin "Activate Coach" button** (commit `7af9622`) — surfaced as a
+product gap when smoke testing revealed there was no admin UI to flip a
+directly-created coach from `pending → active`. Only the application-
+approval flow could do it. Now: kebab menuitem on Pending coaches
+routes through `upsert_coach_full(p_admin: { status: 'active' })`,
+sharing the same atomic + auth-gated path as other admin coach writes.
+
+### Still pending
+
+- **Phase 2 soak window.** Drift monitor scheduled daily. 7 consecutive
+  zero-drift days unlocks Phase 3 destructive drops.
+- **Phase 3 migration 6 (column re-sourcing).** The JOIN-key portion is
+  done. Still pending: re-source `status` / `max_*_clients` /
+  `last_assigned_at` from `coaches` in both view and RPC before dropping
+  those columns from `coaches_public`.
+- **Phase 3 migrations 7-10.** The actual destructive drops + FK rename
+  + sync trigger rewrite. Sequenced as documented in § 3.
+
+### Smoke test coverage at Phase 1 close
+
+Verified end-to-end on prod (May 4):
+- Admin create coach via RPC → 3 atomic rows ✓
+- Coach signup profile submit → coaches_public ✓
+- Coach self-service WRITE coaches_private (user_id key) ✓
+- Coach self-service READ coaches_private (user_id key) ✓
+- Admin edit via RPC → 3-table merge with status preservation ✓
+- Admin set coach level via PLM (independent-UUID coach) ✓
+- Admin Activate Coach button (RPC status flip) ✓ (visual smoke; live click tested via separate session)
+- Row-count guard catches silent RLS denials ✓
+- delete-account cascade across 5 tables (coaches, coaches_public, coaches_private, user_roles, auth.users) ✓
+- coaches_full view rebuild → admin sees email/DOB for non-aligned-UUID coaches ✓
+
+Implicitly verified (loaded successfully without errors during admin browsing):
+- 4 PostgREST FK-join rewrites (SystemHealthView Data Integrity tab confirmed; CoachReassignmentSection / CoachPaymentCalculator / send-coach-payment-notifications use the same pattern)
