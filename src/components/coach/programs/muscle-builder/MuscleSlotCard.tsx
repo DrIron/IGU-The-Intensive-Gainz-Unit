@@ -119,10 +119,9 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
 
   const fullLabel = formatSlotLabel(muscleId);
   const shortLabel = getShortMuscleLabel(muscleId);
-  const hasTempo = !!tempo && tempo.length === 4;
-  const needsIntensity = hasTempo && rir == null && rpe == null;
   const hasExercise = !!exercise;
-  const hasPerSet = !!setsDetail && setsDetail.length > 0;
+  const hasInstructions = !!exercise?.instructions?.trim();
+  const hasReplacements = !!replacements && replacements.length > 0;
   // Exercise names are already short-ish; muscle/subdivision names benefit from compact form.
   const displayLabel = hasExercise ? exercise.name : shortLabel;
   const titleLabel = hasExercise ? exercise.name : fullLabel;
@@ -168,22 +167,37 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                 <span className="font-medium truncate text-foreground text-[13px] leading-tight">
                   {displayLabel}
                 </span>
-                {/* Line 2 — sets badge + tempo + status icons */}
+                {/* Line 2 — sets count + edit-status indicators only.
+                    Reps / tempo / intensity warnings live in the popover so
+                    the trigger fits even in 140px columns. The three status
+                    icons (exercise / instructions / replacements) tell the
+                    coach at a glance what's been filled in. */}
                 <span className="flex items-center gap-1.5 text-[10px] font-mono text-muted-foreground">
                   <span
                     className="px-1.5 py-0.5 rounded-full shrink-0"
                     style={{ backgroundColor: `${muscle.colorHex}26`, color: muscle.colorHex }}
                   >
-                    {sets}×{repMin && repMax ? `${repMin}-${repMax}` : repMin ?? repMax ?? '—'}
+                    {sets} {sets === 1 ? 'set' : 'sets'}
                   </span>
-                  {hasTempo && <span className="shrink-0">{tempo}</span>}
-                  {hasExercise && <Dumbbell className="h-3 w-3 text-emerald-500 shrink-0" />}
-                  {hasPerSet && <Settings2 className="h-3 w-3 text-blue-400 shrink-0" />}
-                  {replacements && replacements.length > 0 && (
-                    <span className="shrink-0 text-muted-foreground/70">+{replacements.length}</span>
+                  {hasExercise && (
+                    <Dumbbell
+                      className="h-3 w-3 text-emerald-500 shrink-0"
+                      aria-label="Exercise chosen"
+                    />
                   )}
-                  {needsIntensity && !hasPerSet && (
-                    <AlertTriangle className="h-3 w-3 text-amber-500 shrink-0" />
+                  {hasInstructions && (
+                    <FileText
+                      className="h-3 w-3 text-sky-500 shrink-0"
+                      aria-label="Instructions added"
+                    />
+                  )}
+                  {hasReplacements && (
+                    <span
+                      className="shrink-0 text-muted-foreground/70"
+                      aria-label={`${replacements!.length} replacement${replacements!.length === 1 ? '' : 's'}`}
+                    >
+                      +{replacements!.length}
+                    </span>
                   )}
                 </span>
               </button>
