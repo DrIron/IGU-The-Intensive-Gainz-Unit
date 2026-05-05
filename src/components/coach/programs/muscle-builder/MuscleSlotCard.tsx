@@ -6,7 +6,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { X, AlertTriangle, Dumbbell, Plus, RefreshCw, Settings2, FileText } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -190,15 +189,22 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
               </button>
             </PopoverTrigger>
             <PopoverContent
-              className="w-[420px] max-w-[calc(100vw-2rem)] p-0"
+              // Use h- (fixed height) not max-h-: Radix measures content
+              // height BEFORE positioning, so max-h often doesn't take
+              // effect inside Popper. Pinning the height to the var forces
+              // the popover to be exactly the available space, which makes
+              // overflow-y-auto reliable for tall content (4 sets + 3
+              // replacements + chips, which used to clip past the
+              // client-input section). The earlier ScrollArea wrapper hit
+              // the same root cause.
+              className="w-[420px] max-w-[calc(100vw-2rem)] h-[var(--radix-popover-content-available-height)] overflow-y-auto p-0"
               onClick={e => e.stopPropagation()}
               align="start"
               side="right"
               sideOffset={8}
               collisionPadding={16}
             >
-              <ScrollArea className="max-h-[85vh]">
-                <div className="p-3">
+              <div className="p-3">
                   <SlotEditorPopover
                     slotId={slotId}
                     muscleId={muscleId}
@@ -231,7 +237,6 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                     onApplyToRemaining={onApplyToRemaining ? (fields) => onApplyToRemaining(slotId, fields) : undefined}
                   />
                 </div>
-              </ScrollArea>
             </PopoverContent>
           </Popover>
 

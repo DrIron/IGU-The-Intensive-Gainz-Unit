@@ -190,11 +190,6 @@ export const DayColumn = memo(function DayColumn({
   const isCopiedDay = copiedDayIndex === dayIndex;
   const hasAnyContent = daySessions.length > 0 || daySlots.length > 0;
 
-  // Compute a running draggable index (hello-pangea/dnd wants unique indices
-  // per Droppable; each SessionBlock has its own Droppable, but we still pass
-  // a per-session start index so Draggable indices are stable across renders).
-  let draggableCursor = 0;
-
   return (
     <Card
       data-day-index={dayIndex}
@@ -322,14 +317,11 @@ export const DayColumn = memo(function DayColumn({
           <div className="space-y-1.5">
             {daySessions.map((session, i) => {
               const sessionSlots = slotsBySessionId.get(session.id) || [];
-              const startIdx = draggableCursor;
-              draggableCursor += sessionSlots.length;
               return (
                 <SessionBlock
                   key={session.id}
                   session={session}
                   slots={sessionSlots}
-                  draggableStartIndex={startIdx}
                   sessionPosition={i}
                   daySessionsCount={daySessions.length}
                   highlightedMuscleId={highlightedMuscleId}

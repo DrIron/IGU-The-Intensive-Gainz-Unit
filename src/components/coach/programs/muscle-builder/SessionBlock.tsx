@@ -35,7 +35,6 @@ const ALL_ACTIVITY_TYPES: ActivityType[] = ['strength', 'cardio', 'hiit', 'yoga_
 interface SessionBlockProps {
   session: SessionData;
   slots: MuscleSlotData[];
-  draggableStartIndex: number;       // starting index for hello-pangea Draggable within the day
   sessionPosition: number;           // position among day's sessions (0-indexed)
   daySessionsCount: number;
   highlightedMuscleId?: string | null;
@@ -83,7 +82,6 @@ interface SessionBlockProps {
 export const SessionBlock = memo(function SessionBlock({
   session,
   slots,
-  draggableStartIndex,
   sessionPosition,
   daySessionsCount,
   highlightedMuscleId,
@@ -324,7 +322,10 @@ export const SessionBlock = memo(function SessionBlock({
               </div>
             )}
             {sessionSlots.map((slot, i) => {
-              const globalIdx = draggableStartIndex + i;
+              // hello-pangea/dnd requires Draggable indices to be 0-based and
+              // contiguous within their parent Droppable. Each SessionBlock is
+              // its own Droppable, so the index is the slot's position within
+              // this session — not a running cursor across the whole day.
               if (isStrength) {
                 return (
                   <MuscleSlotCard
@@ -343,7 +344,7 @@ export const SessionBlock = memo(function SessionBlock({
                     prescriptionColumns={slot.prescriptionColumns}
                     clientInputColumns={slot.clientInputColumns}
                     globalClientInputs={globalClientInputs}
-                    draggableIndex={globalIdx}
+                    draggableIndex={i}
                     onSetSlotDetails={onSetSlotDetails}
                     onRemove={onRemove}
                     onSetExercise={onSetExercise}
@@ -367,7 +368,7 @@ export const SessionBlock = memo(function SessionBlock({
                 <ActivitySlotCard
                   key={slot.id}
                   slot={slot}
-                  draggableIndex={globalIdx}
+                  draggableIndex={i}
                   onRemove={onRemove}
                   onSetActivityDetails={onSetActivityDetails}
                 />
