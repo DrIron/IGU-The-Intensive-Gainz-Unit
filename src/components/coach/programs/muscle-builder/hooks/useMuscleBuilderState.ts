@@ -470,32 +470,47 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       // session's slice and then rewrite sortOrder for the full day so
       // visual order still matches stored order.
       return withUpdatedCurrentWeek(state, s => {
-        const session = getCurrentSessions(state).find(x => x.id === action.sessionId);
+        const sessions = getCurrentSessions(state);
+        const session = sessions.find(x => x.id === action.sessionId);
         if (!session) return s;
-        const sessionSlots = s
+
+        // Reorder within the target session
+        const targetSessionSlots = s
           .filter(sl => sl.sessionId === action.sessionId)
           .sort((a, b) => a.sortOrder - b.sortOrder);
-        const [moved] = sessionSlots.splice(action.fromIndex, 1);
+        const [moved] = targetSessionSlots.splice(action.fromIndex, 1);
         if (!moved) return s;
-        sessionSlots.splice(action.toIndex, 0, moved);
-        // Merge session slots back with other slots on the same day,
-        // preserving session visual order by flattening sessions in
-        // sessionSortOrder and rewriting sortOrder monotonically.
-        const sessions = [...getCurrentSessions(state)]
+        targetSessionSlots.splice(action.toIndex, 0, moved);
+
+        // Walk the day's sessions in visual order and concat each session's
+        // slots in their (new) array order. Critical: do NOT sort by old
+        // sortOrder at the end — that would undo the splice we just did,
+        // because the moved slot still carries its pre-drag sortOrder until
+        // the .map() below rewrites it.
+        const daySessions = sessions
           .filter(x => x.dayIndex === session.dayIndex)
           .sort((a, b) => a.sortOrder - b.sortOrder);
-        const sessionIdToIdx = new Map(sessions.map((x, i) => [x.id, i]));
-        const daySlots = [
-          ...s.filter(sl => sl.dayIndex === session.dayIndex && sl.sessionId !== action.sessionId),
-          ...sessionSlots,
-        ].sort((a, b) => {
-          const ai = a.sessionId ? sessionIdToIdx.get(a.sessionId) ?? 999 : 999;
-          const bi = b.sessionId ? sessionIdToIdx.get(b.sessionId) ?? 999 : 999;
-          if (ai !== bi) return ai - bi;
-          return a.sortOrder - b.sortOrder;
-        }).map((sl, i) => ({ ...sl, sortOrder: i }));
+        const orderedDaySlots: typeof s = [];
+        for (const sess of daySessions) {
+          if (sess.id === action.sessionId) {
+            orderedDaySlots.push(...targetSessionSlots);
+          } else {
+            const slots = s
+              .filter(sl => sl.sessionId === sess.id)
+              .sort((a, b) => a.sortOrder - b.sortOrder);
+            orderedDaySlots.push(...slots);
+          }
+        }
+        // Legacy slots with no sessionId — append at end of the day so they
+        // aren't dropped on the floor.
+        const orphans = s
+          .filter(sl => sl.dayIndex === session.dayIndex && !sl.sessionId)
+          .sort((a, b) => a.sortOrder - b.sortOrder);
+        orderedDaySlots.push(...orphans);
+
+        const reordered = orderedDaySlots.map((sl, i) => ({ ...sl, sortOrder: i }));
         const otherDaySlots = s.filter(sl => sl.dayIndex !== session.dayIndex);
-        return [...otherDaySlots, ...daySlots];
+        return [...otherDaySlots, ...reordered];
       });
     }
 
