@@ -356,30 +356,14 @@ export function AdminBillingManager() {
       // 20260117164058 as part of the PII split). user_id joins to coaches_public
       // so we can confirm status='approved'.
       if (newExemptStatus) {
-        const { data: privateRow, error: privateErr } = await supabase
-          .from("coaches_private")
-          .select("user_id")
-          .eq("email", "dr.ironofficial@gmail.com")
-          .maybeSingle();
-
-        if (privateErr) throw privateErr;
-
-        let adminCoachUserId: string | null = null;
-        if (privateRow?.user_id) {
-          // status canonical home is coaches (D-3 column-ownership refactor).
-          // coaches_public.status is deprecated — refactor Phase 3 will drop
-          // that column. Reading from coaches.status closes the stale-read
-          // window opened by the Phase 1A check_training_completion fix.
-          const { data: coachRow, error: coachErr } = await supabase
-            .from("coaches")
-            .select("user_id, status")
-            .eq("user_id", privateRow.user_id)
-            .maybeSingle();
-          if (coachErr) throw coachErr;
-          if (coachRow?.status === "approved") {
-            adminCoachUserId = coachRow.user_id;
-          }
-        }
+        // Look up the IGU admin coach via SECURITY DEFINER RPC. Previously
+        // the email was hardcoded here and shipped in the client bundle;
+        // moving the lookup server-side closes that leak. See migration
+        // 20260513130000_admin_coach_lookup_rpc.sql.
+        const { data: rpcUserId, error: rpcErr } = await supabase
+          .rpc("get_default_admin_coach_user_id");
+        if (rpcErr) throw rpcErr;
+        const adminCoachUserId: string | null = (rpcUserId as string | null) ?? null;
 
         const { error: subError } = await supabase
           .from("subscriptions")
