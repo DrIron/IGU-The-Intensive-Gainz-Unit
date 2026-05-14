@@ -73,6 +73,12 @@ interface CareTeamCardProps {
   primaryCoach?: PrimaryCoach | null;
   isPrimaryCoach?: boolean;
   isAdmin?: boolean;
+  /**
+   * The viewing user's id. Used purely to mark their own row with a "You"
+   * badge -- it does NOT affect write affordances, which stay gated on
+   * isPrimaryCoach / isAdmin via canManageTeam.
+   */
+  viewerUserId?: string | null;
   nextBillingDate?: string | null;
 }
 
@@ -88,12 +94,13 @@ const SPECIALTY_CONFIG: Record<StaffSpecialty, { label: string; icon: React.Elem
   dietitian: { label: "Dietitian", icon: Apple, color: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400" },
 };
 
-export function CareTeamCard({ 
-  clientId, 
-  subscriptionId, 
-  primaryCoach, 
+export function CareTeamCard({
+  clientId,
+  subscriptionId,
+  primaryCoach,
   isPrimaryCoach = false,
   isAdmin = false,
+  viewerUserId = null,
   nextBillingDate = null
 }: CareTeamCardProps) {
   const { toast } = useToast();
@@ -302,6 +309,9 @@ export function CareTeamCard({
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
+                      {member.staff_user_id === viewerUserId && (
+                        <Badge variant="secondary" className="text-xs">You</Badge>
+                      )}
                       {getStatusBadge(member)}
                       <Badge className={config?.color || "bg-muted"}>
                         {config?.label || member.specialty}

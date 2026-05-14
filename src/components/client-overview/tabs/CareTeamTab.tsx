@@ -39,18 +39,44 @@ export function CareTeamTab({ context }: ClientOverviewTabProps) {
   const [primaryCoach, setPrimaryCoach] = useState<PrimaryCoach | null>(null);
   const [nextBillingDate, setNextBillingDate] = useState<string | null>(null);
   const [isPrimaryCoach, setIsPrimaryCoach] = useState(false);
+  // True when the viewer holds an active/scheduled-end care_team_assignments
+  // row on this subscription -- an assigned specialist (e.g. dietitian).
+  // Grants READ access to the roster only; write affordances stay gated on
+  // isPrimaryCoach / isAdmin.
+  const [isCareTeamMember, setIsCareTeamMember] = useState(false);
   const [loading, setLoading] = useState(true);
   const hasFetched = useRef<string | null>(null);
 
   const load = useCallback(async (subscriptionId: string, viewerUserId: string | null) => {
     setLoading(true);
 
-    const { data: sub, error: subErr } = await supabase
-      .from("subscriptions")
-      .select("coach_id, next_billing_date")
-      .eq("id", subscriptionId)
-      .maybeSingle();
+    // The subscription read and the viewer's own-assignment lookup are
+    // independent -- run them together. The own-assignment query is skipped
+    // for anonymous viewers (no id to match on).
+    const [subRes, ownAssignmentRes] = await Promise.all([
+      supabase
+        .from("subscriptions")
+        .select("coach_id, next_billing_date")
+        .eq("id", subscriptionId)
+        .maybeSingle(),
+      viewerUserId
+        ? supabase
+            .from("care_team_assignments")
+            .select("id")
+            .eq("subscription_id", subscriptionId)
+            .eq("staff_user_id", viewerUserId)
+            .in("lifecycle_status", ["active", "scheduled_end"])
+            .limit(1)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
+    ]);
+
+    const { data: sub, error: subErr } = subRes;
     if (subErr) console.warn("[CareTeamTab] subscription:", subErr.message);
+
+    const { data: ownAssignment, error: ownErr } = ownAssignmentRes;
+    if (ownErr) console.warn("[CareTeamTab] own assignment:", ownErr.message);
+    setIsCareTeamMember(Boolean(ownAssignment));
 
     const coachId = sub?.coach_id ?? null;
     setNextBillingDate(sub?.next_billing_date ?? null);
@@ -126,13 +152,14 @@ export function CareTeamTab({ context }: ClientOverviewTabProps) {
 
   return (
     <div className="space-y-6">
-      {(isPrimaryCoach || isAdmin) && (
+      {(isPrimaryCoach || isAdmin || isCareTeamMember) && (
         <CareTeamCard
           clientId={clientUserId}
           subscriptionId={subscription.id}
           primaryCoach={primaryCoach}
           isPrimaryCoach={isPrimaryCoach}
           isAdmin={isAdmin}
+          viewerUserId={viewerId}
           nextBillingDate={nextBillingDate}
         />
       )}
