@@ -59,8 +59,11 @@ export default function CoachClientOverview() {
         .eq("id", targetClientId)
         .maybeSingle(),
       supabase
+        // coach_id is selected only to resolve the viewer's per-client role
+        // below (primary coach of THIS client?) -- it is not part of the
+        // ClientOverviewSubscription contract exposed to tabs.
         .from("subscriptions")
-        .select("id, status, services!inner(name, type)")
+        .select("id, status, coach_id, services!inner(name, type)")
         .eq("user_id", targetClientId)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -123,9 +126,17 @@ export default function CoachClientOverview() {
       return Array.isArray(d) ? d.map((x) => x.slug) : [d.slug];
     });
 
+    // A dual-credentialed coach+dietitian wears different hats on different
+    // clients: on a client they're the primary coach of, their effective
+    // role is "coach" (full tab access); only on clients where they're NOT
+    // the primary coach does the dietitian subrole take over.
+    const isPrimaryCoachOfThisClient = Boolean(
+      subRes.data?.coach_id && viewer.id && subRes.data.coach_id === viewer.id,
+    );
     const viewerRole = resolveViewerRole(
       roleRows.map((r) => r.role),
       subroleSlugs,
+      isPrimaryCoachOfThisClient,
     );
 
     setState({
@@ -225,14 +236,28 @@ function NotFoundState() {
 }
 
 /**
- * Resolve the viewer's role relative to this client. Admin takes precedence,
+ * Resolve the viewer's role relative to THIS client. Admin takes precedence,
  * dietitian subrole second, otherwise coach. Note: the route guard currently
  * blocks admins -- the branch exists so the contract stays honest when the
  * admin-access follow-up PR lands.
+ *
+ * Per-client awareness matters: dual-credentialed coach+dietitian users wear
+ * different hats on different clients. Their viewerRole on a given client
+ * should reflect their role *on that client* -- a coach viewing one of their
+ * own coached clients is a "coach" (full tab access), even though they also
+ * hold the dietitian subrole globally. The dietitian branch is therefore
+ * gated on "not the primary coach of this client".
  */
-function resolveViewerRole(roles: string[], subroleSlugs: string[]): ViewerRole {
+function resolveViewerRole(
+  roles: string[],
+  subroleSlugs: string[],
+  isPrimaryCoachOfThisClient: boolean,
+): ViewerRole {
   if (roles.includes("admin")) return "admin";
-  if (roles.includes("dietitian") || subroleSlugs.includes("dietitian")) {
+  if (
+    (roles.includes("dietitian") || subroleSlugs.includes("dietitian")) &&
+    !isPrimaryCoachOfThisClient
+  ) {
     return "dietitian";
   }
   return "coach";

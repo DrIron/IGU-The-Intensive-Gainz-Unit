@@ -3,7 +3,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { ChevronLeft, FileText } from "lucide-react";
+import { ChevronLeft, FileText, Apple } from "lucide-react";
 import {
   formatServiceType,
   formatSubscriptionStatus,
@@ -91,6 +91,15 @@ export function ClientOverviewHeader({ context }: ClientOverviewHeaderProps) {
                         {fallbackName}
                       </h1>
                       <Badge variant={subStatusVariant}>{subStatusLabel}</Badge>
+                      {context.viewerRole === "dietitian" && (
+                        <Badge
+                          variant="outline"
+                          className="gap-1 text-emerald-600 border-emerald-500/30 bg-emerald-500/5"
+                        >
+                          <Apple className="h-3 w-3" aria-hidden="true" />
+                          Viewing as Dietitian
+                        </Badge>
+                      )}
                     </div>
 
                     <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted-foreground">

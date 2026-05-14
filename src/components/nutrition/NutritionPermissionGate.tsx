@@ -1,5 +1,6 @@
 import { ReactNode } from "react";
 import { useNutritionPermissions } from "@/hooks/useNutritionPermissions";
+import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 import { Loader2, Lock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -30,6 +31,11 @@ export function NutritionPermissionGate({
   const { canEdit, isLoading, clientHasDietitian, currentUserRole } = useNutritionPermissions({
     clientUserId,
   });
+  // Resolves the current viewer's subroles -- used to distinguish the two
+  // `currentUserRole === 'none'` cases: a dietitian-subrole holder who just
+  // isn't on THIS client's care team vs. a viewer with no nutrition standing
+  // at all.
+  const { isDietitian } = useSubrolePermissions();
 
   if (isLoading) {
     return (
@@ -52,6 +58,11 @@ export function NutritionPermissionGate({
   if (!message) {
     if (currentUserRole === 'coach' && clientHasDietitian) {
       message = "Nutrition management is handled by the assigned dietitian. You have read-only access.";
+    } else if (currentUserRole === 'none' && isDietitian) {
+      // Viewer has the dietitian subrole but isn't on this client's care
+      // team. Make the next step explicit -- this is the empty state that
+      // today says "no permission" with no path forward.
+      message = "You're not assigned as this client's dietitian. Ask the primary coach to add you to the care team.";
     } else if (currentUserRole === 'none') {
       message = "You do not have permission to edit nutrition for this client.";
     } else {

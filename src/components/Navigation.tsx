@@ -19,6 +19,7 @@ import { useAuthNavigation } from "@/hooks/useAuthNavigation";
 import { useAuthCleanup } from "@/hooks/useAuthCleanup";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useRoleCache } from "@/hooks/useRoleCache";
+import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,6 +50,10 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   // Use the same auth hooks as RoleProtectedRoute for consistency
   const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const { cachedRoles, cachedUserId } = useRoleCache();
+  // Surfaces the dietitian subrole in the user-menu role label. Other
+  // subroles (physio, sports-psych, mobility) are deliberately not handled
+  // here yet -- each is its own follow-up.
+  const { isDietitian } = useSubrolePermissions();
 
   // User is considered authenticated if we have a session user OR valid cached roles
   // This ensures Navigation stays in sync with RoleProtectedRoute's cache-first approach
@@ -349,16 +354,20 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
 
   const memberStatus = getMemberStatus();
 
-  // Get user roles for display
+  // Get user roles for display. Core role (admin/coach/member) plus the
+  // dietitian subrole when held -- e.g. "Coach + Dietitian". Separator is
+  // " + " to match the additive feel.
   const getRoleLabel = () => {
     if (!detectedRole) return null;
 
-    const roles = [];
-    if (activeRole === 'admin') roles.push(t('admin'));
-    if (activeRole === 'coach') roles.push(t('coach'));
-    if (roles.length === 0) roles.push(t('member'));
+    const labels: string[] = [];
+    if (activeRole === 'admin') labels.push(t('admin'));
+    if (activeRole === 'coach') labels.push(t('coach'));
+    if (isDietitian) labels.push(t('dietitian', 'Dietitian'));
+    // Fallback for the bare-member case (no core role, no subrole).
+    if (labels.length === 0) labels.push(t('member'));
 
-    return roles.join(' & ');
+    return labels.join(' + ');
   };
 
   const roleLabel = getRoleLabel();
