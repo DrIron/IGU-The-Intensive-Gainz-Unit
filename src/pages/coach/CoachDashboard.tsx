@@ -13,6 +13,7 @@ const SECTION_MAP: Record<string, string> = {
   overview: "overview",
   clients: "clients",
   "my-clients": "clients",
+  "nutrition-clients": "nutrition-clients",
   teams: "teams",
   sessions: "sessions",
   programs: "programs",

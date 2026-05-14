@@ -134,7 +134,7 @@ const CoachMobileNavGlobal = memo(function CoachMobileNavGlobal() {
   const location = useLocation();
   // Include standalone coach-facing routes that don't live under /coach/*
   // (e.g. the shared client-submission page).
-  const coachPrefixes = ["/coach", "/coach/clients", "/client-submission"];
+  const coachPrefixes = ["/coach", "/coach/clients", "/coach/nutrition-clients", "/client-submission"];
   const isCoachRoute = coachPrefixes.some(
     p => location.pathname === p || location.pathname.startsWith(p + "/")
   );
@@ -158,12 +158,24 @@ function CoachClientNutritionRedirect() {
   return <Navigate to={target} replace />;
 }
 
+// Pure-dietitian dock swaps Programs -> Nutrition clients. We surface
+// `isDietitian` + `isCoach` from useSubrolePermissions inside the component
+// so the dock re-renders when the subrole resolves (the hook is async).
 const MobileBottomNavCoach = lazy(() =>
   Promise.all([
     import("@/components/layouts/MobileBottomNav"),
     import("@/components/coach/CoachSidebar"),
-  ]).then(([navMod, sidebarMod]) => ({
-    default: () => <navMod.MobileBottomNav items={sidebarMod.getCoachMobileNavItems()} />,
+    import("@/hooks/useSubrolePermissions"),
+  ]).then(([navMod, sidebarMod, subroleMod]) => ({
+    default: () => {
+      const { isDietitian, approvedSlugs } = subroleMod.useSubrolePermissions();
+      const isCoach = approvedSlugs.includes("coach");
+      return (
+        <navMod.MobileBottomNav
+          items={sidebarMod.getCoachMobileNavItems({ isDietitian, isCoach })}
+        />
+      );
+    },
   }))
 );
 

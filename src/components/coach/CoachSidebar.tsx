@@ -11,7 +11,8 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getCoachNavItems } from "@/lib/routeConfig";
-import { GraduationCap, UserCog } from "lucide-react";
+import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
+import { GraduationCap, Salad, UserCog } from "lucide-react";
 
 interface CoachSidebarProps {
   activeSection: string;
@@ -21,6 +22,18 @@ interface CoachSidebarProps {
 
 // Get coach menu items from centralized config
 const menuItems = getCoachNavItems();
+
+// Synthetic nav entry for dietitians. Not in ROUTE_REGISTRY because its
+// visibility is conditional (subrole-gated, not route-gated) -- we inject
+// it directly when the viewer holds an approved `dietitian` subrole.
+// `navOrder: 2.1` slots it between "My Clients" (2) and "My Teams" (2.5).
+const DIETITIAN_NUTRITION_CLIENTS_ITEM = {
+  id: "coach-nutrition-clients",
+  label: "Nutrition clients",
+  path: "/coach/nutrition-clients",
+  icon: Salad,
+  navOrder: 2.1,
+};
 
 // Group configuration - separate "main" and "settings" items
 const getGroup = (navOrder: number | undefined) => {
@@ -44,6 +57,16 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
   const location = useLocation();
+  const { isDietitian } = useSubrolePermissions();
+
+  // Inject the dietitian-only "Nutrition clients" entry just after "My Clients"
+  // when the viewer has an approved dietitian subrole. Sorted by navOrder so
+  // the placement is implicit; no re-sort needed below.
+  const effectiveMenuItems = isDietitian
+    ? [...menuItems, DIETITIAN_NUTRITION_CLIENTS_ITEM].sort(
+        (a, b) => (a.navOrder ?? 99) - (b.navOrder ?? 99),
+      )
+    : menuItems;
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -113,7 +136,7 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
     >
       <SidebarContent>
         {groups.map((group) => {
-          const groupItems = menuItems.filter(item => getGroup(item.navOrder) === group.id);
+          const groupItems = effectiveMenuItems.filter(item => getGroup(item.navOrder) === group.id);
 
           if (groupItems.length === 0) return null;
 
@@ -149,26 +172,59 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
   );
 }
 
+interface CoachMobileNavOptions {
+  /** Viewer has approved `dietitian` subrole. */
+  isDietitian?: boolean;
+  /** Viewer has approved `coach` subrole. Used together with `isDietitian`
+   *  to decide whether the dock is "pure-dietitian" or "dual-credentialed". */
+  isCoach?: boolean;
+}
+
 /**
  * Get nav items for mobile bottom navigation.
  * Returns simplified list for mobile use.
- * Picks 4 most-used coach items: Dashboard, Clients, Programs, Profile
+ *
+ * Default (no opts): Dashboard, Clients, Programs, Profile (4 slots).
+ *
+ * Pure dietitian (`isDietitian && !isCoach`): swap Programs -> Nutrition
+ * clients so the most-used dietitian surface is one tap away. The dock
+ * stays at 4 slots; "Programs" isn't useful when the viewer can't build
+ * workouts anyway.
+ *
+ * Dual-credentialed (`isDietitian && isCoach`): keep the original 4 items.
+ * Adding a 5th slot would crowd the dock past usable density, so the
+ * sidebar surfaces "Nutrition clients" instead.
  */
 // eslint-disable-next-line react-refresh/only-export-components
-export function getCoachMobileNavItems() {
+export function getCoachMobileNavItems(opts: CoachMobileNavOptions = {}) {
+  const { isDietitian = false, isCoach = false } = opts;
   const MOBILE_LABELS: Record<string, string> = {
     "coach-dashboard": "Home",
     "coach-clients": "Clients",
     "coach-programs": "Programs",
     "coach-profile": "Profile",
   };
-  return menuItems
-    .filter(item =>
-      ["coach-dashboard", "coach-clients", "coach-programs", "coach-profile"].includes(item.id)
-    )
+  const pureDietitian = isDietitian && !isCoach;
+  // Pure dietitian: replace Programs with Nutrition clients.
+  const baseIds = pureDietitian
+    ? ["coach-dashboard", "coach-clients", "coach-profile"]
+    : ["coach-dashboard", "coach-clients", "coach-programs", "coach-profile"];
+  const items = menuItems
+    .filter(item => baseIds.includes(item.id))
     .map(item => ({
       path: item.path,
       label: MOBILE_LABELS[item.id] ?? item.label,
       icon: item.icon!,
     }));
+
+  if (pureDietitian) {
+    // Slot Nutrition clients in position 3 (after Clients, before Profile).
+    items.splice(2, 0, {
+      path: DIETITIAN_NUTRITION_CLIENTS_ITEM.path,
+      label: "Nutrition",
+      icon: DIETITIAN_NUTRITION_CLIENTS_ITEM.icon,
+    });
+  }
+
+  return items;
 }

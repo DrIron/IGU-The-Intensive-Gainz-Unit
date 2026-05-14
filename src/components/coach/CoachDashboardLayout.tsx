@@ -9,6 +9,7 @@ import { ExerciseLibrary } from "./ExerciseLibrary";
 
 import { CoachDashboardOverview } from "./CoachDashboardOverview";
 import { CoachMyClientsPage } from "./CoachMyClientsPage";
+import DietitianMyClientsPage from "@/pages/coach/DietitianMyClientsPage";
 import { CoachProgramsPage } from "./programs/CoachProgramsPage";
 import { CoachClientDetail } from "./CoachClientDetail";
 import { CoachSessions } from "./CoachSessions";
@@ -56,6 +57,11 @@ export function CoachDashboardLayout({
   // Derive active section from URL path for persistence
   const getSectionFromPath = useCallback((): string => {
     const path = location.pathname;
+    // Check the more-specific dietitian path BEFORE `/coach/clients` so the
+    // substring match doesn't collide. (`/coach/nutrition-clients` does not
+    // actually contain `/coach/clients` as a substring, but ordering by
+    // specificity keeps the intent obvious.)
+    if (path.includes('/coach/nutrition-clients')) return 'nutrition-clients';
     if (path.includes('/coach/clients')) return 'clients';
     if (path.includes('/coach/teams')) return 'teams';
     if (path.includes('/coach/assignments')) return 'assignments';
@@ -154,6 +160,8 @@ export function CoachDashboardLayout({
             onViewClient={handleViewClientDetail}
           />
         );
+      case "nutrition-clients":
+        return <DietitianMyClientsPage />;
       case "teams":
         return user && <CoachTeamsPage coachUserId={user.id} />;
       case "assignments":
@@ -215,6 +223,7 @@ function getPageTitle(section: string): string {
     overview: "Dashboard",
     training: "Coach Training",
     clients: "My Clients",
+    "nutrition-clients": "Nutrition Clients",
     teams: "My Teams",
     assignments: "My Assignments",
     sessions: "Sessions & Time Slots",
@@ -233,6 +242,7 @@ function getSectionSubtitle(section: string): string {
     overview: "Here's what needs attention today",
     training: "Complete required training to activate your account",
     clients: "View and manage all your clients",
+    "nutrition-clients": "Clients on whom you hold an active dietitian assignment",
     teams: "Manage your team plans and members",
     assignments: "Clients you're assigned to as a specialist",
     sessions: "Manage your availability and view booked sessions",
