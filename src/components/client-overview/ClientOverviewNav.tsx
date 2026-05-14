@@ -1,4 +1,4 @@
-import { useCallback, type KeyboardEvent } from "react";
+import { useCallback, useMemo, type KeyboardEvent } from "react";
 import {
   LayoutGrid,
   TrendingUp,
@@ -11,7 +11,8 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import type { SectionSlug } from "./sections";
+import { visibleSectionsForRole, type SectionSlug } from "./sections";
+import type { ViewerRole } from "./types";
 
 interface SectionDef {
   slug: SectionSlug;
@@ -19,20 +20,27 @@ interface SectionDef {
   icon: LucideIcon;
 }
 
-const SECTIONS: readonly SectionDef[] = [
-  { slug: "overview", label: "Overview", icon: LayoutGrid },
-  { slug: "progress", label: "Progress", icon: TrendingUp },
-  { slug: "nutrition", label: "Nutrition", icon: Apple },
-  { slug: "workouts", label: "Workouts", icon: Dumbbell },
-  { slug: "sessions", label: "Sessions", icon: CalendarClock },
-  { slug: "messages", label: "Messages", icon: MessageSquare },
-  { slug: "care-team", label: "Care Team", icon: Users },
-  { slug: "profile", label: "Profile & Info", icon: UserCircle },
-];
+/**
+ * Label + icon for every slug in the registry. Module-scoped because it
+ * never changes -- the per-role *visible subset* is derived inside the
+ * component from this map.
+ */
+const SECTION_DEFS: Record<SectionSlug, { label: string; icon: LucideIcon }> = {
+  overview: { label: "Overview", icon: LayoutGrid },
+  progress: { label: "Progress", icon: TrendingUp },
+  nutrition: { label: "Nutrition", icon: Apple },
+  workouts: { label: "Workouts", icon: Dumbbell },
+  sessions: { label: "Sessions", icon: CalendarClock },
+  messages: { label: "Messages", icon: MessageSquare },
+  "care-team": { label: "Care Team", icon: Users },
+  profile: { label: "Profile & Info", icon: UserCircle },
+};
 
 interface ClientOverviewNavProps {
   activeSlug: SectionSlug;
   onSelect: (slug: SectionSlug) => void;
+  /** Resolved viewer role -- controls which sections are visible. */
+  viewerRole: ViewerRole;
   /**
    * Optional per-slug counter badges (e.g. unread messages). Zero / nullish
    * entries render nothing. Values >= 100 render as "99+".
@@ -49,12 +57,26 @@ interface ClientOverviewNavProps {
  *
  * Mobile: horizontal scroller that hugs below the top nav, same sections
  * in icon-over-label pills. Arrow keys cycle through rows on both layouts.
+ *
+ * The visible section list is filtered by `viewerRole` -- a dietitian sees
+ * a 6-tab subset (no Workouts / Sessions). Arrow-key cycling iterates the
+ * filtered list, so a hidden slug can never be focused.
  */
 export function ClientOverviewNav({
   activeSlug,
   onSelect,
+  viewerRole,
   badgeCounts,
 }: ClientOverviewNavProps) {
+  const sections = useMemo<readonly SectionDef[]>(
+    () =>
+      visibleSectionsForRole(viewerRole).map((slug) => ({
+        slug,
+        ...SECTION_DEFS[slug],
+      })),
+    [viewerRole],
+  );
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLButtonElement>, idx: number) => {
       const horizontal = e.key === "ArrowRight" || e.key === "ArrowLeft";
@@ -62,13 +84,13 @@ export function ClientOverviewNav({
       if (!horizontal && !vertical) return;
       e.preventDefault();
       const delta = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1;
-      const next = (idx + delta + SECTIONS.length) % SECTIONS.length;
-      onSelect(SECTIONS[next].slug);
+      const next = (idx + delta + sections.length) % sections.length;
+      onSelect(sections[next].slug);
       const root = e.currentTarget.closest("[data-overview-nav]");
       const buttons = root?.querySelectorAll<HTMLButtonElement>("button[data-nav-item]");
       buttons?.[next]?.focus();
     },
-    [onSelect],
+    [onSelect, sections],
   );
 
   return (
@@ -80,7 +102,7 @@ export function ClientOverviewNav({
       {/* Mobile: horizontal scroller under the top nav. */}
       <div className="md:hidden -mx-4 px-4 pb-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <ul className="flex gap-2 min-w-max">
-          {SECTIONS.map((section, idx) => {
+          {sections.map((section, idx) => {
             const isActive = section.slug === activeSlug;
             const Icon = section.icon;
             const badge = formatBadge(badgeCounts?.[section.slug]);
@@ -119,7 +141,7 @@ export function ClientOverviewNav({
 
       {/* Desktop: sticky left rail. */}
       <ul className="hidden md:flex md:flex-col md:gap-1">
-        {SECTIONS.map((section, idx) => {
+        {sections.map((section, idx) => {
           const isActive = section.slug === activeSlug;
           const Icon = section.icon;
           const badge = formatBadge(badgeCounts?.[section.slug]);

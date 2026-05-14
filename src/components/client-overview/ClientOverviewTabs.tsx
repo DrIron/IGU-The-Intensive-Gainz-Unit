@@ -1,7 +1,11 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ClientOverviewNav } from "./ClientOverviewNav";
-import { SECTION_SLUGS, type SectionSlug } from "./sections";
+import {
+  defaultSectionForRole,
+  visibleSectionsForRole,
+  type SectionSlug,
+} from "./sections";
 import { useUnreadMessageCount } from "@/hooks/useUnreadMessageCount";
 import { OverviewTab } from "./tabs/OverviewTab";
 import { ProgressTab } from "./tabs/ProgressTab";
@@ -13,9 +17,6 @@ import { CareTeamTab } from "./tabs/CareTeamTab";
 import { ProfileInfoTab } from "./tabs/ProfileInfoTab";
 import type { ClientContext } from "./types";
 
-const DEFAULT_SLUG: SectionSlug = "overview";
-const SLUG_SET = new Set<string>(SECTION_SLUGS);
-
 interface ClientOverviewTabsProps {
   context: ClientContext;
 }
@@ -25,10 +26,17 @@ interface ClientOverviewTabsProps {
  * sidebar (left rail on desktop / horizontal scroller on mobile) with the
  * content panel for the active section. Deep-links via `?tab=<slug>` and
  * syncs the URL on selection so the coach can share a link that opens on
- * a specific section. Unknown slugs fall back to "overview".
+ * a specific section.
  *
- * Backwards compat: the previous `?tab=overview|nutrition|workouts` URLs
- * still work -- those slugs remain in the registry.
+ * Per-role visibility: the visible tab set + default slug are derived from
+ * `context.viewerRole` (see `sections.ts`). A dietitian sees a 6-tab subset
+ * defaulting to Nutrition; coach/admin keep all 8 defaulting to Overview.
+ *
+ * Deep-link degradation: a `?tab=<slug>` pointing at a tab the current role
+ * can't see (e.g. a coach shares `?tab=workouts` with a dietitian) is
+ * stripped from the URL via a `replace` navigation, so the viewer lands on
+ * their default tab with a clean URL and the back button doesn't bounce
+ * them back to the hidden tab. Unknown slugs degrade the same way.
  *
  * The shell (`CoachClientOverview.tsx`) owns all identity fetching
  * (profile / subscription / viewer role). This component is a layout-only
@@ -38,23 +46,48 @@ export function ClientOverviewTabs({ context }: ClientOverviewTabsProps) {
   const [searchParams, setSearchParams] = useSearchParams();
   const { count: unreadMessages } = useUnreadMessageCount(context.clientUserId);
 
+  const defaultSlug = defaultSectionForRole(context.viewerRole);
+
+  // Memoised on role so the useEffect below has a stable dependency -- a
+  // fresh Set every render would re-fire the URL-rewrite effect needlessly.
+  const visibleSet = useMemo(
+    () => new Set<string>(visibleSectionsForRole(context.viewerRole)),
+    [context.viewerRole],
+  );
+
   const activeSlug = useMemo<SectionSlug>(() => {
     const raw = searchParams.get("tab");
-    return raw && SLUG_SET.has(raw) ? (raw as SectionSlug) : DEFAULT_SLUG;
-  }, [searchParams]);
+    // Membership in visibleSet guarantees `raw` is a SectionSlug the role
+    // can see; the cast just narrows the validated string.
+    return raw && visibleSet.has(raw) ? (raw as SectionSlug) : defaultSlug;
+  }, [searchParams, visibleSet, defaultSlug]);
+
+  // Strip a `?tab` param that points at a slug the current role can't see
+  // (or an unknown slug). `replace: true` keeps it out of history so the
+  // back button can't return to the hidden tab. A `?tab=<defaultSlug>` is
+  // left alone -- it's valid, and clearing it here would diverge from the
+  // existing coach/admin behaviour where the param only clears on select.
+  useEffect(() => {
+    const raw = searchParams.get("tab");
+    if (raw && !visibleSet.has(raw)) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("tab");
+      setSearchParams(nextParams, { replace: true });
+    }
+  }, [searchParams, visibleSet, setSearchParams]);
 
   const handleSelect = useCallback(
     (next: SectionSlug) => {
       if (next === activeSlug) return;
       const nextParams = new URLSearchParams(searchParams);
-      if (next === DEFAULT_SLUG) {
+      if (next === defaultSlug) {
         nextParams.delete("tab");
       } else {
         nextParams.set("tab", next);
       }
       setSearchParams(nextParams, { replace: true });
     },
-    [activeSlug, searchParams, setSearchParams],
+    [activeSlug, defaultSlug, searchParams, setSearchParams],
   );
 
   return (
@@ -62,6 +95,7 @@ export function ClientOverviewTabs({ context }: ClientOverviewTabsProps) {
       <ClientOverviewNav
         activeSlug={activeSlug}
         onSelect={handleSelect}
+        viewerRole={context.viewerRole}
         badgeCounts={{ messages: unreadMessages }}
       />
       <section className="flex-1 min-w-0 mt-4 md:mt-0">
