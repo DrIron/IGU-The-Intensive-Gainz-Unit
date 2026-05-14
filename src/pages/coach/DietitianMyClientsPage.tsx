@@ -35,7 +35,10 @@ interface DietitianClient {
 
 type SectionKey = "action_needed" | "active" | "drifting" | "ended";
 
-const DRIFT_DAYS_THRESHOLD = 7;
+// Exported so DietitianDashboardOverview reuses the exact same drift
+// threshold -- single source of truth, don't redefine it elsewhere.
+// eslint-disable-next-line react-refresh/only-export-components
+export const DRIFT_DAYS_THRESHOLD = 7;
 
 /**
  * Renders inside `<CoachDashboardLayout>` (mounted from

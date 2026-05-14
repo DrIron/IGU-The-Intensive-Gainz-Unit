@@ -8,8 +8,10 @@ import CoachProfile from "@/components/CoachProfile";
 import { ExerciseLibrary } from "./ExerciseLibrary";
 
 import { CoachDashboardOverview } from "./CoachDashboardOverview";
+import DietitianDashboardOverview from "./DietitianDashboardOverview";
 import { CoachMyClientsPage } from "./CoachMyClientsPage";
 import DietitianMyClientsPage from "@/pages/coach/DietitianMyClientsPage";
+import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 import { CoachProgramsPage } from "./programs/CoachProgramsPage";
 import { CoachClientDetail } from "./CoachClientDetail";
 import { CoachSessions } from "./CoachSessions";
@@ -36,6 +38,12 @@ export function CoachDashboardLayout({
   const [selectedClientId, setSelectedClientId] = useState<string | null>(null);
   const [coachStatus, setCoachStatus] = useState<string | null>(null);
   const hasFetchedStatus = useRef(false);
+
+  // Pure dietitian = approved dietitian subrole WITHOUT the coach subrole.
+  // Dual-credentialed coach+dietitian users stay on the coach overview --
+  // its signals are a superset for them.
+  const { isDietitian, approvedSlugs } = useSubrolePermissions();
+  const isPureDietitian = isDietitian && !approvedSlugs.includes("coach");
 
   // Fetch coach status to determine if in training mode
   useEffect(() => {
@@ -86,6 +94,7 @@ export function CoachDashboardLayout({
     const sectionToPath: Record<string, string> = {
       overview: "/coach",
       clients: "/coach/clients",
+      "nutrition-clients": "/coach/nutrition-clients",
       teams: "/coach/teams",
       assignments: "/coach/assignments",
       sessions: "/coach/sessions",
@@ -152,7 +161,9 @@ export function CoachDashboardLayout({
 
     switch (activeSection) {
       case "overview":
-        return <CoachDashboardOverview coachUserId={user.id} onNavigate={handleNavigateWithFilter} />;
+        return isPureDietitian
+          ? <DietitianDashboardOverview userId={user.id} onNavigate={handleNavigateWithFilter} />
+          : <CoachDashboardOverview coachUserId={user.id} onNavigate={handleNavigateWithFilter} />;
       case "clients":
         return (
           <CoachMyClientsPage
