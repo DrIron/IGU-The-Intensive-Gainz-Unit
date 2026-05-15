@@ -18,7 +18,7 @@ import {
   Users, Search, Eye, Activity, AlertCircle, TrendingUp, TrendingDown,
   Dumbbell, Library, MoreVertical, MessageSquare, ArrowRight,
   Check, X, Mail, Phone, DollarSign, Calendar, UserCheck, Clock, CreditCard,
-  AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown
+  AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown, UserPlus
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -32,6 +32,7 @@ import { TeamMemberNutritionDialog } from "./TeamMemberNutritionDialog";
 import { CoachEarningsSummary } from "./CoachEarningsSummary";
 import { RoleBreadcrumb } from "./RoleBreadcrumb";
 import { SimplePagination, createPagination } from "@/components/ui/simple-pagination";
+import { InviteClientDialog } from "./InviteClientDialog";
 
 interface CoachClient {
   id: string;
@@ -88,6 +89,11 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   const [processingApproval, setProcessingApproval] = useState<string | null>(null);
   const [processingDecline, setProcessingDecline] = useState<string | null>(null);
 
+  // Invite client dialog (Senior/Lead coaches only)
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [canInviteClients, setCanInviteClients] = useState(false);
+  const [isHeadCoach, setIsHeadCoach] = useState(false);
+
   // Per-section pagination
   const [sectionPages, setSectionPages] = useState<Record<string, number>>({});
   const CLIENTS_PER_PAGE = 20;
@@ -100,6 +106,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   // Ref for pending section (auto-scroll when needed)
   const pendingRef = useRef<HTMLDivElement>(null);
   const hasFetchedClients = useRef(false);
+  const hasFetchedLevel = useRef(false);
 
   // Define fetchClients BEFORE the useEffect that calls it
   const fetchClients = useCallback(async () => {
@@ -125,8 +132,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           status,
           start_date,
           next_billing_date,
-          service_id,
-          services!inner(name, type)
+          service_id
         `)
         .eq("coach_id", coachUserId);
 
@@ -139,8 +145,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
               status,
               start_date,
               next_billing_date,
-              service_id,
-              services!inner(name, type)
+              service_id
             `)
             .in("team_id", teamIds)
         : Promise.resolve({ data: [], error: null });
@@ -164,6 +169,30 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
       if (subscriptions.length === 0) {
         setClients([]);
         return;
+      }
+
+      // Resolve service name+type via a separate query -- CLAUDE.md bans
+      // nested PostgREST FK joins on subscriptions.
+      const serviceIds = Array.from(
+        new Set(
+          subscriptions
+            .map(s => s.service_id as string | null)
+            .filter((id): id is string => id !== null),
+        ),
+      );
+      const serviceById = new Map<string, { name: string; type: string }>();
+      if (serviceIds.length > 0) {
+        const { data: services, error: servicesError } = await supabase
+          .from("services")
+          .select("id, name, type")
+          .in("id", serviceIds);
+        if (servicesError) throw servicesError;
+        for (const svc of services || []) {
+          serviceById.set(svc.id as string, {
+            name: svc.name as string,
+            type: svc.type as string,
+          });
+        }
       }
 
       // Batch: fetch all profiles in one query using .in()
@@ -200,6 +229,8 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           ? Math.floor((Date.now() - new Date(lastCheckIn).getTime()) / (1000 * 60 * 60 * 24))
           : null;
 
+        const service = sub.service_id ? serviceById.get(sub.service_id) ?? null : null;
+
         return {
           id: sub.user_id,
           display_name: profile?.display_name || null,
@@ -209,8 +240,8 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           payment_failed_at: null,
           subscription_id: sub.id,
           subscription_status: sub.status,
-          service_name: (sub.services as any)?.name,
-          service_type: (sub.services as any)?.type,
+          service_name: service?.name ?? null,
+          service_type: service?.type ?? null,
           start_date: sub.start_date,
           next_billing_date: sub.next_billing_date,
           last_check_in: lastCheckIn,
@@ -243,6 +274,23 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
       fetchClients();
     }
   }, [coachUserId, fetchClients]);
+
+  // Fetch coach level to determine invite eligibility (separate query, doesn't block client list)
+  useEffect(() => {
+    if (!coachUserId || hasFetchedLevel.current) return;
+    hasFetchedLevel.current = true;
+    supabase
+      .from("coaches_public")
+      .select("coach_level, is_head_coach")
+      .eq("user_id", coachUserId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        const level: string = data.coach_level ?? "junior";
+        setCanInviteClients(level === "senior" || level === "lead");
+        setIsHeadCoach(data.is_head_coach ?? false);
+      });
+  }, [coachUserId]);
 
   // Handle URL filter param for auto-scrolling
   useEffect(() => {
@@ -800,6 +848,16 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                 <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
                 Refresh
               </Button>
+              {canInviteClients && (
+                <Button
+                  size="sm"
+                  onClick={() => setInviteDialogOpen(true)}
+                  className="gap-2"
+                >
+                  <UserPlus className="h-4 w-4" />
+                  Invite Client
+                </Button>
+              )}
             </div>
 
             {/* Filters */}
@@ -938,6 +996,16 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           clientName={selectedClient.name}
           open={nutritionDialogOpen}
           onOpenChange={setNutritionDialogOpen}
+        />
+      )}
+
+      {/* Invite Client Dialog (Senior/Lead coaches only) */}
+      {canInviteClients && (
+        <InviteClientDialog
+          open={inviteDialogOpen}
+          onOpenChange={setInviteDialogOpen}
+          coachUserId={coachUserId}
+          isHeadCoach={isHeadCoach}
         />
       )}
     </div>
