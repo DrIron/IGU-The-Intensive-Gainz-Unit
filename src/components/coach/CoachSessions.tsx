@@ -62,24 +62,23 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
     try {
       const now = new Date().toISOString();
       
-      // Fetch bookings without FK join to profiles_public (PostgREST can't resolve it)
+      // CLAUDE.md bans nested PostgREST FK joins on subscriptions. Drop the
+      // subscriptions!inner -> services!inner chain and resolve in three
+      // hops: bookings -> subscriptions -> services. coach_time_slots stays
+      // as an FK join (not subscriptions/profiles/client_programs).
       const { data, error } = await supabase
         .from("session_bookings")
         .select(`
           id,
           slot_id,
           client_id,
+          subscription_id,
           session_type,
           session_start,
           session_end,
           status,
           coach_time_slots!inner (
             location
-          ),
-          subscriptions!inner (
-            services!inner (
-              name
-            )
           )
         `)
         .eq("coach_id", coachUserId)
@@ -102,20 +101,56 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
         }
       }
 
-      const sessions: SessionBooking[] = (data || []).map((booking: any) => ({
-        id: booking.id,
-        slot_id: booking.slot_id,
-        client_id: booking.client_id,
-        session_type: booking.session_type,
-        session_start: booking.session_start,
-        session_end: booking.session_end,
-        status: booking.status,
-        client_name: profileMap.get(booking.client_id)?.display_name ||
-          profileMap.get(booking.client_id)?.first_name ||
-          'Client',
-        service_name: booking.subscriptions?.services?.name || 'Unknown Service',
-        location: booking.coach_time_slots?.location || null,
-      }));
+      // Resolve subscription -> service in two hops (replacing the banned
+      // nested join). Most coaches have only a handful of upcoming bookings,
+      // so two extra round trips is acceptable.
+      const subscriptionIds = [...new Set(
+        (data || [])
+          .map((b: any) => b.subscription_id as string | null)
+          .filter((id: string | null): id is string => Boolean(id)),
+      )];
+      const subToServiceId = new Map<string, string | null>();
+      if (subscriptionIds.length > 0) {
+        const { data: subs } = await supabase
+          .from("subscriptions")
+          .select("id, service_id")
+          .in("id", subscriptionIds);
+        for (const s of subs || []) {
+          subToServiceId.set(s.id as string, (s.service_id as string | null) ?? null);
+        }
+      }
+      const serviceIds = [...new Set(
+        Array.from(subToServiceId.values()).filter((id): id is string => id !== null),
+      )];
+      const serviceNameById = new Map<string, string>();
+      if (serviceIds.length > 0) {
+        const { data: services } = await supabase
+          .from("services")
+          .select("id, name")
+          .in("id", serviceIds);
+        for (const svc of services || []) {
+          serviceNameById.set(svc.id as string, svc.name as string);
+        }
+      }
+
+      const sessions: SessionBooking[] = (data || []).map((booking: any) => {
+        const serviceId = booking.subscription_id ? subToServiceId.get(booking.subscription_id) : null;
+        const serviceName = serviceId ? serviceNameById.get(serviceId) : undefined;
+        return {
+          id: booking.id,
+          slot_id: booking.slot_id,
+          client_id: booking.client_id,
+          session_type: booking.session_type,
+          session_start: booking.session_start,
+          session_end: booking.session_end,
+          status: booking.status,
+          client_name: profileMap.get(booking.client_id)?.display_name ||
+            profileMap.get(booking.client_id)?.first_name ||
+            'Client',
+          service_name: serviceName || 'Unknown Service',
+          location: booking.coach_time_slots?.location || null,
+        };
+      });
 
       setUpcomingSessions(sessions);
     } catch (error) {
