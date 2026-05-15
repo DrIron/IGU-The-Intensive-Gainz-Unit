@@ -63,7 +63,7 @@ export default function CoachClientOverview() {
         // below (primary coach of THIS client?) -- it is not part of the
         // ClientOverviewSubscription contract exposed to tabs.
         .from("subscriptions")
-        .select("id, status, coach_id, services!inner(name, type)")
+        .select("id, status, coach_id, service_id")
         .eq("user_id", targetClientId)
         .order("created_at", { ascending: false })
         .limit(1)
@@ -108,12 +108,29 @@ export default function CoachClientOverview() {
       status: profileRes.data.status ?? "unknown",
     };
 
-    const subscription: ClientOverviewSubscription | null = subRes.data
+    // Resolve service via a separate query -- CLAUDE.md bans nested PostgREST
+    // FK joins on subscriptions. Mirrors the old `services!inner(...)`
+    // behaviour: if the service can't be resolved, treat the subscription as
+    // absent (contract requires non-null serviceType).
+    let service: { name: string | null; type: string } | null = null;
+    if (subRes.data?.service_id) {
+      const { data: serviceRow, error: serviceErr } = await supabase
+        .from("services")
+        .select("name, type")
+        .eq("id", subRes.data.service_id)
+        .maybeSingle();
+      if (serviceErr) {
+        console.warn("[CoachClientOverview] service:", serviceErr.message);
+      }
+      service = serviceRow ?? null;
+    }
+
+    const subscription: ClientOverviewSubscription | null = subRes.data && service
       ? {
           id: subRes.data.id,
           status: subRes.data.status,
-          serviceType: (subRes.data.services as { type: string }).type,
-          serviceName: (subRes.data.services as { name: string | null }).name ?? null,
+          serviceType: service.type,
+          serviceName: service.name ?? null,
         }
       : null;
 
