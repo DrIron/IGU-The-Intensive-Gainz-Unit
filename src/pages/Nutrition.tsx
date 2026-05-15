@@ -46,7 +46,7 @@ export default function Nutrition() {
           .maybeSingle(),
         supabase
           .from('subscriptions')
-          .select('id, status, service_id, services!inner(type)')
+          .select('id, status, service_id')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -78,8 +78,18 @@ export default function Nutrition() {
         return;
       }
 
-      // At this point, client is active with active subscription
-      const serviceType = (subscription as any)?.services?.type;
+      // At this point, client is active with active subscription. Resolve
+      // service type via a separate query -- CLAUDE.md bans nested PostgREST
+      // FK joins on subscriptions.
+      let serviceType: string | null = null;
+      if (subscription.service_id) {
+        const { data: service } = await supabase
+          .from('services')
+          .select('type')
+          .eq('id', subscription.service_id)
+          .maybeSingle();
+        serviceType = service?.type ?? null;
+      }
 
       if (serviceType === 'team') {
         navigate('/nutrition-team');
