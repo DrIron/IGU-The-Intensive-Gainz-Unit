@@ -38,7 +38,7 @@ export default function TeamNutrition() {
           .maybeSingle(),
         supabase
           .from('subscriptions')
-          .select('id, status, service_id, services!inner(type)')
+          .select('id, status, service_id')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
           .limit(1)
@@ -59,9 +59,20 @@ export default function TeamNutrition() {
         return;
       }
 
-      // For clients: must be active with team subscription
+      // For clients: must be active with team subscription. Resolve service
+      // type via a separate query -- CLAUDE.md bans nested PostgREST FK joins
+      // on subscriptions.
+      let serviceType: string | null = null;
+      if (subscription?.service_id) {
+        const { data: service } = await supabase
+          .from('services')
+          .select('type')
+          .eq('id', subscription.service_id)
+          .maybeSingle();
+        serviceType = service?.type ?? null;
+      }
       const isActiveClient = profile?.status === "active" && subscription?.status === "active";
-      const isTeamMember = (subscription as any)?.services?.type === "team";
+      const isTeamMember = serviceType === "team";
 
       if (!isActiveClient || !isTeamMember) {
         toast({
