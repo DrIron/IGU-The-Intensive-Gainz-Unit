@@ -286,15 +286,35 @@ export function SystemHealthView() {
     setLoadingStates(prev => ({ ...prev, coachAssignment: true }));
     try {
       // 1. 1:1 subscriptions without coach
-      const { data: noCoachSubs } = await supabase
-        .from("subscriptions")
-        .select(`
-          id, user_id, status, created_at, start_date,
-          services!inner (id, name, type)
-        `)
-        .eq("services.type", "one_to_one")
-        .in("status", ["pending", "active"])
-        .is("coach_id", null);
+      //
+      // Two-step lookup -- CLAUDE.md bans nested PostgREST FK joins on
+      // subscriptions, which also rules out the `services.type` filter that
+      // pushes through the join. Resolve one_to_one service ids first, then
+      // filter subscriptions by service_id, then attach service rows for the
+      // build step via a Map.
+      const { data: oneToOneServices } = await supabase
+        .from("services")
+        .select("id, name, type")
+        .eq("type", "one_to_one");
+      const oneToOneIds = (oneToOneServices || []).map(s => s.id as string);
+      const serviceById = new Map<string, { name: string; type: string }>();
+      for (const svc of oneToOneServices || []) {
+        serviceById.set(svc.id as string, {
+          name: svc.name as string,
+          type: svc.type as string,
+        });
+      }
+
+      const { data: noCoachSubs } = oneToOneIds.length > 0
+        ? await supabase
+            .from("subscriptions")
+            .select(`
+              id, user_id, status, created_at, start_date, service_id
+            `)
+            .in("service_id", oneToOneIds)
+            .in("status", ["pending", "active"])
+            .is("coach_id", null)
+        : { data: [] as { id: string; user_id: string; status: string; created_at: string; start_date: string | null; service_id: string | null }[] };
 
       // Fetch profiles separately for no-coach subs
       const noCoachUserIds = [...new Set((noCoachSubs || []).map(s => s.user_id))];
@@ -340,12 +360,14 @@ export function SystemHealthView() {
         const severity: Severity = (sub as any).status === "active" ? "critical" : "warning";
 
         const ncProfile = noCoachProfileMap.get((sub as any).user_id);
+        const ncServiceId = (sub as any).service_id as string | null;
+        const ncServiceName = ncServiceId ? serviceById.get(ncServiceId)?.name : undefined;
         noCoachArr.push({
           id: (sub as any).id,
           severity,
           name: ncProfile?.full_name || `${ncProfile?.first_name || ""} ${ncProfile?.last_name || ""}`.trim() || "Unknown",
           email: ncProfile?.email,
-          serviceName: (sub as any).services?.name || "Unknown",
+          serviceName: ncServiceName || "Unknown",
           subscriptionStatus: (sub as any).status,
           createdAt: (sub as any).created_at,
           preferredCoach: preferredCoachName,
