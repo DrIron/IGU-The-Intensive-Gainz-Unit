@@ -11,7 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText, Sliders, Tag, Award, CheckCircle2 } from "lucide-react";
+import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText, Sliders, Tag, Award, CheckCircle2, ChevronDown, Apple, Stethoscope } from "lucide-react";
 import { CoachCapacityManager } from "@/components/admin/CoachCapacityManager";
 import { CoachLoadOverview } from "@/components/admin/CoachLoadOverview";
 import { CoachApplicationsManager } from "@/components/CoachApplicationsManager";
@@ -38,6 +38,8 @@ import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
 import { CoachServiceLimits } from "./CoachServiceLimits";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 
+type StaffType = "coach" | "dietitian" | "physiotherapist";
+
 interface Coach {
   id: string;
   user_id: string;
@@ -49,7 +51,16 @@ interface Coach {
   status: string;
   created_at: string;
   client_count?: number;
+  /** Approved subrole slugs for this user (subset of {dietitian,physiotherapist,...}).
+   *  Empty array == coach-only; rendered as a subrole badge in the table. */
+  approved_subroles?: string[];
 }
+
+const STAFF_TYPE_LABEL: Record<StaffType, string> = {
+  coach: "Coach",
+  dietitian: "Dietitian",
+  physiotherapist: "Physiotherapist",
+};
 
 interface Client {
   id: string;
@@ -96,6 +107,10 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
     snapchat_url: "",
     youtube_url: "",
   });
+  // Type of staff being created in the open dialog. Only meaningful on the
+  // create path; the edit path always shows "Edit Coach" regardless because
+  // the existing edit flow doesn't touch subroles.
+  const [staffType, setStaffType] = useState<StaffType>("coach");
 
   // Update active tab when URL param changes
   useEffect(() => {
@@ -159,10 +174,36 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
         clientCounts.set(ownerId, (clientCounts.get(ownerId) || 0) + 1);
       }
 
+      // Approved subroles for every coach on the list, in ONE batched query.
+      // useUserSubroles uses the same FK join shape (subrole_definitions!inner)
+      // -- it's a normal FK relationship, not one of the unreliable nested
+      // joins CLAUDE.md warns about.
+      const subrolesByUserId = new Map<string, string[]>();
+      if (coachUserIds.length > 0) {
+        const { data: subroleRows, error: subroleErr } = await supabase
+          .from("user_subroles")
+          .select("user_id, status, subrole_definitions!inner(slug)")
+          .in("user_id", coachUserIds)
+          .eq("status", "approved");
+        if (subroleErr) {
+          console.warn("[CoachManagement] subroles fetch failed:", subroleErr.message);
+        }
+        for (const row of subroleRows || []) {
+          const def = (row as { subrole_definitions: { slug: string } | { slug: string }[] | null }).subrole_definitions;
+          const slug = Array.isArray(def) ? def[0]?.slug : def?.slug;
+          if (!slug) continue;
+          const uid = (row as { user_id: string }).user_id;
+          const arr = subrolesByUserId.get(uid) ?? [];
+          arr.push(slug);
+          subrolesByUserId.set(uid, arr);
+        }
+      }
+
       const coachesWithCounts = (coachesData || []).map(coach => ({
         ...coach,
         email: coach.email || "",
         client_count: clientCounts.get(coach.user_id) || 0,
+        approved_subroles: subrolesByUserId.get(coach.user_id) ?? [],
       }));
 
       setCoaches(coachesWithCounts);
@@ -230,6 +271,10 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
             tiktok_url: formData.tiktok_url,
             snapchat_url: formData.snapchat_url,
             youtube_url: formData.youtube_url,
+            // staffType === 'coach' -> no subrole approval (coach is the
+            // implicit default); 'dietitian'/'physiotherapist' -> the edge
+            // function approves that subrole + seeds the dietitians row.
+            subroles: staffType === "coach" ? [] : [staffType],
           },
         });
 
@@ -243,19 +288,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
       }
 
       setDialogOpen(false);
-      setFormData({ 
-        email: "", 
-        first_name: "", 
-        last_name: "", 
-        date_of_birth: "", 
-        location: "",
-        nickname: "",
-        instagram_url: "",
-        tiktok_url: "",
-        snapchat_url: "",
-        youtube_url: "",
-      });
-      setEditingCoach(null);
+      resetForm();
       fetchCoaches();
     } catch (error: any) {
       toast({
@@ -432,11 +465,11 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
   };
 
   const resetForm = () => {
-    setFormData({ 
-      email: "", 
-      first_name: "", 
-      last_name: "", 
-      date_of_birth: "", 
+    setFormData({
+      email: "",
+      first_name: "",
+      last_name: "",
+      date_of_birth: "",
       location: "",
       nickname: "",
       instagram_url: "",
@@ -445,6 +478,13 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
       youtube_url: "",
     });
     setEditingCoach(null);
+    setStaffType("coach");
+  };
+
+  const openAddDialog = (type: StaffType) => {
+    setStaffType(type);
+    setEditingCoach(null);
+    setDialogOpen(true);
   };
 
   const renderCoachTable = (coachList: Coach[]) => (
@@ -472,7 +512,27 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
           coachList.map((coach) => (
             <TableRow key={coach.id}>
               <TableCell className="font-medium">
-                {coach.first_name} {coach.last_name}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span>{coach.first_name} {coach.last_name}</span>
+                  {(coach.approved_subroles ?? []).includes("dietitian") && (
+                    <Badge
+                      variant="outline"
+                      className="gap-1 text-xs text-emerald-600 border-emerald-500/30 bg-emerald-500/5"
+                    >
+                      <Apple className="h-3 w-3" aria-hidden="true" />
+                      Dietitian
+                    </Badge>
+                  )}
+                  {(coach.approved_subroles ?? []).includes("physiotherapist") && (
+                    <Badge
+                      variant="outline"
+                      className="gap-1 text-xs text-blue-600 border-blue-500/30 bg-blue-500/5"
+                    >
+                      <Stethoscope className="h-3 w-3" aria-hidden="true" />
+                      Physio
+                    </Badge>
+                  )}
+                </div>
               </TableCell>
               <TableCell>{coach.email}</TableCell>
               <TableCell>
@@ -706,19 +766,43 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
                   <CardTitle>Coach Management</CardTitle>
                   <CardDescription>Add and manage coaches</CardDescription>
                 </div>
+                <div className="flex items-center gap-2">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="gradient">
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Staff
+                        <ChevronDown className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => openAddDialog("coach")}>
+                        <Users className="mr-2 h-4 w-4" />
+                        Coach
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openAddDialog("dietitian")}>
+                        <Apple className="mr-2 h-4 w-4 text-emerald-600" />
+                        Dietitian
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => openAddDialog("physiotherapist")}>
+                        <Stethoscope className="mr-2 h-4 w-4 text-blue-600" />
+                        Physiotherapist
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+
                 <Dialog open={dialogOpen} onOpenChange={(open) => {
                   setDialogOpen(open);
                   if (!open) resetForm();
                 }}>
-                  <DialogTrigger asChild>
-                    <Button variant="gradient">
-                      <Plus className="h-4 w-4 mr-2" />
-                      Add Coach
-                    </Button>
-                  </DialogTrigger>
                   <DialogContent className="max-h-[90vh] max-w-2xl">
                     <DialogHeader>
-                      <DialogTitle>{editingCoach ? "Edit Coach" : "Add New Coach"}</DialogTitle>
+                      <DialogTitle>
+                        {editingCoach
+                          ? "Edit Coach"
+                          : `Add ${STAFF_TYPE_LABEL[staffType]}`}
+                      </DialogTitle>
                     </DialogHeader>
                     <ScrollArea className="max-h-[calc(90vh-8rem)] pr-4">
                       <form onSubmit={handleSubmit} className="space-y-4">
@@ -815,7 +899,11 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
                             Cancel
                           </Button>
                           <Button type="submit" disabled={loading}>
-                            {loading ? "Saving..." : (editingCoach ? "Update Coach" : "Add Coach")}
+                            {loading
+                              ? "Saving..."
+                              : editingCoach
+                              ? "Update Coach"
+                              : `Add ${STAFF_TYPE_LABEL[staffType]}`}
                           </Button>
                         </div>
                       </form>

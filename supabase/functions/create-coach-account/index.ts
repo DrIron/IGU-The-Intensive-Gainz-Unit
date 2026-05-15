@@ -26,6 +26,11 @@ const requestSchema = z.object({
   certifications: z.array(z.string().min(1).max(200)).max(20).optional(), // Max 20 certs, 200 chars each
   specializations: z.array(z.string().min(1).max(100)).max(15).optional(), // Max 15 specs, 100 chars each
   phoneNumber: z.string().max(20).trim().nullable().optional(),
+  // Optional approved-on-create subroles (e.g. ["dietitian"], ["physiotherapist"]).
+  // Generalises this function for admin "Add Dietitian" / "Add Physio" flows
+  // without forking. Unknown slugs are silently skipped at the
+  // subrole_definitions lookup; this validator is just an upper bound.
+  subroles: z.array(z.string().min(1).max(50)).max(5).optional(),
 });
 
 serve(async (req) => {
@@ -88,10 +93,11 @@ serve(async (req) => {
 
     const body = await req.json();
     const validated = requestSchema.parse(body);
-    const { 
-      email, first_name, last_name, date_of_birth, location, nickname, 
+    const {
+      email, first_name, last_name, date_of_birth, location, nickname,
       instagram_url, tiktok_url, snapchat_url, youtube_url,
-      applicationId, certifications, specializations, phoneNumber 
+      applicationId, certifications, specializations, phoneNumber,
+      subroles,
     } = validated;
 
     // Check if user already exists in auth
@@ -215,6 +221,79 @@ serve(async (req) => {
       .single();
     if (fetchError) throw fetchError;
 
+    // Optional subrole approval block. Generalises this function for admin
+    // "Add Dietitian" / "Add Physio" flows: each slug becomes an approved
+    // user_subroles row stamped with the calling admin as reviewer (mirrors
+    // SubroleApprovalQueue's approve mutation exactly -- there is no trigger
+    // from user_subroles into staff_professional_info, so admin still sets
+    // level via ProfessionalLevelManager afterwards).
+    //
+    // Defensive design:
+    //   - Unknown slugs are logged and skipped (slugs the seeded
+    //     subrole_definitions doesn't carry, e.g. typos from a future caller).
+    //   - ON CONFLICT (user_id, subrole_id) DO NOTHING via upsert with
+    //     ignoreDuplicates: brand-new users won't have prior rows, but for
+    //     existingUser updates we don't want to flip an already-approved row
+    //     back to admin-direct or overwrite review metadata.
+    //   - The dietitian slug additionally seeds public.dietitians with the
+    //     defaults from the table CREATE statement, so the new user shows up
+    //     on the dietitian list immediately. Physiotherapists have no analog
+    //     profile table (locked decision in the brief).
+    const approvedSlugs: string[] = [];
+    if (subroles && subroles.length > 0) {
+      const { data: defs, error: defsError } = await supabaseAdmin
+        .from('subrole_definitions')
+        .select('id, slug')
+        .in('slug', subroles);
+      if (defsError) {
+        console.error('subrole_definitions lookup failed:', defsError);
+      } else {
+        const defBySlug = new Map<string, string>(
+          (defs || []).map((d: { id: string; slug: string }) => [d.slug, d.id]),
+        );
+        const reviewedAt = new Date().toISOString();
+        for (const slug of subroles) {
+          const subroleId = defBySlug.get(slug);
+          if (!subroleId) {
+            console.warn('Unknown subrole slug, skipping:', slug);
+            continue;
+          }
+          const { error: usrError } = await supabaseAdmin
+            .from('user_subroles')
+            .upsert(
+              {
+                user_id: userId,
+                subrole_id: subroleId,
+                status: 'approved',
+                reviewed_by: caller.id,
+                reviewed_at: reviewedAt,
+                admin_notes: 'Admin-direct creation',
+              },
+              {
+                onConflict: 'user_id,subrole_id',
+                ignoreDuplicates: true,
+              },
+            );
+          if (usrError) {
+            console.error('user_subroles upsert failed for slug', slug, ':', usrError);
+            continue;
+          }
+          if (slug === 'dietitian') {
+            const { error: dietitianError } = await supabaseAdmin
+              .from('dietitians')
+              .upsert(
+                { user_id: userId, accepting_clients: true, max_clients: 50 },
+                { onConflict: 'user_id', ignoreDuplicates: true },
+              );
+            if (dietitianError) {
+              console.error('dietitians seed failed:', dietitianError);
+            }
+          }
+          approvedSlugs.push(slug);
+        }
+      }
+    }
+
     let passwordResetLink = null;
     try {
       const redirectTo = `https://theigu.com/coach-password-setup?coach_id=${coachData.id}`;
@@ -252,13 +331,20 @@ serve(async (req) => {
       // Don't fail the whole operation if email fails
     }
 
+    const baseMessage = existingUser ? 'Coach account updated successfully' : 'Coach account created successfully';
+    const message =
+      approvedSlugs.length > 0
+        ? `${baseMessage} with ${approvedSlugs.join(' + ')} subrole approved`
+        : baseMessage;
+
     return new Response(
-      JSON.stringify({ 
-        success: true, 
+      JSON.stringify({
+        success: true,
         coach: coachData,
-        message: existingUser ? 'Coach account updated successfully' : 'Coach account created successfully'
+        approvedSubroles: approvedSlugs,
+        message,
       }),
-      { 
+      {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 200,
       },
