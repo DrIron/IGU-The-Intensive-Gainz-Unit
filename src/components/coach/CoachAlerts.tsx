@@ -2,6 +2,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AlertCircle, FileWarning, UserPlus } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { startOfIguWeek } from "@/lib/weekUtils";
 
 interface CoachAlertsProps {
   coachUserId: string;
@@ -52,9 +53,8 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
       
       // Only check Tuesday (2), Wednesday (3), Thursday (4)
       if (dayOfWeek >= 2 && dayOfWeek <= 4) {
-        const startOfWeek = new Date(today);
-        startOfWeek.setDate(today.getDate() - today.getDay());
-        startOfWeek.setHours(0, 0, 0, 0);
+        // IGU adherence week — see weekUtils.ts
+        const startOfWeek = startOfIguWeek(today);
 
         let missedCount = 0;
         for (const client of oneToOneClients) {

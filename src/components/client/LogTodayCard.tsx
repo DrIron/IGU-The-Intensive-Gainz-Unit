@@ -6,8 +6,9 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Check, Scale, Footprints } from "lucide-react";
-import { format, differenceInDays, startOfWeek } from "date-fns";
+import { format, differenceInDays } from "date-fns";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { startOfIguWeek } from "@/lib/weekUtils";
 
 /**
  * Inline "log weight + steps for today" card on the client dashboard.
@@ -61,7 +62,8 @@ export function LogTodayCard({ userId, phaseId, phaseStartDate, onLogged }: LogT
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 0 }), "yyyy-MM-dd");
+      // IGU adherence week — see weekUtils.ts
+      const weekStart = format(startOfIguWeek(), "yyyy-MM-dd");
       const weightTodayQuery = phaseId
         ? supabase
             .from("weight_logs")

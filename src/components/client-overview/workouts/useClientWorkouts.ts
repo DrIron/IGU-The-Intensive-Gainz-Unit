@@ -12,6 +12,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { startOfIguWeek, endOfIguWeek } from "@/lib/weekUtils";
 
 export interface ClientProgramSummary {
   /** client_programs.id */
@@ -240,12 +241,9 @@ export function useAdherencePulse(
     let weeklyScheduled = 0;
     let weeklyCompleted = 0;
     if (activeProgramIds.length > 0) {
-      const now = new Date();
-      const day = (now.getDay() + 6) % 7; // Mon=0
-      const monday = new Date(now);
-      monday.setHours(0, 0, 0, 0);
-      monday.setDate(now.getDate() - day);
-      const sunday = new Date(monday.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
+      // IGU adherence week — see weekUtils.ts
+      const monday = startOfIguWeek();
+      const sunday = endOfIguWeek();
       const mondayIso = monday.toISOString().slice(0, 10);
       const sundayIso = sunday.toISOString().slice(0, 10);
 

@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Activity, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-import { startOfWeek, endOfWeek, format } from "date-fns";
+import { format } from "date-fns";
+import { startOfIguWeek, endOfIguWeek } from "@/lib/weekUtils";
 
 interface AdherenceSummaryCardProps {
   userId: string;
@@ -28,8 +29,9 @@ export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
 
   const fetchAdherenceData = useCallback(async () => {
     try {
-      const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
-      const weekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
+      // IGU adherence week — see weekUtils.ts
+      const weekStart = startOfIguWeek();
+      const weekEnd = endOfIguWeek();
 
       // Get all modules for this week
       const { data: modulesData, error } = await supabase

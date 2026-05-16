@@ -217,11 +217,13 @@ export function useColumnConfig({
   const setDefaultPreset = useCallback(
     async (presetId: string) => {
       try {
-        await supabase
+        const { error: unsetError } = await supabase
           .from("coach_column_presets")
           .update({ is_default: false })
           .eq("coach_id", coachId)
           .eq("is_default", true);
+
+        if (unsetError) throw unsetError;
 
         const { error } = await supabase
           .from("coach_column_presets")

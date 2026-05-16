@@ -143,35 +143,49 @@ export const AssignTeamProgramDialog = memo(function AssignTeamProgramDialog({
 
     const assignmentErrors: string[] = [];
     let successCount = 0;
+    let completed = 0;
 
-    for (let i = 0; i < activeMembers.length; i++) {
+    const results = await Promise.allSettled(
+      activeMembers.map((member) =>
+        assignProgramToClient({
+          coachUserId,
+          clientUserId: member.userId,
+          subscriptionId: member.subscriptionId,
+          programTemplateId: selectedProgramId,
+          startDate,
+          teamId: team.id,
+        }).then((result) => {
+          completed++;
+          setProgress({ current: completed, total: activeMembers.length });
+          return result;
+        })
+      )
+    );
+
+    results.forEach((settled, i) => {
       const member = activeMembers[i];
-      setProgress({ current: i + 1, total: activeMembers.length });
-
-      const result = await assignProgramToClient({
-        coachUserId,
-        clientUserId: member.userId,
-        subscriptionId: member.subscriptionId,
-        programTemplateId: selectedProgramId,
-        startDate,
-        teamId: team.id,
-      });
-
-      if (result.success) {
-        successCount++;
+      const label = member.displayName || member.firstName;
+      if (settled.status === "fulfilled") {
+        if (settled.value.success) {
+          successCount++;
+        } else {
+          assignmentErrors.push(`${label}: ${settled.value.error}`);
+        }
       } else {
-        assignmentErrors.push(
-          `${member.displayName || member.firstName}: ${result.error}`
-        );
+        assignmentErrors.push(`${label}: ${sanitizeErrorForUser(settled.reason)}`);
       }
-    }
+    });
 
     // Update team's current program template
+    let teamPointerError: string | null = null;
     if (successCount > 0) {
-      await supabase
+      const { error: teamErr } = await supabase
         .from("coach_teams")
         .update({ current_program_template_id: selectedProgramId })
         .eq("id", team.id);
+      if (teamErr) {
+        teamPointerError = sanitizeErrorForUser(teamErr);
+      }
     }
 
     setErrors(assignmentErrors);
@@ -181,7 +195,9 @@ export const AssignTeamProgramDialog = memo(function AssignTeamProgramDialog({
         title: "Program assigned",
         description: `Program assigned to ${successCount} team members.`,
       });
-      onOpenChange(false);
+      if (!teamPointerError) {
+        onOpenChange(false);
+      }
       onAssigned?.();
     } else if (successCount > 0) {
       toast({
@@ -193,6 +209,14 @@ export const AssignTeamProgramDialog = memo(function AssignTeamProgramDialog({
       toast({
         title: "Assignment failed",
         description: "Failed to assign program to any team members.",
+        variant: "destructive",
+      });
+    }
+
+    if (teamPointerError) {
+      toast({
+        title: "Team pointer update failed",
+        description: `Program assigned to ${successCount} member${successCount === 1 ? "" : "s"}, but team pointer update failed: ${teamPointerError}`,
         variant: "destructive",
       });
     }
