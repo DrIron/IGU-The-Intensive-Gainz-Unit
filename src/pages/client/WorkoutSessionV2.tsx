@@ -14,6 +14,7 @@
 
 import { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -901,6 +902,7 @@ function WorkoutSessionV2Content() {
   const { moduleId } = useParams<{ moduleId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const [module, setModule] = useState<Module | null>(null);
   const [loading, setLoading] = useState(true);
@@ -1426,13 +1428,26 @@ function WorkoutSessionV2Content() {
     try {
       await saveProgress();
 
-      await supabase
+      // Destructure { error } per CLAUDE.md — silently swallowing an RLS
+      // failure here would invalidate the cache as fresh while the module
+      // never actually completed (worse than the original stale read).
+      const { error: completeErr } = await supabase
         .from("client_day_modules")
         .update({
           status: "completed",
           completed_at: new Date().toISOString(),
         })
         .eq("id", module.id);
+      if (completeErr) throw completeErr;
+
+      // Invalidate client-side workout views so TodaysWorkoutHero and
+      // WorkoutCalendar refresh within ~1s of return without manual refresh.
+      // Partial-key form clears both 'today' and 'month' (any month) in one call.
+      if (user) {
+        await queryClient.invalidateQueries({
+          queryKey: ["client-workouts", user.id],
+        });
+      }
 
       toast({
         title: "Workout completed!",
