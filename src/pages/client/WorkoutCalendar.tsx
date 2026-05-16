@@ -1,7 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday } from "date-fns";
+import { useClientWorkoutsMonth } from "@/hooks/useClientWorkouts";
 
 interface DayData {
   date: string;
@@ -28,10 +27,8 @@ interface DayData {
 function WorkoutCalendarContent() {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
-  const [loading, setLoading] = useState(true);
+  const { user: sessionUser } = useAuthSession();
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [daysData, setDaysData] = useState<Record<string, DayData>>({});
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const user = sessionUser;
 
@@ -40,65 +37,35 @@ function WorkoutCalendarContent() {
     description: "View your workout schedule",
   });
 
-  const loadCalendarData = useCallback(async (currentUser: SupabaseUser | null) => {
-    try {
-      setLoading(true);
-      if (!currentUser) return;
+  const { data: monthRows, isLoading, error: monthError } = useClientWorkoutsMonth(
+    sessionUser?.id,
+    currentMonth,
+  );
 
-      const monthStart = startOfMonth(currentMonth);
-      const monthEnd = endOfMonth(currentMonth);
-
-      // Get all program days for this month
-      const { data, error } = await supabase
-        .from("client_program_days")
-        .select(`
-          id,
-          date,
-          title,
-          client_programs!inner (
-            user_id,
-            status
-          ),
-          client_day_modules (
-            id,
-            title,
-            module_type,
-            status
-          )
-        `)
-        .eq("client_programs.user_id", currentUser.id)
-        .eq("client_programs.status", "active")
-        .gte("date", format(monthStart, 'yyyy-MM-dd'))
-        .lte("date", format(monthEnd, 'yyyy-MM-dd'));
-
-      if (error) throw error;
-
-      const dataMap: Record<string, DayData> = {};
-      (data || []).forEach((day: any) => {
-        dataMap[day.date] = {
-          date: day.date,
-          title: day.title,
-          modules: day.client_day_modules || [],
-        };
-      });
-
-      setDaysData(dataMap);
-    } catch (error: any) {
-      console.error("Error loading calendar:", error);
-      toast({
-        title: "Error loading calendar",
-        description: sanitizeErrorForUser(error),
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [currentMonth, toast]);
-
+  // Surface query failures via the existing toast UI. Fires once per error
+  // instance (a key change triggers a fresh query, with its own error if any).
   useEffect(() => {
-    if (sessionLoading) return;
-    loadCalendarData(sessionUser ?? null);
-  }, [sessionUser, sessionLoading, loadCalendarData]);
+    if (!monthError) return;
+    toast({
+      title: "Error loading calendar",
+      description: sanitizeErrorForUser(monthError),
+      variant: "destructive",
+    });
+  }, [monthError, toast]);
+
+  const daysData = useMemo<Record<string, DayData>>(() => {
+    const map: Record<string, DayData> = {};
+    for (const day of monthRows ?? []) {
+      map[day.date] = {
+        date: day.date,
+        title: day.title,
+        modules: day.client_day_modules || [],
+      };
+    }
+    return map;
+  }, [monthRows]);
+
+  const loading = isLoading;
 
   const days = eachDayOfInterval({
     start: startOfMonth(currentMonth),
