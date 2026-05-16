@@ -3,6 +3,11 @@
  * Shared across all calculator tiers (Public, Team Plan, 1:1 Client)
  */
 
+// Canonical goal-type vocabulary. Matches the DB CHECK on
+// nutrition_phases.goal_type and (post 20260515120000 migration)
+// nutrition_goals.goal_type.
+export type GoalType = 'fat_loss' | 'muscle_gain' | 'maintenance';
+
 /**
  * Calculate BMR using Mifflin-St Jeor equation
  */
@@ -59,7 +64,7 @@ export function calculateTDEE(bmr: number, activityMultiplier: number): number {
 export function calculateGoalCalories(
   tdee: number,
   weight: number,
-  goal: 'maintenance' | 'loss' | 'gain',
+  goal: GoalType,
   rateOfChange: number // percentage (e.g., 0.75 for 0.75%)
 ): { calories: number; deficitPercent: number } {
   if (goal === 'maintenance') {
@@ -67,8 +72,8 @@ export function calculateGoalCalories(
   }
 
   let dailyCalChange: number;
-  
-  if (goal === 'loss') {
+
+  if (goal === 'fat_loss') {
     // Weekly rate: Each 1% weekly change requires ~7700 kcal × 1% of bodyweight
     const weeklyCalChange = (rateOfChange / 100) * weight * 7700;
     dailyCalChange = weeklyCalChange / 7;
@@ -143,15 +148,15 @@ export function calculateProjectedDuration(
   currentWeight: number,
   targetWeight: number,
   rateOfChange: number, // percentage
-  goal: 'loss' | 'gain',
+  goal: Exclude<GoalType, 'maintenance'>,
   dietBreakFrequency?: number, // weeks
   dietBreakDuration?: number // weeks
 ): number {
   const remainingWeight = Math.abs(currentWeight - targetWeight);
-  
+
   let weeklyRateKg: number;
-  
-  if (goal === 'gain') {
+
+  if (goal === 'muscle_gain') {
     // For muscle gain, rate is monthly - convert to weekly
     const monthlyRateKg = (rateOfChange / 100) * currentWeight;
     weeklyRateKg = monthlyRateKg / 4.33;
@@ -183,7 +188,7 @@ export interface NutritionCalculationInput {
   gender: 'male' | 'female';
   bodyFat?: number | null;
   activityLevel: number;
-  goal: 'maintenance' | 'loss' | 'gain';
+  goal: GoalType;
   rateOfChange: number;
   proteinPerKg: number;
   useFFM?: boolean;
@@ -243,7 +248,7 @@ export function calculateNutritionGoals(
   // Step 6: Calculate duration if target provided
   let projectedWeeks: number | undefined;
   
-  if (input.targetValue && input.targetValue > 0 && (input.goal === 'loss' || input.goal === 'gain')) {
+  if (input.targetValue && input.targetValue > 0 && (input.goal === 'fat_loss' || input.goal === 'muscle_gain')) {
     let targetWeight = 0;
     
     if (input.targetGoalType === 'weight') {

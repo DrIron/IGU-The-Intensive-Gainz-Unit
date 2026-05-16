@@ -23,7 +23,7 @@ export function CalorieResults({ result, goal, rateOfChange }: CalorieResultsPro
 
   return (
     <div className="mt-8 space-y-4">
-      {goal === "gain" && rateOfChange && (
+      {goal === "muscle_gain" && rateOfChange && (
         <Alert>
           <AlertCircle className="h-4 w-4" />
           <AlertDescription>

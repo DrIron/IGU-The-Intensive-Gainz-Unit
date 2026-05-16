@@ -7,7 +7,7 @@ import { StepWizardGoalSetting } from "@/components/calculator/StepWizardGoalSet
 import { AdjustmentCalculator } from "@/components/calculator/AdjustmentCalculator";
 import { calculateAge } from "@/lib/dateUtils";
 import { supabase } from "@/integrations/supabase/client";
-import { calculateNutritionGoals } from "@/utils/nutritionCalculations";
+import { calculateNutritionGoals, type GoalType } from "@/utils/nutritionCalculations";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { SEOHead } from "@/components/SEOHead";
 
@@ -50,10 +50,9 @@ export default function CalorieCalculator() {
   // re-enter it here:
   //   - date_of_birth, gender, height_cm  -> profiles_private (added height Apr 21)
   //   - latest weight                     -> weight_logs (scoped to their active phase)
-  //   - current goal_type                 -> nutrition_phases (active phase, DB enum
-  //                                            fat_loss/muscle_gain/maintenance, mapped to
-  //                                            the calculator's loss/gain/maintenance
-  //                                            vocabulary the same way CoachNutritionGoal does)
+  //   - current goal_type                 -> nutrition_phases (active phase; shared
+  //                                            GoalType vocabulary across calculator,
+  //                                            coach form, and DB)
   // Any field the user doesn't have yet stays empty.
   useEffect(() => {
     const loadUserData = async () => {
@@ -98,10 +97,7 @@ export default function CalorieCalculator() {
           .maybeSingle();
         if (lastWeight?.weight_kg != null) setWeight(String(lastWeight.weight_kg));
 
-        // DB enum -> calculator short form.
-        if (phase.goal_type === "fat_loss") setGoal("loss");
-        else if (phase.goal_type === "muscle_gain") setGoal("gain");
-        else if (phase.goal_type === "maintenance") setGoal("maintenance");
+        if (phase.goal_type) setGoal(phase.goal_type);
       }
     };
 
@@ -126,7 +122,7 @@ export default function CalorieCalculator() {
       gender: gender as 'male' | 'female',
       bodyFat: bodyFatValue,
       activityLevel: parseFloat(activityLevel),
-      goal: goal as 'maintenance' | 'loss' | 'gain',
+      goal: goal as GoalType,
       rateOfChange: rateOfChange[0],
       proteinPerKg: proteinMultiplier,
       useFFM: isProteinBasedOnFFM,

@@ -1,6 +1,8 @@
 // Phase 22 Nutrition System Types
 // Interfaces for step tracking, body fat, diet breaks, refeeds, and care team messaging
 
+import type { GoalType } from "@/utils/nutritionCalculations";
+
 // =============================================================================
 // Step Tracking
 // =============================================================================
@@ -306,7 +308,7 @@ export interface NutritionPhase {
   is_active: boolean;
   start_date: string;
   end_date: string | null;
-  goal_type: 'fat_loss' | 'muscle_gain' | 'maintenance' | 'recomp';
+  goal_type: GoalType;
   daily_calories: number;
   protein_grams: number;
   fat_grams: number;

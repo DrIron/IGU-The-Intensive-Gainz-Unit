@@ -130,12 +130,12 @@ export function NutritionGoal() {
     let adjustedCalories;
     let weeklyRate;
 
-    if (goal === "loss") {
+    if (goal === "fat_loss") {
       weeklyRate = rateNum;
       const weeklyDeficit = weightNum * (rateNum / 100);
       const dailyDeficit = (weeklyDeficit * 7700) / 7;
       adjustedCalories = tdee - dailyDeficit;
-    } else if (goal === "gain") {
+    } else if (goal === "muscle_gain") {
       weeklyRate = rateNum;
       const monthlySurplus = weightNum * (rateNum / 100);
       const dailySurplus = (monthlySurplus * 7700) / (4.33 * 7); // 4.33 weeks per month * 7 days
@@ -163,7 +163,7 @@ export function NutritionGoal() {
 
     // 3.4 — Duration Estimator (same logic as public calculator)
     let estimatedWeeks = 0;
-    if (targetNum > 0 && (goal === "loss" || goal === "gain")) {
+    if (targetNum > 0 && (goal === "fat_loss" || goal === "muscle_gain")) {
       let targetWeight = 0;
 
       if (targetGoalType === "weight") {
@@ -181,7 +181,7 @@ export function NutritionGoal() {
         // Calculate weekly rate in kg (fixed, not recalculated each week)
         let weeklyRateKg: number;
 
-        if (goal === "gain") {
+        if (goal === "muscle_gain") {
           // For muscle gain, rate is monthly - convert to weekly
           const monthlyRateKg = (rateNum / 100) * weightNum;
           weeklyRateKg = monthlyRateKg / 4.33; // Average weeks per month
@@ -250,7 +250,7 @@ export function NutritionGoal() {
       }
 
       // Create phase name
-      const goalNames = { loss: 'Fat Loss', gain: 'Muscle Gain', maintenance: 'Maintenance' };
+      const goalNames = { fat_loss: 'Fat Loss', muscle_gain: 'Muscle Gain', maintenance: 'Maintenance' };
       const monthYear = new Date().toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
       const phaseName = `${goalNames[goal as keyof typeof goalNames]} Phase – ${monthYear}`;
 

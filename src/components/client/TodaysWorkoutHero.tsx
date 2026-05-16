@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -15,9 +15,9 @@ import {
   Moon,
   Coffee
 } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
-import { format, isToday, isTomorrow, isPast, startOfDay } from "date-fns";
+import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import { useClientWorkoutsToday } from "@/hooks/useClientWorkouts";
 
 interface TodaysWorkoutHeroProps {
   userId: string;
@@ -46,10 +46,8 @@ interface UpcomingWorkout {
 }
 
 export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
-  const [workout, setWorkout] = useState<TodayWorkout | null>(null);
-  const [upcomingWorkout, setUpcomingWorkout] = useState<UpcomingWorkout | null>(null);
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const { data, isLoading } = useClientWorkoutsToday(userId);
 
   const getGreeting = () => {
     const hour = new Date().getHours();
@@ -59,125 +57,57 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
     return { text: "Good night", icon: Moon };
   };
 
-  const fetchTodayWorkout = useCallback(async () => {
-    try {
-      const today = startOfDay(new Date());
-      const todayStr = format(today, 'yyyy-MM-dd');
+  // Derive today's workout + next upcoming workout from the fetched program.
+  // Iterates the whole day list (rest-day pivot needs to look past today).
+  const { workout, upcomingWorkout } = useMemo<{
+    workout: TodayWorkout | null;
+    upcomingWorkout: UpcomingWorkout | null;
+  }>(() => {
+    if (!data?.program?.client_program_days) {
+      return { workout: null, upcomingWorkout: null };
+    }
+    const programName = data.programName ?? "Your Program";
+    const sortedDays = [...data.program.client_program_days].sort(
+      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
+    );
 
-      // Get active program with all days
-      const { data: program, error: programError } = await supabase
-        .from("client_programs")
-        .select(`
-          id,
-          status,
-          source_template_id,
-          client_program_days (
-            id,
-            title,
-            day_index,
-            date,
-            client_day_modules (
-              id,
-              title,
-              module_type,
-              status,
-              sort_order,
-              client_module_exercises (count)
-            )
-          )
-        `)
-        .eq("user_id", userId)
-        .eq("status", "active")
-        .order("start_date", { ascending: false })
-        .limit(1)
-        .maybeSingle();
+    let todayWorkout: TodayWorkout | null = null;
+    let nextWorkout: UpcomingWorkout | null = null;
 
-      if (programError) throw programError;
+    for (const day of sortedDays) {
+      const dayDate = new Date(day.date);
+      const modules = (day.client_day_modules || []).map((m: any) => ({
+        id: m.id,
+        title: m.title,
+        module_type: m.module_type,
+        status: m.status,
+        exercise_count: m.client_module_exercises?.[0]?.count || 0,
+      }));
 
-      if (!program || !program.client_program_days) {
-        setWorkout(null);
-        setUpcomingWorkout(null);
-        setLoading(false);
-        return;
+      if (isToday(dayDate)) {
+        todayWorkout = {
+          dayId: day.id,
+          dayTitle: day.title || `Day ${day.day_index}`,
+          dayIndex: day.day_index ?? 0,
+          programName,
+          date: dayDate,
+          modules,
+        };
       }
 
-      // Fetch program title from the template separately (FK join from
-      // client_programs to program_templates is unreliable in PostgREST per
-      // CLAUDE.md). Previous version queried a dead table `programs`, which
-      // returned 404 on prod and left the card stuck on "Your Program".
-      let programName = 'Your Program';
-      if (program.source_template_id) {
-        const { data: templateData } = await supabase
-          .from("program_templates")
-          .select("title")
-          .eq("id", program.source_template_id)
-          .maybeSingle();
-        if (templateData?.title) programName = templateData.title;
-      }
-
-      const days = program.client_program_days;
-      let todayWorkout: TodayWorkout | null = null;
-      let nextWorkout: UpcomingWorkout | null = null;
-
-      // Sort days by date
-      const sortedDays = [...days].sort((a, b) =>
-        new Date(a.date).getTime() - new Date(b.date).getTime()
-      );
-
-      for (const day of sortedDays) {
-        const dayDate = new Date(day.date);
-        const modules = (day.client_day_modules || []).map((m: any) => ({
-          id: m.id,
-          title: m.title,
-          module_type: m.module_type,
-          status: m.status,
-          exercise_count: m.client_module_exercises?.[0]?.count || 0,
-        }));
-
-        // Check if this is today
-        if (isToday(dayDate)) {
-          todayWorkout = {
+      if (!isPast(dayDate) && !isToday(dayDate) && modules.length > 0) {
+        if (!nextWorkout || dayDate < nextWorkout.date) {
+          nextWorkout = {
             dayId: day.id,
             dayTitle: day.title || `Day ${day.day_index}`,
-            dayIndex: day.day_index,
-            programName,
             date: dayDate,
-            modules,
+            moduleCount: modules.length,
           };
         }
-
-        // Find the next upcoming day (after today, has modules)
-        if (!isPast(dayDate) && !isToday(dayDate) && modules.length > 0) {
-          if (!nextWorkout || dayDate < nextWorkout.date) {
-            nextWorkout = {
-              dayId: day.id,
-              dayTitle: day.title || `Day ${day.day_index}`,
-              date: dayDate,
-              moduleCount: modules.length,
-            };
-          }
-        }
       }
-
-      setWorkout(todayWorkout);
-      setUpcomingWorkout(nextWorkout);
-    } catch (error) {
-      console.error("Error fetching today's workout:", error);
-    } finally {
-      setLoading(false);
     }
-  }, [userId]);
-
-  const hasFetched = useRef(false);
-
-  useEffect(() => {
-    // Same gate as the other dashboard children: don't lock hasFetched until
-    // userId is actually present. Otherwise an initial render with userId
-    // undefined burns the one allowed run on a noop query.
-    if (hasFetched.current || !userId) return;
-    hasFetched.current = true;
-    fetchTodayWorkout();
-  }, [userId, fetchTodayWorkout]);
+    return { workout: todayWorkout, upcomingWorkout: nextWorkout };
+  }, [data]);
 
   const handleStartWorkout = () => {
     if (workout && workout.modules.length > 0) {
@@ -191,7 +121,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
   const greeting = getGreeting();
   const GreetingIcon = greeting.icon;
 
-  if (loading) {
+  if (isLoading) {
     return (
       <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-primary/20">
         <CardContent className="p-6">

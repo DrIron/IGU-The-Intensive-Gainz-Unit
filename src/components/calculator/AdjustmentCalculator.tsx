@@ -70,12 +70,12 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
     let directionMatch = false;
     let directionMessage = "";
 
-    if (goalType === "loss") {
+    if (goalType === "fat_loss") {
       directionMatch = actualChange < 0;
       directionMessage = directionMatch
         ? "✓ Change consistent with goal (weight loss)"
         : "⚠ Your weight change is inconsistent with your selected goal (expected loss, observed gain/maintenance)";
-    } else if (goalType === "gain") {
+    } else if (goalType === "muscle_gain") {
       directionMatch = actualChange > 0;
       directionMessage = directionMatch
         ? "✓ Change consistent with goal (weight gain)"
@@ -89,9 +89,9 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
 
     // Step 3 — Expected Weight Change
     let expectedChange: number;
-    if (goalType === "loss" || goalType === "maintenance") {
+    if (goalType === "fat_loss" || goalType === "maintenance") {
       // Weekly rate
-      expectedChange = goalType === "loss" ? -(expectedRate[0] / 100) * lastWeek : 0;
+      expectedChange = goalType === "fat_loss" ? -(expectedRate[0] / 100) * lastWeek : 0;
     } else {
       // Muscle gain: monthly rate, convert to weekly
       const expectedMonthlyGain = (expectedRate[0] / 100) * lastWeek;
@@ -118,7 +118,7 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
     const targetSteps = parseFloat(stepsGoal);
 
     if (currentSteps && targetSteps) {
-      if (goalType === "loss") {
+      if (goalType === "fat_loss") {
         // For fat loss: if losing but slower than desired and in the right direction
         if (directionMatch && actualChange < 0 && Math.abs(actualChange) < Math.abs(expectedChange)) {
           // Calculate how many extra steps might help (rough estimate: 2000 steps ≈ 100 kcal)
@@ -140,7 +140,7 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
             message: "Focus on improving adherence to your calorie target before adjusting step count."
           };
         }
-      } else if (goalType === "gain") {
+      } else if (goalType === "muscle_gain") {
         // For muscle gain: warn if steps are dropping significantly
         const stepsDrop = currentSteps < (targetSteps * 0.85);
         if (stepsDrop) {
@@ -173,7 +173,7 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
     } else if (Math.abs(deltaKg) < 0.05) {
       adjustmentMessage = "✅ You're exactly on track. No calorie adjustment needed.";
     } else {
-      if (goalType === "loss") {
+      if (goalType === "fat_loss") {
         // deltaKg = expectedChange - actualChange; both negative during fat loss.
         // Ex. expected -0.6, actual -0.8 -> delta +0.2 -> lost MORE than planned.
         // Ex. expected -0.6, actual -0.5 -> delta -0.1 -> lost LESS than planned.
@@ -182,7 +182,7 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
         } else {
           adjustmentMessage = "You lost less than expected. Decrease calories to reach target rate.";
         }
-      } else if (goalType === "gain") {
+      } else if (goalType === "muscle_gain") {
         if (deltaKg > 0) {
           adjustmentMessage = "You gained less than expected. Increase calories to reach target rate.";
         } else {
@@ -195,9 +195,9 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
 
     // Add warning for direction mismatch
     if (!directionMatch) {
-      if (goalType === "loss" && actualChange > 0) {
+      if (goalType === "fat_loss" && actualChange > 0) {
         warnings.push("⚠️ Your weight increased during a fat loss phase. Check adherence or accuracy of logging before adjusting calories.");
-      } else if (goalType === "gain" && actualChange < 0) {
+      } else if (goalType === "muscle_gain" && actualChange < 0) {
         warnings.push("⚠️ Your weight decreased during a muscle gain phase. Check calorie intake and training consistency.");
       }
     }
@@ -223,9 +223,9 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
 
     // Flag aggressive rates
     const weeklyRatePercent = Math.abs(actualChange / lastWeek) * 100;
-    if (goalType === "loss" && weeklyRatePercent > 1.5) {
+    if (goalType === "fat_loss" && weeklyRatePercent > 1.5) {
       warnings.push("⚠️ Weight loss exceeds 1.5%/week. Risk of excessive lean mass loss.");
-    } else if (goalType === "gain" && weeklyRatePercent > 0.25) {
+    } else if (goalType === "muscle_gain" && weeklyRatePercent > 0.25) {
       const monthlyRate = weeklyRatePercent * 4.33;
       if (monthlyRate > 1.0) {
         warnings.push("⚠️ Weight gain exceeds 1%/month. Risk of excessive fat gain.");
@@ -273,7 +273,7 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
     setResult({
       lastWeekAvg: lastWeek,
       currentWeekAvg: currentWeek,
-      goalTypeLabel: goalType === "loss" ? "Fat Loss" : goalType === "gain" ? "Muscle Gain" : "Maintenance",
+      goalTypeLabel: goalType === "fat_loss" ? "Fat Loss" : goalType === "muscle_gain" ? "Muscle Gain" : "Maintenance",
       expectedChange,
       actualChange,
       discrepancy: deltaKg,
@@ -370,9 +370,9 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
                     <SelectValue placeholder="Select your goal" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="loss">Fat Loss</SelectItem>
+                    <SelectItem value="fat_loss">Fat Loss</SelectItem>
                     <SelectItem value="maintenance">Maintenance</SelectItem>
-                    <SelectItem value="gain">Muscle Gain</SelectItem>
+                    <SelectItem value="muscle_gain">Muscle Gain</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -381,21 +381,21 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
                 <div className="space-y-3">
                   <div className="flex justify-between items-center">
                     <Label htmlFor="expectedRate">
-                      Expected Rate of Change (% per {goalType === "gain" ? "month" : "week"})
+                      Expected Rate of Change (% per {goalType === "muscle_gain" ? "month" : "week"})
                     </Label>
                     <span className="text-sm font-medium">{expectedRate[0]}%</span>
                   </div>
                   <Slider
                     id="expectedRate"
                     min={0.25}
-                    max={goalType === "gain" ? 1.0 : 1.5}
+                    max={goalType === "muscle_gain" ? 1.0 : 1.5}
                     step={0.05}
                     value={expectedRate}
                     onValueChange={setExpectedRate}
                   />
                   <p className="text-xs text-muted-foreground flex items-start gap-1">
                     <span className="text-primary">ℹ️</span>
-                    {goalType === "gain"
+                    {goalType === "muscle_gain"
                       ? "For muscle gain, rate is % per month and converted to weekly change automatically."
                       : "For fat loss, rate is % per week."}
                   </p>
@@ -568,7 +568,7 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
                   <p className="text-sm text-muted-foreground">Goal</p>
                   <p className="text-lg font-semibold">
                     {result.goalTypeLabel}{" "}
-                    {goalType !== "maintenance" && `(${expectedRate[0]}% per ${goalType === "gain" ? "month" : "week"})`}
+                    {goalType !== "maintenance" && `(${expectedRate[0]}% per ${goalType === "muscle_gain" ? "month" : "week"})`}
                   </p>
                 </div>
               </div>
@@ -586,7 +586,7 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
                 <p className="text-3xl font-bold text-accent">
                   {result.expectedChange > 0 ? "+" : ""}{result.expectedChange.toFixed(2)} kg
                 </p>
-                {goalType === "gain" && (
+                {goalType === "muscle_gain" && (
                   <p className="text-xs text-muted-foreground mt-2">
                     (converted from {expectedRate[0]}% monthly rate)
                   </p>

@@ -24,9 +24,9 @@ export function WeightProgressGraph({ phase, weightLogs }: WeightProgressGraphPr
     weekDate.setDate(weekDate.getDate() + (week * 7));
     
     let predictedWeight: number;
-    if (phase.goal_type === 'fat_loss' || phase.goal_type === 'loss') {
+    if (phase.goal_type === 'fat_loss') {
       predictedWeight = phase.starting_weight_kg * Math.pow(1 - weeklyRateDecimal, week);
-    } else if (phase.goal_type === 'muscle_gain' || phase.goal_type === 'gain') {
+    } else if (phase.goal_type === 'muscle_gain') {
       // Monthly rate for muscle gain
       const monthlyRate = weeklyRateDecimal / 4.33;
       predictedWeight = phase.starting_weight_kg * Math.pow(1 + monthlyRate, week);
