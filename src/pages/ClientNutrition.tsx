@@ -174,16 +174,27 @@ export default function ClientNutrition() {
         supabase.from("profiles_private").select("gender").eq("profile_id", user.id).maybeSingle(),
         supabase
           .from("subscriptions")
-          .select("id, status, service_id, services!inner(type)")
+          .select("id, status, service_id")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(1)
           .maybeSingle(),
       ]);
 
+      // Resolve service type via a separate query -- CLAUDE.md bans nested
+      // PostgREST FK joins on subscriptions.
+      let serviceType: string | null = null;
+      if (subscription?.service_id) {
+        const { data: service } = await supabase
+          .from("services")
+          .select("type")
+          .eq("id", subscription.service_id)
+          .maybeSingle();
+        serviceType = service?.type ?? null;
+      }
+
       const isActiveClient = profilePublic?.status === "active" && subscription?.status === "active";
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const isOneToOne = (subscription as any)?.services?.type === "one_to_one";
+      const isOneToOne = serviceType === "one_to_one";
       if (!isActiveClient || !isOneToOne) {
         toast({
           title: "Access Restricted",
