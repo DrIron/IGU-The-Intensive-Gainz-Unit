@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Scale, Footprints, ClipboardCheck } from "lucide-react";
-import { format, startOfWeek, endOfWeek } from "date-fns";
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { startOfIguWeek, endOfIguWeek } from "@/lib/weekUtils";
 
 /**
  * Summary ribbon shown at the top of /nutrition-client. Answers "what's
@@ -44,8 +45,9 @@ export function ClientWeeklyRibbon({ userId, phaseId, weekNumber, refreshKey = 0
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 0 }), "yyyy-MM-dd");
-      const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 0 }), "yyyy-MM-dd");
+      // IGU adherence week — see weekUtils.ts
+      const weekStart = format(startOfIguWeek(), "yyyy-MM-dd");
+      const weekEnd = format(endOfIguWeek(), "yyyy-MM-dd");
 
       const weighInsQuery = phaseId
         ? supabase

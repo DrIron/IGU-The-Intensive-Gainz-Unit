@@ -11,6 +11,7 @@ import { Users, XCircle, Star, FileCheck, LayoutGrid, LayoutList, Trash2, MoreVe
 import { EmptyState } from "@/components/ui/empty-state";
 import { ClientCardView } from "@/components/ClientCardView";
 import { formatProfileStatus, getProfileStatusVariant } from "@/lib/statusUtils";
+import { startOfIguWeek } from "@/lib/weekUtils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -198,9 +199,8 @@ export default function ClientList({ filter, programFilter, onViewClient, initia
   // Filter by alert type
   if (filter === 'missed-logs') {
     // Only show 1:1 clients who haven't logged this week
-    const startOfWeek = new Date();
-    startOfWeek.setDate(startOfWeek.getDate() - startOfWeek.getDay());
-    startOfWeek.setHours(0, 0, 0, 0);
+    // IGU adherence week — see weekUtils.ts
+    const startOfWeek = startOfIguWeek();
 
     filteredClients = filteredClients.filter(client => {
       const activeSubscription = client.subscriptions?.find(sub => sub.status === "active");

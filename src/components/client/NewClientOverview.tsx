@@ -13,6 +13,11 @@ import { WeeklyProgressCard } from "./WeeklyProgressCard";
 import { NutritionTargetsCard } from "./NutritionTargetsCard";
 import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ClickableCard } from "@/components/ui/clickable-card";
+import { CardContent } from "@/components/ui/card";
+import { Dumbbell, MessageSquare } from "lucide-react";
+import { startOfIguWeek } from "@/lib/weekUtils";
+import { captureException } from "@/lib/errorLogging";
 
 interface NewClientOverviewProps {
   user: any;
@@ -40,6 +45,9 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
   const [primaryCoach, setPrimaryCoach] = useState<PrimaryCoach | null>(null);
   const [activePhase, setActivePhase] = useState<any>(null);
   const [weeklyLogsCount, setWeeklyLogsCount] = useState<number>(0);
+  // null = unknown / fetch failed (treat as "has program" so we don't show the
+  // empty-state spuriously); number = authoritative count of client_programs rows.
+  const [programCount, setProgramCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const hasFetched = useRef(false);
   const navigate = useNavigate();
@@ -103,17 +111,34 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
 
       // Count this week's weight logs
       if (phaseData) {
-        const weekStart = new Date();
-        weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-        weekStart.setHours(0, 0, 0, 0);
+        // IGU adherence week — see weekUtils.ts
+        const weekStart = startOfIguWeek();
 
         const { count } = await supabase
           .from("weight_logs")
           .select("*", { count: "exact", head: true })
           .eq("phase_id", phaseData.id)
           .gte("log_date", weekStart.toISOString());
-        
+
         setWeeklyLogsCount(count || 0);
+      }
+
+      // Count client_programs to detect the "onboarded but no program yet"
+      // empty state. head:true avoids pulling rows we don't need. On error
+      // we leave programCount null so noProgramYet stays false — better to
+      // hide the empty state than show it spuriously on a transient failure.
+      const { count: pCount, error: pErr } = await supabase
+        .from("client_programs")
+        .select("id", { count: "exact", head: true })
+        .eq("user_id", user.id);
+      if (pErr) {
+        captureException(pErr, {
+          source: "NewClientOverview.loadDashboardData.programCount",
+          severity: "warning",
+          metadata: { userId: user.id },
+        });
+      } else {
+        setProgramCount(pCount ?? 0);
       }
     } catch (error) {
       console.error("Error loading dashboard data:", error);
@@ -167,8 +192,33 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         />
       )}
 
-      {/* Hero: Today's Workout */}
-      <TodaysWorkoutHero userId={user?.id} />
+      {/* Hero: Today's Workout — or empty state if onboarded but no program yet */}
+      {programCount === 0 && profile?.status === "active" && subscription?.status === "active" ? (
+        <ClickableCard
+          onClick={() => navigate("/messages")}
+          ariaLabel="Message your coach about program status"
+        >
+          <CardContent className="p-6 md:p-8 flex items-start gap-4">
+            <div className="rounded-full bg-primary/10 p-3 flex-shrink-0">
+              <Dumbbell className="h-6 w-6 text-primary" aria-hidden="true" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <h2 className="text-lg md:text-xl font-semibold">
+                Your coach is preparing your program
+              </h2>
+              <p className="text-sm text-muted-foreground mt-1">
+                We'll let you know as soon as your first workout is ready.
+              </p>
+              <div className="mt-3 inline-flex items-center gap-1.5 text-sm text-primary">
+                <MessageSquare className="h-4 w-4" aria-hidden="true" />
+                Message your coach
+              </div>
+            </div>
+          </CardContent>
+        </ClickableCard>
+      ) : (
+        <TodaysWorkoutHero userId={user?.id} />
+      )}
 
       {/* Two Column Layout for Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

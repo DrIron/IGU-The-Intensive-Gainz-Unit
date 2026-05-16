@@ -12,6 +12,7 @@ import {
 import { Loader2, AlertTriangle, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { captureException } from "@/lib/errorLogging";
 import { withTimeout } from "@/lib/withTimeout";
 import {
   getMuscleDisplay,
@@ -128,6 +129,21 @@ export const ConvertToProgram = memo(function ConvertToProgram({
     try {
       if (isDirty && onSave) await onSave();
 
+      // Pick up the coach's default column preset (if any) so the inserted
+      // exercise_prescriptions reflect the same columns the coach uses in
+      // the workout builder. Done BEFORE the RPC so a query failure doesn't
+      // leave a half-built program to clean up. Coach with no preset row →
+      // presetColumnConfig stays null and the DB DEFAULT '[]' on
+      // exercise_prescriptions.column_config applies (new-coach case).
+      const { data: presetRow, error: presetErr } = await supabase
+        .from("coach_column_presets")
+        .select("column_config")
+        .eq("coach_id", coachUserId)
+        .eq("is_default", true)
+        .maybeSingle();
+      if (presetErr) throw presetErr;
+      const presetColumnConfig = presetRow?.column_config ?? null;
+
       // Flatten weeks → absolute session list (W1=1-7, W2=8-14, ...).
       // sessionId remapping: we preserve the client id so the RPC can echo
       // it back in the session_to_module map.
@@ -172,11 +188,17 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         session_to_module: Record<string, string>;
       };
 
-      // 2. Insert module_exercises for strength session slots.
-      //    Non-strength sessions keep module-only shape (title encodes
-      //    the activity, same as the legacy conversion did for activities).
+      // Approach B cleanup: the RPC has now created program_templates +
+      // program_template_days + day_modules. From here on, any failure
+      // would leave a half-built program in the coach's library. Wrap the
+      // remaining post-RPC writes in a try/catch and cascade-delete on
+      // failure. The FK chain (program_template_days → day_modules →
+      // module_exercises → exercise_prescriptions, all ON DELETE CASCADE)
+      // tears the tree down, and muscle_program_templates.converted_program_id
+      // is auto-nulled via ON DELETE SET NULL — no manual UPDATE needed.
       let preSelectedCount = 0;
       let autoFilledCount = 0;
+      try {
 
       const meInserts: { id: string; day_module_id: string; exercise_id: string; section: string; sort_order: number; instructions?: string }[] = [];
       const prescInserts: Record<string, unknown>[] = [];
@@ -215,6 +237,9 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         };
         if (firstSet.rest_seconds_max != null) presc.rest_seconds_max = firstSet.rest_seconds_max;
         if (firstSet.tempo ?? slot.tempo) presc.tempo = firstSet.tempo ?? slot.tempo;
+        // Apply coach's default column preset if one is set. Omit otherwise
+        // so the exercise_prescriptions.column_config DB DEFAULT '[]' applies.
+        if (presetColumnConfig != null) presc.column_config = presetColumnConfig;
         return presc;
       };
 
@@ -312,6 +337,40 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         if (meErr) throw meErr;
         const { error: prescErr } = await supabase.from('exercise_prescriptions').insert(prescInserts);
         if (prescErr) throw prescErr;
+      }
+      } catch (postRpcErr) {
+        // Cleanup: delete the program_templates row. ON DELETE CASCADE
+        // unwinds program_template_days → day_modules → module_exercises
+        // → exercise_prescriptions. ON DELETE SET NULL on
+        // muscle_program_templates.converted_program_id auto-unlinks the
+        // source plan, so no manual UPDATE is needed.
+        const { error: cleanupErr } = await supabase
+          .from("program_templates")
+          .delete()
+          .eq("id", result.program_id);
+
+        captureException(postRpcErr, {
+          source: "convert_muscle_plan_cleanup",
+          severity: "error",
+          metadata: {
+            phase: "post_rpc_insert",
+            programId: result.program_id,
+            cleanedUp: !cleanupErr,
+          },
+        });
+
+        if (cleanupErr) {
+          captureException(cleanupErr, {
+            source: "convert_muscle_plan_cleanup",
+            severity: "error",
+            metadata: { phase: "cleanup_delete", programId: result.program_id },
+          });
+          throw new Error(
+            `${sanitizeErrorForUser(postRpcErr)}. Cleanup also failed — a partial program may remain in your library and can be deleted manually. (${sanitizeErrorForUser(cleanupErr)})`
+          );
+        }
+
+        throw postRpcErr;
       }
 
       const parts: string[] = [`${result.total_days} training days, ${result.total_modules} sessions.`];

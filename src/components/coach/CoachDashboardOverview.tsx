@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { Loader2, Users2, ChevronRight, Award, Dumbbell, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { startOfWeek, endOfWeek } from "date-fns";
+import { startOfIguWeek } from "@/lib/weekUtils";
 import { cn } from "@/lib/utils";
 
 import { EnhancedCapacityCard } from "./EnhancedCapacityCard";
@@ -190,7 +190,8 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
       // Workouts completed this week by my clients.
       // Avoid nested PostgREST FK joins (unreliable per CLAUDE.md):
       // 3 separate queries — client_programs → client_program_days → count client_day_modules
-      const weekStart = startOfWeek(new Date());
+      // IGU adherence week — see weekUtils.ts
+      const weekStart = startOfIguWeek();
       const clientIds = subscriptionsWithProfiles
         .filter(s => s.status === 'active')
         .map(s => s.user_id);
