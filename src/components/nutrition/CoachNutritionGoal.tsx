@@ -17,30 +17,13 @@ import { format, formatDistanceToNow } from "date-fns";
 import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { useClientDemographics } from "@/hooks/useClientDemographics";
-import { calculateNutritionGoals } from "@/utils/nutritionCalculations";
+import { calculateNutritionGoals, type GoalType } from "@/utils/nutritionCalculations";
 
 interface CoachNutritionGoalProps {
   clientUserId: string;
   phase: any;
   onPhaseUpdated: () => void;
 }
-
-// The DB column goal_type has a CHECK constraint on
-//   ('fat_loss' | 'maintenance' | 'muscle_gain')
-// but the coach form has always worked in the shorter ('loss' | 'gain' |
-// 'maintenance') vocabulary -- matches the Select labels and the enum in
-// `calculateNutritionGoals`. We round-trip the two forms here so the DB
-// keeps its legacy enum values while the form state stays compact.
-const FORM_TO_DB_GOAL: Record<string, string> = {
-  loss: "fat_loss",
-  gain: "muscle_gain",
-  maintenance: "maintenance",
-};
-const DB_TO_FORM_GOAL: Record<string, string> = {
-  fat_loss: "loss",
-  muscle_gain: "gain",
-  maintenance: "maintenance",
-};
 
 export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: CoachNutritionGoalProps) {
   const { toast } = useToast();
@@ -59,7 +42,7 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
   const [formData, setFormData] = useState({
     phaseName: "",
     startDate: new Date(),
-    goalType: "loss",
+    goalType: "fat_loss",
     startingWeight: "",
     targetWeight: "",
     targetBodyFat: "",
@@ -88,7 +71,7 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
       setFormData(prev => ({
         phaseName: phase.phase_name || "",
         startDate: new Date(phase.start_date),
-        goalType: DB_TO_FORM_GOAL[phase.goal_type] || phase.goal_type,
+        goalType: phase.goal_type || "fat_loss",
         startingWeight: phase.starting_weight_kg?.toString() || prev.startingWeight,
         targetWeight: phase.target_weight_kg?.toString() || "",
         targetBodyFat: phase.target_body_fat_percentage?.toString() || "",
@@ -176,8 +159,8 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
     const activity = parseFloat(formData.activityLevel);
     if (!Number.isFinite(activity) || activity <= 0) return null;
 
-    const goal =
-      formData.goalType === "maintenance" || formData.goalType === "loss" || formData.goalType === "gain"
+    const goal: GoalType =
+      formData.goalType === "maintenance" || formData.goalType === "fat_loss" || formData.goalType === "muscle_gain"
         ? formData.goalType
         : "maintenance";
     const rate = formData.weeklyRate[0] ?? 0;
@@ -197,9 +180,9 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
       const bmr = w * 24;
       const tdee = bmr * activity;
       const calories =
-        goal === "loss"
+        goal === "fat_loss"
           ? tdee - ((rate / 100) * w * 7700) / 7
-          : goal === "gain"
+          : goal === "muscle_gain"
           ? tdee + ((rate / 100) * w * 7700) / (4.33 * 7)
           : tdee;
       const proteinG = w * proteinPerKg;
@@ -282,7 +265,7 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
         coach_id: user.id,
         phase_name: formData.phaseName,
         start_date: formData.startDate.toISOString(),
-        goal_type: FORM_TO_DB_GOAL[formData.goalType] || formData.goalType,
+        goal_type: formData.goalType,
         starting_weight_kg: parseFloat(formData.startingWeight),
         target_weight_kg: formData.targetWeight ? parseFloat(formData.targetWeight) : null,
         target_body_fat_percentage: formData.targetBodyFat ? parseFloat(formData.targetBodyFat) : null,
@@ -498,9 +481,9 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="loss">Fat Loss</SelectItem>
+                <SelectItem value="fat_loss">Fat Loss</SelectItem>
                 <SelectItem value="maintenance">Maintenance</SelectItem>
-                <SelectItem value="gain">Muscle Gain</SelectItem>
+                <SelectItem value="muscle_gain">Muscle Gain</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -545,7 +528,7 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
 
         {/* Rate of Change Slider */}
         <div className="space-y-2">
-          <Label>Rate of Change ({formData.weeklyRate[0].toFixed(2)}% {formData.goalType === 'gain' ? 'per month' : 'per week'})</Label>
+          <Label>Rate of Change ({formData.weeklyRate[0].toFixed(2)}% {formData.goalType === 'muscle_gain' ? 'per month' : 'per week'})</Label>
           <Slider
             value={formData.weeklyRate}
             onValueChange={(value) => setFormData({ ...formData, weeklyRate: value })}

@@ -187,8 +187,8 @@ export function CalorieCalculatorForm({
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="maintenance">Maintenance</SelectItem>
-                <SelectItem value="loss">Fat Loss</SelectItem>
-                <SelectItem value="gain">Muscle Gain</SelectItem>
+                <SelectItem value="fat_loss">Fat Loss</SelectItem>
+                <SelectItem value="muscle_gain">Muscle Gain</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -200,7 +200,7 @@ export function CalorieCalculatorForm({
         <div className="space-y-6">
         {goal !== "maintenance" && (
           <div className="space-y-3">
-            <Label>Rate of {goal === "loss" ? "Loss" : "Gain"}</Label>
+            <Label>Rate of {goal === "fat_loss" ? "Loss" : "Gain"}</Label>
             <div className="grid grid-cols-3 gap-3">
               <Button
                 type="button"
@@ -306,23 +306,23 @@ export function CalorieCalculatorForm({
           {goal !== "maintenance" && (
             <div className="space-y-3">
               <div className="flex justify-between items-center">
-                <Label htmlFor="rateOfChange">Fine-tune rate of {goal === "loss" ? "loss" : "gain"}</Label>
+                <Label htmlFor="rateOfChange">Fine-tune rate of {goal === "fat_loss" ? "loss" : "gain"}</Label>
                 <span className="text-sm font-medium">
-                  {rateOfChange[0]}% per {goal === "gain" ? "month" : "week"}
+                  {rateOfChange[0]}% per {goal === "muscle_gain" ? "month" : "week"}
                 </span>
               </div>
               <Slider
                 id="rateOfChange"
-                min={goal === "gain" ? 0.25 : 0.25}
-                max={goal === "gain" ? 1.0 : 1.5}
+                min={goal === "muscle_gain" ? 0.25 : 0.25}
+                max={goal === "muscle_gain" ? 1.0 : 1.5}
                 step={0.05}
                 value={rateOfChange}
                 onValueChange={setRateOfChange}
               />
               <p className="text-xs text-muted-foreground flex items-start gap-1">
                 <span className="text-primary">ℹ️</span>
-                {goal === "gain" 
-                  ? "For weight gain, rate is % per month and converted to weekly change automatically." 
+                {goal === "muscle_gain"
+                  ? "For weight gain, rate is % per month and converted to weekly change automatically."
                   : "For weight loss, rate is % per week."}
               </p>
             </div>

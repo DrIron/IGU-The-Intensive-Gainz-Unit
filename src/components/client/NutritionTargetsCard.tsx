@@ -78,7 +78,6 @@ export function NutritionTargetsCard({ userId }: NutritionTargetsCardProps) {
       case "fat_loss": return "Fat Loss";
       case "muscle_gain": return "Muscle Gain";
       case "maintenance": return "Maintenance";
-      case "recomp": return "Recomposition";
       default: return goal.replace(/_/g, " ");
     }
   };

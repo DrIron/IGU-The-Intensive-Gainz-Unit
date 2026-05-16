@@ -169,7 +169,7 @@ export function NutritionProgress() {
     const calorieChange = Math.abs(adjustedCalories - originalCalories);
     const weeklyWeightChange = (calorieChange * 7) / 7700; // 7700 cal per kg
     const baseWeeklyRate = (activeGoal.weekly_rate_percentage / 100) * activeGoal.starting_weight_kg;
-    const adjustedWeeklyRate = activeGoal.goal_type === 'loss' 
+    const adjustedWeeklyRate = activeGoal.goal_type === 'fat_loss'
       ? baseWeeklyRate + (adjustedCalories < originalCalories ? weeklyWeightChange : -weeklyWeightChange)
       : baseWeeklyRate + (adjustedCalories > originalCalories ? weeklyWeightChange : -weeklyWeightChange);
     
@@ -494,12 +494,12 @@ function WeekCard({
       if (week === 1) {
         weightChange = avgWeight - startingWeight;
         weightChangePercentage = (weightChange / startingWeight) * 100;
-        expectedChange = goalType === 'loss' ? -(startingWeight * (weeklyRate / 100)) : 
-                        goalType === 'gain' ? startingWeight * (weeklyRate / 100) : 0;
+        expectedChange = goalType === 'fat_loss' ? -(startingWeight * (weeklyRate / 100)) : 
+                        goalType === 'muscle_gain' ? startingWeight * (weeklyRate / 100) : 0;
 
         // Check if weight changed in wrong direction
-        const wrongDirection = (goalType === 'loss' && weightChange > 0) || 
-                               (goalType === 'gain' && weightChange < 0);
+        const wrongDirection = (goalType === 'fat_loss' && weightChange > 0) || 
+                               (goalType === 'muscle_gain' && weightChange < 0);
 
         if (wrongDirection && followedCalories === 'yes' && trackedAccurately === 'yes' && !isDietBreakWeek) {
           // Apply adjustment - weight moved opposite to goal
@@ -520,9 +520,9 @@ function WeekCard({
         // Calculate expected change for this week
         if (isDietBreakWeek) {
           expectedChange = 0; // Maintenance during diet break
-        } else if (goalType === 'loss') {
+        } else if (goalType === 'fat_loss') {
           expectedChange = -(prevAvg * (weeklyRate / 100));
-        } else if (goalType === 'gain') {
+        } else if (goalType === 'muscle_gain') {
           expectedChange = prevAvg * (weeklyRate / 100);
         } else {
           expectedChange = 0;
@@ -545,8 +545,8 @@ function WeekCard({
           const difference = Math.abs(actualAbsChange - expectedAbsChange);
           
           // Check direction match
-          const directionMatch = (goalType === 'loss' && weightChange <= 0) || 
-                                 (goalType === 'gain' && weightChange >= 0) || 
+          const directionMatch = (goalType === 'fat_loss' && weightChange <= 0) || 
+                                 (goalType === 'muscle_gain' && weightChange >= 0) || 
                                  (goalType === 'maintenance');
 
           if (!directionMatch || difference > tolerance) {

@@ -468,9 +468,7 @@ function SectionBlock({ title, icon: Icon, variant, emptyText, clients, unreadCo
 
 const GOAL_LABEL: Record<string, string> = {
   fat_loss: "Fat Loss",
-  loss: "Fat Loss",
   muscle_gain: "Muscle Gain",
-  gain: "Muscle Gain",
   maintenance: "Maintenance",
 };
 

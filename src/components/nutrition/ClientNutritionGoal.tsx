@@ -24,10 +24,8 @@ export function ClientNutritionGoal({ phase }: ClientNutritionGoalProps) {
   const getGoalLabel = () => {
     switch (phase.goal_type) {
       case 'fat_loss':
-      case 'loss':
         return 'Fat Loss';
       case 'muscle_gain':
-      case 'gain':
         return 'Muscle Gain';
       default:
         return 'Maintenance';
@@ -37,10 +35,8 @@ export function ClientNutritionGoal({ phase }: ClientNutritionGoalProps) {
   const getGoalColor = () => {
     switch (phase.goal_type) {
       case 'fat_loss':
-      case 'loss':
         return 'destructive';
       case 'muscle_gain':
-      case 'gain':
         return 'default';
       default:
         return 'secondary';

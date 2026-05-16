@@ -192,9 +192,9 @@ export function StepWizardGoalSetting({
                     <SelectValue placeholder="Select goal" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="loss">Fat Loss</SelectItem>
+                    <SelectItem value="fat_loss">Fat Loss</SelectItem>
                     <SelectItem value="maintenance">Maintenance</SelectItem>
-                    <SelectItem value="gain">Muscle Gain</SelectItem>
+                    <SelectItem value="muscle_gain">Muscle Gain</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

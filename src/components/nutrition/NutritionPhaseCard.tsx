@@ -22,7 +22,7 @@ interface NutritionPhaseCardProps {
   phase: {
     id: string;
     phase_name: string;
-    goal_type: "loss" | "gain" | "maintenance" | string;
+    goal_type: "fat_loss" | "muscle_gain" | "maintenance" | string;
     start_date: string;
     daily_calories: number;
     protein_grams: number;
@@ -43,18 +43,9 @@ interface NutritionPhaseCardProps {
   className?: string;
 }
 
-// The DB writes the legacy long form (fat_loss / muscle_gain / maintenance)
-// but some older code paths use the short form (loss / gain / maintenance).
-// Normalize to the short form for all internal comparisons.
-function normalizeGoalType(raw: string): "loss" | "gain" | "maintenance" {
-  if (raw === "fat_loss" || raw === "loss") return "loss";
-  if (raw === "muscle_gain" || raw === "gain") return "gain";
-  return "maintenance";
-}
-
 const GOAL_LABELS: Record<string, string> = {
-  loss: "Fat Loss",
-  gain: "Muscle Gain",
+  fat_loss: "Fat Loss",
+  muscle_gain: "Muscle Gain",
   maintenance: "Maintenance",
 };
 
@@ -79,7 +70,7 @@ export function NutritionPhaseCard({
     }
   }, [phase.start_date, weeksElapsed]);
 
-  const goalType = normalizeGoalType(phase.goal_type);
+  const goalType = phase.goal_type;
   const status: Status = useMemo(() => {
     if (latestActualChangePercent == null) return "no_data";
     const expected = phase.weekly_rate_percentage;
@@ -87,12 +78,12 @@ export function NutritionPhaseCard({
     if (goalType === "maintenance") {
       return Math.abs(latestActualChangePercent) <= 0.25 ? "on_track" : "behind";
     }
-    // For loss/gain, sign matters: overshooting = "ahead", undershooting = "behind".
-    const signedExpected = goalType === "loss" ? -expected : expected;
+    // For fat_loss/muscle_gain, sign matters: overshooting = "ahead", undershooting = "behind".
+    const signedExpected = goalType === "fat_loss" ? -expected : expected;
     if (signedExpected === 0) return "on_track";
     const deviation = ((latestActualChangePercent - signedExpected) / Math.abs(signedExpected)) * 100;
     if (Math.abs(deviation) <= 30) return "on_track";
-    if (goalType === "loss") {
+    if (goalType === "fat_loss") {
       return latestActualChangePercent < signedExpected ? "ahead" : "behind";
     }
     return latestActualChangePercent > signedExpected ? "ahead" : "behind";
@@ -162,10 +153,10 @@ export function NutritionPhaseCard({
                 <div>
                   <span className="opacity-70">expected</span>{" "}
                   <span className="text-foreground">
-                    {goalType === "loss" ? "-" : "+"}
+                    {goalType === "fat_loss" ? "-" : "+"}
                     {expectedLabel}%
                   </span>
-                  <span className="opacity-70"> / {goalType === "gain" ? "mo" : "wk"}</span>
+                  <span className="opacity-70"> / {goalType === "muscle_gain" ? "mo" : "wk"}</span>
                 </div>
                 <div>
                   <span className="opacity-70">actual</span>{" "}
