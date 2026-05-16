@@ -9,10 +9,11 @@
 // WorkoutSessionV2.completeWorkout() clears all client-side workout views):
 //   ['client-workouts', userId, 'today', 'yyyy-MM-dd']
 //   ['client-workouts', userId, 'month', 'yyyy-MM']
+//   ['client-workouts', userId, 'week', 'yyyy-MM-dd' (Mon anchor)]
 
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { format, startOfMonth, endOfMonth } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 
 /** Short enough that completed workouts surface promptly via poll/focus,
  *  long enough to dedupe back-to-back remounts during navigation. */
@@ -166,6 +167,63 @@ export function useClientWorkoutsToday(userId: string | undefined) {
         program: program as unknown as TodayProgramResult["program"],
         programName,
       };
+    },
+  });
+}
+
+export interface ClientWeekModuleRow {
+  id: string;
+  module_type: string;
+  status: string;
+  completed_at: string | null;
+}
+
+/**
+ * Mon-Sun adherence window for client_day_modules. The hook owns the week
+ * boundaries so AdherenceSummaryCard doesn't have to and so completeWorkout()'s
+ * invalidate-by-prefix already catches it.
+ *
+ * Default `weekAnchor` = now → the current Mon-Sun week. Pass a different
+ * anchor to read past/future weeks (the queryKey re-derives accordingly).
+ */
+export function useClientWorkoutsWeek(
+  userId: string | undefined,
+  weekAnchor: Date = new Date(),
+) {
+  // Mon-Sun week — see src/lib/weekUtils.ts on main after fix/workout-pipeline-hardening merges; swap to startOfIguWeek in a follow-up.
+  const weekStart = startOfWeek(weekAnchor, { weekStartsOn: 1 });
+  const weekEnd = endOfWeek(weekAnchor, { weekStartsOn: 1 });
+  const weekKey = format(weekStart, "yyyy-MM-dd");
+  return useQuery({
+    queryKey: ["client-workouts", userId, "week", weekKey],
+    enabled: !!userId,
+    staleTime: THIRTY_SECONDS,
+    refetchOnWindowFocus: true,
+    queryFn: async () => {
+      // Nested join through client_program_days → client_programs is the same
+      // pattern useClientWorkoutsMonth uses; date column lives on
+      // client_program_days, not on client_day_modules itself.
+      const { data, error } = await supabase
+        .from("client_day_modules")
+        .select(`
+          id,
+          module_type,
+          status,
+          completed_at,
+          client_program_days!inner (
+            date,
+            client_programs!inner (
+              user_id,
+              status
+            )
+          )
+        `)
+        .eq("client_program_days.client_programs.user_id", userId!)
+        .eq("client_program_days.client_programs.status", "active")
+        .gte("client_program_days.date", format(weekStart, "yyyy-MM-dd"))
+        .lte("client_program_days.date", format(weekEnd, "yyyy-MM-dd"));
+      if (error) throw error;
+      return (data ?? []) as unknown as ClientWeekModuleRow[];
     },
   });
 }

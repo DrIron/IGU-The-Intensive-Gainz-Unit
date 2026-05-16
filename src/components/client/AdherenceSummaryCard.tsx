@@ -1,13 +1,12 @@
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Activity, ChevronRight } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { Skeleton } from "@/components/ui/skeleton";
-import { startOfWeek, endOfWeek, format } from "date-fns";
+import { useClientWorkoutsWeek } from "@/hooks/useClientWorkouts";
 
 interface AdherenceSummaryCardProps {
   userId: string;
@@ -22,91 +21,47 @@ interface ModuleAdherence {
 
 export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
   const navigate = useNavigate();
-  const [overallPercent, setOverallPercent] = useState(0);
-  const [moduleBreakdown, setModuleBreakdown] = useState<ModuleAdherence[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: modulesData, isLoading } = useClientWorkoutsWeek(userId);
 
-  const fetchAdherenceData = useCallback(async () => {
-    try {
-      const weekStart = startOfWeek(new Date(), { weekStartsOn: 0 });
-      const weekEnd = endOfWeek(new Date(), { weekStartsOn: 0 });
+  // Derive overall % and per-module-type breakdown from hook data.
+  // Defensive completion check: `status === 'completed' || !!completed_at`
+  // catches a row where the trigger flipped completed_at but status didn't
+  // (or vice versa).
+  const { overallPercent, moduleBreakdown } = useMemo(() => {
+    const rows = modulesData ?? [];
+    if (rows.length === 0) {
+      return { overallPercent: 0, moduleBreakdown: [] as ModuleAdherence[] };
+    }
+    const isCompleted = (m: { status: string; completed_at: string | null }) =>
+      m.status === "completed" || !!m.completed_at;
 
-      // Get all modules for this week
-      const { data: modulesData, error } = await supabase
-        .from("client_day_modules")
-        .select(`
-          id,
-          module_type,
-          status,
-          client_program_days!inner (
-            date,
-            client_programs!inner (
-              user_id,
-              status
-            )
-          )
-        `)
-        .eq("client_program_days.client_programs.user_id", userId)
-        .eq("client_program_days.client_programs.status", "active")
-        .gte("client_program_days.date", format(weekStart, 'yyyy-MM-dd'))
-        .lte("client_program_days.date", format(weekEnd, 'yyyy-MM-dd'));
+    const completedTotal = rows.filter(isCompleted).length;
+    const totalModules = rows.length;
+    const overall = totalModules > 0
+      ? Math.round((completedTotal / totalModules) * 100)
+      : 0;
 
-      if (error) throw error;
+    const byType: Record<string, { completed: number; total: number }> = {};
+    for (const m of rows) {
+      const type = m.module_type;
+      if (!byType[type]) byType[type] = { completed: 0, total: 0 };
+      byType[type].total++;
+      if (isCompleted(m)) byType[type].completed++;
+    }
 
-      if (!modulesData || modulesData.length === 0) {
-        setOverallPercent(0);
-        setModuleBreakdown([]);
-        setLoading(false);
-        return;
-      }
-
-      // Calculate overall adherence
-      const completedTotal = modulesData.filter(m => m.status === 'completed').length;
-      const totalModules = modulesData.length;
-      setOverallPercent(totalModules > 0 ? Math.round((completedTotal / totalModules) * 100) : 0);
-
-      // Calculate per-module-type breakdown
-      const byType: Record<string, { completed: number; total: number }> = {};
-      
-      modulesData.forEach(m => {
-        const type = m.module_type;
-        if (!byType[type]) {
-          byType[type] = { completed: 0, total: 0 };
-        }
-        byType[type].total++;
-        if (m.status === 'completed') {
-          byType[type].completed++;
-        }
-      });
-
-      const breakdown: ModuleAdherence[] = Object.entries(byType).map(([type, data]) => ({
+    const breakdown: ModuleAdherence[] = Object.entries(byType)
+      .map(([type, data]) => ({
         module_type: type,
         completed: data.completed,
         total: data.total,
         percent: Math.round((data.completed / data.total) * 100),
-      }));
+      }))
+      .sort((a, b) => a.module_type.localeCompare(b.module_type));
 
-      // Sort by type name
-      breakdown.sort((a, b) => a.module_type.localeCompare(b.module_type));
-      setModuleBreakdown(breakdown);
+    return { overallPercent: overall, moduleBreakdown: breakdown };
+  }, [modulesData]);
 
-    } catch (error) {
-      console.error("Error fetching adherence data:", error);
-    } finally {
-      setLoading(false);
-    }
-  }, [userId]);
-
-  const hasFetched = useRef(false);
-
-  useEffect(() => {
-    // Wait for userId before locking hasFetched -- otherwise a first render
-    // with userId undefined fires a noop query and the next render with the
-    // real id is gated out (same pattern as NewClientOverview, Apr 26).
-    if (hasFetched.current || !userId) return;
-    hasFetched.current = true;
-    fetchAdherenceData();
-  }, [userId, fetchAdherenceData]);
+  const loading = isLoading;
 
   const getModuleTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
