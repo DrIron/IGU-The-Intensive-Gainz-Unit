@@ -1296,14 +1296,24 @@ function WorkoutSessionV2Content() {
     if (!swapExerciseId || !module) return;
 
     try {
-      // Get new exercise info
+      // Get new exercise info. .maybeSingle() so a row that's been deleted
+      // from the library since the picker rendered surfaces as null rather
+      // than a thrown PostgREST 406 — CLAUDE.md ".maybeSingle() vs .single()" rule.
       const { data: newExLib, error: exError } = await supabase
         .from("exercise_library")
         .select("name, primary_muscle, default_video_url")
         .eq("id", newExerciseId)
-        .single();
+        .maybeSingle();
 
       if (exError) throw exError;
+      if (!newExLib) {
+        toast({
+          title: "Exercise not found",
+          description: "It may have been removed from the library. Pick a different one.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Update the client_module_exercises record to point to new exercise
       const { error: updateError } = await supabase
@@ -1394,13 +1404,33 @@ function WorkoutSessionV2Content() {
       // Per CLAUDE.md: always destructure { error } on supabase mutations.
       // The prior version silently dropped RLS/constraint failures and let the
       // session runner render a "Progress saved" toast when nothing persisted.
-      for (const log of allLogs) {
-        const { error } = await supabase
-          .from("exercise_set_logs")
-          .upsert(log, {
+      //
+      // Parallel fan-out via Promise.allSettled (CLAUDE.md "Parallelize Supabase
+      // calls in loops" rule). Each upsert resolves rather than rejects on RLS
+      // denial — its error lives on .value.error, not in a rejection — so we
+      // tally both rejected promises AND fulfilled-with-error results.
+      const results = await Promise.allSettled(
+        allLogs.map((log) =>
+          supabase.from("exercise_set_logs").upsert(log, {
             onConflict: "client_module_exercise_id,set_index",
-          });
-        if (error) throw error;
+          }),
+        ),
+      );
+
+      const failures: unknown[] = [];
+      for (const r of results) {
+        if (r.status === "rejected") {
+          failures.push(r.reason);
+        } else if (r.value.error) {
+          failures.push(r.value.error);
+        }
+      }
+
+      if (failures.length > 0) {
+        // Surface the first failure through the existing catch handler so the
+        // toast + sanitizeErrorForUser flow renders unchanged. Binary UX
+        // (success | error) preserved per the original behavior.
+        throw failures[0];
       }
 
       toast({
