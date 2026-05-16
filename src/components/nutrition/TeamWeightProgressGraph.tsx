@@ -26,9 +26,9 @@ export function TeamWeightProgressGraph({ goal, weeklyProgress }: TeamWeightProg
     weekDate.setDate(weekDate.getDate() + week * 7);
 
     let predictedWeight: number = goal.starting_weight_kg;
-    if (goal.goal_type === 'loss' || goal.goal_type === 'fat_loss') {
+    if (goal.goal_type === 'fat_loss') {
       predictedWeight = goal.starting_weight_kg * Math.pow(1 - weeklyRateDecimal, week);
-    } else if (goal.goal_type === 'gain' || goal.goal_type === 'muscle_gain') {
+    } else if (goal.goal_type === 'muscle_gain') {
       // Convert monthly rate to weekly (same as client graph)
       const monthlyRate = weeklyRateDecimal / 4.33;
       predictedWeight = goal.starting_weight_kg * Math.pow(1 + monthlyRate, week);

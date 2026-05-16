@@ -285,9 +285,7 @@ function StatTile({
 function goalBadge(goalType: string): React.ReactNode {
   const map: Record<string, string> = {
     fat_loss: "Fat Loss",
-    loss: "Fat Loss",
     muscle_gain: "Muscle Gain",
-    gain: "Muscle Gain",
     maintenance: "Maintenance",
   };
   const label = map[goalType] ?? goalType;
