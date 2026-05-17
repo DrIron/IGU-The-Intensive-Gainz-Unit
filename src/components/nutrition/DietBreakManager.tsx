@@ -33,6 +33,13 @@ interface DietBreakManagerProps {
   phase: NutritionPhase;
   clientUserId: string;
   canEdit: boolean;
+  /**
+   * Past-phase guard. When true, all write affordances hide regardless of
+   * `canEdit` -- the row list still renders so coaches can review the
+   * history of breaks taken during the phase. NutritionTab passes
+   * `!selectedPhase.is_active` here.
+   */
+  isReadOnly?: boolean;
   onBreakUpdated?: () => void;
 }
 
@@ -40,8 +47,13 @@ export function DietBreakManager({
   phase,
   clientUserId,
   canEdit,
+  isReadOnly = false,
   onBreakUpdated,
 }: DietBreakManagerProps) {
+  // Single derived gate -- existing canEdit checks already hide the right
+  // affordances; AND'ing with !isReadOnly extends them for past phases
+  // without rewriting every conditional.
+  const canWrite = canEdit && !isReadOnly;
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -275,7 +287,7 @@ export function DietBreakManager({
             </CardTitle>
             <CardDescription>Schedule and manage diet break periods</CardDescription>
           </div>
-          {canEdit && (
+          {canWrite && (
             <ResponsiveDialog open={showDialog} onOpenChange={setShowDialog}>
               <ResponsiveDialogTrigger asChild>
                 <Button size="sm">
@@ -409,7 +421,7 @@ export function DietBreakManager({
                     {format(new Date(activeBreak.scheduled_end_date), 'MMM dd')}
                   </p>
                 </div>
-                {canEdit && (
+                {canWrite && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -446,7 +458,7 @@ export function DietBreakManager({
                     {dietBreak.reason && ` - ${dietBreak.reason}`}
                   </p>
                 </div>
-                {canEdit && (
+                {canWrite && (
                   <div className="flex gap-1">
                     <Button
                       size="sm"
@@ -500,7 +512,7 @@ export function DietBreakManager({
           <div className="text-center py-4 text-muted-foreground">
             <Coffee className="h-8 w-8 mx-auto mb-2 opacity-50" />
             <p className="text-sm">No diet breaks scheduled</p>
-            {canEdit && phase.diet_breaks_enabled && (
+            {canWrite && phase.diet_breaks_enabled && (
               <p className="text-xs mt-1">Click "Schedule Break" to plan one</p>
             )}
           </div>

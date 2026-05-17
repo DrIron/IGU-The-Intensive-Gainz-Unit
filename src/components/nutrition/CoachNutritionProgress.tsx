@@ -1,5 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { shouldApplyAdjustment } from "@/utils/nutritionCalculations";
@@ -25,10 +27,19 @@ interface CoachNutritionProgressProps {
     weekly_rate_percentage: number;
     goal_type: "fat_loss" | "muscle_gain" | "maintenance" | string;
   };
+  /**
+   * Past-phase guard. When true, the weekly read-out still renders so coaches
+   * can review what happened, but the four mutation handlers (create /
+   * approve / reject / delay) short-circuit with a toast. We can't hide the
+   * per-row buttons without modifying NutritionAdjustmentWeekCard (out of
+   * scope for this PR), so guarding at the handler boundary is the next-best
+   * defense -- combined with the banner above the grid.
+   */
+  isReadOnly?: boolean;
   onAdjustmentMade: () => void;
 }
 
-export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutritionProgressProps) {
+export function CoachNutritionProgress({ phase, isReadOnly = false, onAdjustmentMade }: CoachNutritionProgressProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [weeklyData, setWeeklyData] = useState<WeekSnapshot[]>([]);
@@ -106,10 +117,25 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
     ? phase.weekly_rate_percentage || 0
     : 0;
 
+  // Single guard called from every mutation handler. We can't hide the per-week
+  // action buttons without editing NutritionAdjustmentWeekCard (out of scope),
+  // so this is the failsafe: if a coach clicks a button on a past phase, the
+  // toast explains why nothing happened.
+  const blockIfReadOnly = (): boolean => {
+    if (!isReadOnly) return false;
+    toast({
+      title: "Phase ended",
+      description: "Adjustments on past phases are read-only.",
+      variant: "destructive",
+    });
+    return true;
+  };
+
   const handleCreateAdjustment = async (
     weekNumber: number,
     input: { calories: number; notes?: string; isDietBreak: boolean },
   ) => {
+    if (blockIfReadOnly()) return;
     const week = weeklyData.find((w) => w.weekNumber === weekNumber);
     if (!week) return;
 
@@ -181,6 +207,7 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
   };
 
   const handleApproveAdjustment = async (weekNumber: number) => {
+    if (blockIfReadOnly()) return;
     const week = weeklyData.find((w) => w.weekNumber === weekNumber);
     if (!week?.adjustment) return;
     try {
@@ -214,6 +241,7 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
   };
 
   const handleRejectAdjustment = async (weekNumber: number) => {
+    if (blockIfReadOnly()) return;
     const week = weeklyData.find((w) => w.weekNumber === weekNumber);
     if (!week?.adjustment) return;
     try {
@@ -230,6 +258,7 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
   };
 
   const handleDelayWeek = async (weekNumber: number) => {
+    if (blockIfReadOnly()) return;
     try {
       setLoading(true);
       const { error } = await supabase.from("nutrition_adjustments").insert({
@@ -280,6 +309,15 @@ export function CoachNutritionProgress({ phase, onAdjustmentMade }: CoachNutriti
 
   return (
     <div className="space-y-4">
+      {isReadOnly && (
+        <Alert>
+          <Lock className="h-4 w-4" />
+          <AlertDescription>
+            This phase has ended. The weekly read-out is shown for reference; new adjustments
+            cannot be created or approved on past phases.
+          </AlertDescription>
+        </Alert>
+      )}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {weeklyData.map((week) => (
           <NutritionAdjustmentWeekCard

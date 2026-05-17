@@ -23,13 +23,18 @@ export function CoachNutritionGraphs({ phase }: CoachNutritionGraphsProps) {
     try {
       setLoading(true);
 
-      // body_fat_logs is keyed by user, not phase -- scope to entries on/after
-      // phase.start_date so older history from earlier phases doesn't leak in.
+      // body_fat_logs is keyed by user, not phase. Bound below by phase.start_date
+      // AND above by phase.completed_at / phase.end_date when the phase has
+      // ended -- otherwise later-phase logs leak into a past-phase view. For an
+      // active phase, the upper bound is `now`.
+      const bodyFatUpperBound =
+        phase.completed_at ?? phase.end_date ?? new Date().toISOString();
+
       const [weightsRes, circumRes, adjustmentsRes, bodyFatRes] = await Promise.all([
         supabase.from('weight_logs').select('*').eq('phase_id', phase.id).order('log_date', { ascending: true }),
         supabase.from('circumference_logs').select('*').eq('phase_id', phase.id).order('log_date', { ascending: true }),
         supabase.from('nutrition_adjustments').select('*').eq('phase_id', phase.id).eq('status', 'approved').order('week_number', { ascending: true }),
-        supabase.from('body_fat_logs').select('log_date, body_fat_percentage, method').eq('user_id', phase.user_id).gte('log_date', phase.start_date).order('log_date', { ascending: true }),
+        supabase.from('body_fat_logs').select('log_date, body_fat_percentage, method').eq('user_id', phase.user_id).gte('log_date', phase.start_date).lte('log_date', bodyFatUpperBound).order('log_date', { ascending: true }),
       ]);
 
       const weights = weightsRes.data || [];

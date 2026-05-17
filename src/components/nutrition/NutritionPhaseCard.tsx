@@ -8,11 +8,14 @@ import { cn } from "@/lib/utils";
 import { differenceInCalendarWeeks } from "date-fns";
 
 /**
- * Hero overview card for a client's active nutrition phase. Follows the
+ * Hero overview card for a client's nutrition phase. Follows the
  * Planning Board StudioSlotCard vocabulary: one large monospace hero line,
  * a thin status rail, minimal decoration, typography carries the weight.
  *
  * The "status" derives from actual vs expected weekly rate:
+ *   - Completed (slate)  phase has ended (is_active === false). Takes
+ *                        precedence -- past phases get a neutral badge
+ *                        regardless of the underlying rate math.
  *   - On Track  (green)  |deviation| <= 30%
  *   - Ahead     (amber)  overshooting goal (e.g. losing faster than planned)
  *   - Behind    (red)    undershooting goal
@@ -31,6 +34,13 @@ interface NutritionPhaseCardProps {
     weekly_rate_percentage: number;
     target_weight_kg: number | null;
     starting_weight_kg: number;
+    // Past-phase signals -- optional so existing callers that pass a partial
+    // phase shape still compile. When `is_active === false` the card switches
+    // to a "Completed" badge and caps the week counter at completed_at /
+    // end_date instead of letting it climb forever.
+    is_active?: boolean;
+    completed_at?: string | null;
+    end_date?: string | null;
   };
   /** Average weight from the most recent week with weigh-ins (null if none). */
   latestAverageWeight?: number | null;
@@ -49,7 +59,7 @@ const GOAL_LABELS: Record<string, string> = {
   maintenance: "Maintenance",
 };
 
-type Status = "on_track" | "ahead" | "behind" | "no_data";
+type Status = "completed" | "on_track" | "ahead" | "behind" | "no_data";
 
 export function NutritionPhaseCard({
   phase,
@@ -64,14 +74,23 @@ export function NutritionPhaseCard({
     if (weeksElapsed != null) return weeksElapsed;
     try {
       const start = new Date(phase.start_date);
-      return Math.max(1, differenceInCalendarWeeks(new Date(), start) + 1);
+      // Cap the week counter at the phase's end for past phases -- otherwise a
+      // phase that ended 6 months ago keeps incrementing to "Week 38".
+      const upperBoundIso =
+        phase.is_active === false ? phase.completed_at ?? phase.end_date ?? null : null;
+      const upper = upperBoundIso ? new Date(upperBoundIso) : new Date();
+      return Math.max(1, differenceInCalendarWeeks(upper, start) + 1);
     } catch {
       return 1;
     }
-  }, [phase.start_date, weeksElapsed]);
+  }, [phase.start_date, phase.is_active, phase.completed_at, phase.end_date, weeksElapsed]);
 
   const goalType = phase.goal_type;
   const status: Status = useMemo(() => {
+    // Completed takes precedence over rate-derived status. Past phases shouldn't
+    // surface on_track / behind based on the most recent in-phase delta -- the
+    // phase is over, the badge should reflect that.
+    if (phase.is_active === false) return "completed";
     if (latestActualChangePercent == null) return "no_data";
     const expected = phase.weekly_rate_percentage;
     // Maintenance: "on track" if actual stayed within +-0.25% of zero.
@@ -87,7 +106,7 @@ export function NutritionPhaseCard({
       return latestActualChangePercent < signedExpected ? "ahead" : "behind";
     }
     return latestActualChangePercent > signedExpected ? "ahead" : "behind";
-  }, [latestActualChangePercent, goalType, phase.weekly_rate_percentage]);
+  }, [phase.is_active, latestActualChangePercent, goalType, phase.weekly_rate_percentage]);
 
   const goalLabel = GOAL_LABELS[goalType] || goalType;
   const expectedLabel = phase.weekly_rate_percentage?.toFixed(2) ?? "0.00";
@@ -102,6 +121,7 @@ export function NutritionPhaseCard({
             aria-hidden
             className={cn(
               "w-1 shrink-0",
+              status === "completed" && "bg-slate-400 dark:bg-slate-500",
               status === "on_track" && "bg-emerald-500",
               status === "ahead" && "bg-amber-500",
               status === "behind" && "bg-destructive",
@@ -193,6 +213,7 @@ export function NutritionPhaseCard({
 
 function StatusBadge({ status }: { status: Status }) {
   const map: Record<Status, { label: string; classes: string }> = {
+    completed: { label: "Completed", classes: "border-slate-400/50 bg-slate-400/10 text-slate-600 dark:border-slate-500/50 dark:bg-slate-500/10 dark:text-slate-300" },
     on_track: { label: "On Track", classes: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" },
     ahead: { label: "Ahead", classes: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400" },
     behind: { label: "Behind", classes: "border-destructive/40 bg-destructive/10 text-destructive" },

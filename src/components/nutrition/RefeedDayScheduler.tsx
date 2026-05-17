@@ -33,6 +33,13 @@ interface RefeedDaySchedulerProps {
   phase: NutritionPhase;
   clientUserId: string;
   canEdit: boolean;
+  /**
+   * Past-phase guard. When true, all write affordances hide regardless of
+   * `canEdit`. The calendar + history rows still render so coaches can
+   * review what was scheduled during the phase. NutritionTab passes
+   * `!selectedPhase.is_active` here.
+   */
+  isReadOnly?: boolean;
   maintenanceCalories?: number;
   onRefeedUpdated?: () => void;
 }
@@ -41,9 +48,12 @@ export function RefeedDayScheduler({
   phase,
   clientUserId,
   canEdit,
+  isReadOnly = false,
   maintenanceCalories,
   onRefeedUpdated,
 }: RefeedDaySchedulerProps) {
+  // Single derived gate -- same pattern as DietBreakManager.
+  const canWrite = canEdit && !isReadOnly;
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -277,7 +287,7 @@ export function RefeedDayScheduler({
             </CardTitle>
             <CardDescription>Schedule high-carb refeed days</CardDescription>
           </div>
-          {canEdit && (
+          {canWrite && (
             <ResponsiveDialog open={showScheduleDialog} onOpenChange={setShowScheduleDialog}>
               <ResponsiveDialogTrigger asChild>
                 <Button size="sm">
@@ -452,7 +462,7 @@ export function RefeedDayScheduler({
                     {refeed.target_calories} kcal | P: {refeed.target_protein_g}g F: {refeed.target_fat_g}g C: {refeed.target_carb_g}g
                   </p>
                 </div>
-                {canEdit && isPast(new Date(refeed.scheduled_date)) && (
+                {canWrite && isPast(new Date(refeed.scheduled_date)) && (
                   <div className="flex gap-1">
                     <Button
                       size="sm"
