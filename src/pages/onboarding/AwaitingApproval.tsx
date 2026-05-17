@@ -85,15 +85,25 @@ export default function AwaitingApproval() {
         setNeedsCoachAssignment(true);
         setCoach(null);
       } else if (sub?.coach_id) {
-        // Fetch coach info from the client-safe view
-        const { data: coachData } = await supabase
-          .from("coaches_client_safe")
-          .select("first_name, last_name, profile_picture_url")
-          .eq("user_id", sub.coach_id)
-          .maybeSingle();
+        // Fetch coach info via the get_coach_for_client RPC. The
+        // coaches_client_safe view returns 0 rows to clients (RLS on the
+        // underlying coaches table denies their SELECT). See migration
+        // 20260517104551.
+        const { data: coachJson } = await supabase.rpc("get_coach_for_client", {
+          p_coach_user_id: sub.coach_id,
+        });
+        const coachData = coachJson as {
+          first_name?: string;
+          last_name?: string | null;
+          profile_picture_url?: string | null;
+        } | null;
 
         if (coachData) {
-          setCoach(coachData);
+          setCoach({
+            first_name: coachData.first_name ?? "",
+            last_name: coachData.last_name ?? null,
+            profile_picture_url: coachData.profile_picture_url ?? null,
+          });
           setNeedsCoachAssignment(false);
         }
       }

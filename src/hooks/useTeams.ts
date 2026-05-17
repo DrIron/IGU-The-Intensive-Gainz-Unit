@@ -66,12 +66,18 @@ export function useTeams(options: UseTeamsOptions = {}) {
 
       const enriched: EnrichedTeam[] = await Promise.all(
         (teamsData || []).map(async (team) => {
-          // Coach name + avatar from coaches_client_safe
-          const { data: coach } = await supabase
-            .from("coaches_client_safe")
-            .select("first_name, last_name, profile_picture_url")
-            .eq("user_id", team.coach_id)
-            .maybeSingle();
+          // Coach name + avatar via get_coach_for_client RPC. The
+          // coaches_client_safe view returns 0 rows to clients (RLS on the
+          // underlying coaches table denies their SELECT); the RPC is the
+          // sanctioned client-side accessor. See migration 20260517104551.
+          const { data: coachJson } = await supabase.rpc("get_coach_for_client", {
+            p_coach_user_id: team.coach_id,
+          });
+          const coach = coachJson as {
+            first_name?: string;
+            last_name?: string | null;
+            profile_picture_url?: string | null;
+          } | null;
 
           // Member count from subscriptions
           const { count } = await supabase
