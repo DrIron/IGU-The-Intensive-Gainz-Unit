@@ -25,7 +25,7 @@ import { Loader2, UserPlus, CheckCircle2 } from "lucide-react";
 interface Service {
   id: string;
   name: string;
-  service_type: string;
+  type: string;
 }
 
 interface InviteClientDialogProps {
@@ -54,9 +54,13 @@ export function InviteClientDialog({
     if (!open) return;
     // Load services the coach can invite for:
     // - 1:1 services always; team only if head coach
+    //
+    // Column is `services.type` (the enum is named `service_type` — easy to
+    // confuse). Querying `service_type` returns PostgREST 400 and silently
+    // empties the dropdown — smoke-tested on 2026-05-17.
     supabase
       .from("services")
-      .select("id, name, service_type")
+      .select("id, name, type")
       .eq("is_active", true)
       .then(({ data, error }) => {
         if (error) {
@@ -69,15 +73,15 @@ export function InviteClientDialog({
         }
         if (!data) return;
         const filtered = data.filter((s) => {
-          if (s.service_type === "team_plan") return isHeadCoach;
+          if (s.type === "team_plan") return isHeadCoach;
           // Only 1:1 service types (exclude any pure team/squad variants)
           return (
-            s.service_type === "one_to_one_online" ||
-            s.service_type === "one_to_one_complete" ||
-            s.service_type === "hybrid" ||
-            s.service_type === "in_person" ||
+            s.type === "one_to_one_online" ||
+            s.type === "one_to_one_complete" ||
+            s.type === "hybrid" ||
+            s.type === "in_person" ||
             // fallback: include any non-team service
-            s.service_type !== "team_plan"
+            s.type !== "team_plan"
           );
         });
         setServices(filtered);
