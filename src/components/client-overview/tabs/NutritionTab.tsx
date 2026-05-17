@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
 import { NutritionPhaseCard } from "@/components/nutrition/NutritionPhaseCard";
+import { PhaseSwitcher } from "@/components/nutrition/PhaseSwitcher";
 import { NutritionPermissionGate } from "@/components/nutrition/NutritionPermissionGate";
 import { CoachNutritionGoal } from "@/components/nutrition/CoachNutritionGoal";
 import { CoachNutritionProgress } from "@/components/nutrition/CoachNutritionProgress";
@@ -33,73 +34,108 @@ interface PhaseStats {
  */
 export function NutritionTab({ context }: ClientOverviewTabProps) {
   const { clientUserId } = context;
-  const [activePhase, setActivePhase] = useState<any>(null);
+  // All phases for the client. Ordered active-first, then start_date DESC --
+  // PhaseSwitcher renders them in receipt order. The shell used to load only
+  // the active phase; now it loads the full history and lets the coach pick.
+  const [phases, setPhases] = useState<any[]>([]);
+  const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(null);
   const [phaseStats, setPhaseStats] = useState<PhaseStats | null>(null);
   const hasFetched = useRef<string | null>(null);
 
-  const loadClientPhase = useCallback(async () => {
+  // Stable identity so the phase-stats effect doesn't refire on every render.
+  const selectedPhase = useMemo(
+    () => phases.find((p) => p.id === selectedPhaseId) ?? null,
+    [phases, selectedPhaseId],
+  );
+
+  const loadClientPhases = useCallback(async () => {
     if (!clientUserId) return;
 
-    // TODO: completed phases not visible from the shell. Legacy
-    // /coach-client-nutrition exposed a phase-status filter; the shell
-    // currently only loads the active phase. Surface as a phase-history
-    // selector or admin-tab if coaches ask for it.
-    const { data: phaseData, error } = await supabase
+    const { data, error } = await supabase
       .from("nutrition_phases")
       .select("*")
       .eq("user_id", clientUserId)
-      .eq("is_active", true)
-      .order("created_at", { ascending: false })
-      .maybeSingle();
+      .order("is_active", { ascending: false }) // active first
+      .order("start_date", { ascending: false }); // then most recent
 
     if (error) {
-      console.error("[NutritionTab] load phase:", error.message);
+      console.error("[NutritionTab] load phases:", error.message);
       return;
     }
 
-    setActivePhase(phaseData);
-
-    if (!phaseData) {
-      setPhaseStats(null);
-      return;
-    }
-
-    const weeksSinceStart =
-      Math.floor((Date.now() - new Date(phaseData.start_date).getTime()) / (7 * 24 * 60 * 60 * 1000)) + 1;
-
-    const [{ data: latestWeight }, { data: adjustments }] = await Promise.all([
-      supabase
-        .from("weight_logs")
-        .select("weight_kg")
-        .eq("phase_id", phaseData.id)
-        .order("log_date", { ascending: false })
-        .limit(1)
-        .maybeSingle(),
-      supabase
-        .from("nutrition_adjustments")
-        .select("id")
-        .eq("phase_id", phaseData.id)
-        .eq("status", "pending"),
-    ]);
-
-    setPhaseStats({
-      currentWeek: weeksSinceStart,
-      currentWeight: latestWeight?.weight_kg,
-      pendingAdjustments: adjustments?.length ?? 0,
-    });
+    const list = data ?? [];
+    setPhases(list);
+    // Always snap to the first phase (active if any, else most recent). After
+    // a coach saves/creates a phase the list reloads via onPhaseUpdated, and
+    // re-snapping ensures the new active phase is what they see -- matches
+    // the pre-switcher behavior where the active phase was always the focus.
+    setSelectedPhaseId(list[0]?.id ?? null);
   }, [clientUserId]);
 
   useEffect(() => {
     if (hasFetched.current === clientUserId) return;
     hasFetched.current = clientUserId;
-    loadClientPhase();
-  }, [clientUserId, loadClientPhase]);
+    loadClientPhases();
+  }, [clientUserId, loadClientPhases]);
+
+  // Recompute stats whenever the selected phase changes. Stats are
+  // phase-scoped (weeks since *that* phase's start, weight logs and pending
+  // adjustments keyed on *that* phase_id), so switching phases swaps the
+  // stats payload too.
+  useEffect(() => {
+    let cancelled = false;
+    if (!selectedPhase) {
+      setPhaseStats(null);
+      return;
+    }
+
+    const run = async () => {
+      const weeksSinceStart =
+        Math.floor(
+          (Date.now() - new Date(selectedPhase.start_date).getTime()) /
+            (7 * 24 * 60 * 60 * 1000),
+        ) + 1;
+
+      const [{ data: latestWeight }, { data: adjustments }] = await Promise.all([
+        supabase
+          .from("weight_logs")
+          .select("weight_kg")
+          .eq("phase_id", selectedPhase.id)
+          .order("log_date", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase
+          .from("nutrition_adjustments")
+          .select("id")
+          .eq("phase_id", selectedPhase.id)
+          .eq("status", "pending"),
+      ]);
+
+      if (cancelled) return;
+      setPhaseStats({
+        currentWeek: weeksSinceStart,
+        currentWeight: latestWeight?.weight_kg,
+        pendingAdjustments: adjustments?.length ?? 0,
+      });
+    };
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedPhase]);
 
   return (
     <div className="space-y-6">
-      {activePhase && (
+      <PhaseSwitcher
+        phases={phases}
+        selectedPhaseId={selectedPhaseId}
+        onSelect={setSelectedPhaseId}
+      />
+
+      {selectedPhase && (
         <NutritionPhaseCard
-          phase={activePhase}
+          phase={selectedPhase}
           weeksElapsed={phaseStats?.currentWeek}
           latestAverageWeight={phaseStats?.currentWeight}
           onScrollToAdjustments={() => {
@@ -120,8 +156,8 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
           <NutritionPermissionGate clientUserId={clientUserId}>
             <CoachNutritionGoal
               clientUserId={clientUserId}
-              phase={activePhase}
-              onPhaseUpdated={loadClientPhase}
+              phase={selectedPhase}
+              onPhaseUpdated={loadClientPhases}
             />
           </NutritionPermissionGate>
 
@@ -131,7 +167,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
               <StepRecommendationCard
                 clientUserId={clientUserId}
                 canEdit
-                onRecommendationUpdated={loadClientPhase}
+                onRecommendationUpdated={loadClientPhases}
               />
             </NutritionPermissionGate>
           </div>
@@ -139,25 +175,25 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
 
         <TabsContent value="adjustments" className="space-y-6">
           <div id="nutrition-adjustments" />
-          {activePhase ? (
+          {selectedPhase ? (
             <>
-              <CoachNutritionProgress phase={activePhase} onAdjustmentMade={loadClientPhase} />
-              <ScheduledEventsCalendar phaseId={activePhase.id} />
+              <CoachNutritionProgress phase={selectedPhase} onAdjustmentMade={loadClientPhases} />
+              <ScheduledEventsCalendar phaseId={selectedPhase.id} />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <NutritionPermissionGate clientUserId={clientUserId}>
                   <DietBreakManager
-                    phase={activePhase}
+                    phase={selectedPhase}
                     clientUserId={clientUserId}
                     canEdit
-                    onBreakUpdated={loadClientPhase}
+                    onBreakUpdated={loadClientPhases}
                   />
                 </NutritionPermissionGate>
                 <NutritionPermissionGate clientUserId={clientUserId}>
                   <RefeedDayScheduler
-                    phase={activePhase}
+                    phase={selectedPhase}
                     clientUserId={clientUserId}
                     canEdit
-                    onRefeedUpdated={loadClientPhase}
+                    onRefeedUpdated={loadClientPhases}
                   />
                 </NutritionPermissionGate>
               </div>
@@ -172,10 +208,10 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
         </TabsContent>
 
         <TabsContent value="history" className="space-y-6">
-          {activePhase ? (
+          {selectedPhase ? (
             <>
-              <CoachNutritionGraphs phase={activePhase} />
-              <CoachNutritionNotes phase={activePhase} />
+              <CoachNutritionGraphs phase={selectedPhase} />
+              <CoachNutritionNotes phase={selectedPhase} />
             </>
           ) : (
             <Card>
