@@ -294,9 +294,16 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
         // Deactivate old phases -- without the { error } destructure, an RLS
         // denial here returns 0 rows with no exception, the insert proceeds,
         // and the coach sees a success toast for a save that never happened.
+        // completed_at + end_date share one timestamp so the two columns stay
+        // aligned with the backfill migration's invariant.
+        const deactivationTimestamp = new Date().toISOString();
         const { error: deactivateError } = await supabase
           .from('nutrition_phases')
-          .update({ is_active: false })
+          .update({
+            is_active: false,
+            completed_at: deactivationTimestamp,
+            end_date: deactivationTimestamp,
+          })
           .eq('user_id', clientUserId)
           .eq('is_active', true);
 
