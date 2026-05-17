@@ -1461,14 +1461,34 @@ function WorkoutSessionV2Content() {
       // Destructure { error } per CLAUDE.md — silently swallowing an RLS
       // failure here would invalidate the cache as fresh while the module
       // never actually completed (worse than the original stale read).
-      const { error: completeErr } = await supabase
+      //
+      // .select("id") is load-bearing: without it, an auth-mid-refresh
+      // collision returns { data: null, error: null } (CLAUDE.md "RLS denials
+      // are silent on .update()") and the success branch fires while
+      // client_day_modules.status stays 'scheduled'. With .select() that same
+      // collision returns an empty array, which we detect below.
+      // Repro path: 2026-05-17 — 84 `_refreshAccessToken` "Failed to fetch"
+      // errors during click → navigate, module orphaned with 11/11 sets
+      // logged but status unchanged. See memory/project_workout_complete_silent_fail.md.
+      const { data: completedRows, error: completeErr } = await supabase
         .from("client_day_modules")
         .update({
           status: "completed",
           completed_at: new Date().toISOString(),
         })
-        .eq("id", module.id);
+        .eq("id", module.id)
+        .select("id");
       if (completeErr) throw completeErr;
+
+      if (!completedRows || completedRows.length === 0) {
+        toast({
+          title: "Couldn't mark complete",
+          description:
+            "Your session may have expired -- please refresh and try again. Your set logs are saved.",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Invalidate client-side workout views so TodaysWorkoutHero and
       // WorkoutCalendar refresh within ~1s of return without manual refresh.
