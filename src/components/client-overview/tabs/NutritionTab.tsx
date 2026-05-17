@@ -48,6 +48,10 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
     [phases, selectedPhaseId],
   );
 
+  // Past-phase guard threaded to every writeable child. Defaults to false when
+  // no phase is selected (the empty-state UI handles that case separately).
+  const isReadOnly = selectedPhase ? !selectedPhase.is_active : false;
+
   const loadClientPhases = useCallback(async () => {
     if (!clientUserId) return;
 
@@ -157,6 +161,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
             <CoachNutritionGoal
               clientUserId={clientUserId}
               phase={selectedPhase}
+              isReadOnly={isReadOnly}
               onPhaseUpdated={loadClientPhases}
             />
           </NutritionPermissionGate>
@@ -177,7 +182,11 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
           <div id="nutrition-adjustments" />
           {selectedPhase ? (
             <>
-              <CoachNutritionProgress phase={selectedPhase} onAdjustmentMade={loadClientPhases} />
+              <CoachNutritionProgress
+                phase={selectedPhase}
+                isReadOnly={isReadOnly}
+                onAdjustmentMade={loadClientPhases}
+              />
               <ScheduledEventsCalendar phaseId={selectedPhase.id} />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <NutritionPermissionGate clientUserId={clientUserId}>
@@ -185,6 +194,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
                     phase={selectedPhase}
                     clientUserId={clientUserId}
                     canEdit
+                    isReadOnly={isReadOnly}
                     onBreakUpdated={loadClientPhases}
                   />
                 </NutritionPermissionGate>
@@ -193,6 +203,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
                     phase={selectedPhase}
                     clientUserId={clientUserId}
                     canEdit
+                    isReadOnly={isReadOnly}
                     onRefeedUpdated={loadClientPhases}
                   />
                 </NutritionPermissionGate>

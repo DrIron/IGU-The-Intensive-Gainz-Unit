@@ -22,10 +22,23 @@ import { calculateNutritionGoals, type GoalType } from "@/utils/nutritionCalcula
 interface CoachNutritionGoalProps {
   clientUserId: string;
   phase: any;
+  /**
+   * Past-phase guard. When true, the form is replaced with a small
+   * "view only" notice and no editable controls render. Disabled buttons
+   * invite mis-clicks; hiding the form removes the ambiguity entirely.
+   * NutritionTab passes `!selectedPhase.is_active` here when viewing a
+   * past phase via PhaseSwitcher.
+   */
+  isReadOnly?: boolean;
   onPhaseUpdated: () => void;
 }
 
-export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: CoachNutritionGoalProps) {
+export function CoachNutritionGoal({
+  clientUserId,
+  phase,
+  isReadOnly = false,
+  onPhaseUpdated,
+}: CoachNutritionGoalProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const demographics = useClientDemographics(clientUserId);
@@ -334,6 +347,23 @@ export function CoachNutritionGoal({ clientUserId, phase, onPhaseUpdated }: Coac
   };
 
   const macros = formData.startingWeight ? calculateMacros() : null;
+
+  // Past-phase view: the whole form is replaced with a tiny notice. We never
+  // want a coach editing a completed phase's macros / start date / etc. --
+  // even RLS would let the write through, since the row predates `is_active`
+  // becoming a guard. Hiding the form is the unambiguous fix.
+  if (isReadOnly) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>{phase?.phase_name ?? "Nutrition Phase"}</CardTitle>
+          <CardDescription>
+            This phase has ended -- view only. Switch to the active phase to edit goals.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   return (
     <Card>
