@@ -1437,6 +1437,54 @@ export type Database = {
           },
         ]
       }
+      coach_content_assignments: {
+        Row: {
+          assigned_at: string
+          client_id: string
+          coach_id: string
+          due_by: string | null
+          id: string
+          note: string | null
+          playlist_id: string | null
+          video_id: string | null
+        }
+        Insert: {
+          assigned_at?: string
+          client_id: string
+          coach_id: string
+          due_by?: string | null
+          id?: string
+          note?: string | null
+          playlist_id?: string | null
+          video_id?: string | null
+        }
+        Update: {
+          assigned_at?: string
+          client_id?: string
+          coach_id?: string
+          due_by?: string | null
+          id?: string
+          note?: string | null
+          playlist_id?: string | null
+          video_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_content_assignments_playlist_id_fkey"
+            columns: ["playlist_id"]
+            isOneToOne: false
+            referencedRelation: "video_playlists"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coach_content_assignments_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "educational_videos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coach_content_completions: {
         Row: {
           coach_user_id: string
@@ -1658,6 +1706,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      coach_refactor_conflicts: {
+        Row: {
+          coaches_public_value: string | null
+          coaches_value: string | null
+          column_name: string
+          created_at: string
+          id: string
+          resolved_at: string | null
+          resolved_by: string | null
+          resolved_value: string | null
+          user_id: string
+        }
+        Insert: {
+          coaches_public_value?: string | null
+          coaches_value?: string | null
+          column_name: string
+          created_at?: string
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_value?: string | null
+          user_id: string
+        }
+        Update: {
+          coaches_public_value?: string | null
+          coaches_value?: string | null
+          column_name?: string
+          created_at?: string
+          id?: string
+          resolved_at?: string | null
+          resolved_by?: string | null
+          resolved_value?: string | null
+          user_id?: string
+        }
+        Relationships: []
       }
       coach_service_limits: {
         Row: {
@@ -2014,7 +2098,7 @@ export type Database = {
           display_name?: string | null
           first_name: string
           head_coach_specialisation?: string | null
-          id: string
+          id?: string
           instagram_url?: string | null
           is_head_coach?: boolean
           last_assigned_at?: string | null
@@ -2645,6 +2729,7 @@ export type Database = {
           created_at: string | null
           created_by: string | null
           description: string | null
+          duration_seconds: number | null
           id: string
           is_active: boolean | null
           is_free_preview: boolean | null
@@ -2652,6 +2737,8 @@ export type Database = {
           module: string | null
           order_index: number | null
           prerequisite_video_id: string | null
+          required_for_role: string | null
+          required_service_ids: string[] | null
           requires_completion: boolean | null
           storage_bucket: string | null
           storage_path: string | null
@@ -2665,6 +2752,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           description?: string | null
+          duration_seconds?: number | null
           id?: string
           is_active?: boolean | null
           is_free_preview?: boolean | null
@@ -2672,6 +2760,8 @@ export type Database = {
           module?: string | null
           order_index?: number | null
           prerequisite_video_id?: string | null
+          required_for_role?: string | null
+          required_service_ids?: string[] | null
           requires_completion?: boolean | null
           storage_bucket?: string | null
           storage_path?: string | null
@@ -2685,6 +2775,7 @@ export type Database = {
           created_at?: string | null
           created_by?: string | null
           description?: string | null
+          duration_seconds?: number | null
           id?: string
           is_active?: boolean | null
           is_free_preview?: boolean | null
@@ -2692,6 +2783,8 @@ export type Database = {
           module?: string | null
           order_index?: number | null
           prerequisite_video_id?: string | null
+          required_for_role?: string | null
+          required_service_ids?: string[] | null
           requires_completion?: boolean | null
           storage_bucket?: string | null
           storage_path?: string | null
@@ -6528,45 +6621,6 @@ export type Database = {
           },
         ]
       }
-      video_entitlements: {
-        Row: {
-          created_at: string
-          id: string
-          service_id: string
-          tier: string | null
-          video_id: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          service_id: string
-          tier?: string | null
-          video_id: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          service_id?: string
-          tier?: string | null
-          video_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "video_entitlements_service_id_fkey"
-            columns: ["service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "video_entitlements_video_id_fkey"
-            columns: ["video_id"]
-            isOneToOne: false
-            referencedRelation: "educational_videos"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       video_playlists: {
         Row: {
           created_at: string
@@ -6834,12 +6888,10 @@ export type Database = {
       }
       coaches_directory: {
         Row: {
+          approved_subroles: Json | null
           bio: string | null
-          coach_level: Database["public"]["Enums"]["professional_level"] | null
           display_name: string | null
           first_name: string | null
-          head_coach_specialisation: string | null
-          is_head_coach: boolean | null
           last_name: string | null
           location: string | null
           nickname: string | null
@@ -6852,12 +6904,10 @@ export type Database = {
           user_id: string | null
         }
         Insert: {
+          approved_subroles?: never
           bio?: string | null
-          coach_level?: Database["public"]["Enums"]["professional_level"] | null
           display_name?: string | null
           first_name?: string | null
-          head_coach_specialisation?: string | null
-          is_head_coach?: boolean | null
           last_name?: string | null
           location?: string | null
           nickname?: string | null
@@ -6870,12 +6920,10 @@ export type Database = {
           user_id?: string | null
         }
         Update: {
+          approved_subroles?: never
           bio?: string | null
-          coach_level?: Database["public"]["Enums"]["professional_level"] | null
           display_name?: string | null
           first_name?: string | null
-          head_coach_specialisation?: string | null
-          is_head_coach?: boolean | null
           last_name?: string | null
           location?: string | null
           nickname?: string | null
@@ -7102,7 +7150,9 @@ export type Database = {
         Args: { p_discount_percentage?: number; p_subscription_id: string }
         Returns: Json
       }
-      can_access_video: { Args: { p_video_id: string }; Returns: boolean }
+      can_access_video:
+        | { Args: { p_user_id: string; p_video_id: string }; Returns: boolean }
+        | { Args: { p_video_id: string }; Returns: boolean }
       can_assign_workouts: { Args: { p_user_id: string }; Returns: boolean }
       can_build_programs: { Args: { p_user_id: string }; Returns: boolean }
       can_edit_nutrition: {
@@ -7178,6 +7228,10 @@ export type Database = {
       encrypt_phi_boolean: { Args: { bool_value: boolean }; Returns: string }
       encrypt_phi_date: { Args: { date_value: string }; Returns: string }
       encrypt_phi_text: { Args: { plain_text: string }; Returns: string }
+      extract_video_thumbnail: {
+        Args: { p_type: string; p_url: string }
+        Returns: string
+      }
       get_active_care_team_for_date: {
         Args: { p_day_date: string; p_subscription_id: string }
         Returns: {
@@ -7237,6 +7291,24 @@ export type Database = {
           total_clients: number
         }[]
       }
+      get_coach_assignment_progress: {
+        Args: never
+        Returns: {
+          assigned_at: string
+          assignment_id: string
+          client_display_name: string
+          client_first_name: string
+          client_id: string
+          client_subscription_status: string
+          due_by: string
+          is_completed: boolean
+          note: string
+          playlist_id: string
+          playlist_title: string
+          video_id: string
+          video_title: string
+        }[]
+      }
       get_coach_client_tenure: {
         Args: { p_client_uid: string; p_coach_uid: string }
         Returns: {
@@ -7247,6 +7319,7 @@ export type Database = {
           started_at: string
         }[]
       }
+      get_coach_for_client: { Args: { p_coach_user_id: string }; Returns: Json }
       get_decrypted_form_submission: {
         Args: { submission_id: string }
         Returns: {
@@ -7274,6 +7347,7 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_default_admin_coach_user_id: { Args: never; Returns: string }
       get_default_column_config: { Args: { p_coach_id: string }; Returns: Json }
       get_educational_videos_with_access: {
         Args: never
@@ -7282,10 +7356,16 @@ export type Database = {
           category: string
           created_at: string
           description: string
+          duration_seconds: number
           id: string
+          is_assigned_by_coach: boolean
           is_completed: boolean
           is_free_preview: boolean
           is_pinned: boolean
+          is_required: boolean
+          last_accessed_at: string
+          prerequisite_title: string
+          thumbnail_url: string
           title: string
         }[]
       }
@@ -7322,6 +7402,20 @@ export type Database = {
       get_module_owner_from_thread: {
         Args: { p_thread_id: string }
         Returns: string
+      }
+      get_my_assignable_clients: {
+        Args: never
+        Returns: {
+          client_id: string
+          display_name: string
+          first_name: string
+        }[]
+      }
+      get_my_assigned_playlists: {
+        Args: never
+        Returns: {
+          playlist_id: string
+        }[]
       }
       get_my_coach_profile: {
         Args: never
@@ -7394,6 +7488,23 @@ export type Database = {
       }
       get_my_roles: { Args: never; Returns: string[] }
       get_phi_encryption_key: { Args: never; Returns: string }
+      get_playlist_videos_with_access: {
+        Args: { p_playlist_id: string }
+        Returns: {
+          access_state: string
+          category: string
+          description: string
+          duration_seconds: number
+          is_completed: boolean
+          is_free_preview: boolean
+          is_pinned: boolean
+          order_number: number
+          playlist_video_id: string
+          thumbnail_url: string
+          title: string
+          video_id: string
+        }[]
+      }
       get_policies_with_true_qual: {
         Args: never
         Returns: {
@@ -7403,6 +7514,15 @@ export type Database = {
           roles: unknown[]
           schemaname: unknown
           tablename: unknown
+        }[]
+      }
+      get_required_content_summary: {
+        Args: never
+        Returns: {
+          assigned_pending: number
+          assigned_total: number
+          required_pending: number
+          required_total: number
         }[]
       }
       get_rls_audit_report: {
@@ -7435,6 +7555,24 @@ export type Database = {
         }[]
       }
       get_user_subroles: { Args: { p_user_id: string }; Returns: string[] }
+      get_video_engagement_stats: {
+        Args: never
+        Returns: {
+          avg_days_to_complete: number
+          category: string
+          completion_rate: number
+          completions: number
+          created_at: string
+          is_active: boolean
+          is_free_preview: boolean
+          is_pinned: boolean
+          last_viewed_at: string
+          title: string
+          total_views: number
+          unique_viewers: number
+          video_id: string
+        }[]
+      }
       get_views_without_security_invoker: {
         Args: never
         Returns: {
@@ -7614,9 +7752,14 @@ export type Database = {
         }
         Returns: boolean
       }
-      user_has_video_entitlement: {
-        Args: { p_video_id: string }
-        Returns: boolean
+      upsert_coach_full: {
+        Args: {
+          p_admin?: Json
+          p_private?: Json
+          p_public?: Json
+          p_user_id: string
+        }
+        Returns: Json
       }
       validate_discount_code: {
         Args: { p_code: string; p_service_id: string; p_user_id: string }
