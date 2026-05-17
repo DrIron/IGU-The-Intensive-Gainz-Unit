@@ -973,12 +973,16 @@ function WorkoutSessionV2Content() {
         return;
       }
 
-      // Fix #4: Use coaches_client_safe view with .maybeSingle() (RLS-safe)
-      const { data: coachData } = await supabase
-        .from("coaches_client_safe")
-        .select("first_name")
-        .eq("user_id", moduleData.module_owner_coach_id)
-        .maybeSingle();
+      // Use the get_coach_for_client RPC, not the coaches_client_safe view.
+      // The view inherits RLS from `coaches` which denies client SELECT, so
+      // queries against the view return NULL for clients and the title fell
+      // back to "by Coach" (smoke-tested 2026-05-17). The RPC is SECURITY
+      // DEFINER and returns the same 8-column safe subset gated on
+      // is_primary_coach_for_user / is_care_team_member_for_client.
+      const { data: coachJson } = await supabase.rpc("get_coach_for_client", {
+        p_coach_user_id: moduleData.module_owner_coach_id,
+      });
+      const coachData = coachJson as { first_name?: string } | null;
 
       // Get exercises
       const { data: exercisesData, error: exercisesError } = await supabase
