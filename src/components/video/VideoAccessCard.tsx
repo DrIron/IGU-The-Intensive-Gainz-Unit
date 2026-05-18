@@ -18,6 +18,7 @@ interface VideoAccessCardProps {
   onComplete?: (videoId: string) => void;
   completionLoading?: boolean;
   hideCompleteButton?: boolean;
+  numberBadge?: number;
 }
 
 /**
@@ -36,6 +37,7 @@ export function VideoAccessCard({
   onComplete,
   completionLoading,
   hideCompleteButton = false,
+  numberBadge,
 }: VideoAccessCardProps) {
   const isAccessible = accessState === "unlocked" || accessState === "preview";
 
@@ -75,7 +77,14 @@ export function VideoAccessCard({
     >
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-2">
-          <CardTitle className="text-lg line-clamp-2">{title}</CardTitle>
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            {typeof numberBadge === "number" && (
+              <Badge variant="secondary" className="text-base font-bold shrink-0">
+                {numberBadge}
+              </Badge>
+            )}
+            <CardTitle className="text-lg line-clamp-2">{title}</CardTitle>
+          </div>
           <div className="flex items-center gap-1 shrink-0">
             {isPinned && (
               <Badge variant="secondary" className="shrink-0">

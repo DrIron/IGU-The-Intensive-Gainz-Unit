@@ -327,7 +327,7 @@ export default function EducationalVideos() {
             </TabsContent>
 
             <TabsContent value="paths">
-              <PlaylistViewer />
+              <PlaylistViewer hideCompleteButton />
             </TabsContent>
           </Tabs>
         </div>
