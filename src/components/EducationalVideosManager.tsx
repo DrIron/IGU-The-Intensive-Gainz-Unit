@@ -17,7 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlaylistManager } from "./PlaylistManager";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
-import { CATEGORIES, validateVideoUrl, detectVideoTypeFromUrl } from "@/lib/educationalContent";
+import { CATEGORIES, validateVideoUrl, detectVideoTypeFromUrl, fetchActiveServices, ServiceOption } from "@/lib/educationalContent";
 
 interface EducationalVideo {
   id: string;
@@ -27,6 +27,9 @@ interface EducationalVideo {
   video_type: 'youtube' | 'loom';
   category: string;
   is_pinned: boolean;
+  is_free_preview: boolean;
+  is_active: boolean;
+  required_service_ids: string[] | null;
   created_at: string;
 }
 
@@ -47,13 +50,18 @@ export function EducationalVideosManager() {
   const [videoType, setVideoType] = useState<'youtube' | 'loom'>('youtube');
   const [category, setCategory] = useState(CATEGORIES[0]);
   const [isPinned, setIsPinned] = useState(false);
+  const [isFreePreview, setIsFreePreview] = useState(false);
+  const [isActive, setIsActive] = useState(true);
+  const [requiredServiceIds, setRequiredServiceIds] = useState<string[]>([]);
+  const [services, setServices] = useState<ServiceOption[]>([]);
+  const [servicesLoading, setServicesLoading] = useState(false);
 
   const loadVideos = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('educational_videos')
-        .select('*')
+        .select('id, title, description, video_url, video_type, category, is_pinned, is_free_preview, is_active, required_service_ids, created_at')
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -82,6 +90,9 @@ export function EducationalVideosManager() {
     setVideoType('youtube');
     setCategory(CATEGORIES[0]);
     setIsPinned(false);
+    setIsFreePreview(false);
+    setIsActive(true);
+    setRequiredServiceIds([]);
     setEditingVideo(null);
   };
 
@@ -93,6 +104,9 @@ export function EducationalVideosManager() {
     setVideoType(video.video_type);
     setCategory(video.category);
     setIsPinned(video.is_pinned);
+    setIsFreePreview(video.is_free_preview ?? false);
+    setIsActive(video.is_active ?? true);
+    setRequiredServiceIds(video.required_service_ids ?? []);
     setDialogOpen(true);
   };
 
@@ -122,6 +136,9 @@ export function EducationalVideosManager() {
         video_type: effectiveVideoType,
         category,
         is_pinned: isPinned,
+        is_free_preview: isFreePreview,
+        is_active: isActive,
+        required_service_ids: requiredServiceIds.length > 0 ? requiredServiceIds : null,
       };
 
       if (editingVideo) {
@@ -281,6 +298,16 @@ export function EducationalVideosManager() {
           <Dialog open={dialogOpen} onOpenChange={(open) => {
             setDialogOpen(open);
             if (!open) resetForm();
+            if (open && services.length === 0) {
+              setServicesLoading(true);
+              fetchActiveServices()
+                .then(setServices)
+                .catch((err) => {
+                  console.error(err);
+                  toast({ title: "Failed to load services", variant: "destructive" });
+                })
+                .finally(() => setServicesLoading(false));
+            }
           }}>
             <DialogTrigger asChild>
               <Button>
@@ -374,6 +401,53 @@ export function EducationalVideosManager() {
                   <Label htmlFor="pinned" className="cursor-pointer">
                     Pin this video to the top
                   </Label>
+                </div>
+
+                <div className="flex items-center justify-between space-y-0">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="freePreview" className="cursor-pointer">Free preview</Label>
+                    <p className="text-xs text-muted-foreground">Visible to all authenticated users regardless of subscription.</p>
+                  </div>
+                  <Switch id="freePreview" checked={isFreePreview} onCheckedChange={setIsFreePreview} />
+                </div>
+
+                <div className="flex items-center justify-between space-y-0">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="isActive" className="cursor-pointer">Active</Label>
+                    <p className="text-xs text-muted-foreground">Inactive videos are hidden from clients and coaches. Useful for archiving without losing watch history.</p>
+                  </div>
+                  <Switch id="isActive" checked={isActive} onCheckedChange={setIsActive} />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label>Visible to</Label>
+                    <span className="text-xs text-muted-foreground">
+                      {requiredServiceIds.length === 0
+                        ? "All subscribers"
+                        : `${requiredServiceIds.length} of ${services.length} services`}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">Leave empty for all active subscribers. Pick specific services to scope this video.</p>
+                  {servicesLoading ? (
+                    <p className="text-xs text-muted-foreground">Loading services...</p>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      {services.map((svc) => (
+                        <label key={svc.id} className="flex items-center gap-2 cursor-pointer text-sm">
+                          <Checkbox
+                            checked={requiredServiceIds.includes(svc.id)}
+                            onCheckedChange={(checked) => {
+                              setRequiredServiceIds((prev) =>
+                                checked ? [...prev, svc.id] : prev.filter((id) => id !== svc.id)
+                              );
+                            }}
+                          />
+                          <span>{svc.name} <span className="text-muted-foreground">({svc.price_kwd} KWD)</span></span>
+                        </label>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -480,11 +554,16 @@ export function EducationalVideosManager() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {video.is_pinned ? (
-                      <Badge>Pinned</Badge>
-                    ) : (
-                      <Badge variant="outline">Active</Badge>
-                    )}
+                    <div className="flex flex-col gap-1 items-start">
+                      {!video.is_active && (
+                        <Badge variant="outline" className="border-muted-foreground/40 text-muted-foreground">Inactive</Badge>
+                      )}
+                      {video.is_pinned && <Badge>Pinned</Badge>}
+                      {video.is_free_preview && <Badge variant="secondary">Free preview</Badge>}
+                      {video.required_service_ids && video.required_service_ids.length > 0 && (
+                        <Badge variant="outline">Scoped: {video.required_service_ids.length}</Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {new Date(video.created_at).toLocaleDateString()}
