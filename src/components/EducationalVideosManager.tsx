@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlaylistManager } from "./PlaylistManager";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
+import { CATEGORIES, validateVideoUrl, detectVideoTypeFromUrl } from "@/lib/educationalContent";
 
 interface EducationalVideo {
   id: string;
@@ -28,18 +29,6 @@ interface EducationalVideo {
   is_pinned: boolean;
   created_at: string;
 }
-
-const CATEGORIES = [
-  "Nutrition Basics",
-  "Training Fundamentals",
-  "Recovery & Rest",
-  "Goal Setting",
-  "Meal Prep",
-  "Exercise Form",
-  "Mindset & Motivation",
-  "Supplement Guide",
-  "Other"
-];
 
 export function EducationalVideosManager() {
   const { toast } = useToast();
@@ -117,12 +106,20 @@ export function EducationalVideosManager() {
       return;
     }
 
+    const v = validateVideoUrl(videoUrl);
+    if (!v.valid) {
+      toast({ title: "Validation Error", description: v.error, variant: "destructive" });
+      return;
+    }
+    // Force videoType to detected on save so a manual Select mismatch can't slip through.
+    const effectiveVideoType = v.videoType;
+
     try {
       const videoData = {
         title: title.trim(),
         description: description.trim() || null,
         video_url: videoUrl.trim(),
-        video_type: videoType,
+        video_type: effectiveVideoType,
         category,
         is_pinned: isPinned,
       };
@@ -355,7 +352,12 @@ export function EducationalVideosManager() {
                   <Input
                     id="videoUrl"
                     value={videoUrl}
-                    onChange={(e) => setVideoUrl(e.target.value)}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setVideoUrl(next);
+                      const detected = detectVideoTypeFromUrl(next);
+                      if (detected) setVideoType(detected);
+                    }}
                     placeholder="https://youtube.com/watch?v=... or https://loom.com/share/..."
                   />
                   <p className="text-xs text-muted-foreground">

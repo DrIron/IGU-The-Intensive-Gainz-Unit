@@ -17,6 +17,7 @@ interface VideoAccessCardProps {
   isCompleted: boolean;
   onComplete?: (videoId: string) => void;
   completionLoading?: boolean;
+  hideCompleteButton?: boolean;
 }
 
 /**
@@ -34,6 +35,7 @@ export function VideoAccessCard({
   isCompleted,
   onComplete,
   completionLoading,
+  hideCompleteButton = false,
 }: VideoAccessCardProps) {
   const isAccessible = accessState === "unlocked" || accessState === "preview";
 
@@ -117,8 +119,8 @@ export function VideoAccessCard({
               onVideoEnd={() => !isCompleted && onComplete?.(id)}
             />
             
-            {/* Complete button for accessible, non-completed videos */}
-            {!isCompleted && (
+            {/* Complete button for accessible, non-completed videos. Hidden on coach-preview surfaces. */}
+            {!hideCompleteButton && !isCompleted && (
               <Button
                 variant="outline"
                 size="sm"

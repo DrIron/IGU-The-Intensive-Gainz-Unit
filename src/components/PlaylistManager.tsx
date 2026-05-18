@@ -9,7 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, GripVertical, Video } from "lucide-react";
+import { Plus, Edit, Trash2, Video } from "lucide-react";
 
 interface VideoPlaylist {
   id: string;
@@ -303,7 +303,6 @@ export function PlaylistManager() {
                           ) : (
                             playlistVideos.map((pv, index) => (
                               <div key={pv.id} className="flex items-center gap-2 p-2 border rounded">
-                                <GripVertical className="h-4 w-4 text-muted-foreground" />
                                 <span className="font-medium">{index + 1}.</span>
                                 <span className="flex-1">{pv.educational_videos.title}</span>
                                 <Button

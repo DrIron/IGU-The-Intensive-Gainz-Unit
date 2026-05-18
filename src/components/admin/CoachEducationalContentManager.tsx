@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { Plus, Pencil, Trash2, Video, Clock, CheckCircle2, GripVertical } from "lucide-react";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { validateVideoUrl } from "@/lib/educationalContent";
 
 interface ContentItem {
   id: string;
@@ -145,6 +146,12 @@ export function CoachEducationalContentManager() {
   const handleSave = async () => {
     if (!formData.title.trim() || !formData.video_url.trim()) {
       toast({ title: "Validation", description: "Title and video URL are required.", variant: "destructive" });
+      return;
+    }
+
+    const v = validateVideoUrl(formData.video_url);
+    if (!v.valid) {
+      toast({ title: "Validation", description: v.error, variant: "destructive" });
       return;
     }
 
