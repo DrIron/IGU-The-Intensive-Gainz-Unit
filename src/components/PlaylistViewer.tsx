@@ -3,7 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ListOrdered } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ListOrdered, UserPlus } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { VideoAccessCard, VideoAccessState } from "@/components/video/VideoAccessCard";
 import { useVideoProgress } from "@/hooks/useVideoProgress";
@@ -31,15 +32,18 @@ interface PlaylistVideo {
 
 interface PlaylistViewerProps {
   hideCompleteButton?: boolean;
+  onAssignPlaylist?: (playlistId: string, playlistTitle: string) => void;
 }
 
-export function PlaylistViewer({ hideCompleteButton = false }: PlaylistViewerProps) {
+export function PlaylistViewer({ hideCompleteButton = false, onAssignPlaylist }: PlaylistViewerProps) {
   const [playlists, setPlaylists] = useState<VideoPlaylist[]>([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(null);
   const [playlistVideos, setPlaylistVideos] = useState<PlaylistVideo[]>([]);
+  const [assignedPlaylistIds, setAssignedPlaylistIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [completingVideoId, setCompletingVideoId] = useState<string | null>(null);
   const hasFetched = useRef(false);
+  const hasFetchedAssigned = useRef(false);
 
   const { markComplete, loading: progressLoading } = useVideoProgress();
 
@@ -69,6 +73,20 @@ export function PlaylistViewer({ hideCompleteButton = false }: PlaylistViewerPro
     hasFetched.current = true;
     loadPlaylists();
   }, [loadPlaylists]);
+
+  // PR G: clients see "From your coach" badge on assigned playlists. Coaches skip this fetch
+  // (they're the assigners, not assignees) -- detected via the presence of onAssignPlaylist.
+  useEffect(() => {
+    if (hasFetchedAssigned.current || onAssignPlaylist) return;
+    hasFetchedAssigned.current = true;
+    supabase.rpc("get_my_assigned_playlists").then(({ data, error }) => {
+      if (error) {
+        console.error("[assigned playlists]", error);
+        return;
+      }
+      setAssignedPlaylistIds(new Set((data ?? []).map((r: { playlist_id: string }) => r.playlist_id)));
+    });
+  }, [onAssignPlaylist]);
 
   const loadPlaylistVideos = useCallback(async (playlistId: string) => {
     try {
@@ -132,9 +150,15 @@ export function PlaylistViewer({ hideCompleteButton = false }: PlaylistViewerPro
             key={playlist.id}
             variant={selectedPlaylist === playlist.id ? "default" : "outline"}
             onClick={() => setSelectedPlaylist(playlist.id)}
+            className="gap-2"
           >
-            <ListOrdered className="h-4 w-4 mr-2" />
+            <ListOrdered className="h-4 w-4" />
             {playlist.title}
+            {assignedPlaylistIds.has(playlist.id) && (
+              <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-xs">
+                From your coach
+              </Badge>
+            )}
           </Button>
         ))}
       </div>
@@ -142,8 +166,29 @@ export function PlaylistViewer({ hideCompleteButton = false }: PlaylistViewerPro
       {currentPlaylist && (
         <Card>
           <CardHeader>
-            <CardTitle>{currentPlaylist.title}</CardTitle>
-            <CardDescription>{currentPlaylist.description}</CardDescription>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CardTitle>{currentPlaylist.title}</CardTitle>
+                  {assignedPlaylistIds.has(currentPlaylist.id) && (
+                    <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">
+                      From your coach
+                    </Badge>
+                  )}
+                </div>
+                <CardDescription>{currentPlaylist.description}</CardDescription>
+              </div>
+              {onAssignPlaylist && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onAssignPlaylist(currentPlaylist.id, currentPlaylist.title)}
+                  className="gap-2 shrink-0"
+                >
+                  <UserPlus className="h-4 w-4" /> Assign this learning path
+                </Button>
+              )}
+            </div>
             <div className="space-y-2 mt-4">
               <div className="flex items-center justify-between text-sm">
                 <span className="text-muted-foreground">

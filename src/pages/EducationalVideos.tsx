@@ -196,6 +196,10 @@ export default function EducationalVideos() {
     setAssignTarget({ kind: "video", id: video.id, title: video.title });
   };
 
+  const handleOpenAssignPlaylist = (playlistId: string, playlistTitle: string) => {
+    setAssignTarget({ kind: "playlist", id: playlistId, title: playlistTitle });
+  };
+
   const renderCard = (
     video: VideoWithAccess,
     hideCompleteButton: boolean,
@@ -433,7 +437,7 @@ export default function EducationalVideos() {
             </TabsContent>
 
             <TabsContent value="paths">
-              <PlaylistViewer hideCompleteButton />
+              <PlaylistViewer hideCompleteButton onAssignPlaylist={handleOpenAssignPlaylist} />
             </TabsContent>
           </Tabs>
           <AssignToClientDialog
