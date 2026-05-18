@@ -59,6 +59,7 @@ const SecurityHardeningChecklist = lazy(() => import("./pages/admin/SecurityHard
 const SiteMapDiagnostics = lazy(() => import("./pages/admin/SiteMapDiagnostics"));
 const DiagnosticsIndex = lazy(() => import("./pages/admin/DiagnosticsIndex"));
 const SystemHealth = lazy(() => import("./pages/admin/SystemHealth"));
+const ContentEngagement = lazy(() => import("./pages/admin/ContentEngagement"));
 const Unauthorized = lazy(() => import("./pages/Unauthorized"));
 const WorkoutSessionV2 = lazy(() => import("./pages/client/WorkoutSessionV2"));
 const WorkoutCalendar = lazy(() => import("./pages/client/WorkoutCalendar"));
@@ -286,6 +287,7 @@ const App = () => {
                   <Route path="/admin/diagnostics" element={<RoleProtectedRoute requiredRole="admin"><DiagnosticsIndex /></RoleProtectedRoute>} />
                   <Route path="/admin/diagnostics/site-map" element={<RoleProtectedRoute requiredRole="admin"><SiteMapDiagnostics /></RoleProtectedRoute>} />
                   <Route path="/admin/health" element={<RoleProtectedRoute requiredRole="admin"><SystemHealth /></RoleProtectedRoute>} />
+                  <Route path="/admin/content-engagement" element={<RoleProtectedRoute requiredRole="admin"><ContentEngagement /></RoleProtectedRoute>} />
                   <Route path="/access-debug" element={<AuthGuard><AccessDebug /></AuthGuard>} />
                   <Route path="/unauthorized" element={<Unauthorized />} />
                   {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
