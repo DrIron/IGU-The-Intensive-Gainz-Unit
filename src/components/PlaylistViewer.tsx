@@ -180,6 +180,10 @@ export function PlaylistViewer({ hideCompleteButton = false }: PlaylistViewerPro
               numberBadge={pv.order_number}
               thumbnailUrl={pv.thumbnail_url}
               durationSeconds={pv.duration_seconds}
+              // PR F: v1 playlist surface skips per-video assignment state -- assignments are on the
+              // playlist itself, surfaced separately (PR G adds the playlist-level Assign button).
+              isRequired={false}
+              isAssignedByCoach={false}
               onComplete={handleVideoComplete}
               completionLoading={completingVideoId === pv.video_id || progressLoading}
               hideCompleteButton={hideCompleteButton}

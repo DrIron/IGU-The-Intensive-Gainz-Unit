@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Lock, Unlock, Eye, CheckCircle2, Pin, Clock } from "lucide-react";
+import { Lock, Unlock, Eye, CheckCircle2, Pin, Clock, UserPlus, UserCheck } from "lucide-react";
 import { SecureVideoPlayer } from "./SecureVideoPlayer";
 import { formatDuration } from "@/lib/educationalContent";
 
@@ -22,6 +22,10 @@ interface VideoAccessCardProps {
   numberBadge?: number;
   thumbnailUrl?: string | null;
   durationSeconds?: number | null;
+  isRequired?: boolean;
+  isAssignedByCoach?: boolean;
+  prerequisiteTitle?: string | null;
+  onAssign?: (videoId: string) => void;
 }
 
 /**
@@ -43,6 +47,10 @@ export function VideoAccessCard({
   numberBadge,
   thumbnailUrl,
   durationSeconds,
+  isRequired = false,
+  isAssignedByCoach = false,
+  prerequisiteTitle = null,
+  onAssign,
 }: VideoAccessCardProps) {
   const durationLabel = formatDuration(durationSeconds);
   const isAccessible = accessState === "unlocked" || accessState === "preview";
@@ -89,6 +97,9 @@ export function VideoAccessCard({
                 {numberBadge}
               </Badge>
             )}
+            {isRequired && (
+              <Badge variant="destructive" className="shrink-0">Required</Badge>
+            )}
             <CardTitle className="text-lg line-clamp-2">{title}</CardTitle>
           </div>
           <div className="flex items-center gap-1 shrink-0">
@@ -122,6 +133,11 @@ export function VideoAccessCard({
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="outline">{category}</Badge>
           {getAccessBadge()}
+          {isAssignedByCoach && (
+            <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 gap-1">
+              <UserCheck className="h-3 w-3" /> From your coach
+            </Badge>
+          )}
           {durationLabel && (
             <Badge variant="outline" className="gap-1">
               <Clock className="h-3 w-3" />
@@ -154,19 +170,36 @@ export function VideoAccessCard({
                 {completionLoading ? "Saving..." : "Mark as Complete"}
               </Button>
             )}
+            {onAssign && (
+              <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => onAssign(id)}>
+                <UserPlus className="h-4 w-4" /> Assign to client
+              </Button>
+            )}
           </div>
         ) : (
           /* Locked state placeholder */
-          <div className="aspect-video bg-muted/50 rounded-md flex items-center justify-center border-2 border-dashed border-muted-foreground/20">
-            <div className="text-center p-4">
-              <Lock className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">
-                {isFreePreview 
-                  ? "Sign in to watch this preview"
-                  : "This content requires an active subscription"
-                }
-              </p>
+          <div className="space-y-2">
+            <div className="aspect-video bg-muted/50 rounded-md flex items-center justify-center border-2 border-dashed border-muted-foreground/20">
+              <div className="text-center p-4">
+                <Lock className="h-10 w-10 text-muted-foreground/50 mx-auto mb-2" />
+                {prerequisiteTitle ? (
+                  <p className="text-sm text-muted-foreground">
+                    Complete &ldquo;<span className="font-medium">{prerequisiteTitle}</span>&rdquo; first.
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    {isFreePreview
+                      ? "Sign in to watch this preview"
+                      : "This content requires an active subscription"}
+                  </p>
+                )}
+              </div>
             </div>
+            {onAssign && (
+              <Button variant="outline" size="sm" className="w-full gap-2" onClick={() => onAssign(id)}>
+                <UserPlus className="h-4 w-4" /> Assign to client
+              </Button>
+            )}
           </div>
         )}
       </CardContent>

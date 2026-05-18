@@ -47,6 +47,7 @@ interface EducationalVideo {
   required_service_ids: string[] | null;
   duration_seconds: number | null;
   order_index: number | null;
+  required_for_role: "client" | "coach" | "all" | null;
   created_at: string;
 }
 
@@ -78,6 +79,7 @@ export function EducationalVideosManager() {
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
   const [durationMinutes, setDurationMinutes] = useState<string>("");
+  const [requiredForRole, setRequiredForRole] = useState<"client" | "coach" | "all" | null>(null);
 
   // PR E: admin search/filter/sort, persisted to localStorage.
   const initialFilter = useMemo(() => loadAdminFilterState(), []);
@@ -103,7 +105,7 @@ export function EducationalVideosManager() {
       setLoading(true);
       const { data, error } = await supabase
         .from('educational_videos')
-        .select('id, title, description, video_url, video_type, category, is_pinned, is_free_preview, is_active, required_service_ids, duration_seconds, order_index, created_at')
+        .select('id, title, description, video_url, video_type, category, is_pinned, is_free_preview, is_active, required_service_ids, duration_seconds, order_index, required_for_role, created_at')
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -163,6 +165,7 @@ export function EducationalVideosManager() {
         if (statusFilter === "inactive" && v.is_active) return false;
         if (statusFilter === "pinned" && !v.is_pinned) return false;
         if (statusFilter === "free_preview" && !v.is_free_preview) return false;
+        if (statusFilter === "required" && !v.required_for_role) return false;
         if (searchQuery.trim()) {
           const q = searchQuery.toLowerCase();
           return (
@@ -223,6 +226,7 @@ export function EducationalVideosManager() {
     setIsActive(true);
     setRequiredServiceIds([]);
     setDurationMinutes("");
+    setRequiredForRole(null);
     setEditingVideo(null);
   };
 
@@ -238,6 +242,7 @@ export function EducationalVideosManager() {
     setIsActive(video.is_active ?? true);
     setRequiredServiceIds(video.required_service_ids ?? []);
     setDurationMinutes(video.duration_seconds ? String(Math.round(video.duration_seconds / 60)) : "");
+    setRequiredForRole(video.required_for_role ?? null);
     setDialogOpen(true);
   };
 
@@ -294,6 +299,7 @@ export function EducationalVideosManager() {
         duration_seconds: durationMinutes.trim() === ""
           ? null
           : Math.max(1, Math.round(parseFloat(durationMinutes) * 60)),
+        required_for_role: requiredForRole,
       };
 
       if (editingVideo) {
@@ -683,6 +689,25 @@ export function EducationalVideosManager() {
                     </div>
                   )}
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Required viewing</Label>
+                  <Select
+                    value={requiredForRole ?? "none"}
+                    onValueChange={(v) => setRequiredForRole(v === "none" ? null : (v as "client" | "coach" | "all"))}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Not required (optional viewing)</SelectItem>
+                      <SelectItem value="client">Required for clients</SelectItem>
+                      <SelectItem value="coach">Required for active coaches</SelectItem>
+                      <SelectItem value="all">Required for everyone</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Required videos appear in a dedicated section on the user's library page and trigger a dashboard banner until completed.
+                  </p>
+                </div>
               </div>
 
               <div className="flex justify-end gap-2">
@@ -739,6 +764,7 @@ export function EducationalVideosManager() {
                 <SelectItem value="inactive">Inactive</SelectItem>
                 <SelectItem value="pinned">Pinned</SelectItem>
                 <SelectItem value="free_preview">Free preview</SelectItem>
+                <SelectItem value="required">Required</SelectItem>
               </SelectContent>
             </Select>
             <Select value={typeFilter} onValueChange={(v) => setTypeFilter(v as AdminTypeFilter)}>
@@ -884,6 +910,9 @@ export function EducationalVideosManager() {
                                 {video.is_free_preview && <Badge variant="secondary">Free preview</Badge>}
                                 {video.required_service_ids && video.required_service_ids.length > 0 && (
                                   <Badge variant="outline">Scoped: {video.required_service_ids.length}</Badge>
+                                )}
+                                {video.required_for_role && (
+                                  <Badge variant="destructive" className="text-xs">Required: {video.required_for_role}</Badge>
                                 )}
                               </div>
                             </TableCell>

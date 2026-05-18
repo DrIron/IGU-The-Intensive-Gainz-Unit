@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ClientSidebar } from "./ClientSidebar";
@@ -15,7 +15,7 @@ import { CancelledSubscriptionCard } from "./CancelledSubscriptionCard";
 import { GracePeriodBanner } from "./GracePeriodBanner";
 import { WelcomeModal } from "./WelcomeModal";
 import { ChooseTeamPrompt } from "./ChooseTeamPrompt";
-import { User, CreditCard, Calendar, AlertCircle, Dumbbell, Calculator, Apple, Loader2, Lock } from "lucide-react";
+import { User, CreditCard, Calendar, AlertCircle, Dumbbell, Calculator, Apple, Loader2, Lock, PlayCircle } from "lucide-react";
 import { formatProfileStatus, getProfileStatusVariant } from "@/lib/statusUtils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -89,6 +89,29 @@ export function ClientDashboardLayout({
   const isPastDue = subStatus === "past_due";
   const isInGracePeriod = isPastDue && status === "active";
   const isHardLocked = status === "inactive" && subStatus === "inactive";
+
+  // PR F: required + assigned content summary for the dashboard banner.
+  interface ContentSummary {
+    required_total: number;
+    required_pending: number;
+    assigned_total: number;
+    assigned_pending: number;
+  }
+  const [contentSummary, setContentSummary] = useState<ContentSummary | null>(null);
+  const summaryFetched = useRef(false);
+
+  useEffect(() => {
+    if (summaryFetched.current || !isActive) return;
+    summaryFetched.current = true;
+    supabase.rpc("get_required_content_summary").then(({ data, error }) => {
+      if (error) {
+        console.error("[content summary]", error);
+        return;
+      }
+      const row = Array.isArray(data) ? data[0] : data;
+      if (row) setContentSummary(row as ContentSummary);
+    });
+  }, [isActive]);
 
   // Fallback verify-payment check on mount (handles edge cases like returning from payment gateway)
   useEffect(() => {
@@ -529,6 +552,23 @@ export function ClientDashboardLayout({
                 {/* Grace Period Banner - shows during soft lock */}
                 {isInGracePeriod && (
                   <GracePeriodBanner subscription={subscription} profile={profile} />
+                )}
+                {/* PR F: required + assigned content banner */}
+                {contentSummary && (contentSummary.required_pending + contentSummary.assigned_pending) > 0 && (
+                  <Alert className="border-primary/40 bg-primary/5 mb-4">
+                    <PlayCircle className="h-4 w-4" />
+                    <AlertTitle>You have content to watch</AlertTitle>
+                    <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+                      <span>
+                        {contentSummary.required_pending > 0 && `${contentSummary.required_pending} required video${contentSummary.required_pending === 1 ? "" : "s"}`}
+                        {contentSummary.required_pending > 0 && contentSummary.assigned_pending > 0 && " -- "}
+                        {contentSummary.assigned_pending > 0 && `${contentSummary.assigned_pending} from your coach`}
+                      </span>
+                      <Button size="sm" variant="outline" onClick={() => navigate("/educational-videos")}>
+                        Watch now
+                      </Button>
+                    </AlertDescription>
+                  </Alert>
                 )}
                 <SectionErrorBoundary name="Dashboard">
                   {renderContent()}

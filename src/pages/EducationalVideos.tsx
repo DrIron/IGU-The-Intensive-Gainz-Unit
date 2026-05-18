@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Video, Pin, Search, ListOrdered, AlertCircle, Eye, History, Sparkles } from "lucide-react";
+import { Video, Pin, Search, ListOrdered, AlertCircle, Eye, History, Sparkles, AlertTriangle, UserCheck } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlaylistViewer } from "@/components/PlaylistViewer";
 import { EducationalVideosManager } from "@/components/EducationalVideosManager";
@@ -16,6 +16,7 @@ import { useVideoProgress } from "@/hooks/useVideoProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useClientAccess, getAccessDeniedMessage } from "@/hooks/useClientAccess";
 import { loadFilterState, saveFilterState } from "@/lib/educationalContent";
+import { AssignToClientDialog, AssignTarget } from "@/components/educational/AssignToClientDialog";
 
 const ALL_CATEGORIES_LABEL = "All Categories";
 const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
@@ -33,6 +34,9 @@ interface VideoWithAccess {
   access_state: VideoAccessState;
   is_completed: boolean;
   last_accessed_at: string | null;
+  is_required: boolean;
+  is_assigned_by_coach: boolean;
+  prerequisite_title: string | null;
 }
 
 const CATEGORIES = [
@@ -58,6 +62,7 @@ export default function EducationalVideos() {
   const [tab, setTab] = useState<"videos" | "paths">(initialFilter.tab);
   const [videosLoaded, setVideosLoaded] = useState(false);
   const [completingVideoId, setCompletingVideoId] = useState<string | null>(null);
+  const [assignTarget, setAssignTarget] = useState<AssignTarget | null>(null);
 
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -142,21 +147,32 @@ export default function EducationalVideos() {
   // Section derivations (only when filters are inactive).
   const filtersInactive = searchQuery.trim() === "" && selectedCategory === ALL_CATEGORIES_LABEL;
 
+  // PR F: Required + From-your-coach take priority over Continue/Featured/Recent.
+  const required = filtersInactive ? videos.filter((v) => v.is_required && !v.is_completed) : [];
+  const requiredIds = new Set(required.map((v) => v.id));
+
+  const assigned = filtersInactive
+    ? videos.filter((v) => v.is_assigned_by_coach && !v.is_completed && !requiredIds.has(v.id))
+    : [];
+  const assignedIds = new Set(assigned.map((v) => v.id));
+
   const continueWatching = filtersInactive
     ? videos
-        .filter((v) => v.last_accessed_at && !v.is_completed)
+        .filter((v) => v.last_accessed_at && !v.is_completed && !requiredIds.has(v.id) && !assignedIds.has(v.id))
         .sort((a, b) => (b.last_accessed_at ?? "").localeCompare(a.last_accessed_at ?? ""))
         .slice(0, 4)
     : [];
   const continueIds = new Set(continueWatching.map((v) => v.id));
 
-  const featured = filteredVideos.filter((v) => v.is_pinned && !continueIds.has(v.id));
+  const featured = filteredVideos.filter(
+    (v) => v.is_pinned && !continueIds.has(v.id) && !requiredIds.has(v.id) && !assignedIds.has(v.id)
+  );
   const featuredIds = new Set(featured.map((v) => v.id));
 
   const recentlyAdded = filtersInactive
     ? videos
         .filter((v) => {
-          if (continueIds.has(v.id) || featuredIds.has(v.id)) return false;
+          if (continueIds.has(v.id) || featuredIds.has(v.id) || requiredIds.has(v.id) || assignedIds.has(v.id)) return false;
           const ageMs = Date.now() - new Date(v.created_at).getTime();
           return ageMs <= THIRTY_DAYS_MS;
         })
@@ -166,10 +182,25 @@ export default function EducationalVideos() {
   const recentIds = new Set(recentlyAdded.map((v) => v.id));
 
   const allOther = filteredVideos.filter(
-    (v) => !continueIds.has(v.id) && !featuredIds.has(v.id) && !recentIds.has(v.id)
+    (v) =>
+      !continueIds.has(v.id) &&
+      !featuredIds.has(v.id) &&
+      !recentIds.has(v.id) &&
+      !requiredIds.has(v.id) &&
+      !assignedIds.has(v.id)
   );
 
-  const renderCard = (video: VideoWithAccess, hideCompleteButton: boolean) => (
+  const handleOpenAssignVideo = (videoId: string) => {
+    const video = videos.find((v) => v.id === videoId);
+    if (!video) return;
+    setAssignTarget({ kind: "video", id: video.id, title: video.title });
+  };
+
+  const renderCard = (
+    video: VideoWithAccess,
+    hideCompleteButton: boolean,
+    onAssign?: (videoId: string) => void
+  ) => (
     <VideoAccessCard
       key={video.id}
       id={video.id}
@@ -182,13 +213,17 @@ export default function EducationalVideos() {
       isCompleted={video.is_completed}
       thumbnailUrl={video.thumbnail_url}
       durationSeconds={video.duration_seconds}
+      isRequired={video.is_required}
+      isAssignedByCoach={video.is_assigned_by_coach}
+      prerequisiteTitle={video.prerequisite_title}
       onComplete={hideCompleteButton ? undefined : handleVideoComplete}
       completionLoading={hideCompleteButton ? false : completingVideoId === video.id || progressLoading}
       hideCompleteButton={hideCompleteButton}
+      onAssign={onAssign}
     />
   );
 
-  const renderVideosTab = (hideCompleteButton: boolean) => (
+  const renderVideosTab = (hideCompleteButton: boolean, onAssign?: (videoId: string) => void) => (
     <>
       <div className="flex flex-col sm:flex-row gap-4">
         <div className="relative flex-1">
@@ -219,6 +254,30 @@ export default function EducationalVideos() {
         </div>
       ) : (
         <>
+          {required.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-destructive" />
+                <h2 className="text-2xl font-semibold text-destructive">Required for you</h2>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {required.map((v) => renderCard(v, hideCompleteButton, onAssign))}
+              </div>
+            </div>
+          )}
+
+          {assigned.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-primary" />
+                <h2 className="text-2xl font-semibold">From your coach</h2>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {assigned.map((v) => renderCard(v, hideCompleteButton, onAssign))}
+              </div>
+            </div>
+          )}
+
           {continueWatching.length > 0 && (
             <div className="space-y-4">
               <div className="flex items-center gap-2">
@@ -226,7 +285,7 @@ export default function EducationalVideos() {
                 <h2 className="text-2xl font-semibold">Continue Watching</h2>
               </div>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {continueWatching.map((v) => renderCard(v, hideCompleteButton))}
+                {continueWatching.map((v) => renderCard(v, hideCompleteButton, onAssign))}
               </div>
             </div>
           )}
@@ -238,7 +297,7 @@ export default function EducationalVideos() {
                 <h2 className="text-2xl font-semibold">Featured Videos</h2>
               </div>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {featured.map((v) => renderCard(v, hideCompleteButton))}
+                {featured.map((v) => renderCard(v, hideCompleteButton, onAssign))}
               </div>
             </div>
           )}
@@ -250,18 +309,18 @@ export default function EducationalVideos() {
                 <h2 className="text-2xl font-semibold">Recently Added</h2>
               </div>
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {recentlyAdded.map((v) => renderCard(v, hideCompleteButton))}
+                {recentlyAdded.map((v) => renderCard(v, hideCompleteButton, onAssign))}
               </div>
             </div>
           )}
 
           {allOther.length > 0 && (
             <div className="space-y-4">
-              {(continueWatching.length > 0 || featured.length > 0 || recentlyAdded.length > 0) && (
+              {(required.length > 0 || assigned.length > 0 || continueWatching.length > 0 || featured.length > 0 || recentlyAdded.length > 0) && (
                 <h2 className="text-2xl font-semibold">All Videos</h2>
               )}
               <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                {allOther.map((v) => renderCard(v, hideCompleteButton))}
+                {allOther.map((v) => renderCard(v, hideCompleteButton, onAssign))}
               </div>
             </div>
           )}
@@ -370,13 +429,18 @@ export default function EducationalVideos() {
             </TabsList>
 
             <TabsContent value="videos" className="space-y-6">
-              {renderVideosTab(true)}
+              {renderVideosTab(true, handleOpenAssignVideo)}
             </TabsContent>
 
             <TabsContent value="paths">
               <PlaylistViewer hideCompleteButton />
             </TabsContent>
           </Tabs>
+          <AssignToClientDialog
+            open={!!assignTarget}
+            onClose={() => setAssignTarget(null)}
+            target={assignTarget}
+          />
         </div>
       </div>
     );
