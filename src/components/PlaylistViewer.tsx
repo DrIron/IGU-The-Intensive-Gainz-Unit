@@ -23,6 +23,8 @@ interface PlaylistVideo {
   category: string;
   is_pinned: boolean;
   is_free_preview: boolean;
+  duration_seconds: number | null;
+  thumbnail_url: string | null;
   access_state: VideoAccessState;
   is_completed: boolean;
 }
@@ -176,6 +178,8 @@ export function PlaylistViewer({ hideCompleteButton = false }: PlaylistViewerPro
               accessState={pv.access_state}
               isCompleted={pv.is_completed}
               numberBadge={pv.order_number}
+              thumbnailUrl={pv.thumbnail_url}
+              durationSeconds={pv.duration_seconds}
               onComplete={handleVideoComplete}
               completionLoading={completingVideoId === pv.video_id || progressLoading}
               hideCompleteButton={hideCompleteButton}

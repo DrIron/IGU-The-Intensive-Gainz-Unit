@@ -1,8 +1,9 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Lock, Unlock, Eye, CheckCircle2, Pin } from "lucide-react";
+import { Lock, Unlock, Eye, CheckCircle2, Pin, Clock } from "lucide-react";
 import { SecureVideoPlayer } from "./SecureVideoPlayer";
+import { formatDuration } from "@/lib/educationalContent";
 
 export type VideoAccessState = "unlocked" | "locked" | "preview";
 
@@ -19,6 +20,8 @@ interface VideoAccessCardProps {
   completionLoading?: boolean;
   hideCompleteButton?: boolean;
   numberBadge?: number;
+  thumbnailUrl?: string | null;
+  durationSeconds?: number | null;
 }
 
 /**
@@ -38,7 +41,10 @@ export function VideoAccessCard({
   completionLoading,
   hideCompleteButton = false,
   numberBadge,
+  thumbnailUrl,
+  durationSeconds,
 }: VideoAccessCardProps) {
+  const durationLabel = formatDuration(durationSeconds);
   const isAccessible = accessState === "unlocked" || accessState === "preview";
 
   const getAccessBadge = () => {
@@ -116,6 +122,12 @@ export function VideoAccessCard({
         <div className="flex items-center gap-2 flex-wrap">
           <Badge variant="outline">{category}</Badge>
           {getAccessBadge()}
+          {durationLabel && (
+            <Badge variant="outline" className="gap-1">
+              <Clock className="h-3 w-3" />
+              {durationLabel}
+            </Badge>
+          )}
         </div>
 
         {/* Video player for accessible content */}
@@ -125,6 +137,7 @@ export function VideoAccessCard({
               videoId={id}
               title={title}
               showWatermark
+              thumbnailUrl={thumbnailUrl ?? undefined}
               onVideoEnd={() => !isCompleted && onComplete?.(id)}
             />
             

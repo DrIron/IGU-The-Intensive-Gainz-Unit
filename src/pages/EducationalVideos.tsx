@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Video, Pin, Search, ListOrdered, AlertCircle, Eye } from "lucide-react";
+import { Video, Pin, Search, ListOrdered, AlertCircle, Eye, History, Sparkles } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlaylistViewer } from "@/components/PlaylistViewer";
 import { EducationalVideosManager } from "@/components/EducationalVideosManager";
@@ -15,6 +15,10 @@ import { VideoAccessCard, VideoAccessState } from "@/components/video/VideoAcces
 import { useVideoProgress } from "@/hooks/useVideoProgress";
 import { useToast } from "@/hooks/use-toast";
 import { useClientAccess, getAccessDeniedMessage } from "@/hooks/useClientAccess";
+import { loadFilterState, saveFilterState } from "@/lib/educationalContent";
+
+const ALL_CATEGORIES_LABEL = "All Categories";
+const THIRTY_DAYS_MS = 30 * 24 * 60 * 60 * 1000;
 
 interface VideoWithAccess {
   id: string;
@@ -23,13 +27,16 @@ interface VideoWithAccess {
   category: string;
   is_pinned: boolean;
   is_free_preview: boolean;
+  duration_seconds: number | null;
+  thumbnail_url: string | null;
   created_at: string;
   access_state: VideoAccessState;
   is_completed: boolean;
+  last_accessed_at: string | null;
 }
 
 const CATEGORIES = [
-  "All Categories",
+  ALL_CATEGORIES_LABEL,
   "Nutrition Basics",
   "Training Fundamentals",
   "Recovery & Rest",
@@ -42,19 +49,26 @@ const CATEGORIES = [
 ];
 
 export default function EducationalVideos() {
+  const initialFilter = loadFilterState();
+
   const [videos, setVideos] = useState<VideoWithAccess[]>([]);
-  const [filteredVideos, setFilteredVideos] = useState<VideoWithAccess[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedCategory, setSelectedCategory] = useState("All Categories");
-  const [searchQuery, setSearchQuery] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState(initialFilter.category);
+  const [searchQuery, setSearchQuery] = useState(initialFilter.q);
+  const [tab, setTab] = useState<"videos" | "paths">(initialFilter.tab);
   const [videosLoaded, setVideosLoaded] = useState(false);
   const [completingVideoId, setCompletingVideoId] = useState<string | null>(null);
-  
+
   const { toast } = useToast();
   const navigate = useNavigate();
   const access = useClientAccess();
   const hasRedirected = useRef(false);
   const { markComplete, loading: progressLoading } = useVideoProgress();
+
+  // Persist filter state on change.
+  useEffect(() => {
+    saveFilterState({ q: searchQuery, category: selectedCategory, tab });
+  }, [searchQuery, selectedCategory, tab]);
 
   // Handle access control
   useEffect(() => {
@@ -76,14 +90,10 @@ export default function EducationalVideos() {
   const loadVideos = useCallback(async () => {
     try {
       setLoading(true);
-
-      // Use the RPC function that returns access states
       const { data, error } = await supabase.rpc("get_educational_videos_with_access");
-
       if (error) throw error;
-
       setVideos((data || []) as VideoWithAccess[]);
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Error loading videos:', error);
       toast({
         variant: "destructive",
@@ -95,25 +105,6 @@ export default function EducationalVideos() {
     }
   }, [toast]);
 
-  const filterVideos = useCallback(() => {
-    let filtered = [...videos];
-
-    if (selectedCategory !== "All Categories") {
-      filtered = filtered.filter(v => v.category === selectedCategory);
-    }
-
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      filtered = filtered.filter(v =>
-        v.title.toLowerCase().includes(query) ||
-        v.description?.toLowerCase().includes(query) ||
-        v.category.toLowerCase().includes(query)
-      );
-    }
-
-    setFilteredVideos(filtered);
-  }, [videos, selectedCategory, searchQuery]);
-
   // Load videos when access is granted
   useEffect(() => {
     const canAccess = access.isStaff || access.hasActiveSubscription;
@@ -123,25 +114,182 @@ export default function EducationalVideos() {
     }
   }, [access.loading, access.isStaff, access.hasActiveSubscription, videosLoaded, loadVideos]);
 
-  useEffect(() => {
-    filterVideos();
-  }, [filterVideos]);
-
   const handleVideoComplete = async (videoId: string) => {
     setCompletingVideoId(videoId);
     const success = await markComplete(videoId);
-    
     if (success) {
-      // Update local state to reflect completion
-      setVideos(prev => prev.map(v => 
-        v.id === videoId ? { ...v, is_completed: true } : v
-      ));
+      setVideos((prev) => prev.map((v) => (v.id === videoId ? { ...v, is_completed: true } : v)));
     }
     setCompletingVideoId(null);
   };
 
-  const pinnedVideos = filteredVideos.filter(v => v.is_pinned);
-  const regularVideos = filteredVideos.filter(v => !v.is_pinned);
+  // Filter pipeline -- replaces the old separate `filteredVideos` state.
+  const filteredVideos = videos.filter((v) => {
+    if (selectedCategory !== ALL_CATEGORIES_LABEL && v.category !== selectedCategory) return false;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      if (
+        !v.title.toLowerCase().includes(q) &&
+        !v.description?.toLowerCase().includes(q) &&
+        !v.category.toLowerCase().includes(q)
+      ) {
+        return false;
+      }
+    }
+    return true;
+  });
+
+  // Section derivations (only when filters are inactive).
+  const filtersInactive = searchQuery.trim() === "" && selectedCategory === ALL_CATEGORIES_LABEL;
+
+  const continueWatching = filtersInactive
+    ? videos
+        .filter((v) => v.last_accessed_at && !v.is_completed)
+        .sort((a, b) => (b.last_accessed_at ?? "").localeCompare(a.last_accessed_at ?? ""))
+        .slice(0, 4)
+    : [];
+  const continueIds = new Set(continueWatching.map((v) => v.id));
+
+  const featured = filteredVideos.filter((v) => v.is_pinned && !continueIds.has(v.id));
+  const featuredIds = new Set(featured.map((v) => v.id));
+
+  const recentlyAdded = filtersInactive
+    ? videos
+        .filter((v) => {
+          if (continueIds.has(v.id) || featuredIds.has(v.id)) return false;
+          const ageMs = Date.now() - new Date(v.created_at).getTime();
+          return ageMs <= THIRTY_DAYS_MS;
+        })
+        .sort((a, b) => b.created_at.localeCompare(a.created_at))
+        .slice(0, 4)
+    : [];
+  const recentIds = new Set(recentlyAdded.map((v) => v.id));
+
+  const allOther = filteredVideos.filter(
+    (v) => !continueIds.has(v.id) && !featuredIds.has(v.id) && !recentIds.has(v.id)
+  );
+
+  const renderCard = (video: VideoWithAccess, hideCompleteButton: boolean) => (
+    <VideoAccessCard
+      key={video.id}
+      id={video.id}
+      title={video.title}
+      description={video.description}
+      category={video.category}
+      isPinned={video.is_pinned}
+      isFreePreview={video.is_free_preview}
+      accessState={video.access_state}
+      isCompleted={video.is_completed}
+      thumbnailUrl={video.thumbnail_url}
+      durationSeconds={video.duration_seconds}
+      onComplete={hideCompleteButton ? undefined : handleVideoComplete}
+      completionLoading={hideCompleteButton ? false : completingVideoId === video.id || progressLoading}
+      hideCompleteButton={hideCompleteButton}
+    />
+  );
+
+  const renderVideosTab = (hideCompleteButton: boolean) => (
+    <>
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search videos..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="pl-10"
+          />
+        </div>
+        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+          <SelectTrigger className="w-full sm:w-64">
+            <SelectValue placeholder="Select category" />
+          </SelectTrigger>
+          <SelectContent>
+            {CATEGORIES.map((cat) => (
+              <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
+          <p className="mt-4 text-muted-foreground">Loading videos...</p>
+        </div>
+      ) : (
+        <>
+          {continueWatching.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <History className="h-5 w-5 text-primary" />
+                <h2 className="text-2xl font-semibold">Continue Watching</h2>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {continueWatching.map((v) => renderCard(v, hideCompleteButton))}
+              </div>
+            </div>
+          )}
+
+          {featured.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Pin className="h-5 w-5 text-primary" />
+                <h2 className="text-2xl font-semibold">Featured Videos</h2>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {featured.map((v) => renderCard(v, hideCompleteButton))}
+              </div>
+            </div>
+          )}
+
+          {recentlyAdded.length > 0 && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Sparkles className="h-5 w-5 text-primary" />
+                <h2 className="text-2xl font-semibold">Recently Added</h2>
+              </div>
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {recentlyAdded.map((v) => renderCard(v, hideCompleteButton))}
+              </div>
+            </div>
+          )}
+
+          {allOther.length > 0 && (
+            <div className="space-y-4">
+              {(continueWatching.length > 0 || featured.length > 0 || recentlyAdded.length > 0) && (
+                <h2 className="text-2xl font-semibold">All Videos</h2>
+              )}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {allOther.map((v) => renderCard(v, hideCompleteButton))}
+              </div>
+            </div>
+          )}
+
+          {filteredVideos.length === 0 && videos.length === 0 && (
+            <Card className="border-dashed">
+              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                <Video className="h-12 w-12 text-muted-foreground mb-4" />
+                <h3 className="text-lg font-semibold mb-2">Educational videos are coming soon</h3>
+                <p className="text-sm text-muted-foreground max-w-md">
+                  For now, your main instructions will come from your program guide and updates from your coach. Check back here for technique breakdowns and deep-dive lessons.
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {filteredVideos.length === 0 && videos.length > 0 && (
+            <Alert>
+              <Video className="h-4 w-4" />
+              <AlertDescription>
+                No videos found matching your criteria. Try adjusting your search or filter.
+              </AlertDescription>
+            </Alert>
+          )}
+        </>
+      )}
+    </>
+  );
 
   // Loading state
   if (access.loading) {
@@ -188,9 +336,7 @@ export default function EducationalVideos() {
     );
   }
 
-  // Coaches (non-admin) see the client browse UI as a read-only preview, with the
-  // "Mark as Complete" button hidden. PR D will DRY the duplicated JSX into a shared
-  // sub-component; for PR A we copy-paste deliberately.
+  // Coaches (non-admin) see the client browse UI as a read-only preview.
   if (access.isCoach && !access.isAdmin) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -211,7 +357,7 @@ export default function EducationalVideos() {
             </p>
           </div>
 
-          <Tabs defaultValue="videos" className="space-y-6">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as "videos" | "paths")} className="space-y-6">
             <TabsList className="grid w-full grid-cols-2 max-w-md">
               <TabsTrigger value="videos">
                 <Video className="h-4 w-4 mr-2" />
@@ -224,106 +370,7 @@ export default function EducationalVideos() {
             </TabsList>
 
             <TabsContent value="videos" className="space-y-6">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search videos..."
-                    value={searchQuery}
-                    onChange={(e) => setSearchQuery(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="w-full sm:w-64">
-                    <SelectValue placeholder="Select category" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {CATEGORIES.map(cat => (
-                      <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {loading ? (
-                <div className="text-center py-12">
-                  <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-                  <p className="mt-4 text-muted-foreground">Loading videos...</p>
-                </div>
-              ) : (
-                <>
-                  {pinnedVideos.length > 0 && (
-                    <div className="space-y-4">
-                      <div className="flex items-center gap-2">
-                        <Pin className="h-5 w-5 text-primary" />
-                        <h2 className="text-2xl font-semibold">Featured Videos</h2>
-                      </div>
-                      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {pinnedVideos.map(video => (
-                          <VideoAccessCard
-                            key={video.id}
-                            id={video.id}
-                            title={video.title}
-                            description={video.description}
-                            category={video.category}
-                            isPinned={video.is_pinned}
-                            isFreePreview={video.is_free_preview}
-                            accessState={video.access_state}
-                            isCompleted={video.is_completed}
-                            hideCompleteButton
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {regularVideos.length > 0 && (
-                    <div className="space-y-4">
-                      {pinnedVideos.length > 0 && (
-                        <h2 className="text-2xl font-semibold">All Videos</h2>
-                      )}
-                      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                        {regularVideos.map(video => (
-                          <VideoAccessCard
-                            key={video.id}
-                            id={video.id}
-                            title={video.title}
-                            description={video.description}
-                            category={video.category}
-                            isPinned={video.is_pinned}
-                            isFreePreview={video.is_free_preview}
-                            accessState={video.access_state}
-                            isCompleted={video.is_completed}
-                            hideCompleteButton
-                          />
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {filteredVideos.length === 0 && videos.length === 0 && (
-                    <Card className="border-dashed">
-                      <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                        <Video className="h-12 w-12 text-muted-foreground mb-4" />
-                        <h3 className="text-lg font-semibold mb-2">Educational videos are coming soon</h3>
-                        <p className="text-sm text-muted-foreground max-w-md">
-                          For now, your main instructions will come from your program guide and updates from your coach. Check back here for technique breakdowns and deep-dive lessons.
-                        </p>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  {filteredVideos.length === 0 && videos.length > 0 && (
-                    <Alert>
-                      <Video className="h-4 w-4" />
-                      <AlertDescription>
-                        No videos found matching your criteria. Try adjusting your search or filter.
-                      </AlertDescription>
-                    </Alert>
-                  )}
-                </>
-              )}
+              {renderVideosTab(true)}
             </TabsContent>
 
             <TabsContent value="paths">
@@ -350,7 +397,7 @@ export default function EducationalVideos() {
           </p>
         </div>
 
-        <Tabs defaultValue="videos" className="space-y-6">
+        <Tabs value={tab} onValueChange={(v) => setTab(v as "videos" | "paths")} className="space-y-6">
           <TabsList className="grid w-full grid-cols-2 max-w-md">
             <TabsTrigger value="videos">
               <Video className="h-4 w-4 mr-2" />
@@ -363,111 +410,7 @@ export default function EducationalVideos() {
           </TabsList>
 
           <TabsContent value="videos" className="space-y-6">
-            {/* Search and Filter Section */}
-            <div className="flex flex-col sm:flex-row gap-4">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search videos..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-full sm:w-64">
-                  <SelectValue placeholder="Select category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {CATEGORIES.map(cat => (
-                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {loading ? (
-              <div className="text-center py-12">
-                <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
-                <p className="mt-4 text-muted-foreground">Loading videos...</p>
-              </div>
-            ) : (
-              <>
-                {/* Featured/Pinned Videos */}
-                {pinnedVideos.length > 0 && (
-                  <div className="space-y-4">
-                    <div className="flex items-center gap-2">
-                      <Pin className="h-5 w-5 text-primary" />
-                      <h2 className="text-2xl font-semibold">Featured Videos</h2>
-                    </div>
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                      {pinnedVideos.map(video => (
-                        <VideoAccessCard
-                          key={video.id}
-                          id={video.id}
-                          title={video.title}
-                          description={video.description}
-                          category={video.category}
-                          isPinned={video.is_pinned}
-                          isFreePreview={video.is_free_preview}
-                          accessState={video.access_state}
-                          isCompleted={video.is_completed}
-                          onComplete={handleVideoComplete}
-                          completionLoading={completingVideoId === video.id || progressLoading}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Regular Videos */}
-                {regularVideos.length > 0 && (
-                  <div className="space-y-4">
-                    {pinnedVideos.length > 0 && (
-                      <h2 className="text-2xl font-semibold">All Videos</h2>
-                    )}
-                    <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                      {regularVideos.map(video => (
-                        <VideoAccessCard
-                          key={video.id}
-                          id={video.id}
-                          title={video.title}
-                          description={video.description}
-                          category={video.category}
-                          isPinned={video.is_pinned}
-                          isFreePreview={video.is_free_preview}
-                          accessState={video.access_state}
-                          isCompleted={video.is_completed}
-                          onComplete={handleVideoComplete}
-                          completionLoading={completingVideoId === video.id || progressLoading}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {filteredVideos.length === 0 && videos.length === 0 && (
-                  <Card className="border-dashed">
-                    <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                      <Video className="h-12 w-12 text-muted-foreground mb-4" />
-                      <h3 className="text-lg font-semibold mb-2">Educational videos are coming soon</h3>
-                      <p className="text-sm text-muted-foreground max-w-md">
-                        For now, your main instructions will come from your program guide and updates from your coach. Check back here for technique breakdowns and deep-dive lessons.
-                      </p>
-                    </CardContent>
-                  </Card>
-                )}
-
-                {filteredVideos.length === 0 && videos.length > 0 && (
-                  <Alert>
-                    <Video className="h-4 w-4" />
-                    <AlertDescription>
-                      No videos found matching your criteria. Try adjusting your search or filter.
-                    </AlertDescription>
-                  </Alert>
-                )}
-              </>
-            )}
+            {renderVideosTab(false)}
           </TabsContent>
 
           <TabsContent value="paths">

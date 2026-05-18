@@ -12,12 +12,12 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Plus, Pencil, Trash2, Pin, Video, ExternalLink, X } from "lucide-react";
+import { Plus, Pencil, Trash2, Pin, Video, ExternalLink, X, Clock } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { PlaylistManager } from "./PlaylistManager";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
-import { CATEGORIES, validateVideoUrl, detectVideoTypeFromUrl, fetchActiveServices, ServiceOption } from "@/lib/educationalContent";
+import { CATEGORIES, validateVideoUrl, detectVideoTypeFromUrl, fetchActiveServices, formatDuration, ServiceOption } from "@/lib/educationalContent";
 
 interface EducationalVideo {
   id: string;
@@ -30,6 +30,7 @@ interface EducationalVideo {
   is_free_preview: boolean;
   is_active: boolean;
   required_service_ids: string[] | null;
+  duration_seconds: number | null;
   created_at: string;
 }
 
@@ -55,13 +56,14 @@ export function EducationalVideosManager() {
   const [requiredServiceIds, setRequiredServiceIds] = useState<string[]>([]);
   const [services, setServices] = useState<ServiceOption[]>([]);
   const [servicesLoading, setServicesLoading] = useState(false);
+  const [durationMinutes, setDurationMinutes] = useState<string>("");
 
   const loadVideos = useCallback(async () => {
     try {
       setLoading(true);
       const { data, error } = await supabase
         .from('educational_videos')
-        .select('id, title, description, video_url, video_type, category, is_pinned, is_free_preview, is_active, required_service_ids, created_at')
+        .select('id, title, description, video_url, video_type, category, is_pinned, is_free_preview, is_active, required_service_ids, duration_seconds, created_at')
         .order('is_pinned', { ascending: false })
         .order('created_at', { ascending: false });
 
@@ -93,6 +95,7 @@ export function EducationalVideosManager() {
     setIsFreePreview(false);
     setIsActive(true);
     setRequiredServiceIds([]);
+    setDurationMinutes("");
     setEditingVideo(null);
   };
 
@@ -107,6 +110,7 @@ export function EducationalVideosManager() {
     setIsFreePreview(video.is_free_preview ?? false);
     setIsActive(video.is_active ?? true);
     setRequiredServiceIds(video.required_service_ids ?? []);
+    setDurationMinutes(video.duration_seconds ? String(Math.round(video.duration_seconds / 60)) : "");
     setDialogOpen(true);
   };
 
@@ -139,6 +143,9 @@ export function EducationalVideosManager() {
         is_free_preview: isFreePreview,
         is_active: isActive,
         required_service_ids: requiredServiceIds.length > 0 ? requiredServiceIds : null,
+        duration_seconds: durationMinutes.trim() === ""
+          ? null
+          : Math.max(1, Math.round(parseFloat(durationMinutes) * 60)),
       };
 
       if (editingVideo) {
@@ -345,7 +352,7 @@ export function EducationalVideosManager() {
                   />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="videoType">Video Platform *</Label>
                     <Select value={videoType} onValueChange={(value: 'youtube' | 'loom') => setVideoType(value)}>
@@ -371,6 +378,18 @@ export function EducationalVideosManager() {
                         ))}
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="duration">Duration (minutes)</Label>
+                    <Input
+                      id="duration"
+                      type="number"
+                      min={1}
+                      placeholder="Optional"
+                      value={durationMinutes}
+                      onChange={(e) => setDurationMinutes(e.target.value)}
+                    />
                   </div>
                 </div>
 
@@ -540,6 +559,12 @@ export function EducationalVideosManager() {
                         {video.description && (
                           <div className="text-sm text-muted-foreground line-clamp-1">
                             {video.description}
+                          </div>
+                        )}
+                        {video.duration_seconds && (
+                          <div className="flex items-center gap-1 text-xs text-muted-foreground mt-1">
+                            <Clock className="h-3 w-3" />
+                            {formatDuration(video.duration_seconds)}
                           </div>
                         )}
                       </div>
