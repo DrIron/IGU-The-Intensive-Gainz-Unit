@@ -22,6 +22,8 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { DayModuleEditor } from "./DayModuleEditor";
+import { LinkedContentList } from "@/components/educational/LinkedContentList";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Tables, Enums } from "@/integrations/supabase/types";
 
 type ProgramTemplate = Tables<"program_templates">;
@@ -523,6 +525,23 @@ export function ProgramEditor({ coachUserId, programId, onBack }: ProgramEditorP
           </CardContent>
         </Card>
       )}
+
+      {programId && program.title ? (
+        <LinkedContentList
+          target={{
+            kind: "program-template",
+            id: programId,
+            title: program.title,
+          }}
+          emptyMessage="No content linked yet. Add recommended videos or learning paths for clients on this program."
+        />
+      ) : !programId ? (
+        <Alert>
+          <AlertDescription>
+            Save the template first to add recommended content.
+          </AlertDescription>
+        </Alert>
+      ) : null}
     </div>
   );
 }

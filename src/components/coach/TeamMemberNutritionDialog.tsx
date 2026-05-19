@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Flame, Beef, Croissant, Droplet } from "lucide-react";
 import { CoachNutritionGoal } from "@/components/nutrition/CoachNutritionGoal";
 import { CoachNutritionGraphs } from "@/components/nutrition/CoachNutritionGraphs";
+import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -135,10 +136,18 @@ export function TeamMemberNutritionDialog({
             </CardContent>
           </Card>
 
-          <CoachNutritionGoal 
-            clientUserId={clientId} 
+          <CoachNutritionGoal
+            clientUserId={clientId}
             phase={activePhase}
             onPhaseUpdated={loadNutritionData}
+          />
+          <LinkedContentList
+            target={{
+              kind: "nutrition-phase",
+              id: activePhase.id,
+              title: activePhase.phase_name ?? "Active phase",
+            }}
+            emptyMessage="No content linked to this phase yet. Add recommended videos or learning paths."
           />
           <CoachNutritionGraphs phase={activePhase} />
         </>

@@ -1,7 +1,7 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Lock, Unlock, Eye, CheckCircle2, Pin, Clock, UserPlus, UserCheck } from "lucide-react";
+import { Lock, Unlock, Eye, CheckCircle2, Pin, Clock, UserPlus, UserCheck, Link2 } from "lucide-react";
 import { SecureVideoPlayer } from "./SecureVideoPlayer";
 import { formatDuration } from "@/lib/educationalContent";
 
@@ -26,6 +26,7 @@ interface VideoAccessCardProps {
   isAssignedByCoach?: boolean;
   prerequisiteTitle?: string | null;
   onAssign?: (videoId: string) => void;
+  linkedContext?: { kind: "program" | "phase"; title: string };
 }
 
 /**
@@ -51,6 +52,7 @@ export function VideoAccessCard({
   isAssignedByCoach = false,
   prerequisiteTitle = null,
   onAssign,
+  linkedContext,
 }: VideoAccessCardProps) {
   const durationLabel = formatDuration(durationSeconds);
   const isAccessible = accessState === "unlocked" || accessState === "preview";
@@ -136,6 +138,12 @@ export function VideoAccessCard({
           {isAssignedByCoach && (
             <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 gap-1">
               <UserCheck className="h-3 w-3" /> From your coach
+            </Badge>
+          )}
+          {linkedContext && (
+            <Badge variant="default" className="bg-indigo-600 hover:bg-indigo-700 gap-1">
+              <Link2 className="h-3 w-3" />
+              {linkedContext.kind === "program" ? "Program" : "Phase"}: {linkedContext.title}
             </Badge>
           )}
           {durationLabel && (
