@@ -757,6 +757,7 @@ Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
 | `cancel-subscription` | No | Internal admin/self verification |
 | `send-waitlist-confirmation` | No | Anonymous |
 | `send-waitlist-invites` | No | Internal admin auth check |
+| `send-content-assignment-email` | No | Called from frontend; internal JWT validation; same pattern as `send-coach-client-message-email` |
 | All 10 `process-*` / `send-admin-daily-summary` / `send-weekly-coach-digest` | No | Vercel Cron with service role key |
 
 ---
