@@ -189,13 +189,15 @@ export function LinkContentDialog({ open, onClose, target, onLinkAdded }: LinkCo
 
     let insertedCount = 0;
     let attempted = 0;
+    let insertedVideoRows: Array<{ video_id: string | null }> = [];
+    let insertedPlaylistRows: Array<{ playlist_id: string | null }> = [];
 
     if (videoRows.length > 0) {
       attempted += videoRows.length;
       const { data, error } = await supabase
         .from(table)
         .upsert(videoRows, { onConflict: `${fkCol},video_id`, ignoreDuplicates: true })
-        .select("id");
+        .select("id, video_id");
       if (error) {
         setSubmitting(false);
         toast({
@@ -205,7 +207,8 @@ export function LinkContentDialog({ open, onClose, target, onLinkAdded }: LinkCo
         });
         return;
       }
-      insertedCount += (data ?? []).length;
+      insertedVideoRows = (data ?? []) as Array<{ video_id: string | null }>;
+      insertedCount += insertedVideoRows.length;
     }
 
     if (playlistRows.length > 0) {
@@ -213,7 +216,7 @@ export function LinkContentDialog({ open, onClose, target, onLinkAdded }: LinkCo
       const { data, error } = await supabase
         .from(table)
         .upsert(playlistRows, { onConflict: `${fkCol},playlist_id`, ignoreDuplicates: true })
-        .select("id");
+        .select("id, playlist_id");
       if (error) {
         setSubmitting(false);
         toast({
@@ -223,7 +226,8 @@ export function LinkContentDialog({ open, onClose, target, onLinkAdded }: LinkCo
         });
         return;
       }
-      insertedCount += (data ?? []).length;
+      insertedPlaylistRows = (data ?? []) as Array<{ playlist_id: string | null }>;
+      insertedCount += insertedPlaylistRows.length;
     }
 
     setSubmitting(false);
@@ -234,6 +238,32 @@ export function LinkContentDialog({ open, onClose, target, onLinkAdded }: LinkCo
       description: `Linked ${insertedCount} item${insertedCount === 1 ? "" : "s"} to "${target.title}"${skippedSuffix}.`,
     });
     onLinkAdded?.();
+
+    // PR N: fire-and-forget email to affected clients. Skip when nothing actually inserted
+    // (everything ignoreDuplicates'd) -- avoids spamming on re-submits. Errors logged, never surfaced.
+    const insertedItems: Array<{ kind: "video" | "playlist"; id: string; title: string }> = [];
+    for (const row of insertedVideoRows) {
+      if (!row.video_id) continue;
+      const v = videos.find((x) => x.id === row.video_id);
+      if (v) insertedItems.push({ kind: "video", id: v.id, title: v.title });
+    }
+    for (const row of insertedPlaylistRows) {
+      if (!row.playlist_id) continue;
+      const p = playlists.find((x) => x.id === row.playlist_id);
+      if (p) insertedItems.push({ kind: "playlist", id: p.id, title: p.title });
+    }
+    if (insertedItems.length > 0) {
+      void supabase.functions
+        .invoke("send-content-link-email", {
+          body: {
+            target: { kind: target.kind, id: target.id, title: target.title },
+            items: insertedItems,
+            note: trimmedNote,
+          },
+        })
+        .catch((err) => console.error("[content-link-email]", err));
+    }
+
     onClose();
   };
 
