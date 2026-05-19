@@ -272,6 +272,16 @@ PHI_ENCRYPTION_KEY=xxx (stored in Vault)
 - `SUPABASE_URL` — server-side only (no `VITE_` prefix)
 - `SUPABASE_SERVICE_ROLE_KEY`
 
+### Optional secrets
+
+#### YouTube Data API (for video-duration auto-fill)
+
+- Visit https://console.cloud.google.com -> enable "YouTube Data API v3" -> create an API key.
+- Restrict the key to YouTube Data API v3 from the Google Cloud console.
+- Set in Supabase: `supabase secrets set YOUTUBE_API_KEY=<your-key>`
+- Used by: `fetch-video-metadata` edge function. If not set, the function returns 503 and the admin form falls back to manual duration entry. No other functionality breaks.
+- Free tier: 10,000 requests/day, well above any plausible admin workflow.
+
 ---
 
 ## Common Patterns
@@ -758,6 +768,7 @@ Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
 | `send-waitlist-confirmation` | No | Anonymous |
 | `send-waitlist-invites` | No | Internal admin auth check |
 | `send-content-assignment-email` | No | Called from frontend; internal JWT validation; same pattern as `send-coach-client-message-email` |
+| `fetch-video-metadata` | No | Called from frontend; internal JWT + admin role check |
 | All 10 `process-*` / `send-admin-daily-summary` / `send-weekly-coach-digest` | No | Vercel Cron with service role key |
 
 ---

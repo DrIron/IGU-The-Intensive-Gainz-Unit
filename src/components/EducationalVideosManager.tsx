@@ -100,6 +100,14 @@ export function EducationalVideosManager() {
   const [playlists, setPlaylists] = useState<PlaylistOption[]>([]);
   const playlistsFetched = useRef(false);
 
+  // PR I: debounce timer for YouTube duration auto-fill (silent best-effort polish).
+  const durationLookupTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    return () => {
+      if (durationLookupTimeoutRef.current) clearTimeout(durationLookupTimeoutRef.current);
+    };
+  }, []);
+
   const loadVideos = useCallback(async () => {
     try {
       setLoading(true);
@@ -611,6 +619,9 @@ export function EducationalVideosManager() {
                       value={durationMinutes}
                       onChange={(e) => setDurationMinutes(e.target.value)}
                     />
+                    <p className="text-xs text-muted-foreground">
+                      YouTube URLs auto-fill this when an API key is configured.
+                    </p>
                   </div>
                 </div>
 
@@ -624,6 +635,39 @@ export function EducationalVideosManager() {
                       setVideoUrl(next);
                       const detected = detectVideoTypeFromUrl(next);
                       if (detected) setVideoType(detected);
+
+                      // PR I: cancel any pending lookup from the previous keystroke.
+                      if (durationLookupTimeoutRef.current) {
+                        clearTimeout(durationLookupTimeoutRef.current);
+                        durationLookupTimeoutRef.current = null;
+                      }
+
+                      // Only schedule a lookup when we have a valid YouTube URL AND the
+                      // duration field is empty (never overwrite admin's manual entry).
+                      const v = validateVideoUrl(next);
+                      if (v.valid && v.videoType === "youtube" && durationMinutes.trim() === "") {
+                        durationLookupTimeoutRef.current = setTimeout(async () => {
+                          try {
+                            const { data, error } = await supabase.functions.invoke(
+                              "fetch-video-metadata",
+                              { body: { url: next } }
+                            );
+                            if (error) { console.warn("[fetch-video-metadata]", error); return; }
+                            if (data?.error) { console.warn("[fetch-video-metadata]", data.error); return; }
+                            const seconds: number | undefined = data?.duration_seconds;
+                            if (typeof seconds === "number" && seconds > 0) {
+                              // Race guard: if the admin typed something while we waited, leave it alone.
+                              setDurationMinutes((current) =>
+                                current.trim() === ""
+                                  ? String(Math.max(1, Math.round(seconds / 60)))
+                                  : current
+                              );
+                            }
+                          } catch (err) {
+                            console.warn("[fetch-video-metadata]", err);
+                          }
+                        }, 200);
+                      }
                     }}
                     placeholder="https://youtube.com/watch?v=... or https://loom.com/share/..."
                   />
