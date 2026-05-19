@@ -90,12 +90,16 @@ export function ClientDashboardLayout({
   const isInGracePeriod = isPastDue && status === "active";
   const isHardLocked = status === "inactive" && subStatus === "inactive";
 
-  // PR F: required + assigned content summary for the dashboard banner.
+  // PR F + PR M: content summary for the dashboard banner -- required + assigned + program-linked + phase-linked.
   interface ContentSummary {
     required_total: number;
     required_pending: number;
     assigned_total: number;
     assigned_pending: number;
+    program_linked_total: number;
+    program_linked_pending: number;
+    phase_linked_total: number;
+    phase_linked_pending: number;
   }
   const [contentSummary, setContentSummary] = useState<ContentSummary | null>(null);
   const summaryFetched = useRef(false);
@@ -553,23 +557,41 @@ export function ClientDashboardLayout({
                 {isInGracePeriod && (
                   <GracePeriodBanner subscription={subscription} profile={profile} />
                 )}
-                {/* PR F: required + assigned content banner */}
-                {contentSummary && (contentSummary.required_pending + contentSummary.assigned_pending) > 0 && (
-                  <Alert className="border-primary/40 bg-primary/5 mb-4">
-                    <PlayCircle className="h-4 w-4" />
-                    <AlertTitle>You have content to watch</AlertTitle>
-                    <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
-                      <span>
-                        {contentSummary.required_pending > 0 && `${contentSummary.required_pending} required video${contentSummary.required_pending === 1 ? "" : "s"}`}
-                        {contentSummary.required_pending > 0 && contentSummary.assigned_pending > 0 && " -- "}
-                        {contentSummary.assigned_pending > 0 && `${contentSummary.assigned_pending} from your coach`}
-                      </span>
-                      <Button size="sm" variant="outline" onClick={() => navigate("/educational-videos")}>
-                        Watch now
-                      </Button>
-                    </AlertDescription>
-                  </Alert>
-                )}
+                {/* PR F + PR M: content-to-watch banner -- required + assigned + program + phase */}
+                {contentSummary &&
+                  (contentSummary.required_pending +
+                    contentSummary.assigned_pending +
+                    contentSummary.program_linked_pending +
+                    contentSummary.phase_linked_pending) >
+                    0 && (
+                    <Alert className="border-primary/40 bg-primary/5 mb-4">
+                      <PlayCircle className="h-4 w-4" />
+                      <AlertTitle>You have content to watch</AlertTitle>
+                      <AlertDescription className="flex items-center justify-between gap-3 flex-wrap">
+                        <span>
+                          {[
+                            contentSummary.required_pending > 0 &&
+                              `${contentSummary.required_pending} required`,
+                            contentSummary.assigned_pending > 0 &&
+                              `${contentSummary.assigned_pending} from your coach`,
+                            contentSummary.program_linked_pending > 0 &&
+                              `${contentSummary.program_linked_pending} for your program`,
+                            contentSummary.phase_linked_pending > 0 &&
+                              `${contentSummary.phase_linked_pending} for your phase`,
+                          ]
+                            .filter(Boolean)
+                            .join(" -- ")}
+                        </span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => navigate("/educational-videos")}
+                        >
+                          Watch now
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  )}
                 <SectionErrorBoundary name="Dashboard">
                   {renderContent()}
                 </SectionErrorBoundary>
