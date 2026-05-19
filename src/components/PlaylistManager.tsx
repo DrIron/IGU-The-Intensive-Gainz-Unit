@@ -9,7 +9,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Edit, Trash2, GripVertical, Video } from "lucide-react";
+import { Plus, Edit, Trash2, Video, GripVertical } from "lucide-react";
+import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea/dnd";
 
 interface VideoPlaylist {
   id: string;
@@ -101,6 +102,30 @@ export function PlaylistManager() {
     } catch (error: any) {
       toast.error("Failed to load playlist videos");
     }
+  };
+
+  // PR E: drag-to-reorder playlist videos. Optimistic local + parallel order_number writes,
+  // refetch rollback on any error. Migration 5aa160a dropped UNIQUE(playlist_id, order_number)
+  // so parallel updates don't collide mid-shuffle.
+  const handleReorderPlaylistVideos = async (playlistId: string, result: DropResult) => {
+    if (!result.destination || result.destination.index === result.source.index) return;
+    const reordered = Array.from(playlistVideos);
+    const [moved] = reordered.splice(result.source.index, 1);
+    reordered.splice(result.destination.index, 0, moved);
+    const updates = reordered.map((pv, idx) => ({ id: pv.id, order_number: idx + 1 }));
+    setPlaylistVideos(reordered.map((pv, idx) => ({ ...pv, order_number: idx + 1 })));
+    const results = await Promise.all(
+      updates.map((u) =>
+        supabase.from("playlist_videos").update({ order_number: u.order_number }).eq("id", u.id)
+      )
+    );
+    const firstError = results.find((r) => r.error);
+    if (firstError?.error) {
+      toast.error("Reorder failed");
+      loadPlaylistVideos(playlistId);
+      return;
+    }
+    toast.success("Order saved");
   };
 
   const handleCreatePlaylist = async () => {
@@ -297,24 +322,47 @@ export function PlaylistManager() {
                         </div>
 
                         <div className="space-y-2">
-                          <Label>Videos in Playlist (in order)</Label>
+                          <Label>Videos in Playlist (drag to reorder)</Label>
                           {playlistVideos.length === 0 ? (
                             <p className="text-sm text-muted-foreground">No videos in this playlist yet</p>
                           ) : (
-                            playlistVideos.map((pv, index) => (
-                              <div key={pv.id} className="flex items-center gap-2 p-2 border rounded">
-                                <GripVertical className="h-4 w-4 text-muted-foreground" />
-                                <span className="font-medium">{index + 1}.</span>
-                                <span className="flex-1">{pv.educational_videos.title}</span>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleRemoveVideoFromPlaylist(pv.id, playlist.id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            ))
+                            <DragDropContext onDragEnd={(r) => handleReorderPlaylistVideos(playlist.id, r)}>
+                              <Droppable droppableId={`playlist-${playlist.id}`}>
+                                {(provided) => (
+                                  <div ref={provided.innerRef} {...provided.droppableProps} className="space-y-2">
+                                    {playlistVideos.map((pv, index) => (
+                                      <Draggable key={pv.id} draggableId={pv.id} index={index}>
+                                        {(dragProvided, snapshot) => (
+                                          <div
+                                            ref={dragProvided.innerRef}
+                                            {...dragProvided.draggableProps}
+                                            className={`flex items-center gap-2 p-2 border rounded bg-background ${snapshot.isDragging ? "shadow-lg" : ""}`}
+                                          >
+                                            <span
+                                              {...dragProvided.dragHandleProps}
+                                              className="cursor-grab text-muted-foreground"
+                                              aria-label="Drag to reorder"
+                                            >
+                                              <GripVertical className="h-4 w-4" />
+                                            </span>
+                                            <span className="font-medium">{index + 1}.</span>
+                                            <span className="flex-1">{pv.educational_videos.title}</span>
+                                            <Button
+                                              variant="ghost"
+                                              size="sm"
+                                              onClick={() => handleRemoveVideoFromPlaylist(pv.id, playlist.id)}
+                                            >
+                                              <Trash2 className="h-4 w-4" />
+                                            </Button>
+                                          </div>
+                                        )}
+                                      </Draggable>
+                                    ))}
+                                    {provided.placeholder}
+                                  </div>
+                                )}
+                              </Droppable>
+                            </DragDropContext>
                           )}
                         </div>
                       </div>

@@ -1,11 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import { ListOrdered, Video, Youtube, ExternalLink } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { ListOrdered, UserPlus } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { VideoAccessCard, VideoAccessState } from "@/components/video/VideoAccessCard";
+import { useVideoProgress } from "@/hooks/useVideoProgress";
 
 interface VideoPlaylist {
   id: string;
@@ -14,23 +16,36 @@ interface VideoPlaylist {
 }
 
 interface PlaylistVideo {
-  id: string;
+  playlist_video_id: string;
   order_number: number;
-  educational_videos: {
-    id: string;
-    title: string;
-    description: string | null;
-    video_url: string;
-    video_type: string;
-    category: string;
-  };
+  video_id: string;
+  title: string;
+  description: string | null;
+  category: string;
+  is_pinned: boolean;
+  is_free_preview: boolean;
+  duration_seconds: number | null;
+  thumbnail_url: string | null;
+  access_state: VideoAccessState;
+  is_completed: boolean;
 }
 
-export function PlaylistViewer() {
+interface PlaylistViewerProps {
+  hideCompleteButton?: boolean;
+  onAssignPlaylist?: (playlistId: string, playlistTitle: string) => void;
+}
+
+export function PlaylistViewer({ hideCompleteButton = false, onAssignPlaylist }: PlaylistViewerProps) {
   const [playlists, setPlaylists] = useState<VideoPlaylist[]>([]);
   const [selectedPlaylist, setSelectedPlaylist] = useState<string | null>(null);
   const [playlistVideos, setPlaylistVideos] = useState<PlaylistVideo[]>([]);
+  const [assignedPlaylistIds, setAssignedPlaylistIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [completingVideoId, setCompletingVideoId] = useState<string | null>(null);
+  const hasFetched = useRef(false);
+  const hasFetchedAssigned = useRef(false);
+
+  const { markComplete, loading: progressLoading } = useVideoProgress();
 
   const loadPlaylists = useCallback(async () => {
     try {
@@ -46,7 +61,7 @@ export function PlaylistViewer() {
       if (data && data.length > 0) {
         setSelectedPlaylist((current) => current ?? data[0].id);
       }
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error("Error loading playlists:", error);
     } finally {
       setLoading(false);
@@ -54,49 +69,53 @@ export function PlaylistViewer() {
   }, []);
 
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     loadPlaylists();
   }, [loadPlaylists]);
+
+  // PR G: clients see "From your coach" badge on assigned playlists. Coaches skip this fetch
+  // (they're the assigners, not assignees) -- detected via the presence of onAssignPlaylist.
+  useEffect(() => {
+    if (hasFetchedAssigned.current || onAssignPlaylist) return;
+    hasFetchedAssigned.current = true;
+    supabase.rpc("get_my_assigned_playlists").then(({ data, error }) => {
+      if (error) {
+        console.error("[assigned playlists]", error);
+        return;
+      }
+      setAssignedPlaylistIds(new Set((data ?? []).map((r: { playlist_id: string }) => r.playlist_id)));
+    });
+  }, [onAssignPlaylist]);
+
+  const loadPlaylistVideos = useCallback(async (playlistId: string) => {
+    try {
+      const { data, error } = await supabase.rpc("get_playlist_videos_with_access", {
+        p_playlist_id: playlistId,
+      });
+      if (error) throw error;
+      setPlaylistVideos((data ?? []) as PlaylistVideo[]);
+    } catch (error: unknown) {
+      console.error("Error loading playlist videos:", error);
+      setPlaylistVideos([]);
+    }
+  }, []);
 
   useEffect(() => {
     if (selectedPlaylist) {
       loadPlaylistVideos(selectedPlaylist);
     }
-  }, [selectedPlaylist]);
+  }, [selectedPlaylist, loadPlaylistVideos]);
 
-  const loadPlaylistVideos = async (playlistId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from("playlist_videos")
-        .select(`
-          id,
-          order_number,
-          educational_videos (
-            id,
-            title,
-            description,
-            video_url,
-            video_type,
-            category
-          )
-        `)
-        .eq("playlist_id", playlistId)
-        .order("order_number");
-
-      if (error) throw error;
-      setPlaylistVideos(data as any || []);
-    } catch (error: any) {
-      console.error("Error loading playlist videos:", error);
+  const handleVideoComplete = async (videoId: string) => {
+    setCompletingVideoId(videoId);
+    const success = await markComplete(videoId);
+    if (success) {
+      setPlaylistVideos((prev) =>
+        prev.map((v) => (v.video_id === videoId ? { ...v, is_completed: true } : v))
+      );
     }
-  };
-
-  const getEmbedUrl = (videoUrl: string, videoType: string) => {
-    if (videoType === 'youtube') {
-      const match = videoUrl.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
-      return match ? `https://www.youtube.com/embed/${match[1]}` : null;
-    } else {
-      const match = videoUrl.match(/loom\.com\/share\/([^?]+)/);
-      return match ? `https://www.loom.com/embed/${match[1]}` : null;
-    }
+    setCompletingVideoId(null);
   };
 
   if (loading) {
@@ -118,7 +137,10 @@ export function PlaylistViewer() {
     );
   }
 
-  const currentPlaylist = playlists.find(p => p.id === selectedPlaylist);
+  const currentPlaylist = playlists.find((p) => p.id === selectedPlaylist);
+  const totalVideos = playlistVideos.length;
+  const completedVideos = playlistVideos.filter((v) => v.is_completed).length;
+  const progressPercent = totalVideos > 0 ? Math.round((completedVideos / totalVideos) * 100) : 0;
 
   return (
     <div className="space-y-6">
@@ -128,9 +150,15 @@ export function PlaylistViewer() {
             key={playlist.id}
             variant={selectedPlaylist === playlist.id ? "default" : "outline"}
             onClick={() => setSelectedPlaylist(playlist.id)}
+            className="gap-2"
           >
-            <ListOrdered className="h-4 w-4 mr-2" />
+            <ListOrdered className="h-4 w-4" />
             {playlist.title}
+            {assignedPlaylistIds.has(playlist.id) && (
+              <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700 text-xs">
+                From your coach
+              </Badge>
+            )}
           </Button>
         ))}
       </div>
@@ -138,77 +166,76 @@ export function PlaylistViewer() {
       {currentPlaylist && (
         <Card>
           <CardHeader>
-            <CardTitle>{currentPlaylist.title}</CardTitle>
-            <CardDescription>{currentPlaylist.description}</CardDescription>
-            <div className="mt-4">
-              <div className="flex items-center justify-between text-sm mb-2">
-                <span className="text-muted-foreground">
-                  {playlistVideos.length} videos in this learning path
-                </span>
+            <div className="flex items-start justify-between gap-3">
+              <div className="space-y-1 flex-1">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <CardTitle>{currentPlaylist.title}</CardTitle>
+                  {assignedPlaylistIds.has(currentPlaylist.id) && (
+                    <Badge variant="default" className="bg-emerald-600 hover:bg-emerald-700">
+                      From your coach
+                    </Badge>
+                  )}
+                </div>
+                <CardDescription>{currentPlaylist.description}</CardDescription>
               </div>
+              {onAssignPlaylist && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => onAssignPlaylist(currentPlaylist.id, currentPlaylist.title)}
+                  className="gap-2 shrink-0"
+                >
+                  <UserPlus className="h-4 w-4" /> Assign this learning path
+                </Button>
+              )}
+            </div>
+            <div className="space-y-2 mt-4">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">
+                  {completedVideos} of {totalVideos} videos completed
+                </span>
+                <span className="font-medium">{progressPercent}%</span>
+              </div>
+              <Progress value={progressPercent} className="h-2" />
             </div>
           </CardHeader>
         </Card>
       )}
 
-      <div className="space-y-4">
-        {playlistVideos.map((pv) => {
-          const video = pv.educational_videos;
-          const embedUrl = getEmbedUrl(video.video_url, video.video_type);
-          
-          return (
-            <Card key={pv.id} className="overflow-hidden">
-              <CardHeader>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <Badge variant="secondary" className="text-lg font-bold">
-                        {pv.order_number}
-                      </Badge>
-                      <CardTitle className="text-lg">{video.title}</CardTitle>
-                    </div>
-                    <CardDescription>{video.description}</CardDescription>
-                  </div>
-                  <Badge variant="outline">
-                    {video.video_type === 'youtube' ? (
-                      <Youtube className="h-3 w-3 mr-1" />
-                    ) : (
-                      <Video className="h-3 w-3 mr-1" />
-                    )}
-                    {video.video_type}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="p-0">
-                {embedUrl ? (
-                  <div className="relative w-full pt-[56.25%]">
-                    <iframe
-                      src={embedUrl}
-                      className="absolute top-0 left-0 w-full h-full"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                    />
-                  </div>
-                ) : (
-                  <div className="p-6 text-center">
-                    <Button
-                      variant="outline"
-                      onClick={() => window.open(video.video_url, '_blank')}
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      Watch Video
-                    </Button>
-                  </div>
-                )}
-                <div className="p-4 border-t">
-                  <Badge variant="outline">{video.category}</Badge>
-                </div>
-              </CardContent>
-            </Card>
-          );
-        })}
-      </div>
+      {totalVideos === 0 ? (
+        <Alert>
+          <ListOrdered className="h-4 w-4" />
+          <AlertDescription>
+            This learning path doesn't have any videos yet.
+          </AlertDescription>
+        </Alert>
+      ) : (
+        <div className="grid gap-6 md:grid-cols-2">
+          {playlistVideos.map((pv) => (
+            <VideoAccessCard
+              key={pv.playlist_video_id}
+              id={pv.video_id}
+              title={pv.title}
+              description={pv.description}
+              category={pv.category}
+              isPinned={pv.is_pinned}
+              isFreePreview={pv.is_free_preview}
+              accessState={pv.access_state}
+              isCompleted={pv.is_completed}
+              numberBadge={pv.order_number}
+              thumbnailUrl={pv.thumbnail_url}
+              durationSeconds={pv.duration_seconds}
+              // PR F: v1 playlist surface skips per-video assignment state -- assignments are on the
+              // playlist itself, surfaced separately (PR G adds the playlist-level Assign button).
+              isRequired={false}
+              isAssignedByCoach={false}
+              onComplete={handleVideoComplete}
+              completionLoading={completingVideoId === pv.video_id || progressLoading}
+              hideCompleteButton={hideCompleteButton}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

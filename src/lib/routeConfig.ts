@@ -17,7 +17,7 @@
 import { LucideIcon, LayoutDashboard, Users, UserCog, Shield, ShieldCheck,
   Library, Tag, Activity, CreditCard, Wallet, ClipboardCheck, Bug,
   Stethoscope, CalendarDays, BookOpen, UsersRound, Dumbbell, Apple,
-  User, Video, Calendar, History, Home, MessageSquare, FileText, Users2, HeartPulse, GraduationCap, Mail } from "lucide-react";
+  User, Video, Calendar, History, Home, MessageSquare, FileText, Users2, HeartPulse, GraduationCap, Mail, BarChart3 } from "lucide-react";
 import { Role, getDashboardForRole, isRouteBlocked } from "@/auth/roles";
 
 // Re-export Role as AppRole for backward compatibility
@@ -92,6 +92,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "admin-subrole-approvals", path: "/admin/subrole-approvals", label: "Subrole Approvals", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: ShieldCheck, navOrder: 12 },
   { id: "admin-medical-reviews", path: "/admin/medical-reviews", label: "Medical Reviews", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: HeartPulse, navOrder: 13 },
   { id: "admin-coach-training", path: "/admin/coach-training", label: "Coach Training", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: GraduationCap, navOrder: 14 },
+  { id: "admin-content-engagement", path: "/admin/content-engagement", label: "Content Engagement", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: BarChart3, navOrder: 15, description: "Per-video views/completions analytics" },
   // Developer-only pages - accessible via URL but hidden from nav
   { id: "admin-pre-launch", path: "/admin/pre-launch", label: "Pre-Launch Check", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: Shield, navOrder: 20 },
   { id: "admin-security", path: "/admin/security", label: "Security Checklist", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false, icon: ShieldCheck, navOrder: 21 },
@@ -118,6 +119,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "coach-programs", path: "/coach/programs", label: "Program Library", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: BookOpen, navOrder: 5 },
   { id: "coach-exercises", path: "/coach/exercises", label: "Exercise Library", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: Dumbbell, navOrder: 5.5 },
   { id: "coach-profile", path: "/coach/profile", label: "My Profile", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: UserCog, navOrder: 6 },
+  { id: "coach-content-assignments", path: "/coach/content-assignments", label: "Assigned Content", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: true, icon: ClipboardCheck, navOrder: 7, description: "Content assigned by this coach" },
   { id: "coach-pending-clients", path: "/coach/pending-clients", label: "Pending Clients", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: false },
   { id: "coach-section", path: "/coach/:section", label: "Coach Section", layout: "CoachLayout", requiredRoles: ["coach"], navGroup: "coach", showInNav: false },
 

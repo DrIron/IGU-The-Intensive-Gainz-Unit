@@ -11,6 +11,7 @@ interface SecureVideoPlayerProps {
   className?: string;
   autoPlay?: boolean;
   showWatermark?: boolean;
+  thumbnailUrl?: string;
   onError?: (error: string) => void;
   onLoad?: () => void;
   onVideoEnd?: () => void;
@@ -28,6 +29,7 @@ export function SecureVideoPlayer({
   className = "",
   autoPlay = false,
   showWatermark = false,
+  thumbnailUrl,
   onError,
   onLoad,
   onVideoEnd,
@@ -116,12 +118,30 @@ export function SecureVideoPlayer({
     return (
       <Card className={`overflow-hidden ${className}`}>
         <CardContent className="p-0">
-          <div className="aspect-video bg-muted flex items-center justify-center">
+          <div
+            className="aspect-video flex items-center justify-center relative bg-muted bg-cover bg-center group cursor-pointer"
+            style={thumbnailUrl ? { backgroundImage: `url(${thumbnailUrl})` } : undefined}
+            onClick={handlePlay}
+            role="button"
+            tabIndex={0}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                handlePlay();
+              }
+            }}
+          >
+            {thumbnailUrl && (
+              <div className="absolute inset-0 bg-black/30 group-hover:bg-black/40 transition-colors" />
+            )}
             <Button
-              variant="outline"
+              variant={thumbnailUrl ? "default" : "outline"}
               size="lg"
-              onClick={handlePlay}
-              className="gap-2"
+              className="gap-2 relative z-10"
+              onClick={(e) => {
+                e.stopPropagation();
+                handlePlay();
+              }}
             >
               <Play className="h-5 w-5" />
               {title || "Play Video"}
