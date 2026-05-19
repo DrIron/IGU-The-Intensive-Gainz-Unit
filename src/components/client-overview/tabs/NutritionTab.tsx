@@ -14,6 +14,7 @@ import { DietBreakManager } from "@/components/nutrition/DietBreakManager";
 import { RefeedDayScheduler } from "@/components/nutrition/RefeedDayScheduler";
 import { StepProgressDisplay } from "@/components/nutrition/StepProgressDisplay";
 import { StepRecommendationCard } from "@/components/nutrition/StepRecommendationCard";
+import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import type { ClientOverviewTabProps } from "../types";
 
 interface PhaseStats {
@@ -175,6 +176,21 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
                 onRecommendationUpdated={loadClientPhases}
               />
             </NutritionPermissionGate>
+            {/* PR L-fix: recommended content linked to the selected phase.
+                Not wrapped in NutritionPermissionGate -- a coach-with-dietitian
+                should still see what's linked; RLS rejects unauthorized writes
+                with a toast. readOnly mirrors the page-level past-phase guard. */}
+            {selectedPhase && (
+              <LinkedContentList
+                target={{
+                  kind: "nutrition-phase",
+                  id: selectedPhase.id,
+                  title: selectedPhase.phase_name ?? "this phase",
+                }}
+                readOnly={isReadOnly}
+                emptyMessage="No content linked to this phase yet. Add recommended videos or learning paths."
+              />
+            )}
           </div>
         </TabsContent>
 

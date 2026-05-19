@@ -1,8 +1,10 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from "react";
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Dialog,
   DialogContent,
@@ -24,6 +26,7 @@ import {
   Undo2,
   Redo2,
   Plus,
+  AlertCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId } from "@/types/muscle-builder";
@@ -44,6 +47,7 @@ import { ProgressionOverview } from "./ProgressionOverview";
 import { PresetSelector } from "./PresetSelector";
 import { ConvertToProgram } from "./ConvertToProgram";
 import { SaveStatusBadge, type SaveState } from "./SaveStatusBadge";
+import { LinkedContentList } from "@/components/educational/LinkedContentList";
 
 interface MuscleBuilderPageProps {
   coachUserId: string;
@@ -89,6 +93,37 @@ export function MuscleBuilderPage({
 
   const [showClearDialog, setShowClearDialog] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
+  // PR L-fix: linked content lives on the converted program_template, not the
+  // muscle template. We read muscle_program_templates.converted_program_id to
+  // know whether to render LinkedContentList. Refetched when the Convert
+  // dialog closes so a successful conversion surfaces the section without a
+  // page reload (covers the case where onOpenProgram isn't provided and the
+  // coach stays on the builder).
+  const [convertedProgramId, setConvertedProgramId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!state.templateId) {
+      setConvertedProgramId(null);
+      return;
+    }
+    if (showConvertDialog) return; // skip while dialog is open; refetch on close
+    let cancelled = false;
+    supabase
+      .from("muscle_program_templates")
+      .select("converted_program_id")
+      .eq("id", state.templateId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error) {
+          console.error("[MuscleBuilderPage] converted_program_id fetch:", error.message);
+          return;
+        }
+        setConvertedProgramId(data?.converted_program_id ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [state.templateId, showConvertDialog]);
 
   // Save status — derived from reducer state + two local pieces
   // (lastSavedAt so we can show "Saved 3s ago"; saveError so the badge can
@@ -755,6 +790,28 @@ export function MuscleBuilderPage({
                 )}
               </Tabs>
             )}
+
+            {/* Recommended content (PR L-fix). Linked content lives on the
+                converted program_template, so the section appears only after
+                conversion. Pre-conversion: inline hint that doubles as a nudge. */}
+            {state.templateId &&
+              (convertedProgramId ? (
+                <LinkedContentList
+                  target={{
+                    kind: "program-template",
+                    id: convertedProgramId,
+                    title: state.name || "this program",
+                  }}
+                  emptyMessage="No content linked to this program yet. Add recommended videos or learning paths your clients should watch."
+                />
+              ) : (
+                <Alert>
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription>
+                    Convert this muscle plan to a program first to attach recommended educational content.
+                  </AlertDescription>
+                </Alert>
+              ))}
 
             {/* Convert to Program Dialog */}
             <ConvertToProgram
