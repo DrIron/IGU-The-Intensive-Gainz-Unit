@@ -120,7 +120,7 @@ serve(async (req) => {
       ? new Date().toISOString()
       : (subscription.next_billing_date || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString());
 
-    await supabase
+    const { error: subUpdateError } = await supabase
       .from('subscriptions')
       .update({
         status: isPending ? 'cancelled' : subscription.status,
@@ -129,25 +129,28 @@ serve(async (req) => {
         end_date: periodEnd,
       })
       .eq('id', subscription.id);
+    if (subUpdateError) throw subUpdateError;
 
     // Update profile status for pending cancellations
     if (isPending) {
-      await supabase
+      const { error: profileUpdateError } = await supabase
         .from('profiles_public')
         .update({ status: 'cancelled' })
         .eq('id', userId);
+      if (profileUpdateError) throw profileUpdateError;
     }
 
     console.log(`Subscription ${isPending ? 'cancelled immediately' : 'will be deleted at period end'}: ${periodEnd}`);
 
     // Update form submission with who cancelled
-    await supabase
+    const { error: formUpdateError } = await supabase
       .from('form_submissions')
       .update({
         cancelled_at: new Date().toISOString(),
         cancellation_reason: reason || (cancelledBy === 'admin' ? 'Admin cancelled subscription' : 'User requested cancellation'),
       })
       .eq('user_id', userId);
+    if (formUpdateError) throw formUpdateError;
 
     console.log(`Subscription cancelled for user ${userId}`);
 

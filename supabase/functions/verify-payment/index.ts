@@ -239,7 +239,7 @@ async function applyCapturedPayment(
   console.log(JSON.stringify({ fn: "verify-payment", step: "subscription_activated", requestId, chargeId, subscriptionId, ok: true }));
 
   // Update profile status
-  await supabase
+  const { error: profileUpdateError } = await supabase
     .from('profiles_public')
     .update({
       status: 'active',
@@ -247,10 +247,11 @@ async function applyCapturedPayment(
       activation_completed_at: now.toISOString(),
     })
     .eq('id', userId);
+  if (profileUpdateError) throw profileUpdateError;
 
   // Log payment in subscription_payments
   const paymentAmount = charge.amount || subscription.billing_amount_kwd || subscription.base_price_kwd;
-  await supabase.from('subscription_payments').upsert({
+  const { error: paymentUpsertError } = await supabase.from('subscription_payments').upsert({
     subscription_id: subscriptionId,
     user_id: userId,
     tap_charge_id: chargeId,
@@ -260,12 +261,13 @@ async function applyCapturedPayment(
     billing_period_start: now.toISOString().split('T')[0],
     billing_period_end: nextBillingDate.toISOString().split('T')[0],
     paid_at: now.toISOString(),
-    metadata: { 
-      tap_status: charge.status, 
+    metadata: {
+      tap_status: charge.status,
       verified_at: now.toISOString(),
       activation_source: 'verify-payment'
     },
   }, { onConflict: 'tap_charge_id' });
+  if (paymentUpsertError) throw paymentUpsertError;
 
   // Handle discount redemption on successful capture
   // Use discount_code_id from subscription OR from TAP metadata
@@ -278,7 +280,7 @@ async function applyCapturedPayment(
       const savedAmount = basePrice - billingAmount;
       
       // Create/update redemption record
-      await supabase.from('discount_redemptions').upsert({
+      const { error: redemptionError } = await supabase.from('discount_redemptions').upsert({
         discount_code_id: discountCodeId,
         subscription_id: subscriptionId,
         user_id: userId,
@@ -290,15 +292,17 @@ async function applyCapturedPayment(
         last_applied_at: now.toISOString(),
         status: 'active',
       }, { onConflict: 'discount_code_id,user_id,subscription_id' });
+      if (redemptionError) throw redemptionError;
 
       // Update discount cycles used on subscription
-      await supabase
+      const { error: cyclesError } = await supabase
         .from('subscriptions')
-        .update({ 
+        .update({
           discount_cycles_used: 1,
           discount_code_id: discountCodeId, // Ensure it's set
         })
         .eq('id', subscriptionId);
+      if (cyclesError) throw cyclesError;
 
       // Increment grant usage count using RPC
       await supabase.rpc('increment_grant_usage', {
@@ -336,7 +340,7 @@ async function applyFailedPayment(
 
   console.log(JSON.stringify({ fn: "verify-payment", step: "apply_failed", requestId, chargeId, status }));
 
-  await supabase
+  const { error: subError } = await supabase
     .from('subscriptions')
     .update({
       tap_subscription_status: status,
@@ -344,8 +348,9 @@ async function applyFailedPayment(
       payment_failed_at: new Date().toISOString(),
     })
     .eq('id', subscriptionId);
+  if (subError) throw subError;
 
-  await supabase
+  const { error: paymentError } = await supabase
     .from('subscription_payments')
     .update({
       status: status === 'CANCELLED' ? 'cancelled' : 'failed',
@@ -353,6 +358,7 @@ async function applyFailedPayment(
       failure_reason: charge.response?.message || status,
     })
     .eq('tap_charge_id', chargeId);
+  if (paymentError) throw paymentError;
 
   return { success: true, result: 'failed' };
 }
@@ -369,13 +375,13 @@ async function sendConfirmationEmail(
       .from('services')
       .select('name, type')
       .eq('id', serviceId)
-      .single();
+      .maybeSingle();
 
     const { data: profile } = await supabase
       .from('profiles_private')
       .select('email, full_name')
       .eq('profile_id', userId)
-      .single();
+      .maybeSingle();
 
     if (!profile?.email || !service?.name) return;
 

@@ -398,7 +398,7 @@ async function applyCapturedPayment(
   console.log(JSON.stringify({ fn: "tap-webhook", step: "subscription_activated", requestId, chargeId, ok: true }));
 
   // Update profile
-  await supabase
+  const { error: profileUpdateError } = await supabase
     .from('profiles_public')
     .update({
       status: 'active',
@@ -406,10 +406,11 @@ async function applyCapturedPayment(
       activation_completed_at: now.toISOString(),
     })
     .eq('id', userId);
+  if (profileUpdateError) throw profileUpdateError;
 
   // Log payment
   const paymentAmount = charge.amount || subscription.billing_amount_kwd || subscription.base_price_kwd;
-  await supabase.from('subscription_payments').upsert({
+  const { error: paymentUpsertError } = await supabase.from('subscription_payments').upsert({
     subscription_id: subscriptionId,
     user_id: userId,
     tap_charge_id: chargeId,
@@ -421,11 +422,12 @@ async function applyCapturedPayment(
     paid_at: now.toISOString(),
     metadata: { tap_status: 'CAPTURED', activation_source: 'webhook' },
   }, { onConflict: 'tap_charge_id' });
+  if (paymentUpsertError) throw paymentUpsertError;
 
   // Handle discount
   if (subscription.discount_code_id && subscription.billing_amount_kwd) {
     try {
-      await supabase.from('discount_redemptions').upsert({
+      const { error: redemptionError } = await supabase.from('discount_redemptions').upsert({
         discount_code_id: subscription.discount_code_id,
         subscription_id: subscriptionId,
         user_id: userId,
@@ -436,8 +438,10 @@ async function applyCapturedPayment(
         total_saved_kwd: (subscription.base_price_kwd || 0) - subscription.billing_amount_kwd,
         last_applied_at: now.toISOString(),
       }, { onConflict: 'discount_code_id,user_id,subscription_id' });
+      if (redemptionError) throw redemptionError;
 
-      await supabase.from('subscriptions').update({ discount_cycles_used: 1 }).eq('id', subscriptionId);
+      const { error: cyclesError } = await supabase.from('subscriptions').update({ discount_cycles_used: 1 }).eq('id', subscriptionId);
+      if (cyclesError) throw cyclesError;
     } catch (e) {
       console.error(JSON.stringify({ fn: "tap-webhook", step: "discount_error", requestId, chargeId, ok: false }));
     }
@@ -452,7 +456,7 @@ async function applyFailedPayment(
   charge: any,
   subscriptionId: string
 ): Promise<{ result: string }> {
-  await supabase
+  const { error: subError } = await supabase
     .from('subscriptions')
     .update({
       tap_subscription_status: charge.status,
@@ -460,8 +464,9 @@ async function applyFailedPayment(
       payment_failed_at: new Date().toISOString(),
     })
     .eq('id', subscriptionId);
+  if (subError) throw subError;
 
-  await supabase
+  const { error: paymentError } = await supabase
     .from('subscription_payments')
     .update({
       status: charge.status === 'CANCELLED' ? 'cancelled' : 'failed',
@@ -469,6 +474,7 @@ async function applyFailedPayment(
       failure_reason: charge.response?.message || charge.status,
     })
     .eq('tap_charge_id', chargeId);
+  if (paymentError) throw paymentError;
 
   return { result: 'failed' };
 }
@@ -489,7 +495,7 @@ async function applyRefundedOrVoidedPayment(
   const now = new Date().toISOString();
   const reason = `tap_${String(charge.status).toLowerCase()}`;
 
-  await supabase
+  const { error: subError } = await supabase
     .from('subscriptions')
     .update({
       status: 'cancelled',
@@ -499,22 +505,25 @@ async function applyRefundedOrVoidedPayment(
       last_payment_status: charge.status,
     })
     .eq('id', subscriptionId);
+  if (subError) throw subError;
 
-  await supabase
+  const { error: paymentError } = await supabase
     .from('subscription_payments')
     .update({
       status: charge.status === 'REFUNDED' ? 'refunded' : 'voided',
       refunded_at: now,
     })
     .eq('tap_charge_id', chargeId);
+  if (paymentError) throw paymentError;
 
   // Revoke paid-tier role (`member`). Admin and coach roles are untouched --
   // only paid-tier access is tied to an active subscription.
-  await supabase
+  const { error: roleDeleteError } = await supabase
     .from('user_roles')
     .delete()
     .eq('user_id', userId)
     .eq('role', 'member');
+  if (roleDeleteError) throw roleDeleteError;
 
   return { result: charge.status === 'REFUNDED' ? 'refunded' : 'voided' };
 }

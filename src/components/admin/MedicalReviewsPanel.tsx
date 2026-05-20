@@ -49,28 +49,37 @@ export const MedicalReviewsPanel = memo(function MedicalReviewsPanel() {
 
       if (error) throw error;
 
+      // Batch-fetch profiles in one query to avoid an N+1
+      const userIds = [...new Set((rawReviews || []).map((r) => r.user_id))];
+      const profilesById = new Map<
+        string,
+        { email: string | null; first_name: string | null; last_name: string | null }
+      >();
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("id, email, first_name, last_name")
+          .in("id", userIds);
+        for (const profile of profiles || []) {
+          profilesById.set(profile.id, profile);
+        }
+      }
+
       // Enrich with user names
-      const enriched: MedicalReview[] = await Promise.all(
-        (rawReviews || []).map(async (review) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("email, first_name, last_name")
-            .eq("id", review.user_id)
-            .maybeSingle();
+      const enriched: MedicalReview[] = (rawReviews || []).map((review) => {
+        const profile = profilesById.get(review.user_id);
+        const ageMs = Date.now() - new Date(review.flagged_at).getTime();
+        const ageHours = Math.round(ageMs / (1000 * 60 * 60) * 10) / 10;
 
-          const ageMs = Date.now() - new Date(review.flagged_at).getTime();
-          const ageHours = Math.round(ageMs / (1000 * 60 * 60) * 10) / 10;
-
-          return {
-            ...review,
-            userName: profile
-              ? `${profile.first_name || ""}${profile.last_name ? ` ${profile.last_name}` : ""}`.trim() || "Unknown"
-              : "Unknown",
-            userEmail: profile?.email || "Unknown",
-            ageHours,
-          };
-        })
-      );
+        return {
+          ...review,
+          userName: profile
+            ? `${profile.first_name || ""}${profile.last_name ? ` ${profile.last_name}` : ""}`.trim() || "Unknown"
+            : "Unknown",
+          userEmail: profile?.email || "Unknown",
+          ageHours,
+        };
+      });
 
       setReviews(enriched);
     } catch (err) {
@@ -119,6 +128,41 @@ export const MedicalReviewsPanel = memo(function MedicalReviewsPanel() {
           .eq("status", "needs_medical_review");
 
         if (profileError) throw profileError;
+      }
+
+      // If rejected, cancel the client: status -> cancelled (no 'rejected' enum
+      // value exists) and drop their pending subscription.
+      if (action === "rejected") {
+        const { error: profileError } = await supabase
+          .from("profiles_public")
+          .update({ status: "cancelled" })
+          .eq("id", userId)
+          .eq("status", "needs_medical_review");
+
+        if (profileError) throw profileError;
+
+        // Delete the most recent pending subscription, if any.
+        const { data: pendingSub, error: subFetchError } = await supabase
+          .from("subscriptions")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("status", "pending")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (subFetchError) throw subFetchError;
+
+        if (pendingSub) {
+          const { error: subDeleteError } = await supabase
+            .from("subscriptions")
+            .delete()
+            .eq("id", pendingSub.id);
+
+          if (subDeleteError) throw subDeleteError;
+        }
+        // P2 follow-up: send a client-facing rejection email. No edge function
+        // currently sends a "your application was rejected" email to clients.
       }
 
       toast.success(

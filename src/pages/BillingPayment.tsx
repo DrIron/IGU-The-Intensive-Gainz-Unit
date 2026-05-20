@@ -72,12 +72,12 @@ export default function BillingPayment() {
           .from("profiles_public")
           .select("first_name, payment_exempt")
           .eq("id", user.id)
-          .single(),
+          .maybeSingle(),
         supabase
           .from("profiles_private")
           .select("email, last_name")
           .eq("profile_id", user.id)
-          .single()
+          .maybeSingle()
       ]);
 
       const profile = profilePublic && profilePrivate ? {
@@ -93,22 +93,10 @@ export default function BillingPayment() {
         setUserName(`${profile.first_name || ""} ${profile.last_name || ""}`.trim());
       }
 
-      // Get current subscription with discount info
+      // Get current subscription - separate queries (nested FK joins on subscriptions are banned)
       const { data: sub, error: subError } = await supabase
         .from("subscriptions")
-        .select(`
-          id,
-          status,
-          next_billing_date,
-          past_due_since,
-          grace_period_days,
-          billing_amount_kwd,
-          base_price_kwd,
-          discount_code_id,
-          service_id,
-          services (name, price_kwd),
-          discount_codes (code, discount_type, discount_value)
-        `)
+        .select("id, status, next_billing_date, past_due_since, grace_period_days, billing_amount_kwd, base_price_kwd, discount_code_id, service_id")
         .eq("user_id", user.id)
         .in("status", ["active", "past_due", "pending"])
         .order("created_at", { ascending: false })
@@ -116,7 +104,35 @@ export default function BillingPayment() {
         .maybeSingle();
 
       if (subError) throw subError;
-      setSubscription(sub as SubscriptionData);
+
+      if (!sub) {
+        setSubscription(null);
+        return;
+      }
+
+      const { data: service, error: serviceError } = await supabase
+        .from("services")
+        .select("name, price_kwd")
+        .eq("id", sub.service_id)
+        .maybeSingle();
+      if (serviceError) throw serviceError;
+
+      let discount: SubscriptionData["discount_codes"] = null;
+      if (sub.discount_code_id) {
+        const { data: discountData, error: discountError } = await supabase
+          .from("discount_codes")
+          .select("code, discount_type, discount_value")
+          .eq("id", sub.discount_code_id)
+          .maybeSingle();
+        if (discountError) throw discountError;
+        discount = discountData;
+      }
+
+      setSubscription({
+        ...sub,
+        services: service ?? { name: "", price_kwd: 0 },
+        discount_codes: discount,
+      } as SubscriptionData);
     } catch (error) {
       if (import.meta.env.DEV) console.error("Error loading billing data:", error);
       toast({

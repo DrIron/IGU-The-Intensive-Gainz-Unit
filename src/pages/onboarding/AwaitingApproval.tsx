@@ -56,7 +56,12 @@ export default function AwaitingApproval() {
   const fetchStatusAndCoach = useCallback(async (isManual = false) => {
     if (isManual) setChecking(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // getUser() can hang; race an 8s timeout so a bad tick doesn't stall polling.
+      const result = await Promise.race([
+        supabase.auth.getUser(),
+        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 8000)),
+      ]).catch(() => null);
+      const user = result?.data?.user ?? null;
       if (!user) return;
 
       // Check current status — if it changed, redirect

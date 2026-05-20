@@ -197,6 +197,24 @@ Deno.serve(async (req) => {
       return rateLimitResponse(corsHeaders, rateCheck.retryAfterMs);
     }
 
+    // Parse and validate request body BEFORE any DB reads/writes -- a malformed
+    // payload must be rejected before the destructive user_roles reset below.
+    const body = await req.json();
+
+    let validatedData;
+    try {
+      validatedData = schema.parse(body);
+    } catch (validationError) {
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "validation", ok: false, error: "validation_error" }));
+      return new Response(
+        JSON.stringify({
+          error: 'Invalid input data',
+          details: validationError instanceof z.ZodError ? validationError.errors : 'Validation failed'
+        }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // SECURITY: Check user roles - admins and coaches cannot sign up for services
     const { data: userRoles, error: rolesError } = await supabase
       .from('user_roles')
@@ -255,23 +273,6 @@ Deno.serve(async (req) => {
     
     if (roleDeleteError) {
       console.error(JSON.stringify({ fn: "submit-onboarding", step: "delete_existing_roles", ok: false, error: "db_error" }));
-    }
-
-    // Parse and validate request body
-    const body = await req.json();
-    
-    let validatedData;
-    try {
-      validatedData = schema.parse(body);
-    } catch (validationError) {
-      console.error(JSON.stringify({ fn: "submit-onboarding", step: "validation", ok: false, error: "validation_error" }));
-      return new Response(
-        JSON.stringify({ 
-          error: 'Invalid input data',
-          details: validationError instanceof z.ZodError ? validationError.errors : 'Validation failed'
-        }),
-        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
-      );
     }
 
     // Calculate needs_medical_review
@@ -415,6 +416,30 @@ Deno.serve(async (req) => {
         JSON.stringify({ error: 'Failed to update profile' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
+    }
+
+    // Enqueue a medical review row for the admin review panel. Placed after the
+    // profiles_public update so a failed profile update doesn't leave an orphan
+    // review. UNIQUE (user_id) -- upsert re-opens the review on resubmit.
+    if (needs_medical_review) {
+      const { error: medicalReviewError } = await supabase
+        .from('medical_reviews')
+        .upsert({
+          user_id: user.id,
+          status: 'pending',
+          flagged_at: new Date().toISOString(),
+          reviewed_at: null,
+          reviewed_by: null,
+          review_notes: null,
+        }, { onConflict: 'user_id' });
+
+      if (medicalReviewError) {
+        console.error(JSON.stringify({ fn: "submit-onboarding", step: "create_medical_review", ok: false, error: "db_error" }));
+        return new Response(
+          JSON.stringify({ error: 'Failed to create medical review' }),
+          { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+        );
+      }
     }
 
     // Update profiles_private (PII fields)

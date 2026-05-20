@@ -48,10 +48,10 @@ Deno.serve(async (req) => {
       errors: [] as string[],
     };
 
-    // Fetch all failed subscriptions with service data
+    // Fetch all failed subscriptions (nested FK joins on subscriptions are banned)
     const { data: failedSubs, error: fetchError } = await supabase
       .from("subscriptions")
-      .select("id, user_id, payment_failed_at, coach_id, service_id, services(name)")
+      .select("id, user_id, payment_failed_at, coach_id, service_id")
       .eq("status", "failed")
       .not("payment_failed_at", "is", null);
 
@@ -70,6 +70,26 @@ Deno.serve(async (req) => {
 
     results.subscriptions_checked = failedSubs.length;
 
+    // Batch-fetch services in one query to avoid an N+1 inside the loop
+    const uniqueServiceIds = [
+      ...new Set(failedSubs.map((s) => s.service_id).filter(Boolean)),
+    ];
+    const servicesById = new Map<string, { name: string }>();
+    if (uniqueServiceIds.length > 0) {
+      const { data: services, error: servicesError } = await supabase
+        .from("services")
+        .select("id, name")
+        .in("id", uniqueServiceIds);
+
+      if (servicesError) {
+        throw new Error(`Failed to fetch services: ${servicesError.message}`);
+      }
+
+      for (const svc of services || []) {
+        servicesById.set(svc.id, { name: svc.name });
+      }
+    }
+
     for (const sub of failedSubs) {
       try {
         // Get client profile directly from the profiles view
@@ -86,7 +106,7 @@ Deno.serve(async (req) => {
           (now.getTime() - failedAt.getTime()) / (24 * 60 * 60 * 1000)
         );
 
-        const serviceData = sub.services as any;
+        const serviceData = servicesById.get(sub.service_id);
         const serviceName = serviceData?.name || "your coaching program";
         const clientName =
           `${profile.first_name || ""} ${profile.last_name || ""}`.trim() ||

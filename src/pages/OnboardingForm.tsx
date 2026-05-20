@@ -81,6 +81,21 @@ const formSchema = z.object({
   requested_coach_id: z.string().nullable().optional(),
 });
 
+// PAR-Q answers are medical PHI. form_submissions encrypts them at rest via
+// encrypt_phi_trigger; onboarding_drafts has no encryption, so these fields are
+// never persisted to a draft -- users re-enter the Health step on resume.
+const PARQ_FIELDS = [
+  'parq_heart_condition',
+  'parq_chest_pain_active',
+  'parq_chest_pain_inactive',
+  'parq_balance_dizziness',
+  'parq_bone_joint_problem',
+  'parq_medication',
+  'parq_other_reason',
+  'parq_injuries_conditions',
+  'parq_additional_details',
+] as const;
+
 export default function OnboardingForm() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -177,9 +192,31 @@ export default function OnboardingForm() {
 
   const checkAuth = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      // getUser() can hang if the auth session isn't initialized yet.
+      // Race against an 8s timeout, retry once, then surface a fatal error.
+      let user = null;
+      try {
+        const result = await Promise.race([
+          supabase.auth.getUser(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Auth timeout')), 8000)),
+        ]);
+        user = result.data?.user ?? null;
+      } catch {
+        if (import.meta.env.DEV) console.warn('Auth getUser timed out, retrying after delay...');
+      }
+
       if (!user) {
-        navigate("/auth");
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        const retry = await Promise.race([
+          supabase.auth.getUser(),
+          new Promise<never>((_, reject) => setTimeout(() => reject(new Error('Auth timeout retry')), 8000)),
+        ]).catch(() => null);
+        user = retry?.data?.user ?? null;
+      }
+
+      if (!user) {
+        setFatalError(true);
+        setLoading(false);
         return;
       }
       setUserId(user.id);
@@ -203,17 +240,27 @@ export default function OnboardingForm() {
         }
       }
 
-      // Check for active subscriptions - users with active subscriptions cannot sign up for another
+      // Check for active subscriptions - users with active subscriptions cannot sign up for another.
+      // Separate queries (nested FK joins on subscriptions are banned).
       const { data: activeSubscriptions } = await supabase
         .from('subscriptions')
-        .select('id, status, services(name)')
+        .select('id, status, service_id')
         .eq('user_id', user.id)
         .eq('status', 'active');
 
       if (activeSubscriptions && activeSubscriptions.length > 0) {
+        let activeServiceName = 'an active subscription';
+        const { data: activeService } = await supabase
+          .from('services')
+          .select('name')
+          .eq('id', activeSubscriptions[0].service_id)
+          .maybeSingle();
+        if (activeService?.name) {
+          activeServiceName = activeService.name;
+        }
         toast({
           title: "Active Subscription Found",
-          description: `You already have an active subscription (${activeSubscriptions[0].services?.name}). Please cancel your current subscription before signing up for another service.`,
+          description: `You already have an active subscription (${activeServiceName}). Please cancel your current subscription before signing up for another service.`,
           variant: "destructive",
         });
         navigate("/dashboard");
@@ -239,8 +286,8 @@ export default function OnboardingForm() {
 
       // Fetch and prefill user data - split query for public/private (own user has RLS access)
       const [{ data: profilePublic }, { data: profilePrivate }] = await Promise.all([
-        supabase.from('profiles_public').select('first_name').eq('id', user.id).single(),
-        supabase.from('profiles_private').select('email, phone, full_name, last_name').eq('profile_id', user.id).single()
+        supabase.from('profiles_public').select('first_name').eq('id', user.id).maybeSingle(),
+        supabase.from('profiles_private').select('email, phone, full_name, last_name').eq('profile_id', user.id).maybeSingle()
       ]);
       const profile = profilePublic && profilePrivate ? {
         email: profilePrivate.email,
@@ -305,8 +352,10 @@ export default function OnboardingForm() {
       if (error) throw error;
 
       if (draft && draft.form_data) {
-        // Restore form data
+        // Restore form data. Skip any parq_* keys -- old drafts (pre PHI-strip)
+        // may still carry plaintext PAR-Q; never restore medical answers.
         Object.keys(draft.form_data).forEach((key) => {
+          if (key.startsWith('parq_')) return;
           form.setValue(key as any, draft.form_data[key]);
         });
 
@@ -332,13 +381,19 @@ export default function OnboardingForm() {
 
     setAutoSaving(true);
     try {
+      // PHI excluded from drafts -- form_submissions encrypts PAR-Q at rest via
+      // trigger; drafts have no encryption, so we skip persisting medical
+      // answers. Users re-enter the Health step on resume.
       const formData = form.getValues();
+      const persistedData = Object.fromEntries(
+        Object.entries(formData).filter(([key]) => !PARQ_FIELDS.includes(key as any))
+      );
 
       const { error } = await supabase
         .from('onboarding_drafts')
         .upsert({
           user_id: userId,
-          form_data: formData,
+          form_data: persistedData,
           current_step: currentStep,
         }, {
           onConflict: 'user_id',
@@ -354,14 +409,23 @@ export default function OnboardingForm() {
     }
   }, [userId, currentStep, hasSubmitted, submitting, form]);
 
+  const hasInitialized = useRef(false);
   useEffect(() => {
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
     checkAuth();
     loadServiceName();
   }, [checkAuth, loadServiceName]);
 
+  // Guard set only once userId resolves, so the draft still loads after
+  // checkAuth populates it -- but never re-runs on form/toast identity churn.
+  const hasLoadedDraft = useRef(false);
   useEffect(() => {
+    if (hasLoadedDraft.current) return;
+    if (!userId) return;
+    hasLoadedDraft.current = true;
     loadDraft();
-  }, [loadDraft]);
+  }, [userId, loadDraft]);
 
   // Auto-save form data when it changes (debounced)
   useEffect(() => {
@@ -400,10 +464,11 @@ export default function OnboardingForm() {
     if (!userId) return;
 
     try {
-      await supabase
+      const { error } = await supabase
         .from('onboarding_drafts')
         .delete()
         .eq('user_id', userId);
+      if (error) throw error;
     } catch (error: any) {
       if (import.meta.env.DEV) console.error('Error deleting draft:', error);
     }

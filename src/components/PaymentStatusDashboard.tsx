@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -65,25 +65,30 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
         .from('profiles_public')
         .select('payment_deadline, status')
         .eq('id', userId)
-        .single();
+        .maybeSingle();
 
       if (profileError) throw profileError;
 
-      setStatus(profile.status || '');
+      setStatus(profile?.status || '');
 
-      if (profile.payment_deadline) {
+      if (profile?.payment_deadline) {
         setPaymentDeadline(new Date(profile.payment_deadline));
       }
 
+      // Separate queries (nested FK joins on subscriptions are banned)
       const { data: subscription, error: subError } = await supabase
         .from('subscriptions')
-        .select('service_id, services(name, price_kwd)')
+        .select('service_id')
         .eq('user_id', userId)
         .eq('status', 'pending')
         .maybeSingle();
 
       if (!subError && subscription) {
-        const service = subscription.services as any;
+        const { data: service } = await supabase
+          .from('services')
+          .select('name, price_kwd')
+          .eq('id', subscription.service_id)
+          .maybeSingle();
         setServiceName(service?.name || '');
         setServicePrice(service?.price_kwd || 0);
         setServiceId(subscription.service_id);
@@ -186,8 +191,11 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
     }
   }, [userId, navigate, toast, loadPaymentInfo]);
 
+  // First verify if payment was completed (user returning from TAP)
+  const hasFetched = useRef(false);
   useEffect(() => {
-    // First verify if payment was completed (user returning from TAP)
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     verifyPaymentStatus();
   }, [verifyPaymentStatus]);
 
@@ -357,7 +365,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
         .select('service_id')
         .eq('user_id', userId)
         .eq('status', 'pending')
-        .single();
+        .maybeSingle();
 
       if (!subscription) {
         setPaymentError("No pending subscription found. Please contact support.");
@@ -367,8 +375,8 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
 
       // Split query for public/private profile data (RLS secured for own user)
       const [{ data: profilePublic }, { data: profilePrivate }] = await Promise.all([
-        supabase.from('profiles_public').select('first_name').eq('id', userId).single(),
-        supabase.from('profiles_private').select('email, last_name').eq('profile_id', userId).single()
+        supabase.from('profiles_public').select('first_name').eq('id', userId).maybeSingle(),
+        supabase.from('profiles_private').select('email, last_name').eq('profile_id', userId).maybeSingle()
       ]);
       
       const profile = profilePublic && profilePrivate ? {

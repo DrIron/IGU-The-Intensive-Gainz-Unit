@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -44,7 +44,10 @@ export function PaymentHistoryCard({ userId, maxRecords = 10 }: PaymentHistoryCa
     }
   }, [userId, maxRecords]);
 
+  const hasFetched = useRef(false);
   useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
     loadPaymentHistory();
   }, [loadPaymentHistory]);
 

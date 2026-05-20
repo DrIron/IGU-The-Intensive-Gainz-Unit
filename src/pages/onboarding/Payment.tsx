@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
+import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { CreditCard, CheckCircle2, Shield, Loader2, Clock, AlertTriangle } from "lucide-react";
@@ -6,6 +7,7 @@ import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { OnboardingProgress } from "@/components/onboarding/OnboardingProgress";
 import { PaymentButton } from "@/components/PaymentButton";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuthSession } from "@/hooks/useAuthSession";
 
 /**
  * Payment page - final onboarding step before activation.
@@ -19,53 +21,67 @@ export default function Payment() {
   const [paymentDeadline, setPaymentDeadline] = useState<Date | null>(null);
   const [discountCode, setDiscountCode] = useState("");
   const [discountApplied, setDiscountApplied] = useState<{
-    type: string;
+    type: 'percent' | 'fixed';
     value: number;
     adjustedPrice: number;
   } | null>(null);
   const [applyingDiscount, setApplyingDiscount] = useState(false);
   const [discountError, setDiscountError] = useState("");
+  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        setUser(user);
-
-        // Get subscription with service details
-        const { data: sub } = await supabase
-          .from("subscriptions")
-          .select("*, services(*)")
-          .eq("user_id", user.id)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (sub) {
-          setSubscription(sub);
-          setService(sub.services);
-        }
-
-        // Get payment deadline from profile
-        const { data: profile } = await supabase
-          .from("profiles_public")
-          .select("payment_deadline")
-          .eq("id", user.id)
-          .single();
-
-        if (profile?.payment_deadline) {
-          setPaymentDeadline(new Date(profile.payment_deadline));
-        }
-      } catch (error) {
-        if (import.meta.env.DEV) console.error("Error fetching payment data:", error);
-      } finally {
+  const fetchData = useCallback(async (authUser: SupabaseUser | null) => {
+    try {
+      if (!authUser) {
         setLoading(false);
+        return;
       }
-    };
+      setUser(authUser);
 
-    fetchData();
+      // Get subscription - separate queries (nested FK joins on subscriptions are banned)
+      const { data: sub } = await supabase
+        .from("subscriptions")
+        .select("*")
+        .eq("user_id", authUser.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (sub) {
+        setSubscription(sub);
+        const { data: svc } = await supabase
+          .from("services")
+          .select("*")
+          .eq("id", sub.service_id)
+          .maybeSingle();
+        setService(svc);
+      }
+
+      // Get payment deadline from profile
+      const { data: profile } = await supabase
+        .from("profiles_public")
+        .select("payment_deadline")
+        .eq("id", authUser.id)
+        .maybeSingle();
+
+      if (profile?.payment_deadline) {
+        setPaymentDeadline(new Date(profile.payment_deadline));
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) console.error("Error fetching payment data:", error);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  // Keyed on session state so the effect retries once session resolves.
+  const hasFetched = useRef<string | null>(null);
+  useEffect(() => {
+    const key = sessionUser?.id ?? (sessionLoading ? "__waiting__" : "__unauth__");
+    if (hasFetched.current === key) return;
+    hasFetched.current = key;
+    if (sessionLoading) return;
+    fetchData(sessionUser ?? null);
+  }, [sessionUser, sessionLoading, fetchData]);
 
   const handleApplyDiscount = async () => {
     if (!discountCode.trim() || !service) return;
@@ -85,14 +101,17 @@ export default function Payment() {
 
       if (error) throw error;
 
-      if (data?.success) {
-        setDiscountApplied({
-          type: data.discount_type,
-          value: data.discount_value,
-          adjustedPrice: data.adjusted_price,
-        });
+      if (data?.valid) {
+        const type: 'percent' | 'fixed' = data.discount?.percent_off ? 'percent' : 'fixed';
+        const value = data.discount?.percent_off || data.discount?.amount_off_kwd || 0;
+        const basePrice = service.price_kwd;
+        const adjustedPrice = Math.max(
+          0,
+          type === 'percent' ? basePrice * (1 - value / 100) : basePrice - value
+        );
+        setDiscountApplied({ type, value, adjustedPrice });
       } else {
-        setDiscountError(data?.error || "Invalid discount code");
+        setDiscountError(data?.reason || data?.error || "Invalid discount code");
       }
     } catch (error: any) {
       if (import.meta.env.DEV) console.error("Error applying discount:", error);
@@ -207,7 +226,7 @@ export default function Payment() {
                     <div className="flex justify-between text-green-600">
                       <span>Discount applied</span>
                       <span className="font-medium">
-                        {discountApplied.type === "percent_off"
+                        {discountApplied.type === "percent"
                           ? `-${discountApplied.value}%`
                           : `-${discountApplied.value} KWD`
                         }
