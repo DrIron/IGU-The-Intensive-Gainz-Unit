@@ -18,7 +18,7 @@ This document tracks the 10-block pre-launch audit (per `docs/pre-launch-review.
 | 5  | Messaging                   | ⏳ Not started    | —                                     |
 | 6  | Sessions / PT bookings      | ⏳ Not started    | —                                     |
 | 7  | Teams feature               | ⏳ Not started    | —                                     |
-| 8  | Coach experience            | ✅ Complete       | 🟡 All Block 8 P0/P1 IN-REPO (original + 2026-05-22 new findings + 2026-05-23 second-pass fixes). Awaiting one `db push` + `functions deploy` + commit. P2s deferred. |
+| 8  | Coach experience            | ✅ Complete       | ✅ Shipped 2026-05-23: edge functions deployed, FE pushed (commit 68584a2 on main), migration applied via MCP `apply_migration` after `db push` blocked on the 15-entry version-string drift. P2s deferred. **D6 drift cleanup closed 2026-05-23 — `db push` unblocked.** |
 | 9  | Testimonials                | ⏳ Not started    | —                                     |
 | 10 | Public marketing site       | ⏳ Not started    | —                                     |
 
@@ -51,20 +51,40 @@ Migrations applied to prod 2026-05-20:
 - `20260520113249_team_subscription_payments_rls.sql` — recorded as `20260521152210` (apply_migration assigns its own timestamp)
 - `20260520125655_strip_parq_from_drafts.sql` — recorded as `20260521192740`. Pre-cleanup: 2 rows with plaintext PAR-Q in `onboarding_drafts.form_data`. Post-cleanup: 0.
 
-Migrations IN-REPO awaiting `supabase db push` (2026-05-22):
-- `20260522120000_block_8_coach_safe_rpcs_and_atomic_assignment.sql` — 4 SECURITY DEFINER RPCs + `coach_teams_read_active` policy hardening. See Block 8 section for full breakdown.
+**Shipped to prod 2026-05-23 — Block 8 deploy:**
 
-Edge functions IN-REPO awaiting `supabase functions deploy` (2026-05-22):
+Edge functions deployed (`supabase functions deploy`):
 - `submit-onboarding` — coach assignment + subscription INSERT now atomic via `assign_coach_atomic` RPC.
+- `create-coach-account` — B8-N20 (existing-roles fetch destructure + throw).
+- `create-manual-client` — B8-N6 fully closed (all 5 silent paths now throw).
 
-FE changes IN-REPO awaiting commit + push (2026-05-22 → 2026-05-23):
+FE committed + pushed (commit `68584a2` on main, Vercel auto-deployed):
 - 5 client-facing components swapped off `coaches_client_safe` view (CoachPreferenceSection, ChooseTeamPrompt, ChangeTeamDialog, WelcomeModal, PlanBillingCard).
 - 3 new-finding P0 fixes (2026-05-22): MeetOurTeam.tsx (ClickableCard), CoachContentAssignments.tsx (rows-affected check), create-manual-client/index.ts (`.maybeSingle()` → `.limit(1)`).
-- 2026-05-23 second-pass fixes from auditing the same 12 surfaces a second time:
-  - `MeetOurTeam.tsx:117` AvatarImage now `loading="lazy"` — public 30+-avatar grid no longer eagerly fetches every face on initial paint.
-  - `create-coach-account/index.ts:114` existing-roles fetch now destructures `{ error }` and throws (was silently swallowing RLS denial).
-  - `create-manual-client/index.ts:192–306` — all 5 silent `console.error`-and-continue mutations (profiles_public / profiles_private / profiles_legacy / check_existing_sub / update_status) now throw on error. Fully closes B8-N6. Subscription is no longer created on top of partially-written profile state.
-  - `CoachDashboardOverview.tsx:92–161` — two N+1 patterns batched. `profiles_public` per-subscription loop → single `.in("id", clientUserIds)` query. Weight-log per-phase loop (was up to 2 queries per phase) → single `.in("phase_id", phaseIds)` query, with `checkInsDue` / `checkInsDueToday` / `inactiveFor14Days` all derived from the same in-memory map. Semantics preserved. 
+- 2026-05-23 second-pass fixes:
+  - `MeetOurTeam.tsx:117` AvatarImage now `loading="lazy"` (B8-N19).
+  - `create-coach-account/index.ts:114` existing-roles fetch destructures `{ error }` and throws (B8-N20).
+  - `create-manual-client/index.ts:192–306` — all 5 silent paths now throw (B8-N6).
+  - `CoachDashboardOverview.tsx:92–161` (B8-N21) — two N+1 patterns batched.
+
+Migration applied 2026-05-23 via MCP `apply_migration` (NOT db push -- see incident below):
+- `20260522120000_block_8_coach_safe_rpcs_and_atomic_assignment.sql` (filename in repo). 5 SECURITY DEFINER RPCs (`list_active_coaches_for_service`, `list_active_teams_for_client`, `get_coaches_for_subscription_addons`, `coach_assignment_would_block`, `assign_coach_atomic`) + `coach_teams_read_active` policy `TO authenticated`. **Post-recovery verification:** all 5 RPCs live in `information_schema.routines` with SECURITY DEFINER; policy `polroles = {authenticated}`; smoke test against `one_to_one_online` returned 1 coach + 2 teams.
+
+### ⚠️ 2026-05-23 deploy incident -- `db push` blocked by drift, recovered via MCP
+
+`supabase db push` failed with "Remote migration versions not found in local migrations directory" -- the 15-entry version-string drift tracked in `memory/project_igu_education_arc_drift.md` finally blocked a real ship. CLI suggested either `migration repair --status reverted` for each of 15 versions, OR `db pull`.
+
+The deploy script ran sequentially, so edge functions + FE went out anyway. For an unknown duration between `functions deploy` and the MCP-apply recovery, prod was in a broken state: FE called RPCs that didn't exist; `submit-onboarding` called `assign_coach_atomic` that didn't exist. Anyone hitting an onboarding flow during that window got 500s. **Verify in Sentry / Supabase function logs whether any real users hit this.**
+
+Recovered by running the migration body through MCP `apply_migration` directly (project `ghotrbotrywonaejlppg`). The MCP tool bypasses the CLI's drift check but assigns its own apply-time UTC timestamp, so this adds one more entry to the drift table -- now 16 entries that don't match local filenames.
+
+**Drift cleanup (Block D6) is now elevated from cosmetic to blocking.** The next `db push` attempt will fail the same way. Recommended next-chat action -- option 1:
+
+1. **`supabase migration repair --status reverted <each-of-the-16-versions>`** -- deletes remote bookkeeping rows for the 16 mismatched versions, then `supabase db pull` regenerates local filesystem from remote OR you re-apply via `db push` so local filenames win. Per Supabase docs this is the documented fix. The migrations are still applied to the actual schema; this only rewrites the migration-history table.
+2. **`supabase db pull`** alone -- regenerates local from remote. Risky -- would replace local filenames with remote's apply-time timestamps. Untracked migrations in `_pending_migrations/` are safe.
+3. **Manually rename 16 local files** to match remote-recorded versions. Tedious but no remote bookkeeping changes.
+
+**Until D6 is resolved, every future migration MUST be applied via MCP `apply_migration`, not `db push`.** Add this caveat to the deploy block of any future block-N findings.
 
 ---
 
@@ -257,26 +277,89 @@ Each is a self-contained block per the original review prompt set. Recommended n
 
 ---
 
-## Deferred technical debt
+## Block D6 — migration drift cleanup ✅ CLOSED 2026-05-23
 
-### Migration version-string drift (Block D6 — pure cleanup, NOT functional)
+Drift went from 16 → 0. Both the education-arc drift AND the 7 pre-existing bare-date duplicates were resolved in the same pass; the cumulative `supabase/migrations/` ↔ remote `supabase_migrations.schema_migrations` diff is empty (verified by simulating the CLI's `assertRemoteInSync` walk: 325 local versions = 325 remote versions, no extras either side).
 
-15 local migration files have version timestamps that don't match remote `supabase_migrations.schema_migrations` records. Detail in `memory/project_igu_education_arc_drift.md`. Net effect: `supabase migration list` shows PENDING for 15 already-applied files; future blind `supabase db push` would fail.
+### What was done
 
-- 13 education-arc files (May 15-19) — schema and FE are live, only filenames differ from remote versions.
-- 2 audit migrations (May 20) — applied 2026-05-20, recorded under `apply_migration`-assigned timestamps `20260521152210` and `20260521192740`.
-- 1 file (`20260517104551_get_coach_for_client_rpc.sql`) has NO remote record at all — schema live, history untracked.
-- 2 duplicate-version PAIRS (`20260516120000` ×2, `20260516160000` ×2).
+**File ops (committed in this branch — staged, awaiting commit):**
 
-Fix options (pick one in Block D6):
-1. Rename 15 local files to match remote-recorded versions. Content unchanged. Includes 1→3 split for `content_links`.
-2. `supabase migration repair --status applied <version>` for each mismatched version.
-3. `supabase db pull` regenerates local from remote. Risky — wipes local-only files.
+1. **13 renames** to align local filenames with the remote-recorded versions:
 
-### Other tech debt
+   | Old | New |
+   |-----|-----|
+   | `20260515120000_unify_goal_type_vocab.sql`                        | `20260516065935_unify_goal_type_vocab.sql` |
+   | `20260516120000_simplify_video_access.sql`                        | `20260516064945_simplify_video_access.sql` |
+   | `20260516130000_get_playlist_videos_with_access.sql`              | `20260516065920_get_playlist_videos_with_access.sql` |
+   | `20260516140000_video_duration_and_continue_watching.sql`         | `20260516103347_video_duration_and_continue_watching.sql` |
+   | `20260516150000_admin_power_tools.sql`                            | `20260516141703_admin_power_tools.sql` |
+   | `20260516160000_backfill_phase_completion_dates.sql`              | `20260516182245_backfill_phase_completion_dates.sql` |
+   | `20260516160000_required_viewing_and_assignments.sql`             | `20260516181925_required_viewing_and_assignments.sql` |
+   | `20260516170000_playlist_assignments_support.sql`                 | `20260516183543_playlist_assignments_support.sql` |
+   | `20260516180000_subscription_aware_assignments.sql`               | `20260517190835_subscription_aware_assignments.sql` |
+   | `20260519120000_content_link_unique_constraints.sql`              | `20260519125833_content_link_unique_constraints.sql` |
+   | `20260520113249_team_subscription_payments_rls.sql`               | `20260521152210_team_subscription_payments_rls.sql` |
+   | `20260520125655_strip_parq_from_drafts.sql`                       | `20260521192740_strip_parq_from_drafts.sql` |
+   | `20260522120000_block_8_coach_safe_rpcs_and_atomic_assignment.sql`| `20260523084526_block_8_coach_safe_rpcs_and_atomic_assignment.sql` |
 
-- 3 May-12 untracked files in `supabase/migrations/` (already applied on remote, artifacts of Desktop→Projects move). `db push` skips them but they pollute `git status`. Move to `_pending_migrations/` scratch dir.
-- Triceps execution-cue bug in `20260512100932_execution_cue_refinements.sql` — Section 6 filters on `'elbow_extensors'` (zero rows) instead of `'triceps'`. Still live in prod. Needs separate fix block.
+   Renames also resolve the two duplicate-version pairs (`20260516120000` ×2, `20260516160000` ×2) since the conflicting siblings move to distinct remote-canonical versions.
+
+2. **1 → 3 split** of `20260517100000_content_links.sql`: the single local file always was applied to remote as three separate transactions. Split at the section markers to match the 3 remote rows:
+   - `20260519112530_content_links.sql` (sections 1 + 2 — schema)
+   - `20260519112611_content_links_rpcs.sql` (sections 3 + 4 — RPCs)
+   - `20260519112644_content_links_summary_rpc.sql` (section 5 — summary RPC)
+
+3. **7 deletions** of pre-existing bare-date duplicates from `supabase/migrations/`. The canonical scratch copies live in `_pre_existing_drift/` and are unaffected; this only removes the duplicate copies inside the CLI-watched dir so it stops trying to re-apply them:
+   - `20260416_hip_flexor_execution_cues.sql`
+   - `20260419_forearms_upperback_execution.sql`
+   - `20260420_lower_traps_rhomboids_teres_execution.sql`
+   - `20260421_core_execution.sql`
+   - `20260422_glutes_execution.sql`
+   - `20260503_rest_seconds_max.sql`
+   - `20260505_add_t_bar_row_mid_back.sql`
+
+**Remote bookkeeping (applied via MCP `execute_sql`, project `ghotrbotrywonaejlppg`):**
+
+4. **1 INSERT** into `supabase_migrations.schema_migrations` for `20260517104551_get_coach_for_client_rpc` (the only local file that previously had no remote record at all -- the RPC has been live since PR #118 / squash 418971a but was never recorded in history). Body inserted as a 4-element `statements` text array. Equivalent to `supabase migration repair --status applied 20260517104551`. No schema change.
+
+### Why renames + 1 bookkeeping insert (not `repair --status reverted` + `db pull`)
+
+The original recommendation in `memory/project_igu_education_arc_drift.md` was `repair --status reverted <16 versions>` followed by `db pull`. After reading the Supabase CLI source (`apps/cli-go/internal/migration/repair/repair.go`, `apps/cli-go/internal/db/pull/pull.go`, `apps/cli-go/pkg/migration/apply.go`):
+
+- `repair --status reverted <v>` is a single `DELETE FROM supabase_migrations.schema_migrations WHERE version = ANY($1)`. Bookkeeping only -- no schema change.
+- `repair --status applied <v>` upserts `(version, name, statements)` from the local file body. Bookkeeping only -- does **not** run the SQL.
+- The CLI's drift check (`FindPendingMigrations` for `db push`, `assertRemoteInSync` for `db pull`) compares VERSION STRINGS only -- it does not compare the stored `statements` body against the local file content.
+
+So the cleanest minimal-churn path was: rename local files until every version on disk matches a version in remote bookkeeping, plus one bookkeeping insert for the lone untracked file. That avoids any `--status reverted` of legitimate remote rows (would have to re-upsert all 16 anyway via `--status applied`) and avoids `db pull` (which would have generated a redundant schema-dump migration).
+
+### Verification (paste in Claude Code after `git pull`)
+
+```bash
+cd ~/Projects/intensive-gainz-unit-main
+git pull
+
+# 1. Migration list should show every row paired (Local | Remote both present)
+supabase migration list
+
+# 2. Dry-run push should print "Remote database is up to date."
+supabase db push --dry-run
+```
+
+If either step shows drift, rollback is:
+
+```bash
+# Revert all local file ops (restores working tree to pre-D6 state):
+git restore --staged --worktree supabase/migrations/
+
+# Reverse the bookkeeping insert (run from MCP execute_sql or psql):
+# DELETE FROM supabase_migrations.schema_migrations WHERE version = '20260517104551';
+```
+
+### Other tech debt (open)
+
+- The 7 bare-date `.sql` files in `_pre_existing_drift/` still need a fate decision: are they SUPERSEDED by `20260512100817_exercise_library_v2_sync.sql` (likely, per the scratch-dir README) or are they PENDING work that was never run on prod? Read each, diff against remote schema, then either delete the scratch copies (if superseded) or convert to proper timestamped migrations (if pending).
+- Triceps execution-cue bug in `20260512100932_execution_cue_refinements.sql` -- Section 6 filters on `'elbow_extensors'` (zero rows) instead of `'triceps'`. Still live in prod. Needs separate fix block.
 - `feat/content-links-fix` branch still exists locally. Safe to delete with `git branch -D feat/content-links-fix`.
 
 ---
@@ -297,9 +380,11 @@ Fix options (pick one in Block D6):
 3. This file (`docs/pre-launch-review-findings.md`) is the canonical findings log. Append to it; bring P0s back to triage.
 4. The original 10-block prompt set is preserved (`docs/pre-launch-review.md` or in chat history). Paste one block per fresh Cowork chat to run a fresh audit.
 5. **Most urgent open work** (in priority order):
-   - **Run the Block 8 deploy.** All Block 8 P0/P1 fixes (original + 2026-05-22 + 2026-05-23) are in-repo. One `supabase db push` + `supabase functions deploy submit-onboarding create-coach-account create-manual-client` + one git commit lands everything. Re-read the verification checklist in the Block 8 section above.
-   - **Address remaining Block 8 NEW-FINDING P1s** — B8-N4, B8-N5, B8-N7 through B8-N18 (B8-N6, B8-N19, B8-N20, B8-N21 ✅ closed 2026-05-23). The team-fan-out race (B8-N16/N17) is the biggest correctness risk left in this block.
-   - **Block 3 (Auth flow)** is the recommended next fresh audit — touches every authenticated surface, run before any further fixes that touch guards / role gates.
+   - **Block 3 (Auth flow)** -- recommended next fresh audit. Touches every authenticated surface (AuthGuard, RoleProtectedRoute, OnboardingGuard, WaitlistGuard, the raw-fetch role-check shortcut, the `getSession()` deadlock mitigations). Run before further guard/role-gate fixes.
+   - **Block D6 -- migration drift cleanup ✅ CLOSED 2026-05-23.** Drift = 0, verified via SQL walk of `supabase_migrations.schema_migrations` vs `supabase/migrations/` (325 = 325, no extras either side). Hasan still needs to run `supabase db push --dry-run` once locally to confirm with the actual CLI -- block in "Block D6 -- migration drift cleanup" section above.
+   - **Sentry / function-log check from 2026-05-23 incident.** Confirm no real users hit the broken-RPC window between `functions deploy` and the MCP-apply recovery (~minutes). If any did, decide whether to email an apology.
+   - **Block 8 deploy is ✅ complete** as of 2026-05-23 -- migration applied via MCP, edge functions deployed, FE pushed (commit 68584a2), all 5 RPCs verified live. No re-run needed.
+   - **Address remaining Block 8 NEW-FINDING P1s** -- B8-N4, B8-N5, B8-N7 through B8-N18 (B8-N6, B8-N19, B8-N20, B8-N21 ✅ closed 2026-05-23). Team-fan-out race (B8-N16/N17) is the biggest correctness risk.
 
 ---
 
