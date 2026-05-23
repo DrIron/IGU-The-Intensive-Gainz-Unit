@@ -113,39 +113,8 @@ const schema = formSchema.superRefine((data, ctx) => {
   }
 });
 
-// Helper function to calculate specialization match score based on focus_areas
-function calculateFocusAreasMatchScore(coachSpecializations: string[] | null, clientFocusAreas: string[]): number {
-  if (!coachSpecializations || coachSpecializations.length === 0 || !clientFocusAreas || clientFocusAreas.length === 0) {
-    return 0;
-  }
-  
-  // Normalize both arrays to lowercase for comparison
-  const normalizedCoachSpecs = coachSpecializations.map(s => s.toLowerCase().trim());
-  const normalizedFocusAreas = clientFocusAreas.map(f => f.toLowerCase().trim());
-  
-  // Count matching items
-  let matches = 0;
-  for (const focusArea of normalizedFocusAreas) {
-    if (normalizedCoachSpecs.includes(focusArea)) {
-      matches++;
-    }
-  }
-  
-  return matches;
-}
-
-// Helper function to find the best coach for a client
-interface CoachCandidate {
-  user_id: string;
-  coach_id: string;
-  first_name: string;
-  last_name: string;
-  specializations: string[] | null;
-  created_at: string;
-  last_assigned_at: string | null;
-  active_client_count: number;
-  score: number;
-}
+// Coach assignment (focus-area scoring + capacity + round-robin) moved into
+// the assign_coach_atomic RPC -- see migration 20260522120000.
 
 Deno.serve(async (req) => {
   // Handle CORS preflight requests
@@ -487,267 +456,49 @@ Deno.serve(async (req) => {
     isTeamPlan = serviceData.type === 'team';
 
     // ============================================
-    // COACH ASSIGNMENT LOGIC
+    // COACH ASSIGNMENT + SUBSCRIPTION CREATE -- atomic
     // ============================================
-    let coachUserId: string | undefined = undefined;
-    let wasAutoAssigned = false;
-    // Note: preferred_coach_id is no longer collected - coach assignment is now automatic based on focus_areas
-    const currentServiceId = serviceData.id; // Capture for use in nested functions
+    // assign_coach_atomic (migration 20260522120000) locks
+    // coach_service_limits rows FOR UPDATE during candidate scoring and
+    // INSERTs the subscription within the same transaction, closing the
+    // TOCTOU race the prior read-then-write logic had. RPC also handles:
+    //   - team-plan with selected_team_id (sets coach to head coach)
+    //   - team-plan with NO/invalid selected_team_id (flags
+    //     needs_coach_assignment instead of polluting admin role)
+    //   - 1:1 requested-coach preference with capacity recheck under lock
+    //   - 1:1 auto-assignment by focus_areas match + round-robin
+    //   - last_assigned_at bump on the chosen coach
+    const { data: assignmentResult, error: assignmentError } = await supabaseServiceRole
+      .rpc('assign_coach_atomic', {
+        p_user_id: user.id,
+        p_service_id: serviceData.id,
+        p_focus_areas: validatedData.focus_areas || [],
+        p_requested_coach_id: validatedData.requested_coach_id || null,
+        p_is_team_plan: isTeamPlan,
+        p_selected_team_id: validatedData.selected_team_id || null,
+        p_session_booking_enabled: serviceData.enable_session_booking ?? false,
+        p_weekly_session_limit: serviceData.default_weekly_session_limit ?? null,
+        p_session_duration_minutes: serviceData.default_session_duration_minutes ?? null,
+      });
 
-    // For team plans, assign to the head coach of the selected team
-    if (isTeamPlan && validatedData.selected_team_id) {
-      const { data: selectedTeam } = await supabaseServiceRole
-        .from('coach_teams')
-        .select('coach_id')
-        .eq('id', validatedData.selected_team_id)
-        .eq('is_active', true)
-        .maybeSingle();
-
-      if (selectedTeam?.coach_id) {
-        coachUserId = selectedTeam.coach_id;
-        console.log(JSON.stringify({ fn: "submit-onboarding", step: "team_coach_assigned", ok: true, team_id: validatedData.selected_team_id, coach_user_id: selectedTeam.coach_id }));
-      }
-    } else if (isTeamPlan) {
-      // Fallback: no team selected — assign to admin (shouldn't happen with new UI)
-      const { data: adminRole } = await supabaseServiceRole
-        .from('user_roles')
-        .select('user_id')
-        .eq('role', 'admin')
-        .limit(1)
-        .maybeSingle();
-      if (adminRole?.user_id) {
-        coachUserId = adminRole.user_id;
-      }
-    } else {
-      // For 1:1 plans, check coach preference
-      const coachPreferenceType = validatedData.coach_preference_type || 'auto';
-      const requestedCoachId = validatedData.requested_coach_id; // This is the coach.id from coaches table
-      
-      // If user selected a specific coach, validate and use that coach
-      if (coachPreferenceType === 'specific' && requestedCoachId) {
-        console.log(JSON.stringify({ fn: "submit-onboarding", step: "coach_preference", ok: true, coach_id: requestedCoachId }));
-        
-        // Get the coach's user_id + status from the coaches table.
-        // first_name/last_name are no longer selected here — they moved to
-        // coaches_public per the column-ownership refactor and weren't
-        // read by any caller anyway.
-        const { data: requestedCoach, error: coachError } = await supabaseServiceRole
-          .from('coaches')
-          .select('user_id, status')
-          .eq('id', requestedCoachId)
-          .maybeSingle();
-        
-        if (coachError || !requestedCoach) {
-          console.warn(JSON.stringify({ fn: "submit-onboarding", step: "coach_preference", ok: false, error: "coach_not_found", coach_id: requestedCoachId }));
-        } else if (requestedCoach.status !== 'active') {
-          console.warn(JSON.stringify({ fn: "submit-onboarding", step: "coach_preference", ok: false, error: "coach_not_active", status: requestedCoach.status }));
-        } else {
-          // Check if coach has capacity
-          const capacityCheck = await checkCoachCapacity(requestedCoachId, requestedCoach.user_id);
-          
-          if (capacityCheck.hasCapacity) {
-            coachUserId = requestedCoach.user_id;
-            console.log(JSON.stringify({ fn: "submit-onboarding", step: "coach_assigned_preferred", ok: true, coach_user_id: requestedCoach.user_id }));
-          } else {
-            console.warn(JSON.stringify({ fn: "submit-onboarding", step: "coach_preference_at_capacity", ok: false, active_count: capacityCheck.activeCount, max_clients: capacityCheck.maxClients }));
-          }
-        }
-      }
-      
-      // For 1:1 plans, use smart coach matching based on:
-      // 1. focus_areas <-> coach.specializations matching
-      // 2. Coach capacity for this specific service
-      // 3. Current client load (prefer coaches with fewer clients)
-      const clientFocusAreas: string[] = validatedData.focus_areas || [];
-      // Helper function to check if a coach has capacity for this service
-      async function checkCoachCapacity(coachId: string, coachUserId: string): Promise<{ hasCapacity: boolean; activeCount: number; maxClients: number }> {
-        // Get the coach's limit for this specific service
-        const { data: limitData } = await supabaseServiceRole
-          .from('coach_service_limits')
-          .select('max_clients')
-          .eq('coach_id', coachId)
-          .eq('service_id', currentServiceId)
-          .maybeSingle();
-        
-        if (!limitData) {
-          // No limit set for this service = no capacity for this service
-          return { hasCapacity: false, activeCount: 0, maxClients: 0 };
-        }
-        
-        // Count current subscriptions for this coach + service
-        // Include: pending, active (represents real current load)
-        // Exclude: inactive, cancelled, expired
-        const { count } = await supabaseServiceRole
-          .from('subscriptions')
-          .select('*', { count: 'exact', head: true })
-          .eq('coach_id', coachUserId)
-          .eq('service_id', currentServiceId)
-          .in('status', ['pending', 'active']);
-        
-        const currentCount = count || 0;
-        return {
-          hasCapacity: currentCount < limitData.max_clients,
-          activeCount: currentCount,
-          maxClients: limitData.max_clients
-        };
-      }
-      
-      // Note: Preferred coach selection has been removed from UI.
-      // All 1:1 clients are now auto-assigned based on capacity and focus areas.
-      
-      // Step 2: If no coach assigned yet (no preference or preferred was full), do smart auto-assignment
-      if (!coachUserId) {
-        wasAutoAssigned = true;
-        
-        // Get all active/approved coaches with their service limits for this service
-        const { data: coachLimits } = await supabaseServiceRole
-          .from('coach_service_limits')
-          .select(`
-            max_clients,
-            coaches!inner(id, user_id, first_name, last_name, specializations, status, created_at, last_assigned_at)
-          `)
-          .eq('service_id', serviceData.id);
-        
-        if (!coachLimits || coachLimits.length === 0) {
-          console.error(JSON.stringify({ fn: "submit-onboarding", step: "auto_assign", ok: false, error: "no_coach_service_limits", service_id: serviceData.id }));
-        } else {
-          // Build candidate list with capacity and scoring
-          const candidates: CoachCandidate[] = [];
-          
-          for (const limit of coachLimits) {
-            const coach = limit.coaches as any;
-            
-            // Only consider active or approved coaches
-            if (coach.status !== 'active' && coach.status !== 'approved') {
-              continue;
-            }
-            
-            // Count current subscriptions for this coach + service
-            // Include: pending, active (represents real current load)
-            // Exclude: inactive, cancelled, expired
-            const { count } = await supabaseServiceRole
-              .from('subscriptions')
-              .select('*', { count: 'exact', head: true })
-              .eq('coach_id', coach.user_id)
-              .eq('service_id', serviceData.id)
-              .in('status', ['pending', 'active']);
-            
-            const currentCount = count || 0;
-            
-            // Skip if at capacity
-            if (currentCount >= limit.max_clients) {
-              console.log(JSON.stringify({ fn: "submit-onboarding", step: "auto_assign_skip", ok: true, coach_user_id: coach.user_id, service_id: serviceData.id, active_count: currentCount, max_clients: limit.max_clients }));
-              continue;
-            }
-            
-            // Calculate score: specialization_matches * 10 - current_client_count
-            // This prioritizes coaches with matching specializations, while preferring less loaded coaches
-            const specializationMatches = calculateFocusAreasMatchScore(coach.specializations, clientFocusAreas);
-            const score = (specializationMatches * 10) - currentCount;
-            
-            candidates.push({
-              user_id: coach.user_id,
-              coach_id: coach.id,
-              first_name: coach.first_name,
-              last_name: coach.last_name,
-              specializations: coach.specializations,
-              created_at: coach.created_at,
-              last_assigned_at: coach.last_assigned_at,
-              active_client_count: currentCount,
-              score
-            });
-            
-            console.log(JSON.stringify({ fn: "submit-onboarding", step: "auto_assign_candidate", ok: true, coach_user_id: coach.user_id, score, focus_matches: specializationMatches, active_count: currentCount }));
-          }
-          
-          if (candidates.length === 0) {
-            console.warn(JSON.stringify({ fn: "submit-onboarding", step: "auto_assign", ok: false, error: "no_capacity", service_id: serviceData.id }));
-          } else {
-            // Sort by: score DESC, active_client_count ASC, last_assigned_at ASC (oldest first for round-robin)
-            candidates.sort((a, b) => {
-              if (b.score !== a.score) return b.score - a.score;
-              if (a.active_client_count !== b.active_client_count) return a.active_client_count - b.active_client_count;
-              // Round-robin tie-breaker: prefer coach who was assigned longest ago (null = never assigned = highest priority)
-              const aTime = a.last_assigned_at ? new Date(a.last_assigned_at).getTime() : 0;
-              const bTime = b.last_assigned_at ? new Date(b.last_assigned_at).getTime() : 0;
-              return aTime - bTime;
-            });
-            
-            const selectedCoach = candidates[0];
-            coachUserId = selectedCoach.user_id;
-            console.log(JSON.stringify({ fn: "submit-onboarding", step: "auto_assign_selected", ok: true, coach_user_id: selectedCoach.user_id, score: selectedCoach.score, active_count: selectedCoach.active_client_count }));
-          }
-        }
-      }
-    }
-    
-    // Determine the coach assignment method based on how we got here
-    // This helps admin understand how the coach was assigned
-    let coachAssignmentMethod: 'auto' | 'preference' | 'manual' = 'auto';
-    let needsCoachAssignment = false;
-    
-    if (!isTeamPlan) {
-      const coachPreferenceType = validatedData.coach_preference_type || 'auto';
-      if (coachPreferenceType === 'specific' && coachUserId && validatedData.requested_coach_id) {
-        coachAssignmentMethod = 'preference';
-      } else if (wasAutoAssigned) {
-        coachAssignmentMethod = 'auto';
-      }
-      
-      // Flag if no coach could be assigned (needs manual intervention)
-      if (!coachUserId && !isTeamPlan) {
-        needsCoachAssignment = true;
-        console.warn(JSON.stringify({ fn: "submit-onboarding", step: "needs_manual_assignment", ok: false, user_id: user.id, service: validatedData.plan_name }));
-      }
-    }
-    
-    // Create the subscription row with status = 'pending'
-    // Copy session booking settings from service if enabled
-    const subscriptionInsert: Record<string, unknown> = {
-      user_id: user.id,
-      service_id: serviceData.id,
-      coach_id: coachUserId || null,
-      status: 'pending',
-      coach_assignment_method: coachAssignmentMethod,
-      needs_coach_assignment: needsCoachAssignment,
-      team_id: validatedData.selected_team_id || null,
-    };
-    
-    // If service has session booking enabled, copy settings to subscription
-    if (serviceData.enable_session_booking) {
-      subscriptionInsert.session_booking_enabled = true;
-      subscriptionInsert.weekly_session_limit = serviceData.default_weekly_session_limit;
-      subscriptionInsert.session_duration_minutes = serviceData.default_session_duration_minutes;
-    }
-    
-    const { data: subscription, error: subscriptionCreateError } = await supabase
-      .from('subscriptions')
-      .insert(subscriptionInsert)
-      .select()
-      .single();
-    
-    if (subscriptionCreateError) {
-      console.error(JSON.stringify({ fn: "submit-onboarding", step: "create_subscription", ok: false, error: "db_error" }));
+    if (assignmentError || !assignmentResult) {
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "assign_coach_atomic", ok: false, error: "db_error" }));
       return new Response(
         JSON.stringify({ error: 'Failed to create subscription' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
-    
-    console.log(JSON.stringify({ fn: "submit-onboarding", step: "create_subscription", ok: true, subscription_id: subscription.id, coach_user_id: coachUserId, auto_assigned: wasAutoAssigned }));
 
-    // Update coach's last_assigned_at for round-robin fairness tracking
-    if (coachUserId && !isTeamPlan) {
-      try {
-        await supabaseServiceRole
-          .from('coaches')
-          .update({ last_assigned_at: new Date().toISOString() })
-          .eq('user_id', coachUserId);
-        console.log(JSON.stringify({ fn: "submit-onboarding", step: "update_last_assigned", ok: true }));
-      } catch (updateError) {
-        console.error(JSON.stringify({ fn: "submit-onboarding", step: "update_last_assigned", ok: false, error: "db_error" }));
-      }
+    const coachUserId: string | null = assignmentResult.coach_user_id ?? null;
+    const wasAutoAssigned: boolean = assignmentResult.was_auto_assigned === true;
+    const coachAssignmentMethod: string = assignmentResult.coach_assignment_method ?? 'auto';
+    const needsCoachAssignment: boolean = assignmentResult.needs_coach_assignment === true;
+    const subscription = { id: assignmentResult.subscription_id as string };
+
+    if (needsCoachAssignment) {
+      console.warn(JSON.stringify({ fn: "submit-onboarding", step: "needs_manual_assignment", ok: false, user_id: user.id, service: validatedData.plan_name, is_team_plan: isTeamPlan }));
     }
+    console.log(JSON.stringify({ fn: "submit-onboarding", step: "create_subscription", ok: true, subscription_id: subscription.id, coach_user_id: coachUserId, auto_assigned: wasAutoAssigned, method: coachAssignmentMethod }));
 
     console.log(JSON.stringify({ fn: "submit-onboarding", step: "submission_complete", ok: true, user_id: user.id, status: newStatus }));
 

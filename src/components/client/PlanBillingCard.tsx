@@ -102,15 +102,20 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
       return;
     }
 
-    // Load staff names from coaches_client_safe (care team staff are coaches)
-    // NOT profiles_public - RLS would block since these are staff, not clients
-    const staffIds = addonsData.filter(a => a.staff_user_id).map(a => a.staff_user_id);
+    // Load staff names via SECURITY DEFINER RPC -- coaches_client_safe view
+    // is RLS-broken for clients (see migration 20260517104551). RPC gates on
+    // caller owning the subscription, so no further authz needed here.
     const { data: staffData } = await supabase
-      .from("coaches_client_safe")
-      .select("user_id, first_name, last_name")
-      .in("user_id", staffIds);
+      .rpc("get_coaches_for_subscription_addons", { p_subscription_id: subscription.id });
 
-    const staffMap = new Map(staffData?.map(s => [s.user_id, { first_name: s.first_name, last_name: s.last_name }]) || []);
+    const staffRows = (staffData ?? []) as Array<{
+      user_id: string;
+      first_name: string | null;
+      last_name: string | null;
+    }>;
+    const staffMap = new Map(
+      staffRows.map(s => [s.user_id, { first_name: s.first_name, last_name: s.last_name }])
+    );
 
     const enrichedAddons = addonsData.map(addon => ({
       ...addon,

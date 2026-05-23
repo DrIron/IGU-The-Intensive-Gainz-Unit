@@ -190,7 +190,8 @@ serve(async (req) => {
       );
     
     if (profilePublicError) {
-      console.error(JSON.stringify({ fn: "create-manual-client", step: "upsert_profiles_public", ok: false, error: "upsert_failed" }));
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "upsert_profiles_public", ok: false, error: profilePublicError.message }));
+      throw profilePublicError;
     }
 
     const { error: profilePrivateError } = await supabaseAdmin
@@ -209,7 +210,8 @@ serve(async (req) => {
       );
     
     if (profilePrivateError) {
-      console.error(JSON.stringify({ fn: "create-manual-client", step: "upsert_profiles_private", ok: false, error: "upsert_failed" }));
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "upsert_profiles_private", ok: false, error: profilePrivateError.message }));
+      throw profilePrivateError;
     }
 
     // Find the IGU admin coach account. Email lives on coaches_private (moved
@@ -252,21 +254,27 @@ serve(async (req) => {
 
     if (legacyError) {
       console.error(JSON.stringify({ fn: "create-manual-client", step: "upsert_profiles_legacy", ok: false, error: legacyError.message }));
+      throw legacyError;
     }
 
     // Create active subscription (no payment needed for manual clients)
-    // Idempotency: skip if an active/pending subscription for same service already exists
-    const { data: existingSub, error: existingSubErr } = await supabaseAdmin
+    // Idempotency: skip if an active/pending subscription for same service
+    // already exists. Use limit(1) -- legacy data may have two rows in this
+    // status set, which would 406 a bare maybeSingle() and break idempotency.
+    const { data: existingSubs, error: existingSubErr } = await supabaseAdmin
       .from('subscriptions')
       .select('id,status')
       .eq('user_id', userId)
       .eq('service_id', serviceId)
       .in('status', ['active', 'pending'])
-      .maybeSingle();
+      .limit(1);
 
     if (existingSubErr) {
-      console.error(JSON.stringify({ fn: "create-manual-client", step: "check_existing_sub", ok: false, error: "query_failed" }));
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "check_existing_sub", ok: false, error: existingSubErr.message }));
+      throw existingSubErr;
     }
+
+    const existingSub = existingSubs && existingSubs.length > 0 ? existingSubs[0] : null;
 
     if (!existingSub) {
       const { error: subError } = await supabaseAdmin
@@ -294,7 +302,8 @@ serve(async (req) => {
       .eq("id", userId);
 
     if (statusError) {
-      console.error(JSON.stringify({ fn: "create-manual-client", step: "update_status", ok: false, error: "update_failed" }));
+      console.error(JSON.stringify({ fn: "create-manual-client", step: "update_status", ok: false, error: statusError.message }));
+      throw statusError;
     }
 
     // Generate password reset link

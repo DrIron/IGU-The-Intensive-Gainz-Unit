@@ -87,18 +87,22 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
         }
       }
 
-      // Fetch profiles_public separately for each assigned client
-      // RLS allows coaches to read profiles of clients they're assigned to
-      const subscriptionsWithProfiles = await Promise.all(
-        (allSubscriptions || []).map(async (sub) => {
-          const { data: profile } = await supabase
-            .from("profiles_public")
-            .select("id, first_name, display_name, status")
-            .eq("id", sub.user_id)
-            .maybeSingle();
-          return { ...sub, profile };
-        })
-      );
+      // Batch-fetch profiles_public for all assigned clients in one query.
+      // RLS allows coaches to read profiles of clients they're assigned to.
+      const clientUserIds = Array.from(new Set(allSubscriptions.map(s => s.user_id)));
+      const profilesById = new Map<string, { id: string; first_name: string | null; display_name: string | null; status: string | null }>();
+      if (clientUserIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from("profiles_public")
+          .select("id, first_name, display_name, status")
+          .in("id", clientUserIds);
+        if (profilesError) throw profilesError;
+        for (const p of profiles ?? []) profilesById.set(p.id, p);
+      }
+      const subscriptionsWithProfiles = allSubscriptions.map(sub => ({
+        ...sub,
+        profile: profilesById.get(sub.user_id) ?? null,
+      }));
 
       const totalClients = subscriptionsWithProfiles.length;
       
@@ -123,60 +127,43 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
         .eq("coach_id", coachUserId)
         .eq("is_active", true);
 
-      // Count clients who haven't logged weight in the last 7 days
+      // Batch-fetch most recent weight log per phase in ONE query, then compute
+      // 7d / today-due / 14d counters in memory. Replaces N+1 loops that fired
+      // up to 3 queries per phase (worst case for an active coach: dozens).
       let checkInsDue = 0;
       let checkInsDueToday = 0;
-      const sevenDaysAgo = new Date();
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+      let inactiveFor14Days = 0;
 
       if (nutritionPhases && nutritionPhases.length > 0) {
-        for (const phase of nutritionPhases) {
-          const { data: recentLogs } = await supabase
-            .from("weight_logs")
-            .select("id, log_date")
-            .eq("phase_id", phase.id)
-            .gte("log_date", sevenDaysAgo.toISOString())
-            .order("log_date", { ascending: false })
-            .limit(1);
+        const phaseIds = nutritionPhases.map(p => p.id);
+        const { data: phaseLogs, error: phaseLogsError } = await supabase
+          .from("weight_logs")
+          .select("phase_id, log_date")
+          .in("phase_id", phaseIds)
+          .order("log_date", { ascending: false });
+        if (phaseLogsError) throw phaseLogsError;
 
-          if (!recentLogs || recentLogs.length === 0) {
-            checkInsDue++;
-            // Check if last log was exactly 7 days ago (due today)
-            const { data: lastLog } = await supabase
-              .from("weight_logs")
-              .select("log_date")
-              .eq("phase_id", phase.id)
-              .order("log_date", { ascending: false })
-              .limit(1);
-            
-            if (lastLog && lastLog.length > 0) {
-              const lastLogDate = new Date(lastLog[0].log_date);
-              const daysSinceLog = Math.floor((Date.now() - lastLogDate.getTime()) / (1000 * 60 * 60 * 24));
-              if (daysSinceLog === 7) {
-                checkInsDueToday++;
-              }
-            }
+        const latestLogByPhase = new Map<string, string>();
+        for (const log of phaseLogs ?? []) {
+          if (!latestLogByPhase.has(log.phase_id)) {
+            latestLogByPhase.set(log.phase_id, log.log_date);
           }
         }
-      }
 
-      // Count clients inactive for 14+ days
-      let inactiveFor14Days = 0;
-      const fourteenDaysAgo = new Date();
-      fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
-
-      if (nutritionPhases && nutritionPhases.length > 0) {
+        const now = Date.now();
         for (const phase of nutritionPhases) {
-          const { data: recentLogs } = await supabase
-            .from("weight_logs")
-            .select("id")
-            .eq("phase_id", phase.id)
-            .gte("log_date", fourteenDaysAgo.toISOString())
-            .limit(1);
-
-          if (!recentLogs || recentLogs.length === 0) {
+          const latest = latestLogByPhase.get(phase.id);
+          if (!latest) {
+            checkInsDue++;
             inactiveFor14Days++;
+            continue;
           }
+          const daysSinceLog = Math.floor((now - new Date(latest).getTime()) / 86_400_000);
+          if (daysSinceLog >= 7) {
+            checkInsDue++;
+            if (daysSinceLog === 7) checkInsDueToday++;
+          }
+          if (daysSinceLog >= 14) inactiveFor14Days++;
         }
       }
 

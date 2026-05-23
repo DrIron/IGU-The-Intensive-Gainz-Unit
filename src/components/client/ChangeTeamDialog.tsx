@@ -53,43 +53,39 @@ export const ChangeTeamDialog = memo(function ChangeTeamDialog({
 
   const loadTeams = useCallback(async () => {
     try {
-      const { data: teamsData, error } = await supabase
-        .from("coach_teams")
-        .select("id, name, description, tags, max_members, coach_id")
-        .eq("is_active", true)
-        .order("name");
+      // Use SECURITY DEFINER RPC -- coaches_client_safe view is RLS-broken
+      // for clients, and the prior per-team coach+count loop was N+1.
+      const { data: rpcData, error } = await supabase
+        .rpc("list_active_teams_for_client");
 
       if (error) throw error;
 
-      const enriched: AvailableTeam[] = await Promise.all(
-        (teamsData || []).map(async (team) => {
-          const { data: coach } = await supabase
-            .from("coaches_client_safe")
-            .select("first_name, last_name")
-            .eq("user_id", team.coach_id)
-            .maybeSingle();
+      const rows = (rpcData ?? []) as Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        tags: string[];
+        max_members: number;
+        coach_id: string;
+        coach_first_name: string | null;
+        coach_last_name: string | null;
+        member_count: number;
+      }>;
 
-          const { count } = await supabase
-            .from("subscriptions")
-            .select("id", { count: "exact", head: true })
-            .eq("team_id", team.id)
-            .in("status", ["pending", "active"]);
-
-          const coachName = coach
-            ? `${coach.first_name}${coach.last_name ? ` ${coach.last_name}` : ""}`
-            : "Coach";
-
-          return {
-            id: team.id,
-            name: team.name,
-            description: team.description,
-            tags: team.tags || [],
-            max_members: team.max_members,
-            coachName,
-            memberCount: count || 0,
-          };
-        })
-      );
+      const enriched: AvailableTeam[] = rows.map((team) => {
+        const coachName = team.coach_first_name
+          ? `${team.coach_first_name}${team.coach_last_name ? ` ${team.coach_last_name}` : ""}`
+          : "Coach";
+        return {
+          id: team.id,
+          name: team.name,
+          description: team.description,
+          tags: team.tags || [],
+          max_members: team.max_members,
+          coachName,
+          memberCount: team.member_count,
+        };
+      });
 
       setTeams(enriched);
     } catch (error) {

@@ -67,12 +67,24 @@ export default function CoachContentAssignments() {
 
   const handleDelete = async () => {
     if (!deleteTarget) return;
-    const { error } = await supabase
+    // Rows-affected check: RLS denials return HTTP 200 with no rows + no error
+    // (Block 8 audit, same pattern as PR #117 completeWorkout fix). Use
+    // .select() to surface the silent-deny path before mutating local state.
+    const { data: deleted, error } = await supabase
       .from("coach_content_assignments")
       .delete()
-      .eq("id", deleteTarget.assignment_id);
+      .eq("id", deleteTarget.assignment_id)
+      .select("id");
     if (error) {
       toast({ title: "Failed to delete", description: sanitizeErrorForUser(error), variant: "destructive" });
+      return;
+    }
+    if (!deleted || deleted.length === 0) {
+      toast({
+        title: "Not deleted",
+        description: "You may not have permission to remove this assignment. Refresh and try again.",
+        variant: "destructive",
+      });
       return;
     }
     toast({ title: "Removed", description: "Assignment deleted." });

@@ -111,11 +111,13 @@ serve(async (req) => {
       userId = existingUser.id;
       
       // SECURITY: Check if user already has admin role - preserve it!
-      const { data: existingRoles } = await supabaseAdmin
+      const { data: existingRoles, error: existingRolesError } = await supabaseAdmin
         .from('user_roles')
         .select('role')
         .eq('user_id', userId);
-      
+
+      if (existingRolesError) throw existingRolesError;
+
       const hasAdminRole = existingRoles?.some(r => r.role === 'admin');
       
       if (hasAdminRole) {

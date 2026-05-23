@@ -56,7 +56,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
   const loadAvailableCoaches = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       // Get the service ID for capacity lookup
       const serviceName = PLAN_TYPE_TO_SERVICE_NAME[planType];
       const { data: serviceData } = await supabase
@@ -72,92 +72,49 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
         return;
       }
 
-      // Get coaches with their service limits for this specific service
-      // Use coaches_client_safe view (contains ONLY public-safe fields, no contact info)
-      const { data: serviceLimits, error: limitsError } = await supabase
-        .from('coach_service_limits')
-        .select(`
-          max_clients,
-          coach_id,
-          coaches:coach_id(id)
-        `)
-        .eq('service_id', serviceData.id);
-      
-      if (limitsError) throw limitsError;
+      // Use SECURITY DEFINER RPC instead of coaches_client_safe view -- the
+      // view is RLS-broken for unauthenticated/pre-subscription callers
+      // (returns 0 rows). RPC bundles capacity counting server-side too, so
+      // no N+1 per-coach subscription count.
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc('list_active_coaches_for_service', { p_service_id: serviceData.id });
 
-      // Get coach details from the safe view separately
-      const coachIds = serviceLimits?.map(l => (l.coaches as any)?.id).filter(Boolean) || [];
-      if (coachIds.length === 0) {
+      if (rpcError) throw rpcError;
+
+      const safeCoaches = (rpcData ?? []) as Array<{
+        id: string;
+        user_id: string;
+        first_name: string;
+        last_name: string | null;
+        profile_picture_url: string | null;
+        short_bio: string | null;
+        specializations: string[] | null;
+        status: string;
+        max_clients: number;
+        current_clients: number;
+        available_spots: number;
+      }>;
+
+      if (safeCoaches.length === 0) {
         setCoaches([]);
         setNoCoachesAvailable(true);
         setLoading(false);
         return;
       }
 
-      const { data: safeCoaches, error: coachError } = await supabase
-        .from('coaches_client_safe')
-        .select('id, user_id, first_name, last_name, profile_picture_url, short_bio, specializations, status')
-        .in('id', coachIds);
-      
-      if (coachError) throw coachError;
-
-      if (!safeCoaches || safeCoaches.length === 0) {
-        setCoaches([]);
-        setNoCoachesAvailable(true);
-        setLoading(false);
-        return;
-      }
-
-      // Create a map of coach_id to max_clients from service limits
-      const limitsMap = new Map<string, number>();
-      for (const limit of serviceLimits || []) {
-        const coachId = (limit.coaches as any)?.id;
-        if (coachId) {
-          limitsMap.set(coachId, limit.max_clients);
-        }
-      }
-
-      // Build coaches list with capacity info
-      const coachesWithCapacity: Coach[] = [];
-
-      for (const coach of safeCoaches) {
-        // Only include active coaches
-        if (coach.status !== 'active') {
-          continue;
-        }
-
-        const maxClients = limitsMap.get(coach.id) || 0;
-
-        // Count current subscriptions for this coach + service
-        // Must match server-side: count pending + active subscriptions (real current load)
-        const { count: currentClients } = await supabase
-          .from('subscriptions')
-          .select('*', { count: 'exact', head: true })
-          .eq('coach_id', coach.user_id)
-          .eq('service_id', serviceData.id)
-          .in('status', ['pending', 'active']);
-        const clientCount = currentClients || 0;
-        const availableSpots = maxClients - clientCount;
-
-        // Only include coaches with available capacity
-        if (availableSpots <= 0) {
-          if (import.meta.env.DEV) console.log(`Coach ${coach.first_name} is at capacity (${clientCount}/${maxClients})`);
-          continue;
-        }
-
-        coachesWithCapacity.push({
-          id: coach.id,
-          user_id: coach.user_id,
-          first_name: coach.first_name,
-          last_name: coach.last_name,
-          profile_picture_url: coach.profile_picture_url,
-          short_bio: coach.short_bio,
-          specializations: coach.specializations,
-          available_spots: availableSpots,
-          max_clients: maxClients,
-          current_clients: clientCount,
-        });
-      }
+      // Build coaches list -- capacity already filtered server-side
+      const coachesWithCapacity: Coach[] = safeCoaches.map(coach => ({
+        id: coach.id,
+        user_id: coach.user_id,
+        first_name: coach.first_name,
+        last_name: coach.last_name,
+        profile_picture_url: coach.profile_picture_url,
+        short_bio: coach.short_bio,
+        specializations: coach.specializations,
+        available_spots: coach.available_spots,
+        max_clients: coach.max_clients,
+        current_clients: coach.current_clients,
+      }));
 
       // Sort coaches by specialization match with focus areas, then by available spots
       const sortedCoaches = coachesWithCapacity.sort((a, b) => {

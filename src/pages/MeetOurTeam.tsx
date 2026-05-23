@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CoachDetailDialog } from "@/components/CoachDetailDialog";
@@ -102,17 +103,18 @@ export default function MeetOurTeam() {
         ) : (
         <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 max-w-7xl mx-auto">
           {coaches.map((coach) => (
-            <Card
+            <ClickableCard
               key={coach.id}
-              className={`hover:shadow-lg transition-all cursor-pointer hover:scale-[1.02] ${
+              ariaLabel={`View ${coach.first_name} ${coach.last_name}'s profile`}
+              onClick={() => handleCoachClick(coach)}
+              className={`hover:shadow-lg transition-all hover:scale-[1.02] ${
                 isLeadCoach(coach) ? "border-primary/50 ring-1 ring-primary/20" : ""
               }`}
-              onClick={() => handleCoachClick(coach)}
             >
               <CardHeader>
                 <div className="flex items-start gap-4 mb-2">
                   <Avatar className={`h-16 w-16 border-2 ${isLeadCoach(coach) ? "border-primary" : "border-border"}`}>
-                    <AvatarImage src={coach.profile_picture_url || undefined} />
+                    <AvatarImage src={coach.profile_picture_url || undefined} loading="lazy" />
                     <AvatarFallback className={isLeadCoach(coach) ? "bg-primary/20 text-primary" : ""}>
                       {coach.first_name.slice(0, 1).toUpperCase()}{coach.last_name.slice(0, 1).toUpperCase()}
                     </AvatarFallback>
@@ -156,7 +158,7 @@ export default function MeetOurTeam() {
                 )}
                 <p className="text-xs text-primary font-medium">Click to view full profile</p>
               </CardContent>
-            </Card>
+            </ClickableCard>
           ))}
         </div>
         )}

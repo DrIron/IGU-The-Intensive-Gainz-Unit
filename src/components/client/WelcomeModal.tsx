@@ -28,17 +28,22 @@ export function WelcomeModal({ userId, firstName, subscription }: WelcomeModalPr
     const shownKey = `${WELCOME_SHOWN_KEY}_${userId}`;
     if (localStorage.getItem(shownKey)) return;
 
-    // Fetch coach info
+    // Fetch coach info via SECURITY DEFINER RPC (coaches_client_safe view is
+    // RLS-broken for clients -- see migration 20260517104551).
     const fetchCoach = async () => {
       if (!subscription?.coach_id) return;
 
       const { data } = await supabase
-        .from("coaches_client_safe")
-        .select("first_name, last_name, profile_picture_url")
-        .eq("user_id", subscription.coach_id)
-        .maybeSingle();
+        .rpc("get_coach_for_client", { p_coach_user_id: subscription.coach_id });
 
-      if (data) setCoach(data);
+      if (data) {
+        const coachData = data as { first_name: string; last_name: string | null; profile_picture_url: string | null };
+        setCoach({
+          first_name: coachData.first_name,
+          last_name: coachData.last_name,
+          profile_picture_url: coachData.profile_picture_url,
+        });
+      }
     };
 
     fetchCoach();
