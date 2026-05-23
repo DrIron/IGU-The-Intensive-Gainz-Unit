@@ -80,14 +80,18 @@ export default function EmailConfirmed() {
       } else if (roleList.includes("coach")) {
         navigate("/coach");
       } else {
-        // Regular user - check onboarding status
+        // Regular user - check onboarding status.
+        // .maybeSingle() defensively: handle_new_user trigger may not have
+        // fired yet on a fresh signup -- .single() would throw 406 and the
+        // user would land on /dashboard with stale UI.
         const { data: profile } = await supabase
           .from("profiles_public")
           .select("status, onboarding_completed_at")
           .eq("id", session.user.id)
-          .single();
-        
-        if (!profile?.onboarding_completed_at && profile?.status === "pending") {
+          .maybeSingle();
+
+        // No profile row yet (trigger lag) OR pending status -> onboarding.
+        if (!profile || (!profile.onboarding_completed_at && profile.status === "pending")) {
           navigate("/onboarding");
         } else {
           navigate("/dashboard");

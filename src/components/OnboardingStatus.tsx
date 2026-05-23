@@ -43,12 +43,14 @@ export function OnboardingStatus() {
       
       setUser(user);
 
-      // Use profiles_public for client-facing status check (RLS protected)
+      // Use profiles_public for client-facing status check (RLS protected).
+      // .maybeSingle() defensively: handle_new_user trigger may not have fired yet
+      // on a fresh signup race -- .single() would throw PostgREST 406.
       const { data: profile } = await supabase
         .from('profiles_public')
         .select('status, payment_exempt')
         .eq('id', user.id)
-        .single();
+        .maybeSingle();
 
       const { data: submission } = await supabase
         .from('form_submissions')
@@ -58,14 +60,27 @@ export function OnboardingStatus() {
         .limit(1)
         .maybeSingle();
 
-      // Get latest subscription with status and service details
+      // Get latest subscription. CLAUDE.md non-negotiable rule #1: never use
+      // nested PostgREST FK joins on subscriptions -- services(...) here was
+      // silently returning wrong data. Split into two queries instead.
       const { data: subscription } = await supabase
         .from('subscriptions')
-        .select('service_id, status, tap_subscription_status, services(name, type)')
+        .select('service_id, status, tap_subscription_status')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle();
+
+      // Fetch matching service row (name + type) in a separate query.
+      let subscriptionService: { name: string; type: string } | null = null;
+      if (subscription?.service_id) {
+        const { data: svc } = await supabase
+          .from('services')
+          .select('name, type')
+          .eq('id', subscription.service_id)
+          .maybeSingle();
+        subscriptionService = svc ?? null;
+      }
 
       // Profile status is synced server-side via RLS and triggers
       // Client cannot directly update their own status
@@ -83,8 +98,8 @@ export function OnboardingStatus() {
         if (serviceByName?.id) resolvedServiceId = serviceByName.id;
       }
 
-      const planNameResolved = submission?.plan_name || (subscription as any)?.services?.name;
-      const planTypeResolved = (subscription as any)?.services?.type as string | undefined;
+      const planNameResolved = submission?.plan_name || subscriptionService?.name;
+      const planTypeResolved = subscriptionService?.type;
 
       setStatus({
         formSubmitted: !!submission,

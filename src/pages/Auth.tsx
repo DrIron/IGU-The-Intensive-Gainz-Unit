@@ -155,13 +155,16 @@ export default function Auth() {
         return;
       }
 
-      // Regular users - check onboarding status (with timeout)
+      // Regular users - check onboarding status (with timeout).
+      // .maybeSingle() defensively: handle_new_user trigger may not have fired
+      // yet on a fresh signup -- .single() throws PostgREST 406 then the catch
+      // below silently routes the user to /dashboard with stale UI.
       try {
         const profilePromise = supabase
           .from("profiles_public")
           .select("status, onboarding_completed_at")
           .eq("id", userId)
-          .single();
+          .maybeSingle();
 
         const profileTimeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Profile query timeout')), TIMEOUTS.ROLES_QUERY)
@@ -172,9 +175,11 @@ export default function Auth() {
           profileTimeoutPromise
         ]) as { data: { status: string; onboarding_completed_at: string | null } | null };
 
+        // No profile row yet (trigger lag) OR pending status -- treat as fresh
+        // user needing onboarding.
         const onboardingCompleted = !!profile?.onboarding_completed_at;
-        if (!onboardingCompleted && profile?.status === 'pending') {
-          if (import.meta.env.DEV) console.log('[Auth] Redirecting to /onboarding');
+        if (!profile || (!onboardingCompleted && profile.status === 'pending')) {
+          if (import.meta.env.DEV) console.log('[Auth] Redirecting to /onboarding', { profileExists: !!profile });
           navigate("/onboarding");
           return;
         }
@@ -499,15 +504,17 @@ export default function Auth() {
       } else if (roleList.includes('coach') || isCoachAuth) {
         navigate('/coach');
       } else {
-        // Check onboarding status for clients
+        // Check onboarding status for clients.
+        // .maybeSingle() defensively for the trigger-lag race (see same change
+        // in handleRedirectAfterAuth above).
         try {
           const { data: profile } = await supabase
             .from('profiles_public')
             .select('status, onboarding_completed_at')
             .eq('id', user.id)
-            .single();
+            .maybeSingle();
 
-          if (profile && !profile.onboarding_completed_at && profile.status === 'pending') {
+          if (!profile || (!profile.onboarding_completed_at && profile.status === 'pending')) {
             navigate('/onboarding');
             return;
           }

@@ -13,7 +13,7 @@ This document tracks the 10-block pre-launch audit (per `docs/pre-launch-review.
 |----|-----------------------------|-------------------|---------------------------------------|
 | 1  | Billing & payments          | ✅ Complete       | ✅ Shipped (commit d9b2836 + edge fns + migrations) |
 | 2  | Onboarding & medical review | ✅ Complete       | ✅ Shipped (commit d9b2836 + edge fns + migrations) |
-| 3  | Auth flow                   | ⏳ Not started    | —                                     |
+| 3  | Auth flow                   | ✅ Complete       | 🟡 2 P0s fixed in-repo 2026-05-23 (B3-N1 + B3-N2), tsc clean, awaiting commit. 8 P1 + 4 P2 still open. |
 | 4  | Admin tooling               | ⏳ Not started    | —                                     |
 | 5  | Messaging                   | ⏳ Not started    | —                                     |
 | 6  | Sessions / PT bookings      | ⏳ Not started    | —                                     |
@@ -364,6 +364,58 @@ git restore --staged --worktree supabase/migrations/
 
 ---
 
+## Block 3 — Auth flow findings
+
+**Audit completed 2026-05-23.** Surfaces audited: `AuthGuard.tsx`, `RoleProtectedRoute.tsx`, `OnboardingGuard.tsx`, `WaitlistGuard.tsx`, `src/integrations/supabase/client.ts`, `useAuthSession`, `useRoleCache`, `useUserRole`, `useRoleGate`, `Auth.tsx`, `ResetPassword.tsx`, `EmailConfirmed.tsx`, `CoachSignup.tsx`, `OnboardingStatus.tsx`. Edge-function auth gates were already audited in Blocks 1/2/8 and are tracked under those blocks.
+
+The core guard machinery (`AuthGuard` 8s pattern, `RoleProtectedRoute` raw-fetch role check, `useRoleCache` tampering guard, `client.ts` navigator-lock bypass + `initializePromise` race + `setSession()` recovery) is structurally sound. Findings concentrate on (a) callsites that bypass the documented timeout / RLS-safety patterns, (b) the secondary auth pages, and (c) `OnboardingStatus`.
+
+### NEW-FINDING P0 — fixed in-repo 2026-05-23, awaiting commit
+
+- **B3-N1 ✅ FIXED.** `src/components/OnboardingStatus.tsx:62-68` was using the banned nested PostgREST FK join `subscriptions.select('...services(name, type)')` (CLAUDE.md non-negotiable rule #1). Split into a separate `services.select('name, type').eq('id', subscription.service_id).maybeSingle()` query keyed on `subscription.service_id`. Removed both `(subscription as any)?.services?.{name,type}` casts. While in the file, also flipped the `profiles_public` `.single()` on line 51 to `.maybeSingle()` (same defensive reasoning as B3-N2 -- the `handle_new_user` trigger can race with this read on fresh signups).
+
+- **B3-N2 ✅ FIXED.** `.single()` on `profiles_public` swapped to `.maybeSingle()` in three places, with the null-profile case explicitly routed to `/onboarding` (was silently falling through to `/dashboard`):
+  - `src/pages/Auth.tsx:164` (in `handleRedirectAfterAuth`, the `checkExistingSession` path).
+  - `src/pages/Auth.tsx:508` (in `handleSignIn`, post-credentials redirect).
+  - `src/pages/EmailConfirmed.tsx:88` (in `handleContinue`).
+
+  Verification: `npx tsc --noEmit` passes clean.
+
+### NEW-FINDING P1 — open, IN-REPO triage required
+
+- **B3-N3.** `src/pages/CoachSignup.tsx:93` and `:136` — `getSession()` / `getUser()` with no 8s safety timeout (B8-N14 carry-over). CLAUDE.md: "Any new auth guard calling `getSession()` MUST have a safety timeout." If the GoTrueClient deadlock fires while a coach is finishing their profile, the page hangs on the "Loading..." state forever. **Fix:** wrap in the `Promise.race` 8s pattern from `AuthGuard.tsx:64-67` (or use `withTimeout` from `src/lib/withTimeout.ts`).
+
+- **B3-N4.** `src/components/OnboardingGuard.tsx:196-261` `useOnboardingStatus` hook duplicates the main guard's data-fetch logic but has none of its hardening — no per-query timeout, no `hasFetched` ref guard, and the `getSession()` call on line 206 has no 8s safety timeout. Anyone consuming this hook gets the pre-Phase-16 behavior; the main guard has the post-fix behavior. **Fix:** either delete the hook (callers can use `useAuthGuardSession` + the same query pattern) or refactor it to call the same `queryTimeout` helper the main guard uses.
+
+- **B3-N5.** `src/hooks/useClientAccess.ts:120` -- `getSession()` with no safety timeout. Used inside the client-access gate; a deadlock here hangs the entire client area.
+
+- **B3-N6.** `src/pages/EmailPending.tsx:36` and `EmailConfirmed.tsx:46`/`:67` -- `getSession()` no timeout. These are the email-confirmation polling pages — most likely to hit a fresh tab with cold Supabase init.
+
+- **B3-N7.** `src/components/OnboardingStatus.tsx:30-37` polls `loadStatus()` every 3 seconds on mount with no `hasFetched` guard, no visibility-state check, and no exponential backoff. Network-and-RLS-quota cost is low for one tab, but the page is the default landing surface for a `pending_payment` client and the interval keeps firing even when the tab is backgrounded. **Fix:** gate on `document.visibilityState === 'visible'` plus a `setTimeout`-driven loop you can stop, not `setInterval`.
+
+- **B3-N8.** `src/pages/Auth.tsx:115-136` reads `localStorage.getItem('igu_user_roles')` / `localStorage.getItem('igu_cached_user_id')` directly to make redirect decisions on the timeout fallback path. This bypasses `useRoleCache.getCachedRoles()` which has TTL expiration and the stored-token tampering guard (see `RoleProtectedRoute.tsx:346-349`, the `storedToken && cachedRoles` check). A user who manually sets `igu_user_roles=["admin"]` in localStorage AND has any valid Supabase session token AND triggers the roles-query timeout would get redirected to `/admin`. RLS still blocks data reads, so the actual attack surface is "see the admin shell with no data", but the inconsistency is a smell. **Fix:** route the fallback through `useRoleCache` like the rest of the codebase.
+
+- **B3-N9.** `src/components/RoleProtectedRoute.tsx:140-155` `hasRequiredRole()` defines `isClient = !isAdmin && !isCoach`. A user whose `user_roles` row has ONLY `dietitian` (no `coach`, no `admin`) is treated as a `client` and would be granted access to client-only routes. The role hierarchy in CLAUDE.md § 5b says dietitians should always also have `coach`, so this is a defense-in-depth gap, not a known-broken path. **Fix:** add an explicit `isDietitian = userRoles.includes('dietitian')` check and treat dietitian-only users as having no client access (route them to coach surface, with `is_dietitian` flag driving the UI).
+
+- **B3-N10.** `src/pages/Auth.tsx:308, 375, 519, 548`; `CoachSignup.tsx:185`; `EmailConfirmed.tsx:55`; `OnboardingStatus.tsx:28`. `catch (error: any)` / `useState<any>()` violations of CLAUDE.md "TypeScript strict, `error: unknown` not `any`". Cluster cleanup -- type-narrow with `instanceof Error` like `ResetPassword.tsx:132` does.
+
+### NEW-FINDING P2 — cleanup
+
+- `src/pages/ResetPassword.tsx:177` / `:189` -- HTML `minLength={6}` on the password inputs while the JS validator on line 98 requires `length < 8`. JS wins, so the form submits then rejects -- UX gap. Tighten to `minLength={8}`.
+- Three role-fetching hooks coexist with subtly different semantics: `useUserRole`, `useRoleGate`, `useRoleCache` (plus `RoleProtectedRoute`'s own raw-fetch path and `Auth.tsx`'s retry loop). `useUserRole.ts:46-49` and `useRoleGate.ts:135-138` query `user_roles` directly via the Supabase client (which can deadlock on init), while `RoleProtectedRoute` uses `fetch('/rest/v1/rpc/get_my_roles')` to bypass the client. Consolidate around the RPC -- it's more robust.
+- `src/pages/NotFound.tsx:20` and `src/pages/admin/SystemHealth.tsx:200` -- `getSession()` no timeout. Low-risk surfaces (404 page sets nav UI; admin diagnostics is manual entry only), but worth wrapping for consistency.
+- `Auth.tsx:195-290` main mount useEffect depends on `[handleRedirectAfterAuth, searchParams]`. Both identities change on every render, so the effect could re-fire if React re-renders during the redirect window. `redirectingRef.current` prevents the redirect itself from re-triggering, but `loadServices()` / `checkWaitlist()` / `checkExistingSession()` could double-fire. They're idempotent, so not a correctness bug -- just adds a `hasFetched` ref guard would tighten.
+
+### Confirmed-good patterns
+
+- `src/integrations/supabase/client.ts` -- navigator-lock bypass + 10s `initializePromise` race + `setSession()` recovery path. Comments are clear, semantics match the Block 1/2 audit findings, no changes recommended.
+- `src/components/AuthGuard.tsx` -- 8s timeout on `INITIAL_SESSION` null branch, mounted-flag cleanup, intentional empty-deps comment. Canonical pattern.
+- `src/components/RoleProtectedRoute.tsx` raw-`fetch()` role check with `Promise.race` timeout + RPC primary / direct query fallback. Cache-first authorization with isAuthorizedRef ratchet that prevents revocation from a transient empty server response. Tampering guard at lines 346-349 (cached roles require a stored auth token). Solid.
+- `src/components/WaitlistGuard.tsx` -- 3s `getUser()` race, fail-open on error, `hasFetched` ref. Correct.
+- `src/pages/ResetPassword.tsx` -- `withTimeout` wrappers, `hasChecked` ref, password complexity matching `signUpSchema`, PKCE-flow handling. Clean except for the HTML-min-length P2 above.
+
+---
+
 ## Open product decisions
 
 - **Dietitian SELECT** on `subscription_payments` + `form_submissions` / PAR-Q? Block 1 P1-11 + Block 2 RLS gap.
@@ -380,10 +432,10 @@ git restore --staged --worktree supabase/migrations/
 3. This file (`docs/pre-launch-review-findings.md`) is the canonical findings log. Append to it; bring P0s back to triage.
 4. The original 10-block prompt set is preserved (`docs/pre-launch-review.md` or in chat history). Paste one block per fresh Cowork chat to run a fresh audit.
 5. **Most urgent open work** (in priority order):
-   - **Block 3 (Auth flow)** -- recommended next fresh audit. Touches every authenticated surface (AuthGuard, RoleProtectedRoute, OnboardingGuard, WaitlistGuard, the raw-fetch role-check shortcut, the `getSession()` deadlock mitigations). Run before further guard/role-gate fixes.
-   - **Block D6 -- migration drift cleanup ✅ CLOSED 2026-05-23.** Drift = 0, verified via SQL walk of `supabase_migrations.schema_migrations` vs `supabase/migrations/` (325 = 325, no extras either side). Hasan still needs to run `supabase db push --dry-run` once locally to confirm with the actual CLI -- block in "Block D6 -- migration drift cleanup" section above.
-   - **Sentry / function-log check from 2026-05-23 incident.** Confirm no real users hit the broken-RPC window between `functions deploy` and the MCP-apply recovery (~minutes). If any did, decide whether to email an apology.
-   - **Block 8 deploy is ✅ complete** as of 2026-05-23 -- migration applied via MCP, edge functions deployed, FE pushed (commit 68584a2), all 5 RPCs verified live. No re-run needed.
+   - **Block 3 (Auth flow) — audit + P0 fixes complete 2026-05-23, awaiting commit.** 2 P0s (B3-N1 + B3-N2) fixed in-repo, tsc clean. 8 P1s (B3-N3..N10) and 4 P2s still open -- not blocking, can ship in a follow-up alongside Block 4 fixes. See "Block 3 -- Auth flow findings" section.
+   - **Block 4 (Admin tooling)** recommended next fresh audit. Verify role isolation -- every admin page must `Unauthorized` for the other 5 roles. Bring forward `useRoleGate` / `useUserRole` consolidation question from B3-P2.
+   - **Block D6 ✅ CLOSED + verified 2026-05-23.** `supabase db push --dry-run` printed "Remote database is up to date." `supabase migration list` shows every row paired Local | Remote. Commit `2956e8f` on main.
+   - **Sentry / function-log check from 2026-05-23 incident ✅ DONE.** FE Sentry has 2 events in 30d (both synthetic DSN probes), zero hits on any of the new Block 8 RPC names or `PGRST202` / "function does not exist". Postgres logs (24h) have zero ERROR/FATAL/`42883` entries. API log window all 200s. Pre-launch traffic was effectively zero. No apology email needed.
    - **Address remaining Block 8 NEW-FINDING P1s** -- B8-N4, B8-N5, B8-N7 through B8-N18 (B8-N6, B8-N19, B8-N20, B8-N21 ✅ closed 2026-05-23). Team-fan-out race (B8-N16/N17) is the biggest correctness risk.
 
 ---
