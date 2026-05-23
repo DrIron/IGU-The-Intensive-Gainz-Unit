@@ -18,16 +18,33 @@ export function SubscriptionBreakdown() {
 
   const loadBreakdown = useCallback(async () => {
     try {
-      const { data: subs } = await supabase
+      const { data: subs, error: subsError } = await supabase
         .from("subscriptions")
-        .select("service_id, services(name, type)")
+        .select("service_id")
         .eq("status", "active");
+      if (subsError) throw subsError;
 
-      if (subs) {
+      if (subs && subs.length > 0) {
+        const serviceIds = Array.from(
+          new Set(subs.map(s => s.service_id).filter((id): id is string => !!id))
+        );
+        const servicesById = new Map<string, { name: string; type: string }>();
+
+        if (serviceIds.length > 0) {
+          const { data: services, error: servicesError } = await supabase
+            .from("services")
+            .select("id, name, type")
+            .in("id", serviceIds);
+          if (servicesError) throw servicesError;
+          for (const svc of services ?? []) {
+            servicesById.set(svc.id, { name: svc.name, type: svc.type });
+          }
+        }
+
         const counts = new Map<string, ServiceCount>();
 
         for (const sub of subs) {
-          const service = sub.services as { name: string; type: string } | null;
+          const service = sub.service_id ? servicesById.get(sub.service_id) ?? null : null;
           const name = service?.name || "Unknown";
           const existing = counts.get(name);
 
@@ -45,6 +62,9 @@ export function SubscriptionBreakdown() {
         const result = Array.from(counts.values()).sort((a, b) => b.count - a.count);
         setBreakdown(result);
         setTotal(subs.length);
+      } else {
+        setBreakdown([]);
+        setTotal(0);
       }
     } catch (error) {
       console.error("Error loading subscription breakdown:", error);

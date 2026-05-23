@@ -178,15 +178,15 @@ export function PaymentOverride({
         profileUpdate.status = "suspended";
       }
 
-      await supabase
+      const { error: profileError } = await supabase
         .from("profiles_public")
         .update(profileUpdate)
         .eq("id", userId);
+      if (profileError) throw profileError;
 
-      // If marking payment received, create a payment record
       if (selectedAction === "mark_paid") {
         const amount = parseFloat(manualAmount);
-        await supabase.from("subscription_payments").insert({
+        const { error: paymentError } = await supabase.from("subscription_payments").insert({
           subscription_id: subscriptionId,
           user_id: userId,
           amount_kwd: amount,
@@ -202,10 +202,10 @@ export function PaymentOverride({
             overridden_by: user?.id,
           },
         });
+        if (paymentError) throw paymentError;
       }
 
-      // Log to security audit
-      await supabase.from("security_audit_log").insert({
+      const { error: auditError } = await supabase.from("security_audit_log").insert({
         event_type: "payment_override",
         user_id: userId,
         details: {
@@ -219,6 +219,7 @@ export function PaymentOverride({
           overridden_by: user?.id,
         },
       });
+      if (auditError) throw auditError;
 
       // Log locally
       logPaymentOverride({

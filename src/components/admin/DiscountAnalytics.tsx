@@ -289,14 +289,28 @@ export function DiscountAnalytics() {
       }
 
       if (subscriptionIds.length > 0) {
-        const { data: subs } = await supabase
+        const { data: subs, error: subsError } = await supabase
           .from('subscriptions')
-          .select('id, status, services(name)')
+          .select('id, status, service_id')
           .in('id', subscriptionIds);
-        
-        subs?.forEach((s: any) => {
+        if (subsError) throw subsError;
+
+        const serviceIds = Array.from(
+          new Set((subs ?? []).map(s => s.service_id).filter((id): id is string => !!id))
+        );
+        const serviceNamesById = new Map<string, string>();
+        if (serviceIds.length > 0) {
+          const { data: services, error: servicesError } = await supabase
+            .from('services')
+            .select('id, name')
+            .in('id', serviceIds);
+          if (servicesError) throw servicesError;
+          for (const svc of services ?? []) serviceNamesById.set(svc.id, svc.name);
+        }
+
+        (subs ?? []).forEach(s => {
           subscriptionDetails[s.id] = {
-            serviceName: s.services?.name || 'Unknown',
+            serviceName: (s.service_id ? serviceNamesById.get(s.service_id) : undefined) || 'Unknown',
             status: s.status,
           };
         });

@@ -117,8 +117,7 @@ export function ClientStatusOverride({
         timestamp: new Date(),
       });
 
-      // Also log to database
-      await supabase.from("admin_audit_log").insert({
+      const { error: auditError } = await supabase.from("admin_audit_log").insert({
         admin_user_id: user?.id,
         action_type: "status_change",
         target_type: "profile",
@@ -129,6 +128,7 @@ export function ClientStatusOverride({
           reason: reason.trim(),
         },
       });
+      if (auditError) throw auditError;
 
       toast.success(`Status updated to ${formatProfileStatus(selectedStatus)}`);
       onStatusChange?.(selectedStatus);

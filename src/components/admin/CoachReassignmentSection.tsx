@@ -196,14 +196,15 @@ export function CoachReassignmentSection({
 
       if (error) throw error;
 
-      // Update coach's last_assigned_at for fairness tracking
-      try {
-        await supabase
-          .from('coaches')
-          .update({ last_assigned_at: new Date().toISOString() })
-          .eq('user_id', selectedCoachId);
-      } catch (updateError) {
-        console.error('Failed to update last_assigned_at:', updateError);
+      // last_assigned_at is best-effort fairness tracking -- supabase doesn't
+      // throw on RLS failure, so destructure { error } and log without aborting
+      // the already-committed reassignment.
+      const { error: lastAssignedError } = await supabase
+        .from('coaches')
+        .update({ last_assigned_at: new Date().toISOString() })
+        .eq('user_id', selectedCoachId);
+      if (lastAssignedError) {
+        console.error('Failed to update last_assigned_at:', lastAssignedError);
       }
 
       toast({

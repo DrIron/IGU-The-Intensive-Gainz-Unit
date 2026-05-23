@@ -44,17 +44,34 @@ export function AdminMetricsCards() {
         .in("status", ["pending_coach_approval", "pending_payment", "needs_medical_review"]);
 
       // Monthly revenue from active subscriptions
-      const { data: activeSubs } = await supabase
+      const { data: activeSubs, error: activeSubsError } = await supabase
         .from("subscriptions")
-        .select("service_id, services(name, price_kwd)")
+        .select("service_id")
         .eq("status", "active");
+      if (activeSubsError) throw activeSubsError;
 
       let monthlyRevenue = 0;
-      if (activeSubs) {
-        for (const sub of activeSubs) {
-          const service = sub.services as { name: string; price_kwd: number } | null;
-          if (service?.price_kwd) {
-            monthlyRevenue += service.price_kwd;
+      if (activeSubs && activeSubs.length > 0) {
+        const serviceIds = Array.from(
+          new Set(activeSubs.map(s => s.service_id).filter((id): id is string => !!id))
+        );
+        if (serviceIds.length > 0) {
+          const { data: services, error: servicesError } = await supabase
+            .from("services")
+            .select("id, price_kwd")
+            .in("id", serviceIds);
+          if (servicesError) throw servicesError;
+
+          const priceById = new Map<string, number>();
+          for (const svc of services ?? []) {
+            if (svc.price_kwd != null) priceById.set(svc.id, svc.price_kwd);
+          }
+
+          for (const sub of activeSubs) {
+            if (sub.service_id) {
+              const price = priceById.get(sub.service_id);
+              if (price) monthlyRevenue += price;
+            }
           }
         }
       }

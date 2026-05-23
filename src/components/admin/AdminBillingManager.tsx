@@ -208,13 +208,14 @@ export function AdminBillingManager() {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
-    await supabase.from("admin_audit_log").insert({
+    const { error } = await supabase.from("admin_audit_log").insert({
       admin_user_id: user.id,
       action_type: actionType,
       target_type: "subscription",
       target_id: targetId,
       details,
     });
+    if (error) throw error;
   };
 
   const handleExtendGrace = async () => {

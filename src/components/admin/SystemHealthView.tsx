@@ -657,13 +657,14 @@ export function SystemHealthView() {
           const criticalCount = violations.filter(v => v.severity === 'critical').length;
           const warningCount = violations.filter(v => v.severity === 'warning').length;
           
-          await supabase.from('phi_compliance_scans').insert({
+          const { error: scanLogError } = await supabase.from('phi_compliance_scans').insert({
             scanned_by: user.id,
             total_violations: violations.length,
             critical_violations: criticalCount,
             warning_violations: warningCount,
             scan_results: scanResults,
           });
+          if (scanLogError) throw scanLogError;
         }
       }
 

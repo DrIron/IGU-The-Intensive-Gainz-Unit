@@ -1,6 +1,6 @@
 # IGU pre-launch deep-dive review — findings & handover
 
-**Last updated:** 2026-05-23
+**Last updated:** 2026-05-23 (Block 4 audit appended)
 **Launch target:** 2026-07-12 (Sun) 09:00 Kuwait. Public signup opens 2026-07-14. Launch date may slip — Hasan prefers complete structural fixes over deadline-driven workarounds.
 
 This document tracks the 10-block pre-launch audit (per `docs/pre-launch-review.md` or the original prompt set). Append findings here; bring any new P0 back to triage before fix.
@@ -13,8 +13,8 @@ This document tracks the 10-block pre-launch audit (per `docs/pre-launch-review.
 |----|-----------------------------|-------------------|---------------------------------------|
 | 1  | Billing & payments          | ✅ Complete       | ✅ Shipped (commit d9b2836 + edge fns + migrations) |
 | 2  | Onboarding & medical review | ✅ Complete       | ✅ Shipped (commit d9b2836 + edge fns + migrations) |
-| 3  | Auth flow                   | ✅ Complete       | 🟡 2 P0s fixed in-repo 2026-05-23 (B3-N1 + B3-N2), tsc clean, awaiting commit. 8 P1 + 4 P2 still open. |
-| 4  | Admin tooling               | ⏳ Not started    | —                                     |
+| 3  | Auth flow                   | ✅ Complete       | ✅ 2 P0s shipped 2026-05-23 (commit 5bcffc7: B3-N1 + B3-N2). 8 P1 + 4 P2 still open. |
+| 4  | Admin tooling               | ✅ Complete (audit) | 🟡 10 P0s IN-REPO 2026-05-23 (B4-N1..N10 fixed, tsc clean, awaiting commit). 7 P1s + 5 P2s still open. Role isolation at the gate ✅ verified intact. |
 | 5  | Messaging                   | ⏳ Not started    | —                                     |
 | 6  | Sessions / PT bookings      | ⏳ Not started    | —                                     |
 | 7  | Teams feature               | ⏳ Not started    | —                                     |
@@ -263,12 +263,135 @@ The 2026-05-23 audit flagged `pb-24 md:pb-8` missing from `CoachDashboard.tsx` /
 
 ---
 
-## Blocks 3-7, 9-10 — NOT STARTED
+## Block 4 — Admin tooling findings
+
+**Audit completed 2026-05-23.** Surfaces audited: every `/admin*` route in `src/App.tsx`, every file in `src/pages/admin/` (11 pages) and `src/components/admin/` (54 components), the `RoleProtectedRoute` admin gate, the `get_my_roles` RPC body (verified live via MCP `execute_sql`), `user_roles` RLS policies (10 policies, all admin-gated for write), `useRoleCache` / `useAuthCleanup` cache lifecycle, and the `useUserRole` / `useRoleGate` / `useFeatureAccess` consumers.
+
+### Role isolation — ✅ verified intact at the gate
+
+The 6-role isolation requirement (each `/admin*` route Unauthorized for `coach`, `client`, `dietitian`, `physiotherapist`, `sports_psychologist`, `mobility_coach`) is met by construction:
+
+- `RoleProtectedRoute.tsx:140-155` `hasRequiredRole(userRoles, 'admin')` reduces to `userRoles.includes('admin')`. None of the 5 non-admin roles include the `admin` enum value in `user_roles`, so all 5 are rejected.
+- Subroles (physiotherapist, sports_psychologist, mobility_coach) live in `user_subroles`, NOT `user_roles`. `get_my_roles()` queries only `user_roles` (verified live: SECURITY DEFINER, `SELECT array_agg(role::text) FROM public.user_roles WHERE user_id = auth.uid()`). So a physio-subrole user with core role `coach` returns `['coach']` from the RPC → admin gate rejects.
+- Dietitians: `user_roles.role = 'dietitian'` IS an `app_role` enum value, so they show up in the array. But the admin gate checks `includes('admin')` specifically, so `['dietitian']` or `['coach', 'dietitian']` are both rejected.
+- `user_roles` RLS write policies all gate on `has_role(auth.uid(), 'admin')` or `is_admin(auth.uid())` (10 policies in total — some overlapping, no harmful gaps). So no client/coach/subrole user can self-elevate via INSERT.
+- `BLOCKED_ROUTE_PREFIXES` in `src/auth/roles.ts:181-185` is a second layer: `/admin` is in `coach.blocked` and `client.blocked`. `isRouteBlocked()` re-checks at every `RoleProtectedRoute` render. Defense in depth.
+
+**Explicit admin routes in App.tsx (12 wrapped in `RoleProtectedRoute requiredRole="admin"`):** `/admin`, `/admin/:section`, `/admin/client-diagnostics`, `/admin/email-log`, `/admin/workout-qa`, `/admin/debug/roles`, `/admin/security-checklist`, `/admin/diagnostics`, `/admin/diagnostics/site-map`, `/admin/health`, `/admin/content-engagement`, `/testimonials-management`. All other `/admin/*` paths from `routeConfig.ts` (dashboard, clients, coaches, billing, pricing-payouts, etc.) dispatch through the `/admin/:section` wildcard into `AdminDashboard` → `AdminDashboardLayout`'s switch. Wildcard-dispatched paths inherit the admin gate from the wildcard route — verified.
+
+### NEW-FINDING P0 — silent admin mutations (cluster)
+
+Same class as Block 1's `silent-mutation cluster` (P1-1/2/3). RLS denials on these mutations return HTTP 200 with no rows, no exception — destructured `{ error }` + `throw` is the only path to surface them. The Block 1 fixes covered `tap-webhook` / `verify-payment` / `cancel-subscription`. This block extends the same fix to admin write paths.
+
+- **B4-N1.** ✅ **FIXED 2026-05-23.** `src/components/admin/PaymentOverride.tsx:181-184` — `supabase.from("profiles_public").update(profileUpdate).eq("id", userId)` had NO `{ error }` destructure. The same handler destructures + throws on the subscription update three lines above (line 159-164), so this is an inconsistency, not a top-level miss. **Impact:** admin marks user as paid → subscription flips to `active` → profile-status update silently fails under RLS → next client login bounces through `OnboardingGuard` (sees stale `pending_payment` or `needs_medical_review`) → user stuck. Fix: destructure `{ error }` and throw. While in the file, also fix B4-N2 + B4-N3 below as one cluster.
+
+- **B4-N2.** ✅ **FIXED 2026-05-23.** `src/components/admin/PaymentOverride.tsx:189-204` — `supabase.from("subscription_payments").insert({...})` was silent. Payment record disappears under RLS error; payment history misses the manual override.
+
+- **B4-N3.** ✅ **FIXED 2026-05-23.** `src/components/admin/PaymentOverride.tsx:208-221` — `supabase.from("security_audit_log").insert({...})` was silent. Compliance audit entry lost on failure — same risk as the Block 1 `user_roles.delete` refund path the original audit flagged as critical.
+
+- **B4-N4.** ✅ **FIXED 2026-05-23.** `src/components/admin/AdminBillingManager.tsx:211-217` `logAuditAction()` helper did `await supabase.from("admin_audit_log").insert({...})` with no destructure. Every admin billing action (grace extension, manual payment, etc.) feeds this helper — all of them silently swallow audit failures.
+
+- **B4-N5.** ✅ **FIXED 2026-05-23.** `src/components/admin/ClientStatusOverride.tsx:121-131` — `admin_audit_log.insert(...)` was silent. Same pattern as B4-N4.
+
+- **B4-N6.** ✅ **FIXED 2026-05-23.** `src/components/admin/SystemHealthView.tsx:660-666` — `phi_compliance_scans.insert(...)` was silent. Compliance-scan history could lose entries on RLS error.
+
+- **B4-N7.** ✅ **FIXED 2026-05-23.** `src/components/admin/CoachReassignmentSection.tsx:201-204` — `coaches.update({ last_assigned_at })` was wrapped in try/catch with no `{ error }` destructure. Fix preserves best-effort intent: destructure + log (don't throw — reassignment has already committed; this is fairness tracking, not critical path). CLAUDE.md is explicit: RLS denials are HTTP 200, no throw — the catch only catches network/parse errors. P1 within the cluster: `last_assigned_at` drift is non-critical but the same pattern repeated everywhere is the real problem.
+
+### NEW-FINDING P0 — banned nested PostgREST FK joins on `subscriptions`
+
+CLAUDE.md non-negotiable rule: "Never use nested PostgREST FK joins on `client_programs` / `subscriptions` / `profiles`. Silent wrong counts." Block 1 P1-7 / P1-9 already fixed this pattern in `BillingPayment.tsx` / `process-payment-failure-drip`. Three admin surfaces still violate:
+
+- **B4-N8.** ✅ **FIXED 2026-05-23.** `src/components/admin/SubscriptionBreakdown.tsx:23` — was `from("subscriptions").select("service_id, services(name, type)")`. Split into two queries (`subscriptions.service_id` then `services.in("id", uniqueServiceIds)`). Empty-state branch added for the no-active-subs case. Admin dashboard's subscription-by-service breakdown silently under-counts when the PostgREST embed flakes. Fix: split into two queries — fetch `subscriptions.service_id` separately, then `.in("id", uniqueServiceIds)` against `services`.
+
+- **B4-N9.** ✅ **FIXED 2026-05-23.** `src/components/admin/DiscountAnalytics.tsx:294` — was `from('subscriptions').select('id, status, services(name)')`. Split into two queries; `serviceNamesById` Map drives the enrichment.
+
+- **B4-N10.** ✅ **FIXED 2026-05-23.** `src/components/admin/AdminMetricsCards.tsx:49` — was `from("subscriptions").select("service_id, services(name, price_kwd)")`. This is the admin landing-page MRR/active-counts panel (highest-visibility violation of the three). Split into two queries; `priceById` Map drives the revenue sum.
+
+### NEW-FINDING P1 — admin guards bypass `getSession()` timeout pattern
+
+CLAUDE.md non-negotiable: "Any new auth guard calling `getSession()` MUST have a safety timeout (see AuthGuard.tsx 8s pattern)." Block 3 (B3-N3 .. B3-N6) flagged this on auth-flow secondary pages. Block 4 finds the same gap throughout admin:
+
+- **B4-N11.** `src/components/admin/AdminPageLayout.tsx:33` — `await supabase.auth.getSession()` no timeout, no `hasFetched` ref guard. Used by `ContentEngagement.tsx`, `RolesDebug.tsx`, `ClientDiagnostics.tsx`. RoleProtectedRoute granted access via cache-first, then AdminPageLayout's inner gate hangs forever on `getSession()` deadlock → all three admin pages permanently show "Loading...". Fix: wrap `getSession()` in `withTimeout` (or use the `useAuthGuardSession` hook from `useAuthSession.ts` like the main shell does). While there, add `useRef<boolean>` hasFetched guard to the line 62-64 useEffect.
+
+- **B4-N12.** `getSession()` / `getUser()` without timeout — cluster across 17 admin callsites (mostly inside action handlers, lower risk than guards but they freeze the action on deadlock):
+  - `components/admin/SecuritySmokeTests.tsx:46`
+  - `components/admin/PayoutRatesManager.tsx:289`
+  - `components/admin/SystemHealthView.tsx:655`
+  - `components/admin/SubroleApprovalQueue.tsx:136`
+  - `components/admin/RoutesDebugPanel.tsx:41`
+  - `components/admin/ClientStatusOverride.tsx:97`
+  - `components/admin/WaitlistManager.tsx:101`
+  - `components/admin/PricingPayoutsPage.tsx:239` and `:311`
+  - `components/admin/PaymentOverride.tsx:133`
+  - `components/admin/AdminBillingManager.tsx:208`
+  - `components/admin/ExerciseQuickAdd.tsx:102`
+  - `components/admin/MedicalReviewsPanel.tsx:106` (canonical pattern elsewhere — fix here too for consistency)
+  - `components/admin/PreLaunchSecurityGate.tsx:60` (gate-like; raise priority within the cluster)
+  - `pages/admin/RolesDebug.tsx:29`
+  - `pages/admin/WorkoutBuilderQA.tsx:57`
+  - `pages/admin/SystemHealth.tsx:200` (carry-over from B3-P2)
+  - `pages/admin/SiteMapDiagnostics.tsx:62`
+
+  Cluster fix: wrap all in the existing `withTimeout` from `src/lib/withTimeout.ts`. Aim for 8s default per CLAUDE.md.
+
+### NEW-FINDING P1 — role-cache invalidation gaps
+
+- **B4-N13.** Server-side role revocation (admin DELETEs a `user_roles` row) does NOT propagate to the revoked user's open tabs in realtime. The revoked user keeps cached `['admin']` (or whatever) until next route navigation triggers `RoleProtectedRoute.verifyRolesWithServer`. Because the `ensure_default_client_role` trigger keeps at least one `member` row, the server response is non-empty → `hasRequiredRole` returns false → `handleUnauthorized` redirects. **So revocation IS handled at next navigation**, but the current tab/page keeps working. Acceptable for IGU's threat model (admins are trusted, revocations are rare), but document it.
+  Suggested fix (if elevated to blocker): admin-side role mutations call `supabase.channel('user_roles_changes').send(...)` broadcast; receiving tabs subscribe and force `verifyRolesWithServer`. Or simpler: shrink `TIMEOUTS.CACHE_TTL` from 24h → 5min. CLAUDE.md QueryClient defaults already use 5min staleTime, so 5min would be consistent — but it costs an extra round-trip per page navigation.
+
+- **B4-N14.** `useRoleCache.getCachedRoles()` returns STALE data even after TTL expiry (line 144-147: "Cache expired, but returning stale data for immediate use"). Combined with `verifyRolesWithServer`'s "never revoke on empty server response" guard, a revoked admin who suffers a network glitch during background verify could keep admin-grant indefinitely. RLS server-side still blocks data reads, so attack surface is "see admin shell with no data" — but inconsistency is a smell. Pair with B4-N13 fix.
+
+### NEW-FINDING P1 — `useRoleGate` / `useUserRole` consolidation (B3-P2 carry-forward)
+
+- **B4-N15.** **Four** role-fetching code paths coexist:
+  1. `RoleProtectedRoute.fetchUserRoles` — raw `fetch('/rest/v1/rpc/get_my_roles')` with 4s `AbortController` (CANONICAL — bypasses Supabase client deadlock).
+  2. `useRoleCache` — `localStorage` layer with 24h TTL.
+  3. `useUserRole` (1 consumer: `ClientSubmission.tsx`) — `supabase.auth.getSession()` (with 8s timeout — added recently) + `.from('user_roles').select('role')`.
+  4. `useRoleGate` / `useFeatureAccess` (2 consumers: `Unauthorized.tsx`, `PermissionGate.tsx`) — same `getSession()` + direct table query pattern.
+
+  Paths 3 and 4 query `user_roles` via the Supabase client (which can deadlock on init — the whole reason path 1 exists). They have `hasFetched` ref guards locally, but each duplicates logic that exists elsewhere with subtle differences (e.g. `useUserRole` uses `isMounted` flag, `useRoleGate` uses ref). Three places that must stay in sync to avoid drift.
+
+  **Suggested consolidation:** build a single `useCanonicalRoles()` that:
+  1. Reads from `useRoleCache` first (cache layer, with TTL + tampering guard).
+  2. Calls the same raw-`fetch('/rest/v1/rpc/get_my_roles')` function `RoleProtectedRoute` uses (export it from a shared module).
+  3. Exposes the derived flags (`isAdmin`, `isCoach`, `isClient`, `roles`, `userId`, `loading`).
+
+  Then migrate `useUserRole` (1 callsite) and `useRoleGate` (2 callsites) to delegate. 4 code paths → 1. Low blast radius (only 3 consumer files).
+
+  This was also flagged in `Auth.tsx:115-136` (B3-N8) — the timeout-fallback path reads `localStorage` directly, bypassing `useRoleCache`'s tampering guard. The consolidation fix should close that gap too.
+
+### NEW-FINDING P2 — cleanup
+
+- **B4-N16.** `src/pages/admin/AdminDashboard.tsx:44` `useState<any>(null)` (currentUser typed any), line 119 `catch (timeoutErr)` (implicit any). Violates CLAUDE.md "error: unknown not any". Layer of `any` propagates into `AdminDashboardLayout.tsx:41` `user: any` prop.
+
+- **B4-N17.** `src/pages/admin/WorkoutBuilderQA.tsx:90` and `:298` — `.eq(...).limit(1).single()` on optional rows. QA tool only — mild risk. Switch to `.maybeSingle()` for consistency.
+
+- **B4-N18.** `src/components/admin/ProfessionalLevelManager.tsx:185-189` — admin write of `coaches_public.coach_level / is_head_coach / head_coach_specialisation` directly via `.from('coaches_public').update(...)`. CLAUDE.md § "Coach data — column-ownership refactor" says admin coach writes "MUST go through `upsert_coach_full`" and explicitly lists `create-coach-account` and `CoachManagement.tsx` as the two callsites. ProfessionalLevelManager is a third admin coach-write callsite that bypasses the RPC. The columns it writes are canonical on `coaches_public` (not Pattern-B), so atomicity isn't strictly needed — but the rule's spirit is "all admin coach writes funnel through one path." Either extend `upsert_coach_full` to accept level-only patches, or document this as a third sanctioned exception (alongside `submit-onboarding`'s `last_assigned_at` and `CoachProfile.tsx`'s self-service).
+
+- **B4-N19.** `LaunchTestChecklist` is `lazy()`-imported in `src/App.tsx:55` but no `<Route path="/admin/launch-checklist">` exists in App.tsx. It's reachable only via `/admin/:section` → `AdminDashboard` → `AdminDashboardLayout`'s switch at line 124-125. Works, but inconsistent with peer admin pages that have explicit `<Route>`s (e.g. `/admin/health` → `SystemHealth`, `/admin/diagnostics` → `DiagnosticsIndex`). Either remove the dangling `lazy()` import or add the explicit route.
+
+- **B4-N20.** Most admin components that fetch on mount lack `hasFetched` ref guards (Phase 16 pattern). 12 admin files have it; ~22 admin files have empty-deps `useEffect` without it. Most rely on `useCallback` dep stability for idempotency — fragile but currently working. Audit gradually; not blocking.
+
+### Confirmed-good patterns
+
+- `MedicalReviewsPanel.tsx` (canonical — `hasFetched` ref, batched profile fetch, `.maybeSingle()` on optional sub fetch, `{ error }` destructure + throw on every mutation, idempotency guards via `eq('status', 'needs_medical_review')`).
+- `RoleProtectedRoute.tsx` admin gate (`hasRequiredRole('admin')` is a strict `includes('admin')` check; tampering guard at 346-349; cache-first with isAuthorizedRef ratchet).
+- `get_my_roles()` RPC body (SECURITY DEFINER, `SET search_path = ''`, queries `user_roles` for `auth.uid()` only).
+- `user_roles` RLS (10 policies, all writes admin-gated; minor overlap but no harmful gap).
+- `useAuthCleanup.ts` `onAuthStateChange('SIGNED_OUT')` listener clears the cache defensively, in addition to the explicit `signOutWithCleanup()` path.
+- `ProfessionalLevelManager.tsx` `fetchData` (hasFetched, error destructure on all selects, batched profile names via `.in("id", staffUserIds)`).
+- `AdminMetricsCards.tsx` apart from the banned join — N+1 elsewhere is batched.
+
+### Deploy notes
+
+Per the 2026-05-23 incident, **every migration through end of B-block work must apply via MCP `apply_migration`, not `db push`** — until D6's drift cleanup is committed AND verified. D6 was committed (`2956e8f` on main) and verified clean 2026-05-23, so `db push` should now work for future migrations. Block 4 introduces no migrations; all fixes are FE / edge-function level.
+
+---
+
+## Blocks 5-7, 9-10 — NOT STARTED
 
 Each is a self-contained block per the original review prompt set. Recommended next-target order:
 
-3. **Auth flow** — touches every authenticated surface. Run before any further fixes that touch guards / role gates.
-4. **Admin tooling** — verify role isolation (every admin page must Unauthorized for the other 5 roles).
 5. **Messaging** — RLS surface area + realtime channel auth.
 6. **Sessions / PT bookings** — double-booking prevention, timezone handling (Kuwait-primary), refund hook into billing.
 7. **Teams feature** — highest RLS surface area. Block 1 + 8 already touched it; complete audit.
@@ -433,7 +556,8 @@ The core guard machinery (`AuthGuard` 8s pattern, `RoleProtectedRoute` raw-fetch
 4. The original 10-block prompt set is preserved (`docs/pre-launch-review.md` or in chat history). Paste one block per fresh Cowork chat to run a fresh audit.
 5. **Most urgent open work** (in priority order):
    - **Block 3 (Auth flow) — audit + P0 fixes complete 2026-05-23, awaiting commit.** 2 P0s (B3-N1 + B3-N2) fixed in-repo, tsc clean. 8 P1s (B3-N3..N10) and 4 P2s still open -- not blocking, can ship in a follow-up alongside Block 4 fixes. See "Block 3 -- Auth flow findings" section.
-   - **Block 4 (Admin tooling)** recommended next fresh audit. Verify role isolation -- every admin page must `Unauthorized` for the other 5 roles. Bring forward `useRoleGate` / `useUserRole` consolidation question from B3-P2.
+   - **Block 4 (Admin tooling) — audit complete 2026-05-23, no fixes yet.** Role isolation at the gate ✅ verified intact (admin gate uses strict `userRoles.includes('admin')`, rejects all 5 other roles). 10 P0s, 7 P1s, 5 P2s logged. **Highest-priority cluster:** B4-N1..N3 silent profile/payment/audit mutations in `PaymentOverride.tsx` (one admin action can wedge a client). **Next:** B4-N4..N7 (more silent mutations), B4-N8..N10 (banned nested FK joins on subscriptions in 3 admin dashboards). See "Block 4 -- Admin tooling findings" section.
+   - **Block 5 (Messaging)** is the next recommended fresh audit. RLS surface area + realtime channel auth.
    - **Block D6 ✅ CLOSED + verified 2026-05-23.** `supabase db push --dry-run` printed "Remote database is up to date." `supabase migration list` shows every row paired Local | Remote. Commit `2956e8f` on main.
    - **Sentry / function-log check from 2026-05-23 incident ✅ DONE.** FE Sentry has 2 events in 30d (both synthetic DSN probes), zero hits on any of the new Block 8 RPC names or `PGRST202` / "function does not exist". Postgres logs (24h) have zero ERROR/FATAL/`42883` entries. API log window all 200s. Pre-launch traffic was effectively zero. No apology email needed.
    - **Address remaining Block 8 NEW-FINDING P1s** -- B8-N4, B8-N5, B8-N7 through B8-N18 (B8-N6, B8-N19, B8-N20, B8-N21 ✅ closed 2026-05-23). Team-fan-out race (B8-N16/N17) is the biggest correctness risk.
