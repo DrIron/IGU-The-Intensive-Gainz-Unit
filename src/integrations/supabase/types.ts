@@ -7253,6 +7253,10 @@ export type Database = {
         };
         Returns: Json;
       };
+      book_session_atomic: {
+        Args: { p_slot_id: string; p_user_id: string };
+        Returns: Json;
+      };
       bootstrap_admin: { Args: { admin_email: string }; Returns: string };
       calculate_addon_session_payout: {
         Args: {
@@ -7443,6 +7447,10 @@ export type Database = {
       };
       get_coach_for_client: {
         Args: { p_coach_user_id: string };
+        Returns: Json;
+      };
+      get_current_week_bounds: {
+        Args: never;
         Returns: Json;
       };
       get_decrypted_form_submission: {
@@ -7873,6 +7881,10 @@ export type Database = {
       };
       mark_care_team_message_read: {
         Args: { p_message_id: string };
+        Returns: undefined;
+      };
+      mark_care_team_thread_read: {
+        Args: { p_client_id: string };
         Returns: undefined;
       };
       mark_coach_client_thread_read: {

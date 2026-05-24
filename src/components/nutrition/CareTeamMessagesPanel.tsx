@@ -152,28 +152,21 @@ export function CareTeamMessagesPanel({
 
       setMessages(enrichedMessages);
 
-      // Mark messages as read
-      await markMessagesAsRead(user.id, messagesData as CareTeamMessage[] || []);
+      // Mark thread as read in one round-trip (B5-N4 / B5-N7).
+      // Fire-and-forget: a read-receipt failure shouldn't block the panel.
+      supabase
+        .rpc('mark_care_team_thread_read', { p_client_id: clientId })
+        .then(({ error: readErr }) => {
+          if (readErr) {
+            console.warn('[CareTeamMessagesPanel] mark read:', readErr.message);
+          }
+        });
     } catch (error) {
       console.error('Error loading messages:', error);
     } finally {
       setLoading(false);
     }
   }, [clientId]);
-
-  const markMessagesAsRead = async (userId: string, msgs: CareTeamMessage[]) => {
-    const unreadMessages = msgs.filter(
-      msg => msg.sender_id !== userId && (!msg.read_by || !msg.read_by.includes(userId))
-    );
-
-    for (const msg of unreadMessages) {
-      const newReadBy = [...(msg.read_by || []), userId];
-      await supabase
-        .from('care_team_messages')
-        .update({ read_by: newReadBy })
-        .eq('id', msg.id);
-    }
-  };
 
   useEffect(() => {
     if (hasFetched.current) return;
