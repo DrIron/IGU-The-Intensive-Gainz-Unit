@@ -1,6 +1,6 @@
 # IGU pre-launch deep-dive review — findings & handover
 
-**Last updated:** 2026-05-23 (Block 4 audit appended)
+**Last updated:** 2026-05-23 (Block 5 audit appended)
 **Launch target:** 2026-07-12 (Sun) 09:00 Kuwait. Public signup opens 2026-07-14. Launch date may slip — Hasan prefers complete structural fixes over deadline-driven workarounds.
 
 This document tracks the 10-block pre-launch audit (per `docs/pre-launch-review.md` or the original prompt set). Append findings here; bring any new P0 back to triage before fix.
@@ -14,8 +14,8 @@ This document tracks the 10-block pre-launch audit (per `docs/pre-launch-review.
 | 1  | Billing & payments          | ✅ Complete       | ✅ Shipped (commit d9b2836 + edge fns + migrations) |
 | 2  | Onboarding & medical review | ✅ Complete       | ✅ Shipped (commit d9b2836 + edge fns + migrations) |
 | 3  | Auth flow                   | ✅ Complete       | ✅ 2 P0s shipped 2026-05-23 (commit 5bcffc7: B3-N1 + B3-N2). 8 P1 + 4 P2 still open. |
-| 4  | Admin tooling               | ✅ Complete (audit) | 🟡 10 P0s IN-REPO 2026-05-23 (B4-N1..N10 fixed, tsc clean, awaiting commit). 7 P1s + 5 P2s still open. Role isolation at the gate ✅ verified intact. |
-| 5  | Messaging                   | ⏳ Not started    | —                                     |
+| 4  | Admin tooling               | ✅ Complete (audit) | ✅ 10 P0s shipped 2026-05-23 (commit 6de43dd: B4-N1..N10 — silent-mutation cluster + 3 banned-FK-join splits). 7 P1s + 5 P2s still open. Role isolation at the gate ✅ verified intact. |
+| 5  | Messaging                   | ✅ Complete (audit) | ❌ NOT shipped. 4 P0s logged (B5-N1..N4): realtime publication empty, banned nested FK joins + getUser-no-timeout in CareTeamMessagesPanel, sequential mark-as-read loop, ccm_update_own client_id move vector. 8 P1s + 5 P2s open. |
 | 6  | Sessions / PT bookings      | ⏳ Not started    | —                                     |
 | 7  | Teams feature               | ⏳ Not started    | —                                     |
 | 8  | Coach experience            | ✅ Complete       | ✅ Shipped 2026-05-23: edge functions deployed, FE pushed (commit 68584a2 on main), migration applied via MCP `apply_migration` after `db push` blocked on the 15-entry version-string drift. P2s deferred. **D6 drift cleanup closed 2026-05-23 — `db push` unblocked.** |
@@ -388,11 +388,177 @@ Per the 2026-05-23 incident, **every migration through end of B-block work must 
 
 ---
 
-## Blocks 5-7, 9-10 — NOT STARTED
+## Block 5 -- Messaging findings
+
+**Audit completed 2026-05-23.** Surfaces audited: migrations `20260207100007_care_team_messages.sql`, `20260504000000_coach_client_messages.sql`, `20260504100000_unread_counts_for_staff.sql`, `20260504200000_coach_client_message_edit_history.sql`; the 3 SECURITY DEFINER RPCs (`mark_coach_client_thread_read`, `get_unread_message_count`, `get_unread_message_counts_for_staff`) and the `record_coach_client_message_edit` trigger pulled live via MCP `execute_sql`; the `send-coach-client-message-email` edge function; FE files `src/components/messaging/CoachClientThread.tsx`, `src/pages/ClientMessages.tsx`, `src/components/client-overview/tabs/MessagesTab.tsx`, `src/components/nutrition/CareTeamMessagesPanel.tsx`, `src/hooks/useUnreadMessageCount.ts`, `src/hooks/useStaffUnreadCounts.ts`; the `supabase_realtime` publication + `REPLICA IDENTITY` settings; live RLS probes against `auth.users` test accounts; pg_policy + pg_proc + pg_trigger dumps.
+
+### Verified-good (live probes)
+
+- **Client cannot read `care_team_messages`** -- live probed with a real client UID (`SET LOCAL ROLE authenticated` + `set_config('request.jwt.claims', ...)`). Inserted a probe row keyed to that client; the SELECT returned 0 rows. The policy `care_team_messages_team_select USING (is_care_team_member_for_client(auth.uid(), client_id) AND auth.uid() != client_id)` holds under both interpretations -- client-as-self (the `!= client_id` clause fails) and client-as-other (the `is_care_team_member` clause fails).
+- **Client cannot read another client's `coach_client_message_edits`** -- live probed the same way; 0 rows returned.
+- **Edit trigger fires correctly** -- live probed: UPDATE that changed `message` produced exactly one `coach_client_message_edits` row with `previous_message = 'original-text'`; a follow-up UPDATE that changed only `read_by` produced zero new rows (the `IS DISTINCT FROM` guard works).
+- **Sender enforcement on INSERT** -- `ccm_insert WITH CHECK (sender_id = auth.uid() AND deleted_at IS NULL AND (auth.uid() = client_id OR is_care_team_member_for_client(...)))` blocks third-party spoofing, locks first-INSERT `deleted_at` to NULL, and rejects writes by users with no relationship to the thread.
+- **Edits table is append-only from user code** -- `coach_client_message_edits` has only `ccme_select` + `ccme_admin_all` policies; no INSERT/UPDATE/DELETE policies, so user-initiated writes are blocked. The trigger runs SECURITY DEFINER, so it bypasses RLS for its INSERT.
+- **No DELETE policy on `coach_client_messages`** -- soft-delete via `deleted_at` UPDATE is the only retraction path, as documented. ✅
+- **`mark_coach_client_thread_read` authorisation gate** -- live-dumped: `RAISE EXCEPTION 'Not authorised for this thread'` if `auth.uid()` is neither the client nor a care-team member. SECURITY DEFINER. ✅
+- **OPTIONS handled before req.json()** in `send-coach-client-message-email/index.ts:68-70` ✅. Internal JWT validation present (line 73-89). Throttle key matches CLAUDE.md spec: `(recipient.user_id, NOTIFICATION_TYPE, context_id=client_id)` at line 147-150. Dedup-read failures fail OPEN (line 152-156, `console.warn` then continue). EMAIL_FROM_COACHING used (line 174).
+
+### NEW-FINDING P0 -- realtime publication is EMPTY (messaging in-app freshness silently broken)
+
+- **B5-N1.** `supabase_realtime` publication has zero tables (`puballtables=false`, `pg_publication_tables` returns no rows for `supabase_realtime`). All three messaging realtime subscriptions are no-ops in production:
+  - `src/components/messaging/CoachClientThread.tsx:168-218` -- INSERT + UPDATE subscriptions filtered on `client_id=eq.X` receive zero events.
+  - `src/hooks/useUnreadMessageCount.ts:62-78` -- per-thread unread badge realtime is dead.
+  - `src/hooks/useStaffUnreadCounts.ts:71-84` -- coach client directory unread badge realtime is dead.
+
+  Symptom users see: a sent message doesn't appear in the recipient's thread until either (a) the 5-minute fallback poll fires, (b) the recipient blurs/refocuses the tab (`visibilitychange` handler), or (c) a full page reload. CLAUDE.md § "Messages system" promises "Realtime subscription on `postgres_changes event='*' filter='client_id=eq.X'`. Applies INSERTs and UPDATEs in place" -- that contract is currently false.
+
+  Fix (migration):
+  ```sql
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.coach_client_messages;
+  -- REPLICA IDENTITY FULL so UPDATE events ship the OLD row with non-PK columns
+  -- (the realtime layer matches `filter=client_id=eq.X` against OLD on UPDATEs,
+  --  so without FULL, UPDATE events drop on the floor).
+  ALTER TABLE public.coach_client_messages REPLICA IDENTITY FULL;
+  ```
+  Same migration should also `ADD TABLE public.coach_client_message_edits` if "edited" chip is expected to refresh live (low-priority for launch -- the chip is opened on demand). `care_team_messages` is staff-only and has no realtime callsites today, so leave it out.
+
+  Verification after apply:
+  ```sql
+  SELECT * FROM pg_publication_tables WHERE pubname = 'supabase_realtime';
+  -- expect a row for coach_client_messages (and any other tables you add).
+  SELECT relreplident FROM pg_class WHERE relname = 'coach_client_messages';
+  -- expect 'f' (full).
+  ```
+
+### NEW-FINDING P0 -- `CareTeamMessagesPanel.tsx` cluster (silent-mutation + banned FK joins + getUser-no-timeout + N+1 await loop)
+
+Same class as Block 4's silent-mutation cluster (B4-N1..N7) + banned-FK-join cluster (B4-N8..N10) + auth-timeout cluster (B4-N11/N12).
+
+- **B5-N2.** `src/components/nutrition/CareTeamMessagesPanel.tsx:75` -- `const { data: { user } } = await supabase.auth.getUser()` has NO 8s timeout. CLAUDE.md non-negotiable: "Auth guards must have a safety timeout (see AuthGuard.tsx 8s pattern)." Mirrors B4-N11/N12. GoTrueClient deadlock = `loadData` hangs forever, panel stuck on `Loader2`. Fix: wrap in `withTimeout` (8s) from `src/lib/withTimeout.ts`.
+
+- **B5-N3.** Banned nested PostgREST FK joins on `subscriptions` (project rule #1):
+  - `:104-116` -- `from('subscriptions').select('coach_id, coaches_client_safe:coach_id(...)').eq('user_id', clientId).eq('status', 'active').maybeSingle()`. `subscriptions` is on the banned list -- silent wrong-coach risk under PostgREST embed failure. Split into two queries: subscription first, then `coaches_client_safe` by `id` (or better, switch to `get_coach_for_client` RPC per `memory/project_coaches_client_safe_rls.md`, since `coaches_client_safe` is RLS-broken for client callers and currently coach-side-only by accident).
+  - `:89-101` -- `from('care_team_assignments').select('staff_user_id, specialty, coaches_client_safe:staff_user_id(...)').eq('client_id', clientId).in('lifecycle_status', ['active','scheduled_end'])`. `care_team_assignments` itself isn't on the banned list, but the embed to `coaches_client_safe` is the same RLS-broken view (per memory). Split into two queries -- second one `.in('id', staffIds)` against `coaches_client_safe` from the coach side, or against `get_coach_for_client` per staff id if rendered client-side. (This panel is staff-only today, so `coaches_client_safe` returns rows -- but the RLS-fragile view is one policy change away from breaking silently.)
+
+  Note: `lifecycle_status` is used here, while `is_care_team_member_for_client` (RLS gatekeeper) uses `status`. See B5-N6 for the cross-block consequence.
+
+- **B5-N4.** Sequential `await` in for loop -- CLAUDE.md non-negotiable: "Parallelize Supabase calls in loops with Promise.all". `CareTeamMessagesPanel.tsx:169-175`:
+  ```ts
+  for (const msg of unreadMessages) {
+    const newReadBy = [...(msg.read_by || []), userId];
+    await supabase.from('care_team_messages').update({ read_by: newReadBy }).eq('id', msg.id);
+  }
+  ```
+  N sequential UPDATEs every time the panel mounts. With 10 unread, that's ~5s of network. AND each UPDATE has no `{ error }` destructure -- silent mutation cluster: if RLS denies (e.g. the viewer lost their care-team row mid-session), the badge stays without any signal. Fix: `await Promise.all(unreadMessages.map(...))` AND destructure `{ error }` + log per row.
+
+  Better fix: a `mark_care_team_thread_read` SECURITY DEFINER RPC analogous to `mark_coach_client_thread_read` -- one round trip, atomic, no client-side N+1.
+
+### NEW-FINDING P0 -- `ccm_update_own` lets the SENDER move their own message to another thread
+
+- **B5-N5.** `coach_client_messages` `ccm_update_own` is written as:
+  ```sql
+  CREATE POLICY ccm_update_own ON public.coach_client_messages FOR UPDATE
+    USING (sender_id = auth.uid())
+    WITH CHECK (sender_id = auth.uid());
+  ```
+  The WITH CHECK does not pin `client_id`. Live-probed: a client trying to move their own message into another client's thread is REJECTED -- but only because PostgreSQL's "updated row must remain visible under the SELECT policy" rule catches it (the post-update row has `client_id = other_client`, which fails `ccm_select` for the sender, so the UPDATE errors with `42501 new row violates row-level security policy`). The error is a happy accident of SELECT visibility, NOT the WITH CHECK doing its job.
+
+  **Real abuse vector:** a staff user X who is care-team-member for both client A AND client C. X sends a message in A's thread, then edits the row to set `client_id = C`. The post-update row passes `ccm_select` for X (X is on C's care team), so PostgreSQL allows the move. X has effectively rewritten history -- the original message body and `created_at` are preserved, but the thread it belongs to was rewritten. Compliance/audit ramifications: the `coach_client_message_edits` trigger only fires when `message IS DISTINCT FROM`, so the move leaves no audit trail.
+
+  Could not live-probe this end-to-end because `care_team_assignments` is currently empty in prod (no real client has been assigned a multi-coach team yet) -- but the policy logic is verifiable by reading.
+
+  Fix options:
+  1. Tighten the WITH CHECK: `WITH CHECK (sender_id = auth.uid() AND client_id = (SELECT client_id FROM public.coach_client_messages WHERE id = coach_client_messages.id))`. PostgreSQL allows referencing the OLD row inside a policy via a self-subquery, but this is awkward.
+  2. **Recommended:** add a `BEFORE UPDATE` trigger that rejects `NEW.client_id IS DISTINCT FROM OLD.client_id`. Also reject `NEW.sender_id IS DISTINCT FROM OLD.sender_id` and `NEW.created_at IS DISTINCT FROM OLD.created_at` in the same trigger for completeness -- these are append-only fields the UI never touches.
+  3. Same hardening applies to `care_team_messages` `care_team_messages_team_update` (USING-only, no WITH CHECK, so PostgreSQL defaults WITH CHECK to USING -- which still permits `client_id` changes within the set of clients the staff user serves).
+
+### NEW-FINDING P1 -- cross-block: `care_team_assignments.status` vs `lifecycle_status` (B8-N18 carry-forward)
+
+- **B5-N6.** Carries forward `B8-N18` ("two different 'active' columns in care_team_assignments"). The two columns are NOT kept in sync by any trigger (live-verified via `information_schema.triggers` -- only `trg_auto_create_addon_modules`, `trg_manage_care_team_relationships`, `trg_validate_care_team_subrole`, and `update_care_team_assignments_updated_at`; no sync trigger). The messaging stack splits its usage:
+  - `is_care_team_member_for_client` RPC (the RLS gatekeeper for `coach_client_messages` SELECT + INSERT + UPDATE, `coach_client_message_edits` SELECT, `care_team_messages` SELECT + INSERT + UPDATE, plus the mark-read and unread-count RPCs) checks `cta.status = 'active'`.
+  - `supabase/functions/send-coach-client-message-email/index.ts:220` checks `.eq('status', 'active')` -- consistent with RLS. ✅
+  - `src/hooks/useNutritionPermissions.ts:92,109` checks `lifecycle_status`. ❌ divergent from messaging RLS.
+  - `src/components/nutrition/CareTeamMessagesPanel.tsx:101` checks `lifecycle_status`. ❌ divergent (caught here as part of B5-N3).
+  - `src/components/coach/MyAssignmentsPanel.tsx:80` reads `lifecycle_status`. (Not a permission check, but shows the FE convention.)
+
+  **Consequence:** a future ramp-down flow that flips only `lifecycle_status` to `'ended'` while leaving `status = 'active'` (or vice versa) will leave the ex-staff member able to read/write the thread (per RLS) while the FE permission hook treats them as no-longer-active -- or the opposite, where the FE thinks they're active but RLS blocks them silently. Today the table is empty (live count: 0 rows), so the divergence is theoretical, but the launch arc adds rows fast.
+
+  **Cleanest fix:** retire `status` (drop the column after migrating data) and have `is_care_team_member_for_client` + the edge function check `lifecycle_status IN ('active','scheduled_end')` -- matching `useNutritionPermissions`. Alternative: keep `status` as the canonical RLS column and add a BEFORE INSERT/UPDATE trigger that mirrors changes from one column to the other. Either way: do not ship Block 5 messaging fixes without a Block-8/5 joint decision on this column.
+
+### NEW-FINDING P1 -- `mark_care_team_message_read` shape inconsistency (no thread-level RPC)
+
+- **B5-N7.** `care_team_messages` has only a per-message mark-read RPC (`mark_care_team_message_read(p_message_id)`, defined in migration `20260207100007`), while `coach_client_messages` has a thread-level `mark_coach_client_thread_read(p_client_id)`. The result: `CareTeamMessagesPanel.tsx:164-176` rolls a client-side N+1 loop over `unreadMessages` (see B5-N4). Fix: add a `mark_care_team_thread_read(p_client_id)` RPC modeled exactly on `mark_coach_client_thread_read` -- SECURITY DEFINER, SET search_path, auth gate via `is_care_team_member_for_client` + `auth.uid() != p_client_id`, one UPDATE statement that array-appends `auth.uid()` to every unread row's `read_by`. Then collapse the FE loop into one `rpc.invoke`.
+
+### NEW-FINDING P1 -- realtime UPDATE filter requires REPLICA IDENTITY FULL
+
+- **B5-N8.** Even after B5-N1's publication fix, `CoachClientThread.tsx:198-212` subscribes to UPDATEs with `filter='client_id=eq.X'`. Supabase's realtime layer matches the filter against the OLD row payload. With `REPLICA IDENTITY DEFAULT` (current state, verified live: `relreplident = 'd'`), the OLD payload contains only the primary key, so the filter cannot match -- UPDATE events drop silently. INSERT events are unaffected (always carry the full new row), so new-message rendering will work but in-place edits / soft-deletes / read-receipt updates will not. Fix: `ALTER TABLE public.coach_client_messages REPLICA IDENTITY FULL;` -- bundled with the B5-N1 migration.
+
+### NEW-FINDING P1 -- sender can self-grant `read_by` entries on their OWN messages
+
+- **B5-N9.** `ccm_update_own` permits the sender to UPDATE any column on their own row, including `read_by`. CLAUDE.md § "Messages system" says "Mark-as-read lives in a SECURITY DEFINER RPC ... so readers don't need UPDATE on the row body" -- but the sender (writer) of a row can still write `read_by = ARRAY['fake-coach-uid']` on their own outgoing message via a direct `supabase.from('coach_client_messages').update({ read_by: ... })`. A client could thus suppress their coach's unread badge for their own outgoing messages (low impact since the coach is the recipient and `get_unread_message_count` uses `auth.uid() = ANY(read_by)` for the CALLER, not the sender). Wider concern: a sender could tamper with downstream UI that relies on `read_by` as a receipt-of-read signal. Fix path is the same as B5-N5: a BEFORE UPDATE trigger that whitelists which columns may change on UPDATE -- only `message`, `edited_at`, `deleted_at` for the sender; `read_by` writes go exclusively through `mark_coach_client_thread_read`.
+
+### NEW-FINDING P1 -- silent insert in edge function logbook
+
+- **B5-N10.** `supabase/functions/send-coach-client-message-email/index.ts:185-196`:
+  ```ts
+  const { error: logError } = await admin
+    .from('email_notifications')
+    .insert({ user_id: recipient.user_id, notification_type: NOTIFICATION_TYPE, context_id: message.client_id, sent_at: ..., status: 'sent' });
+  if (logError) { console.error('email_notifications insert:', logError.message); }
+  ```
+  The `{ error }` IS destructured, but the failure path is log-only -- no throw, no retry. Consequence: if the dedup-row INSERT fails (RLS, FK, transient), the email already left the user's inbox but no throttle row exists. Next send within the 30-min window will re-email. Acceptable trade-off (the alternative is throwing AFTER the email has already shipped, which `tap-webhook v9` would do but isn't appropriate here). Document the trade-off as a comment, optionally with a retry-once branch. Lower priority than B5-N1..N5.
+
+### NEW-FINDING P1 -- `is_resolved` toggle in CareTeamMessagesPanel is a silent-mutation candidate
+
+- **B5-N11.** `CareTeamMessagesPanel.tsx:225-232` -- `supabase.from('care_team_messages').update({ is_resolved: ..., resolved_by: ..., resolved_at: ... }).eq('id', messageId)` destructures `{ error }` and throws ✅ but RLS denials are silent (HTTP 200, no row, no error). Same class as `completeWorkout` (PR #117, see `memory/project_workout_complete_silent_fail.md`). If the toggling user lost their care-team relationship since loadData, the toggle no-ops. Fix: switch to `.update(...).select()` and rows-affected check (`if (!data || data.length === 0) throw new Error('Toggle blocked')`), then surface via toast.
+
+### NEW-FINDING P1 -- `currentUserId` from `getUser()` not from `useAuthSession`
+
+- **B5-N12.** `CareTeamMessagesPanel.tsx:53,77,197` -- `currentUserId` is fetched via the one-shot `supabase.auth.getUser()` inside `loadData`, then used as `sender_id` on INSERT. If `getUser` happens to land before `client.ts`'s `setSession` recovery fires (the race PR #103 fixed elsewhere), the panel renders with `currentUserId = null` and the first send INSERTs `sender_id: null` -- RLS blocks it (FK constraint actually) but the error is a server-side rejection visible only via toast. Mirrors the pattern `CoachClientThread.tsx` already uses (`useAuthSession`). Fix: swap to `useAuthSession()` for `currentUserId`.
+
+### NEW-FINDING P1 -- `mark_coach_client_thread_read` mark-read fires DURING load (race vs. realtime)
+
+- **B5-N13.** `CoachClientThread.tsx:141-147` -- `supabase.rpc('mark_coach_client_thread_read', ...)` is fire-and-forget inside `load`, not awaited. Realtime subscription (when B5-N1 ships) will deliver INSERT events that arrive AFTER `load` started but BEFORE mark-read RPC runs server-side. Those messages will be in the local `messages` state but their `read_by` won't include the viewer until next refresh -- the unread badge could flicker. Minor UX issue. Fix: await the mark-read RPC inside `load` before clearing `setLoading(false)`, or fire it after the realtime channel attaches.
+
+### NEW-FINDING P2 -- cleanup
+
+- **B5-N14.** All four SECURITY DEFINER messaging RPCs (`mark_coach_client_thread_read`, `get_unread_message_count`, `get_unread_message_counts_for_staff`, `record_coach_client_message_edit`) use `SET search_path TO 'public'` rather than `SET search_path = ''`. Supabase's official guidance is `''` (empty) so all references must be schema-qualified, which prevents an attacker who controls a `"$user"`-schema function from shadowing helpers like `is_care_team_member_for_client`. The current `public` value is consistent with the rest of the IGU codebase and the project instructions explicitly say `SET search_path = public`, so this is a project-wide convention, not a Block-5 miss. **Flag it as a launch-time follow-up across all SECURITY DEFINER RPCs**, not a Block-5 blocker. Authenticated users can't `CREATE FUNCTION` in any schema today, so not exploitable. Decision needed: align with Supabase docs (`''`) or document the deviation in CLAUDE.md.
+
+- **B5-N15.** Messaging RPCs don't follow CLAUDE.md § "For RPCs: ... RETURNS JSONB" -- they return `void` / `int` / `TABLE(uuid, bigint)` respectively. Functionally correct, but inconsistent with the project convention. Low priority -- conversion would churn three call sites.
+
+- **B5-N16.** `loadCareTeamRecipients` in `send-coach-client-message-email/index.ts:215-238` fetches `care_team_assignments` and `subscriptions` in parallel ✅ but each has no `{ error }` destructure. Best-effort behavior -- on a partial query failure the recipient list silently shortens. Add error logging via `if (assignmentsRes.error) console.error(...)`.
+
+- **B5-N17.** `loadSenderDisplayName` in same file (line 288-298) calls `.maybeSingle()` but doesn't destructure `{ error }`. Falls back to literal "Someone" on miss. Acceptable but inconsistent.
+
+- **B5-N18.** `useUnreadMessageCount` / `useStaffUnreadCounts` have no `hasFetched` ref guard (Phase 16 pattern). They depend on `fetchCount`'s `useCallback` dep-stability for idempotency; double-mount in StrictMode would double-fetch. Low blast radius -- the RPC is idempotent and cheap.
+
+### Confirmed-good patterns
+
+- `CoachClientThread.tsx` -- `hasFetched.current = clientUserId` (ref-keyed not bool), `useAuthSession` for viewerUserId, INSERT followed by `.single()` is correct per CLAUDE.md rule for post-INSERT RETURNING, optimistic edit with rollback on `updateError`, INSERT/UPDATE error destructured + surfaced to UI via `error` state.
+- `ClientMessages.tsx` -- thin shell, uses `useAuthSession` (no `getSession`/`getUser` race), routes `viewerIsClient` correctly, renders Not-signed-in vs. Loader vs. Thread without falling through.
+- `MessagesTab.tsx` -- same.
+- `send-coach-client-message-email` -- correct JWT validation pattern (anon client with caller's Authorization header), `.maybeSingle()` on message lookup, sender-mismatch 403, recipient dedup via Set (primary coach + care-team-row coach only emailed once), per-thread throttle keyed on `(recipient, thread)`, dedup-read fails OPEN.
+- `mark_coach_client_thread_read` -- explicit `RAISE EXCEPTION 'Not authorised for this thread'` on caller scope miss; rest of the RPC is one UPDATE statement, no leaks.
+- `record_coach_client_message_edit` trigger -- `IS DISTINCT FROM` guard prevents spurious edit rows on read_by-only / deleted_at-only UPDATEs; uses OLD.message + auth.uid() + now() (not NEW.\*).
+- `coach_client_message_edits` -- no INSERT/UPDATE/DELETE RLS policies, append-only via trigger.
+
+### Deploy notes
+
+Block 5 introduces one new migration (B5-N1: publication + replica identity) and one BEFORE-UPDATE trigger (B5-N5/N9: column-write whitelist on coach_client_messages and care_team_messages). Both must apply via `supabase db push` now that D6 is closed (verified: `supabase db push --dry-run` returned "Remote database is up to date." as of `2956e8f` on main).
+
+Recommended ship order:
+1. **B5-N1** (publication + REPLICA IDENTITY) -- 1 migration, no FE change. Smoke test: open `/messages` in two browser tabs as two different users in the same thread, verify INSERT propagates within 1s.
+2. **B5-N5 + B5-N9** (BEFORE UPDATE trigger pinning `client_id` / `sender_id` / `created_at` / `read_by` on coach_client_messages) -- 1 migration. Smoke test: run a contrived UPDATE that mutates client_id via psql under the `authenticated` role -- expect rejection.
+3. **B5-N7** (`mark_care_team_thread_read` RPC) -- 1 migration. Then collapse `CareTeamMessagesPanel.tsx:164-176` to a single RPC call. Closes B5-N4 cleanly.
+4. **B5-N2 + B5-N3 + B5-N11 + B5-N12** -- FE-only cluster, one commit to `CareTeamMessagesPanel.tsx`.
+5. **B5-N6** -- cross-block decision required before applying. Touch `is_care_team_member_for_client` body OR add the sync trigger. Do not ship without joint Block-5/Block-8 alignment.
+
+---
+
+## Blocks 6-7, 9-10 — NOT STARTED
 
 Each is a self-contained block per the original review prompt set. Recommended next-target order:
 
-5. **Messaging** — RLS surface area + realtime channel auth.
 6. **Sessions / PT bookings** — double-booking prevention, timezone handling (Kuwait-primary), refund hook into billing.
 7. **Teams feature** — highest RLS surface area. Block 1 + 8 already touched it; complete audit.
 9. **Testimonials** — small surface, low risk.
