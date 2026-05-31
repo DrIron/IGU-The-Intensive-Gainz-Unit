@@ -1,4 +1,3 @@
-Initialising login role...
 export type Json =
   | string
   | number
@@ -8010,6 +8009,7 @@ export type Database = {
         Returns: Json
       }
       list_active_teams_for_client: { Args: never; Returns: Json }
+      list_public_teams_for_browser: { Args: never; Returns: Json }
       log_addon_session_atomic: {
         Args: {
           p_notes?: string
@@ -8549,5 +8549,3 @@ export const Constants = {
     },
   },
 } as const
-A new version of Supabase CLI is available: v2.102.0 (currently installed v2.78.1)
-We recommend updating regularly for new features and bug fixes: https://supabase.com/docs/guides/cli/getting-started#updating-the-supabase-cli
