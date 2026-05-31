@@ -396,7 +396,7 @@ async function sendAddonConfirmationEmail(
         { label: 'Amount',     value: `${params.amountKwd.toFixed(2)} KWD` },
         { label: 'Valid until', value: expires },
       ]),
-      paragraph(`<strong>What\'s next?</strong><br>Your coach or specialist will reach out to schedule your sessions. You can also view your active add-ons in your dashboard.`),
+      paragraph(`<strong>What's next?</strong><br>Your coach or specialist will reach out to schedule your sessions. You can also view your active add-ons in your dashboard.`),
       ctaButton('Go to Dashboard', `${APP_BASE_URL}/dashboard`),
       signOff(),
     ].join('');
