@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 type VerificationState = 'verifying' | 'success' | 'pending' | 'failed' | 'error';
+type BillingMode = 'subscription' | 'addon';
 
 export default function PaymentReturn() {
   const [searchParams] = useSearchParams();
@@ -24,11 +25,13 @@ export default function PaymentReturn() {
   const [state, setState] = useState<VerificationState>('verifying');
   const [message, setMessage] = useState<string>("");
   const [retryCount, setRetryCount] = useState(0);
+  const [mode, setMode] = useState<BillingMode>('subscription');
+  const [addonName, setAddonName] = useState<string | null>(null);
   const hasFetched = useRef(false);
   const autoRetryRef = useRef(0);
   const isVerifying = useRef(false);
   const maxRetries = 3;
-  const maxAutoRetries = 3;
+  const maxAutoRetries = 5;
 
   const verifyPayment = useCallback(async () => {
     if (isVerifying.current) return;
@@ -67,6 +70,74 @@ export default function PaymentReturn() {
 
       // Get TAP charge ID from URL params
       const tapChargeId = searchParams.get('tap_id') || searchParams.get('charge_id');
+
+      // Branch: addon or subscription? Look up tap_charge_id in addon_payments
+      // (Phase 3 Design A -- webhook is the source of truth; we poll the view
+      // until purchase_addon_atomic materialises the row).
+      let detectedMode: BillingMode = mode;
+      let addonPaymentId: string | null = null;
+      if (tapChargeId) {
+        const { data: addonPay } = await supabase
+          .from('addon_payments')
+          .select('id, status, metadata')
+          .eq('client_id', user.id)
+          .eq('tap_charge_id', tapChargeId)
+          .maybeSingle();
+        if (addonPay) {
+          detectedMode = 'addon';
+          addonPaymentId = addonPay.id as string;
+          const meta = addonPay.metadata as { addon_service_name?: string } | null;
+          if (meta?.addon_service_name) setAddonName(meta.addon_service_name);
+          setMode('addon');
+        }
+      }
+
+      if (detectedMode === 'addon' && addonPaymentId) {
+        // Poll addon_purchases_with_remaining for a row tied to this payment.
+        // Webhook (tap-webhook-addon) is racing us -- it materialises the
+        // purchase via purchase_addon_atomic on CAPTURED.
+        const { data: pendingRow } = await supabase
+          .from('addon_payments')
+          .select('status')
+          .eq('id', addonPaymentId)
+          .maybeSingle();
+
+        if (pendingRow?.status === 'failed' || pendingRow?.status === 'voided') {
+          setState('failed');
+          setMessage('Your payment was declined. No charges were made.');
+          return;
+        }
+
+        const { data: purchaseRow } = await supabase
+          .from('addon_purchases_with_remaining')
+          .select('id, status, service_name, is_usable')
+          .eq('payment_id', addonPaymentId)
+          .eq('client_id', user.id)
+          .maybeSingle();
+
+        if (purchaseRow && (purchaseRow.status === 'active' || purchaseRow.status === 'consumed')) {
+          setState('success');
+          const name = (purchaseRow.service_name as string) || addonName || 'add-on';
+          setAddonName(name);
+          setMessage(`Your ${name} is ready to use.`);
+          toast({ title: 'Add-on activated', description: `${name} is now available.` });
+          setTimeout(() => {
+            navigate('/services/addons', { replace: true });
+          }, 2500);
+          return;
+        }
+
+        // Still pending -- webhook not yet processed. Auto-retry.
+        if (autoRetryRef.current < maxAutoRetries) {
+          autoRetryRef.current++;
+          isVerifying.current = false;
+          setTimeout(() => verifyPayment(), 3000);
+          return;
+        }
+        setState('pending');
+        setMessage("Your payment is being processed. You'll see the add-on appear shortly.");
+        return;
+      }
 
       if (import.meta.env.DEV) console.log('Verifying payment...', { userId: user.id, tapChargeId });
 
@@ -140,7 +211,7 @@ export default function PaymentReturn() {
       setState('error');
       setMessage("We couldn't verify your payment status. Please try again.");
     }
-  }, [searchParams, navigate, toast]);
+  }, [searchParams, navigate, toast, mode, addonName]);
 
   useEffect(() => {
     if (hasFetched.current) return;
@@ -160,10 +231,18 @@ export default function PaymentReturn() {
   };
 
   const handleGoToDashboard = () => {
+    if (mode === 'addon') {
+      navigate('/services/addons', { replace: true });
+      return;
+    }
     navigate('/dashboard', { replace: true, state: { paymentVerified: true } });
   };
 
   const handleRetryPayment = () => {
+    if (mode === 'addon') {
+      navigate('/services/addons', { replace: true });
+      return;
+    }
     navigate('/billing/pay', { replace: true });
   };
 
@@ -244,10 +323,10 @@ export default function PaymentReturn() {
           {state === 'success' && (
             <div className="text-center space-y-4">
               <p className="text-sm text-muted-foreground">
-                Redirecting to your dashboard...
+                {mode === 'addon' ? 'Redirecting to your add-ons...' : 'Redirecting to your dashboard...'}
               </p>
               <Button onClick={handleGoToDashboard} variant="gradient" className="w-full">
-                Go to Dashboard Now
+                {mode === 'addon' ? 'Go to Add-ons Now' : 'Go to Dashboard Now'}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>

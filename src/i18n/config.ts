@@ -4,8 +4,10 @@ import LanguageDetector from 'i18next-browser-languagedetector';
 
 import enCommon from './locales/en/common.json';
 import enNav from './locales/en/nav.json';
+import enAddons from './locales/en/addons.json';
 import arCommon from './locales/ar/common.json';
 import arNav from './locales/ar/nav.json';
+import arAddons from './locales/ar/addons.json';
 
 export const supportedLanguages = ['en', 'ar'] as const;
 export type SupportedLanguage = (typeof supportedLanguages)[number];
@@ -17,8 +19,8 @@ i18n
   .use(initReactI18next)
   .init({
     resources: {
-      en: { common: enCommon, nav: enNav },
-      ar: { common: arCommon, nav: arNav },
+      en: { common: enCommon, nav: enNav, addons: enAddons },
+      ar: { common: arCommon, nav: arNav, addons: arAddons },
     },
     fallbackLng: 'en',
     defaultNS: 'common',
