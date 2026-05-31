@@ -1,14 +1,22 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { format, formatDistanceToNowStrict, isFuture } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import {
   Calendar as CalendarIcon,
   CalendarClock,
   ChevronDown,
   ChevronUp,
   Clock,
+  ClipboardCheck,
   Loader2,
   Sparkles,
 } from "lucide-react";
@@ -16,6 +24,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { formatSnakeCase } from "@/lib/statusUtils";
 import { DirectClientCalendar } from "@/components/coach/programs/DirectClientCalendar";
+import { LogAddonSessionDialog } from "@/components/client-overview/addons/LogAddonSessionDialog";
+import { useAuthSession } from "@/hooks/useAuthSession";
+import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
+import { useUnusedAddons, type UnusedAddonRow } from "@/hooks/useUnusedAddons";
+import { useAddonSessionLogs } from "@/hooks/useAddonSessionLogs";
+import { useSubroleDefinitions } from "@/hooks/useSubroleDefinitions";
 import type { ClientOverviewTabProps } from "../types";
 
 interface DirectSession {
@@ -28,42 +42,42 @@ interface DirectSession {
   notes: string | null;
 }
 
-interface AddonLog {
-  id: string;
-  session_date: string;
-  notes: string | null;
-  addon_name: string | null;
-}
-
 /**
- * Sessions tab -- read-only digest of what this client has booked and
- * consumed outside their recurring program.
+ * Sessions tab -- three sections:
  *
- *  - Upcoming + recent "direct calendar" sessions from
- *    `direct_calendar_sessions` (ad-hoc workouts a coach scheduled on a
- *    specific date).
- *  - Addon session logs joined via `addon_purchases -> addon_services` so
- *    the coach sees a booking's service name, not a bare purchase id.
+ *  1. Direct calendar sessions (ad-hoc workouts a coach scheduled on a
+ *     specific date)
+ *  2. Available add-on packs -- active purchases with sessions left to log
+ *     (Phase 4). Per-row "Log session" button; admins always enabled;
+ *     eligible-subrole care-team members enabled; wrong-subrole disabled
+ *     with tooltip; client viewers don't see the button at all.
+ *  3. Past add-on session logs -- read-only digest.
  *
  * Primary coach or admin also gets a collapsible `DirectClientCalendar`
  * below the lists so they can schedule / edit sessions without leaving
- * the tab. Other viewers see the read-only digest only.
+ * the tab.
  */
 export function SessionsTab({ context }: ClientOverviewTabProps) {
   const { clientUserId, subscription, viewerRole, profile } = context;
+  const { t } = useTranslation("addons");
+  const { user } = useAuthSession();
+  const viewerId = user?.id ?? null;
+  const { approvedSlugs, isLoading: subrolesLoading } = useSubrolePermissions(viewerId ?? undefined);
+  const subroleDefs = useSubroleDefinitions();
+
   const [direct, setDirect] = useState<DirectSession[]>([]);
-  const [addons, setAddons] = useState<AddonLog[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [viewerId, setViewerId] = useState<string | null>(null);
+  const [directLoading, setDirectLoading] = useState(true);
   const [coachId, setCoachId] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
+  const [logTarget, setLogTarget] = useState<UnusedAddonRow | null>(null);
   const hasFetched = useRef<string | null>(null);
 
-  const load = useCallback(async (userId: string) => {
-    setLoading(true);
+  const unusedAddons = useUnusedAddons(clientUserId);
+  const pastLogs = useAddonSessionLogs(clientUserId);
 
-    const [authRes, directRes, purchasesRes, subRes] = await Promise.all([
-      supabase.auth.getUser(),
+  const load = useCallback(async (userId: string) => {
+    setDirectLoading(true);
+    const [directRes, subRes] = await Promise.all([
       supabase
         .from("direct_calendar_sessions")
         .select(
@@ -72,10 +86,6 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
         .eq("client_user_id", userId)
         .order("session_date", { ascending: false })
         .limit(30),
-      supabase
-        .from("addon_purchases")
-        .select("id, addon_service_id")
-        .eq("client_id", userId),
       subscription?.id
         ? supabase
             .from("subscriptions")
@@ -85,69 +95,12 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
         : Promise.resolve({ data: null, error: null } as { data: { coach_id: string | null } | null; error: null }),
     ]);
 
-    setViewerId(authRes.data?.user?.id ?? null);
     setCoachId(subRes.data?.coach_id ?? null);
-
     if (directRes.error) {
       console.warn("[SessionsTab] direct sessions:", directRes.error.message);
     }
     setDirect((directRes.data ?? []) as DirectSession[]);
-
-    if (purchasesRes.error) {
-      console.warn("[SessionsTab] addon purchases:", purchasesRes.error.message);
-    }
-    const purchases = purchasesRes.data ?? [];
-    const purchaseIds = purchases.map((p) => p.id);
-
-    if (purchaseIds.length === 0) {
-      setAddons([]);
-      setLoading(false);
-      return;
-    }
-
-    // Name lookup: resolve addon_service_id -> name once, then decorate logs.
-    // CLAUDE.md rule: no nested FK joins on anything fragile -- do it in JS.
-    const addonServiceIds = [
-      ...new Set(purchases.map((p) => p.addon_service_id)),
-    ];
-    const [logsRes, servicesRes] = await Promise.all([
-      supabase
-        .from("addon_session_logs")
-        .select("id, addon_purchase_id, session_date, notes")
-        .in("addon_purchase_id", purchaseIds)
-        .order("session_date", { ascending: false })
-        .limit(20),
-      supabase
-        .from("addon_services")
-        .select("id, name")
-        .in("id", addonServiceIds),
-    ]);
-
-    if (logsRes.error) console.warn("[SessionsTab] addon logs:", logsRes.error.message);
-    if (servicesRes.error) {
-      console.warn("[SessionsTab] addon services:", servicesRes.error.message);
-    }
-
-    const purchaseToService = new Map<string, string>();
-    for (const p of purchases) {
-      purchaseToService.set(p.id, p.addon_service_id);
-    }
-    const serviceName = new Map<string, string>();
-    for (const s of servicesRes.data ?? []) {
-      serviceName.set(s.id, s.name);
-    }
-
-    setAddons(
-      (logsRes.data ?? []).map((log) => ({
-        id: log.id,
-        session_date: log.session_date,
-        notes: log.notes,
-        addon_name:
-          serviceName.get(purchaseToService.get(log.addon_purchase_id) ?? "") ??
-          null,
-      })),
-    );
-    setLoading(false);
+    setDirectLoading(false);
   }, [subscription?.id]);
 
   useEffect(() => {
@@ -156,7 +109,7 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
     hasFetched.current = key;
     load(clientUserId).catch((err) => {
       console.error("[SessionsTab] unexpected:", err);
-      setLoading(false);
+      setDirectLoading(false);
     });
   }, [clientUserId, subscription?.id, load]);
 
@@ -169,7 +122,17 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
     profile.displayName?.trim() ||
     "this client";
 
-  if (loading) {
+  // Is the viewer a professional who can ever log addons? Client viewers
+  // (not staff) never see the Log button at all; the button only appears
+  // for admins and care-team staff.
+  const viewerIsStaff = isAdmin || viewerRole === "coach" || viewerRole === "dietitian";
+
+  const onLogged = useCallback(() => {
+    unusedAddons.refetch();
+    pastLogs.refetch();
+  }, [unusedAddons, pastLogs]);
+
+  if (directLoading) {
     return (
       <Card>
         <CardContent className="py-8 flex items-center justify-center">
@@ -192,97 +155,209 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
   });
   const past = direct.filter((s) => !upcoming.includes(s));
 
-  const empty = direct.length === 0 && addons.length === 0;
+  const availablePacks = unusedAddons.rows;
+  const pastAddonLogs = pastLogs.data ?? [];
+  const empty =
+    direct.length === 0 && availablePacks.length === 0 && pastAddonLogs.length === 0;
 
   return (
-    <div className="space-y-6">
-      {canManageCalendar && (
-        <div className="flex justify-end">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setCalendarOpen((v) => !v)}
-            aria-expanded={calendarOpen}
-          >
-            <CalendarIcon className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
-            {calendarOpen ? "Hide calendar" : "Open calendar"}
-            {calendarOpen ? (
-              <ChevronUp className="h-3.5 w-3.5 ml-1" aria-hidden="true" />
-            ) : (
-              <ChevronDown className="h-3.5 w-3.5 ml-1" aria-hidden="true" />
-            )}
-          </Button>
-        </div>
-      )}
+    <TooltipProvider delayDuration={150}>
+      <div className="space-y-6">
+        {canManageCalendar && (
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCalendarOpen((v) => !v)}
+              aria-expanded={calendarOpen}
+            >
+              <CalendarIcon className="h-3.5 w-3.5 mr-1" aria-hidden="true" />
+              {calendarOpen ? "Hide calendar" : "Open calendar"}
+              {calendarOpen ? (
+                <ChevronUp className="h-3.5 w-3.5 ml-1" aria-hidden="true" />
+              ) : (
+                <ChevronDown className="h-3.5 w-3.5 ml-1" aria-hidden="true" />
+              )}
+            </Button>
+          </div>
+        )}
 
-      {empty ? (
-        <Card>
-          <CardContent className="py-12 text-center space-y-3">
-            <div className="flex justify-center">
-              <div className="inline-flex items-center justify-center p-3 rounded-full bg-muted">
-                <CalendarClock
-                  className="h-5 w-5 text-muted-foreground"
-                  aria-hidden="true"
-                />
+        {empty ? (
+          <Card>
+            <CardContent className="py-12 text-center space-y-3">
+              <div className="flex justify-center">
+                <div className="inline-flex items-center justify-center p-3 rounded-full bg-muted">
+                  <CalendarClock
+                    className="h-5 w-5 text-muted-foreground"
+                    aria-hidden="true"
+                  />
+                </div>
               </div>
-            </div>
-            <div className="space-y-1">
-              <p className="font-medium">No ad-hoc sessions yet</p>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto">
-                Direct calendar sessions a coach schedules outside the recurring
-                program, and addon bookings, will appear here once any are
-                logged.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      ) : (
-        <>
-          {upcoming.length > 0 && (
-            <SessionListCard
-              icon={<CalendarIcon className="h-4 w-4" aria-hidden="true" />}
-              title="Upcoming"
-              emphasis
-            >
-              {upcoming.map((s) => (
-                <SessionRow key={s.id} session={s} emphasis />
-              ))}
-            </SessionListCard>
-          )}
+              <div className="space-y-1">
+                <p className="font-medium">No ad-hoc sessions yet</p>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                  Direct calendar sessions a coach schedules outside the recurring
+                  program, and add-on bookings, will appear here once any are
+                  logged.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            {upcoming.length > 0 && (
+              <SessionListCard
+                icon={<CalendarIcon className="h-4 w-4" aria-hidden="true" />}
+                title="Upcoming"
+                emphasis
+              >
+                {upcoming.map((s) => (
+                  <SessionRow key={s.id} session={s} emphasis />
+                ))}
+              </SessionListCard>
+            )}
 
-          {past.length > 0 && (
-            <SessionListCard
-              icon={<Clock className="h-4 w-4" aria-hidden="true" />}
-              title="Recent sessions"
-              subtitle={`Last ${Math.min(past.length, 30)} direct calendar sessions`}
-            >
-              {past.map((s) => (
-                <SessionRow key={s.id} session={s} />
-              ))}
-            </SessionListCard>
-          )}
+            {past.length > 0 && (
+              <SessionListCard
+                icon={<Clock className="h-4 w-4" aria-hidden="true" />}
+                title="Recent sessions"
+                subtitle={`Last ${Math.min(past.length, 30)} direct calendar sessions`}
+              >
+                {past.map((s) => (
+                  <SessionRow key={s.id} session={s} />
+                ))}
+              </SessionListCard>
+            )}
 
-          {addons.length > 0 && (
-            <SessionListCard
-              icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
-              title="Addon bookings"
-              subtitle="Recent addon session logs"
-            >
-              {addons.map((a) => (
-                <AddonRow key={a.id} log={a} />
-              ))}
-            </SessionListCard>
-          )}
-        </>
-      )}
+            {availablePacks.length > 0 && (
+              <SessionListCard
+                icon={<ClipboardCheck className="h-4 w-4" aria-hidden="true" />}
+                title={t("availablePacksTitle")}
+                subtitle={t("availablePacksSubtitle")}
+              >
+                {availablePacks.map((pack) => (
+                  <AvailablePackRow
+                    key={pack.purchase_id}
+                    pack={pack}
+                    isAdmin={isAdmin}
+                    viewerIsStaff={viewerIsStaff}
+                    approvedSlugs={approvedSlugs}
+                    subrolesLoading={subrolesLoading}
+                    subroleLabels={subroleDefs.data}
+                    onLog={() => setLogTarget(pack)}
+                  />
+                ))}
+              </SessionListCard>
+            )}
 
-      {canManageCalendar && calendarOpen && viewerId && subscription?.id && (
-        <DirectClientCalendar
-          clientUserId={clientUserId}
-          coachUserId={viewerId}
-          subscriptionId={subscription.id}
-          clientName={clientName}
+            {pastAddonLogs.length > 0 && (
+              <SessionListCard
+                icon={<Sparkles className="h-4 w-4" aria-hidden="true" />}
+                title={t("pastSessionsTitle")}
+                subtitle={t("pastSessionsSubtitle")}
+              >
+                {pastAddonLogs.map((log) => (
+                  <AddonLogRow key={log.id} log={log} />
+                ))}
+              </SessionListCard>
+            )}
+          </>
+        )}
+
+        {canManageCalendar && calendarOpen && viewerId && subscription?.id && (
+          <DirectClientCalendar
+            clientUserId={clientUserId}
+            coachUserId={viewerId}
+            subscriptionId={subscription.id}
+            clientName={clientName}
+          />
+        )}
+
+        <LogAddonSessionDialog
+          purchase={logTarget}
+          open={!!logTarget}
+          onOpenChange={(open) => { if (!open) setLogTarget(null); }}
+          onLogged={onLogged}
         />
+      </div>
+    </TooltipProvider>
+  );
+}
+
+function AvailablePackRow({
+  pack,
+  isAdmin,
+  viewerIsStaff,
+  approvedSlugs,
+  subrolesLoading,
+  subroleLabels,
+  onLog,
+}: {
+  pack: UnusedAddonRow;
+  isAdmin: boolean;
+  viewerIsStaff: boolean;
+  approvedSlugs: readonly string[];
+  subrolesLoading: boolean;
+  subroleLabels: Map<string, string> | undefined;
+  onLog: () => void;
+}) {
+  const { t } = useTranslation("addons");
+  const expiresLabel = safeFormat(pack.expires_at, "MMM d, yyyy");
+  const requiredSubroleLabel =
+    subroleLabels?.get(pack.required_subrole ?? "") ?? pack.required_subrole ?? "";
+
+  // Eligibility: admin always wins; otherwise strict-match against the
+  // viewer's approved subroles (matches is_addon_eligible_professional RPC).
+  const eligible =
+    isAdmin
+    || (pack.required_subrole !== null && approvedSlugs.includes(pack.required_subrole));
+
+  return (
+    <div className="px-4 md:px-6 py-3 flex items-center gap-3">
+      <div className="min-w-0 flex-1 space-y-1">
+        <p className="text-sm font-medium truncate">{pack.service_name}</p>
+        <p className="font-mono text-[11px] text-muted-foreground tabular-nums">
+          {t("packRemaining", {
+            remaining: pack.sessions_remaining,
+            total: pack.sessions_total,
+          })}
+          {" | "}
+          {t("packExpiresIn", { date: expiresLabel })}
+        </p>
+      </div>
+
+      {viewerIsStaff && (
+        eligible ? (
+          <Button
+            type="button"
+            variant="default"
+            size="sm"
+            onClick={onLog}
+            disabled={subrolesLoading}
+          >
+            {t("logSessionCta")}
+          </Button>
+        ) : (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              {/* Wrapper span so the tooltip still fires on a disabled button */}
+              <span tabIndex={0}>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled
+                  aria-disabled
+                >
+                  {t("logSessionCta")}
+                </Button>
+              </span>
+            </TooltipTrigger>
+            <TooltipContent>
+              {t("logSessionDisabledTooltip", { role: requiredSubroleLabel })}
+            </TooltipContent>
+          </Tooltip>
+        )
       )}
     </div>
   );
@@ -370,7 +445,7 @@ function SessionRow({
   );
 }
 
-function AddonRow({ log }: { log: AddonLog }) {
+function AddonLogRow({ log }: { log: { id: string; session_date: string; notes: string | null; addon_name: string | null } }) {
   const when = safeFormat(log.session_date, "EEE, MMM d yyyy");
   return (
     <div className="px-4 md:px-6 py-3 space-y-1">

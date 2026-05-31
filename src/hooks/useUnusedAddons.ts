@@ -6,6 +6,9 @@ export interface UnusedAddonRow {
   addon_service_id: string;
   service_name: string;
   service_type: string;
+  /** Slug of the subrole that's allowed to log against this purchase (e.g. 'physiotherapist').
+   *  Null means any approved professional on the care team can log. Admin always bypasses. */
+  required_subrole: string | null;
   sessions_remaining: number;
   sessions_total: number;
   expires_at: string;
@@ -48,7 +51,7 @@ export function useUnusedAddons(
       const { data, error } = await supabase
         .from("addon_purchases_with_remaining")
         .select(
-          "id, addon_service_id, service_name, service_type, sessions_remaining, sessions_total, expires_at, purchased_at, is_usable",
+          "id, addon_service_id, service_name, service_type, required_subrole, sessions_remaining, sessions_total, expires_at, purchased_at, is_usable",
         )
         .eq("client_id", userId!)
         .eq("is_usable", true)
@@ -61,6 +64,7 @@ export function useUnusedAddons(
         addon_service_id: r.addon_service_id as string,
         service_name: (r.service_name as string) ?? "",
         service_type: (r.service_type as string) ?? "",
+        required_subrole: (r.required_subrole as string | null) ?? null,
         sessions_remaining: Number(r.sessions_remaining ?? 0),
         sessions_total: Number(r.sessions_total ?? 0),
         expires_at: r.expires_at as string,
