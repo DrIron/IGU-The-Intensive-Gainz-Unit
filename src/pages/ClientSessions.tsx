@@ -288,9 +288,16 @@ function ClientSessionsContent() {
         description: "Your session has been cancelled.",
       });
 
-      // Refresh data
+      // Refresh data. Sync to the server's authoritative Kuwait-anchored count
+      // (B6-N5) rather than an optimistic decrement that diverges from the
+      // server on the Kuwait week boundary. Fall back to the decrement only if
+      // the edge function couldn't compute the count.
       setUpcomingBookings((prev) => prev.filter((b) => b.id !== bookingId));
-      setWeeklyUsed((prev) => Math.max(prev - 1, 0));
+      if (typeof result.weeklyUsed === "number") {
+        setWeeklyUsed(result.weeklyUsed);
+      } else {
+        setWeeklyUsed((prev) => Math.max(prev - 1, 0));
+      }
 
       // Refetch available slots
       if (sessionSubscription?.coach_id) {

@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Calendar as CalendarPicker } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { kuwaitWallClockToUtc } from "@/lib/kuwaitTime";
 
 interface CoachSessionsProps {
   coachUserId: string;
@@ -308,11 +309,25 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
       const duration = parseInt(slotDuration);
       const count = parseInt(slotCount);
 
+      // The coach picks a calendar day + a Kuwait local start time. Anchor to
+      // Asia/Kuwait (UTC+3, no DST) so slots land at the intended wall-clock
+      // time regardless of the browser's timezone (B6-N10). Use the local
+      // Y/M/D the coach actually clicked in the calendar picker.
+      const year = slotDate.getFullYear();
+      const month = slotDate.getMonth() + 1; // kuwaitWallClockToUtc wants 1-12
+      const day = slotDate.getDate();
+
       const slots = [];
       for (let i = 0; i < count; i++) {
-        const slotStart = new Date(slotDate);
-        slotStart.setHours(hours, minutes + (i * duration), 0, 0);
-        
+        // minute carry (minutes + i*duration) normalizes inside the helper.
+        const slotStart = kuwaitWallClockToUtc({
+          year,
+          month,
+          day,
+          hour: hours,
+          minute: minutes + i * duration,
+        });
+
         const slotEnd = addMinutes(slotStart, duration);
 
         slots.push({

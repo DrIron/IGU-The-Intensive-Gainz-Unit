@@ -205,10 +205,65 @@ Deno.serve(async (req) => {
       // Non-critical - booking is cancelled but slot may not be released
     }
 
+    // Authoritative post-cancel weekly usage (B6-N5). Mirrors
+    // book_session_atomic: Kuwait-anchored week bounds (get_current_week_bounds)
+    // + COUNT of bookings still occupying the quota (status IN booked|completed).
+    // The cancellation above already flipped this booking to cancelled_by_*,
+    // dropping it from the count — i.e. the weekly credit is restored by the
+    // derived count, there is no stored counter to reverse. Returning the exact
+    // number lets ClientSessions sync precisely instead of guessing via an
+    // optimistic decrement that diverges from the server on the Kuwait week
+    // boundary.
+    let weeklyUsed: number | null = null;
+    let weeklyRemaining: number | null = null;
+    let weekStartUtc: string | null = null;
+    let weekEndUtc: string | null = null;
+
+    const { data: bounds, error: boundsError } = await supabaseAdmin.rpc(
+      'get_current_week_bounds'
+    );
+    if (boundsError || !bounds) {
+      console.error('[cancel-session] Week bounds lookup failed:', boundsError);
+    } else {
+      weekStartUtc = bounds.week_start ?? null;
+      weekEndUtc = bounds.week_end ?? null;
+
+      const { count, error: countError } = await supabaseAdmin
+        .from('session_bookings')
+        .select('id', { count: 'exact', head: true })
+        .eq('subscription_id', booking.subscription_id)
+        .in('status', ['booked', 'completed'])
+        .gte('session_start', weekStartUtc as string)
+        .lt('session_start', weekEndUtc as string);
+
+      if (countError) {
+        console.error('[cancel-session] Weekly count failed:', countError);
+      } else {
+        weeklyUsed = count ?? 0;
+
+        // Direct lookup (not the embedded join) — PostgREST to-one embeds are
+        // shape-ambiguous and CLAUDE.md flags subscription FK joins as unreliable.
+        const { data: subRow } = await supabaseAdmin
+          .from('subscriptions')
+          .select('weekly_session_limit')
+          .eq('id', booking.subscription_id)
+          .maybeSingle();
+
+        const limit = subRow?.weekly_session_limit ?? null;
+        weeklyRemaining = limit !== null ? Math.max(limit - weeklyUsed, 0) : null;
+      }
+    }
+
     console.log(`[cancel-session] Booking ${booking.id} cancelled by ${cancelledBy}`);
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({
+        success: true,
+        weeklyUsed,
+        weeklyRemaining,
+        weekStartUtc,
+        weekEndUtc,
+      }),
       { status: 200, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
 

@@ -298,19 +298,26 @@ export function useProgramCalendar({
 
                 if (ex.exercise_prescriptions?.[0]) {
                   const presc = ex.exercise_prescriptions[0];
-                  await supabase.from("exercise_prescriptions").insert({
-                    module_exercise_id: newEx.id,
-                    set_count: presc.set_count,
-                    rep_range_min: presc.rep_range_min,
-                    rep_range_max: presc.rep_range_max,
-                    tempo: presc.tempo,
-                    rest_seconds: presc.rest_seconds,
-                    intensity_type: presc.intensity_type,
-                    intensity_value: presc.intensity_value,
-                    column_config: presc.column_config,
-                    sets_json: presc.sets_json,
-                    custom_fields_json: presc.custom_fields_json,
-                  });
+                  // Check { error } like the sibling inserts above — an
+                  // unchecked insert silently leaves the copied module with no
+                  // prescription on an RLS denial (B6-N9).
+                  const { error: prescError } = await supabase
+                    .from("exercise_prescriptions")
+                    .insert({
+                      module_exercise_id: newEx.id,
+                      set_count: presc.set_count,
+                      rep_range_min: presc.rep_range_min,
+                      rep_range_max: presc.rep_range_max,
+                      tempo: presc.tempo,
+                      rest_seconds: presc.rest_seconds,
+                      intensity_type: presc.intensity_type,
+                      intensity_value: presc.intensity_value,
+                      column_config: presc.column_config,
+                      sets_json: presc.sets_json,
+                      custom_fields_json: presc.custom_fields_json,
+                    });
+
+                  if (prescError) throw prescError;
                 }
               }
             }

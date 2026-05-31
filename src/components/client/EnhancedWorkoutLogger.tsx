@@ -353,13 +353,23 @@ export function EnhancedWorkoutLogger({
     await saveLogs();
 
     try {
-      await supabase
+      // Destructure { data, error } and require a row back. A bare update can
+      // return HTTP 200 with zero rows affected on an RLS denial, leaving the
+      // module 'scheduled' in the DB while the client sees "completed" (B6-N3).
+      // Same shape as the completeWorkout silent-failure fix (PR #117).
+      const { data, error } = await supabase
         .from("client_day_modules")
         .update({
           status: "completed",
           completed_at: new Date().toISOString(),
         })
-        .eq("id", moduleId);
+        .eq("id", moduleId)
+        .select("id");
+
+      if (error) throw error;
+      if (!data || data.length === 0) {
+        throw new Error("Workout completion not persisted");
+      }
 
       toast({
         title: "Workout completed!",
