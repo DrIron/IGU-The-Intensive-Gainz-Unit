@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Users, UsersRound } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { captureException } from "@/lib/errorLogging";
+import { describeJoinTeamError } from "@/lib/joinTeamError";
 
 interface AvailableTeam {
   id: string;
@@ -24,12 +25,10 @@ interface ChooseTeamPromptProps {
     id: string;
     service_id: string;
   };
-  userId: string;
 }
 
 export const ChooseTeamPrompt = memo(function ChooseTeamPrompt({
   subscription,
-  userId,
 }: ChooseTeamPromptProps) {
   const [teams, setTeams] = useState<AvailableTeam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -92,11 +91,14 @@ export const ChooseTeamPrompt = memo(function ChooseTeamPrompt({
     if (!selectedTeamId) return;
     setJoining(true);
     try {
-      const { error } = await supabase
-        .from("subscriptions")
-        .update({ team_id: selectedTeamId })
-        .eq("id", subscription.id)
-        .eq("user_id", userId);
+      // Route through the join_team SECURITY DEFINER RPC (B7-N2/N4/N5/N6):
+      // it syncs coach_id to the team's head coach, re-checks capacity under a
+      // row lock, enforces the once-per-cycle gap, and is the only authorised
+      // path now that direct subscriptions writes are trigger-locked.
+      const { error } = await supabase.rpc("join_team", {
+        p_subscription_id: subscription.id,
+        p_team_id: selectedTeamId,
+      });
 
       if (error) throw error;
 
@@ -107,17 +109,20 @@ export const ChooseTeamPrompt = memo(function ChooseTeamPrompt({
 
       // Reload so the dashboard re-fetches subscription with team_id set
       setTimeout(() => window.location.reload(), 800);
-    } catch (error: any) {
-      console.error("Error joining team:", error);
+    } catch (error) {
+      captureException(error, {
+        source: "ChooseTeamPrompt.handleJoinTeam",
+        metadata: { subscriptionId: subscription.id, teamId: selectedTeamId },
+      });
       toast({
         title: "Failed to join team",
-        description: sanitizeErrorForUser(error),
+        description: describeJoinTeamError(error),
         variant: "destructive",
       });
     } finally {
       setJoining(false);
     }
-  }, [selectedTeamId, subscription.id, userId, toast]);
+  }, [selectedTeamId, subscription.id, toast]);
 
   if (loading) {
     return (

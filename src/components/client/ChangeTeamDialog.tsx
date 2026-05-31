@@ -14,7 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Loader2, Users, Info } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { captureException } from "@/lib/errorLogging";
+import { describeJoinTeamError } from "@/lib/joinTeamError";
+
+// Mirrors the server-side gap in the join_team RPC (migration 20260531140000).
+const TEAM_CHANGE_GAP_DAYS = 28;
 
 interface AvailableTeam {
   id: string;
@@ -35,14 +39,12 @@ interface ChangeTeamDialogProps {
     last_team_change_at: string | null;
     next_billing_date: string | null;
   };
-  userId: string;
 }
 
 export const ChangeTeamDialog = memo(function ChangeTeamDialog({
   open,
   onOpenChange,
   subscription,
-  userId,
 }: ChangeTeamDialogProps) {
   const [teams, setTeams] = useState<AvailableTeam[]>([]);
   const [loading, setLoading] = useState(true);
@@ -115,14 +117,14 @@ export const ChangeTeamDialog = memo(function ChangeTeamDialog({
     if (!selectedTeamId || selectedTeamId === subscription.team_id) return;
     setChanging(true);
     try {
-      const { error } = await supabase
-        .from("subscriptions")
-        .update({
-          team_id: selectedTeamId,
-          last_team_change_at: new Date().toISOString(),
-        })
-        .eq("id", subscription.id)
-        .eq("user_id", userId);
+      // Route through the join_team SECURITY DEFINER RPC (B7-N2/N4/N5/N6):
+      // syncs coach_id, re-checks capacity under a row lock, and enforces the
+      // once-per-cycle gap server-side. The inline gap notice below is UX only;
+      // the RPC is the real boundary.
+      const { error } = await supabase.rpc("join_team", {
+        p_subscription_id: subscription.id,
+        p_team_id: selectedTeamId,
+      });
 
       if (error) throw error;
 
@@ -133,17 +135,35 @@ export const ChangeTeamDialog = memo(function ChangeTeamDialog({
 
       onOpenChange(false);
       setTimeout(() => window.location.reload(), 800);
-    } catch (error: any) {
-      console.error("Error changing team:", error);
+    } catch (error) {
+      captureException(error, {
+        source: "ChangeTeamDialog.handleChangeTeam",
+        metadata: { subscriptionId: subscription.id, teamId: selectedTeamId },
+      });
       toast({
         title: "Failed to change team",
-        description: sanitizeErrorForUser(error),
+        description: describeJoinTeamError(error),
         variant: "destructive",
       });
     } finally {
       setChanging(false);
     }
-  }, [selectedTeamId, subscription.id, subscription.team_id, userId, toast, onOpenChange]);
+  }, [selectedTeamId, subscription.id, subscription.team_id, toast, onOpenChange]);
+
+  // Compute the next date the client is allowed to change teams (mirrors the
+  // join_team RPC's 28-day gap). UX-only -- the server is authoritative.
+  const nextAllowedAt = subscription.last_team_change_at
+    ? new Date(
+        new Date(subscription.last_team_change_at).getTime() +
+          TEAM_CHANGE_GAP_DAYS * 24 * 60 * 60 * 1000,
+      )
+    : null;
+  const isWithinGap = nextAllowedAt !== null && nextAllowedAt.getTime() > Date.now();
+  const nextAllowedLabel = nextAllowedAt?.toLocaleDateString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+  });
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -236,7 +256,11 @@ export const ChangeTeamDialog = memo(function ChangeTeamDialog({
 
         <div className="flex items-start gap-2 text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg">
           <Info className="h-4 w-4 flex-shrink-0 mt-0.5" />
-          <span>You can change your team once per billing cycle.</span>
+          <span>
+            {isWithinGap
+              ? `You can change your team once per billing cycle. You'll be able to change again on ${nextAllowedLabel}.`
+              : "You can change your team once per billing cycle."}
+          </span>
         </div>
 
         <DialogFooter>
@@ -248,7 +272,8 @@ export const ChangeTeamDialog = memo(function ChangeTeamDialog({
             disabled={
               !selectedTeamId ||
               selectedTeamId === subscription.team_id ||
-              changing
+              changing ||
+              isWithinGap
             }
           >
             {changing ? (

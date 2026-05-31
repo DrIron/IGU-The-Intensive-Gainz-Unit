@@ -451,7 +451,7 @@ export function ClientDashboardLayout({
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
-                <ChooseTeamPrompt subscription={subscription} userId={user.id} />
+                <ChooseTeamPrompt subscription={subscription} />
               </div>
             </div>
           </main>

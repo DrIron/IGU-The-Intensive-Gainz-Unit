@@ -288,7 +288,6 @@ export function SubscriptionManagement({ subscription, userId, isAdminView = fal
               last_team_change_at: subscription.last_team_change_at || null,
               next_billing_date: subscription.next_billing_date,
             }}
-            userId={userId}
           />
         )}
 
