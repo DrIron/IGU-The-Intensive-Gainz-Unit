@@ -207,13 +207,12 @@ export type Database = {
           created_at: string
           deleted_at: string | null
           discount_percentage: number
-          expires_at: string | null
+          expires_at: string
           id: string
-          payment_id: string | null
+          payment_id: string
           professional_id: string | null
           purchased_at: string
           quantity: number
-          sessions_remaining: number | null
           status: Database["public"]["Enums"]["addon_purchase_status"]
           total_paid_kwd: number
         }
@@ -223,13 +222,12 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           discount_percentage?: number
-          expires_at?: string | null
+          expires_at: string
           id?: string
-          payment_id?: string | null
+          payment_id: string
           professional_id?: string | null
           purchased_at?: string
           quantity?: number
-          sessions_remaining?: number | null
           status?: Database["public"]["Enums"]["addon_purchase_status"]
           total_paid_kwd: number
         }
@@ -239,13 +237,12 @@ export type Database = {
           created_at?: string
           deleted_at?: string | null
           discount_percentage?: number
-          expires_at?: string | null
+          expires_at?: string
           id?: string
-          payment_id?: string | null
+          payment_id?: string
           professional_id?: string | null
           purchased_at?: string
           quantity?: number
-          sessions_remaining?: number | null
           status?: Database["public"]["Enums"]["addon_purchase_status"]
           total_paid_kwd?: number
         }

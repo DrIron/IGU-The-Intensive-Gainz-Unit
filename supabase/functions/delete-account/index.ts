@@ -175,7 +175,17 @@ Deno.serve(async (req) => {
     await supabaseClient.from('direct_calendar_sessions').delete().eq('client_user_id', userId);
 
     // --- Delete other user data ---
-    await supabaseClient.from('addon_purchases').delete().eq('client_id', userId);
+    // addon_purchases: financial rows must never CASCADE per CLAUDE.md. The
+    // client_id FK is ON DELETE RESTRICT since 5B migration 20260531100020,
+    // so a hard DELETE here would fail anyway. Soft-delete via deleted_at
+    // (added in Phase 0 specifically for this path) preserves the audit
+    // trail. addon_purchases_with_remaining view excludes deleted_at IS NOT
+    // NULL by default, so client-facing reads still hide them.
+    const { error: addonSoftDeleteError } = await supabaseClient
+      .from('addon_purchases')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('client_id', userId);
+    if (addonSoftDeleteError) throw addonSoftDeleteError;
     await supabaseClient.from('coach_change_requests').delete().eq('user_id', userId);
     await supabaseClient.from('testimonials').delete().eq('user_id', userId);
     await supabaseClient.from('form_submissions').delete().eq('user_id', userId);
