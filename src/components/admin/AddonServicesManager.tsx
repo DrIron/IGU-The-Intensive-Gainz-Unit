@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Plus, Edit2, ShoppingBag } from "lucide-react";
+import { Loader2, Plus, Edit2, ShoppingBag, Undo2 } from "lucide-react";
 import { format } from "date-fns";
+import { RefundAddonDialog, type RefundablePurchase } from "@/components/admin/RefundAddonDialog";
 
 interface AddonService {
   id: string;
@@ -35,12 +36,16 @@ interface AddonPurchase {
   client_id: string;
   addon_service_id: string;
   quantity: number;
-  sessions_remaining: number | null;
   total_paid_kwd: number;
+  payment_id: string | null;
   expires_at: string | null;
   purchased_at: string;
+  status: string;
+  sessions_total: number;
+  sessions_consumed: number;
+  sessions_remaining: number;
+  service_name: string;
   clientName?: string;
-  serviceName?: string;
 }
 
 const TYPE_LABELS: Record<string, string> = {
@@ -66,6 +71,7 @@ export function AddonServicesManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<AddonService | null>(null);
   const [saving, setSaving] = useState(false);
+  const [refundTarget, setRefundTarget] = useState<RefundablePurchase | null>(null);
   const [form, setForm] = useState({
     name: "",
     type: "session_pack" as string,
@@ -93,19 +99,21 @@ export function AddonServicesManager() {
       if (servicesError) throw servicesError;
       setServices(servicesData || []);
 
-      // Fetch recent purchases (last 50)
+      // Fetch recent purchases (last 50) from the view -- gives us status,
+      // sessions_total/consumed/remaining, and service_name in one query.
       const { data: purchasesData, error: purchasesError } = await supabase
-        .from("addon_purchases")
-        .select("*")
+        .from("addon_purchases_with_remaining")
+        .select(
+          "id, client_id, addon_service_id, quantity, total_paid_kwd, payment_id, expires_at, purchased_at, status, sessions_total, sessions_consumed, sessions_remaining, service_name",
+        )
         .order("purchased_at", { ascending: false })
         .limit(50);
 
       if (purchasesError) throw purchasesError;
 
-      // Get client names and service names for purchases
+      // Get client names for purchases (view doesn't join to profiles)
       if (purchasesData && purchasesData.length > 0) {
-        const clientIds = [...new Set(purchasesData.map(p => p.client_id))];
-        const addonServiceIds = [...new Set(purchasesData.map(p => p.addon_service_id))];
+        const clientIds = [...new Set(purchasesData.map(p => p.client_id as string))];
 
         const { data: clients } = await supabase
           .from("profiles_public")
@@ -115,14 +123,21 @@ export function AddonServicesManager() {
           (clients || []).map(c => [c.id, c.display_name || c.first_name || "Unknown"])
         );
 
-        const serviceMap = new Map(
-          (servicesData || []).map(s => [s.id, s.name])
-        );
-
-        const enriched = purchasesData.map(p => ({
-          ...p,
-          clientName: clientMap.get(p.client_id) || "Unknown",
-          serviceName: serviceMap.get(p.addon_service_id) || "Unknown",
+        const enriched: AddonPurchase[] = purchasesData.map(p => ({
+          id: p.id as string,
+          client_id: p.client_id as string,
+          addon_service_id: p.addon_service_id as string,
+          quantity: Number(p.quantity),
+          total_paid_kwd: Number(p.total_paid_kwd),
+          payment_id: (p.payment_id as string | null) ?? null,
+          expires_at: (p.expires_at as string | null) ?? null,
+          purchased_at: p.purchased_at as string,
+          status: p.status as string,
+          sessions_total: Number(p.sessions_total ?? 0),
+          sessions_consumed: Number(p.sessions_consumed ?? 0),
+          sessions_remaining: Number(p.sessions_remaining ?? 0),
+          service_name: (p.service_name as string) ?? "Unknown",
+          clientName: clientMap.get(p.client_id as string) || "Unknown",
         }));
         setPurchases(enriched);
       } else {
@@ -347,33 +362,75 @@ export function AddonServicesManager() {
                   <TableHead>Client</TableHead>
                   <TableHead>Service</TableHead>
                   <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Sessions Left</TableHead>
+                  <TableHead className="text-right">Sessions</TableHead>
+                  <TableHead>Status</TableHead>
                   <TableHead>Expires</TableHead>
                   <TableHead>Purchased</TableHead>
+                  <TableHead className="w-[110px] text-right">Refund</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {purchases.map(p => (
-                  <TableRow key={p.id}>
-                    <TableCell className="font-medium">{p.clientName}</TableCell>
-                    <TableCell>{p.serviceName}</TableCell>
-                    <TableCell className="text-right">{p.quantity}</TableCell>
-                    <TableCell className="text-right">
-                      {p.sessions_remaining !== null ? p.sessions_remaining : "—"}
-                    </TableCell>
-                    <TableCell>
-                      {p.expires_at ? format(new Date(p.expires_at), "MMM d, yyyy") : "—"}
-                    </TableCell>
-                    <TableCell className="text-sm text-muted-foreground">
-                      {format(new Date(p.purchased_at), "MMM d, yyyy")}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {purchases.map(p => {
+                  const refundable = p.status === "active" || p.status === "pending_payment";
+                  return (
+                    <TableRow key={p.id}>
+                      <TableCell className="font-medium">{p.clientName}</TableCell>
+                      <TableCell>{p.service_name}</TableCell>
+                      <TableCell className="text-right">{p.quantity}</TableCell>
+                      <TableCell className="text-right tabular-nums">
+                        {p.sessions_consumed} / {p.sessions_total}
+                      </TableCell>
+                      <TableCell>
+                        <StatusBadge status={p.status} />
+                      </TableCell>
+                      <TableCell>
+                        {p.expires_at ? format(new Date(p.expires_at), "MMM d, yyyy") : "—"}
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        {format(new Date(p.purchased_at), "MMM d, yyyy")}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {refundable ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setRefundTarget({
+                              id: p.id,
+                              status: p.status,
+                              total_paid_kwd: p.total_paid_kwd,
+                              payment_id: p.payment_id,
+                              expires_at: p.expires_at,
+                              sessions_total: p.sessions_total,
+                              sessions_consumed: p.sessions_consumed,
+                              service_name: p.service_name,
+                              client_name: p.clientName,
+                            })}
+                          >
+                            <Undo2 className="h-3.5 w-3.5 mr-1" />
+                            Refund
+                          </Button>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </CardContent>
         </Card>
       )}
+
+      <RefundAddonDialog
+        purchase={refundTarget}
+        open={!!refundTarget}
+        onOpenChange={(open) => { if (!open) setRefundTarget(null); }}
+        onRefunded={() => {
+          hasFetched.current = false;
+          fetchData();
+        }}
+      />
 
       {/* Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -493,5 +550,23 @@ export function AddonServicesManager() {
         </DialogContent>
       </Dialog>
     </div>
+  );
+}
+
+const STATUS_BADGE_VARIANT: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
+  active: "default",
+  pending_payment: "outline",
+  consumed: "secondary",
+  expired: "secondary",
+  refunded: "destructive",
+  voided: "destructive",
+};
+
+function StatusBadge({ status }: { status: string }) {
+  const variant = STATUS_BADGE_VARIANT[status] ?? "outline";
+  return (
+    <Badge variant={variant} className="text-[10px] uppercase tracking-wide">
+      {status.replace(/_/g, " ")}
+    </Badge>
   );
 }
