@@ -6691,6 +6691,7 @@ export type Database = {
       }
       testimonials: {
         Row: {
+          author_display_name: string | null
           coach_id: string | null
           created_at: string | null
           duration_weeks: number | null
@@ -6705,6 +6706,7 @@ export type Database = {
           weight_change_kg: number | null
         }
         Insert: {
+          author_display_name?: string | null
           coach_id?: string | null
           created_at?: string | null
           duration_weeks?: number | null
@@ -6719,6 +6721,7 @@ export type Database = {
           weight_change_kg?: number | null
         }
         Update: {
+          author_display_name?: string | null
           coach_id?: string | null
           created_at?: string | null
           duration_weeks?: number | null

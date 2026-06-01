@@ -144,3 +144,8 @@ verify_jwt = false
 
 [functions.send-weekly-coach-digest]
 verify_jwt = false
+
+# Anon-callable: public marketing forms (Waitlist + Footer newsletter).
+# Internal bot defense via server-side Turnstile verification.
+[functions.submit-lead]
+verify_jwt = false

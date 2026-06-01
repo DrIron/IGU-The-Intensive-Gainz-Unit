@@ -16,6 +16,7 @@ import { SEOHead } from "@/components/SEOHead";
 import { useSiteContent, parseJsonField } from "@/hooks/useSiteContent";
 import { useFadeUp } from "@/hooks/useFadeUp";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { captureException } from "@/lib/errorLogging";
 import { FAQSection } from "@/components/marketing/FAQSection";
 import { HowItWorksSection } from "@/components/marketing/HowItWorksSection";
 
@@ -35,9 +36,9 @@ interface Testimonial {
   user_id: string;
   coach_id: string | null;
   created_at: string;
-  profiles?: {
-    full_name: string;
-  };
+  // B9-N1: snapshotted at submission time so anon homepage browsers can read
+  // the author name off the (anon-readable) testimonials row.
+  author_display_name: string | null;
   coaches?: {
     first_name: string;
     last_name: string;
@@ -221,19 +222,13 @@ export default function Index() {
 
       if (error) throw error;
 
-      // Fetch related data separately
+      // Author name is read directly off the row (B9-N1: snapshotted at submit
+      // time). Only the coach name still needs a lookup, via the public-safe
+      // coaches_directory view.
       const testimonialsWithDetails = await Promise.all(
         (data || []).map(async (testimonial) => {
-          // Use profiles_private for full_name (testimonials are public display, admin can access)
-          const { data: profile } = await supabase
-            .from("profiles_private")
-            .select("full_name")
-            .eq("profile_id", testimonial.user_id)
-            .maybeSingle();
-
           let coach = null;
           if (testimonial.coach_id) {
-            // Use coaches_directory (public-safe view) for testimonial display
             const { data: coachData } = await supabase
               .from("coaches_directory")
               .select("first_name, last_name")
@@ -244,15 +239,14 @@ export default function Index() {
 
           return {
             ...testimonial,
-            profiles: profile,
             coaches: coach,
           };
         })
       );
 
       setTestimonials(testimonialsWithDetails);
-    } catch (error: any) {
-      console.error("Error loading testimonials:", error);
+    } catch (error: unknown) {
+      captureException(error, { source: "Index.loadTestimonials" });
     }
   }, []);
 
@@ -663,12 +657,12 @@ export default function Index() {
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
                       <span className="text-lg font-bold text-primary">
-                        {testimonial.profiles?.full_name?.charAt(0) || "?"}
+                        {testimonial.author_display_name?.charAt(0) || "?"}
                       </span>
                     </div>
                     <div>
                       <p className="font-semibold">
-                        {testimonial.profiles?.full_name || "Anonymous"}
+                        {testimonial.author_display_name || "Anonymous"}
                       </p>
                       {testimonial.coaches && (
                         <p className="text-sm text-muted-foreground">

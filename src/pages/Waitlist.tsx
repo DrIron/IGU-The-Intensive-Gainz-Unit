@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +11,10 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 import { useSocialLinks, getSocialIcon, getSocialLabel } from "@/hooks/useSocialLinks";
 import { getUTMParams } from "@/lib/utm";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { captureException } from "@/lib/errorLogging";
 import { SEOHead } from "@/components/SEOHead";
+
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 
 export default function Waitlist() {
   const { toast } = useToast();
@@ -23,6 +27,8 @@ export default function Waitlist() {
   const [subheading, setSubheading] = useState(
     "We're building something great. Join the waitlist to be first in line."
   );
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
   const hasFetched = useRef(false);
 
   useEffect(() => {
@@ -51,41 +57,36 @@ export default function Waitlist() {
     setLoading(true);
     try {
       const utmParams = getUTMParams();
-      const { error } = await supabase.from("leads").insert({
-        email: email.trim().toLowerCase(),
-        name: name.trim() || null,
-        source: "waitlist",
-        ...utmParams,
+      // B10-N1: route through the submit-lead edge fn, which verifies the
+      // Turnstile token server-side before inserting (the leads INSERT policy
+      // itself requires no token, so client-side Turnstile alone is bypassable).
+      // The edge fn returns an identical success shape for new + duplicate
+      // emails (no info leakage) and owns the waitlist confirmation email.
+      const { data, error } = await supabase.functions.invoke("submit-lead", {
+        body: {
+          email: email.trim().toLowerCase(),
+          name: name.trim() || null,
+          source: "waitlist",
+          turnstile_token: turnstileToken,
+          ...utmParams,
+        },
       });
 
-      if (error) {
-        if (error.code === "23505") {
-          // Duplicate email -- show success anyway (no info leakage)
-          setSubmitted(true);
-        } else {
-          throw error;
-        }
-      } else {
-        setSubmitted(true);
-
-        // Fire-and-forget confirmation email
-        supabase.functions
-          .invoke("send-waitlist-confirmation", {
-            body: {
-              email: email.trim().toLowerCase(),
-              name: name.trim() || "there",
-            },
-          })
-          .catch((err: unknown) => {
-            console.error("Waitlist confirmation email failed:", err);
-          });
+      if (error || (data && data.error)) {
+        throw error || new Error(data.error);
       }
+
+      setSubmitted(true);
     } catch (error: unknown) {
+      captureException(error, { source: "Waitlist.handleSubmit" });
       toast({
         title: "Something went wrong",
         description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
+      // Let the visitor retry: reset the (single-use) Turnstile token.
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     } finally {
       setLoading(false);
     }
@@ -155,11 +156,22 @@ export default function Waitlist() {
                       required
                     />
                   </div>
+                  {TURNSTILE_SITE_KEY && (
+                    <div className="flex justify-center">
+                      <Turnstile
+                        ref={turnstileRef}
+                        siteKey={TURNSTILE_SITE_KEY}
+                        onSuccess={setTurnstileToken}
+                        onExpire={() => setTurnstileToken(null)}
+                        options={{ theme: "dark" }}
+                      />
+                    </div>
+                  )}
                   <Button
                     type="submit"
                     variant="gradient"
                     className="w-full"
-                    disabled={loading}
+                    disabled={loading || (!!TURNSTILE_SITE_KEY && !turnstileToken)}
                   >
                     {loading ? (
                       <>
