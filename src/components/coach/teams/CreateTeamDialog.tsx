@@ -134,8 +134,16 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
 
       onCreated();
     } catch (error: any) {
+      // B7-N11: the server-side cap (enforce_max_teams_per_coach) is now
+      // authoritative -- surface its P0001 with a clear title even if the
+      // client-side pre-check above was bypassed (stale count, direct call).
+      const isMaxTeams = error?.code === "P0001" || /3 active teams/i.test(error?.message ?? "");
       toast({
-        title: editTeam ? "Error updating team" : "Error creating team",
+        title: isMaxTeams
+          ? "Team limit reached"
+          : editTeam
+            ? "Error updating team"
+            : "Error creating team",
         description: sanitizeErrorForUser(error),
         variant: "destructive",
       });

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { assignProgramToClient } from "@/lib/assignProgram";
+import { assignTeamProgram } from "@/lib/assignProgram";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -29,7 +29,6 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { Tables } from "@/integrations/supabase/types";
 
@@ -73,7 +72,6 @@ export const AssignTeamProgramDialog = memo(function AssignTeamProgramDialog({
   const [startDate, setStartDate] = useState<Date>(new Date());
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
-  const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [errors, setErrors] = useState<string[]>([]);
   const { toast } = useToast();
 
@@ -119,7 +117,6 @@ export const AssignTeamProgramDialog = memo(function AssignTeamProgramDialog({
       setLoading(true);
       setSelectedProgramId("");
       setErrors([]);
-      setProgress({ current: 0, total: 0 });
       loadPrograms();
     }
   }, [open, loadPrograms]);
@@ -138,85 +135,53 @@ export const AssignTeamProgramDialog = memo(function AssignTeamProgramDialog({
     }
 
     setAssigning(true);
-    setProgress({ current: 0, total: activeMembers.length });
     setErrors([]);
 
-    const assignmentErrors: string[] = [];
-    let successCount = 0;
-    let completed = 0;
-
-    const results = await Promise.allSettled(
-      activeMembers.map((member) =>
-        assignProgramToClient({
-          coachUserId,
-          clientUserId: member.userId,
-          subscriptionId: member.subscriptionId,
-          programTemplateId: selectedProgramId,
-          startDate,
-          teamId: team.id,
-        }).then((result) => {
-          completed++;
-          setProgress({ current: completed, total: activeMembers.length });
-          return result;
-        })
-      )
-    );
-
-    results.forEach((settled, i) => {
-      const member = activeMembers[i];
-      const label = member.displayName || member.firstName;
-      if (settled.status === "fulfilled") {
-        if (settled.value.success) {
-          successCount++;
-        } else {
-          assignmentErrors.push(`${label}: ${settled.value.error}`);
-        }
-      } else {
-        assignmentErrors.push(`${label}: ${sanitizeErrorForUser(settled.reason)}`);
-      }
+    // B7-N7: one atomic RPC fans out to every active member + sets the team
+    // pointer server-side, replacing the per-member Promise.allSettled loop.
+    const result = await assignTeamProgram({
+      teamId: team.id,
+      programTemplateId: selectedProgramId,
+      startDate,
     });
 
-    // Update team's current program template
-    let teamPointerError: string | null = null;
-    if (successCount > 0) {
-      const { error: teamErr } = await supabase
-        .from("coach_teams")
-        .update({ current_program_template_id: selectedProgramId })
-        .eq("id", team.id);
-      if (teamErr) {
-        teamPointerError = sanitizeErrorForUser(teamErr);
-      }
-    }
-
-    setErrors(assignmentErrors);
-
-    if (assignmentErrors.length === 0) {
+    if (!result.success || !result.data) {
       toast({
-        title: "Program assigned",
-        description: `Program assigned to ${successCount} team members.`,
-      });
-      if (!teamPointerError) {
-        onOpenChange(false);
-      }
-      onAssigned?.();
-    } else if (successCount > 0) {
-      toast({
-        title: "Partial success",
-        description: `Program assigned to ${successCount} of ${activeMembers.length} members. ${assignmentErrors.length} failed.`,
+        title: "Assignment failed",
+        description: sanitizeErrorForUser(result.error),
         variant: "destructive",
       });
+      setAssigning(false);
+      return;
+    }
+
+    const { members_inserted, members_skipped_existing, members_failed, members: memberResults } = result.data;
+
+    // Resolve per-member failure labels from the dialog's member list.
+    const nameByUser = new Map(members.map((m) => [m.userId, m.displayName || m.firstName]));
+    setErrors(
+      memberResults
+        .filter((m) => m.status === "failed")
+        .map((m) => `${nameByUser.get(m.user_id) ?? m.user_id}: ${m.error ?? "failed"}`)
+    );
+
+    if (members_failed === 0) {
+      const parts = [`${members_inserted} assigned`];
+      if (members_skipped_existing > 0) parts.push(`${members_skipped_existing} already had it`);
+      toast({ title: "Program assigned", description: `${parts.join(", ")}.` });
+      onOpenChange(false);
+      onAssigned?.();
+    } else if (members_inserted > 0 || members_skipped_existing > 0) {
+      toast({
+        title: "Partial success",
+        description: `${members_inserted} assigned, ${members_skipped_existing} skipped, ${members_failed} failed.`,
+        variant: "destructive",
+      });
+      onAssigned?.();
     } else {
       toast({
         title: "Assignment failed",
-        description: "Failed to assign program to any team members.",
-        variant: "destructive",
-      });
-    }
-
-    if (teamPointerError) {
-      toast({
-        title: "Team pointer update failed",
-        description: `Program assigned to ${successCount} member${successCount === 1 ? "" : "s"}, but team pointer update failed: ${teamPointerError}`,
+        description: "Failed to assign the program to any team member.",
         variant: "destructive",
       });
     }
@@ -326,13 +291,11 @@ export const AssignTeamProgramDialog = memo(function AssignTeamProgramDialog({
             )}
           </div>
 
-          {/* Progress bar during assignment */}
+          {/* Assignment in progress (single atomic server call) */}
           {assigning && (
-            <div className="space-y-2">
-              <Progress value={(progress.current / progress.total) * 100} />
-              <p className="text-sm text-center text-muted-foreground">
-                Assigning {progress.current} / {progress.total}...
-              </p>
+            <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Assigning to team...
             </div>
           )}
 
