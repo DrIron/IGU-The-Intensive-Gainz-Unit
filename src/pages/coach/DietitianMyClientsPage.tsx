@@ -72,30 +72,31 @@ export default function DietitianMyClientsPage() {
 
       // 1) Active dietitian assignments for this viewer.
       //
-      // Matches the helper `is_dietitian_for_client` (migration
-      // 20260207100001_dietitian_tables_functions.sql:77) which filters
-      // `status='active'`. The newer `lifecycle_status` column exists but
-      // the SECURITY DEFINER helper still keys on `status`, so the RLS
-      // policy added in 20260513194511 only opens up rows where
-      // `status='active'`. Match here to avoid showing rows the user can't
-      // actually read from `subscriptions` / `profiles_public`.
+      // Match the RLS opened by is_dietitian_for_client + the dietitian
+      // subscriptions/profiles_public policies, which (post-B5-N6) key on
+      // `lifecycle_status IN ('active','scheduled_end')`. Mirror that filter
+      // here so we don't show rows the user can't actually read downstream.
       const { data: assignments, error: assignmentsError } = await supabase
         .from("care_team_assignments")
-        .select("client_id, status, created_at")
+        .select("client_id, lifecycle_status, created_at")
         .eq("staff_user_id", dietitianId)
         .eq("specialty", "dietitian")
-        .eq("status", "active");
+        .in("lifecycle_status", ["active", "scheduled_end"]);
 
       if (assignmentsError) throw assignmentsError;
 
       const assignmentByClient = new Map<string, { status: string; created_at: string }>();
       for (const a of assignments ?? []) {
-        // First assignment wins for duplicate (client_id, dietitian, dietitian)
-        // rows -- the partial unique index in `care_team_assignments` prevents
-        // duplicate ACTIVE rows, so this is a safety guard, not the norm.
+        const ls = a.lifecycle_status as string;
+        // B5-N6 / Sentinel 1: active + scheduled_end both surface as "Active"
+        // (no separate "winding down" label).
+        const isActive = ls === "active" || ls === "scheduled_end";
+        // First assignment wins for duplicate (client_id, dietitian) rows --
+        // the partial unique index prevents duplicate ACTIVE rows, so this is a
+        // safety guard, not the norm.
         if (!assignmentByClient.has(a.client_id as string)) {
           assignmentByClient.set(a.client_id as string, {
-            status: (a.status as string) ?? "active",
+            status: isActive ? "active" : ls,
             created_at: a.created_at as string,
           });
         }
