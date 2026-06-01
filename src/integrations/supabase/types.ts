@@ -6691,6 +6691,7 @@ export type Database = {
       }
       testimonials: {
         Row: {
+          author_display_name: string | null
           coach_id: string | null
           created_at: string | null
           duration_weeks: number | null
@@ -6705,6 +6706,7 @@ export type Database = {
           weight_change_kg: number | null
         }
         Insert: {
+          author_display_name?: string | null
           coach_id?: string | null
           created_at?: string | null
           duration_weeks?: number | null
@@ -6719,6 +6721,7 @@ export type Database = {
           weight_change_kg?: number | null
         }
         Update: {
+          author_display_name?: string | null
           coach_id?: string | null
           created_at?: string | null
           duration_weeks?: number | null
@@ -7475,6 +7478,10 @@ export type Database = {
         Args: { p_coach_user_id: string; p_service_id: string }
         Returns: boolean
       }
+      complete_client_day_module: {
+        Args: { p_module_id: string }
+        Returns: Json
+      }
       convert_muscle_plan_to_program: {
         Args: {
           p_coach_id: string
@@ -8003,6 +8010,10 @@ export type Database = {
       is_primary_coach_for_user: {
         Args: { p_client_uid: string; p_coach_uid: string }
         Returns: boolean
+      }
+      join_team: {
+        Args: { p_subscription_id: string; p_team_id: string }
+        Returns: Json
       }
       list_active_coaches_for_service: {
         Args: { p_service_id: string }

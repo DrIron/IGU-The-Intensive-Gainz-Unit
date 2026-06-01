@@ -1,6 +1,6 @@
 # IGU pre-launch deep-dive review — findings & handover
 
-**Last updated:** 2026-05-31 (Block 7 audit appended)
+**Last updated:** 2026-06-01 (Blocks 9 + 10 audits appended)
 **Launch target:** 2026-07-12 (Sun) 09:00 Kuwait. Public signup opens 2026-07-14. Launch date may slip — Hasan prefers complete structural fixes over deadline-driven workarounds.
 
 This document tracks the 10-block pre-launch audit (per `docs/pre-launch-review.md` or the original prompt set). Append findings here; bring any new P0 back to triage before fix.
@@ -19,8 +19,8 @@ This document tracks the 10-block pre-launch audit (per `docs/pre-launch-review.
 | 6  | Sessions / PT bookings      | ⏳ Not started    | —                                     |
 | 7  | Teams feature               | ✅ Complete (audit) | ❌ NOT shipped. 5 P0s (anon team browser shows "Coach", coach_id orphan after ChooseTeamPrompt/ChangeTeamDialog, `assign_program_to_client` unguarded, subscription column-write hole — billing bypass confirmed live, client-side once-per-cycle gate). 7 P1s + 7 P2s open. |
 | 8  | Coach experience            | ✅ Complete       | ✅ Shipped 2026-05-23: edge functions deployed, FE pushed (commit 68584a2 on main), migration applied via MCP `apply_migration` after `db push` blocked on the 15-entry version-string drift. P2s deferred. **D6 drift cleanup closed 2026-05-23 — `db push` unblocked.** |
-| 9  | Testimonials                | ⏳ Not started    | —                                     |
-| 10 | Public marketing site       | ⏳ Not started    | —                                     |
+| 9  | Testimonials                | ✅ Complete (audit) | 🟡 Partial. **B9-N1 P0 SHIPPED** (author-name snapshot column + FE swap, applied to prod + live-probed). B9-N2 P0 (banned FK join in `process-testimonial-requests`) still open. 7 P1s + 6 P2s open. |
+| 10 | Public marketing site       | ✅ Complete (audit) | 🟡 Partial. **B10-N1 P1 SHIPPED** (Turnstile + `submit-lead` server-side verification on Waitlist + Footer; edge fn deployed, awaiting `TURNSTILE_SECRET_KEY` provisioning to activate enforcement). B10-N2/N3 P1s (silent-error reads) + B10-N4 (console.error) still open. 5 P2s open. Branding clean on marketing copy. |
 
 **What "shipped" means here:** edge functions deployed via `supabase functions deploy`, FE committed to main triggering Vercel auto-deploy, migrations applied to prod via `mcp__supabase__apply_migration` and verified live.
 
@@ -621,10 +621,90 @@ Recommended ship order:
 
 ---
 
-## Blocks 9-10 -- NOT STARTED
+## Block 9 -- Testimonials findings
 
-9. **Testimonials** -- small surface, low risk.
-10. **Public marketing site** -- branding, Lighthouse, Arabic coverage, waitlist → signup cutover plan.
+**Audit completed 2026-06-01.** Surfaces audited: migrations `20251006103630_*` (table creation), `20251014151808_*` (is_archived column), `20260208110007_testimonials_public.sql` (anon SELECT policy), `20260208110008_testimonials_stats.sql` (transformation stats columns), `20260304100000_email_types.sql`, `20251026195543_*` (admin analytics RPC); FE files `src/pages/Testimonial.tsx`, `src/pages/TestimonialsManagement.tsx`, `src/components/TestimonialsManager.tsx`, `src/pages/Index.tsx:212-257` (homepage testimonial load); edge function `supabase/functions/process-testimonial-requests/index.ts`; live MCP `execute_sql` probes against prod for testimonials column list + RLS verification (anon read of approved-only works, anon INSERT blocked at table-grant layer).
+
+### Verified-good (live probes)
+
+- **Anon CAN read approved testimonials, CANNOT read pending ones.** `SET LOCAL ROLE anon` → SELECT on `testimonials WHERE is_approved=true AND is_archived=false` works (the `"Anyone can view approved testimonials"` policy, TO anon+authenticated). Pending testimonials hidden. Prod currently has 0 approved + 0 pending so the count returned 0; policy is correctly scoped.
+- **Anon INSERT blocked at the table-grant layer.** `INSERT INTO testimonials ...` as anon → `ERROR 42501: permission denied for table testimonials`. The user-INSERT policy requires `auth.uid() = user_id`, plus there's no `GRANT INSERT TO anon`. Both layers hold.
+- **Rating CHECK (1-5) holds.** Out-of-range submissions rejected at the column constraint.
+
+### P0 -- must ship before launch
+
+- **B9-N1 [P0]** `src/pages/Index.tsx:228-232` loads `profiles_private.full_name` to display author names on the public homepage testimonial cards. **Live-verified**: anon SELECT on `profiles_private` raises `42501 permission denied for table profiles_private` -- the table has `tpl1_self_select USING (auth.uid() = profile_id)` only, no anon path. **Every visitor to the homepage sees testimonials WITHOUT author names.** Authenticated non-admin visitors see their own row only and so still see "Unknown" on every other testimonial. Only admins see names. **Fix options (pick one):** (a) snapshot `display_name` onto the testimonial row at submission time -- `ALTER TABLE testimonials ADD COLUMN author_display_name TEXT`, populate in the `Testimonial.tsx` insert path, backfill on the admin approval step; (b) new SECURITY DEFINER RPC `list_approved_testimonials_for_browser()` that bundles testimonials + author display_name + coach name in one round-trip, callable by anon (mirrors PR #126's `list_public_teams_for_browser`); (c) flip Index.tsx to read `profiles_public.display_name` -- but that policy is `TO authenticated USING (auth.uid() IS NOT NULL)`, also blocks anon. **(a) is simplest and avoids a new RPC**; (b) is the cleanest separation of concerns. Either way: REVOKE EXECUTE FROM anon if (b) is chosen except for the one intentionally-anon function (per `memory/feedback_supabase_default_grants_to_anon.md`). **✅ SHIPPED 2026-06-01 (option a):** migration `20260601130000_testimonials_snapshot_author_name.sql` adds `author_display_name TEXT` + one-shot backfill; `Testimonial.tsx` snapshots `COALESCE(display_name, first_name, 'Anonymous')` at submit (RLS self-read, `withTimeout` 5s); `Index.tsx` reads it off the row and drops the `profiles_private` query. Applied to prod via `db push`; live-probed (anon read of an approved row returns the snapshotted name; 0 NULL author rows post-backfill).
+- **B9-N2 [P0]** `supabase/functions/process-testimonial-requests/index.ts:59` -- `supabase.from("subscriptions").select("..., services(name)")` uses the banned nested FK join on `subscriptions`. Same class as Blocks 4 + 1 findings already shipped. **Fix:** split into two queries -- fetch subscriptions first, then map service names from a separate `services.select('id, name').in('id', service_ids)` lookup. Edge fn runs weekly cron, low blast radius, but per CLAUDE.md project rule #1 must be fixed.
+
+### P1 -- ship before launch, not blocking
+
+- **B9-N3 [P1]** `supabase/functions/process-testimonial-requests/index.ts:152-157` -- `email_notifications.insert(...)` no destructured `{ error }` check. Silent failure → dedup lookup at line 91-96 finds no record next week → duplicate testimonial-request email sent. Trip wire: a one-line `if (error) throw` per CLAUDE.md.
+- **B9-N4 [P1]** `src/pages/TestimonialsManagement.tsx:128-153` + `:156-181` -- admin approve/archive UPDATEs destructure error but no rows-affected check. RLS denial (e.g. role lost mid-session) = success toast fires while DB unchanged. Same class as PR #117 / B6-N3. Add `.select('id')` + `if (!data || data.length === 0) throw "Update not persisted"`.
+- **B9-N5 [P1]** **Duplicate component pair**: `src/pages/TestimonialsManagement.tsx` (legacy standalone page mounted at `/testimonials-management`) and `src/components/TestimonialsManager.tsx` (modern component mounted inside the admin dashboard shell). The component is better: uses `withTimeout`, `hasFetched` ref guard, `admin_get_profile_private` RPC for private data. The legacy page reads `profiles` view directly + assumes `full_name` column (which DOES exist on `profiles_private`, but the join via the view is unreliable). **Fix:** delete `src/pages/TestimonialsManagement.tsx` + remove the standalone route in `src/App.tsx` (route already lives inside admin dashboard via `TestimonialsManager` mount); redirect the legacy URL to `/admin?tab=testimonials` or equivalent for old bookmarks.
+- **B9-N6 [P1]** `src/pages/Testimonial.tsx:30` + `src/pages/TestimonialsManagement.tsx:40` -- `supabase.auth.getUser()` no 8s timeout. Same GoTrueClient deadlock class as B5-N2 / B4-N11 / multiple Block 3 P1s.
+- **B9-N7 [P1]** `src/pages/Testimonial.tsx:36-40` -- `coaches_directory` lookup uses `.single()`. Throws 406 if the coach isn't found OR isn't `status='active'` (the view filter excludes inactive). Page hangs in the loading state. Should be `.maybeSingle()` with a fallback "your coach" header. Per CLAUDE.md `.single()` rule.
+- **B9-N8 [P1]** `testimonials` table has no `feedback` length CHECK. `src/pages/Testimonial.tsx:87-92` inserts whatever the client typed. A malicious authed user can submit a megabyte feedback. Add `ALTER TABLE testimonials ADD CONSTRAINT testimonials_feedback_length CHECK (char_length(feedback) BETWEEN 1 AND 4000);` -- same pattern as `coach_client_messages.message`.
+- **B9-N9 [P1]** No anti-spam on testimonial INSERT. Same user can submit unlimited testimonials. Pragmatic add: `UNIQUE (user_id, coach_id)` (or `UNIQUE (user_id, coach_id, COALESCE(coach_id, '00000000-...'))` to allow re-submission for different coaches but not the same combo). Combined with N8 length cap, mitigates spam without preventing legitimate per-coach reviews.
+
+### P2 -- post-launch cleanup
+
+- **B9-N10 [P2]** `src/pages/Testimonial.tsx:44, 104` + `src/pages/Index.tsx:255` -- `console.error` instead of `captureException` from `@/lib/errorLogging`. Cross-block silent-mutation/logging sweep candidate.
+- **B9-N11 [P2]** `/testimonial` route is wrapped only in `<WaitlistGuard><PublicLayout>` -- no `AuthGuard`. The page itself checks `if (!user)` at submit time and redirects to `/auth`, so functional, but route-level gate is cleaner.
+- **B9-N12 [P2]** CLAUDE.md profiles_private column list (§ 5 Database Schema) omits `full_name`. The column exists in prod (live-confirmed). Doc drift.
+- **B9-N13 [P2]** `src/pages/Testimonial.tsx:134` -- coach name display ``${coach.first_name} ${coach.last_name}`` interpolates undefined when `last_name` is null. Should null-guard like ChooseTeamPrompt does.
+- **B9-N14 [P2]** `process-testimonial-requests` uses `console.error` -- edge functions don't have `captureException` so this is the only option; flagged so the cross-block sweep doesn't try to "fix" it.
+- **B9-N15 [P2]** `testimonials` policies use legacy `has_role(auth.uid(), 'admin')` without the `(SELECT auth.uid())` initplan-optimization rewrite that migration `20260219100000` applied to 28 other policies. Mild perf cost (worse than the rewritten policies on large tables); fix when nearby.
+
+---
+
+## Block 10 -- Public marketing site findings
+
+**Audit completed 2026-06-01.** Surfaces audited: `src/pages/Index.tsx`, `src/pages/Waitlist.tsx`, `src/pages/Services.tsx` (re-scanned, no new findings beyond existing audits), `src/pages/MeetOurTeam.tsx` (Block 8 already touched), `src/pages/CalorieCalculator.tsx`, `src/pages/Auth.tsx` (Block 3 already audited -- spot-checked for newsletter-signup leakage), `src/components/WaitlistGuard.tsx`, `src/lib/utm.ts`, migrations `20260208110000_create_leads.sql`, `20260420100000_tighten_anon_rls.sql`, `20260218100000_waitlist_settings.sql`, `20260207200001_seed_site_content.sql` + `20260513120000_rebrand_inperson_description.sql` (branding pass), `src/hooks/useSocialLinks.ts`; package.json (Turnstile is installed but only wired into `CoachApplicationForm.tsx`); i18n locales `src/i18n/locales/{en,ar}/{nav,common}.json`.
+
+### Verified-good
+
+- **Branding clean on marketing copy.** Grep across `src/` for "Dr Iron" / "Dr. Iron" / "dr-iron" / "dr_iron" returns ZERO matches outside CLAUDE.md/docs/migration files. Migration `20260513120000_rebrand_inperson_description.sql` fixed the seeded `homepage/programs/inperson_description` copy. The only remaining "Dr. Iron" references in prod are `site_content.homepage.footer.about` and `homepage.footer.copyright` -- intentional per the migration comment ("legal entity name, not marketing copy") -- IGU is a brand under "Dr. Iron International Sports Consultancy".
+- **`leads` INSERT policy hardened.** Migration `20260420100000_tighten_anon_rls.sql` replaced the `WITH CHECK (true)` policy with email-regex + length-cap validation. Bot payload size is bounded.
+- **`WaitlistGuard` has a 3s `getUser()` timeout** at line 33-41 -- addresses the GoTrueClient deadlock class. Fails open on error (`setAllowed(true)` in the catch) -- correct choice for availability on the public surface.
+- **`@marsidev/react-turnstile` is installed** (package.json) and wired into `CoachApplicationForm.tsx`. The plumbing exists for the Waitlist + newsletter forms to use it too.
+
+### P0 -- must ship before launch
+
+(Inherits B9-N1 -- the homepage testimonial author-name bug is a Block-10 visible defect even though its root cause is in Block 9 territory. Fix in the Block-9 cluster.)
+
+### P1 -- ship before launch, not blocking
+
+- **B10-N1 [P1]** `src/pages/Waitlist.tsx` + `src/pages/Index.tsx` newsletter-signup forms write to `leads` (anon-allowed by the hardened policy) **without Turnstile/CAPTCHA protection**. Per memory `feedback_supabase_default_grants_to_anon.md` and CLAUDE.md, every anon-writable endpoint should have bot defense before public launch. The Turnstile component is already wired into `CoachApplicationForm.tsx` -- copy the integration pattern. Same defense should apply to `team_waitlist` (B7-N14 carry-over). **Fix:** add `<Turnstile siteKey={...} onSuccess={token => setTurnstileToken(token)} />` to the Waitlist form, gate submit on `turnstileToken`, send token in the `leads.insert` body or via an edge function that verifies it server-side. Without an edge function the token isn't validated -- if you want true bot defense, route the insert through a new `submit-waitlist` edge function. **✅ SHIPPED 2026-06-01:** new `submit-lead` edge function (deployed `--no-verify-jwt`) verifies the Turnstile token against Cloudflare's siteverify endpoint server-side, then inserts with the service-role client (leads CHECK constraint still applies). The two live callsites swapped: `Waitlist.tsx` + `Footer.tsx` (the newsletter form lives in Footer, not Index directly) now render `<Turnstile>` when `VITE_TURNSTILE_SITE_KEY` is set, gate submit on the token, and `supabase.functions.invoke("submit-lead", ...)`. Identical success shape for new + duplicate emails (no info leakage). **Deploy step:** `supabase secrets set TURNSTILE_SECRET_KEY=<value>` — until provisioned the edge fn skips verification (dev fallback); enforcement (invalid/missing token → 400) activates once the secret is set. The `leads` INSERT policy intentionally stays anon-writable (dev convenience); the edge fn is the bot defense, not a policy lock. `team_waitlist` (B7-N14) still needs the same treatment.
+- **B10-N2 [P1]** `src/pages/Waitlist.tsx:33-37` -- `waitlist_settings` SELECT no destructured `{ error }` check. Silent failure path uses default copy ("Coming Soon"). Functional but masks RLS / network issues from monitoring. Per CLAUDE.md project rule "always destructure { error }".
+- **B10-N3 [P1]** `src/components/WaitlistGuard.tsx:50-54` -- same pattern. Silent error → fails open via `setAllowed(true)`. Acceptable from a UX standpoint but should still log via `captureException`.
+- **B10-N4 [P1]** `src/pages/Waitlist.tsx:80` + `src/components/WaitlistGuard.tsx:66` + `src/pages/Index.tsx:151,186,255` -- `console.error` instead of `captureException`. Public-page errors are the most visible class -- this is the surface that loses the most observability when errors get swallowed silently.
+
+### P2 -- post-launch cleanup
+
+- **B10-N5 [P2]** `src/pages/Auth.tsx` signup flow does NOT create a `leads` row for new direct signups -- only the `Waitlist.tsx` form writes to `leads`. Missing UTM-attribution capture for the direct-signup path. Cron `process-lead-nurture` won't have these to nurture (but they're already converted to subscriptions, so the cron's filter excludes them anyway). Cosmetic.
+- **B10-N6 [P2]** **No Arabic i18n coverage for marketing pages.** `i18n/locales/{en,ar}/{nav,common}.json` exist; `Index.tsx`, `Services.tsx`, `Waitlist.tsx`, `MeetOurTeam.tsx`, `CalorieCalculator.tsx` are English-only at the source (with the exception of dynamic `site_content` CMS values that admins can edit per language manually). Pre-launch Arabic coverage would need: (a) a `marketing` i18n namespace + per-page translation pull; (b) bilingual `site_content` rows (currently single-value). Significant work; flag for product priority, not a blocker for English launch. RTL/`dir` flip already works.
+- **B10-N7 [P2]** `src/lib/utm.ts` uses `sessionStorage` -- UTM params lost on tab close. Fine for same-session attribution; consider `localStorage` with TTL for cross-tab/multi-session attribution. Cosmetic.
+- **B10-N8 [P2]** Footer copy "Dr. Iron International Sports Consultancy" in `site_content.homepage.footer.{about,copyright}` is intentional per migration `20260513120000` (legal entity name). Should be **explicitly documented as an exception** in CLAUDE.md § "Branding: always IGU, never Dr Iron" so a future audit doesn't try to scrub it.
+- **B10-N9 [P2]** `src/pages/Index.tsx` is 1700+ lines, several responsibilities (CTA derivation, testimonial load, services load, team plan settings, CMS content, hero animations). Extract sections (`TestimonialsSection`, `ServicesSection`, `HeroSection`) for maintainability. Pre-launch cosmetic.
+
+### Recommended Block 9 + 10 ship order
+
+1. **B9-N1** -- highest-impact visible defect on the public homepage. Either the snapshot-column approach (option a in the finding) or the new RPC (option b). 1-3 hours.
+2. **B9-N2 + B9-N3** -- bundle into one process-testimonial-requests fix (banned FK join + email_notifications insert error check). ~30 min.
+3. **B10-N1** -- Turnstile on Waitlist + Index newsletter forms. ~½ day if going via a new `submit-waitlist` edge fn for server-side token verification; ~2 hours for client-only verification.
+4. **B9-N4 + B9-N7 + B9-N8 + B9-N9** -- bundle: rows-affected check on Manager + .maybeSingle() in Testimonial.tsx + feedback length CHECK + UNIQUE (user_id, coach_id). ~½ day.
+5. **B9-N5** -- delete the duplicate TestimonialsManagement.tsx page + route. ~1 hour.
+6. **B9-N6 + B10-N2 + B10-N3 + B10-N4** -- bundle into the cross-block silent-mutation/logging sweep (deferred until after Blocks 9+10 land).
+7. **B10-N8** -- CLAUDE.md addition documenting the footer-copy exception. ~5 min.
+8. **B9 P2s (N10-N15)** + **B10 P2s (N5-N7, N9)** -- defer to post-launch.
+
+### Cross-block themes uncovered
+
+- **Profiles VIEW vs table confusion keeps biting public-facing reads.** B9-N1 (`Index.tsx` reads `profiles_private`) and B5-N3 (`CareTeamMessagesPanel` reads through banned FK join) are the same class -- the codebase treats `profiles` like a denormalized table that anyone can FK-join or read. The CLAUDE.md doc on this is accurate but needs to be quoted directly in PR reviews going forward.
+- **Anon-writable surfaces still missing bot defense.** `leads`, `team_waitlist`, the future `submit-waitlist` route. The Turnstile component exists but is single-use on the coach application form. Consider a shared `WithTurnstile` HOC.
+- **Documentation drift accumulates.** CLAUDE.md is missing `full_name` on `profiles_private` (B9-N12), and lacks an explicit "legal entity name is exempt" note for the Dr. Iron branding rule (B10-N8). Worth a 30-min doc pass after the audit cycle completes.
+
+---
 
 Block 6 audit complete -- findings live in `memory/project_igu_prelaunch_audit_2026_05.md` (P0s B6-N1 + N2 + N8 + N12 + N4-PathB shipped; **N3 + N5 + N9 + N10 shipped 2026-05-31, see below**; N6 / N7 / N15 still open per the recommended ship order in that memory).
 

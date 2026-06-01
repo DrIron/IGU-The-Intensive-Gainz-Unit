@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { withTimeout } from "@/lib/withTimeout";
 import { SEOHead } from "@/components/SEOHead";
 
 const Testimonial = () => {
@@ -84,11 +85,30 @@ const Testimonial = () => {
 
     setSubmitting(true);
     try {
+      // B9-N1: snapshot the author's display name onto the testimonial row so
+      // anon homepage browsers can render it without traversing RLS-gated
+      // profiles_private/profiles_public. RLS allows the client to self-read
+      // its own profiles_public row.
+      const { data: ownProfile, error: profileError } = await withTimeout(
+        supabase
+          .from("profiles_public")
+          .select("display_name, first_name")
+          .eq("id", user.id)
+          .maybeSingle(),
+        5000,
+        "Load own profile for testimonial author name"
+      );
+      if (profileError) throw profileError;
+
+      const authorDisplayName =
+        ownProfile?.display_name || ownProfile?.first_name || "Anonymous";
+
       const { error } = await supabase.from("testimonials").insert({
         user_id: user.id,
         coach_id: coachId || null,
         rating,
         feedback: feedback.trim(),
+        author_display_name: authorDisplayName,
       });
 
       if (error) throw error;
