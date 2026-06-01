@@ -44,3 +44,6 @@ coverage/
 
 # Agents
 .agents/
+
+# Deno lockfile (edge fns checked ad-hoc; not committed)
+deno.lock
