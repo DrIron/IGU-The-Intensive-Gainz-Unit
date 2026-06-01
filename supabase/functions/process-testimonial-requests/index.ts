@@ -53,10 +53,13 @@ Deno.serve(async (req) => {
       now.getTime() - 42 * 24 * 60 * 60 * 1000
     ).toISOString();
 
-    // Find active subscriptions that started 4-6 weeks ago
+    // Find active subscriptions that started 4-6 weeks ago.
+    // B9-N2: nested FK join (services(name)) on subscriptions is banned per
+    // CLAUDE.md -- select the FK and resolve names via a separate query below
+    // (same class as the shipped B4-N8/N9/N10 fixes).
     const { data: eligibleSubs, error: fetchError } = await supabase
       .from("subscriptions")
-      .select("id, user_id, start_date, coach_id, services(name)")
+      .select("id, user_id, start_date, coach_id, service_id")
       .eq("status", "active")
       .lte("start_date", fourWeeksAgo)
       .gte("start_date", sixWeeksAgo);
@@ -75,6 +78,30 @@ Deno.serve(async (req) => {
     }
 
     results.eligible_clients = eligibleSubs.length;
+
+    // Resolve service names in one round-trip (replaces the banned nested join).
+    const serviceIds = Array.from(
+      new Set(
+        eligibleSubs
+          .map((s) => s.service_id)
+          .filter((id): id is string => !!id)
+      )
+    );
+    const servicesMap = new Map<string, string>();
+    if (serviceIds.length > 0) {
+      const { data: services, error: servicesError } = await supabase
+        .from("services")
+        .select("id, name")
+        .in("id", serviceIds);
+      if (servicesError) {
+        throw new Error(
+          `Failed to fetch service names: ${servicesError.message}`
+        );
+      }
+      for (const s of services ?? []) {
+        servicesMap.set(s.id as string, s.name as string);
+      }
+    }
 
     for (const sub of eligibleSubs) {
       try {
@@ -119,8 +146,7 @@ Deno.serve(async (req) => {
         }
 
         const firstName = profile.first_name || "there";
-        const serviceData = sub.services as any;
-        const serviceName = serviceData?.name || "IGU Coaching";
+        const serviceName = servicesMap.get(sub.service_id) ?? "IGU Coaching";
         const testimonialUrl = sub.coach_id
           ? AUTH_REDIRECT_URLS.testimonial(sub.coach_id)
           : `${AUTH_REDIRECT_URLS.dashboard}`;
