@@ -17,6 +17,7 @@ import {
 import { format, isToday, isYesterday, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { withTimeout } from "@/lib/withTimeout";
 import {
   type CareTeamMessage,
   type CareTeamMessageType,
@@ -72,75 +73,104 @@ export function CareTeamMessagesPanel({
     try {
       setLoading(true);
 
-      const { data: { user } } = await supabase.auth.getUser();
+      // B5-N2: getUser() had no timeout -- a GoTrueClient deadlock would hang the
+      // panel forever. 8s withTimeout (AuthGuard pattern); on timeout it throws,
+      // the catch below logs + drops to the empty state rather than crashing.
+      const { data: { user } } = await withTimeout(
+        supabase.auth.getUser(),
+        8000,
+        "getUser (care team messages panel)"
+      );
       if (!user) return;
       setCurrentUserId(user.id);
 
-      // Get messages for this client
-      const { data: messagesData, error: messagesError } = await supabase
-        .from('care_team_messages')
-        .select('*')
-        .eq('client_id', clientId)
-        .order('created_at', { ascending: true });
+      // Independent reads run in parallel (CLAUDE.md: Promise.all over serial calls).
+      // B5-N3: the care_team_assignments + subscriptions reads previously used
+      // BANNED nested PostgREST FK joins that embedded `coaches_client_safe` --
+      // a view that is RLS-broken (returns 0 rows to non-admin callers per
+      // migration 20260517104551) and does NOT cover non-coach staff (dietitians
+      // etc.) at all. Split into flat queries; resolve sender names from
+      // profiles_public, the same path the shipped coach<->client thread uses
+      // (CoachClientThread.tsx). NOTE: get_coach_for_client is NOT usable here --
+      // see the PR notes (its gate requires the caller to be the client).
+      const [messagesRes, teamRes, subRes] = await Promise.all([
+        supabase
+          .from('care_team_messages')
+          .select('*')
+          .eq('client_id', clientId)
+          .order('created_at', { ascending: true }),
+        supabase
+          .from('care_team_assignments')
+          .select('staff_user_id, specialty')
+          .eq('client_id', clientId)
+          .in('lifecycle_status', ['active', 'scheduled_end']),
+        supabase
+          .from('subscriptions')
+          .select('coach_id')
+          .eq('user_id', clientId)
+          .eq('status', 'active')
+          .maybeSingle(),
+      ]);
 
-      if (messagesError) throw messagesError;
+      if (messagesRes.error) throw messagesRes.error;
+      if (teamRes.error) throw teamRes.error;
+      if (subRes.error) throw subRes.error;
 
-      // Get care team members for this client to resolve sender names
-      const { data: teamData } = await supabase
-        .from('care_team_assignments')
-        .select(`
-          staff_user_id,
-          specialty,
-          coaches_client_safe:staff_user_id (
-            first_name,
-            last_name,
-            profile_picture_url
-          )
-        `)
-        .eq('client_id', clientId)
-        .in('lifecycle_status', ['active', 'scheduled_end']);
+      const messagesData = messagesRes.data;
+      const teamData = teamRes.data ?? [];
+      const subscriptionData = subRes.data;
 
-      // Get subscription to find primary coach
-      const { data: subscriptionData } = await supabase
-        .from('subscriptions')
-        .select(`
-          coach_id,
-          coaches_client_safe:coach_id (
-            first_name,
-            last_name,
-            profile_picture_url
-          )
-        `)
-        .eq('user_id', clientId)
-        .eq('status', 'active')
-        .maybeSingle();
+      // Resolve staff display names/avatars via profiles_public in one round-trip.
+      // profiles_public has no last_name (PII is in profiles_private) and uses
+      // avatar_url; name = display_name || first_name, matching CoachClientThread.
+      const staffIds = Array.from(
+        new Set<string>([
+          ...(subscriptionData?.coach_id ? [subscriptionData.coach_id] : []),
+          ...teamData.map((a) => a.staff_user_id),
+        ])
+      );
 
-      // Build team members list
+      const profileMap = new Map<
+        string,
+        { first_name: string | null; display_name: string | null; avatar_url: string | null }
+      >();
+      if (staffIds.length > 0) {
+        const { data: profiles, error: profilesError } = await supabase
+          .from('profiles_public')
+          .select('id, first_name, display_name, avatar_url')
+          .in('id', staffIds);
+        if (profilesError) throw profilesError;
+        for (const p of profiles ?? []) profileMap.set(p.id, p);
+      }
+
+      const resolveName = (id: string) => {
+        const p = profileMap.get(id);
+        return (p?.display_name || p?.first_name || '').trim();
+      };
+      const resolveAvatar = (id: string) => profileMap.get(id)?.avatar_url || undefined;
+
+      // Build team members list (maps message sender_id -> display info).
       const members: TeamMember[] = [];
 
-      if (subscriptionData?.coach_id && subscriptionData.coaches_client_safe) {
-        const coach = subscriptionData.coaches_client_safe as { first_name: string; last_name: string | null; profile_picture_url: string | null };
+      if (subscriptionData?.coach_id) {
         members.push({
           id: subscriptionData.coach_id,
-          name: `${coach.first_name} ${coach.last_name || ''}`.trim(),
+          name: resolveName(subscriptionData.coach_id),
           role: 'Primary Coach',
-          avatarUrl: coach.profile_picture_url || undefined,
+          avatarUrl: resolveAvatar(subscriptionData.coach_id),
         });
       }
 
-      if (teamData) {
-        teamData.forEach((assignment) => {
-          const coach = assignment.coaches_client_safe as { first_name: string; last_name: string | null; profile_picture_url: string | null } | null;
-          if (coach && !members.find(m => m.id === assignment.staff_user_id)) {
-            members.push({
-              id: assignment.staff_user_id,
-              name: `${coach.first_name} ${coach.last_name || ''}`.trim(),
-              role: assignment.specialty.charAt(0).toUpperCase() + assignment.specialty.slice(1),
-              avatarUrl: coach.profile_picture_url || undefined,
-            });
-          }
-        });
-      }
+      teamData.forEach((assignment) => {
+        if (!members.find((m) => m.id === assignment.staff_user_id)) {
+          members.push({
+            id: assignment.staff_user_id,
+            name: resolveName(assignment.staff_user_id),
+            role: assignment.specialty.charAt(0).toUpperCase() + assignment.specialty.slice(1),
+            avatarUrl: resolveAvatar(assignment.staff_user_id),
+          });
+        }
+      });
 
       setTeamMembers(members);
 
