@@ -549,7 +549,6 @@ export type Database = {
           scope: string
           specialty: Database["public"]["Enums"]["staff_specialty"]
           staff_user_id: string
-          status: string
           subscription_id: string
           updated_at: string
         }
@@ -574,7 +573,6 @@ export type Database = {
           scope?: string
           specialty: Database["public"]["Enums"]["staff_specialty"]
           staff_user_id: string
-          status?: string
           subscription_id: string
           updated_at?: string
         }
@@ -599,7 +597,6 @@ export type Database = {
           scope?: string
           specialty?: Database["public"]["Enums"]["staff_specialty"]
           staff_user_id?: string
-          status?: string
           subscription_id?: string
           updated_at?: string
         }

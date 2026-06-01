@@ -217,7 +217,8 @@ async function loadCareTeamRecipients(
       .from("care_team_assignments")
       .select("staff_user_id")
       .eq("client_id", clientId)
-      .eq("status", "active"),
+      // B5-N6: lifecycle_status is the maintained column; status was retired.
+      .in("lifecycle_status", ["active", "scheduled_end"]),
     admin
       .from("subscriptions")
       .select("coach_id")
