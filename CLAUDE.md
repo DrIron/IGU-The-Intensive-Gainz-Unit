@@ -495,6 +495,24 @@ Joins `profiles_public` + `profiles_private`. Cannot use PostgREST FK joins — 
 ### Sentry cannot be lazy-loaded
 `@sentry/react` crashes with `Cannot assign to property '10.37.0' of [object Module]` when dynamically imported (frozen ESM module namespace, Sentry's version registration mutates it). Must stay static in `main.tsx`. Also NOT in `manualChunks`.
 
+### SECURITY DEFINER RPCs — mandatory REVOKE pattern
+
+Supabase grants `EXECUTE` to `anon` + `authenticated` on every `public` function by default. A bare `GRANT EXECUTE ON FUNCTION ... TO authenticated` is additive — it does NOT remove the default `anon` grant. To actually scope a SECURITY DEFINER RPC to authenticated callers only, **every new function migration must include**:
+
+```sql
+REVOKE ALL ON FUNCTION public.my_rpc(<args>) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.my_rpc(<args>) FROM anon;
+GRANT EXECUTE ON FUNCTION public.my_rpc(<args>) TO authenticated;  -- or service_role
+```
+
+Without all three, anon can call. The function-internal `IF auth.uid() IS NULL THEN RAISE` check is defense-in-depth, NOT a substitute. Verify per RPC with `BEGIN; SET LOCAL ROLE anon; SELECT my_rpc(...); ROLLBACK;` — should raise `42501 permission denied for function`. Only intentionally-anon RPCs (e.g. `list_public_teams_for_browser` for the public team browser) skip the REVOKE. Caught + remediated 2026-05-31 in the cross-cutting RPC sweep PR.
+
+Gotchas surfaced by the sweep:
+- **Edge-fn-wrapped RPCs are `service_role`, not `authenticated`.** If an edge function invokes the RPC with the service-role client (e.g. `book_session_atomic`, `assign_coach_atomic`, `purchase_addon_atomic`), `auth.uid()` is NULL inside the function by design — grant `service_role` and do NOT add an `auth.uid() IS NULL` guard (it would break the legitimate caller).
+- **Use the exact `pg_get_function_identity_arguments(oid)` signature.** REVOKE/GRANT match overloads strictly; the wrong arg list silently no-ops or errors.
+- **PHI crypto primitives (`encrypt_phi_*` / `decrypt_phi_*` / `get_phi_encryption_key`) revoke to ZERO grants** — they are only ever called inside other SECURITY DEFINER functions (current_user = owner there), so no role grant is needed and direct callability is pure risk.
+- **RLS-predicate helpers stay anon-granted.** Functions referenced inside an RLS policy expression (`is_admin`, `is_coach`, `is_primary_coach_for_user`, …) need EXECUTE for the *querying* role to evaluate the policy. Revoking `anon` from these breaks anon-readable pages (`/teams`, `/meet-our-team`). Grant them explicitly to `anon, authenticated` rather than relying on the implicit default.
+
 ### Auth session persistence
 Supabase `getSession()` can hang on page refresh due to a circular deadlock in GoTrueClient (see `docs/history.md`). Mitigated by:
 - Navigator lock bypass + `initializePromise` timeout + `setSession()` recovery in `client.ts`
