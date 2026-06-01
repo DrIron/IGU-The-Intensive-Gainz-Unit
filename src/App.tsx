@@ -34,7 +34,6 @@ const ClientSubmission = lazy(() => import("./pages/ClientSubmission"));
 const MeetOurTeam = lazy(() => import("./pages/MeetOurTeam"));
 const CoachSignup = lazy(() => import("./pages/CoachSignup"));
 const CoachPasswordSetup = lazy(() => import("./pages/CoachPasswordSetup"));
-const TestimonialsManagement = lazy(() => import("./pages/TestimonialsManagement"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Nutrition = lazy(() => import("./pages/Nutrition"));
 const TeamNutrition = lazy(() => import("./pages/TeamNutrition"));
@@ -188,8 +187,7 @@ const AdminMobileNavGlobal = memo(function AdminMobileNavGlobal() {
   const location = useLocation();
   const isAdminRoute =
     location.pathname === "/admin" ||
-    location.pathname.startsWith("/admin/") ||
-    location.pathname === "/testimonials-management";
+    location.pathname.startsWith("/admin/");
   if (!isAdminRoute) return null;
   return <MobileBottomNavAdmin />;
 });
@@ -270,7 +268,9 @@ const App = () => {
                   <Route path="/coach-signup" element={<PublicLayout><CoachSignup /></PublicLayout>} />
                   <Route path="/coach-password-setup" element={<CoachPasswordSetup />} />
                   <Route path="/coach-password-set" element={<CoachPasswordSetup />} />
-                  <Route path="/testimonials-management" element={<RoleProtectedRoute requiredRole="admin"><TestimonialsManagement /></RoleProtectedRoute>} />
+                  {/* B9-N5: legacy standalone page deleted; redirect old bookmarks to the
+                      admin dashboard testimonials tab (modern TestimonialsManager mount). */}
+                  <Route path="/testimonials-management" element={<Navigate to="/admin/testimonials" replace />} />
                   <Route path="/nutrition" element={<AuthGuard><OnboardingGuard><Nutrition /></OnboardingGuard></AuthGuard>} />
                   <Route path="/nutrition-team" element={<AuthGuard><OnboardingGuard><TeamNutrition /></OnboardingGuard></AuthGuard>} />
                   <Route path="/nutrition-client" element={<AuthGuard><OnboardingGuard><ClientNutrition /></OnboardingGuard></AuthGuard>} />

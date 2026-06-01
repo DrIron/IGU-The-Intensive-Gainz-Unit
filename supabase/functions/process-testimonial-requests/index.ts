@@ -175,12 +175,17 @@ Deno.serve(async (req) => {
           replyTo: REPLY_TO_SUPPORT,
         });
 
-        await supabase.from("email_notifications").insert({
+        // B9-N3: check the dedup-log insert. A silent failure here means next
+        // week's run won't find the record (lines 91-96) and re-sends the email.
+        const { error: logError } = await supabase.from("email_notifications").insert({
           user_id: sub.user_id,
           notification_type: "testimonial_request",
           status: result.success ? "sent" : "failed",
           sent_at: new Date().toISOString(),
         });
+        if (logError) {
+          throw new Error(`email_notifications insert failed: ${logError.message}`);
+        }
 
         if (result.success) {
           results.requests_sent++;

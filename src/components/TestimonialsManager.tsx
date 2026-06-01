@@ -149,12 +149,17 @@ export default function TestimonialsManager() {
 
   const handleApprovalToggle = async (testimonialId: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase
+      // B9-N4: rows-affected check -- an RLS denial (e.g. admin role lost
+      // mid-session) returns HTTP 200 with 0 rows; without this the success
+      // toast fires while the DB is unchanged. Same shape as PR #117 / B6-N3.
+      const { data, error } = await supabase
         .from("testimonials")
         .update({ is_approved: !currentStatus })
-        .eq("id", testimonialId);
+        .eq("id", testimonialId)
+        .select("id");
 
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Update not persisted");
 
       setTestimonials((prev) =>
         prev.map((t) =>
@@ -177,12 +182,15 @@ export default function TestimonialsManager() {
 
   const handleArchiveToggle = async (testimonialId: string, currentStatus: boolean) => {
     try {
-      const { error } = await supabase
+      // B9-N4: rows-affected check (see handleApprovalToggle).
+      const { data, error } = await supabase
         .from("testimonials")
         .update({ is_archived: !currentStatus })
-        .eq("id", testimonialId);
+        .eq("id", testimonialId)
+        .select("id");
 
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Update not persisted");
 
       setTestimonials((prev) =>
         prev.map((t) =>
