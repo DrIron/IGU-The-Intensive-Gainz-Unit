@@ -1462,36 +1462,36 @@ function WorkoutSessionV2Content() {
     try {
       await saveProgress();
 
-      // Destructure { error } per CLAUDE.md — silently swallowing an RLS
-      // failure here would invalidate the cache as fresh while the module
-      // never actually completed (worse than the original stale read).
-      //
-      // .select("id") is load-bearing: without it, an auth-mid-refresh
-      // collision returns { data: null, error: null } (CLAUDE.md "RLS denials
-      // are silent on .update()") and the success branch fires while
-      // client_day_modules.status stays 'scheduled'. With .select() that same
-      // collision returns an empty array, which we detect below.
-      // Repro path: 2026-05-17 — 84 `_refreshAccessToken` "Failed to fetch"
-      // errors during click → navigate, module orphaned with 11/11 sets
-      // logged but status unchanged. See memory/project_workout_complete_silent_fail.md.
-      const { data: completedRows, error: completeErr } = await supabase
-        .from("client_day_modules")
-        .update({
-          status: "completed",
-          completed_at: new Date().toISOString(),
-        })
-        .eq("id", module.id)
-        .select("id");
-      if (completeErr) throw completeErr;
+      // PR #131: clients have NO RLS UPDATE path on client_day_modules. The
+      // "client_day_modules_update" policy only grants
+      // ( is_admin(auth.uid()) OR module_owner_coach_id = auth.uid() ), so a
+      // direct .update() by the client silently no-ops (0 rows, status stuck on
+      // 'scheduled'). Route completion through the complete_client_day_module
+      // SECURITY DEFINER RPC, which authorises the caller itself (client /
+      // owning coach / admin / service_role) and raises explicitly on failure.
+      // PR #117's rows-affected check was the safety net that detected this
+      // gap; this RPC is the structural fix. The RPC is idempotent on
+      // re-completion and raises 42501 (not authorised) / 42704 (not found),
+      // so its return payload isn't needed here.
+      const { error: completeErr } = await supabase.rpc(
+        "complete_client_day_module",
+        { p_module_id: module.id }
+      );
 
-      if (!completedRows || completedRows.length === 0) {
-        toast({
-          title: "Couldn't mark complete",
-          description:
-            "Your session may have expired -- please refresh and try again. Your set logs are saved.",
-          variant: "destructive",
-        });
-        return;
+      if (completeErr) {
+        // 42501 = not authorised -> keep PR #117's "expired" UX (still
+        // accurate: the set logs were already persisted by saveProgress()
+        // above). Any other code (e.g. 42704 module not found) is a real error.
+        if ((completeErr as { code?: string }).code === "42501") {
+          toast({
+            title: "Couldn't mark complete",
+            description:
+              "Your session may have expired -- please refresh and try again. Your set logs are saved.",
+            variant: "destructive",
+          });
+          return;
+        }
+        throw completeErr;
       }
 
       // Invalidate client-side workout views so TodaysWorkoutHero and
