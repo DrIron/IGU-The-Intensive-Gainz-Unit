@@ -27,18 +27,27 @@ const Testimonial = () => {
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // Get current user
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
+      // B9-N6: 8s timeout guard against the GoTrueClient deadlock (AuthGuard
+      // pattern). On timeout this throws -> caught below -> user stays null ->
+      // handleSubmit routes to /auth.
+      const { data: { user: currentUser } } = await withTimeout(
+        supabase.auth.getUser(),
+        8000,
+        "getUser (testimonial page)"
+      );
       setUser(currentUser);
 
-      // Get coach info if coachId is provided
-      // Get coach info from safe directory view (no contact info)
+      // Coach info from the public-safe directory view (no contact info; the
+      // view is filtered to status='active'). B9-N7: .maybeSingle(), not
+      // .single() -- an inactive/unknown coach would 406 and hang the page;
+      // null falls back to a generic header.
       if (coachId) {
-        const { data: coachData } = await supabase
+        const { data: coachData, error: coachError } = await supabase
           .from("coaches_directory")
           .select("first_name, last_name, profile_picture_url")
           .eq("user_id", coachId)
-          .single();
+          .maybeSingle();
+        if (coachError) throw coachError;
         setCoach(coachData);
       }
     } catch (error) {
@@ -83,6 +92,16 @@ const Testimonial = () => {
       return;
     }
 
+    // B9-N8: mirror the server CHECK (1..4000) client-side.
+    if (feedback.trim().length > 4000) {
+      toast({
+        title: "Feedback Too Long",
+        description: "Please keep your feedback under 4000 characters.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setSubmitting(true);
     try {
       // B9-N1: snapshot the author's display name onto the testimonial row so
@@ -122,9 +141,13 @@ const Testimonial = () => {
       navigate("/dashboard");
     } catch (error: any) {
       console.error("Error submitting testimonial:", error);
+      // B9-N9: UNIQUE(user_id, coach_id) -> one testimonial per coach.
+      const alreadySubmitted = error?.code === "23505";
       toast({
-        title: "Submission Failed",
-        description: sanitizeErrorForUser(error),
+        title: alreadySubmitted ? "Already Submitted" : "Submission Failed",
+        description: alreadySubmitted
+          ? "You've already submitted feedback for this coach."
+          : sanitizeErrorForUser(error),
         variant: "destructive",
       });
     } finally {
@@ -151,7 +174,7 @@ const Testimonial = () => {
           <CardHeader>
             <CardTitle>Share Your Experience</CardTitle>
             <CardDescription>
-              {coach ? `How was your experience with ${coach.first_name} ${coach.last_name}?` : "Tell us about your experience"}
+              {coach ? `How was your experience with ${[coach.first_name, coach.last_name].filter(Boolean).join(" ")}?` : "Tell us about your experience"}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -197,10 +220,11 @@ const Testimonial = () => {
                   value={feedback}
                   onChange={(e) => setFeedback(e.target.value)}
                   rows={6}
+                  maxLength={4000}
                   className="resize-none"
                 />
                 <p className="text-xs text-muted-foreground">
-                  {feedback.length} characters
+                  {feedback.length}/4000 characters
                 </p>
               </div>
 
