@@ -7423,6 +7423,14 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_team_program_atomic: {
+        Args: {
+          p_start_date?: string
+          p_team_id: string
+          p_template_id: string
+        }
+        Returns: Json
+      }
       book_session_atomic: {
         Args: { p_slot_id: string; p_user_id: string }
         Returns: Json
@@ -8125,6 +8133,10 @@ export type Database = {
           p_subscription_id: string
         }
         Returns: boolean
+      }
+      soft_delete_team_atomic: {
+        Args: { p_team_id: string }
+        Returns: Json
       }
       terminate_care_team_member: {
         Args: {

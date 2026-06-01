@@ -103,17 +103,28 @@ export const TeamDetailView = memo(function TeamDetailView({
   }, [loadMembers]);
 
   const handleDelete = useCallback(async () => {
-    if (!confirm("Are you sure you want to delete this team? This cannot be undone.")) return;
+    if (
+      !confirm(
+        "Delete this team? Members will be unassigned (their coach + team cleared and flagged for reassignment). The team is archived, not permanently removed."
+      )
+    )
+      return;
     setDeleting(true);
     try {
-      const { error } = await supabase
-        .from("coach_teams")
-        .update({ is_active: false })
-        .eq("id", team.id);
+      // B7-N12: atomic soft-delete + member orphan recovery (archives the team
+      // AND clears team_id/coach_id + flags needs_coach_assignment on every
+      // member sub, in one locked transaction).
+      const { data, error } = await supabase.rpc("soft_delete_team_atomic", {
+        p_team_id: team.id,
+      });
 
       if (error) throw error;
 
-      toast({ title: "Team deleted" });
+      const unassigned = (data as { members_unassigned?: number } | null)?.members_unassigned ?? 0;
+      toast({
+        title: "Team deleted",
+        description: unassigned > 0 ? `${unassigned} member${unassigned === 1 ? "" : "s"} unassigned.` : undefined,
+      });
       onBack();
     } catch (error: any) {
       toast({
