@@ -1,13 +1,17 @@
-import { lazy, Suspense, useState } from "react";
+import { lazy, Suspense, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { useSocialLinks, getSocialIcon, getSocialLabel } from "@/hooks/useSocialLinks";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { getUTMParams } from "@/lib/utm";
 import { useToast } from "@/hooks/use-toast";
+import { captureException } from "@/lib/errorLogging";
+
+const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 
 const CoachApplicationForm = lazy(() =>
   import("@/components/CoachApplicationForm").then(m => ({ default: m.CoachApplicationForm }))
@@ -17,6 +21,8 @@ export function Footer() {
   const [showCoachApplication, setShowCoachApplication] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterLoading, setNewsletterLoading] = useState(false);
+  const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
+  const turnstileRef = useRef<TurnstileInstance>(null);
   const { toast } = useToast();
   const { t } = useTranslation('nav');
   const { data: socialLinks } = useSocialLinks();
@@ -28,35 +34,38 @@ export function Footer() {
     setNewsletterLoading(true);
     try {
       const utmParams = getUTMParams();
-      const { error } = await supabase.from("leads").insert({
-        email: newsletterEmail.trim().toLowerCase(),
-        source: "newsletter",
-        ...utmParams,
+      // B10-N1: route through the submit-lead edge fn for server-side Turnstile
+      // verification. Returns an identical success shape for new + duplicate
+      // emails (no info leakage), so we always show the success toast.
+      const { data, error } = await supabase.functions.invoke("submit-lead", {
+        body: {
+          email: newsletterEmail.trim().toLowerCase(),
+          source: "newsletter",
+          turnstile_token: turnstileToken,
+          ...utmParams,
+        },
       });
 
-      if (error) {
-        if (error.code === "23505") {
-          // Duplicate email
-          toast({
-            title: t('common:alreadySubscribed'),
-            description: t('common:alreadySubscribedDesc'),
-          });
-        } else {
-          throw error;
-        }
-      } else {
-        toast({
-          title: t('common:subscribed'),
-          description: t('common:subscribedDesc'),
-        });
-        setNewsletterEmail("");
+      if (error || (data && data.error)) {
+        throw error || new Error(data.error);
       }
-    } catch (error: any) {
+
+      toast({
+        title: t('common:subscribed'),
+        description: t('common:subscribedDesc'),
+      });
+      setNewsletterEmail("");
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
+    } catch (error: unknown) {
+      captureException(error, { source: "Footer.handleNewsletterSubmit" });
       toast({
         title: t('common:error'),
         description: t('common:failedToSubscribe'),
         variant: "destructive",
       });
+      turnstileRef.current?.reset();
+      setTurnstileToken(null);
     } finally {
       setNewsletterLoading(false);
     }
@@ -155,22 +164,37 @@ export function Footer() {
                 <p className="text-sm text-muted-foreground mb-2">
                   {t('trainingTipsUpdates')}
                 </p>
-                <form onSubmit={handleNewsletterSubmit} className="flex gap-2">
-                  <Input
-                    type="email"
-                    placeholder={t('common:yourEmail')}
-                    value={newsletterEmail}
-                    onChange={(e) => setNewsletterEmail(e.target.value)}
-                    className="flex-1"
-                    required
-                  />
-                  <Button type="submit" size="sm" disabled={newsletterLoading}>
-                    {newsletterLoading ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      t('common:subscribe')
-                    )}
-                  </Button>
+                <form onSubmit={handleNewsletterSubmit} className="space-y-2">
+                  <div className="flex gap-2">
+                    <Input
+                      type="email"
+                      placeholder={t('common:yourEmail')}
+                      value={newsletterEmail}
+                      onChange={(e) => setNewsletterEmail(e.target.value)}
+                      className="flex-1"
+                      required
+                    />
+                    <Button
+                      type="submit"
+                      size="sm"
+                      disabled={newsletterLoading || (!!TURNSTILE_SITE_KEY && !turnstileToken)}
+                    >
+                      {newsletterLoading ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        t('common:subscribe')
+                      )}
+                    </Button>
+                  </div>
+                  {TURNSTILE_SITE_KEY && (
+                    <Turnstile
+                      ref={turnstileRef}
+                      siteKey={TURNSTILE_SITE_KEY}
+                      onSuccess={setTurnstileToken}
+                      onExpire={() => setTurnstileToken(null)}
+                      options={{ theme: "dark", size: "flexible" }}
+                    />
+                  )}
                 </form>
               </div>
             </div>
