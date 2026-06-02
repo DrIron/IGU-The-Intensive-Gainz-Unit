@@ -14,6 +14,7 @@ import { z } from "zod";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { AUTH_REDIRECT_URLS } from "@/lib/config";
 import { useRoleCache } from "@/hooks/useRoleCache";
+import { getStoredToken } from "@/lib/sessionStorage";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { TIMEOUTS } from "@/lib/constants";
 
@@ -68,7 +69,7 @@ export default function Auth() {
   // Guard to ensure bootstrap-admin-role runs only once per session
   const bootstrapCalledRef = useRef(false);
   const redirectingRef = useRef(false);
-  const { setCachedRoles } = useRoleCache();
+  const { setCachedRoles, getCachedRoles } = useRoleCache();
 
   useDocumentTitle({
     title: "Sign In | Intensive Gainz Unit",
@@ -111,30 +112,27 @@ export default function Auth() {
           setCachedRoles(roleList, userId);
         }
       } catch (timeoutError) {
+        // B3-N8: route the timeout fallback through useRoleCache + getStoredToken
+        // instead of reading localStorage('igu_user_roles') directly. This gates
+        // "trust the cached roles" on a real session token (defeats pure
+        // localStorage role tampering) AND applies the TTL + user-match checks
+        // getCachedRoles enforces. Mirrors RoleProtectedRoute.tsx's canonical
+        // `storedToken && cachedRoles` pattern.
         if (import.meta.env.DEV) console.warn('[Auth] Roles query timed out - checking cache before redirect');
-        // On timeout, check localStorage cache for roles before falling back
-        try {
-          const cachedRolesJson = localStorage.getItem('igu_user_roles');
-          const cachedUserId = localStorage.getItem('igu_cached_user_id');
-          if (cachedRolesJson && cachedUserId === userId) {
-            const cachedRoles = JSON.parse(cachedRolesJson);
-            if (Array.isArray(cachedRoles)) {
-              if (cachedRoles.includes('admin')) {
-                if (import.meta.env.DEV) console.log('[Auth] Timeout but cache has admin - redirecting to /admin');
-                navigate("/admin");
-                return;
-              }
-              if (cachedRoles.includes('coach')) {
-                if (import.meta.env.DEV) console.log('[Auth] Timeout but cache has coach - redirecting to /coach');
-                navigate("/coach");
-                return;
-              }
-            }
+        const storedToken = getStoredToken();
+        const cachedRoles = getCachedRoles(userId); // user-match + TTL handled inside
+        if (storedToken && cachedRoles && cachedRoles.length > 0) {
+          if (cachedRoles.includes('admin')) {
+            if (import.meta.env.DEV) console.log('[Auth] Timeout, cache+token valid, redirecting to /admin');
+            navigate("/admin");
+            return;
           }
-        } catch (e) {
-          if (import.meta.env.DEV) console.warn('[Auth] Error reading role cache:', e);
+          if (cachedRoles.includes('coach')) {
+            if (import.meta.env.DEV) console.log('[Auth] Timeout, cache+token valid, redirecting to /coach');
+            navigate("/coach");
+            return;
+          }
         }
-        // No usable cache - redirect to dashboard
         navigate("/dashboard");
         return;
       }
@@ -195,7 +193,7 @@ export default function Auth() {
       // Fallback to dashboard on error
       navigate("/dashboard");
     }
-  }, [navigate, searchParams, isCoachAuth, setCachedRoles]);
+  }, [navigate, searchParams, isCoachAuth, setCachedRoles, getCachedRoles]);
 
   useEffect(() => {
     // Load services (don't block on error)

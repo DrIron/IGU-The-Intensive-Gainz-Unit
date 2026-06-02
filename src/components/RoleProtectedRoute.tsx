@@ -18,6 +18,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuthSession } from '@/hooks/useAuthSession';
 import { useRoleCache } from '@/hooks/useRoleCache';
 import { TIMEOUTS, AUTH_ROUTES } from '@/lib/constants';
+import { getStoredToken } from '@/lib/sessionStorage';
 import {
   isRouteBlockedForRole,
   getPrimaryDashboardForRole,
@@ -38,21 +39,6 @@ type AuthState = 'loading' | 'authorized' | 'unauthorized' | 'no-session';
  */
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-const PROJECT_REF = SUPABASE_URL?.match(/https:\/\/([^.]+)\./)?.[1] || 'ghotrbotrywonaejlppg';
-const STORAGE_KEY = `sb-${PROJECT_REF}-auth-token`;
-
-/**
- * Get stored access token directly from localStorage
- */
-function getStoredToken(): string | null {
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return null;
-    return JSON.parse(stored)?.access_token || null;
-  } catch {
-    return null;
-  }
-}
 
 /**
  * Query user roles using direct fetch() - bypasses Supabase client's session lock.
