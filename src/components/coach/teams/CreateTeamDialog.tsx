@@ -107,7 +107,9 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
     setSaving(true);
     try {
       if (editTeam) {
-        const { error } = await supabase
+        // B7-N18: rows-affected check -- a silent RLS denial (0 rows, no error)
+        // would otherwise fire a success toast on an unchanged row.
+        const { data, error } = await supabase
           .from("coach_teams")
           .update({
             name: name.trim(),
@@ -115,9 +117,11 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
             tags,
             max_members: maxMembers,
           })
-          .eq("id", editTeam.id);
+          .eq("id", editTeam.id)
+          .select("id");
 
         if (error) throw error;
+        if (!data || data.length === 0) throw new Error("Update not persisted");
         toast({ title: "Team updated" });
       } else {
         const { error } = await supabase.from("coach_teams").insert({

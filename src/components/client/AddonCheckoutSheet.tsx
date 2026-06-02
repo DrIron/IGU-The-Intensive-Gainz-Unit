@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AlertTriangle, Loader2, Minus, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
 import type { AddonServiceCatalogRow } from "@/hooks/useAddonsCatalog";
@@ -31,7 +32,7 @@ interface ProfileSnapshot {
 }
 
 async function loadProfileSnapshot(): Promise<ProfileSnapshot | null> {
-  const { data: { user } } = await supabase.auth.getUser();
+  const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
   if (!user) return null;
   const { data: profile } = await supabase
     .from("profiles")

@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { useToast } from "@/hooks/use-toast";
 import { Target, Info, Plus, TrendingUp, TrendingDown, Minus, Loader2, History } from "lucide-react";
 import { format, subDays } from "date-fns";
@@ -138,7 +139,7 @@ export function StepRecommendationCard({
 
     try {
       setSaving(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
       // Deactivate current recommendation if exists

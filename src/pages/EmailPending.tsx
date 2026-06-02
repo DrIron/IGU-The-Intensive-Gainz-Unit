@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Mail, RefreshCw, CheckCircle2 } from "lucide-react";
@@ -33,12 +34,17 @@ export default function EmailPending() {
   useEffect(() => {
     // If the user is already signed in (e.g. they refreshed after confirming),
     // skip straight through rather than blocking them on this page.
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session && !redirectingRef.current) {
-        redirectingRef.current = true;
-        navigate("/onboarding", { replace: true });
-      }
-    });
+    withTimeout(supabase.auth.getSession(), 8000)
+      .then(({ data: { session } }) => {
+        if (session && !redirectingRef.current) {
+          redirectingRef.current = true;
+          navigate("/onboarding", { replace: true });
+        }
+      })
+      .catch(() => {
+        // getSession timed out -- stay on the email-pending page (the
+        // onAuthStateChange listener below still handles the confirm event).
+      });
 
     // Watch for the SIGNED_IN event that fires when the confirmation link is clicked.
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {

@@ -6,6 +6,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 
 export type AuditEntityType =
   | 'service_pricing'
@@ -34,7 +35,7 @@ export interface AuditLogEntry {
  */
 export async function logAuditAction(entry: AuditLogEntry): Promise<void> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
     if (!user) {
       console.warn("Cannot log audit action: no authenticated user");
       return;

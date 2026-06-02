@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 
 export type PHIAccessAction = 
   | "view_medical_summary"
@@ -28,7 +29,7 @@ export function usePHIAuditLog() {
     userRole,
   }: LogPHIAccessParams) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) {
         console.warn("[PHI Audit] Cannot log access - no authenticated user");
         return;
@@ -68,7 +69,7 @@ export async function logPHIAccess({
   userRole,
 }: LogPHIAccessParams): Promise<void> {
   try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
     if (!user) return;
 
     await supabase

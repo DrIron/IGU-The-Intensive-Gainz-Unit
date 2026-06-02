@@ -7,6 +7,7 @@ import { StepWizardGoalSetting } from "@/components/calculator/StepWizardGoalSet
 import { AdjustmentCalculator } from "@/components/calculator/AdjustmentCalculator";
 import { calculateAge } from "@/lib/dateUtils";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { calculateNutritionGoals, type GoalType } from "@/utils/nutritionCalculations";
 import { useSiteContent } from "@/hooks/useSiteContent";
 import { SEOHead } from "@/components/SEOHead";
@@ -56,7 +57,7 @@ export default function CalorieCalculator() {
   // Any field the user doesn't have yet stays empty.
   useEffect(() => {
     const loadUserData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
       const [profileRes, publicRes, phaseRes] = await Promise.all([

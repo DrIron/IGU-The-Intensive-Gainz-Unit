@@ -10,6 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { Loader2, Plus, ChevronDown, ChevronUp, AlertCircle, TrendingDown, TrendingUp, Calendar as CalendarIcon, Save } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -402,7 +403,7 @@ function WeekCard({
 
     setSavingLogIndex(index);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) throw new Error("Not authenticated");
 
       // Get all valid logs including the current one
@@ -464,7 +465,7 @@ function WeekCard({
   const saveWeekData = async () => {
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) throw new Error("Not authenticated");
 
       // Filter valid weight logs

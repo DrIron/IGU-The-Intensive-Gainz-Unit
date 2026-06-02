@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { CheckCircle, Loader2 } from "lucide-react";
@@ -43,7 +44,7 @@ export default function EmailConfirmed() {
         }
 
         // Check if user is already logged in (clicked link while logged in)
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 8000);
         if (session) {
           setStatus("success");
           return;
@@ -64,7 +65,7 @@ export default function EmailConfirmed() {
 
   const handleContinue = async () => {
     // Check if user has a session
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await withTimeout(supabase.auth.getSession(), 8000);
     
     if (session) {
       // User is logged in, check their role and redirect appropriately

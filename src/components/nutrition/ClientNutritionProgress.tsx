@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, CalendarIcon, AlertCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -127,7 +128,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
 
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
       const { error } = await supabase.from('weight_logs').insert({
@@ -193,7 +194,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
 
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
       const { error } = await supabase.from('circumference_logs').insert({
@@ -238,7 +239,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
 
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
       // Dual-write: the detailed history table feeds coach graphs + the
@@ -308,7 +309,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
 
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
       // Save adherence

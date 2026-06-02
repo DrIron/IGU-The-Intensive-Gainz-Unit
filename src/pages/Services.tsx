@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { ServiceCard } from "@/components/ServiceCard";
 import { useToast } from "@/hooks/use-toast";
 import { Sparkles } from "lucide-react";
@@ -80,7 +81,7 @@ export default function Services() {
   }, [checkUserAndLoadData, loadTeamPlanSettings]);
 
   const handleServiceSelect = async (serviceId: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
     
     if (user) {
       // Check user roles - admins and coaches cannot sign up for services

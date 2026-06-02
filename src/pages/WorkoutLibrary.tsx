@@ -12,6 +12,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dumbbell, Search, Plus, X, Youtube, Pencil, ChevronDown, ChevronUp, AlertCircle, Loader2 } from "lucide-react";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { useToast } from "@/hooks/use-toast";
 import { useClientAccess, getAccessDeniedMessage } from "@/hooks/useClientAccess";
 
@@ -153,7 +154,7 @@ export default function WorkoutLibrary() {
       const muscleGroups = Object.keys(formData.selectedMuscles);
       const muscleSubdivisions = formData.selectedMuscles;
 
-      const authResult = await supabase.auth.getUser();
+      const authResult = await withTimeout(supabase.auth.getUser(), 8000);
       const user = authResult.data?.user;
       if (!user) {
         toast({

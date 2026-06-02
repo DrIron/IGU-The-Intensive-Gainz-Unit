@@ -220,12 +220,15 @@ export default function TestimonialsManager() {
       const updateData: Record<string, any> = {};
       updateData[field] = value;
 
-      const { error } = await supabase
+      // B9-N4: rows-affected check (matches approve/archive handlers).
+      const { data, error } = await supabase
         .from("testimonials")
         .update(updateData)
-        .eq("id", testimonialId);
+        .eq("id", testimonialId)
+        .select("id");
 
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error("Update not persisted");
 
       setTestimonials((prev) =>
         prev.map((t) =>
