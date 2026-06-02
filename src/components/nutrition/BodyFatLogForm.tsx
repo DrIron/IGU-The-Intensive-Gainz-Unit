@@ -9,6 +9,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarIcon, Plus, Trash2, Percent, Info } from "lucide-react";
 import { format } from "date-fns";
@@ -42,7 +43,7 @@ export function BodyFatLogForm({ userId, currentWeight, onLogAdded }: BodyFatLog
 
   const loadRecentLogs = useCallback(async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       const targetUserId = userId || user?.id;
       if (!targetUserId) return;
 
@@ -96,7 +97,7 @@ export function BodyFatLogForm({ userId, currentWeight, onLogAdded }: BodyFatLog
 
     try {
       setLoading(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       const targetUserId = userId || user?.id;
       if (!targetUserId) return;
 

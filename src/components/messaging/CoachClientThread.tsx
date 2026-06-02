@@ -8,6 +8,7 @@ import {
 } from "react";
 import { format, isSameDay, isToday, isYesterday } from "date-fns";
 import { supabase } from "@/integrations/supabase/client";
+import { captureException } from "@/lib/errorLogging";
 import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -115,7 +116,7 @@ export function CoachClientThread({
       .order("created_at", { ascending: true });
 
     if (fetchError) {
-      console.error("[CoachClientThread] load:", fetchError.message);
+      captureException(fetchError, { context: "coach_client_thread_load" });
       setError(fetchError.message);
       setLoading(false);
       return;
@@ -138,13 +139,14 @@ export function CoachClientThread({
       setSenders(map);
     }
 
-    supabase
-      .rpc("mark_coach_client_thread_read", { p_client_id: threadKey })
-      .then(({ error: readErr }) => {
-        if (readErr) {
-          console.warn("[CoachClientThread] mark read:", readErr.message);
-        }
-      });
+    // B5-N13: await mark-read before clearing loading so the just-loaded
+    // messages are marked read deterministically before the realtime channel
+    // starts applying new INSERTs (was fire-and-forget -> unread-badge flicker).
+    const { error: readErr } = await supabase
+      .rpc("mark_coach_client_thread_read", { p_client_id: threadKey });
+    if (readErr) {
+      console.warn("[CoachClientThread] mark read:", readErr.message);
+    }
 
     setLoading(false);
   }, []);
@@ -153,7 +155,7 @@ export function CoachClientThread({
     if (hasFetched.current === clientUserId) return;
     hasFetched.current = clientUserId;
     load(clientUserId).catch((err) => {
-      console.error("[CoachClientThread] unexpected:", err);
+      captureException(err, { context: "coach_client_thread_load_unexpected" });
       setLoading(false);
     });
   }, [clientUserId, load]);
@@ -244,7 +246,7 @@ export function CoachClientThread({
       .single();
 
     if (insertError || !data) {
-      console.error("[CoachClientThread] insert:", insertError?.message);
+      captureException(insertError, { context: "coach_client_thread_insert" });
       setError(insertError?.message ?? "Send failed");
       setSending(false);
       return;
@@ -291,7 +293,7 @@ export function CoachClientThread({
         .eq("id", id);
 
       if (updateError) {
-        console.error("[CoachClientThread] edit:", updateError.message);
+        captureException(updateError, { context: "coach_client_thread_edit" });
         setError(updateError.message);
         // Roll back optimistic edit.
         setMessages((all) =>
@@ -317,7 +319,7 @@ export function CoachClientThread({
       .eq("id", id);
 
     if (updateError) {
-      console.error("[CoachClientThread] delete:", updateError.message);
+      captureException(updateError, { context: "coach_client_thread_delete" });
       setError(updateError.message);
       setMessages((all) =>
         all.map((m) => (m.id === id ? { ...m, deleted_at: null } : m)),

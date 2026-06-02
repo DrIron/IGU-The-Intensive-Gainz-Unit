@@ -1,6 +1,7 @@
 import { useEffect, useState, ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { useAuthGuardSession } from "@/components/AuthGuard";
 import {
   isOnboardingIncomplete,
@@ -203,7 +204,7 @@ export function useOnboardingStatus() {
 
     const fetchStatus = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 8000);
         const user = session?.user;
         if (!user) {
           if (mounted) {

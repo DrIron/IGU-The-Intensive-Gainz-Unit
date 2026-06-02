@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { Loader2, Edit } from "lucide-react";
 import { StepWizardGoalSetting } from "@/components/calculator/StepWizardGoalSetting";
@@ -237,7 +238,7 @@ export function NutritionGoal() {
 
     setSaving(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) throw new Error("Not authenticated");
 
       // Deactivate previous goals

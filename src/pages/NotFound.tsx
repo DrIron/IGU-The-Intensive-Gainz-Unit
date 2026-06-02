@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Helmet } from "react-helmet-async";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Home, LogIn, LayoutDashboard, ArrowLeft } from "lucide-react";
@@ -17,7 +18,7 @@ const NotFound = () => {
 
   useEffect(() => {
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await withTimeout(supabase.auth.getSession(), 8000);
       setIsAuthenticated(!!session);
     };
     checkAuth();

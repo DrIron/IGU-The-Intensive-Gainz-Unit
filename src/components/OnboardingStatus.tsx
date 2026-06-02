@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,7 +39,7 @@ export function OnboardingStatus() {
 
   const loadStatus = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
       
       setUser(user);

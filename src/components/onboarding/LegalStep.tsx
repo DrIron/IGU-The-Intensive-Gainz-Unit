@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ExternalLink, CheckCircle2, Circle } from "lucide-react";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { cn } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { useToast } from "@/hooks/use-toast";
@@ -30,7 +31,7 @@ export function LegalStep({ form }: LegalStepProps) {
 
   const handleViewDocument = async (url: string) => {
     // Check if user is authenticated before opening document
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
     if (!user) {
       toast({
         title: "Authentication required",

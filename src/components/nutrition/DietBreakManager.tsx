@@ -15,6 +15,7 @@ import {
   ResponsiveDialogTrigger,
 } from "@/components/ui/responsive-dialog";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { useToast } from "@/hooks/use-toast";
 import {
   Coffee, CalendarIcon, Play, CheckCircle, XCircle, Plus, Loader2, Info, Calculator,
@@ -161,7 +162,7 @@ export function DietBreakManager({
 
     try {
       setSaving(true);
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
       // Calculate maintenance macros

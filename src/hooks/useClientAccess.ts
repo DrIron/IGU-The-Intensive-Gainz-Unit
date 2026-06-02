@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 
 interface Profile {
@@ -117,7 +118,7 @@ export function useClientAccess(): ClientAccessState {
 
     const fetchAccessData = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await withTimeout(supabase.auth.getSession(), 8000);
         
         if (!session?.user) {
           if (isMounted) {

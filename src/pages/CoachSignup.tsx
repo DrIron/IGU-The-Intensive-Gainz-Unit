@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -90,7 +91,7 @@ export default function CoachSignup() {
       }
 
       // Check if user is authenticated
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      const { data: { session }, error: sessionError } = await withTimeout(supabase.auth.getSession(), 8000);
 
       if (sessionError) {
         console.error('Session error:', sessionError);
@@ -133,7 +134,7 @@ export default function CoachSignup() {
         return;
       }
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) throw new Error("Not authenticated");
 
       const qualifications = formData.qualifications

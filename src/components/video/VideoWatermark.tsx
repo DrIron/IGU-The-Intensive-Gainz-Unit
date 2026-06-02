@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 
 interface VideoWatermarkProps {
   className?: string;
@@ -14,7 +15,7 @@ export function VideoWatermark({ className = "" }: VideoWatermarkProps) {
 
   useEffect(() => {
     const fetchUserInfo = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
       // Try to get display name from profiles_public

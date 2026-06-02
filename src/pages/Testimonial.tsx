@@ -7,6 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { captureException } from "@/lib/errorLogging";
 import { withTimeout } from "@/lib/withTimeout";
 import { SEOHead } from "@/components/SEOHead";
 
@@ -51,7 +52,7 @@ const Testimonial = () => {
         setCoach(coachData);
       }
     } catch (error) {
-      console.error("Error loading data:", error);
+      captureException(error, { context: "testimonial_load_data" });
     } finally {
       setLoading(false);
     }
@@ -140,7 +141,7 @@ const Testimonial = () => {
       // Redirect to dashboard
       navigate("/dashboard");
     } catch (error: any) {
-      console.error("Error submitting testimonial:", error);
+      captureException(error, { context: "testimonial_submit" });
       // B9-N9: UNIQUE(user_id, coach_id) -> one testimonial per coach.
       const alreadySubmitted = error?.code === "23505";
       toast({

@@ -10,14 +10,15 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
+import { captureException } from "@/lib/errorLogging";
 import { useToast } from "@/hooks/use-toast";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import {
   MessageSquare, Send, Filter, CheckCircle, Circle, Loader2, Bell, BellOff, RefreshCw,
 } from "lucide-react";
 import { format, isToday, isYesterday, isSameDay } from "date-fns";
 import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { withTimeout } from "@/lib/withTimeout";
 import {
   type CareTeamMessage,
   type CareTeamMessageType,
@@ -51,7 +52,11 @@ export function CareTeamMessagesPanel({
   const [sending, setSending] = useState(false);
   const [messages, setMessages] = useState<EnrichedMessage[]>([]);
   const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  // B5-N12: derive the viewer from useAuthSession (handles the setSession
+  // recovery race) instead of a one-shot getUser() that could land null and
+  // INSERT sender_id: null.
+  const { user: sessionUser } = useAuthSession();
+  const currentUserId = sessionUser?.id ?? null;
 
   // Composer state
   const [newMessage, setNewMessage] = useState("");
@@ -73,17 +78,7 @@ export function CareTeamMessagesPanel({
     try {
       setLoading(true);
 
-      // B5-N2: getUser() had no timeout -- a GoTrueClient deadlock would hang the
-      // panel forever. 8s withTimeout (AuthGuard pattern); on timeout it throws,
-      // the catch below logs + drops to the empty state rather than crashing.
-      const { data: { user } } = await withTimeout(
-        supabase.auth.getUser(),
-        8000,
-        "getUser (care team messages panel)"
-      );
-      if (!user) return;
-      setCurrentUserId(user.id);
-
+      // Viewer identity now comes from useAuthSession (B5-N12) -- no getUser() here.
       // Independent reads run in parallel (CLAUDE.md: Promise.all over serial calls).
       // B5-N3: the care_team_assignments + subscriptions reads previously used
       // BANNED nested PostgREST FK joins that embedded `coaches_client_safe` --
@@ -192,7 +187,7 @@ export function CareTeamMessagesPanel({
           }
         });
     } catch (error) {
-      console.error('Error loading messages:', error);
+      captureException(error, { context: 'care_team_messages_load' });
     } finally {
       setLoading(false);
     }
@@ -245,16 +240,20 @@ export function CareTeamMessagesPanel({
 
   const handleToggleResolved = async (messageId: string, currentResolved: boolean) => {
     try {
-      const { error } = await supabase
+      // B5-N11: rows-affected check -- an RLS denial (caller lost their
+      // care-team relationship since loadData) returns 200 / 0 rows / no error.
+      const { data, error } = await supabase
         .from('care_team_messages')
         .update({
           is_resolved: !currentResolved,
           resolved_by: !currentResolved ? currentUserId : null,
           resolved_at: !currentResolved ? new Date().toISOString() : null,
         })
-        .eq('id', messageId);
+        .eq('id', messageId)
+        .select('id');
 
       if (error) throw error;
+      if (!data || data.length === 0) throw new Error('Toggle blocked');
 
       hasFetched.current = false;
       loadData();

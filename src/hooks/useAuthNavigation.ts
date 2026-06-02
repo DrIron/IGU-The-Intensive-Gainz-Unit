@@ -1,5 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { useCallback } from "react";
 
 /**
@@ -16,7 +17,7 @@ export function useAuthNavigation() {
    * Navigates to dashboard if authenticated, otherwise to auth page
    */
   const navigateToAuthOrDashboard = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
     
     if (user) {
       navigate("/dashboard");

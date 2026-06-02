@@ -16,6 +16,7 @@ import { useCallback, useEffect, useState, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -952,7 +953,7 @@ function WorkoutSessionV2Content() {
       // Get current user
       const {
         data: { user: currentUser },
-      } = await supabase.auth.getUser();
+      } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!currentUser) {
         navigate("/auth");
         return;

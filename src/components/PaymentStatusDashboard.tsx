@@ -6,6 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { Clock, AlertTriangle, CheckCircle2, CreditCard, Tag, XCircle, Loader2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
@@ -353,7 +354,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
     setPaymentError(null);
     
     try {
-      const { data: { user } } = await supabase.auth.getUser();
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) {
         setPaymentError("Please log in to continue with payment.");
         setProcessingPayment(false);

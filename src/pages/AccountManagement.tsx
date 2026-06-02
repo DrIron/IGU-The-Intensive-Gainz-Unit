@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -111,7 +112,7 @@ export default function AccountManagement() {
   const [userRoles, setUserRoles] = useState<string[]>([]);
 
   const getUserRoles = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
     if (!user) return;
 
     const { data: roles } = await supabase
@@ -123,7 +124,7 @@ export default function AccountManagement() {
   }, []);
 
   const checkUser = useCallback(async () => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
     if (!user) {
       navigate("/auth");
       return;

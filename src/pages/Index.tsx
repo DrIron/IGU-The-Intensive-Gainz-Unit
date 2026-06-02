@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { withTimeout } from "@/lib/withTimeout";
 import { Button } from "@/components/ui/button";
 import { ServiceCard } from "@/components/ServiceCard";
 import { useToast } from "@/hooks/use-toast";
@@ -280,7 +281,7 @@ export default function Index() {
   }, [sessionUser, sessionLoading, checkUserAndRedirect]);
 
   const handleServiceSelect = async (serviceId: string) => {
-    const { data: { user } } = await supabase.auth.getUser();
+    const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
     
     if (user) {
       // User is logged in, go to onboarding
