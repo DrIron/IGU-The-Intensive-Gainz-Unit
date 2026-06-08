@@ -6,6 +6,8 @@ import { withTimeout } from "@/lib/withTimeout";
 import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType, WeekData, SessionData } from "@/types/muscle-builder";
 import { ACTIVITY_MAP, migrateSlotsToSessions } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
+import { resolveSlotForWeek, type WeeklyDeltaRule, type DeltaTarget } from "@/components/coach/programs/muscle-builder/weeklyDeltaEngine";
+import { findDeloadPreset } from "@/components/coach/programs/muscle-builder/deloadPresets";
 
 const DEFAULT_GLOBAL_CLIENT_INPUTS = ['performed_weight', 'performed_reps', 'performed_rpe'];
 const DEFAULT_GLOBAL_PRESCRIPTION_COLUMNS = ['rep_range', 'tempo', 'rir', 'rpe', 'rest'];
@@ -21,10 +23,17 @@ type Action =
   | { type: 'SELECT_DAY'; dayIndex: number }
   | { type: 'SELECT_WEEK'; weekIndex: number }
   | { type: 'ADD_WEEK' }
+  | { type: 'ADD_WEEK_WITH_RULES' }
+  | { type: 'ADD_WEEK_BLANK' }
   | { type: 'REMOVE_WEEK'; weekIndex: number }
   | { type: 'DUPLICATE_WEEK'; weekIndex: number }
+  | { type: 'SET_SLOT_DELTA_RULES'; slotId: string; rules: WeeklyDeltaRule[] }
+  | { type: 'RECOMPUTE_DOWNSTREAM_FROM_DELTAS'; slotId?: string }
+  | { type: 'MARK_FIELD_MANUAL_OVERRIDE'; slotId: string; field: DeltaTarget }
+  | { type: 'CLEAR_FIELD_MANUAL_OVERRIDE'; slotId: string; field: DeltaTarget }
   | { type: 'SET_WEEK_LABEL'; weekIndex: number; label: string }
   | { type: 'TOGGLE_DELOAD'; weekIndex: number }
+  | { type: 'APPLY_DELOAD'; weekIndex: number; baseContent: 'clone' | 'fresh' | 'keep'; sourceWeekIndex?: number; presetId: string | null }
   | { type: 'APPLY_SLOT_TO_REMAINING'; slotId: string; fields: Partial<MuscleSlotData> }
   | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string; sets?: number; sessionId?: string }
   | { type: 'REMOVE_MUSCLE'; slotId: string }
@@ -173,6 +182,128 @@ function hydrateSlotIds(slots: MuscleSlotData[]): MuscleSlotData[] {
   }));
 }
 
+/**
+ * Tag a W2+ slot's manualOverrides with the touched DeltaTargets — but only
+ * when the W1 sibling actually has a rule for that field. On W1 (or when no
+ * rule exists), no-op. This is what protects a coach's hand-edits from being
+ * clobbered by RECOMPUTE_DOWNSTREAM_FROM_DELTAS.
+ *
+ * Matches the W1 sibling by (dayIndex, sortOrder) — same convention as
+ * APPLY_SLOT_TO_REMAINING and ADD_WEEK_WITH_RULES.
+ */
+function tagSlotOverrides(
+  state: MusclePlanState,
+  slotId: string,
+  targets: DeltaTarget[],
+): MusclePlanState {
+  if (state.currentWeekIndex === 0 || targets.length === 0) return state;
+  const w1 = state.weeks[0];
+  if (!w1) return state;
+  const currentWeek = state.weeks[state.currentWeekIndex];
+  const currentSlot = currentWeek?.slots.find(s => s.id === slotId);
+  if (!currentSlot) return state;
+  const w1Sibling = w1.slots.find(
+    s => s.dayIndex === currentSlot.dayIndex && s.sortOrder === currentSlot.sortOrder,
+  );
+  if (!w1Sibling?.deltaRules?.length) return state;
+  const ruled = new Set(w1Sibling.deltaRules.map(r => r.target));
+  const newOverrides = targets.filter(t => ruled.has(t));
+  if (newOverrides.length === 0) return state;
+  return {
+    ...state,
+    weeks: state.weeks.map((w, wi) => {
+      if (wi !== state.currentWeekIndex) return w;
+      return {
+        ...w,
+        slots: w.slots.map(s =>
+          s.id === slotId
+            ? {
+                ...s,
+                manualOverrides: Array.from(new Set([...(s.manualOverrides ?? []), ...newOverrides])),
+              }
+            : s,
+        ),
+      };
+    }),
+  };
+}
+
+/**
+ * Re-derive W2+ slot values from the W1 sibling's deltaRules. Optionally
+ * scoped to a single slot's lineage via targetSlotId (matched against the
+ * W1 slot's id). Manual overrides on W2+ are preserved — the engine skips
+ * overridden targets.
+ *
+ * Pure function. Used by both RECOMPUTE_DOWNSTREAM_FROM_DELTAS (coach hits
+ * the button) and SET_SLOT_DELTA_RULES (auto-recompute on first-rule add so
+ * pre-existing W2+ values flip from stale-base to rule-derived without the
+ * coach having to know about the button).
+ */
+function recomputeDownstreamWeeks(
+  state: MusclePlanState,
+  targetSlotId?: string,
+): MusclePlanState {
+  const w1 = state.weeks[0];
+  if (!w1) return state;
+  const updatedWeeks = state.weeks.map((week, wi) => {
+    if (wi === 0) return week;
+    const isDeload = !!week.isDeload;
+    const updatedSlots = week.slots.map(weekSlot => {
+      const w1Sibling = w1.slots.find(
+        s => s.dayIndex === weekSlot.dayIndex && s.sortOrder === weekSlot.sortOrder,
+      );
+      if (!w1Sibling?.deltaRules?.length) return weekSlot;
+      if (targetSlotId && w1Sibling.id !== targetSlotId) return weekSlot;
+      const overrides = weekSlot.manualOverrides ?? [];
+      const { slot: resolved, derivedFields } = resolveSlotForWeek(
+        w1Sibling,
+        w1Sibling.deltaRules,
+        wi,
+        isDeload,
+        overrides,
+      );
+      if (derivedFields.length === 0) return weekSlot;
+      const merged: MuscleSlotData = { ...weekSlot };
+      for (const target of derivedFields) {
+        switch (target) {
+          case 'sets':
+            merged.sets = resolved.sets;
+            merged.setsDetail = resolved.setsDetail;
+            break;
+          case 'repMin':
+            merged.repMin = resolved.repMin;
+            break;
+          case 'repMax':
+            merged.repMax = resolved.repMax;
+            break;
+          case 'tempo':
+            merged.tempo = resolved.tempo;
+            break;
+          case 'rir':
+            merged.rir = resolved.rir;
+            merged.setsDetail = resolved.setsDetail;
+            break;
+          case 'rpe':
+            merged.rpe = resolved.rpe;
+            merged.setsDetail = resolved.setsDetail;
+            break;
+          case 'instructions':
+            if (resolved.exercise && merged.exercise) {
+              merged.exercise = {
+                ...merged.exercise,
+                instructions: resolved.exercise.instructions,
+              };
+            }
+            break;
+        }
+      }
+      return merged;
+    });
+    return { ...week, slots: updatedSlots };
+  });
+  return { ...state, weeks: updatedWeeks, isDirty: true };
+}
+
 function deepCloneWeek(week: WeekData): WeekData {
   // Regenerate session ids AND remap slot.sessionId to the new session ids
   // so cloned weeks don't share session identity with their source.
@@ -245,6 +376,133 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       return { ...state, weeks: [...state.weeks, newWeek], currentWeekIndex: state.weeks.length, isDirty: true };
     }
 
+    case 'ADD_WEEK_WITH_RULES': {
+      // Mode (a) of the 3-mode Add Week menu: clone last week, then run every
+      // W1 slot's deltaRules against its W1 base and overwrite the resolved
+      // fields on the cloned slot. Non-rule fields (exercise assignment,
+      // session structure, replacements) flow through from the cloned week
+      // unchanged. New week starts with empty manualOverrides — those are
+      // strictly week-local.
+      const w1 = state.weeks[0];
+      const lastWeek = state.weeks[state.weeks.length - 1] || EMPTY_WEEK;
+      const cloned = deepCloneWeek(lastWeek);
+      const newWeekOffset = state.weeks.length;       // 0-indexed: W2 = 1, W3 = 2, ...
+      const isDeload = !!cloned.isDeload;
+
+      const updatedSlots = cloned.slots.map(clonedSlot => {
+        const w1Slot = w1?.slots.find(
+          s => s.dayIndex === clonedSlot.dayIndex && s.sortOrder === clonedSlot.sortOrder
+        );
+        const stripped: MuscleSlotData = { ...clonedSlot, manualOverrides: undefined };
+        if (!w1Slot || !w1Slot.deltaRules || w1Slot.deltaRules.length === 0) {
+          return stripped;
+        }
+        // Run engine against the W1 base (NOT the cloned values). Math always
+        // anchors to W1; D11 / D14 / D6 confirm this is the intended model.
+        const { slot: resolved } = resolveSlotForWeek(
+          w1Slot,
+          w1Slot.deltaRules,
+          newWeekOffset,
+          isDeload,
+          [], // new week, no overrides yet
+        );
+        // Merge: cloned-slot identity (id, sessionId, dayIndex, sortOrder,
+        // muscleId, replacements) + resolved prescription fields.
+        return {
+          ...stripped,
+          sets: resolved.sets,
+          repMin: resolved.repMin,
+          repMax: resolved.repMax,
+          tempo: resolved.tempo,
+          rir: resolved.rir,
+          rpe: resolved.rpe,
+          setsDetail: resolved.setsDetail,
+          exercise: resolved.exercise ?? stripped.exercise,
+        };
+      });
+
+      return {
+        ...state,
+        weeks: [...state.weeks, { ...cloned, slots: updatedSlots }],
+        currentWeekIndex: state.weeks.length,
+        isDirty: true,
+      };
+    }
+
+    case 'ADD_WEEK_BLANK': {
+      // Mode (c): fully blank week, no sessions, no slots. Coach builds from
+      // scratch — useful for switching training blocks mid-mesocycle.
+      return {
+        ...state,
+        weeks: [...state.weeks, { slots: [], sessions: [] }],
+        currentWeekIndex: state.weeks.length,
+        isDirty: true,
+      };
+    }
+
+    case 'SET_SLOT_DELTA_RULES': {
+      // Replace deltaRules on the slot with matching id (across all weeks —
+      // ids are globally unique, will match at most one slot). Phase 2 editor
+      // will only call this with W1 slot ids.
+      const nextRules = action.rules.length > 0 ? action.rules : undefined;
+      // Detect the 0 → N transition so we can auto-recompute downstream weeks
+      // that were created BEFORE the rule was authored — without this, those
+      // weeks keep the verbatim-clone values and the inheritance bar's
+      // "auto" chip is misleading (B4).
+      const w1Slot = state.weeks[0]?.slots.find(s => s.id === action.slotId);
+      const hadRules = !!(w1Slot?.deltaRules && w1Slot.deltaRules.length > 0);
+      const willHaveRules = !!(nextRules && nextRules.length > 0);
+
+      const weeks = state.weeks.map(w => ({
+        ...w,
+        slots: w.slots.map(s =>
+          s.id === action.slotId ? { ...s, deltaRules: nextRules } : s,
+        ),
+      }));
+      const next: MusclePlanState = { ...state, weeks, isDirty: true };
+
+      // First-rule-added: auto-run recompute for this slot's lineage. Manual
+      // overrides on later weeks survive because the engine respects them.
+      if (!hadRules && willHaveRules) {
+        return recomputeDownstreamWeeks(next, action.slotId);
+      }
+      return next;
+    }
+
+    case 'MARK_FIELD_MANUAL_OVERRIDE': {
+      const weeks = state.weeks.map(w => ({
+        ...w,
+        slots: w.slots.map(s => {
+          if (s.id !== action.slotId) return s;
+          const current = s.manualOverrides ?? [];
+          if (current.includes(action.field)) return s;
+          return { ...s, manualOverrides: [...current, action.field] };
+        }),
+      }));
+      return { ...state, weeks, isDirty: true };
+    }
+
+    case 'CLEAR_FIELD_MANUAL_OVERRIDE': {
+      const weeks = state.weeks.map(w => ({
+        ...w,
+        slots: w.slots.map(s => {
+          if (s.id !== action.slotId) return s;
+          const next = (s.manualOverrides ?? []).filter(t => t !== action.field);
+          return { ...s, manualOverrides: next.length > 0 ? next : undefined };
+        }),
+      }));
+      return { ...state, weeks, isDirty: true };
+    }
+
+    case 'RECOMPUTE_DOWNSTREAM_FROM_DELTAS': {
+      // Walks every week > 0 and rerun the engine for slots whose W1 sibling
+      // has rules. Hand-edits tracked in manualOverrides survive — the engine
+      // skips overridden targets, leaving the cell untouched.
+      // Logic lives in recomputeDownstreamWeeks() because SET_SLOT_DELTA_RULES
+      // also calls it on first-rule transition (B4 fix).
+      return recomputeDownstreamWeeks(state, action.slotId);
+    }
+
     case 'REMOVE_WEEK': {
       if (state.weeks.length <= 1) return state;
       const weeks = state.weeks.filter((_, i) => i !== action.weekIndex);
@@ -269,24 +527,73 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
     }
 
     case 'TOGGLE_DELOAD': {
+      // Phase 5 — flag-only toggle. The auto-60%-sets reduction that used to
+      // live here moved into APPLY_DELOAD (the Volume preset). Marking a week
+      // as deload without going through the dialog now leaves content intact.
       const week = state.weeks[action.weekIndex];
       if (!week) return state;
       const wasDeload = week.isDeload;
-      const updatedSlots = wasDeload
-        ? week.slots // turning OFF: slots stay as-is, coach uses undo if needed
-        : week.slots.map(s => ({
-            ...s,
-            sets: Math.max(1, Math.ceil(s.sets * 0.6)),
-            setsDetail: s.setsDetail
-              ? s.setsDetail.slice(0, Math.max(1, Math.ceil(s.sets * 0.6)))
-              : undefined,
-          }));
       const weeks = state.weeks.map((w, i) =>
         i === action.weekIndex
-          ? { ...w, isDeload: !wasDeload, label: !wasDeload ? (w.label || 'Deload') : w.label, slots: updatedSlots }
+          ? { ...w, isDeload: !wasDeload, label: !wasDeload ? (w.label || 'Deload') : w.label }
           : w
       );
       return { ...state, weeks, isDirty: true };
+    }
+
+    case 'APPLY_DELOAD': {
+      // Phase 5 — coach picks base content + optional preset from the
+      // DeloadDialog. Preset-touched fields are tagged manualOverrides so
+      // RECOMPUTE_DOWNSTREAM_FROM_DELTAS doesn't re-clobber them with the
+      // W1 progression rules.
+      if (action.weekIndex < 0 || action.weekIndex >= state.weeks.length) return state;
+      const targetWeek = state.weeks[action.weekIndex];
+
+      // ---- Resolve base content ----
+      let baseSlots: MuscleSlotData[];
+      let baseSessions: SessionData[];
+      if (action.baseContent === 'fresh') {
+        baseSlots = [];
+        baseSessions = [];
+      } else if (action.baseContent === 'clone' && action.sourceWeekIndex != null) {
+        const source = state.weeks[action.sourceWeekIndex];
+        if (!source) return state;
+        const cloned = deepCloneWeek(source);
+        baseSlots = cloned.slots;
+        baseSessions = cloned.sessions ?? [];
+      } else {
+        // 'keep' — leave target's existing content
+        baseSlots = targetWeek.slots;
+        baseSessions = targetWeek.sessions ?? [];
+      }
+
+      // ---- Apply preset (if any) and tag overrides ----
+      const preset = action.presetId ? findDeloadPreset(action.presetId) : null;
+      const transformedSlots: MuscleSlotData[] = preset
+        ? baseSlots.map(slot => {
+            const after = preset.apply(slot);
+            return {
+              ...after,
+              manualOverrides: Array.from(new Set([
+                ...(slot.manualOverrides ?? []),
+                ...preset.touchedTargets,
+              ])),
+            };
+          })
+        : baseSlots;
+
+      const updatedWeeks = state.weeks.map((w, i) =>
+        i === action.weekIndex
+          ? {
+              ...w,
+              slots: transformedSlots,
+              sessions: baseSessions,
+              isDeload: true,
+              label: w.label || 'Deload',
+            }
+          : w,
+      );
+      return { ...state, weeks: updatedWeeks, isDirty: true };
     }
 
     case 'APPLY_SLOT_TO_REMAINING': {
@@ -421,20 +728,24 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       });
     }
 
-    case 'SET_SETS':
-      return withUpdatedCurrentWeek(state, s =>
+    case 'SET_SETS': {
+      const next = withUpdatedCurrentWeek(state, s =>
         s.map(sl => sl.id === action.slotId ? { ...sl, sets: Math.max(1, action.sets) } : sl)
       );
+      return tagSlotOverrides(next, action.slotId, ['sets']);
+    }
 
-    case 'SET_REPS':
-      return withUpdatedCurrentWeek(state, s =>
+    case 'SET_REPS': {
+      const next = withUpdatedCurrentWeek(state, s =>
         s.map(sl => sl.id === action.slotId
           ? { ...sl, repMin: Math.max(1, Math.min(100, action.repMin)), repMax: Math.max(1, Math.min(100, action.repMax)) }
           : sl)
       );
+      return tagSlotOverrides(next, action.slotId, ['repMin', 'repMax']);
+    }
 
-    case 'SET_SLOT_DETAILS':
-      return withUpdatedCurrentWeek(state, s =>
+    case 'SET_SLOT_DETAILS': {
+      const next = withUpdatedCurrentWeek(state, s =>
         s.map(sl => {
           if (sl.id !== action.slotId) return sl;
           const updated = {
@@ -452,6 +763,15 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
           return updated;
         })
       );
+      const touched: DeltaTarget[] = [];
+      if (action.sets != null) touched.push('sets');
+      if (action.repMin != null) touched.push('repMin');
+      if (action.repMax != null) touched.push('repMax');
+      if (action.tempo !== undefined) touched.push('tempo');
+      if (action.rir !== undefined) touched.push('rir');
+      if (action.rpe !== undefined) touched.push('rpe');
+      return tagSlotOverrides(next, action.slotId, touched);
+    }
 
     case 'REORDER': {
       const daySlots = slots
@@ -660,8 +980,8 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         })
       );
 
-    case 'UPDATE_SET_DETAIL':
-      return withUpdatedCurrentWeek(state, s =>
+    case 'UPDATE_SET_DETAIL': {
+      const next = withUpdatedCurrentWeek(state, s =>
         s.map(sl => {
           if (sl.id !== action.slotId || !sl.setsDetail) return sl;
           const updated = sl.setsDetail.map((set, i) =>
@@ -670,6 +990,19 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
           return { ...sl, setsDetail: updated };
         })
       );
+      // Per-set field → slot-level DeltaTarget. Best-effort coverage: rir,
+      // rpe, and reps fields map to the slot-level RIR/RPE rules. Other fields
+      // (weight, tempo per-set) aren't covered by Phase 0 engine targets, so
+      // no tag — they can't be overridden by a rule either.
+      const fieldToTarget: Record<string, DeltaTarget | null> = {
+        rir: 'rir',
+        rpe: 'rpe',
+        rep_range_min: 'repMin',
+        rep_range_max: 'repMax',
+      };
+      const target = fieldToTarget[action.field as string] ?? null;
+      return target ? tagSlotOverrides(next, action.slotId, [target]) : next;
+    }
 
     case 'DELETE_SET_AT_INDEX':
       return withUpdatedCurrentWeek(state, s =>
@@ -702,13 +1035,15 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         s.map(sl => sl.id === action.slotId ? { ...sl, prescriptionColumns: action.columns } : sl)
       );
 
-    case 'SET_EXERCISE_INSTRUCTIONS':
-      return withUpdatedCurrentWeek(state, s =>
+    case 'SET_EXERCISE_INSTRUCTIONS': {
+      const next = withUpdatedCurrentWeek(state, s =>
         s.map(sl => {
           if (sl.id !== action.slotId || !sl.exercise) return sl;
           return { ...sl, exercise: { ...sl.exercise, instructions: action.instructions || undefined } };
         })
       );
+      return tagSlotOverrides(next, action.slotId, ['instructions']);
+    }
 
     case 'SET_GLOBAL_CLIENT_INPUTS':
       return { ...state, globalClientInputs: action.columns, isDirty: true };
@@ -1023,3 +1358,15 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
 }
 
 export { getCurrentSlots, getCurrentSessions };
+
+/**
+ * Whether any W1 slot has at least one delta rule attached.
+ * Used by WeekTabStrip to flip the Add Week dropdown's default mode:
+ *   - true  → "Same workouts + apply rules" (mode a)
+ *   - false → "Clone last week" (mode b — matches today's muscle memory)
+ */
+export function hasAnyDeltaRules(state: MusclePlanState): boolean {
+  const w1 = state.weeks[0];
+  if (!w1) return false;
+  return w1.slots.some(s => Array.isArray(s.deltaRules) && s.deltaRules.length > 0);
+}

@@ -56,6 +56,13 @@ interface SessionBlockProps {
   onSetActivityDetails?: (slotId: string, details: Record<string, unknown>) => void;
   onSetAllSets?: (muscleId: string, sets: number) => void;
   onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
+  // Phase 2 — Weekly deltas
+  weekIndex?: number;
+  isDeloadByWeek?: boolean[];
+  onSetSlotDeltaRules?: (slotId: string, rules: import("./weeklyDeltaEngine").WeeklyDeltaRule[]) => void;
+  // Phase 4 — Inheritance bar on W2+
+  w1RuleTargetsBySlotId?: Map<string, import("./weeklyDeltaEngine").DeltaTarget[]>;
+  onClearSlotOverride?: (slotId: string, target: import("./weeklyDeltaEngine").DeltaTarget) => void;
   // Session callbacks
   onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
@@ -102,6 +109,11 @@ export const SessionBlock = memo(function SessionBlock({
   onSetActivityDetails,
   onSetAllSets,
   onApplyToRemaining,
+  weekIndex,
+  isDeloadByWeek,
+  onSetSlotDeltaRules,
+  w1RuleTargetsBySlotId,
+  onClearSlotOverride,
   onAddMuscleToSession,
   onAddActivityToSession,
   onRenameSession,
@@ -361,6 +373,13 @@ export const SessionBlock = memo(function SessionBlock({
                     onSetAllSets={onSetAllSets}
                     weekCount={weekCount}
                     onApplyToRemaining={onApplyToRemaining}
+                    weekIndex={weekIndex}
+                    isDeloadByWeek={isDeloadByWeek}
+                    deltaRules={slot.deltaRules}
+                    onSetSlotDeltaRules={onSetSlotDeltaRules}
+                    w1RuleTargets={w1RuleTargetsBySlotId?.get(slot.id)}
+                    manualOverrides={slot.manualOverrides}
+                    onClearOverride={onClearSlotOverride}
                   />
                 );
               }

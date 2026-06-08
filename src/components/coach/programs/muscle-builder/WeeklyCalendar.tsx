@@ -43,6 +43,13 @@ interface WeeklyCalendarProps {
   onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
   placementCounts?: Map<string, number>;
   recentMuscleIds?: string[];
+  // Phase 2 — Weekly deltas. Desktop only for MVP; MobileDayDetail wires in Phase 4.
+  weekIndex?: number;
+  isDeloadByWeek?: boolean[];
+  onSetSlotDeltaRules?: (slotId: string, rules: import("./weeklyDeltaEngine").WeeklyDeltaRule[]) => void;
+  // Phase 4 — Inheritance bar on W2+
+  w1RuleTargetsBySlotId?: Map<string, import("./weeklyDeltaEngine").DeltaTarget[]>;
+  onClearSlotOverride?: (slotId: string, target: import("./weeklyDeltaEngine").DeltaTarget) => void;
 }
 
 export const WeeklyCalendar = memo(function WeeklyCalendar({
@@ -84,6 +91,11 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onApplyToRemaining,
   placementCounts,
   recentMuscleIds,
+  weekIndex,
+  isDeloadByWeek,
+  onSetSlotDeltaRules,
+  w1RuleTargetsBySlotId,
+  onClearSlotOverride,
 }: WeeklyCalendarProps) {
   const days = [1, 2, 3, 4, 5, 6, 7];
 
@@ -177,6 +189,11 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onApplyToRemaining={onApplyToRemaining}
             placementCounts={placementCounts}
             recentMuscleIds={recentMuscleIds}
+            weekIndex={weekIndex}
+            isDeloadByWeek={isDeloadByWeek}
+            onSetSlotDeltaRules={onSetSlotDeltaRules}
+            w1RuleTargetsBySlotId={w1RuleTargetsBySlotId}
+            onClearSlotOverride={onClearSlotOverride}
           />
         ))}
       </div>
