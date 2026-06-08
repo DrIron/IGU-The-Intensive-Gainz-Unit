@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from "date-fns";
 import type { ClientOverviewTabProps } from "../types";
+import { DeloadRequestPanel } from "@/components/coach/clients/DeloadRequestPanel";
 
 interface OverviewStats {
   phaseName: string | null;
@@ -145,6 +146,12 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
 
   return (
     <div className="space-y-6">
+      {/* Phase 6 — client-initiated deload request panel. Self-hides when no pending. */}
+      <DeloadRequestPanel
+        clientUserId={clientUserId}
+        clientFirstName={context.profile.firstName}
+      />
+
       {stats.pendingAdjustments > 0 && (
         <Card className="border-amber-500/30 bg-amber-500/5">
           <CardContent className="p-4 md:p-6 flex items-center gap-3">

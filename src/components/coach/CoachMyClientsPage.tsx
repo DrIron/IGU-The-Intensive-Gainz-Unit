@@ -14,11 +14,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { EmptyState } from "@/components/ui/empty-state";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useStaffUnreadCounts } from "@/hooks/useStaffUnreadCounts";
+import { useCoachDeloadRequestCounts } from "@/hooks/useCoachDeloadRequests";
 import {
   Users, Search, Eye, Activity, AlertCircle, TrendingUp, TrendingDown,
   Dumbbell, Library, MoreVertical, MessageSquare, ArrowRight,
   Check, X, Mail, Phone, DollarSign, Calendar, UserCheck, Clock, CreditCard,
-  AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown, UserPlus
+  AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown, UserPlus, Snowflake
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -76,6 +77,8 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   // One RPC returns the (client_id -> unread_count) map for the whole
   // roster. Avoids N round trips if we polled per row.
   const { counts: unreadCounts } = useStaffUnreadCounts();
+  // Phase 6 — pending deload requests per client. Same batch-rpc shape.
+  const { counts: deloadCounts } = useCoachDeloadRequestCounts(coachUserId);
   
   // Filter state
   const [planFilter, setPlanFilter] = useState<string>('all');
@@ -699,6 +702,15 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                           >
                             <MessageSquare className="h-3 w-3" aria-hidden="true" />
                             {unreadCounts[client.id] >= 100 ? "99+" : unreadCounts[client.id]}
+                          </Badge>
+                        )}
+                        {(deloadCounts.get(client.id) ?? 0) > 0 && (
+                          <Badge
+                            className="text-[10px] shrink-0 gap-1 px-1.5 h-5 bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 hover:bg-blue-500/20"
+                            aria-label={`${deloadCounts.get(client.id)} pending deload ${deloadCounts.get(client.id) === 1 ? "request" : "requests"}`}
+                          >
+                            <Snowflake className="h-3 w-3" aria-hidden="true" />
+                            Deload
                           </Badge>
                         )}
                       </div>

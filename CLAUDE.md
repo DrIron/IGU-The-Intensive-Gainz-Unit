@@ -787,6 +787,8 @@ Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
 | `send-waitlist-invites` | No | Internal admin auth check |
 | `send-content-assignment-email` | No | Called from frontend; internal JWT validation; same pattern as `send-coach-client-message-email` |
 | `send-content-link-email` | No | Called from frontend; internal JWT + coach/admin role check. Fans out to active clients on a program template, or to the single phase owner. Throttle key `(user_id, notification_type, context_id=target.id)` -- window `CONTENT_LINK_EMAIL_WINDOW_MIN` (default 30). |
+| `send-deload-request-email` | No | Called from frontend; internal JWT validation; client-initiated. Sends to primary coach + active care team. No window throttle (DB partial unique index already forbids 2 pending requests per client). |
+| `send-deload-response-email` | No | Called from frontend; internal JWT + care-team/admin check. Sends to the client when the coach approves/declines/schedules. |
 | `fetch-video-metadata` | No | Called from frontend; internal JWT + admin role check |
 | All 10 `process-*` / `send-admin-daily-summary` / `send-weekly-coach-digest` | No | Vercel Cron with service role key |
 
