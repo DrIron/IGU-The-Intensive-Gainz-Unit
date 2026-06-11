@@ -85,7 +85,30 @@ Deno.serve(async (req) => {
       newLeads: newLeadsResult.count || 0,
       totalClients: totalClientsResult.count || 0,
       totalCoaches: totalCoachesResult.count || 0,
+      headCoachExemptAdds: 0,
     };
+
+    // Head-coach payment-exempt ("test drive") clients added in the last 24h.
+    // These are subscriptions stamped with activation_override_by = a head coach
+    // (see create-manual-client). Non-fatal: a failure here shouldn't block the
+    // whole summary.
+    try {
+      const { data: hcRows } = await supabase
+        .from("coaches_public")
+        .select("user_id")
+        .eq("is_head_coach", true);
+      const hcIds = (hcRows ?? []).map((r) => r.user_id);
+      if (hcIds.length > 0) {
+        const { count } = await supabase
+          .from("subscriptions")
+          .select("id", { count: "exact", head: true })
+          .gte("created_at", oneDayAgo)
+          .in("activation_override_by", hcIds);
+        stats.headCoachExemptAdds = count || 0;
+      }
+    } catch (e) {
+      console.error("head-coach exempt-adds count failed:", e);
+    }
 
     // Check if admin daily summary is enabled
     if (!(await isEmailEnabled(supabase, "admin_daily_summary"))) {
@@ -159,6 +182,7 @@ Deno.serve(async (req) => {
           statCard('Active Coaches', stats.totalCoaches),
           statCard('New Leads (24h)', stats.newLeads),
           statCard('Failed Payments', stats.failedSubs, stats.failedSubs > 0),
+          statCard('HC Exempt Adds (24h)', stats.headCoachExemptAdds),
         ]),
         ctaButton('Open Admin Dashboard', `${APP_BASE_URL}/admin/dashboard`),
         signOff(),

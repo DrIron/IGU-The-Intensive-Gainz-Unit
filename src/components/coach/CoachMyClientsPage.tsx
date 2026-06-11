@@ -19,7 +19,7 @@ import {
   Users, Search, Eye, Activity, AlertCircle, TrendingUp, TrendingDown,
   Dumbbell, Library, MoreVertical, MessageSquare, ArrowRight,
   Check, X, Mail, Phone, DollarSign, Calendar, UserCheck, Clock, CreditCard,
-  AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown, UserPlus, Snowflake
+  AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown, UserPlus, Snowflake, Gift
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -34,6 +34,7 @@ import { CoachEarningsSummary } from "./CoachEarningsSummary";
 import { RoleBreadcrumb } from "./RoleBreadcrumb";
 import { SimplePagination, createPagination } from "@/components/ui/simple-pagination";
 import { InviteClientDialog } from "./InviteClientDialog";
+import { AddExemptClientDialog } from "./AddExemptClientDialog";
 
 interface CoachClient {
   id: string;
@@ -94,6 +95,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
 
   // Invite client dialog (Senior/Lead coaches only)
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [exemptDialogOpen, setExemptDialogOpen] = useState(false);
   const [canInviteClients, setCanInviteClients] = useState(false);
   const [isHeadCoach, setIsHeadCoach] = useState(false);
 
@@ -870,6 +872,17 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                   Invite Client
                 </Button>
               )}
+              {isHeadCoach && (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setExemptDialogOpen(true)}
+                  className="gap-2"
+                >
+                  <Gift className="h-4 w-4" />
+                  Add Payment Exempt Client
+                </Button>
+              )}
             </div>
 
             {/* Filters */}
@@ -1018,6 +1031,16 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           onOpenChange={setInviteDialogOpen}
           coachUserId={coachUserId}
           isHeadCoach={isHeadCoach}
+        />
+      )}
+
+      {/* Add Payment Exempt Client Dialog (head coaches only) */}
+      {isHeadCoach && (
+        <AddExemptClientDialog
+          open={exemptDialogOpen}
+          onOpenChange={setExemptDialogOpen}
+          coachUserId={coachUserId}
+          onClientCreated={handleRefresh}
         />
       )}
     </div>

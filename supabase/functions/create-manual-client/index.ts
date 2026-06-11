@@ -8,6 +8,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Admin path: full personal details required (mirrors the admin dialog).
 const manualClientSchema = z.object({
   email: z.string().email().max(255).trim().toLowerCase(),
   firstName: z.string().min(1).max(50).trim(),
@@ -17,6 +18,19 @@ const manualClientSchema = z.object({
   gender: z.enum(['male', 'female', 'other', 'prefer_not_to_say']),
   serviceId: z.string().uuid(),
 });
+
+// Head-coach path: lighter (no phone/DOB/gender) + a mandatory reason.
+// The client fills the rest of their profile when they use the app.
+const headCoachSchema = z.object({
+  email: z.string().email().max(255).trim().toLowerCase(),
+  firstName: z.string().min(1).max(50).trim(),
+  lastName: z.string().min(1).max(50).trim(),
+  serviceId: z.string().uuid(),
+  reason: z.string().min(3, "Please give a short reason").max(500).trim(),
+});
+
+// Fallback cap when coaches_public.max_exempt_clients is NULL.
+const DEFAULT_EXEMPT_CAP = 5;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
@@ -41,30 +55,63 @@ serve(async (req) => {
       }
     );
 
-    // Auth check: verify caller is an admin
+    // Auth: caller must be an admin OR a head coach.
     const authHeader = req.headers.get('Authorization')?.replace('Bearer ', '');
-    if (authHeader) {
-      const { data: { user: caller }, error: callerError } = await supabaseAdmin.auth.getUser(authHeader);
-      if (callerError || !caller) {
-        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-          status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-      const { data: roles } = await supabaseAdmin.from('user_roles').select('role').eq('user_id', caller.id).eq('role', 'admin');
-      if (!roles || roles.length === 0) {
-        return new Response(JSON.stringify({ error: 'Admin role required' }), {
-          status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
-      }
-    } else {
+    if (!authHeader) {
       return new Response(JSON.stringify({ error: 'Authorization header required' }), {
         status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+    const { data: { user: caller }, error: callerError } = await supabaseAdmin.auth.getUser(authHeader);
+    if (callerError || !caller) {
+      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Resolve caller roles. Destructure { error } per CLAUDE.md so a silent
+    // role-fetch failure doesn't falsely reject a legitimate caller.
+    const { data: roleRows, error: roleErr } = await supabaseAdmin
+      .from('user_roles').select('role').eq('user_id', caller.id);
+    if (roleErr) throw roleErr;
+    const roleList = (roleRows ?? []).map((r: any) => r.role as string);
+    const isAdmin = roleList.includes('admin');
+
+    // Head-coach branch: a coach flagged is_head_coach may self-create payment-
+    // exempt "test drive" clients (assigned to themselves, capped, reason
+    // required, surfaced in the admin daily summary). Any service type allowed.
+    let isHeadCoach = false;
+    let maxExemptClients: number | null = null;
+    if (!isAdmin) {
+      const { data: cp, error: cpErr } = await supabaseAdmin
+        .from('coaches_public')
+        .select('is_head_coach, max_exempt_clients')
+        .eq('user_id', caller.id)
+        .maybeSingle();
+      if (cpErr) throw cpErr;
+      isHeadCoach = roleList.includes('coach') && (cp?.is_head_coach ?? false);
+      maxExemptClients = cp?.max_exempt_clients ?? null;
+    }
+
+    if (!isAdmin && !isHeadCoach) {
+      return new Response(JSON.stringify({ error: 'Admin or head coach role required' }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const actorType: 'admin' | 'head_coach' = isAdmin ? 'admin' : 'head_coach';
 
     const body = await req.json();
-    const validated = manualClientSchema.parse(body);
-    const { email, firstName, lastName, phoneNumber, dateOfBirth, gender, serviceId } = validated;
+    const validated = actorType === 'admin'
+      ? manualClientSchema.parse(body)
+      : headCoachSchema.parse(body);
+    const { email, firstName, lastName, serviceId } = validated as {
+      email: string; firstName: string; lastName: string; serviceId: string;
+    };
+    const phoneNumber = (validated as { phoneNumber?: string }).phoneNumber;
+    const dateOfBirth = (validated as { dateOfBirth?: string }).dateOfBirth;
+    const gender = (validated as { gender?: string }).gender;
+    const reason = (validated as { reason?: string }).reason;
 
     // Verify serviceId exists and is active
     const { data: service, error: serviceError } = await supabaseAdmin
@@ -214,35 +261,42 @@ serve(async (req) => {
       throw profilePrivateError;
     }
 
-    // Find the IGU admin coach account. Email lives on coaches_private (moved
-    // from coaches.email by 20260117164058 PII split); user_id joins to
-    // coaches_public for the status check. This function runs as service role
-    // so RLS on coaches_private is bypassed.
-    const { data: privateRow, error: privateErr } = await supabaseAdmin
-      .from("coaches_private")
-      .select("user_id")
-      .eq("email", "dr.ironofficial@gmail.com")
-      .maybeSingle();
-
-    if (privateErr) {
-      console.error(JSON.stringify({ fn: "create-manual-client", step: "find_admin_coach_private", ok: false, error: "query_failed" }));
-    }
-
+    // Resolve the coach to assign.
+    //  - Head coach: assign the client to themselves.
+    //  - Admin: assign the IGU admin coach account (existing behavior).
     let coachId: string | null = null;
-    if (privateRow?.user_id) {
-      const { data: publicRow, error: publicErr } = await supabaseAdmin
-        .from("coaches_public")
-        .select("user_id, status")
-        .eq("user_id", privateRow.user_id)
+    if (actorType === 'head_coach') {
+      coachId = caller.id;
+    } else {
+      // Find the IGU admin coach account. Email lives on coaches_private (moved
+      // from coaches.email by 20260117164058 PII split); user_id joins to
+      // coaches_public for the status check. This function runs as service role
+      // so RLS on coaches_private is bypassed.
+      const { data: privateRow, error: privateErr } = await supabaseAdmin
+        .from("coaches_private")
+        .select("user_id")
+        .eq("email", "dr.ironofficial@gmail.com")
         .maybeSingle();
-      if (publicErr) {
-        console.error(JSON.stringify({ fn: "create-manual-client", step: "find_admin_coach_public", ok: false, error: "query_failed" }));
+
+      if (privateErr) {
+        console.error(JSON.stringify({ fn: "create-manual-client", step: "find_admin_coach_private", ok: false, error: "query_failed" }));
       }
-      if (publicRow?.status === "approved") {
-        coachId = publicRow.user_id;
+
+      if (privateRow?.user_id) {
+        const { data: publicRow, error: publicErr } = await supabaseAdmin
+          .from("coaches_public")
+          .select("user_id, status")
+          .eq("user_id", privateRow.user_id)
+          .maybeSingle();
+        if (publicErr) {
+          console.error(JSON.stringify({ fn: "create-manual-client", step: "find_admin_coach_public", ok: false, error: "query_failed" }));
+        }
+        if (publicRow?.status === "approved") {
+          coachId = publicRow.user_id;
+        }
       }
     }
-    console.log(JSON.stringify({ fn: "create-manual-client", step: "assign_coach", ok: true, coach_id: coachId }));
+    console.log(JSON.stringify({ fn: "create-manual-client", step: "assign_coach", ok: true, coach_id: coachId, actor: actorType }));
 
     // Ensure profiles_legacy row exists (FK required by subscriptions table)
     const { error: legacyError } = await supabaseAdmin
@@ -277,6 +331,24 @@ serve(async (req) => {
     const existingSub = existingSubs && existingSubs.length > 0 ? existingSubs[0] : null;
 
     if (!existingSub) {
+      // Head-coach cap: block once the coach hits their active-exempt limit.
+      // Fail closed on count error so a transient DB issue can't bypass the cap.
+      if (actorType === 'head_coach') {
+        const cap = maxExemptClients ?? DEFAULT_EXEMPT_CAP;
+        const { data: currentCount, error: countErr } = await supabaseAdmin
+          .rpc('count_active_exempt_clients_for_coach', { p_coach_id: caller.id });
+        if (countErr) {
+          console.error(JSON.stringify({ fn: "create-manual-client", step: "exempt_cap_count", ok: false, error: countErr.message }));
+          throw new Error('Unable to verify your payment-exempt client limit. Please try again.');
+        }
+        if ((currentCount ?? 0) >= cap) {
+          return new Response(
+            JSON.stringify({ success: false, error: `You've reached your payment-exempt client limit (${cap}). Contact an admin to raise it.` }),
+            { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+          );
+        }
+      }
+
       const { error: subError } = await supabaseAdmin
         .from("subscriptions")
         .insert({
@@ -285,6 +357,11 @@ serve(async (req) => {
           status: "active", // Set to active immediately
           start_date: new Date().toISOString(),
           coach_id: coachId,
+          // Head-coach exempt adds: record who waived payment and why (audit +
+          // daily-summary source). Admin path leaves these null.
+          ...(actorType === 'head_coach'
+            ? { activation_override_by: caller.id, activation_override_reason: reason }
+            : {}),
         });
 
       if (subError) {

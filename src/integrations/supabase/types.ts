@@ -2183,6 +2183,7 @@ export type Database = {
           last_assigned_at: string | null
           last_name: string | null
           location: string | null
+          max_exempt_clients: number | null
           max_onetoone_clients: number | null
           max_team_clients: number | null
           nickname: string | null
@@ -2210,6 +2211,7 @@ export type Database = {
           last_assigned_at?: string | null
           last_name?: string | null
           location?: string | null
+          max_exempt_clients?: number | null
           max_onetoone_clients?: number | null
           max_team_clients?: number | null
           nickname?: string | null
@@ -2237,6 +2239,7 @@ export type Database = {
           last_assigned_at?: string | null
           last_name?: string | null
           location?: string | null
+          max_exempt_clients?: number | null
           max_onetoone_clients?: number | null
           max_team_clients?: number | null
           nickname?: string | null
@@ -7262,6 +7265,7 @@ export type Database = {
           last_assigned_at: string | null
           last_name: string | null
           location: string | null
+          max_exempt_clients: number | null
           max_onetoone_clients: number | null
           max_team_clients: number | null
           nickname: string | null
@@ -7482,6 +7486,10 @@ export type Database = {
       coach_assignment_would_block: {
         Args: { p_coach_user_id: string; p_service_id: string }
         Returns: boolean
+      }
+      count_active_exempt_clients_for_coach: {
+        Args: { p_coach_id: string }
+        Returns: number
       }
       complete_client_day_module: {
         Args: { p_module_id: string }
