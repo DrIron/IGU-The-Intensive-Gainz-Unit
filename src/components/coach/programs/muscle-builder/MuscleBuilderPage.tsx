@@ -403,6 +403,21 @@ export function MuscleBuilderPage({
     [pickerSlotId, pickerMode, dispatch]
   );
 
+  // Replacement-mode batch commit: one dispatch appends all checked picks as a
+  // single undo step. Primary selection still flows through handleExerciseSelected.
+  const handleExercisesSelected = useCallback(
+    (picks: { exerciseId: string; section: string; exerciseName: string }[]) => {
+      if (!pickerSlotId || picks.length === 0) return;
+      const exercises: SlotExercise[] = picks.map(p => ({
+        exerciseId: p.exerciseId,
+        name: p.exerciseName || 'Exercise',
+      }));
+      dispatch({ type: 'ADD_REPLACEMENTS', slotId: pickerSlotId, exercises });
+      setExercisePickerOpen(false);
+    },
+    [pickerSlotId, dispatch]
+  );
+
   const handleClearExercise = useCallback(
     (slotId: string) => {
       dispatch({ type: 'CLEAR_EXERCISE', slotId });
@@ -961,6 +976,8 @@ export function MuscleBuilderPage({
         open={exercisePickerOpen}
         onOpenChange={setExercisePickerOpen}
         onSelectExercise={handleExerciseSelected}
+        multiSelect={pickerMode === 'replacement'}
+        onSelectMany={handleExercisesSelected}
         coachUserId={coachUserId}
         sourceMuscleId={pickerMuscleId}
       />

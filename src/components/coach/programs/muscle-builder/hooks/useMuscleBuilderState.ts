@@ -60,6 +60,7 @@ type Action =
   | { type: 'SET_EXERCISE'; slotId: string; exercise: SlotExercise }
   | { type: 'CLEAR_EXERCISE'; slotId: string }
   | { type: 'ADD_REPLACEMENT'; slotId: string; exercise: SlotExercise }
+  | { type: 'ADD_REPLACEMENTS'; slotId: string; exercises: SlotExercise[] }
   | { type: 'REMOVE_REPLACEMENT'; slotId: string; replacementIndex: number }
   | { type: 'TOGGLE_PER_SET'; slotId: string }
   | { type: 'UPDATE_SET_DETAIL'; slotId: string; setIndex: number; field: keyof SetPrescription; value: number | string | undefined }
@@ -948,6 +949,15 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       return withUpdatedCurrentWeek(state, s =>
         s.map(sl => sl.id === action.slotId
           ? { ...sl, replacements: [...(sl.replacements || []), action.exercise] }
+          : sl)
+      );
+
+    case 'ADD_REPLACEMENTS':
+      // Batch append (multiselect picker) — one dispatch = one undo step.
+      if (action.exercises.length === 0) return state;
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => sl.id === action.slotId
+          ? { ...sl, replacements: [...(sl.replacements || []), ...action.exercises] }
           : sl)
       );
 
