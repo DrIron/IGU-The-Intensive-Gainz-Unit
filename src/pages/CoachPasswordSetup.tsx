@@ -51,7 +51,7 @@ export default function CoachPasswordSetup() {
     // The recovery session is established by detectSessionInUrl during client
     // init, which fires PASSWORD_RECOVERY / SIGNED_IN. Subscribe first so we
     // don't miss it if it arrives while we poll below.
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "PASSWORD_RECOVERY" && session) {
         markReady();
         toast({

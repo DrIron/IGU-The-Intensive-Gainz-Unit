@@ -51,7 +51,7 @@ export function AuthGuard({ children }: AuthGuardProps) {
     // Do NOT preserve on SIGNED_OUT — that was an explicit logout.
     const redirectTarget = location.pathname + location.search;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
 
       if (event === 'INITIAL_SESSION') {
@@ -59,28 +59,38 @@ export function AuthGuard({ children }: AuthGuardProps) {
           setSession(newSession);
           setLoading(false);
         } else {
-          // INITIAL_SESSION with null — re-check getSession() with timeout
-          try {
-            const result = await Promise.race([
-              supabase.auth.getSession(),
-              new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
-            ]);
-            if (!mounted) return;
+          // INITIAL_SESSION with null. Do NOT await a client call inside this
+          // callback: GoTrueClient awaits every onAuthStateChange listener before
+          // resolving initializePromise, so an in-callback getSession() creates the
+          // circular init deadlock (see docs/history.md "Auth Session Persistence
+          // Fix" + client.ts INIT_TIMEOUT_MS) and forces a multi-second cold-load
+          // hang on every authed route. Defer the re-check to a fresh task so this
+          // callback returns synchronously and init can settle naturally.
+          setTimeout(() => {
+            void (async () => {
+              try {
+                const result = await Promise.race([
+                  supabase.auth.getSession(),
+                  new Promise<null>((resolve) => setTimeout(() => resolve(null), 8000)),
+                ]);
+                if (!mounted) return;
 
-            const freshSession = result && 'data' in result ? result.data.session : null;
-            if (freshSession) {
-              setSession(freshSession);
-              setLoading(false);
-            } else {
-              setLoading(false);
-              navigate(authUrlWithRedirect(redirectTarget), { replace: true });
-            }
-          } catch {
-            if (mounted) {
-              setLoading(false);
-              navigate(authUrlWithRedirect(redirectTarget), { replace: true });
-            }
-          }
+                const freshSession = result && 'data' in result ? result.data.session : null;
+                if (freshSession) {
+                  setSession(freshSession);
+                  setLoading(false);
+                } else {
+                  setLoading(false);
+                  navigate(authUrlWithRedirect(redirectTarget), { replace: true });
+                }
+              } catch {
+                if (mounted) {
+                  setLoading(false);
+                  navigate(authUrlWithRedirect(redirectTarget), { replace: true });
+                }
+              }
+            })();
+          }, 0);
         }
         return;
       }

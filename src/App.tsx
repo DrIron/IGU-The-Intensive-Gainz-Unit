@@ -216,8 +216,8 @@ const App = () => {
             <TokenGuard />
             <PWAUpdatePrompt />
             <TestEnvironmentBanner />
-            {/* Routes Debug Panel - only shows in non-production */}
-            {!window.location.hostname.includes('theigu.com') && (
+            {/* Routes Debug Panel - dev builds only (never ships in any production build) */}
+            {import.meta.env.DEV && (
               <Suspense fallback={null}>
                 <RoutesDebugPanel show />
               </Suspense>

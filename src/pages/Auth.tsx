@@ -271,21 +271,25 @@ export default function Auth() {
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
       if (import.meta.env.DEV) console.log('[Auth] onAuthStateChange:', event, session?.user?.email);
 
       if (event === 'SIGNED_IN' && session && !redirectingRef.current) {
         redirectingRef.current = true;
 
-        try {
-          // Small delay to ensure session is persisted to localStorage
-          await new Promise(resolve => setTimeout(resolve, 200));
-
-          await handleRedirectAfterAuth(session.user.id);
-        } catch (err) {
-          console.error('[Auth] Redirect after auth failed:', err);
-          redirectingRef.current = false;
-        }
+        // Defer out of the callback: never await a client call inside an
+        // onAuthStateChange listener (deadlocks GoTrue init). The 200ms timer
+        // also lets the session persist to localStorage before we redirect.
+        setTimeout(() => {
+          void (async () => {
+            try {
+              await handleRedirectAfterAuth(session.user.id);
+            } catch (err) {
+              console.error('[Auth] Redirect after auth failed:', err);
+              redirectingRef.current = false;
+            }
+          })();
+        }, 200);
       }
     });
 
