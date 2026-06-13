@@ -18,7 +18,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Copy, ClipboardPaste, Plus, X, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal, Clock, MoreVertical, Trash2 } from "lucide-react";
 import { MobileSetCarousel } from "./MobileSetCarousel";
-import { SessionAddPicker } from "./SessionAddPicker";
+import { UnifiedSessionPicker } from "./UnifiedSessionPicker";
+import { ActivityFieldsEditor } from "./ActivitySlotCard";
 import { cn } from "@/lib/utils";
 import {
   estimateSessionDuration,
@@ -31,6 +32,7 @@ import {
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE_COLORS,
   getMuscleDisplay,
+  getActivityDisplay,
   getShortMuscleLabel,
   resolveParentMuscleId,
   defaultSessionName,
@@ -51,6 +53,7 @@ interface MobileDayDetailProps {
   onRemove: (slotId: string) => void;
   onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
+  onAddExerciseToSession: (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => void;
   onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
   onRenameSession: (sessionId: string, name: string) => void;
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
@@ -68,6 +71,7 @@ interface MobileDayDetailProps {
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
   onSetSlotColumns?: (slotId: string, columns: string[]) => void;
+  onSetActivityDetails?: (slotId: string, details: Record<string, unknown>) => void;
   globalClientInputs?: string[];
   copiedDayIndex?: number | null;
   onCopyDay?: (dayIndex: number) => void;
@@ -100,7 +104,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onSetSlotDetails,
   onRemove,
   onAddMuscleToSession,
-  onAddActivityToSession,
+  onAddExerciseToSession,
   onAddSession,
   onRenameSession,
   onSetSessionType,
@@ -116,6 +120,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onSetExerciseInstructions,
   onSetSlotClientInputs,
   onSetSlotColumns,
+  onSetActivityDetails,
   globalClientInputs,
   copiedDayIndex,
   onCopyDay,
@@ -196,12 +201,12 @@ export const MobileDayDetail = memo(function MobileDayDetail({
     [onAddMuscleToSession, pickerSessionId],
   );
 
-  const handleAddActivity = useCallback(
-    (activityId: string) => {
-      if (!pickerSessionId || !pickerSession) return;
-      onAddActivityToSession(pickerSessionId, activityId, pickerSession.type);
+  const handleAddExercise = useCallback(
+    (exercise: { exerciseId: string; name: string }, activityType: ActivityType) => {
+      if (!pickerSessionId) return;
+      onAddExerciseToSession(pickerSessionId, exercise, activityType);
     },
-    [onAddActivityToSession, pickerSessionId, pickerSession],
+    [onAddExerciseToSession, pickerSessionId],
   );
 
   return (
@@ -274,12 +279,11 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                 Done
               </Button>
             </div>
-            <SessionAddPicker
-              sessionType={pickerSession.type}
+            <UnifiedSessionPicker
               placementCounts={placementCounts}
               recentMuscleIds={recentMuscleIds}
               onAddMuscle={handleAddMuscle}
-              onAddActivity={handleAddActivity}
+              onAddExercise={handleAddExercise}
               variant="roomy"
               autoFocusSearch
             />
@@ -332,6 +336,29 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                             // the existing day-level REORDER. Compute it fresh so
                             // arrows still act as expected across sessions.
                             const dayIdx = daySlots.findIndex(s => s.id === slot.id);
+                            const canMoveUp = index > 0;
+                            const canMoveDown = index < sessionSlots.length - 1;
+                            const onMoveUp = onReorderSlot && dayIdx > 0 ? () => onReorderSlot(selectedDayIndex, dayIdx, dayIdx - 1) : undefined;
+                            const onMoveDown = onReorderSlot && dayIdx < daySlots.length - 1 ? () => onReorderSlot(selectedDayIndex, dayIdx, dayIdx + 1) : undefined;
+                            // Card type is decided PER-SLOT so a session can mix
+                            // strength + cardio + mobility items (5g). Activity
+                            // slots used to be swallowed by the getMuscleDisplay
+                            // null-guard — now they render as MobileActivityRow.
+                            const isStrengthSlot = !slot.activityType || slot.activityType === 'strength';
+                            if (!isStrengthSlot) {
+                              return (
+                                <MobileActivityRow
+                                  key={slot.id}
+                                  slot={slot}
+                                  onRemove={onRemove}
+                                  onSetActivityDetails={onSetActivityDetails}
+                                  canMoveUp={canMoveUp}
+                                  canMoveDown={canMoveDown}
+                                  onMoveUp={onMoveUp}
+                                  onMoveDown={onMoveDown}
+                                />
+                              );
+                            }
                             const muscle = getMuscleDisplay(slot.muscleId);
                             if (!muscle) return null;
                             return (
@@ -355,10 +382,10 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                                 onSetSlotClientInputs={onSetSlotClientInputs}
                                 onSetSlotColumns={onSetSlotColumns}
                                 globalClientInputs={globalClientInputs}
-                                canMoveUp={index > 0}
-                                canMoveDown={index < sessionSlots.length - 1}
-                                onMoveUp={onReorderSlot && dayIdx > 0 ? () => onReorderSlot(selectedDayIndex, dayIdx, dayIdx - 1) : undefined}
-                                onMoveDown={onReorderSlot && dayIdx < daySlots.length - 1 ? () => onReorderSlot(selectedDayIndex, dayIdx, dayIdx + 1) : undefined}
+                                canMoveUp={canMoveUp}
+                                canMoveDown={canMoveDown}
+                                onMoveUp={onMoveUp}
+                                onMoveDown={onMoveDown}
                                 weekCount={weekCount}
                                 onApplyToRemaining={onApplyToRemaining}
                               />
@@ -373,7 +400,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                         onClick={() => setPickerSessionId(session.id)}
                       >
                         <Plus className="h-3.5 w-3.5 mr-1.5" />
-                        {session.type === 'strength' ? 'Add muscle' : 'Add activity'}
+                        Add
                       </Button>
                     </div>
                   );
@@ -502,6 +529,129 @@ const MobileSessionHeader = memo(function MobileSessionHeader({
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+    </div>
+  );
+});
+
+/* -- Mobile activity row (non-strength slot; non-draggable, arrow reorder) -- */
+
+interface MobileActivityRowProps {
+  slot: MuscleSlotData;
+  onRemove: (slotId: string) => void;
+  onSetActivityDetails?: (slotId: string, details: Record<string, unknown>) => void;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+}
+
+function formatActivityMetric(slot: MuscleSlotData): string {
+  const type = slot.activityType || 'cardio';
+  if (type === 'hiit' && slot.rounds) {
+    return `${slot.rounds}×${slot.workSeconds || 30}s/${slot.restSeconds || 15}s`;
+  }
+  if (slot.duration) {
+    const parts = [`${slot.duration}min`];
+    if (slot.distance) parts.push(slot.distance >= 1000 ? `${(slot.distance / 1000).toFixed(1)}km` : `${slot.distance}m`);
+    return parts.join(', ');
+  }
+  return '30min';
+}
+
+const MobileActivityRow = memo(function MobileActivityRow({
+  slot,
+  onRemove,
+  onSetActivityDetails,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+}: MobileActivityRowProps) {
+  const [open, setOpen] = useState(false);
+  const typeColors = ACTIVITY_TYPE_COLORS[slot.activityType || 'cardio'];
+  const activity = slot.activityId ? getActivityDisplay(slot.activityId) : null;
+  const colorClass = activity?.colorClass || typeColors.colorClass;
+  const colorHex = activity?.colorHex || typeColors.colorHex;
+  const label = slot.exercise?.name || slot.activityName || activity?.label || 'Activity';
+  const metric = formatActivityMetric(slot);
+  const update = useCallback(
+    (details: Record<string, unknown>) => onSetActivityDetails?.(slot.id, details),
+    [slot.id, onSetActivityDetails],
+  );
+
+  return (
+    <div
+      className="flex items-center gap-2 px-2.5 py-2 rounded-md border text-sm bg-card/50 border-border/50"
+      style={{ backgroundColor: `${colorHex}08` }}
+    >
+      <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorClass}`} />
+      <Drawer open={open} onOpenChange={setOpen}>
+        <DrawerTrigger asChild>
+          <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
+            <span className="font-medium truncate text-foreground">{label}</span>
+            <span
+              className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"
+              style={{ backgroundColor: `${colorHex}20`, color: colorHex }}
+            >
+              {metric}
+            </span>
+          </button>
+        </DrawerTrigger>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerTitle className="sr-only">{label}</DrawerTitle>
+          <ScrollArea className="overflow-y-auto px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: colorHex }} />
+                  <p className="text-base font-semibold">{label}</p>
+                </div>
+                <Button variant="ghost" size="sm" className="h-8 text-xs text-muted-foreground" onClick={() => setOpen(false)}>
+                  Done
+                </Button>
+              </div>
+              {onSetActivityDetails && <ActivityFieldsEditor slot={slot} onUpdate={update} />}
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Notes</Label>
+                <Textarea
+                  placeholder="Any additional notes..."
+                  value={slot.activityNotes || ''}
+                  onChange={e => update({ activityNotes: e.target.value || undefined })}
+                  className="text-sm min-h-[40px]"
+                  rows={2}
+                />
+              </div>
+            </div>
+          </ScrollArea>
+        </DrawerContent>
+      </Drawer>
+      {onMoveUp && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 disabled:opacity-30"
+          disabled={!canMoveUp}
+          onClick={onMoveUp}
+          aria-label="Move up"
+        >
+          <ArrowUp className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      {onMoveDown && (
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7 shrink-0 disabled:opacity-30"
+          disabled={!canMoveDown}
+          onClick={onMoveDown}
+          aria-label="Move down"
+        >
+          <ArrowDown className="h-3.5 w-3.5" />
+        </Button>
+      )}
+      <Button variant="ghost" size="icon" className="h-6 w-6 shrink-0" onClick={() => onRemove(slot.id)}>
+        <X className="h-3.5 w-3.5" />
+      </Button>
     </div>
   );
 });

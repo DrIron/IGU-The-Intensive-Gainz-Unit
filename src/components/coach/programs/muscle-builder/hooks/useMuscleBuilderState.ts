@@ -71,6 +71,7 @@ type Action =
   | { type: 'SET_GLOBAL_CLIENT_INPUTS'; columns: string[] }
   | { type: 'SET_SLOT_CLIENT_INPUTS'; slotId: string; columns: string[] | undefined }
   | { type: 'ADD_ACTIVITY'; dayIndex: number; activityId: string; activityType: ActivityType; sessionId?: string }
+  | { type: 'ADD_EXERCISE_TO_SESSION'; dayIndex: number; sessionId: string; exercise: SlotExercise; activityType: ActivityType }
   | { type: 'SET_ACTIVITY_DETAILS'; slotId: string; details: Partial<Pick<MuscleSlotData, 'duration' | 'distance' | 'targetHrZone' | 'pace' | 'rounds' | 'workSeconds' | 'restSeconds' | 'difficulty' | 'activityNotes'>> }
   | { type: 'UNDO' }
   | { type: 'REDO' };
@@ -861,15 +862,23 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       return withUpdatedCurrentWeekFull(state, (s, sessions) => {
         const slot = s.find(sl => sl.id === action.slotId);
         if (!slot) return { slots: s, sessions };
-        // When moving across days, rebind to a session on the target day of
-        // the same type (create one if none exists).
+        // Cross-day move: sessions are now mixed-content containers, so don't
+        // match a target session by type. Land in the FIRST existing session on
+        // the target day; only create one (using the slot's own type for its
+        // display label) when the target day has no sessions at all.
         let sessionId = slot.sessionId;
         let nextSessions = sessions;
         if (slot.dayIndex !== action.toDay) {
-          const type: ActivityType = slot.activityType || 'strength';
-          const ensured = ensureSessionForDay(sessions, action.toDay, type);
-          sessionId = ensured.sessionId;
-          nextSessions = ensured.sessions;
+          const targetDaySessions = sessions
+            .filter(x => x.dayIndex === action.toDay)
+            .sort((a, b) => a.sortOrder - b.sortOrder);
+          if (targetDaySessions.length > 0) {
+            sessionId = targetDaySessions[0].id;
+          } else {
+            const ensured = ensureSessionForDay(sessions, action.toDay, slot.activityType || 'strength');
+            sessionId = ensured.sessionId;
+            nextSessions = ensured.sessions;
+          }
         }
         const withoutMoved = s.filter(sl => sl.id !== action.slotId);
         const targetSlots = withoutMoved
@@ -1085,6 +1094,37 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
           activityType: action.activityType,
           activityId: action.activityId,
           activityName: activity?.label || action.activityId,
+          duration: 30,
+        };
+        return { slots: [...s, newSlot], sessions: nextSessions };
+      });
+    }
+
+    case 'ADD_EXERCISE_TO_SESSION': {
+      // Unified picker: a non-strength exercise_library exercise placed directly
+      // into a session (5g). The slot stores the REAL exercise (slot.exercise) +
+      // a derived activityType so it renders as an ActivitySlotCard. muscleId is
+      // empty (volume math already skips non-strength slots).
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        let sessionId = action.sessionId;
+        let nextSessions = sessions;
+        if (!sessionId || !sessions.some(x => x.id === sessionId)) {
+          const ensured = ensureSessionForDay(sessions, action.dayIndex, action.activityType);
+          sessionId = ensured.sessionId;
+          nextSessions = ensured.sessions;
+        }
+        const newSlot: MuscleSlotData = {
+          id: crypto.randomUUID(),
+          dayIndex: action.dayIndex,
+          muscleId: '',
+          sets: 1,
+          repMin: 0,
+          repMax: 0,
+          sortOrder: getMaxSortOrder(s, action.dayIndex) + 1,
+          sessionId,
+          activityType: action.activityType,
+          activityName: action.exercise.name,
+          exercise: action.exercise,
           duration: 30,
         };
         return { slots: [...s, newSlot], sessions: nextSessions };

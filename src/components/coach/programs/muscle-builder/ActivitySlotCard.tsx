@@ -121,21 +121,7 @@ export const ActivitySlotCard = memo(function ActivitySlotCard({
                   </div>
 
                   {/* Type-specific fields */}
-                  {(slot.activityType === 'cardio' || !slot.activityType) && (
-                    <CardioFields slot={slot} onUpdate={update} />
-                  )}
-                  {slot.activityType === 'hiit' && (
-                    <HIITFields slot={slot} onUpdate={update} />
-                  )}
-                  {slot.activityType === 'yoga_mobility' && (
-                    <YogaMobilityFields slot={slot} onUpdate={update} />
-                  )}
-                  {slot.activityType === 'recovery' && (
-                    <RecoveryFields slot={slot} onUpdate={update} />
-                  )}
-                  {slot.activityType === 'sport_specific' && (
-                    <SportSpecificFields slot={slot} onUpdate={update} />
-                  )}
+                  <ActivityFieldsEditor slot={slot} onUpdate={update} />
 
                   {/* Notes */}
                   <div className="space-y-1">
@@ -174,6 +160,27 @@ export const ActivitySlotCard = memo(function ActivitySlotCard({
 interface FieldProps {
   slot: MuscleSlotData;
   onUpdate: (details: Record<string, unknown>) => void;
+}
+
+/**
+ * Renders the activity input fields for a slot's activityType. Shared by the
+ * desktop ActivitySlotCard popover and the mobile MobileActivityRow drawer so
+ * the metric editors stay in one place.
+ */
+export function ActivityFieldsEditor({ slot, onUpdate }: FieldProps) {
+  switch (slot.activityType) {
+    case 'hiit':
+      return <HIITFields slot={slot} onUpdate={onUpdate} />;
+    case 'yoga_mobility':
+      return <YogaMobilityFields slot={slot} onUpdate={onUpdate} />;
+    case 'recovery':
+      return <RecoveryFields slot={slot} onUpdate={onUpdate} />;
+    case 'sport_specific':
+      return <SportSpecificFields slot={slot} onUpdate={onUpdate} />;
+    case 'cardio':
+    default:
+      return <CardioFields slot={slot} onUpdate={onUpdate} />;
+  }
 }
 
 function CardioFields({ slot, onUpdate }: FieldProps) {

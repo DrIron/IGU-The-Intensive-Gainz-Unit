@@ -22,6 +22,7 @@ import {
   getMuscleDisplay,
 } from '@/types/muscle-builder';
 import { getYouTubeThumbnailUrl } from '@/types/workout-builder';
+import { useExerciseTaxonomy } from '@/hooks/useExerciseTaxonomy';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
@@ -53,6 +54,13 @@ interface ExerciseRow {
   is_active: boolean;
   is_global: boolean;
   created_at: string;
+  // New taxonomy FK columns (exercise-library redesign)
+  muscle_id: string | null;
+  subdivision_id: string | null;
+  cardio_movement_id: string | null;
+  technique_id: string | null;
+  target_region_id: string | null;
+  physio_purpose_id: string | null;
 }
 
 interface MovementPattern {
@@ -80,6 +88,15 @@ interface ExerciseFormState {
   tags: string[];
   isActive: boolean;
   isGlobal: boolean;
+  // New taxonomy classifier (category-driven). regionId is UI-only (drives the
+  // strength Region -> Muscle cascade); it is not persisted as a column.
+  regionId: string;
+  muscleId: string;
+  subdivisionId: string;
+  cardioMovementId: string;
+  techniqueId: string;
+  targetRegionId: string;
+  physioPurposeId: string;
 }
 
 const EMPTY_FORM: ExerciseFormState = {
@@ -98,6 +115,13 @@ const EMPTY_FORM: ExerciseFormState = {
   tags: [],
   isActive: true,
   isGlobal: true,
+  regionId: '',
+  muscleId: '',
+  subdivisionId: '',
+  cardioMovementId: '',
+  techniqueId: '',
+  targetRegionId: '',
+  physioPurposeId: '',
 };
 
 const CATEGORIES = [
@@ -105,7 +129,12 @@ const CATEGORIES = [
   { id: 'cardio', label: 'Cardio' },
   { id: 'mobility', label: 'Mobility' },
   { id: 'warmup', label: 'Warmup' },
+  { id: 'cooldown', label: 'Cooldown' },
+  { id: 'physio', label: 'Physio' },
 ];
+
+// Categories that use the Technique + Target Region selectors.
+const MOBILITY_LIKE_CATEGORIES = ['mobility', 'warmup', 'cooldown'];
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -128,6 +157,14 @@ function exerciseToForm(ex: ExerciseRow): ExerciseFormState {
     tags: ex.tags || [],
     isActive: ex.is_active,
     isGlobal: ex.is_global,
+    // regionId is derived from the muscle in openEdit (needs the taxonomy map).
+    regionId: '',
+    muscleId: ex.muscle_id || '',
+    subdivisionId: ex.subdivision_id || '',
+    cardioMovementId: ex.cardio_movement_id || '',
+    techniqueId: ex.technique_id || '',
+    targetRegionId: ex.target_region_id || '',
+    physioPurposeId: ex.physio_purpose_id || '',
   };
 }
 
@@ -181,6 +218,14 @@ function hasFilters(f: Filters): boolean {
 // ---------------------------------------------------------------------------
 
 export default function ExerciseLibraryManager() {
+  // Taxonomy lookups (exercise-library redesign classifier)
+  const {
+    data: taxonomy,
+    isLoading: taxonomyLoading,
+    isError: taxonomyError,
+    refetch: refetchTaxonomy,
+  } = useExerciseTaxonomy();
+
   // Data
   const [exercises, setExercises] = useState<ExerciseRow[]>([]);
   const [patterns, setPatterns] = useState<MovementPattern[]>([]);
@@ -283,6 +328,17 @@ export default function ExerciseLibraryManager() {
     return SUBDIVISIONS_BY_PARENT.get(form.muscleGroup) || [];
   }, [form.muscleGroup]);
 
+  // Taxonomy classifier cascades (new exercise-library redesign)
+  const taxonomyMuscles = useMemo(() => {
+    if (!taxonomy || !form.regionId) return [];
+    return taxonomy.musclesByRegion.get(form.regionId) || [];
+  }, [taxonomy, form.regionId]);
+
+  const taxonomySubdivisions = useMemo(() => {
+    if (!taxonomy || !form.muscleId) return [];
+    return taxonomy.subdivisionsByMuscle.get(form.muscleId) || [];
+  }, [taxonomy, form.muscleId]);
+
   // Filtered exercises
   const filtered = useMemo(() => {
     let result = exercises;
@@ -341,9 +397,16 @@ export default function ExerciseLibraryManager() {
 
   const openEdit = useCallback((ex: ExerciseRow) => {
     setEditing(ex);
-    setForm(exerciseToForm(ex));
+    const nextForm = exerciseToForm(ex);
+    // Derive the region for the strength cascade from the prefilled muscle so the
+    // Region select shows a value and the Muscle list is populated on edit.
+    if (ex.muscle_id && taxonomy) {
+      const muscle = taxonomy.muscles.find((m) => m.id === ex.muscle_id);
+      if (muscle) nextForm.regionId = muscle.primary_region_id;
+    }
+    setForm(nextForm);
     setSheetOpen(true);
-  }, []);
+  }, [taxonomy]);
 
   const closeSheet = useCallback(() => {
     setSheetOpen(false);
@@ -361,16 +424,40 @@ export default function ExerciseLibraryManager() {
     }
     setSaving(true);
     try {
+      const cat = form.category || 'strength';
+      const isStrength = cat === 'strength';
+      const isCardio = cat === 'cardio';
+      const isMobilityLike = MOBILITY_LIKE_CATEGORIES.includes(cat);
+      const isPhysio = cat === 'physio';
+
+      // primary_muscle is now nullable + no longer required. Prefer the coach's
+      // typed value; otherwise auto-fill from the selected muscle's display_name
+      // so existing displays/search that read primary_muscle keep working.
+      const selectedMuscleName =
+        isStrength && form.muscleId && taxonomy
+          ? taxonomy.muscles.find((m) => m.id === form.muscleId)?.display_name
+          : undefined;
+      const resolvedPrimaryMuscle = form.primaryMuscle.trim() || selectedMuscleName || null;
+
       const payload: Record<string, unknown> = {
         name: form.name.trim(),
         muscle_group: form.muscleGroup || null,
         subdivision: form.subdivision || null,
+        // New taxonomy classifier — only persist the columns relevant to the
+        // chosen category; null the rest so switching category clears stale ids.
+        muscle_id: isStrength ? form.muscleId || null : null,
+        subdivision_id: isStrength ? form.subdivisionId || null : null,
+        cardio_movement_id: isCardio ? form.cardioMovementId || null : null,
+        technique_id: isMobilityLike ? form.techniqueId || null : null,
+        target_region_id:
+          isMobilityLike || isPhysio ? form.targetRegionId || null : null,
+        physio_purpose_id: isPhysio ? form.physioPurposeId || null : null,
         movement_pattern: form.movementPattern || null,
         equipment: form.equipment || null,
         machine_brand: form.equipment === 'M' ? form.machineBrand || null : null,
         resistance_profiles: form.resistanceProfiles.length > 0 ? form.resistanceProfiles : null,
         category: form.category || 'strength',
-        primary_muscle: form.primaryMuscle || null,
+        primary_muscle: resolvedPrimaryMuscle,
         secondary_muscles: form.secondaryMuscles.length > 0 ? form.secondaryMuscles : null,
         default_video_url: form.videoUrl || null,
         setup_points: form.setupPoints.filter(s => s.trim()).length > 0 ? form.setupPoints.filter(s => s.trim()) : null,
@@ -435,6 +522,14 @@ export default function ExerciseLibraryManager() {
       // Reset machine brand when equipment changes away from M
       if (key === 'equipment' && value !== 'M') {
         next.machineBrand = '';
+      }
+      // Taxonomy cascade resets: region -> muscle -> subdivision
+      if (key === 'regionId') {
+        next.muscleId = '';
+        next.subdivisionId = '';
+      }
+      if (key === 'muscleId') {
+        next.subdivisionId = '';
       }
       return next;
     });
@@ -1025,6 +1120,232 @@ export default function ExerciseLibraryManager() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* ===================================================== */}
+            {/* Taxonomy classifier (category-driven)                 */}
+            {/* ===================================================== */}
+            <div className="space-y-3 rounded-md border border-border/60 p-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-sm font-semibold">Classification</Label>
+                <Badge variant="secondary" className="text-[10px] capitalize">
+                  {form.category}
+                </Badge>
+              </div>
+
+              {taxonomyLoading ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading taxonomy…
+                </p>
+              ) : taxonomyError || !taxonomy ? (
+                <div className="space-y-2">
+                  <p className="text-xs text-destructive">Couldn't load the classification lists.</p>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    className="h-8 text-xs"
+                    onClick={() => refetchTaxonomy()}
+                  >
+                    Retry
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  {/* Strength: Region -> Muscle -> Subdivision */}
+                  {form.category === 'strength' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Region *</Label>
+                        <Select
+                          value={form.regionId}
+                          onValueChange={(v) => updateForm('regionId', v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select region" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {taxonomy.regions.map((r) => (
+                              <SelectItem key={r.id} value={r.id}>
+                                {r.display_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Muscle *</Label>
+                        <Select
+                          value={form.muscleId}
+                          onValueChange={(v) => updateForm('muscleId', v)}
+                          disabled={!form.regionId || taxonomyMuscles.length === 0}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={form.regionId ? 'Select muscle' : 'Select region first'}
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {taxonomyMuscles.map((m) => (
+                              <SelectItem key={m.id} value={m.id}>
+                                {m.display_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Subdivision</Label>
+                        <Select
+                          value={form.subdivisionId || '__none__'}
+                          onValueChange={(v) =>
+                            updateForm('subdivisionId', v === '__none__' ? '' : v)
+                          }
+                          disabled={!form.muscleId || taxonomySubdivisions.length === 0}
+                        >
+                          <SelectTrigger>
+                            <SelectValue
+                              placeholder={
+                                taxonomySubdivisions.length
+                                  ? 'Select subdivision (optional)'
+                                  : 'No subdivisions for this muscle'
+                              }
+                            />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">None</SelectItem>
+                            {taxonomySubdivisions.map((s) => (
+                              <SelectItem key={s.id} value={s.id}>
+                                {s.display_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Cardio: Cardio Movement */}
+                  {form.category === 'cardio' && (
+                    <div className="space-y-1.5">
+                      <Label className="text-xs">Cardio Movement *</Label>
+                      <Select
+                        value={form.cardioMovementId}
+                        onValueChange={(v) => updateForm('cardioMovementId', v)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select cardio movement" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {taxonomy.cardioMovements.map((cm) => (
+                            <SelectItem key={cm.id} value={cm.id}>
+                              {cm.display_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {/* Mobility / Warmup / Cooldown: Technique + Target Region */}
+                  {MOBILITY_LIKE_CATEGORIES.includes(form.category) && (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Technique *</Label>
+                        <Select
+                          value={form.techniqueId}
+                          onValueChange={(v) => updateForm('techniqueId', v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select technique" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {taxonomy.techniques.map((tq) => (
+                              <SelectItem key={tq.id} value={tq.id}>
+                                {tq.display_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Target Region *</Label>
+                        <Select
+                          value={form.targetRegionId}
+                          onValueChange={(v) => updateForm('targetRegionId', v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select target region" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {taxonomy.targetRegions.map((tr) => (
+                              <SelectItem key={tr.id} value={tr.id}>
+                                {tr.display_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Physio: Physio Purpose + optional Target Region */}
+                  {form.category === 'physio' && (
+                    <div className="space-y-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Physio Purpose *</Label>
+                        <Select
+                          value={form.physioPurposeId}
+                          onValueChange={(v) => updateForm('physioPurposeId', v)}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select physio purpose" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {taxonomy.physioPurposes.map((pp) => (
+                              <SelectItem key={pp.id} value={pp.id}>
+                                {pp.display_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Target Region</Label>
+                        <Select
+                          value={form.targetRegionId || '__none__'}
+                          onValueChange={(v) =>
+                            updateForm('targetRegionId', v === '__none__' ? '' : v)
+                          }
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select target region (optional)" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="__none__">None</SelectItem>
+                            {taxonomy.targetRegions.map((tr) => (
+                              <SelectItem key={tr.id} value={tr.id}>
+                                {tr.display_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Categories with no taxonomy classifier (e.g. sport_specific) */}
+                  {form.category === 'sport_specific' && (
+                    <p className="text-xs text-muted-foreground">
+                      No taxonomy classifier for this category.
+                    </p>
+                  )}
+                </>
+              )}
             </div>
 
             {/* Primary Muscle (legacy text field) */}

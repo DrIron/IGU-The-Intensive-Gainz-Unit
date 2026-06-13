@@ -12,33 +12,38 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
-  }
   public: {
     Tables: {
+      activity_techniques: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       addon_catalog: {
         Row: {
           created_at: string
@@ -524,6 +529,66 @@ export type Database = {
           notes?: string | null
           updated_at?: string
           user_id?: string
+        }
+        Relationships: []
+      }
+      body_regions: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      cardio_movements: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          slug?: string
+          sort_order?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -2323,6 +2388,59 @@ export type Database = {
           },
         ]
       }
+      deload_requests: {
+        Row: {
+          applied_preset_id: string | null
+          approved_week_offset: number | null
+          client_id: string
+          client_message: string | null
+          coach_responded_at: string | null
+          coach_response_message: string | null
+          coach_user_id: string | null
+          created_at: string
+          id: string
+          requested_at: string
+          status: string
+          subscription_id: string
+        }
+        Insert: {
+          applied_preset_id?: string | null
+          approved_week_offset?: number | null
+          client_id: string
+          client_message?: string | null
+          coach_responded_at?: string | null
+          coach_response_message?: string | null
+          coach_user_id?: string | null
+          created_at?: string
+          id?: string
+          requested_at?: string
+          status?: string
+          subscription_id: string
+        }
+        Update: {
+          applied_preset_id?: string | null
+          approved_week_offset?: number | null
+          client_id?: string
+          client_message?: string | null
+          coach_responded_at?: string | null
+          coach_response_message?: string | null
+          coach_user_id?: string | null
+          created_at?: string
+          id?: string
+          requested_at?: string
+          status?: string
+          subscription_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "deload_requests_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       diet_breaks: {
         Row: {
           actual_end_date: string | null
@@ -2981,9 +3099,40 @@ export type Database = {
         }
         Relationships: []
       }
+      energy_systems: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       exercise_library: {
         Row: {
           anatomical_name: string | null
+          cardio_movement_id: string | null
           category: Database["public"]["Enums"]["exercise_category"]
           created_at: string
           created_by_coach_id: string | null
@@ -2997,18 +3146,24 @@ export type Database = {
           movement_pattern: string | null
           movement_pattern_id: string | null
           muscle_group: string | null
+          muscle_id: string | null
           name: string
-          primary_muscle: string
+          physio_purpose_id: string | null
+          primary_muscle: string | null
           resistance_profiles: string[] | null
           secondary_muscles: string[] | null
           setup_instructions: string | null
           setup_points: string[] | null
           subdivision: string | null
+          subdivision_id: string | null
           tags: string[] | null
+          target_region_id: string | null
+          technique_id: string | null
           updated_at: string
         }
         Insert: {
           anatomical_name?: string | null
+          cardio_movement_id?: string | null
           category?: Database["public"]["Enums"]["exercise_category"]
           created_at?: string
           created_by_coach_id?: string | null
@@ -3022,18 +3177,24 @@ export type Database = {
           movement_pattern?: string | null
           movement_pattern_id?: string | null
           muscle_group?: string | null
+          muscle_id?: string | null
           name: string
-          primary_muscle: string
+          physio_purpose_id?: string | null
+          primary_muscle?: string | null
           resistance_profiles?: string[] | null
           secondary_muscles?: string[] | null
           setup_instructions?: string | null
           setup_points?: string[] | null
           subdivision?: string | null
+          subdivision_id?: string | null
           tags?: string[] | null
+          target_region_id?: string | null
+          technique_id?: string | null
           updated_at?: string
         }
         Update: {
           anatomical_name?: string | null
+          cardio_movement_id?: string | null
           category?: Database["public"]["Enums"]["exercise_category"]
           created_at?: string
           created_by_coach_id?: string | null
@@ -3047,17 +3208,29 @@ export type Database = {
           movement_pattern?: string | null
           movement_pattern_id?: string | null
           muscle_group?: string | null
+          muscle_id?: string | null
           name?: string
-          primary_muscle?: string
+          physio_purpose_id?: string | null
+          primary_muscle?: string | null
           resistance_profiles?: string[] | null
           secondary_muscles?: string[] | null
           setup_instructions?: string | null
           setup_points?: string[] | null
           subdivision?: string | null
+          subdivision_id?: string | null
           tags?: string[] | null
+          target_region_id?: string | null
+          technique_id?: string | null
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "exercise_library_cardio_movement_id_fkey"
+            columns: ["cardio_movement_id"]
+            isOneToOne: false
+            referencedRelation: "cardio_movements"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "exercise_library_created_by_coach_id_fkey"
             columns: ["created_by_coach_id"]
@@ -3077,6 +3250,41 @@ export type Database = {
             columns: ["movement_pattern_id"]
             isOneToOne: false
             referencedRelation: "movement_patterns"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_library_muscle_id_fkey"
+            columns: ["muscle_id"]
+            isOneToOne: false
+            referencedRelation: "muscles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_library_physio_purpose_id_fkey"
+            columns: ["physio_purpose_id"]
+            isOneToOne: false
+            referencedRelation: "physio_purposes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_library_subdivision_id_fkey"
+            columns: ["subdivision_id"]
+            isOneToOne: false
+            referencedRelation: "muscle_subdivisions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_library_target_region_id_fkey"
+            columns: ["target_region_id"]
+            isOneToOne: false
+            referencedRelation: "target_regions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_library_technique_id_fkey"
+            columns: ["technique_id"]
+            isOneToOne: false
+            referencedRelation: "activity_techniques"
             referencedColumns: ["id"]
           },
         ]
@@ -3214,6 +3422,7 @@ export type Database = {
           created_by_user_id: string
           id: string
           notes: string | null
+          performed_json: Json
           performed_load: number | null
           performed_reps: number | null
           performed_rir: number | null
@@ -3227,6 +3436,7 @@ export type Database = {
           created_by_user_id: string
           id?: string
           notes?: string | null
+          performed_json?: Json
           performed_load?: number | null
           performed_reps?: number | null
           performed_rir?: number | null
@@ -3240,6 +3450,7 @@ export type Database = {
           created_by_user_id?: string
           id?: string
           notes?: string | null
+          performed_json?: Json
           performed_load?: number | null
           performed_reps?: number | null
           performed_rir?: number | null
@@ -3267,59 +3478,6 @@ export type Database = {
             columns: ["created_by_user_id"]
             isOneToOne: false
             referencedRelation: "profiles_public"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      exercises: {
-        Row: {
-          created_at: string | null
-          created_by: string | null
-          difficulty: string
-          execution_instructions: string[] | null
-          id: string
-          muscle_groups: string[]
-          muscle_subdivisions: Json | null
-          name: string
-          pitfalls: string[] | null
-          setup_instructions: string[] | null
-          updated_at: string | null
-          youtube_url: string | null
-        }
-        Insert: {
-          created_at?: string | null
-          created_by?: string | null
-          difficulty: string
-          execution_instructions?: string[] | null
-          id?: string
-          muscle_groups: string[]
-          muscle_subdivisions?: Json | null
-          name: string
-          pitfalls?: string[] | null
-          setup_instructions?: string[] | null
-          updated_at?: string | null
-          youtube_url?: string | null
-        }
-        Update: {
-          created_at?: string | null
-          created_by?: string | null
-          difficulty?: string
-          execution_instructions?: string[] | null
-          id?: string
-          muscle_groups?: string[]
-          muscle_subdivisions?: Json | null
-          name?: string
-          pitfalls?: string[] | null
-          setup_instructions?: string[] | null
-          updated_at?: string | null
-          youtube_url?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "exercises_created_by_fkey"
-            columns: ["created_by"]
-            isOneToOne: false
-            referencedRelation: "profiles_legacy"
             referencedColumns: ["id"]
           },
         ]
@@ -4454,6 +4612,88 @@ export type Database = {
           },
         ]
       }
+      muscle_subdivisions: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          muscle_id: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          muscle_id: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          muscle_id?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "muscle_subdivisions_muscle_id_fkey"
+            columns: ["muscle_id"]
+            isOneToOne: false
+            referencedRelation: "muscles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      muscles: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          primary_region_id: string
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          primary_region_id: string
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          primary_region_id?: string
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "muscles_primary_region_id_fkey"
+            columns: ["primary_region_id"]
+            isOneToOne: false
+            referencedRelation: "body_regions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       nutrition_adjustments: {
         Row: {
           actual_weight_change_percentage: number | null
@@ -5234,6 +5474,36 @@ export type Database = {
           scanned_by?: string | null
           total_violations?: number
           warning_violations?: number
+        }
+        Relationships: []
+      }
+      physio_purposes: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          slug?: string
+          sort_order?: number
+          updated_at?: string
         }
         Relationships: []
       }
@@ -6278,6 +6548,36 @@ export type Database = {
         }
         Relationships: []
       }
+      subdivision_region_xref: {
+        Row: {
+          region_id: string
+          subdivision_id: string
+        }
+        Insert: {
+          region_id: string
+          subdivision_id: string
+        }
+        Update: {
+          region_id?: string
+          subdivision_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subdivision_region_xref_region_id_fkey"
+            columns: ["region_id"]
+            isOneToOne: false
+            referencedRelation: "body_regions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subdivision_region_xref_subdivision_id_fkey"
+            columns: ["subdivision_id"]
+            isOneToOne: false
+            referencedRelation: "muscle_subdivisions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subrole_definitions: {
         Row: {
           created_at: string
@@ -6662,6 +6962,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      target_regions: {
+        Row: {
+          created_at: string
+          display_name: string
+          id: string
+          is_active: boolean
+          slug: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          display_name: string
+          id?: string
+          is_active?: boolean
+          slug: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          display_name?: string
+          id?: string
+          is_active?: boolean
+          slug?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       team_plan_settings: {
         Row: {
@@ -7540,10 +7870,6 @@ export type Database = {
         Args: { p_coach_user_id: string; p_service_id: string }
         Returns: boolean
       }
-      count_active_exempt_clients_for_coach: {
-        Args: { p_coach_id: string }
-        Returns: number
-      }
       complete_client_day_module: {
         Args: { p_module_id: string }
         Returns: Json
@@ -7567,6 +7893,10 @@ export type Database = {
           p_sessions?: Json
         }
         Returns: Json
+      }
+      count_active_exempt_clients_for_coach: {
+        Args: { p_coach_id: string }
+        Returns: number
       }
       decrypt_phi_boolean: {
         Args: { encrypted_text: string }
@@ -7686,6 +8016,13 @@ export type Database = {
           started_at: string
         }[]
       }
+      get_coach_deload_request_counts: {
+        Args: never
+        Returns: {
+          client_id: string
+          pending_count: number
+        }[]
+      }
       get_coach_for_client: { Args: { p_coach_user_id: string }; Returns: Json }
       get_coaches_for_subscription_addons: {
         Args: { p_subscription_id: string }
@@ -7761,6 +8098,14 @@ export type Database = {
           parq_other_reason: boolean
           phone_number: string
           user_id: string
+        }[]
+      }
+      get_last_declined_deload_request_for_client: {
+        Args: { p_client_id: string }
+        Returns: {
+          coach_responded_at: string
+          coach_response_message: string
+          request_id: string
         }[]
       }
       get_module_owner_from_day_module: {
@@ -7905,6 +8250,14 @@ export type Database = {
         }[]
       }
       get_my_roles: { Args: never; Returns: string[] }
+      get_pending_deload_request_for_client: {
+        Args: { p_client_id: string }
+        Returns: {
+          client_message: string
+          request_id: string
+          requested_at: string
+        }[]
+      }
       get_phi_encryption_key: { Args: never; Returns: string }
       get_playlist_videos_with_access: {
         Args: { p_playlist_id: string }
@@ -7959,15 +8312,23 @@ export type Database = {
           update_access: string
         }[]
       }
+      get_subscription_price_quote: {
+        Args: { p_subscription_id: string }
+        Returns: Json
+      }
+      get_substitute_exercises: {
+        Args: {
+          p_available_equipment?: string[]
+          p_exercise_id: string
+          p_limit?: number
+        }
+        Returns: Json
+      }
       get_tables_without_rls: {
         Args: never
         Returns: {
           table_name: string
         }[]
-      }
-      get_subscription_price_quote: {
-        Args: { p_subscription_id: string }
-        Returns: Json
       }
       get_unread_message_count: {
         Args: { p_client_id: string }
@@ -8199,10 +8560,7 @@ export type Database = {
         }
         Returns: boolean
       }
-      soft_delete_team_atomic: {
-        Args: { p_team_id: string }
-        Returns: Json
-      }
+      soft_delete_team_atomic: { Args: { p_team_id: string }; Returns: Json }
       terminate_care_team_member: {
         Args: {
           p_assignment_id: string
@@ -8321,6 +8679,7 @@ export type Database = {
         | "physio"
         | "warmup"
         | "cooldown"
+        | "sport_specific"
       exercise_media_type: "video" | "image"
       exercise_section: "warmup" | "main" | "accessory" | "cooldown"
       fee_type: "percent" | "fixed" | "none"
@@ -8498,9 +8857,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       account_status: [
@@ -8573,6 +8929,7 @@ export const Constants = {
         "physio",
         "warmup",
         "cooldown",
+        "sport_specific",
       ],
       exercise_media_type: ["video", "image"],
       exercise_section: ["warmup", "main", "accessory", "cooldown"],

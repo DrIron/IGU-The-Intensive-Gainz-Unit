@@ -34,6 +34,7 @@ interface DayColumnProps {
   onRemove: (slotId: string) => void;
   onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
+  onAddExerciseToSession: (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => void;
   onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
   onRenameSession: (sessionId: string, name: string) => void;
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
@@ -83,6 +84,7 @@ export const DayColumn = memo(function DayColumn({
   onRemove,
   onAddMuscleToSession,
   onAddActivityToSession,
+  onAddExerciseToSession,
   onAddSession,
   onRenameSession,
   onSetSessionType,
@@ -361,6 +363,7 @@ export const DayColumn = memo(function DayColumn({
                   onClearSlotOverride={onClearSlotOverride}
                   onAddMuscleToSession={onAddMuscleToSession}
                   onAddActivityToSession={onAddActivityToSession}
+                  onAddExerciseToSession={onAddExerciseToSession}
                   onRenameSession={onRenameSession}
                   onSetSessionType={onSetSessionType}
                   onRemoveSession={onRemoveSession}

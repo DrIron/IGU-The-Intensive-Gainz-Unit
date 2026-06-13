@@ -46,6 +46,27 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   sport_specific: 'Sport-Specific',
 };
 
+/**
+ * Map an `exercise_library.category` value to the planning-board `ActivityType`
+ * used for slot card rendering + colour. The library has more categories than
+ * the slot union (warmup/cooldown/physio/mobility), so several collapse onto the
+ * nearest ActivityType. The slot still stores the real `exercise_library` row via
+ * `slot.exercise`, so the precise category is recoverable at conversion time — this
+ * mapping only drives which ActivitySlotCard field editor + colour the coach sees.
+ */
+export function exerciseCategoryToActivityType(category: string | null | undefined): ActivityType {
+  switch (category) {
+    case 'strength': return 'strength';
+    case 'cardio': return 'cardio';
+    case 'mobility': return 'yoga_mobility';
+    case 'warmup': return 'yoga_mobility';
+    case 'cooldown': return 'recovery';
+    case 'physio': return 'recovery';
+    case 'sport_specific': return 'sport_specific';
+    default: return 'cardio';
+  }
+}
+
 export const ACTIVITY_TYPE_COLORS: Record<ActivityType, { colorClass: string; colorHex: string }> = {
   strength: { colorClass: 'bg-blue-500', colorHex: '#3b82f6' },
   cardio: { colorClass: 'bg-green-500', colorHex: '#22c55e' },

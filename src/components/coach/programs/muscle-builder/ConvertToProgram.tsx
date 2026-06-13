@@ -25,6 +25,7 @@ import {
   type SessionData,
 } from "@/types/muscle-builder";
 import type { VolumeSummary } from "./hooks/useMusclePlanVolume";
+import { defaultColumnsForActivityType } from "@/types/workout-builder";
 
 interface ConvertToProgramProps {
   weeks: WeekData[];
@@ -243,14 +244,48 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         return presc;
       };
 
+      // Activity (non-strength) prescription: sets_json built from the slot's
+      // activity fields (duration → time_seconds, distance → distance_meters,
+      // pace/rounds/rest), and column_config = the category default so the client
+      // logger renders the right inputs. HIIT expands to one row per round; every
+      // other activity is a single row. Not RIR/RPE-scored → intensity left null.
+      const buildActivityPrescription = (meId: string, slot: MuscleSlotData) => {
+        const at = slot.activityType;
+        const isHiit = at === 'hiit';
+        const durationSec = slot.duration != null ? slot.duration * 60 : undefined;
+        const setCount = isHiit && slot.rounds && slot.rounds > 0 ? slot.rounds : 1;
+        const baseSet: Record<string, unknown> = isHiit
+          ? {
+              ...(slot.workSeconds != null ? { time_seconds: slot.workSeconds } : {}),
+              ...(slot.restSeconds != null ? { rest_seconds: slot.restSeconds } : {}),
+              ...(slot.rounds != null ? { rounds: slot.rounds } : {}),
+            }
+          : {
+              ...(durationSec != null ? { time_seconds: durationSec } : {}),
+            };
+        if (slot.distance != null) baseSet.distance_meters = slot.distance;
+        if (slot.pace) baseSet.pace = slot.pace;
+        if (slot.activityNotes) baseSet.notes = slot.activityNotes;
+        const setsJson = Array.from({ length: setCount }, (_, si) => ({ set_number: si + 1, ...baseSet }));
+        return {
+          module_exercise_id: meId,
+          set_count: setCount,
+          rest_seconds: slot.restSeconds ?? null,
+          sets_json: setsJson,
+          column_config: defaultColumnsForActivityType(at),
+        } as Record<string, unknown>;
+      };
+
       // Auto-fill helper: pick first active exercise for a muscleId from the library.
       // Pre-loads the lookup set from all unplaced slots to keep the query shape stable.
+      // Sessions are now mixed-content, so scope auto-fill to strength SLOTS
+      // (by activityType), not strength sessions.
       const unplacedMuscleIds = new Set<string>();
       for (const session of rpcSessions) {
-        if (session.type !== 'strength') continue;
         const slotsForSession = sessionSlotMap.get(session.id) || [];
         for (const slot of slotsForSession) {
-          if (!slot.exercise && slot.muscleId) {
+          const isStrengthSlot = !slot.activityType || slot.activityType === 'strength';
+          if (isStrengthSlot && !slot.exercise && slot.muscleId) {
             const filters = MUSCLE_TO_EXERCISE_FILTER[slot.muscleId];
             if (filters) for (const f of filters) unplacedMuscleIds.add(f);
           }
@@ -277,11 +312,30 @@ export const ConvertToProgram = memo(function ConvertToProgram({
       for (const session of rpcSessions) {
         const moduleId = result.session_to_module[session.id];
         if (!moduleId) continue;
-        if (session.type !== 'strength') continue;  // Non-strength = module only.
 
         const slotsForSession = sessionSlotMap.get(session.id) || [];
         let sortOrder = 1;
         for (const slot of slotsForSession) {
+          const isStrengthSlot = !slot.activityType || slot.activityType === 'strength';
+
+          // Non-strength activity slot — always carries a real exercise (5g);
+          // emit a loggable module_exercise + activity prescription.
+          if (!isStrengthSlot) {
+            if (!slot.exercise) continue;
+            const meId = crypto.randomUUID();
+            meInserts.push({
+              id: meId,
+              day_module_id: moduleId,
+              exercise_id: slot.exercise.exerciseId,
+              section: 'main',
+              sort_order: sortOrder++,
+              ...(slot.exercise.instructions ? { instructions: slot.exercise.instructions } : {}),
+            });
+            prescInserts.push(buildActivityPrescription(meId, slot));
+            preSelectedCount++;
+            continue;
+          }
+
           if (slot.exercise) {
             const meId = crypto.randomUUID();
             meInserts.push({
@@ -498,7 +552,7 @@ export const ConvertToProgram = memo(function ConvertToProgram({
         )}
 
         <p className="text-xs text-muted-foreground">
-          Each session becomes a day module. Strength slots become exercises inside the module; non-strength sessions keep their coach-defined name as the module title.
+          Each session becomes a day module. Every slot — strength and activity — becomes a loggable exercise inside it, with the right input columns for its type.
         </p>
 
         <DialogFooter>
