@@ -42,6 +42,11 @@ verify_jwt = true
 [functions.send-coach-invitation]
 verify_jwt = false
 
+# Self-serve "resend my setup link" -- coach has no session yet, so unauthenticated.
+# Rate-limited + never leaks data (see function header).
+[functions.resend-coach-setup-link]
+verify_jwt = false
+
 # Edge-to-edge: called by process functions
 [functions.send-payment-reminder]
 verify_jwt = false

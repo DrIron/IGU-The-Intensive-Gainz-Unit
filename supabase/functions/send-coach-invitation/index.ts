@@ -93,7 +93,7 @@ serve(async (req: Request): Promise<Response> => {
         paragraph("You've been added as a coach to the IGU team. We're excited to have you on board!"),
         paragraph('Click the button below to set your password and complete your coach profile:'),
         ctaButton('Set Password & Complete Profile', effectiveResetLink),
-        alertBox('This link expires in 24 hours for security. After setting your password, you can add your professional details, certifications, and experience.', 'info'),
+        alertBox('For security, this link can only be used once and expires after a short time -- please open it promptly on this device, and avoid forwarding this email (some inbox security scanners can use up the link). If it no longer works, you can request a fresh link straight from the page it opens. After setting your password, you can add your professional details, certifications, and experience.', 'info'),
         signOff(),
       ].join('');
     } else {
