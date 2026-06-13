@@ -143,6 +143,15 @@ export interface MuscleSlotData {
   setsDetail?: import("@/types/workout-builder").SetPrescription[];  // Per-set overrides (when customizing individual sets)
   prescriptionColumns?: string[];   // Active prescription column types for this slot
   clientInputColumns?: string[];    // Per-slot client input override (undefined = use global plan defaults)
+  // Weekly deltas — "auto-prescribe" feature (Planning Board).
+  // Rules conceptually belong to W1 slots; the engine resolves W2-WN values
+  // from W1 base + rule. The field rides on every slot for storage simplicity
+  // (slot_config JSONB round-trips it for free; non-W1 slots simply leave it
+  // undefined). See docs/PLANNING_BOARD_WEEKLY_DELTAS_PLAN.md.
+  deltaRules?: import("@/components/coach/programs/muscle-builder/weeklyDeltaEngine").WeeklyDeltaRule[];
+  // Fields the coach hand-edited on a W2+ slot. Recompute skips these so
+  // overrides survive. Only meaningful on W2+.
+  manualOverrides?: import("@/components/coach/programs/muscle-builder/weeklyDeltaEngine").DeltaTarget[];
   // Activity fields (non-strength sessions — all optional, backward compat)
   activityType?: ActivityType;       // undefined = 'strength'
   activityId?: string;               // e.g. 'running', 'tabata' — references ACTIVITY_CATEGORIES

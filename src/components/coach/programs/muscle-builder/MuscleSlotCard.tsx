@@ -17,6 +17,9 @@ import {
 } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
 import { AVAILABLE_PRESCRIPTION_COLUMNS, AVAILABLE_CLIENT_COLUMNS } from "@/types/workout-builder";
+import { SlotDeltaRulesPanel } from "./SlotDeltaRulesPanel";
+import { SlotInheritanceBar } from "./SlotInheritanceBar";
+import type { WeeklyDeltaRule, DeltaTarget } from "./weeklyDeltaEngine";
 
 interface MuscleSlotCardProps {
   slotId: string;
@@ -51,6 +54,19 @@ interface MuscleSlotCardProps {
   alwaysShowControls?: boolean;
   weekCount?: number;
   onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
+  // Phase 2 — Weekly deltas
+  /** 0-indexed week of the currently rendered slot. Only W1 (0) gets the rule editor. */
+  weekIndex?: number;
+  /** Per-week deload flags (length === state.weeks.length). */
+  isDeloadByWeek?: boolean[];
+  deltaRules?: WeeklyDeltaRule[];
+  onSetSlotDeltaRules?: (slotId: string, rules: WeeklyDeltaRule[]) => void;
+  /** DeltaTargets that have a rule on this slot's W1 sibling (or on this slot if W1). */
+  w1RuleTargets?: DeltaTarget[];
+  /** Current overrides on this slot — surfaces as override chips on W2+. */
+  manualOverrides?: DeltaTarget[];
+  /** Coach revert: clears the override and re-derives that field. */
+  onClearOverride?: (slotId: string, target: DeltaTarget) => void;
 }
 
 /** Format slot label: subdivisions show "Parent > Sub", parents show their label */
@@ -98,6 +114,13 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   alwaysShowControls,
   weekCount,
   onApplyToRemaining,
+  weekIndex,
+  isDeloadByWeek,
+  deltaRules,
+  onSetSlotDeltaRules,
+  w1RuleTargets,
+  manualOverrides,
+  onClearOverride,
 }: MuscleSlotCardProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -249,6 +272,21 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                     muscleColorHex={muscle.colorHex}
                     weekCount={weekCount}
                     onApplyToRemaining={onApplyToRemaining ? (fields) => onApplyToRemaining(slotId, fields) : undefined}
+                    weekIndex={weekIndex}
+                    isDeloadByWeek={isDeloadByWeek}
+                    deltaRules={deltaRules}
+                    onSetDeltaRules={
+                      onSetSlotDeltaRules
+                        ? (rules) => onSetSlotDeltaRules(slotId, rules)
+                        : undefined
+                    }
+                    w1RuleTargets={w1RuleTargets}
+                    manualOverrides={manualOverrides}
+                    onClearOverride={
+                      onClearOverride
+                        ? (target) => onClearOverride(slotId, target)
+                        : undefined
+                    }
                   />
                 </div>
             </PopoverContent>
@@ -304,6 +342,14 @@ interface SlotEditorPopoverProps {
   muscleColorHex: string;
   weekCount?: number;
   onApplyToRemaining?: (fields: Record<string, unknown>) => void;
+  // Phase 2 — Weekly deltas. Panel renders only when weekIndex === 0.
+  weekIndex?: number;
+  isDeloadByWeek?: boolean[];
+  deltaRules?: WeeklyDeltaRule[];
+  onSetDeltaRules?: (rules: WeeklyDeltaRule[]) => void;
+  w1RuleTargets?: DeltaTarget[];
+  manualOverrides?: DeltaTarget[];
+  onClearOverride?: (target: DeltaTarget) => void;
 }
 
 function SlotEditorPopover({
@@ -336,6 +382,13 @@ function SlotEditorPopover({
   muscleColorHex,
   weekCount,
   onApplyToRemaining,
+  weekIndex,
+  isDeloadByWeek,
+  deltaRules,
+  onSetDeltaRules,
+  w1RuleTargets,
+  manualOverrides,
+  onClearOverride,
 }: SlotEditorPopoverProps) {
   const hasTempo = !!tempo && tempo.length === 4;
   const needsIntensity = hasTempo && rir == null && rpe == null;
@@ -363,6 +416,16 @@ function SlotEditorPopover({
         <div className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: muscleColorHex }} />
         <p className="text-sm font-medium">{label}</p>
       </div>
+
+      {/* Phase 4 — Inheritance bar (W2+ only). Surfaces which fields are auto-derived
+          from W1 rules and which the coach has overridden. */}
+      {weekIndex !== undefined && weekIndex > 0 && w1RuleTargets && w1RuleTargets.length > 0 && onClearOverride && (
+        <SlotInheritanceBar
+          w1RuleTargets={w1RuleTargets}
+          manualOverrides={manualOverrides ?? []}
+          onClearOverride={onClearOverride}
+        />
+      )}
 
       {/* Sets */}
       <div className="space-y-1">
@@ -790,6 +853,29 @@ function SlotEditorPopover({
         <Button variant="outline" size="sm" className="w-full text-xs" onClick={onSetAllSets}>
           Apply {sets} sets to all {muscleLabel}
         </Button>
+      )}
+
+      {/* Phase 2 — Weekly delta rules. W1 only; engine derives W2-WN from these.
+          Sits above the manual "Apply to remaining" affordance because rules are the
+          more structural workflow; "apply" remains for one-shot copy-forward edits. */}
+      {weekIndex === 0 && onSetDeltaRules && weekCount && weekCount > 1 && (
+        <SlotDeltaRulesPanel
+          rules={deltaRules ?? []}
+          totalWeeks={weekCount}
+          isDeloadByWeek={isDeloadByWeek ?? Array(weekCount).fill(false)}
+          baseValues={{
+            sets,
+            repMin,
+            repMax,
+            tempo,
+            rir,
+            rpe,
+            instructions: exercise?.instructions,
+          }}
+          setsDetail={setsDetail}
+          hasExercise={!!exercise}
+          onChange={onSetDeltaRules}
+        />
       )}
 
       {/* Apply to remaining weeks */}

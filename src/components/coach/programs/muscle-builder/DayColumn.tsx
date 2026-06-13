@@ -64,6 +64,13 @@ interface DayColumnProps {
   onApplyToRemaining?: (slotId: string, fields: Record<string, unknown>) => void;
   placementCounts?: Map<string, number>;
   recentMuscleIds?: string[];
+  // Phase 2 — Weekly deltas
+  weekIndex?: number;
+  isDeloadByWeek?: boolean[];
+  onSetSlotDeltaRules?: (slotId: string, rules: import("./weeklyDeltaEngine").WeeklyDeltaRule[]) => void;
+  // Phase 4 — Inheritance bar on W2+
+  w1RuleTargetsBySlotId?: Map<string, import("./weeklyDeltaEngine").DeltaTarget[]>;
+  onClearSlotOverride?: (slotId: string, target: import("./weeklyDeltaEngine").DeltaTarget) => void;
 }
 
 export const DayColumn = memo(function DayColumn({
@@ -106,6 +113,11 @@ export const DayColumn = memo(function DayColumn({
   onApplyToRemaining,
   placementCounts,
   recentMuscleIds,
+  weekIndex,
+  isDeloadByWeek,
+  onSetSlotDeltaRules,
+  w1RuleTargetsBySlotId,
+  onClearSlotOverride,
 }: DayColumnProps) {
   const [addSessionOpen, setAddSessionOpen] = useState(false);
 
@@ -342,6 +354,11 @@ export const DayColumn = memo(function DayColumn({
                   onSetActivityDetails={onSetActivityDetails}
                   onSetAllSets={onSetAllSets}
                   onApplyToRemaining={onApplyToRemaining}
+                  weekIndex={weekIndex}
+                  isDeloadByWeek={isDeloadByWeek}
+                  onSetSlotDeltaRules={onSetSlotDeltaRules}
+                  w1RuleTargetsBySlotId={w1RuleTargetsBySlotId}
+                  onClearSlotOverride={onClearSlotOverride}
                   onAddMuscleToSession={onAddMuscleToSession}
                   onAddActivityToSession={onAddActivityToSession}
                   onRenameSession={onRenameSession}

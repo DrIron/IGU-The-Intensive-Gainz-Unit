@@ -37,7 +37,7 @@ import { ExercisePickerDialog } from "../ExercisePickerDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Settings2 } from "lucide-react";
 
-import { useMuscleBuilderState, getCurrentSlots, getCurrentSessions } from "./hooks/useMuscleBuilderState";
+import { useMuscleBuilderState, getCurrentSlots, getCurrentSessions, hasAnyDeltaRules } from "./hooks/useMuscleBuilderState";
 import { useMusclePlanVolume } from "./hooks/useMusclePlanVolume";
 import { WeeklyCalendar } from "./WeeklyCalendar";
 import { WeekTabStrip } from "./WeekTabStrip";
@@ -48,6 +48,7 @@ import { PresetSelector } from "./PresetSelector";
 import { ConvertToProgram } from "./ConvertToProgram";
 import { SaveStatusBadge, type SaveState } from "./SaveStatusBadge";
 import { LinkedContentList } from "@/components/educational/LinkedContentList";
+import { DeloadDialog, type ApplyDeloadParams } from "./DeloadDialog";
 
 interface MuscleBuilderPageProps {
   coachUserId: string;
@@ -492,6 +493,86 @@ export function MuscleBuilderPage({
     [dispatch]
   );
   const handleAddWeek = useCallback(() => dispatch({ type: 'ADD_WEEK' }), [dispatch]);
+  const handleAddWeekWithRules = useCallback(
+    () => dispatch({ type: 'ADD_WEEK_WITH_RULES' }),
+    [dispatch],
+  );
+  const handleAddWeekBlank = useCallback(
+    () => dispatch({ type: 'ADD_WEEK_BLANK' }),
+    [dispatch],
+  );
+  const planHasRules = useMemo(() => hasAnyDeltaRules(state), [state]);
+  const isDeloadByWeek = useMemo(
+    () => state.weeks.map(w => !!w.isDeload),
+    [state.weeks],
+  );
+  const handleSetSlotDeltaRules = useCallback(
+    (slotId: string, rules: import("./weeklyDeltaEngine").WeeklyDeltaRule[]) =>
+      dispatch({ type: 'SET_SLOT_DELTA_RULES', slotId, rules }),
+    [dispatch],
+  );
+
+  // Phase 4 — for each slot in the current week, look up the W1 sibling's rule
+  // targets so MuscleSlotCard can render the inheritance bar with the right
+  // auto/override chips. W1 slots see their own targets; W2+ slots see the
+  // W1 sibling's targets matched by (dayIndex, sortOrder).
+  const w1RuleTargetsBySlotId = useMemo(() => {
+    const w1 = state.weeks[0];
+    const currentWeek = state.weeks[state.currentWeekIndex];
+    if (!w1 || !currentWeek) return new Map<string, import("./weeklyDeltaEngine").DeltaTarget[]>();
+    const map = new Map<string, import("./weeklyDeltaEngine").DeltaTarget[]>();
+    for (const slot of currentWeek.slots) {
+      const w1Sibling = w1.slots.find(
+        s => s.dayIndex === slot.dayIndex && s.sortOrder === slot.sortOrder,
+      );
+      if (w1Sibling?.deltaRules?.length) {
+        map.set(slot.id, w1Sibling.deltaRules.map(r => r.target));
+      }
+    }
+    return map;
+  }, [state.weeks, state.currentWeekIndex]);
+
+  // Phase 5 — deload dialog
+  const [deloadDialogWeekIndex, setDeloadDialogWeekIndex] = useState<number | null>(null);
+  const handleOpenDeloadDialog = useCallback((weekIndex: number) => {
+    setDeloadDialogWeekIndex(weekIndex);
+  }, []);
+  const handleCloseDeloadDialog = useCallback(() => {
+    setDeloadDialogWeekIndex(null);
+  }, []);
+  const handleApplyDeload = useCallback(
+    (params: ApplyDeloadParams) => {
+      dispatch({
+        type: 'APPLY_DELOAD',
+        weekIndex: params.weekIndex,
+        baseContent: params.baseContent,
+        sourceWeekIndex: params.sourceWeekIndex,
+        presetId: params.presetId,
+      });
+      toast({ title: 'Deload applied' });
+    },
+    [dispatch, toast],
+  );
+
+  const handleClearSlotOverride = useCallback(
+    (slotId: string, target: import("./weeklyDeltaEngine").DeltaTarget) => {
+      dispatch({ type: 'CLEAR_FIELD_MANUAL_OVERRIDE', slotId, field: target });
+      // Re-derive that slot's lineage from W1 + rules. Find the W1 sibling id
+      // to scope the recompute. If we can't find one, recompute the whole plan.
+      const currentSlot = state.weeks[state.currentWeekIndex]?.slots.find(s => s.id === slotId);
+      if (currentSlot) {
+        const w1Sibling = state.weeks[0]?.slots.find(
+          s => s.dayIndex === currentSlot.dayIndex && s.sortOrder === currentSlot.sortOrder,
+        );
+        if (w1Sibling) {
+          dispatch({ type: 'RECOMPUTE_DOWNSTREAM_FROM_DELTAS', slotId: w1Sibling.id });
+          return;
+        }
+      }
+      dispatch({ type: 'RECOMPUTE_DOWNSTREAM_FROM_DELTAS' });
+    },
+    [state.weeks, state.currentWeekIndex, dispatch],
+  );
   const handleRemoveWeek = useCallback(
     (weekIndex: number) => dispatch({ type: 'REMOVE_WEEK', weekIndex }),
     [dispatch]
@@ -677,10 +758,23 @@ export function MuscleBuilderPage({
               currentWeekIndex={state.currentWeekIndex}
               onSelectWeek={handleSelectWeek}
               onAddWeek={handleAddWeek}
+              onAddWeekWithRules={handleAddWeekWithRules}
+              onAddWeekBlank={handleAddWeekBlank}
+              hasAnyDeltaRules={planHasRules}
               onRemoveWeek={handleRemoveWeek}
               onDuplicateWeek={handleDuplicateWeek}
               onSetWeekLabel={handleSetWeekLabel}
               onToggleDeload={handleToggleDeload}
+              onOpenDeloadDialog={handleOpenDeloadDialog}
+            />
+
+            {/* Phase 5 — Deload customisation dialog */}
+            <DeloadDialog
+              open={deloadDialogWeekIndex != null}
+              weekIndex={deloadDialogWeekIndex}
+              weeks={state.weeks}
+              onClose={handleCloseDeloadDialog}
+              onApply={handleApplyDeload}
             />
 
             {/* Weekly Calendar */}
@@ -721,6 +815,11 @@ export function MuscleBuilderPage({
               onApplyToRemaining={state.weeks.length > 1 ? handleApplyToRemaining : undefined}
               placementCounts={placementCounts}
               recentMuscleIds={recentMuscleIds}
+              weekIndex={state.currentWeekIndex}
+              isDeloadByWeek={isDeloadByWeek}
+              onSetSlotDeltaRules={handleSetSlotDeltaRules}
+              w1RuleTargetsBySlotId={w1RuleTargetsBySlotId}
+              onClearSlotOverride={handleClearSlotOverride}
             />
 
             {/* #4 — First-time onboarding guide */}
@@ -760,7 +859,7 @@ export function MuscleBuilderPage({
                   <TabsTrigger value="volume">Volume</TabsTrigger>
                   <TabsTrigger value="frequency">Frequency</TabsTrigger>
                   {state.weeks.length > 1 && (
-                    <TabsTrigger value="progression">Progression</TabsTrigger>
+                    <TabsTrigger value="progression">Across Weeks</TabsTrigger>
                   )}
                 </TabsList>
                 <TabsContent value="volume" className="mt-3">
@@ -778,7 +877,25 @@ export function MuscleBuilderPage({
                   />
                 </TabsContent>
                 {state.weeks.length > 1 && (
-                  <TabsContent value="progression" className="mt-3">
+                  <TabsContent value="progression" className="mt-3 space-y-3">
+                    {planHasRules && (
+                      <div className="flex items-center justify-between gap-2 p-2 rounded-md border border-primary/30 bg-primary/5">
+                        <div className="text-xs text-muted-foreground">
+                          Re-derive W2+ values from your W1 rules. Manual overrides on later weeks are preserved.
+                        </div>
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="h-7 text-xs shrink-0"
+                          onClick={() => {
+                            dispatch({ type: 'RECOMPUTE_DOWNSTREAM_FROM_DELTAS' });
+                            toast({ title: 'Recomputed downstream weeks' });
+                          }}
+                        >
+                          Recompute downstream
+                        </Button>
+                      </div>
+                    )}
                     <ProgressionOverview
                       weeks={state.weeks}
                       currentWeekIndex={state.currentWeekIndex}

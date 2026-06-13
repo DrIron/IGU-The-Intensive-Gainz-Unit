@@ -12,6 +12,7 @@ dist
 dist-ssr
 *.local
 vite.config.ts.timestamp-*
+vitest.config.ts.timestamp-*
 
 # Environment variables - NEVER commit secrets
 .env

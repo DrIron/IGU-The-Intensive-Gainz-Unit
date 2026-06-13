@@ -27,6 +27,7 @@ interface CoachRow {
   coach_level: ProfessionalLevel | null;
   is_head_coach: boolean | null;
   head_coach_specialisation: string | null;
+  max_exempt_clients: number | null;
 }
 
 interface SpecialistRow {
@@ -49,6 +50,7 @@ interface CoachEdit {
   coach_level: ProfessionalLevel;
   is_head_coach: boolean;
   head_coach_specialisation: string;
+  max_exempt_clients: number | null;
 }
 
 export function ProfessionalLevelManager() {
@@ -70,7 +72,7 @@ export function ProfessionalLevelManager() {
       // Fetch coaches from coaches_full view (includes coach_level, is_head_coach, etc.)
       const { data: coachesData, error: coachesError } = await supabase
         .from("coaches_full")
-        .select("user_id, first_name, last_name, status, email, coach_level, is_head_coach, head_coach_specialisation")
+        .select("user_id, first_name, last_name, status, email, coach_level, is_head_coach, head_coach_specialisation, max_exempt_clients")
         .in("status", ["approved", "active"])
         .order("first_name");
 
@@ -136,6 +138,7 @@ export function ProfessionalLevelManager() {
       coach_level: coach.coach_level || "junior",
       is_head_coach: coach.is_head_coach || false,
       head_coach_specialisation: coach.head_coach_specialisation || "",
+      max_exempt_clients: coach.max_exempt_clients ?? null,
     };
   };
 
@@ -156,6 +159,7 @@ export function ProfessionalLevelManager() {
       coach_level: coach?.coach_level || "junior",
       is_head_coach: coach?.is_head_coach || false,
       head_coach_specialisation: coach?.head_coach_specialisation || "",
+      max_exempt_clients: coach?.max_exempt_clients ?? null,
     };
   };
 
@@ -165,7 +169,8 @@ export function ProfessionalLevelManager() {
     return (
       edit.coach_level !== (coach.coach_level || "junior") ||
       edit.is_head_coach !== (coach.is_head_coach || false) ||
-      edit.head_coach_specialisation !== (coach.head_coach_specialisation || "")
+      edit.head_coach_specialisation !== (coach.head_coach_specialisation || "") ||
+      (edit.max_exempt_clients ?? null) !== (coach.max_exempt_clients ?? null)
     );
   };
 
@@ -188,6 +193,7 @@ export function ProfessionalLevelManager() {
           coach_level: edit.coach_level,
           is_head_coach: edit.is_head_coach,
           head_coach_specialisation: edit.head_coach_specialisation || null,
+          max_exempt_clients: edit.max_exempt_clients,
         })
         .eq("user_id", coach.user_id)
         .select("user_id");
@@ -301,6 +307,7 @@ export function ProfessionalLevelManager() {
                 <TableHead>Level</TableHead>
                 <TableHead>Head Coach</TableHead>
                 <TableHead>HC Specialisation</TableHead>
+                <TableHead>Max Exempt</TableHead>
                 <TableHead className="text-right">Online/client</TableHead>
                 <TableHead className="text-right">Hybrid/client</TableHead>
                 <TableHead className="w-[80px]"></TableHead>
@@ -309,7 +316,7 @@ export function ProfessionalLevelManager() {
             <TableBody>
               {coaches.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     No active coaches found
                   </TableCell>
                 </TableRow>
@@ -355,6 +362,26 @@ export function ProfessionalLevelManager() {
                             onChange={(e) => updateCoachEdit(coach.user_id, "head_coach_specialisation", e.target.value)}
                             placeholder="e.g. Team Alpha"
                             className="w-36"
+                          />
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {edit.is_head_coach ? (
+                          <Input
+                            type="number"
+                            min={0}
+                            value={edit.max_exempt_clients ?? ""}
+                            onChange={(e) =>
+                              updateCoachEdit(
+                                coach.user_id,
+                                "max_exempt_clients",
+                                e.target.value === "" ? null : Math.max(0, parseInt(e.target.value, 10) || 0)
+                              )
+                            }
+                            placeholder="5"
+                            className="w-20"
                           />
                         ) : (
                           <span className="text-muted-foreground">—</span>
