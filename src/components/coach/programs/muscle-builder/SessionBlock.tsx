@@ -17,7 +17,7 @@ import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy } from "lucide-rea
 import { cn } from "@/lib/utils";
 import { MuscleSlotCard } from "./MuscleSlotCard";
 import { ActivitySlotCard } from "./ActivitySlotCard";
-import { SessionAddPicker } from "./SessionAddPicker";
+import { UnifiedSessionPicker } from "./UnifiedSessionPicker";
 import {
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE_COLORS,
@@ -66,6 +66,7 @@ interface SessionBlockProps {
   // Session callbacks
   onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
+  onAddExerciseToSession: (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => void;
   onRenameSession: (sessionId: string, name: string) => void;
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
   onRemoveSession: (sessionId: string) => void;
@@ -115,7 +116,7 @@ export const SessionBlock = memo(function SessionBlock({
   w1RuleTargetsBySlotId,
   onClearSlotOverride,
   onAddMuscleToSession,
-  onAddActivityToSession,
+  onAddExerciseToSession,
   onRenameSession,
   onSetSessionType,
   onRemoveSession,
@@ -129,7 +130,6 @@ export const SessionBlock = memo(function SessionBlock({
   const [addOpen, setAddOpen] = useState(false);
 
   const typeColors = ACTIVITY_TYPE_COLORS[session.type];
-  const isStrength = session.type === 'strength';
   const displayName = session.name?.trim() || defaultSessionName(session.type);
 
   const sessionSlots = useMemo(
@@ -151,12 +151,12 @@ export const SessionBlock = memo(function SessionBlock({
     [onAddMuscleToSession, session.id],
   );
 
-  const handleAddActivity = useCallback(
-    (activityId: string) => {
-      onAddActivityToSession(session.id, activityId, session.type);
+  const handleAddExercise = useCallback(
+    (exercise: { exerciseId: string; name: string }, activityType: ActivityType) => {
+      onAddExerciseToSession(session.id, exercise, activityType);
       setAddOpen(false);
     },
-    [onAddActivityToSession, session.id, session.type],
+    [onAddExerciseToSession, session.id],
   );
 
   return (
@@ -217,23 +217,22 @@ export const SessionBlock = memo(function SessionBlock({
               // and any pointer-less device.
               className="h-5 w-5 shrink-0 opacity-50 hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 transition-opacity"
               onClick={e => e.stopPropagation()}
-              aria-label={isStrength ? 'Add muscle' : 'Add activity'}
-              title={isStrength ? 'Add muscle' : 'Add activity'}
+              aria-label="Add to session"
+              title="Add to session"
             >
               <Plus className="h-3 w-3" />
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className="w-60 p-2 max-h-80 overflow-y-auto"
+            className="w-64 p-2 max-h-96 overflow-y-auto"
             onClick={e => e.stopPropagation()}
             align="end"
           >
-            <SessionAddPicker
-              sessionType={session.type}
+            <UnifiedSessionPicker
               placementCounts={placementCounts}
               recentMuscleIds={recentMuscleIds}
               onAddMuscle={handleAddMuscle}
-              onAddActivity={handleAddActivity}
+              onAddExercise={handleAddExercise}
               variant="compact"
             />
           </PopoverContent>
@@ -338,7 +337,10 @@ export const SessionBlock = memo(function SessionBlock({
               // contiguous within their parent Droppable. Each SessionBlock is
               // its own Droppable, so the index is the slot's position within
               // this session — not a running cursor across the whole day.
-              if (isStrength) {
+              // Card type is decided PER-SLOT (not per-session) so one session
+              // can mix strength + cardio + mobility items (5g).
+              const isStrengthSlot = !slot.activityType || slot.activityType === 'strength';
+              if (isStrengthSlot) {
                 return (
                   <MuscleSlotCard
                     key={slot.id}

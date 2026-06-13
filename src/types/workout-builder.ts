@@ -17,6 +17,10 @@ export type PrescriptionColumnType =
   | 'rest'
   | 'time'
   | 'distance'
+  | 'pace'
+  | 'hr'
+  | 'side'
+  | 'rounds'
   | 'band_resistance'
   | 'notes'
   | 'custom';
@@ -28,9 +32,28 @@ export type ClientInputColumnType =
   | 'performed_rpe'
   | 'performed_time'
   | 'performed_distance'
+  | 'performed_pace'
   | 'performed_hr'
+  | 'performed_side'
+  | 'performed_rounds'
   | 'performed_calories'
   | 'client_notes';
+
+/**
+ * Client-input column types whose performed values do NOT have a dedicated
+ * column on exercise_set_logs — they are persisted in the performed_json JSONB
+ * blob keyed by type. The four core types (performed_weight/reps/rir/rpe) keep
+ * writing their typed columns. See migration 20260613150000.
+ */
+export const PERFORMED_JSON_COLUMN_TYPES: ReadonlySet<ClientInputColumnType> = new Set([
+  'performed_time',
+  'performed_distance',
+  'performed_pace',
+  'performed_hr',
+  'performed_side',
+  'performed_rounds',
+  'performed_calories',
+]);
 
 export interface ColumnConfig {
   id: string;
@@ -76,6 +99,10 @@ export const AVAILABLE_PRESCRIPTION_COLUMNS: { type: PrescriptionColumnType; lab
   { type: 'rest', label: 'Rest Period', unit: 'sec' },
   { type: 'time', label: 'Time/Duration', unit: 'sec' },
   { type: 'distance', label: 'Distance', unit: 'm' },
+  { type: 'pace', label: 'Pace' },
+  { type: 'hr', label: 'Target HR', unit: 'bpm' },
+  { type: 'side', label: 'Side (L/R)' },
+  { type: 'rounds', label: 'Rounds' },
   { type: 'band_resistance', label: 'Band Color/Resistance' },
   { type: 'notes', label: 'Coach Notes' },
   { type: 'custom', label: 'Custom Field' },
@@ -88,7 +115,10 @@ export const AVAILABLE_CLIENT_COLUMNS: { type: ClientInputColumnType; label: str
   { type: 'performed_rpe', label: 'Actual RPE' },
   { type: 'performed_time', label: 'Time Taken', unit: 'sec' },
   { type: 'performed_distance', label: 'Distance Covered', unit: 'm' },
+  { type: 'performed_pace', label: 'Pace' },
   { type: 'performed_hr', label: 'Heart Rate', unit: 'bpm' },
+  { type: 'performed_side', label: 'Side (L/R)' },
+  { type: 'performed_rounds', label: 'Rounds Completed' },
   { type: 'performed_calories', label: 'Calories' },
   { type: 'client_notes', label: 'Notes' },
 ];
@@ -427,6 +457,12 @@ export interface SetPrescription {
   rest_seconds_max?: number;
   time_seconds?: number;
   distance_meters?: number;
+  // Activity prescription fields (cardio / carry / throw / mobility / hiit).
+  // All JSONB-stored alongside the rest of sets_json — no DB column needed.
+  pace?: string;       // e.g. "5:30/km"
+  target_hr?: number;  // bpm
+  side?: string;       // "L" | "R" | "both"
+  rounds?: number;     // hiit / circuit rounds
   band_resistance?: string;
   notes?: string;
   custom_fields?: Record<string, string | number>;
@@ -448,12 +484,90 @@ export const DEFAULT_INPUT_COLUMNS: ColumnConfig[] = [
 ];
 
 // ============================================================
+// Per-category default column sets (activity logging — Option B)
+//
+// Each entry is a flat ColumnConfig[] mixing prescription columns (coach-side)
+// and client-input columns (the inputs the client fills), exactly like strength
+// stores `[...prescriptionColumns, ...inputColumns]`. Applied when a non-strength
+// slot is converted; fully editable afterwards via the existing column editor.
+// ============================================================
+
+const col = (
+  id: string,
+  type: PrescriptionColumnType | ClientInputColumnType,
+  label: string,
+  order: number,
+  unit?: string,
+): ColumnConfig => ({ id, type, label, visible: true, order, ...(unit ? { unit } : {}) });
+
+export const DEFAULT_COLUMNS_BY_CATEGORY: Record<string, ColumnConfig[]> = {
+  // Keyed by ActivityType (what conversion branches on) + extra named presets.
+  cardio: [
+    col('p_distance', 'distance', 'Distance', 0, 'm'),
+    col('p_time', 'time', 'Time', 1, 'sec'),
+    col('p_pace', 'pace', 'Pace', 2),
+    col('p_hr', 'hr', 'Target HR', 3, 'bpm'),
+    col('i_distance', 'performed_distance', 'Distance', 0, 'm'),
+    col('i_time', 'performed_time', 'Time', 1, 'sec'),
+    col('i_pace', 'performed_pace', 'Pace', 2),
+    col('i_hr', 'performed_hr', 'Heart Rate', 3, 'bpm'),
+  ],
+  hiit: [
+    col('p_rounds', 'rounds', 'Rounds', 0),
+    col('p_time', 'time', 'Work', 1, 'sec'),
+    col('p_rest', 'rest', 'Rest', 2, 'sec'),
+    col('i_rounds', 'performed_rounds', 'Rounds', 0),
+    col('i_time', 'performed_time', 'Time', 1, 'sec'),
+  ],
+  yoga_mobility: [
+    col('p_time', 'time', 'Time', 0, 'sec'),
+    col('p_side', 'side', 'Side', 1),
+    col('i_time', 'performed_time', 'Time', 0, 'sec'),
+    col('i_side', 'performed_side', 'Side', 1),
+  ],
+  recovery: [
+    col('p_time', 'time', 'Time', 0, 'sec'),
+    col('i_time', 'performed_time', 'Time', 0, 'sec'),
+  ],
+  sport_specific: [
+    col('p_time', 'time', 'Time', 0, 'sec'),
+    col('p_reps', 'rep_range', 'Reps', 1),
+    col('i_time', 'performed_time', 'Time', 0, 'sec'),
+    col('i_reps', 'performed_reps', 'Reps', 1),
+  ],
+  // Named presets a coach can pick manually (no dedicated ActivityType).
+  carry: [
+    col('p_weight', 'weight', 'Load', 0, 'kg'),
+    col('p_distance', 'distance', 'Distance', 1, 'm'),
+    col('p_time', 'time', 'Time', 2, 'sec'),
+    col('i_weight', 'performed_weight', 'Load', 0, 'kg'),
+    col('i_distance', 'performed_distance', 'Distance', 1, 'm'),
+    col('i_time', 'performed_time', 'Time', 2, 'sec'),
+  ],
+  throw: [
+    col('p_weight', 'weight', 'Load', 0, 'kg'),
+    col('p_reps', 'rep_range', 'Reps', 1),
+    col('i_weight', 'performed_weight', 'Load', 0, 'kg'),
+    col('i_reps', 'performed_reps', 'Reps', 1),
+  ],
+};
+
+/** Resolve the default column_config for a non-strength slot's activityType. */
+export function defaultColumnsForActivityType(activityType?: string | null): ColumnConfig[] {
+  if (activityType && DEFAULT_COLUMNS_BY_CATEGORY[activityType]) {
+    return DEFAULT_COLUMNS_BY_CATEGORY[activityType];
+  }
+  return DEFAULT_COLUMNS_BY_CATEGORY.cardio;
+}
+
+// ============================================================
 // V2 Helper Functions
 // ============================================================
 
 const PRESCRIPTION_COLUMN_TYPES: Set<string> = new Set([
   'sets', 'reps', 'rep_range', 'weight', 'tempo', 'rir', 'rpe',
-  'percent_1rm', 'rest', 'time', 'distance', 'band_resistance', 'notes', 'custom',
+  'percent_1rm', 'rest', 'time', 'distance', 'pace', 'hr', 'side', 'rounds',
+  'band_resistance', 'notes', 'custom',
 ]);
 
 export function splitColumnsByCategory(columns: ColumnConfig[]): {
@@ -529,6 +643,14 @@ export function getSetColumnValue(
       return set.time_seconds ?? null;
     case 'distance':
       return set.distance_meters ?? null;
+    case 'pace':
+      return set.pace ?? null;
+    case 'hr':
+      return set.target_hr ?? null;
+    case 'side':
+      return set.side ?? null;
+    case 'rounds':
+      return set.rounds ?? null;
     case 'band_resistance':
       return set.band_resistance ?? null;
     case 'notes':
@@ -579,6 +701,18 @@ export function setSetColumnValue(
       break;
     case 'distance':
       updated.distance_meters = typeof value === 'number' ? value : parseFloat(value as string) || undefined;
+      break;
+    case 'pace':
+      updated.pace = value as string || undefined;
+      break;
+    case 'hr':
+      updated.target_hr = typeof value === 'number' ? value : parseInt(value as string) || undefined;
+      break;
+    case 'side':
+      updated.side = value as string || undefined;
+      break;
+    case 'rounds':
+      updated.rounds = typeof value === 'number' ? value : parseInt(value as string) || undefined;
       break;
     case 'band_resistance':
       updated.band_resistance = value as string || undefined;

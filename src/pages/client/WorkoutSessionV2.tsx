@@ -54,8 +54,12 @@ import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { useProgressionSuggestions } from "@/hooks/useProgressionSuggestions";
 import { ProgressionSuggestionBanner } from "@/components/workout/ProgressionSuggestionBanner";
-import type { ProgressionConfig } from "@/types/workout-builder";
-import { DEFAULT_PROGRESSION_CONFIG } from "@/types/workout-builder";
+import type { ProgressionConfig, ColumnConfig, ClientInputColumnType } from "@/types/workout-builder";
+import {
+  DEFAULT_PROGRESSION_CONFIG,
+  splitColumnsByCategory,
+  PERFORMED_JSON_COLUMN_TYPES,
+} from "@/types/workout-builder";
 
 // =============================================================================
 // TYPES
@@ -100,11 +104,17 @@ interface Exercise {
     intensity_type?: string;
     intensity_value?: number;
     sets_json?: SetPrescription[];
+    column_config?: ColumnConfig[];
     linear_progression_enabled?: boolean;
     progression_config?: ProgressionConfig;
   };
   // V2: Per-set prescriptions (if available)
   sets_json?: SetPrescription[];
+  // Client-input columns the coach configured (drives which inputs the client
+  // fills). is_activity = any non-core input column present → render the
+  // dynamic activity grid instead of the strength Weight/Reps/RIR grid.
+  input_columns: ColumnConfig[];
+  is_activity: boolean;
   exercise: {
     name: string;
     default_video_url: string | null;
@@ -128,6 +138,9 @@ interface SetLog {
   performed_load: number | null;
   performed_rir: number | null;
   performed_rpe: number | null;
+  // Non-core performed metrics (time/distance/pace/hr/calories/side/rounds),
+  // keyed by ClientInputColumnType → persisted to exercise_set_logs.performed_json.
+  performed_extra: Record<string, string | number>;
   notes: string;
   completed: boolean;
 }
@@ -330,21 +343,36 @@ function HistoryBlock({
   );
 }
 
-// Per-Set Row with its own prescription
+// Client-input column types that render as free text rather than a number.
+const TEXT_INPUT_TYPES: ReadonlySet<string> = new Set([
+  "performed_pace",
+  "performed_side",
+  "client_notes",
+]);
+
+// Per-Set Row with its own prescription.
+// Strength items render the classic Weight / Reps / RIR-or-RPE grid unchanged.
+// Activity items render inputs DYNAMICALLY from the coach-configured input columns.
 function SetRow({
   prescription,
   historySet,
   log,
   onUpdate,
+  onUpdateExtra,
   onComplete,
   isActive,
+  inputColumns,
+  isActivity,
 }: {
   prescription: SetPrescription;
   historySet?: HistorySet;
   log: SetLog;
   onUpdate: (field: keyof SetLog, value: any) => void;
+  onUpdateExtra: (key: string, value: string | number | null) => void;
   onComplete: () => void;
   isActive: boolean;
+  inputColumns: ColumnConfig[];
+  isActivity: boolean;
 }) {
   const hasRir = prescription.rir !== undefined;
   const hasRpe = prescription.rpe !== undefined;
@@ -353,8 +381,73 @@ function SetRow({
     (prescription.rep_range_min && prescription.rep_range_max
       ? `${prescription.rep_range_min}-${prescription.rep_range_max}`
       : "8-12");
-  const isFilledOut =
-    log.performed_load !== null && log.performed_reps !== null;
+
+  const visibleInputs = inputColumns.filter((c) => c.visible !== false);
+
+  // Current logged value for an input column.
+  const inputValue = (col: ColumnConfig): string | number => {
+    switch (col.type as ClientInputColumnType) {
+      case "performed_weight": return log.performed_load ?? "";
+      case "performed_reps": return log.performed_reps ?? "";
+      case "performed_rir": return log.performed_rir ?? "";
+      case "performed_rpe": return log.performed_rpe ?? "";
+      case "client_notes": return log.notes ?? "";
+      default: return log.performed_extra[col.type] ?? "";
+    }
+  };
+
+  // Route a column's raw value into the right SetLog field (core → typed
+  // columns, everything else → performed_extra → performed_json).
+  const updateInput = (col: ColumnConfig, raw: string) => {
+    const type = col.type as ClientInputColumnType;
+    const isText = TEXT_INPUT_TYPES.has(type);
+    const val: string | number | null = raw === "" ? null : isText ? raw : Number(raw);
+    switch (type) {
+      case "performed_weight": onUpdate("performed_load", val); break;
+      case "performed_reps": onUpdate("performed_reps", val); break;
+      case "performed_rir": onUpdate("performed_rir", val); break;
+      case "performed_rpe": onUpdate("performed_rpe", val); break;
+      case "client_notes": onUpdate("notes", (val as string) ?? ""); break;
+      default: onUpdateExtra(type, val); break;
+    }
+  };
+
+  const colFilled = (col: ColumnConfig): boolean => {
+    switch (col.type as ClientInputColumnType) {
+      case "performed_weight": return log.performed_load != null;
+      case "performed_reps": return log.performed_reps != null;
+      case "performed_rir": return log.performed_rir != null;
+      case "performed_rpe": return log.performed_rpe != null;
+      case "client_notes": return !!log.notes;
+      default: { const v = log.performed_extra[col.type]; return v != null && v !== ""; }
+    }
+  };
+
+  // A non-rep "complete" affordance: an activity row is done once ANY of its
+  // configured inputs has a value (strength keeps the weight+reps requirement).
+  const isFilledOut = isActivity
+    ? visibleInputs.some(colFilled)
+    : log.performed_load !== null && log.performed_reps !== null;
+
+  // Activity prescription badges (replace the rep/RIR/RPE badges).
+  const activityBadges: string[] = [];
+  if (isActivity) {
+    if (prescription.time_seconds != null)
+      activityBadges.push(
+        prescription.time_seconds >= 60
+          ? `${Math.round(prescription.time_seconds / 60)} min`
+          : `${prescription.time_seconds}s`,
+      );
+    if (prescription.distance_meters != null)
+      activityBadges.push(
+        prescription.distance_meters >= 1000
+          ? `${(prescription.distance_meters / 1000).toFixed(1)} km`
+          : `${prescription.distance_meters} m`,
+      );
+    if (prescription.pace) activityBadges.push(String(prescription.pace));
+    if (prescription.rounds != null) activityBadges.push(`${prescription.rounds} rounds`);
+    if (prescription.target_hr != null) activityBadges.push(`${prescription.target_hr} bpm`);
+  }
 
   return (
     <div
@@ -384,23 +477,39 @@ function SetRow({
           </div>
 
           {/* Prescription badges */}
-          <Badge variant="default" className="text-xs">
-            {repsDisplay} reps
-          </Badge>
-          {hasRir && (
-            <Badge variant="outline" className="text-xs">
-              RIR {prescription.rir}
-            </Badge>
-          )}
-          {hasRpe && (
-            <Badge variant="outline" className="text-xs">
-              RPE {prescription.rpe}
-            </Badge>
-          )}
-          {prescription.tempo && (
-            <Badge variant="outline" className="text-xs font-mono">
-              {prescription.tempo}
-            </Badge>
+          {isActivity ? (
+            activityBadges.length > 0 ? (
+              activityBadges.map((b, i) => (
+                <Badge key={i} variant={i === 0 ? "default" : "outline"} className="text-xs">
+                  {b}
+                </Badge>
+              ))
+            ) : (
+              <Badge variant="default" className="text-xs">
+                Log your effort
+              </Badge>
+            )
+          ) : (
+            <>
+              <Badge variant="default" className="text-xs">
+                {repsDisplay} reps
+              </Badge>
+              {hasRir && (
+                <Badge variant="outline" className="text-xs">
+                  RIR {prescription.rir}
+                </Badge>
+              )}
+              {hasRpe && (
+                <Badge variant="outline" className="text-xs">
+                  RPE {prescription.rpe}
+                </Badge>
+              )}
+              {prescription.tempo && (
+                <Badge variant="outline" className="text-xs font-mono">
+                  {prescription.tempo}
+                </Badge>
+              )}
+            </>
           )}
           {prescription.rest_seconds && prescription.rest_seconds > 0 && (
             <Badge variant="outline" className="text-xs">
@@ -421,8 +530,8 @@ function SetRow({
 
       {/* Input row */}
       <div className="px-3 py-2.5 flex items-end gap-2">
-        {/* Previous hint */}
-        {historySet && !log.completed && (
+        {/* Previous hint (strength only — weight×reps) */}
+        {historySet && !log.completed && !isActivity && (
           <div className="w-14 shrink-0 text-center hidden sm:block">
             <p className="text-[10px] text-muted-foreground">Last</p>
             <p className="text-xs text-muted-foreground font-mono">
@@ -432,74 +541,99 @@ function SetRow({
         )}
 
         {/* Inputs */}
-        <div className="flex-1 grid grid-cols-3 gap-2">
-          <div>
-            <label className="text-[10px] text-muted-foreground block mb-1">
-              Weight (kg)
-            </label>
-            <Input
-              type="number"
-              inputMode="decimal"
-              step="0.5"
-              placeholder={historySet?.weight?.toString() || "—"}
-              value={log.performed_load ?? ""}
-              onChange={(e) =>
-                onUpdate(
-                  "performed_load",
-                  e.target.value ? parseFloat(e.target.value) : null
-                )
-              }
-              disabled={log.completed}
-              className="h-10 text-center"
-            />
+        {isActivity ? (
+          <div className="flex-1 grid grid-cols-2 gap-2">
+            {visibleInputs.map((col) => {
+              const isText = TEXT_INPUT_TYPES.has(col.type);
+              return (
+                <div key={col.id}>
+                  <label className="text-[10px] text-muted-foreground block mb-1">
+                    {col.label}
+                    {col.unit ? ` (${col.unit})` : ""}
+                  </label>
+                  <Input
+                    type={isText ? "text" : "number"}
+                    inputMode={isText ? "text" : "decimal"}
+                    placeholder={col.placeholder || "—"}
+                    value={inputValue(col)}
+                    onChange={(e) => updateInput(col, e.target.value)}
+                    disabled={log.completed}
+                    className="h-10 text-center"
+                  />
+                </div>
+              );
+            })}
           </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground block mb-1">
-              Reps
-            </label>
-            <Input
-              type="number"
-              inputMode="numeric"
-              placeholder={prescription.rep_range_min?.toString() || "8"}
-              value={log.performed_reps ?? ""}
-              onChange={(e) =>
-                onUpdate(
-                  "performed_reps",
-                  e.target.value ? parseInt(e.target.value) : null
-                )
-              }
-              disabled={log.completed}
-              className="h-10 text-center"
-            />
+        ) : (
+          <div className="flex-1 grid grid-cols-3 gap-2">
+            <div>
+              <label className="text-[10px] text-muted-foreground block mb-1">
+                Weight (kg)
+              </label>
+              <Input
+                type="number"
+                inputMode="decimal"
+                step="0.5"
+                placeholder={historySet?.weight?.toString() || "—"}
+                value={log.performed_load ?? ""}
+                onChange={(e) =>
+                  onUpdate(
+                    "performed_load",
+                    e.target.value ? parseFloat(e.target.value) : null
+                  )
+                }
+                disabled={log.completed}
+                className="h-10 text-center"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground block mb-1">
+                Reps
+              </label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                placeholder={prescription.rep_range_min?.toString() || "8"}
+                value={log.performed_reps ?? ""}
+                onChange={(e) =>
+                  onUpdate(
+                    "performed_reps",
+                    e.target.value ? parseInt(e.target.value) : null
+                  )
+                }
+                disabled={log.completed}
+                className="h-10 text-center"
+              />
+            </div>
+            <div>
+              <label className="text-[10px] text-muted-foreground block mb-1">
+                {hasRpe ? "RPE" : "RIR"}
+              </label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                min={hasRpe ? 1 : 0}
+                max={hasRpe ? 10 : 5}
+                placeholder={
+                  hasRpe
+                    ? prescription.rpe?.toString()
+                    : prescription.rir?.toString() || "2"
+                }
+                value={
+                  hasRpe
+                    ? (log.performed_rpe ?? "")
+                    : (log.performed_rir ?? "")
+                }
+                onChange={(e) => {
+                  const val = e.target.value ? parseInt(e.target.value) : null;
+                  onUpdate(hasRpe ? "performed_rpe" : "performed_rir", val);
+                }}
+                disabled={log.completed}
+                className="h-10 text-center"
+              />
+            </div>
           </div>
-          <div>
-            <label className="text-[10px] text-muted-foreground block mb-1">
-              {hasRpe ? "RPE" : "RIR"}
-            </label>
-            <Input
-              type="number"
-              inputMode="numeric"
-              min={hasRpe ? 1 : 0}
-              max={hasRpe ? 10 : 5}
-              placeholder={
-                hasRpe
-                  ? prescription.rpe?.toString()
-                  : prescription.rir?.toString() || "2"
-              }
-              value={
-                hasRpe
-                  ? (log.performed_rpe ?? "")
-                  : (log.performed_rir ?? "")
-              }
-              onChange={(e) => {
-                const val = e.target.value ? parseInt(e.target.value) : null;
-                onUpdate(hasRpe ? "performed_rpe" : "performed_rir", val);
-              }}
-              disabled={log.completed}
-              className="h-10 text-center"
-            />
-          </div>
-        </div>
+        )}
 
         {/* Complete button */}
         <Button
@@ -527,6 +661,7 @@ function ExerciseCard({
   exerciseIndex,
   logs,
   onUpdateLog,
+  onUpdateLogExtra,
   onCompleteSet,
   onSwapExercise,
   isExpanded,
@@ -538,6 +673,7 @@ function ExerciseCard({
   exerciseIndex: number;
   logs: SetLog[];
   onUpdateLog: (setIndex: number, field: keyof SetLog, value: any) => void;
+  onUpdateLogExtra: (setIndex: number, key: string, value: string | number | null) => void;
   onCompleteSet: (setIndex: number, restSeconds?: number) => void;
   onSwapExercise: () => void;
   isExpanded: boolean;
@@ -596,7 +732,8 @@ function ExerciseCard({
                 </CardDescription>
                 <div className="flex items-center gap-2 mt-1">
                   <span className="text-xs text-muted-foreground">
-                    {completedSets}/{totalSets} sets
+                    {completedSets}/{totalSets}{" "}
+                    {exercise.is_activity ? (totalSets > 1 ? "rounds" : "entry") : "sets"}
                   </span>
                   {exercise.personal_best && (
                     <span className="text-xs text-amber-500 flex items-center gap-1">
@@ -667,15 +804,19 @@ function ExerciseCard({
                           performed_load: null,
                           performed_rir: null,
                           performed_rpe: null,
+                          performed_extra: {},
                           notes: "",
                           completed: false,
                         }
                       }
                       onUpdate={(field, value) => onUpdateLog(i, field, value)}
+                      onUpdateExtra={(key, value) => onUpdateLogExtra(i, key, value)}
                       onComplete={() =>
                         onCompleteSet(i, prescription.rest_seconds)
                       }
                       isActive={activeSetIndex === i}
+                      inputColumns={exercise.input_columns}
+                      isActivity={exercise.is_activity}
                     />
                     {suggestion && (
                       <ProgressionSuggestionBanner
@@ -1021,6 +1162,18 @@ function WorkoutSessionV2Content() {
             | null;
           const setCount = setsJson?.length || prescription.set_count || 3;
 
+          // Client-input columns the coach configured (snapshotted into
+          // prescription_snapshot_json.column_config by assign_program). The
+          // input half drives which fields the client fills; presence of any
+          // non-core input type flags this as an activity (dynamic inputs).
+          const allColumns: ColumnConfig[] = Array.isArray((prescription as any).column_config)
+            ? ((prescription as any).column_config as ColumnConfig[])
+            : [];
+          const { inputColumns } = splitColumnsByCategory(allColumns);
+          const isActivity = inputColumns.some((c) =>
+            PERFORMED_JSON_COLUMN_TYPES.has(c.type as ClientInputColumnType)
+          );
+
           // Get existing logs for this exercise
           const existingLogs =
             logsData?.filter(
@@ -1032,16 +1185,20 @@ function WorkoutSessionV2Content() {
             const existing = existingLogs.find(
               (l) => l.set_index === i + 1
             );
+            const existingExtra =
+              (existing?.performed_json as Record<string, string | number> | null) ?? {};
             return {
               set_index: i + 1,
               performed_reps: existing?.performed_reps ?? null,
               performed_load: existing?.performed_load ?? null,
               performed_rir: existing?.performed_rir ?? null,
               performed_rpe: existing?.performed_rpe ?? null,
+              performed_extra: existingExtra,
               notes: existing?.notes || "",
               completed: existing
                 ? existing.performed_reps !== null ||
-                  existing.performed_load !== null
+                  existing.performed_load !== null ||
+                  Object.keys(existingExtra).length > 0
                 : false,
             };
           });
@@ -1057,9 +1214,11 @@ function WorkoutSessionV2Content() {
           const sameExerciseIds =
             sameExerciseInstances?.map((e) => e.id) || [];
 
-          // Get last performance (history) — only for the same exercise
+          // Get last performance (history) — only for the same exercise.
+          // Skip for activities: history/PB are weight×reps-centric and those
+          // columns are null for activity rows (the data lives in performed_json).
           let historyData: any[] | null = null;
-          if (sameExerciseIds.length > 0) {
+          if (!isActivity && sameExerciseIds.length > 0) {
             const { data } = await supabase
               .from("exercise_set_logs")
               .select(
@@ -1079,9 +1238,9 @@ function WorkoutSessionV2Content() {
             historyData = data;
           }
 
-          // Get personal best — only for the same exercise
+          // Get personal best — only for the same exercise (strength only).
           let pbData: any[] | null = null;
-          if (sameExerciseIds.length > 0) {
+          if (!isActivity && sameExerciseIds.length > 0) {
             const { data } = await supabase
               .from("exercise_set_logs")
               .select("performed_load, performed_reps, created_at")
@@ -1101,6 +1260,8 @@ function WorkoutSessionV2Content() {
             instructions: ex.instructions,
             prescription_snapshot_json: prescription,
             sets_json: setsJson || undefined,
+            input_columns: inputColumns,
+            is_activity: isActivity,
             exercise: {
               name: ex.exercise_library?.name || "Unknown Exercise",
               default_video_url: ex.exercise_library?.default_video_url,
@@ -1185,6 +1346,25 @@ function WorkoutSessionV2Content() {
     }));
   };
 
+  // Update a non-core performed metric (performed_json blob) for one set.
+  const updateSetExtra = (
+    exerciseId: string,
+    setIndex: number,
+    key: string,
+    value: string | number | null
+  ) => {
+    setSetLogs((prev) => ({
+      ...prev,
+      [exerciseId]: prev[exerciseId].map((log, i) => {
+        if (i !== setIndex) return log;
+        const next = { ...log.performed_extra };
+        if (value === null || value === "") delete next[key];
+        else next[key] = value;
+        return { ...log, performed_extra: next };
+      }),
+    }));
+  };
+
   // Complete a set (mark as done + PERSIST IMMEDIATELY + start rest timer +
   // evaluate progression).
   //
@@ -1220,6 +1400,7 @@ function WorkoutSessionV2Content() {
             performed_load: logForSave.performed_load,
             performed_rir: logForSave.performed_rir,
             performed_rpe: logForSave.performed_rpe,
+            performed_json: logForSave.performed_extra ?? {},
             notes: logForSave.notes || null,
             created_by_user_id: user.id,
           },
@@ -1392,7 +1573,8 @@ function WorkoutSessionV2Content() {
         if (!exercise) return;
 
         logs.forEach((log) => {
-          if (log.performed_reps !== null || log.performed_load !== null) {
+          const hasExtra = Object.keys(log.performed_extra || {}).length > 0;
+          if (log.performed_reps !== null || log.performed_load !== null || hasExtra) {
             allLogs.push({
               client_module_exercise_id: exerciseId,
               set_index: log.set_index,
@@ -1401,6 +1583,7 @@ function WorkoutSessionV2Content() {
               performed_load: log.performed_load,
               performed_rir: log.performed_rir,
               performed_rpe: log.performed_rpe,
+              performed_json: log.performed_extra ?? {},
               notes: log.notes || null,
               created_by_user_id: user.id,
             });
@@ -1633,6 +1816,9 @@ function WorkoutSessionV2Content() {
                 logs={setLogs[exercise.id] || []}
                 onUpdateLog={(setIndex, field, value) =>
                   updateSetLog(exercise.id, setIndex, field, value)
+                }
+                onUpdateLogExtra={(setIndex, key, value) =>
+                  updateSetExtra(exercise.id, setIndex, key, value)
                 }
                 onCompleteSet={(setIndex, restSeconds) =>
                   completeSet(exercise.id, setIndex, restSeconds)

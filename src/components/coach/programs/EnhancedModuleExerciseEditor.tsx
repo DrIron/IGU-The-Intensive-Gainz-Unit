@@ -12,6 +12,7 @@ import { DragDropContext, Droppable, Draggable, DropResult } from "@hello-pangea
 import { ExerciseCardV2 } from "./ExerciseCardV2";
 import { WarmupSection } from "./WarmupSection";
 import { ExercisePickerDialog } from "./ExercisePickerDialog";
+import { SwapExerciseDialog } from "./SwapExerciseDialog";
 import { getMuscleDisplay } from "@/types/muscle-builder";
 import {
   ColumnConfig,
@@ -55,8 +56,14 @@ export function EnhancedModuleExerciseEditor({
   const [showExercisePicker, setShowExercisePicker] = useState(false);
   const [defaultColumns, setDefaultColumns] = useState<ColumnConfig[]>(DEFAULT_PRESCRIPTION_COLUMNS);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  // Swap/find-alternative target: the module_exercise row being replaced.
+  const [swapTarget, setSwapTarget] = useState<{ id: string; exerciseId: string; name: string } | null>(null);
   const hasFetchedExercises = useRef(false);
   const { toast } = useToast();
+
+  // Always-current snapshot of exercises so stable callbacks can read live data.
+  const exercisesRef = useRef<EnhancedExerciseDisplayV2[]>(exercises);
+  exercisesRef.current = exercises;
 
   // Group exercises by section (memoized to avoid 4x filter + 4x sort on every render)
   const groupedExercises: GroupedExercises = useMemo(() => ({
@@ -323,6 +330,67 @@ export function EnhancedModuleExerciseEditor({
   // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: clear cache when handler changes
   useMemo(() => { exerciseDeleteCallbacksRef.current = new Map(); }, [deleteExercise]);
 
+  // Stable per-exercise "open swap" callbacks (read live data via exercisesRef so
+  // they stay referentially stable and don't bust ExerciseCardV2's memo).
+  const exerciseSwapCallbacksRef = useRef<Map<string, () => void>>(new Map());
+  const getExerciseSwapCallback = useCallback((exerciseRowId: string) => {
+    const existing = exerciseSwapCallbacksRef.current.get(exerciseRowId);
+    if (existing) return existing;
+    const cb = () => {
+      const row = exercisesRef.current.find((e) => e.id === exerciseRowId);
+      if (!row) return;
+      setSwapTarget({ id: row.id, exerciseId: row.exercise_id, name: row.exercise.name });
+    };
+    exerciseSwapCallbacksRef.current.set(exerciseRowId, cb);
+    return cb;
+  }, []);
+
+  // Replace the placed exercise's library reference, persisting immediately
+  // (exercise_id is NOT part of saveChanges). Keeps the same prescription/sets.
+  const handleSwapConfirm = useCallback(async (newExerciseId: string) => {
+    const target = swapTarget;
+    if (!target) return;
+    try {
+      const { error } = await supabase
+        .from("module_exercises")
+        .update({ exercise_id: newExerciseId })
+        .eq("id", target.id);
+      if (error) throw error;
+
+      // Pull the new library row's display fields for the card (direct query, no FK join).
+      const { data: lib, error: libErr } = await supabase
+        .from("exercise_library")
+        .select("name, primary_muscle, default_video_url")
+        .eq("id", newExerciseId)
+        .single();
+      if (libErr) throw libErr;
+
+      setExercises((prev) =>
+        prev.map((ex) =>
+          ex.id === target.id
+            ? {
+                ...ex,
+                exercise_id: newExerciseId,
+                exercise: {
+                  name: lib.name,
+                  primary_muscle: lib.primary_muscle || "",
+                  default_video_url: lib.default_video_url,
+                },
+              }
+            : ex
+        )
+      );
+      setSwapTarget(null);
+      toast({ title: "Exercise swapped", description: `Now using ${lib.name}` });
+    } catch (error: any) {
+      toast({
+        title: "Error swapping exercise",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    }
+  }, [swapTarget, toast]);
+
   // Save all changes
   const saveChanges = async () => {
     setSaving(true);
@@ -481,6 +549,7 @@ export function EnhancedModuleExerciseEditor({
                       exercise={exercise}
                       onExerciseChange={getExerciseChangeCallback(exercise.id)}
                       onDelete={getExerciseDeleteCallback(exercise.id)}
+                      onSwap={getExerciseSwapCallback(exercise.id)}
                       isDragging={snapshot.isDragging}
                       dragHandleProps={provided.dragHandleProps}
                       isReadOnly={isReadOnly}
@@ -604,6 +673,17 @@ export function EnhancedModuleExerciseEditor({
         onSelectExercise={handleSelectExercise}
         coachUserId={coachUserId}
         sourceMuscleId={sourceMuscleId}
+      />
+
+      {/* Swap / find-alternative Dialog */}
+      <SwapExerciseDialog
+        open={!!swapTarget}
+        onOpenChange={(o) => {
+          if (!o) setSwapTarget(null);
+        }}
+        exerciseId={swapTarget?.exerciseId ?? null}
+        exerciseName={swapTarget?.name}
+        onSelectSubstitute={(id) => handleSwapConfirm(id)}
       />
     </div>
   );

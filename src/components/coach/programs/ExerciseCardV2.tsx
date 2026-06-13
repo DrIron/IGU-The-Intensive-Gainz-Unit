@@ -18,7 +18,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { GripVertical, Trash2, History, Plus, TrendingUp, Settings2 } from "lucide-react";
+import { GripVertical, Trash2, History, Plus, TrendingUp, Settings2, ArrowLeftRight } from "lucide-react";
 import {
   ColumnConfig,
   EnhancedExerciseDisplayV2,
@@ -38,6 +38,8 @@ interface ExerciseCardV2Props {
   onExerciseChange: (updates: Partial<EnhancedExerciseDisplayV2>) => void;
   onDelete: () => void;
   onShowHistory?: () => void;
+  /** Optional: open the swap/find-alternative flow for this exercise. */
+  onSwap?: () => void;
   isDragging?: boolean;
   dragHandleProps?: any;
   isReadOnly?: boolean;
@@ -48,6 +50,7 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
   onExerciseChange,
   onDelete,
   onShowHistory,
+  onSwap,
   isDragging,
   dragHandleProps,
   isReadOnly,
@@ -269,6 +272,26 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
             columns={exercise.prescription_columns}
             onColumnsChange={handleColumnsChange}
           />
+        )}
+
+        {/* Swap / find alternative */}
+        {!isReadOnly && onSwap && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-8 w-8 p-0"
+                  onClick={onSwap}
+                  aria-label="Swap or find alternative exercise"
+                >
+                  <ArrowLeftRight className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Swap / find alternative</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
         )}
 
         {/* History */}
@@ -583,6 +606,7 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
     prevProps.onExerciseChange === nextProps.onExerciseChange &&
     prevProps.onDelete === nextProps.onDelete &&
     prevProps.onShowHistory === nextProps.onShowHistory &&
+    prevProps.onSwap === nextProps.onSwap &&
     prevProps.exercise.last_performance === nextProps.exercise.last_performance &&
     prevProps.exercise.exercise.name === nextProps.exercise.exercise.name &&
     prevProps.exercise.exercise.primary_muscle === nextProps.exercise.exercise.primary_muscle &&

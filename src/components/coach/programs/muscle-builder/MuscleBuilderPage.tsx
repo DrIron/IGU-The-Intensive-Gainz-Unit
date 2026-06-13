@@ -268,6 +268,18 @@ export function MuscleBuilderPage({
     [currentWeekSessions, dispatch]
   );
 
+  // Unified picker (5g): place a real exercise_library exercise into ANY session
+  // regardless of its focus label. Non-strength categories flow through here so
+  // the slot stores slot.exercise + a derived activityType.
+  const handleAddExerciseToSession = useCallback(
+    (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => {
+      const session = currentWeekSessions.find(s => s.id === sessionId);
+      if (!session) return;
+      dispatch({ type: 'ADD_EXERCISE_TO_SESSION', dayIndex: session.dayIndex, sessionId, exercise, activityType });
+    },
+    [currentWeekSessions, dispatch]
+  );
+
   const handleAddSession = useCallback(
     (dayIndex: number, sessionType: ActivityType) => {
       dispatch({ type: 'ADD_SESSION', dayIndex, sessionType });
@@ -812,6 +824,7 @@ export function MuscleBuilderPage({
               onRemove={handleRemoveMuscle}
               onAddMuscleToSession={handleAddMuscleToSession}
               onAddActivityToSession={handleAddActivityToSession}
+              onAddExerciseToSession={handleAddExerciseToSession}
               onAddSession={handleAddSession}
               onRenameSession={handleRenameSession}
               onSetSessionType={handleSetSessionType}

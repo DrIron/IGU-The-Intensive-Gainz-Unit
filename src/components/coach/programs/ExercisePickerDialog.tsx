@@ -1,5 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -30,10 +29,14 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Tables, Enums } from "@/integrations/supabase/types";
+import { Enums } from "@/integrations/supabase/types";
 import { MUSCLE_TO_EXERCISE_FILTER, getMuscleDisplay } from "@/types/muscle-builder";
-
-type Exercise = Tables<"exercise_library">;
+import {
+  useExerciseLibraryData,
+  filterExercises,
+  type ExerciseRow,
+} from "@/hooks/useExerciseLibrary";
+import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
 
 interface ExercisePickerDialogProps {
   open: boolean;
@@ -53,12 +56,26 @@ interface ExercisePickerDialogProps {
   ) => void;
 }
 
+/** Program section the picked exercise is added to (warmup/main/accessory/cooldown). */
 const SECTIONS: { value: Enums<"exercise_section">; label: string }[] = [
   { value: "warmup", label: "Warm-up" },
   { value: "main", label: "Main Work" },
   { value: "accessory", label: "Accessory" },
   { value: "cooldown", label: "Cool-down" },
 ];
+
+/** Library category tabs (faceting axis), distinct from the program section above. */
+const CATEGORY_TABS: { value: string; label: string }[] = [
+  { value: "strength", label: "Strength" },
+  { value: "cardio", label: "Cardio" },
+  { value: "mobility", label: "Mobility" },
+  { value: "warmup", label: "Warmup" },
+  { value: "cooldown", label: "Cooldown" },
+  { value: "physio", label: "Physio" },
+  { value: "sport_specific", label: "Sport-Specific" },
+];
+
+const MOBILITY_LIKE_CATEGORIES = ["mobility", "warmup", "cooldown"];
 
 export function ExercisePickerDialog({
   open,
@@ -70,23 +87,86 @@ export function ExercisePickerDialog({
   onSelectMany,
 }: ExercisePickerDialogProps) {
   const isMobile = useIsMobile();
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { toast } = useToast();
+
+  // Shared data layer — one cached query for the whole library; faceting is in-memory.
+  const {
+    data: allRows = [],
+    isLoading: rowsLoading,
+    isError: rowsError,
+    error: rowsErrObj,
+  } = useExerciseLibraryData();
+  const { data: taxonomy } = useExerciseTaxonomy();
+
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedSection, setSelectedSection] = useState<Enums<"exercise_section">>("main");
-  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [category, setCategory] = useState<string>("strength");
+
+  // Per-category facet selections. regionId is UI-only (drives the strength
+  // Region -> Muscle cascade); it is not a stored column.
+  const [regionId, setRegionId] = useState("");
+  const [muscleId, setMuscleId] = useState("");
+  const [subdivisionId, setSubdivisionId] = useState("");
+  const [cardioMovementId, setCardioMovementId] = useState("");
+  const [techniqueId, setTechniqueId] = useState("");
+  const [targetRegionId, setTargetRegionId] = useState("");
+  const [physioPurposeId, setPhysioPurposeId] = useState("");
+
+  // Legacy muscle-scoped browse (when opened from a muscle slot). Independent of
+  // the new category/facet axis; narrows results to the source muscle when active.
   const [muscleFilterActive, setMuscleFilterActive] = useState(true);
+
   // Multiselect (replacement mode): checked rows keyed by exercise id, with the
   // section + name captured at toggle time so the batch commit doesn't depend on
   // later section changes.
   const [checkedRows, setCheckedRows] = useState<
     Map<string, { section: Enums<"exercise_section">; name: string }>
   >(new Map());
-  const hasFetchedExercises = useRef(false);
-  const { toast } = useToast();
+
+  // Surface a data-load failure (RLS / network) the same way the old manual fetch did.
+  useEffect(() => {
+    if (rowsError) {
+      toast({
+        title: "Error loading exercises",
+        description: sanitizeErrorForUser(rowsErrObj),
+        variant: "destructive",
+      });
+    }
+  }, [rowsError, rowsErrObj, toast]);
+
+  // Reset transient state each time the picker opens (matches prior behavior).
+  useEffect(() => {
+    if (open) {
+      setMuscleFilterActive(true);
+      setCheckedRows(new Map());
+    }
+  }, [open]);
+
+  const handleCategoryChange = useCallback((next: string) => {
+    setCategory(next);
+    // Clear facets so a stale id from another category can't zero out results.
+    setRegionId("");
+    setMuscleId("");
+    setSubdivisionId("");
+    setCardioMovementId("");
+    setTechniqueId("");
+    setTargetRegionId("");
+    setPhysioPurposeId("");
+  }, []);
+
+  const handleRegionChange = useCallback((v: string) => {
+    setRegionId(v);
+    setMuscleId("");
+    setSubdivisionId("");
+  }, []);
+
+  const handleMuscleChange = useCallback((v: string) => {
+    setMuscleId(v);
+    setSubdivisionId("");
+  }, []);
 
   const toggleChecked = useCallback(
-    (exercise: Exercise) => {
+    (exercise: ExerciseRow) => {
       setCheckedRows((prev) => {
         const next = new Map(prev);
         if (next.has(exercise.id)) {
@@ -113,66 +193,164 @@ export function ExercisePickerDialog({
 
   const muscleLabel = sourceMuscleId ? getMuscleDisplay(sourceMuscleId)?.label : null;
   const muscleFilterValues = sourceMuscleId ? MUSCLE_TO_EXERCISE_FILTER[sourceMuscleId] : null;
-
-  const loadExercises = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from("exercise_library")
-        .select("*")
-        .eq("is_active", true)
-        .or(`is_global.eq.true,created_by_coach_id.eq.${coachUserId}`)
-        .order("name");
-
-      if (error) throw error;
-      setExercises(data || []);
-    } catch (error: unknown) {
-      toast({
-        title: "Error loading exercises",
-        description: sanitizeErrorForUser(error),
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [coachUserId, toast]);
-
-  useEffect(() => {
-    if (open) {
-      setMuscleFilterActive(true);
-      setCheckedRows(new Map());
-      if (hasFetchedExercises.current) return;
-      hasFetchedExercises.current = true;
-      loadExercises();
-    }
-  }, [open, loadExercises]);
-
-  const filteredExercises = useMemo(() => exercises.filter((exercise) => {
-    const matchesSearch =
-      searchQuery === "" ||
-      exercise.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (exercise.primary_muscle || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (exercise.equipment || "").toLowerCase().includes(searchQuery.toLowerCase());
-
-    const matchesCategory =
-      selectedCategory === "all" || exercise.category === selectedCategory;
-
-    // Dual-filter: try muscle_group/subdivision column match first (V2 exercises),
-    // then fall back to text-based primary_muscle matching (legacy exercises)
-    const matchesMuscle =
-      !muscleFilterActive || !sourceMuscleId || (
-        // V2: direct match on muscle_group or subdivision column
-        (exercise as any).muscle_group === sourceMuscleId ||
-        (exercise as any).subdivision === sourceMuscleId ||
-        // Legacy: text-based primary_muscle matching
-        (muscleFilterValues && muscleFilterValues.some(m => m.toLowerCase() === (exercise.primary_muscle || "").toLowerCase()))
-      );
-
-    return matchesSearch && matchesCategory && matchesMuscle;
-  }), [exercises, searchQuery, selectedCategory, muscleFilterActive, muscleFilterValues]);
-
-  const categories = Array.from(new Set(exercises.map((e) => e.category))).filter(Boolean);
-
   const isMuscleMode = !!sourceMuscleId;
+
+  // Access scoping: active rows (hook) + global-or-own (here). Belt-and-suspenders
+  // with RLS so behavior is identical regardless of policy permissiveness.
+  const scopedRows = useMemo(
+    () => allRows.filter((r) => r.is_global || r.created_by_coach_id === coachUserId),
+    [allRows, coachUserId]
+  );
+
+  const filteredExercises = useMemo(() => {
+    const isStrength = category === "strength";
+    const isCardio = category === "cardio";
+    const isMobilityLike = MOBILITY_LIKE_CATEGORIES.includes(category);
+    const isPhysio = category === "physio";
+
+    // Everything the shared pure filter understands.
+    let out = filterExercises(scopedRows, {
+      category,
+      search: searchQuery,
+      muscleId: isStrength ? muscleId || undefined : undefined,
+      subdivisionId: isStrength ? subdivisionId || undefined : undefined,
+      cardioMovementId: isCardio ? cardioMovementId || undefined : undefined,
+      techniqueId: isMobilityLike ? techniqueId || undefined : undefined,
+      targetRegionId: isMobilityLike || isPhysio ? targetRegionId || undefined : undefined,
+    });
+
+    // filterExercises has no physio_purpose_id facet — apply it here.
+    if (isPhysio && physioPurposeId) {
+      out = out.filter((r) => r.physio_purpose_id === physioPurposeId);
+    }
+
+    // Legacy muscle-scoped narrowing (V2 column match first, then primary_muscle text).
+    if (sourceMuscleId && muscleFilterActive) {
+      out = out.filter(
+        (ex) =>
+          ex.muscle_group === sourceMuscleId ||
+          ex.subdivision === sourceMuscleId ||
+          (muscleFilterValues &&
+            muscleFilterValues.some(
+              (m) => m.toLowerCase() === (ex.primary_muscle || "").toLowerCase()
+            ))
+      );
+    }
+
+    return out;
+  }, [
+    scopedRows,
+    category,
+    searchQuery,
+    muscleId,
+    subdivisionId,
+    cardioMovementId,
+    techniqueId,
+    targetRegionId,
+    physioPurposeId,
+    sourceMuscleId,
+    muscleFilterActive,
+    muscleFilterValues,
+  ]);
+
+  // Small render helper for a taxonomy facet <Select>. Options carry id + display_name.
+  const taxonomySelect = (
+    key: string,
+    label: string,
+    value: string,
+    onChange: (v: string) => void,
+    options: { id: string; display_name: string }[],
+    disabled = false
+  ) => (
+    <div key={key} className={isMobile ? "space-y-1" : "space-y-1 flex-1 min-w-[150px]"}>
+      <Label className="text-xs">{label}</Label>
+      <Select
+        value={value || "__all__"}
+        onValueChange={(v) => onChange(v === "__all__" ? "" : v)}
+        disabled={disabled}
+      >
+        <SelectTrigger className={isMobile ? "h-11 text-base" : "h-9"}>
+          <SelectValue placeholder={`All ${label}s`} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__all__">{`All ${label}s`}</SelectItem>
+          {options.map((o) => (
+            <SelectItem key={o.id} value={o.id}>
+              {o.display_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
+
+  const facets = !taxonomy ? null : (
+    <div className={isMobile ? "space-y-2" : "flex flex-wrap gap-3"}>
+      {category === "strength" && (
+        <>
+          {taxonomySelect("region", "Region", regionId, handleRegionChange, taxonomy.regions)}
+          {taxonomySelect(
+            "muscle",
+            "Muscle",
+            muscleId,
+            handleMuscleChange,
+            regionId ? taxonomy.musclesByRegion.get(regionId) ?? [] : [],
+            !regionId
+          )}
+          {taxonomySelect(
+            "subdivision",
+            "Subdivision",
+            subdivisionId,
+            setSubdivisionId,
+            muscleId ? taxonomy.subdivisionsByMuscle.get(muscleId) ?? [] : [],
+            !muscleId
+          )}
+        </>
+      )}
+
+      {category === "cardio" &&
+        taxonomySelect(
+          "cardio",
+          "Cardio Movement",
+          cardioMovementId,
+          setCardioMovementId,
+          taxonomy.cardioMovements
+        )}
+
+      {MOBILITY_LIKE_CATEGORIES.includes(category) && (
+        <>
+          {taxonomySelect("technique", "Technique", techniqueId, setTechniqueId, taxonomy.techniques)}
+          {taxonomySelect(
+            "target",
+            "Target Region",
+            targetRegionId,
+            setTargetRegionId,
+            taxonomy.targetRegions
+          )}
+        </>
+      )}
+
+      {category === "physio" && (
+        <>
+          {taxonomySelect(
+            "purpose",
+            "Physio Purpose",
+            physioPurposeId,
+            setPhysioPurposeId,
+            taxonomy.physioPurposes
+          )}
+          {taxonomySelect(
+            "target",
+            "Target Region",
+            targetRegionId,
+            setTargetRegionId,
+            taxonomy.targetRegions
+          )}
+        </>
+      )}
+      {/* sport_specific: search only, no facets */}
+    </div>
+  );
 
   const body = (
     <div className="space-y-4">
@@ -196,9 +374,7 @@ export function ExercisePickerDialog({
 
       {isMuscleMode && !muscleFilterActive && muscleLabel && (
         <div className="flex items-center justify-between rounded-md border bg-muted/30 px-3 py-2">
-          <span className="text-sm text-muted-foreground">
-            Showing all exercises
-          </span>
+          <span className="text-sm text-muted-foreground">Showing all exercises</span>
           <Button
             variant="ghost"
             size="sm"
@@ -230,9 +406,25 @@ export function ExercisePickerDialog({
         </Select>
       </div>
 
-      {/* Filters */}
-      <div className={isMobile ? "space-y-2" : "flex gap-3"}>
-        <div className={isMobile ? "relative" : "relative flex-1"}>
+      {/* Category tabs */}
+      <div className="flex gap-1 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+        {CATEGORY_TABS.map((t) => (
+          <Button
+            key={t.value}
+            type="button"
+            size="sm"
+            variant={category === t.value ? "default" : "outline"}
+            className={`whitespace-nowrap text-xs ${isMobile ? "h-10" : "h-8"}`}
+            onClick={() => handleCategoryChange(t.value)}
+          >
+            {t.label}
+          </Button>
+        ))}
+      </div>
+
+      {/* Search + per-category facets */}
+      <div className="space-y-2">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search exercises..."
@@ -241,19 +433,7 @@ export function ExercisePickerDialog({
             className={`pl-10 ${isMobile ? "h-11 text-base" : ""}`}
           />
         </div>
-        <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-          <SelectTrigger className={isMobile ? "w-full h-11 text-base" : "w-40"}>
-            <SelectValue placeholder="Category" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Categories</SelectItem>
-            {categories.map((category) => (
-              <SelectItem key={category} value={category} className="capitalize">
-                {category}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+        {facets}
       </div>
     </div>
   );
@@ -262,7 +442,7 @@ export function ExercisePickerDialog({
 
   const listArea = (
     <ScrollArea className={`${listHeightClass} border rounded-md`}>
-      {loading ? (
+      {rowsLoading ? (
         <div className="flex items-center justify-center h-40">
           <span className="text-muted-foreground">Loading exercises...</span>
         </div>
@@ -303,13 +483,13 @@ export function ExercisePickerDialog({
                     <Badge variant="outline" className="text-xs capitalize">
                       {exercise.category}
                     </Badge>
-                    <span className="text-xs text-muted-foreground capitalize">
-                      {exercise.primary_muscle}
-                    </span>
-                    {exercise.equipment && (
-                      <span className="text-xs text-muted-foreground">
-                        • {exercise.equipment}
+                    {exercise.primary_muscle && (
+                      <span className="text-xs text-muted-foreground capitalize">
+                        {exercise.primary_muscle}
                       </span>
+                    )}
+                    {exercise.equipment && (
+                      <span className="text-xs text-muted-foreground">• {exercise.equipment}</span>
                     )}
                   </div>
                 </div>
@@ -343,11 +523,7 @@ export function ExercisePickerDialog({
 
   const footer = multiSelect ? (
     <div className="pt-1">
-      <Button
-        className="w-full"
-        disabled={checkedRows.size === 0}
-        onClick={handleCommitMany}
-      >
+      <Button className="w-full" disabled={checkedRows.size === 0} onClick={handleCommitMany}>
         <Plus className="h-4 w-4 mr-1" />
         Add {checkedRows.size} replacement{checkedRows.size === 1 ? "" : "s"}
       </Button>

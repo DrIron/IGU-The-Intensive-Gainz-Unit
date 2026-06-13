@@ -13,6 +13,7 @@ interface WeeklyCalendarProps {
   onRemove: (slotId: string) => void;
   onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
+  onAddExerciseToSession: (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => void;
   onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
   onRenameSession: (sessionId: string, name: string) => void;
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
@@ -61,6 +62,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onRemove,
   onAddMuscleToSession,
   onAddActivityToSession,
+  onAddExerciseToSession,
   onAddSession,
   onRenameSession,
   onSetSessionType,
@@ -116,6 +118,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           onRemove={onRemove}
           onAddMuscleToSession={onAddMuscleToSession}
           onAddActivityToSession={onAddActivityToSession}
+          onAddExerciseToSession={onAddExerciseToSession}
           onAddSession={onAddSession}
           onRenameSession={onRenameSession}
           onSetSessionType={onSetSessionType}
@@ -160,6 +163,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onRemove={onRemove}
             onAddMuscleToSession={onAddMuscleToSession}
             onAddActivityToSession={onAddActivityToSession}
+            onAddExerciseToSession={onAddExerciseToSession}
             onAddSession={onAddSession}
             onRenameSession={onRenameSession}
             onSetSessionType={onSetSessionType}

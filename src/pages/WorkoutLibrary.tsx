@@ -1,51 +1,31 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Dumbbell, Search, Plus, X, Youtube, Pencil, ChevronDown, ChevronUp, AlertCircle, Loader2 } from "lucide-react";
-import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { supabase } from "@/integrations/supabase/client";
-import { withTimeout } from "@/lib/withTimeout";
+import { Dumbbell, Search, Youtube, ChevronDown, ChevronUp, AlertCircle, Shuffle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useClientAccess, getAccessDeniedMessage } from "@/hooks/useClientAccess";
+import { useExerciseLibraryData, filterExercises, type ExerciseRow } from "@/hooks/useExerciseLibrary";
+import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
+import { SwapExerciseDialog } from "@/components/coach/programs/SwapExerciseDialog";
 
-interface Exercise {
-  id: string;
-  name: string;
-  muscle_groups: string[];
-  muscle_subdivisions: Record<string, string[]>;
-  difficulty: string;
-  youtube_url: string | null;
-  setup_instructions: string[];
-  execution_instructions: string[];
-  pitfalls: string[];
-  created_at: string;
-}
+/** Library category tabs (faceting axis). Mirrors the coach picker. */
+const CATEGORY_TABS: { value: string; label: string }[] = [
+  { value: "strength", label: "Strength" },
+  { value: "cardio", label: "Cardio" },
+  { value: "mobility", label: "Mobility" },
+  { value: "warmup", label: "Warmup" },
+  { value: "cooldown", label: "Cooldown" },
+  { value: "physio", label: "Physio" },
+  { value: "sport_specific", label: "Sport-Specific" },
+];
 
-const MUSCLE_GROUPS = {
-  "Pecs": ["Clavicular", "Sternal", "Costal"],
-  "Lats": ["Thoracic", "Lumbar", "Iliac"],
-  "Mid-back": [],
-  "Upper Back": [],
-  "Shoulders": ["Anterior", "Lateral", "Posterior"],
-  "Quads": ["Rectus Femoris focused"],
-  "Hamstrings": [],
-  "Glutes": ["Maximus", "Medius", "Minimus"],
-  "Calves": [],
-  "Adductors": [],
-  "Abductors": [],
-  "Hip Flexors": [],
-  "Elbow Flexors": ["Biceps - Short Head", "Biceps - Long Head", "Brachialis", "Brachioradialis"],
-  "Triceps": ["Long", "Short", "Lateral"],
-  "Forearm": ["Flexors", "Extensors"],
-} as const;
+const MOBILITY_LIKE_CATEGORIES = ["mobility", "warmup", "cooldown"];
 
 export default function WorkoutLibrary() {
   const navigate = useNavigate();
@@ -53,32 +33,28 @@ export default function WorkoutLibrary() {
   const access = useClientAccess();
   const hasRedirected = useRef(false);
 
+  const { data: rows = [], isLoading: rowsLoading } = useExerciseLibraryData();
+  const { data: taxonomy } = useExerciseTaxonomy();
+
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedMuscleGroups, setSelectedMuscleGroups] = useState<string[]>([]);
+  const [category, setCategory] = useState<string>("strength");
+
+  // Per-category facets. regionId is UI-only (drives the strength cascade).
+  const [regionId, setRegionId] = useState("");
+  const [muscleId, setMuscleId] = useState("");
+  const [subdivisionId, setSubdivisionId] = useState("");
+  const [cardioMovementId, setCardioMovementId] = useState("");
+  const [techniqueId, setTechniqueId] = useState("");
+  const [targetRegionId, setTargetRegionId] = useState("");
+  const [physioPurposeId, setPhysioPurposeId] = useState("");
+
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
-  const [exercises, setExercises] = useState<Exercise[]>([]);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingExercise, setEditingExercise] = useState<Exercise | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [exercisesLoaded, setExercisesLoaded] = useState(false);
+  const [similarTarget, setSimilarTarget] = useState<{ id: string; name: string } | null>(null);
 
-  const [formData, setFormData] = useState({
-    name: "",
-    difficulty: "Beginner" as "Beginner" | "Intermediate" | "Advanced",
-    youtube_url: "",
-    selectedMuscles: {} as Record<string, string[]>,
-    setup_instructions: [""],
-    execution_instructions: [""],
-    pitfalls: [""],
-  });
-
-  // Handle access control
+  // Access control — gate is staff OR active subscription (read-only browse).
   useEffect(() => {
     if (access.loading || hasRedirected.current) return;
-
-    // Check if user has access
     const canAccess = access.isStaff || access.hasActiveSubscription;
-
     if (!canAccess) {
       hasRedirected.current = true;
       toast({
@@ -90,268 +66,161 @@ export default function WorkoutLibrary() {
     }
   }, [access, navigate, toast]);
 
-  const fetchExercises = useCallback(async () => {
-    // Read from both tables: exercise_library (107 seeded) and exercises (legacy coach-added)
-    const [libRes, legacyRes] = await Promise.all([
-      supabase
-        .from("exercise_library")
-        .select("*")
-        .eq("is_active", true)
-        .order("name", { ascending: true }),
-      supabase
-        .from("exercises")
-        .select("*")
-        .order("created_at", { ascending: false }),
-    ]);
+  const handleCategoryChange = useCallback((next: string) => {
+    setCategory(next);
+    setRegionId("");
+    setMuscleId("");
+    setSubdivisionId("");
+    setCardioMovementId("");
+    setTechniqueId("");
+    setTargetRegionId("");
+    setPhysioPurposeId("");
+  }, []);
 
-    if (libRes.error && legacyRes.error) {
-      toast({
-        title: "Error loading exercises",
-        description: sanitizeErrorForUser(libRes.error),
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleRegionChange = useCallback((v: string) => {
+    setRegionId(v);
+    setMuscleId("");
+    setSubdivisionId("");
+  }, []);
 
-    // Map exercise_library rows to the Exercise display interface
-    const libraryExercises: Exercise[] = (libRes.data || []).map(ex => ({
-      id: ex.id,
-      name: ex.name,
-      muscle_groups: [ex.primary_muscle, ...(ex.secondary_muscles || [])],
-      muscle_subdivisions: {} as Record<string, string[]>,
-      difficulty: ex.category === 'cardio' ? 'Beginner' : ex.category === 'mobility' ? 'Beginner' : 'Intermediate',
-      youtube_url: ex.default_video_url || null,
-      setup_instructions: [],
-      execution_instructions: [],
-      pitfalls: [],
-      created_at: ex.created_at,
-    }));
+  const handleMuscleChange = useCallback((v: string) => {
+    setMuscleId(v);
+    setSubdivisionId("");
+  }, []);
 
-    // Legacy exercises keep their original format
-    const legacyExercises: Exercise[] = (legacyRes.data || []).map(ex => ({
-      ...ex,
-      muscle_subdivisions: ex.muscle_subdivisions as Record<string, string[]>,
-      youtube_url: ex.youtube_url || null,
-    }));
-
-    setExercises([...libraryExercises, ...legacyExercises]);
-  }, [toast]);
-
-  // Load exercises when access is granted
-  useEffect(() => {
-    const canAccess = access.isStaff || access.hasActiveSubscription;
-    if (!access.loading && canAccess && !exercisesLoaded) {
-      fetchExercises();
-      setExercisesLoaded(true);
-    }
-  }, [access.loading, access.isStaff, access.hasActiveSubscription, exercisesLoaded, fetchExercises]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      const muscleGroups = Object.keys(formData.selectedMuscles);
-      const muscleSubdivisions = formData.selectedMuscles;
-
-      const authResult = await withTimeout(supabase.auth.getUser(), 8000);
-      const user = authResult.data?.user;
-      if (!user) {
-        toast({
-          title: "Not authenticated",
-          description: "Please sign in and try again",
-          variant: "destructive",
-        });
-        return;
-      }
-
-      const exerciseData = {
-        name: formData.name,
-        muscle_groups: muscleGroups,
-        muscle_subdivisions: muscleSubdivisions,
-        difficulty: formData.difficulty,
-        youtube_url: formData.youtube_url || null,
-        setup_instructions: formData.setup_instructions.filter(s => s.trim()),
-        execution_instructions: formData.execution_instructions.filter(s => s.trim()),
-        pitfalls: formData.pitfalls.filter(s => s.trim()),
-      };
-
-      let error;
-      if (editingExercise) {
-        const dbResult = await supabase
-          .from("exercises")
-          .update(exerciseData)
-          .eq("id", editingExercise.id);
-        error = dbResult.error;
-      } else {
-        const dbResult = await supabase
-          .from("exercises")
-          .insert({ ...exerciseData, created_by: user.id });
-        error = dbResult.error;
-      }
-
-      if (error) {
-        toast({
-          title: editingExercise ? "Error updating exercise" : "Error adding exercise",
-          description: sanitizeErrorForUser(error),
-          variant: "destructive",
-        });
-        return;
-      }
-
-      toast({
-        title: editingExercise ? "Exercise updated" : "Exercise added",
-        description: editingExercise ? "The exercise has been updated successfully." : "The exercise has been added to the library.",
-      });
-
-      fetchExercises();
-      setIsDialogOpen(false);
-      resetForm();
-    } catch (err) {
-      toast({
-        title: "Error",
-        description: sanitizeErrorForUser(err),
-        variant: "destructive",
-      });
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleEdit = (exercise: Exercise) => {
-    setEditingExercise(exercise);
-    setFormData({
-      name: exercise.name,
-      difficulty: exercise.difficulty as "Beginner" | "Intermediate" | "Advanced",
-      youtube_url: exercise.youtube_url || "",
-      selectedMuscles: exercise.muscle_subdivisions,
-      setup_instructions: exercise.setup_instructions?.length > 0 ? exercise.setup_instructions : [""],
-      execution_instructions: exercise.execution_instructions?.length > 0 ? exercise.execution_instructions : [""],
-      pitfalls: exercise.pitfalls?.length > 0 ? exercise.pitfalls : [""],
-    });
-    setIsDialogOpen(true);
-  };
-
-  const resetForm = () => {
-    setFormData({
-      name: "",
-      difficulty: "Beginner",
-      youtube_url: "",
-      selectedMuscles: {},
-      setup_instructions: [""],
-      execution_instructions: [""],
-      pitfalls: [""],
-    });
-    setEditingExercise(null);
-  };
-
-  const toggleMuscleGroup = (muscle: string) => {
-    setFormData(prev => {
-      const newMuscles = { ...prev.selectedMuscles };
-      if (newMuscles[muscle]) {
-        delete newMuscles[muscle];
-      } else {
-        newMuscles[muscle] = [];
-      }
-      return { ...prev, selectedMuscles: newMuscles };
-    });
-  };
-
-  const toggleSubdivision = (muscle: string, subdivision: string) => {
-    setFormData(prev => {
-      const newMuscles = { ...prev.selectedMuscles };
-      if (!newMuscles[muscle]) {
-        newMuscles[muscle] = [subdivision];
-      } else {
-        const subs = newMuscles[muscle];
-        if (subs.includes(subdivision)) {
-          newMuscles[muscle] = subs.filter(s => s !== subdivision);
-        } else {
-          newMuscles[muscle] = [...subs, subdivision];
-        }
-      }
-      return { ...prev, selectedMuscles: newMuscles };
-    });
-  };
-
-  const addInstruction = (type: 'setup_instructions' | 'execution_instructions' | 'pitfalls') => {
-    setFormData(prev => ({
-      ...prev,
-      [type]: [...prev[type], ""],
-    }));
-  };
-
-  const updateInstruction = (type: 'setup_instructions' | 'execution_instructions' | 'pitfalls', index: number, value: string) => {
-    setFormData(prev => ({
-      ...prev,
-      [type]: prev[type].map((item, i) => i === index ? value : item),
-    }));
-  };
-
-  const removeInstruction = (type: 'setup_instructions' | 'execution_instructions' | 'pitfalls', index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      [type]: prev[type].filter((_, i) => i !== index),
-    }));
-  };
-
-  const toggleMuscleFilter = (muscle: string) => {
-    setSelectedMuscleGroups(prev =>
-      prev.includes(muscle)
-        ? prev.filter(m => m !== muscle)
-        : [...prev, muscle]
-    );
-  };
-
-  const clearAllFilters = () => {
-    setSelectedMuscleGroups([]);
+  const clearAllFilters = useCallback(() => {
     setSearchTerm("");
-  };
+    handleCategoryChange(category); // resets facets, keeps current tab
+  }, [category, handleCategoryChange]);
 
-  const filteredExercises = exercises.filter((exercise) => {
-    const search = searchTerm.toLowerCase();
-    const matchesSearch = searchTerm === "" || (
-      exercise.name.toLowerCase().includes(search) ||
-      exercise.muscle_groups.some(mg => mg.toLowerCase().includes(search)) ||
-      Object.keys(exercise.muscle_subdivisions || {}).some(muscle =>
-        (exercise.muscle_subdivisions?.[muscle] || []).some(sub => sub.toLowerCase().includes(search))
-      )
-    );
+  const filteredExercises = useMemo(() => {
+    const isStrength = category === "strength";
+    const isCardio = category === "cardio";
+    const isMobilityLike = MOBILITY_LIKE_CATEGORIES.includes(category);
+    const isPhysio = category === "physio";
 
-    const matchesMuscleGroup = selectedMuscleGroups.length === 0 ||
-      selectedMuscleGroups.some(selectedMuscle =>
-        exercise.muscle_groups.includes(selectedMuscle)
-      );
+    return filterExercises(rows, {
+      category,
+      search: searchTerm,
+      muscleId: isStrength ? muscleId || undefined : undefined,
+      subdivisionId: isStrength ? subdivisionId || undefined : undefined,
+      cardioMovementId: isCardio ? cardioMovementId || undefined : undefined,
+      techniqueId: isMobilityLike ? techniqueId || undefined : undefined,
+      targetRegionId: isMobilityLike || isPhysio ? targetRegionId || undefined : undefined,
+      physioPurposeId: isPhysio ? physioPurposeId || undefined : undefined,
+    });
+  }, [
+    rows,
+    category,
+    searchTerm,
+    muscleId,
+    subdivisionId,
+    cardioMovementId,
+    techniqueId,
+    targetRegionId,
+    physioPurposeId,
+  ]);
 
-    return matchesSearch && matchesMuscleGroup;
-  });
+  const facetsActive =
+    !!muscleId ||
+    !!subdivisionId ||
+    !!cardioMovementId ||
+    !!techniqueId ||
+    !!targetRegionId ||
+    !!physioPurposeId;
 
-  const toggleCardExpansion = (exerciseId: string) => {
-    setExpandedCards(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(exerciseId)) {
-        newSet.delete(exerciseId);
-      } else {
-        newSet.add(exerciseId);
-      }
-      return newSet;
+  const toggleCardExpansion = (id: string) => {
+    setExpandedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
   };
 
-  const getDifficultyColor = (difficulty: string) => {
-    switch (difficulty) {
-      case "Beginner":
-        return "bg-green-500/10 text-green-500 border-green-500/20";
-      case "Intermediate":
-        return "bg-yellow-500/10 text-yellow-500 border-yellow-500/20";
-      case "Advanced":
-        return "bg-red-500/10 text-red-500 border-red-500/20";
-      default:
-        return "bg-muted text-muted-foreground";
-    }
-  };
+  // Taxonomy facet <Select> helper.
+  const taxonomySelect = (
+    key: string,
+    label: string,
+    value: string,
+    onChange: (v: string) => void,
+    options: { id: string; display_name: string }[],
+    disabled = false
+  ) => (
+    <div key={key} className="space-y-1 min-w-[170px]">
+      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Select
+        value={value || "__all__"}
+        onValueChange={(v) => onChange(v === "__all__" ? "" : v)}
+        disabled={disabled}
+      >
+        <SelectTrigger className="h-9">
+          <SelectValue placeholder={`All ${label}s`} />
+        </SelectTrigger>
+        <SelectContent>
+          <SelectItem value="__all__">{`All ${label}s`}</SelectItem>
+          {options.map((o) => (
+            <SelectItem key={o.id} value={o.id}>
+              {o.display_name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+    </div>
+  );
 
-  // Loading state
+  const facets = !taxonomy ? null : (
+    <div className="flex flex-wrap gap-3">
+      {category === "strength" && (
+        <>
+          {taxonomySelect("region", "Region", regionId, handleRegionChange, taxonomy.regions)}
+          {taxonomySelect(
+            "muscle",
+            "Muscle",
+            muscleId,
+            handleMuscleChange,
+            regionId ? taxonomy.musclesByRegion.get(regionId) ?? [] : [],
+            !regionId
+          )}
+          {taxonomySelect(
+            "subdivision",
+            "Subdivision",
+            subdivisionId,
+            setSubdivisionId,
+            muscleId ? taxonomy.subdivisionsByMuscle.get(muscleId) ?? [] : [],
+            !muscleId
+          )}
+        </>
+      )}
+
+      {category === "cardio" &&
+        taxonomySelect(
+          "cardio",
+          "Cardio Movement",
+          cardioMovementId,
+          setCardioMovementId,
+          taxonomy.cardioMovements
+        )}
+
+      {MOBILITY_LIKE_CATEGORIES.includes(category) && (
+        <>
+          {taxonomySelect("technique", "Technique", techniqueId, setTechniqueId, taxonomy.techniques)}
+          {taxonomySelect("target", "Target Region", targetRegionId, setTargetRegionId, taxonomy.targetRegions)}
+        </>
+      )}
+
+      {category === "physio" && (
+        <>
+          {taxonomySelect("purpose", "Physio Purpose", physioPurposeId, setPhysioPurposeId, taxonomy.physioPurposes)}
+          {taxonomySelect("target", "Target Region", targetRegionId, setTargetRegionId, taxonomy.targetRegions)}
+        </>
+      )}
+      {/* sport_specific: search only */}
+    </div>
+  );
+
+  // ---- Page chrome / states ----------------------------------------------
+
   if (access.loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -366,7 +235,6 @@ export default function WorkoutLibrary() {
     );
   }
 
-  // Error state
   if (access.error) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
@@ -384,15 +252,12 @@ export default function WorkoutLibrary() {
     );
   }
 
-  // Coach/Admin can edit exercises
-  const isCoach = access.isStaff;
-
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <Navigation />
-      
+
       <main className="container mx-auto px-4 pt-24 pb-12 max-w-7xl">
-        <div className="text-center mb-12">
+        <div className="text-center mb-10">
           <div className="flex justify-center mb-4">
             <div className="p-3 rounded-full bg-gradient-to-r from-primary to-accent">
               <Dumbbell className="h-8 w-8 text-white" />
@@ -404,369 +269,182 @@ export default function WorkoutLibrary() {
           </p>
         </div>
 
-        <div className="mb-8 space-y-4">
+        {/* Category tabs */}
+        <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+          {CATEGORY_TABS.map((t) => (
+            <Button
+              key={t.value}
+              type="button"
+              variant={category === t.value ? "default" : "outline"}
+              className="whitespace-nowrap"
+              onClick={() => handleCategoryChange(t.value)}
+            >
+              {t.label}
+            </Button>
+          ))}
+        </div>
+
+        {/* Search + facets */}
+        <div className="mb-6 space-y-4">
           <div className="flex gap-4 items-center flex-wrap">
             <div className="relative flex-1 min-w-[300px]">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Search exercises, muscle groups, or subdivisions..."
+                placeholder="Search exercises..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 className="pl-10"
               />
             </div>
-            
-            {(selectedMuscleGroups.length > 0 || searchTerm) && (
-              <Button
-                variant="outline"
-                onClick={clearAllFilters}
-                className="whitespace-nowrap"
-              >
-                <X className="h-4 w-4 mr-2" />
+            {(searchTerm || facetsActive) && (
+              <Button variant="outline" onClick={clearAllFilters} className="whitespace-nowrap">
                 Clear Filters
               </Button>
             )}
-            
-            {isCoach && (
-              <Button onClick={() => setIsDialogOpen(true)}>
-                <Plus className="h-4 w-4 mr-2" />
-                Add Exercise
-              </Button>
-            )}
           </div>
-
-          <div className="space-y-3">
-            <p className="text-sm font-medium text-muted-foreground">
-              Filter by muscle group:
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {Object.keys(MUSCLE_GROUPS).map((muscle) => (
-                <Badge
-                  key={muscle}
-                  variant={selectedMuscleGroups.includes(muscle) ? "default" : "outline"}
-                  className="cursor-pointer transition-all hover:scale-105"
-                  onClick={() => toggleMuscleFilter(muscle)}
-                >
-                  {muscle}
-                  {selectedMuscleGroups.includes(muscle) && (
-                    <X className="h-3 w-3 ml-1" />
-                  )}
-                </Badge>
-              ))}
-            </div>
-          </div>
+          {facets}
         </div>
 
         <div className="mb-6 text-sm text-muted-foreground">
-          Showing {filteredExercises.length} of {exercises.length} exercises
+          Showing {filteredExercises.length} exercise{filteredExercises.length === 1 ? "" : "s"}
         </div>
 
-        {isCoach && (
-          <Dialog open={isDialogOpen} onOpenChange={(open) => {
-            setIsDialogOpen(open);
-            if (!open) resetForm();
-          }}>
-            <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle>{editingExercise ? "Edit Exercise" : "Add New Exercise"}</DialogTitle>
-                <DialogDescription>
-                  {editingExercise ? "Update the exercise details" : "Add a new exercise with detailed instructions and video guide"}
-                </DialogDescription>
-              </DialogHeader>
-
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="space-y-2">
-                  <Label htmlFor="name">Exercise Name *</Label>
-                  <Input
-                    id="name"
-                    required
-                    value={formData.name}
-                    onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="e.g., Barbell Bench Press"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="difficulty">Difficulty *</Label>
-                  <Select 
-                    value={formData.difficulty}
-                    onValueChange={(value) => setFormData(prev => ({ ...prev, difficulty: value as "Beginner" | "Intermediate" | "Advanced" }))}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Beginner">Beginner</SelectItem>
-                      <SelectItem value="Intermediate">Intermediate</SelectItem>
-                      <SelectItem value="Advanced">Advanced</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="youtube">YouTube URL</Label>
-                  <Input
-                    id="youtube"
-                    type="url"
-                    value={formData.youtube_url}
-                    onChange={(e) => setFormData(prev => ({ ...prev, youtube_url: e.target.value }))}
-                    placeholder="https://youtube.com/watch?v=..."
-                  />
-                </div>
-
-                <div className="space-y-4">
-                  <Label>Target Muscle Groups *</Label>
-                  <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                    {Object.entries(MUSCLE_GROUPS).map(([muscle, subdivisions]) => (
-                      <div key={muscle} className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <Checkbox
-                            id={muscle}
-                            checked={muscle in formData.selectedMuscles}
-                            onCheckedChange={() => toggleMuscleGroup(muscle)}
-                          />
-                          <Label htmlFor={muscle} className="font-medium cursor-pointer">
-                            {muscle}
-                          </Label>
-                        </div>
-                        {muscle in formData.selectedMuscles && subdivisions.length > 0 && (
-                          <div className="ml-6 space-y-1">
-                            {subdivisions.map((sub) => (
-                              <div key={sub} className="flex items-center gap-2">
-                                <Checkbox
-                                  id={`${muscle}-${sub}`}
-                                  checked={formData.selectedMuscles[muscle]?.includes(sub)}
-                                  onCheckedChange={() => toggleSubdivision(muscle, sub)}
-                                />
-                                <Label htmlFor={`${muscle}-${sub}`} className="text-sm cursor-pointer">
-                                  {sub}
-                                </Label>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Setup Instructions</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={() => addInstruction('setup_instructions')}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {formData.setup_instructions.map((instruction, index) => (
-                    <div key={index} className="flex gap-2">
-                      <span className="text-sm text-muted-foreground mt-2">{index + 1}.</span>
-                      <Input
-                        value={instruction}
-                        onChange={(e) => updateInstruction('setup_instructions', index, e.target.value)}
-                        placeholder="e.g., Lie flat on bench with feet firmly planted"
-                      />
-                      {formData.setup_instructions.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeInstruction('setup_instructions', index)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Execution Instructions</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={() => addInstruction('execution_instructions')}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {formData.execution_instructions.map((instruction, index) => (
-                    <div key={index} className="flex gap-2">
-                      <span className="text-sm text-muted-foreground mt-2">{index + 1}.</span>
-                      <Input
-                        value={instruction}
-                        onChange={(e) => updateInstruction('execution_instructions', index, e.target.value)}
-                        placeholder="e.g., Lower the bar to mid-chest level"
-                      />
-                      {formData.execution_instructions.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeInstruction('execution_instructions', index)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <Label>Common Pitfalls</Label>
-                    <Button type="button" variant="outline" size="sm" onClick={() => addInstruction('pitfalls')}>
-                      <Plus className="h-4 w-4" />
-                    </Button>
-                  </div>
-                  {formData.pitfalls.map((pitfall, index) => (
-                    <div key={index} className="flex gap-2">
-                      <span className="text-sm text-muted-foreground mt-2">{index + 1}.</span>
-                      <Input
-                        value={pitfall}
-                        onChange={(e) => updateInstruction('pitfalls', index, e.target.value)}
-                        placeholder="e.g., Bouncing bar off chest"
-                      />
-                      {formData.pitfalls.length > 1 && (
-                        <Button type="button" variant="ghost" size="sm" onClick={() => removeInstruction('pitfalls', index)}>
-                          <X className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
-                  ))}
-                </div>
-
-                <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={() => {
-                    setIsDialogOpen(false);
-                    resetForm();
-                  }}>
-                    Cancel
-                  </Button>
-                  <Button type="submit" disabled={isSubmitting}>
-                    {isSubmitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                    {editingExercise ? "Save Changes" : "Add Exercise"}
-                  </Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
-
-        {filteredExercises.length === 0 ? (
+        {rowsLoading ? (
+          <div className="text-center py-12 text-muted-foreground">Loading exercises...</div>
+        ) : filteredExercises.length === 0 ? (
           <div className="text-center py-12">
             <Dumbbell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
             <h3 className="text-lg font-semibold mb-2">No exercises found</h3>
             <p className="text-muted-foreground">
-              {searchTerm || selectedMuscleGroups.length > 0
+              {searchTerm || facetsActive
                 ? "Try adjusting your search or filters"
-                : "No exercises have been added yet"}
+                : "No exercises in this category yet"}
             </p>
           </div>
         ) : (
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            {filteredExercises.map((exercise) => {
-              const isExpanded = expandedCards.has(exercise.id);
-              
-              return (
-                <Card key={exercise.id} className="overflow-hidden hover:shadow-lg transition-shadow">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between gap-2">
-                      <CardTitle className="text-lg">{exercise.name}</CardTitle>
-                      <div className="flex items-center gap-2">
-                        {isCoach && (
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-8 w-8"
-                            onClick={() => handleEdit(exercise)}
-                          >
-                            <Pencil className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      <Badge className={getDifficultyColor(exercise.difficulty)}>
-                        {exercise.difficulty}
-                      </Badge>
-                      {Array.from(new Set(exercise.muscle_groups)).map((mg) => (
-                        <Badge key={mg} variant="outline" className="text-xs">
-                          {mg}
-                        </Badge>
-                      ))}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {exercise.youtube_url && (
-                      <Button
-                        variant="outline"
-                        className="w-full"
-                        onClick={() => window.open(exercise.youtube_url!, '_blank')}
-                      >
-                        <Youtube className="h-4 w-4 mr-2 text-red-500" />
-                        Watch Video
-                      </Button>
-                    )}
-
-                    <Button
-                      variant="ghost"
-                      className="w-full justify-between"
-                      onClick={() => toggleCardExpansion(exercise.id)}
-                    >
-                      <span>Instructions</span>
-                      {isExpanded ? (
-                        <ChevronUp className="h-4 w-4" />
-                      ) : (
-                        <ChevronDown className="h-4 w-4" />
-                      )}
-                    </Button>
-
-                    {isExpanded && (
-                      <div className="space-y-4 text-sm">
-                        {exercise.setup_instructions?.length > 0 && (
-                          <div>
-                            <h4 className="font-semibold mb-2">Setup</h4>
-                            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                              {exercise.setup_instructions.map((instruction, i) => (
-                                <li key={i}>{instruction}</li>
-                              ))}
-                            </ol>
-                          </div>
-                        )}
-
-                        {exercise.execution_instructions?.length > 0 && (
-                          <div>
-                            <h4 className="font-semibold mb-2">Execution</h4>
-                            <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
-                              {exercise.execution_instructions.map((instruction, i) => (
-                                <li key={i}>{instruction}</li>
-                              ))}
-                            </ol>
-                          </div>
-                        )}
-
-                        {exercise.pitfalls?.length > 0 && (
-                          <div>
-                            <h4 className="font-semibold mb-2 text-amber-500">Common Pitfalls</h4>
-                            <ul className="list-disc list-inside space-y-1 text-muted-foreground">
-                              {exercise.pitfalls.map((pitfall, i) => (
-                                <li key={i}>{pitfall}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {Object.entries(exercise.muscle_subdivisions || {}).some(([_, subs]) => subs?.length > 0) && (
-                          <div>
-                            <h4 className="font-semibold mb-2">Target Areas</h4>
-                            <div className="flex flex-wrap gap-1">
-                              {Object.entries(exercise.muscle_subdivisions || {}).map(([muscle, subs]) =>
-                                (subs || []).map((sub) => (
-                                  <Badge key={`${muscle}-${sub}`} variant="secondary" className="text-xs">
-                                    {muscle}: {sub}
-                                  </Badge>
-                                ))
-                              )}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              );
-            })}
+            {filteredExercises.map((exercise) => (
+              <ExerciseCard
+                key={exercise.id}
+                exercise={exercise}
+                expanded={expandedCards.has(exercise.id)}
+                onToggle={() => toggleCardExpansion(exercise.id)}
+                onFindSimilar={() => setSimilarTarget({ id: exercise.id, name: exercise.name })}
+              />
+            ))}
           </div>
         )}
       </main>
+
+      {/* Read-only "Find similar" dialog (clients view alternatives, no editing) */}
+      <SwapExerciseDialog
+        open={!!similarTarget}
+        onOpenChange={(o) => {
+          if (!o) setSimilarTarget(null);
+        }}
+        exerciseId={similarTarget?.id ?? null}
+        exerciseName={similarTarget?.name}
+        viewOnly
+      />
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Read-only exercise card
+// ---------------------------------------------------------------------------
+
+interface ExerciseCardProps {
+  exercise: ExerciseRow;
+  expanded: boolean;
+  onToggle: () => void;
+  onFindSimilar: () => void;
+}
+
+function ExerciseCard({ exercise, expanded, onToggle, onFindSimilar }: ExerciseCardProps) {
+  const muscles = [exercise.primary_muscle, ...(exercise.secondary_muscles ?? [])].filter(Boolean) as string[];
+  const setupPoints = exercise.setup_points ?? [];
+  const hasDetails =
+    setupPoints.length > 0 || !!exercise.setup_instructions || !!exercise.description;
+
+  return (
+    <Card className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg">{exercise.name}</CardTitle>
+        <div className="flex flex-wrap gap-2 mt-2">
+          <Badge variant="secondary" className="text-xs capitalize">
+            {exercise.category}
+          </Badge>
+          {Array.from(new Set(muscles)).map((mg) => (
+            <Badge key={mg} variant="outline" className="text-xs capitalize">
+              {mg}
+            </Badge>
+          ))}
+          {exercise.equipment && (
+            <Badge variant="outline" className="text-xs">
+              {exercise.equipment}
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 mt-auto">
+        {exercise.default_video_url && (
+          <Button
+            variant="outline"
+            className="w-full"
+            onClick={() => window.open(exercise.default_video_url!, "_blank")}
+          >
+            <Youtube className="h-4 w-4 mr-2 text-red-500" />
+            Watch Video
+          </Button>
+        )}
+
+        <Button variant="ghost" className="w-full justify-between" onClick={onFindSimilar}>
+          <span className="flex items-center">
+            <Shuffle className="h-4 w-4 mr-2" />
+            Find similar
+          </span>
+        </Button>
+
+        {hasDetails && (
+          <>
+            <Button variant="ghost" className="w-full justify-between" onClick={onToggle}>
+              <span>Instructions</span>
+              {expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </Button>
+
+            {expanded && (
+              <div className="space-y-4 text-sm">
+                {setupPoints.length > 0 && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Setup</h4>
+                    <ol className="list-decimal list-inside space-y-1 text-muted-foreground">
+                      {setupPoints.map((point, i) => (
+                        <li key={i}>{point}</li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                {!setupPoints.length && exercise.setup_instructions && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Setup</h4>
+                    <p className="text-muted-foreground whitespace-pre-line">{exercise.setup_instructions}</p>
+                  </div>
+                )}
+
+                {exercise.description && (
+                  <div>
+                    <h4 className="font-semibold mb-2">Execution</h4>
+                    <p className="text-muted-foreground whitespace-pre-line">{exercise.description}</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
