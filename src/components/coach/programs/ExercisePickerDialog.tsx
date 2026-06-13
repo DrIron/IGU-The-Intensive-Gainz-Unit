@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { Search, Plus, X } from "lucide-react";
+import { Search, Plus, X, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -41,6 +41,16 @@ interface ExercisePickerDialogProps {
   onSelectExercise: (exerciseId: string, section: Enums<"exercise_section">, exerciseName?: string) => void;
   coachUserId: string;
   sourceMuscleId?: string | null;
+  /**
+   * When true, the picker becomes a checkbox multiselect with batch commit
+   * (used for replacement-exercise selection). Rows toggle instead of
+   * firing+closing; a sticky footer commits all checked rows at once via
+   * `onSelectMany`. Default false → single-select tap-to-select-and-close.
+   */
+  multiSelect?: boolean;
+  onSelectMany?: (
+    picks: { exerciseId: string; section: Enums<"exercise_section">; exerciseName: string }[]
+  ) => void;
 }
 
 const SECTIONS: { value: Enums<"exercise_section">; label: string }[] = [
@@ -56,6 +66,8 @@ export function ExercisePickerDialog({
   onSelectExercise,
   coachUserId,
   sourceMuscleId,
+  multiSelect = false,
+  onSelectMany,
 }: ExercisePickerDialogProps) {
   const isMobile = useIsMobile();
   const [exercises, setExercises] = useState<Exercise[]>([]);
@@ -64,8 +76,40 @@ export function ExercisePickerDialog({
   const [selectedSection, setSelectedSection] = useState<Enums<"exercise_section">>("main");
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [muscleFilterActive, setMuscleFilterActive] = useState(true);
+  // Multiselect (replacement mode): checked rows keyed by exercise id, with the
+  // section + name captured at toggle time so the batch commit doesn't depend on
+  // later section changes.
+  const [checkedRows, setCheckedRows] = useState<
+    Map<string, { section: Enums<"exercise_section">; name: string }>
+  >(new Map());
   const hasFetchedExercises = useRef(false);
   const { toast } = useToast();
+
+  const toggleChecked = useCallback(
+    (exercise: Exercise) => {
+      setCheckedRows((prev) => {
+        const next = new Map(prev);
+        if (next.has(exercise.id)) {
+          next.delete(exercise.id);
+        } else {
+          next.set(exercise.id, { section: selectedSection, name: exercise.name });
+        }
+        return next;
+      });
+    },
+    [selectedSection]
+  );
+
+  const handleCommitMany = useCallback(() => {
+    if (checkedRows.size === 0) return;
+    const picks = Array.from(checkedRows.entries()).map(([exerciseId, v]) => ({
+      exerciseId,
+      section: v.section,
+      exerciseName: v.name,
+    }));
+    onSelectMany?.(picks);
+    onOpenChange(false);
+  }, [checkedRows, onSelectMany, onOpenChange]);
 
   const muscleLabel = sourceMuscleId ? getMuscleDisplay(sourceMuscleId)?.label : null;
   const muscleFilterValues = sourceMuscleId ? MUSCLE_TO_EXERCISE_FILTER[sourceMuscleId] : null;
@@ -95,6 +139,7 @@ export function ExercisePickerDialog({
   useEffect(() => {
     if (open) {
       setMuscleFilterActive(true);
+      setCheckedRows(new Map());
       if (hasFetchedExercises.current) return;
       hasFetchedExercises.current = true;
       loadExercises();
@@ -229,64 +274,102 @@ export function ExercisePickerDialog({
         </div>
       ) : (
         <div className="divide-y">
-          {filteredExercises.map((exercise) => (
-            <div
-              key={exercise.id}
-              role="button"
-              tabIndex={0}
-              className={`flex items-center gap-3 ${isMobile ? "p-4 min-h-[56px]" : "p-3"} hover:bg-muted/50 active:bg-muted cursor-pointer transition-colors touch-manipulation`}
-              onClick={() => onSelectExercise(exercise.id, selectedSection, exercise.name)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.preventDefault();
-                  onSelectExercise(exercise.id, selectedSection, exercise.name);
-                }
-              }}
-            >
-              <div className="flex-1 min-w-0">
-                <div className={`font-medium ${isMobile ? "text-base" : "text-sm"}`}>{exercise.name}</div>
-                <div className="flex items-center gap-2 mt-1 flex-wrap">
-                  <Badge variant="outline" className="text-xs capitalize">
-                    {exercise.category}
-                  </Badge>
-                  <span className="text-xs text-muted-foreground capitalize">
-                    {exercise.primary_muscle}
-                  </span>
-                  {exercise.equipment && (
-                    <span className="text-xs text-muted-foreground">
-                      • {exercise.equipment}
+          {filteredExercises.map((exercise) => {
+            const isChecked = checkedRows.has(exercise.id);
+            const activate = () =>
+              multiSelect
+                ? toggleChecked(exercise)
+                : onSelectExercise(exercise.id, selectedSection, exercise.name);
+            return (
+              <div
+                key={exercise.id}
+                role={multiSelect ? "checkbox" : "button"}
+                aria-checked={multiSelect ? isChecked : undefined}
+                tabIndex={0}
+                className={`flex items-center gap-3 ${isMobile ? "p-4 min-h-[56px]" : "p-3"} hover:bg-muted/50 active:bg-muted cursor-pointer transition-colors touch-manipulation ${
+                  isChecked ? "bg-primary/5" : ""
+                }`}
+                onClick={activate}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    activate();
+                  }
+                }}
+              >
+                <div className="flex-1 min-w-0">
+                  <div className={`font-medium ${isMobile ? "text-base" : "text-sm"}`}>{exercise.name}</div>
+                  <div className="flex items-center gap-2 mt-1 flex-wrap">
+                    <Badge variant="outline" className="text-xs capitalize">
+                      {exercise.category}
+                    </Badge>
+                    <span className="text-xs text-muted-foreground capitalize">
+                      {exercise.primary_muscle}
                     </span>
-                  )}
+                    {exercise.equipment && (
+                      <span className="text-xs text-muted-foreground">
+                        • {exercise.equipment}
+                      </span>
+                    )}
+                  </div>
                 </div>
+                {!exercise.is_global && (
+                  <Badge variant="secondary" className="text-xs shrink-0">
+                    Custom
+                  </Badge>
+                )}
+                {multiSelect ? (
+                  <div
+                    className={`h-5 w-5 rounded border flex items-center justify-center shrink-0 transition-colors ${
+                      isChecked
+                        ? "bg-primary border-primary text-primary-foreground"
+                        : "border-input"
+                    }`}
+                  >
+                    {isChecked && <Check className="h-3.5 w-3.5" />}
+                  </div>
+                ) : (
+                  <div className="h-8 w-8 rounded-md flex items-center justify-center shrink-0">
+                    <Plus className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                )}
               </div>
-              {!exercise.is_global && (
-                <Badge variant="secondary" className="text-xs shrink-0">
-                  Custom
-                </Badge>
-              )}
-              <div className="h-8 w-8 rounded-md flex items-center justify-center shrink-0">
-                <Plus className="h-4 w-4 text-muted-foreground" />
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
     </ScrollArea>
   );
+
+  const footer = multiSelect ? (
+    <div className="pt-1">
+      <Button
+        className="w-full"
+        disabled={checkedRows.size === 0}
+        onClick={handleCommitMany}
+      >
+        <Plus className="h-4 w-4 mr-1" />
+        Add {checkedRows.size} replacement{checkedRows.size === 1 ? "" : "s"}
+      </Button>
+    </div>
+  ) : null;
 
   if (isMobile) {
     return (
       <Drawer open={open} onOpenChange={onOpenChange}>
         <DrawerContent className="max-h-[92vh]">
           <DrawerHeader className="text-left px-4 pt-4 pb-2">
-            <DrawerTitle>Add Exercise</DrawerTitle>
+            <DrawerTitle>{multiSelect ? "Add Replacements" : "Add Exercise"}</DrawerTitle>
             <DrawerDescription>
-              Select an exercise from the library.
+              {multiSelect
+                ? "Tick exercises, then add them all at once."
+                : "Select an exercise from the library."}
             </DrawerDescription>
           </DrawerHeader>
           <div className="flex flex-col flex-1 min-h-0 px-4 pb-[calc(env(safe-area-inset-bottom,0)+1rem)] gap-4 overflow-hidden">
             {body}
             {listArea}
+            {footer}
           </div>
         </DrawerContent>
       </Drawer>
@@ -297,14 +380,17 @@ export function ExercisePickerDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl max-h-[80vh]">
         <DialogHeader>
-          <DialogTitle>Add Exercise</DialogTitle>
+          <DialogTitle>{multiSelect ? "Add Replacements" : "Add Exercise"}</DialogTitle>
           <DialogDescription>
-            Select an exercise from the library to add to this module.
+            {multiSelect
+              ? "Tick exercises, then add them all at once."
+              : "Select an exercise from the library to add to this module."}
           </DialogDescription>
         </DialogHeader>
 
         {body}
         {listArea}
+        {footer}
       </DialogContent>
     </Dialog>
   );
