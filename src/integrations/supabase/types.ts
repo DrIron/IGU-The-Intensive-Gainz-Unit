@@ -5872,6 +5872,47 @@ export type Database = {
           },
         ]
       }
+      service_level_pricing: {
+        Row: {
+          coach_level: Database["public"]["Enums"]["professional_level"]
+          created_at: string
+          id: string
+          is_active: boolean
+          price_kwd: number
+          service_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          coach_level?: Database["public"]["Enums"]["professional_level"]
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          price_kwd: number
+          service_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          coach_level?: Database["public"]["Enums"]["professional_level"]
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          price_kwd?: number
+          service_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_level_pricing_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       service_pricing: {
         Row: {
           billing_mode: Database["public"]["Enums"]["billing_mode"]
@@ -6429,8 +6470,12 @@ export type Database = {
           billing_mode: Database["public"]["Enums"]["billing_mode"]
           cancel_at_period_end: boolean | null
           cancelled_at: string | null
+          client_price_kwd: number | null
           coach_assignment_method: string | null
           coach_id: string | null
+          coach_level_at_purchase:
+            | Database["public"]["Enums"]["professional_level"]
+            | null
           created_at: string | null
           discount_code_id: string | null
           discount_cycles_used: number
@@ -6473,8 +6518,12 @@ export type Database = {
           billing_mode?: Database["public"]["Enums"]["billing_mode"]
           cancel_at_period_end?: boolean | null
           cancelled_at?: string | null
+          client_price_kwd?: number | null
           coach_assignment_method?: string | null
           coach_id?: string | null
+          coach_level_at_purchase?:
+            | Database["public"]["Enums"]["professional_level"]
+            | null
           created_at?: string | null
           discount_code_id?: string | null
           discount_cycles_used?: number
@@ -6517,8 +6566,12 @@ export type Database = {
           billing_mode?: Database["public"]["Enums"]["billing_mode"]
           cancel_at_period_end?: boolean | null
           cancelled_at?: string | null
+          client_price_kwd?: number | null
           coach_assignment_method?: string | null
           coach_id?: string | null
+          coach_level_at_purchase?:
+            | Database["public"]["Enums"]["professional_level"]
+            | null
           created_at?: string | null
           discount_code_id?: string | null
           discount_cycles_used?: number
@@ -7911,6 +7964,10 @@ export type Database = {
         Returns: {
           table_name: string
         }[]
+      }
+      get_subscription_price_quote: {
+        Args: { p_subscription_id: string }
+        Returns: Json
       }
       get_unread_message_count: {
         Args: { p_client_id: string }

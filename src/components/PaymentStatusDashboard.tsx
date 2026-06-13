@@ -5,13 +5,23 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
-import { Clock, AlertTriangle, CheckCircle2, CreditCard, Tag, XCircle, Loader2 } from "lucide-react";
+import { Clock, AlertTriangle, CheckCircle2, CreditCard, Tag, XCircle, Loader2, UserCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
 import { Label } from "@/components/ui/label";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { LEVEL_LABELS, type ProfessionalLevel } from "@/auth/roles";
 
 interface PaymentStatusProps {
   userId: string;
@@ -35,6 +45,16 @@ interface BillingComponent {
   sort_order: number;
 }
 
+// Resolved level-based price for the client's own subscription (get_subscription_price_quote RPC).
+interface PriceQuote {
+  price_kwd: number;
+  coach_level: ProfessionalLevel | null;
+  coach_display_name: string | null;
+  coach_assigned: boolean;
+  service_name: string | null;
+  service_slug: string | null;
+}
+
 export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
   const [paymentDeadline, setPaymentDeadline] = useState<Date | null>(null);
   const [timeRemaining, setTimeRemaining] = useState<string>("");
@@ -54,6 +74,9 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
   const [discountError, setDiscountError] = useState<string | null>(null);
   const [billingComponents, setBillingComponents] = useState<BillingComponent[]>([]);
   const [paymentVerified, setPaymentVerified] = useState(false);
+  const [quote, setQuote] = useState<PriceQuote | null>(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [confirmed, setConfirmed] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -79,7 +102,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
       // Separate queries (nested FK joins on subscriptions are banned)
       const { data: subscription, error: subError } = await supabase
         .from('subscriptions')
-        .select('service_id')
+        .select('id, service_id')
         .eq('user_id', userId)
         .eq('status', 'pending')
         .maybeSingle();
@@ -91,8 +114,20 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
           .eq('id', subscription.service_id)
           .maybeSingle();
         setServiceName(service?.name || '');
-        setServicePrice(service?.price_kwd || 0);
         setServiceId(subscription.service_id);
+
+        // Resolve the level-based price (depends on the assigned coach's level).
+        // services.price_kwd is only the public "from" price and would under-charge
+        // Senior/Lead clients -- use the quote as the displayed/charged base price.
+        const { data: quoteData, error: quoteErr } = await supabase
+          .rpc('get_subscription_price_quote', { p_subscription_id: subscription.id });
+        if (!quoteErr && quoteData) {
+          const q = quoteData as unknown as PriceQuote;
+          setQuote(q);
+          setServicePrice(q.price_kwd ?? service?.price_kwd ?? 0);
+        } else {
+          setServicePrice(service?.price_kwd || 0);
+        }
 
         // Fetch billing components for this service
         try {
@@ -347,9 +382,15 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
     setDiscountError(null);
   };
 
+  // Build B: open the confirm-at-checkout dialog before charging.
+  const openConfirm = () => {
+    setConfirmed(false);
+    setConfirmOpen(true);
+  };
+
   const handlePayment = async () => {
     if (processingPayment) return;
-    
+
     setProcessingPayment(true);
     setPaymentError(null);
     
@@ -457,6 +498,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
   const breakdownTotal = billingComponents.reduce((sum, c) => sum + Number(c.amount_kwd), 0);
 
   return (
+    <>
     <Card className="border-2 border-primary/20 shadow-lg">
       <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
         <div className="flex items-center gap-2">
@@ -697,9 +739,9 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
               </Alert>
             )}
 
-            <Button 
-              onClick={handlePayment} 
-              size="lg" 
+            <Button
+              onClick={openConfirm}
+              size="lg"
               className="w-full text-lg h-14 bg-gradient-to-r from-primary to-accent hover:opacity-90"
               disabled={processingPayment}
             >
@@ -723,5 +765,61 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
         )}
       </CardContent>
     </Card>
+
+    {/* Build B: confirm assigned coach + resolved price before charging */}
+    <Dialog open={confirmOpen} onOpenChange={(open) => !processingPayment && setConfirmOpen(open)}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <UserCheck className="h-5 w-5 text-primary" />
+            Confirm your coaching plan
+          </DialogTitle>
+          <DialogDescription>
+            {quote
+              ? quote.coach_assigned
+                ? `You've been matched with ${quote.coach_display_name || "your coach"}${
+                    quote.coach_level ? ` (${LEVEL_LABELS[quote.coach_level] ?? quote.coach_level} coach)` : ""
+                  }. Your price for ${quote.service_name || serviceName} is ${quote.price_kwd} KWD/month.`
+                : `Your price for ${quote.service_name || serviceName} is ${quote.price_kwd} KWD/month.`
+              : "Please confirm to continue to payment."}
+          </DialogDescription>
+        </DialogHeader>
+
+        <label className="flex items-start gap-2 cursor-pointer py-2">
+          <Checkbox
+            checked={confirmed}
+            onCheckedChange={(v) => setConfirmed(v === true)}
+            className="mt-0.5"
+          />
+          <span className="text-sm">
+            I understand and agree to be charged {finalPrice.toFixed(3)} KWD now.
+          </span>
+        </label>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setConfirmOpen(false)} disabled={processingPayment}>
+            Cancel
+          </Button>
+          <Button
+            onClick={handlePayment}
+            disabled={processingPayment || !confirmed}
+            className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
+          >
+            {processingPayment ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Redirecting to Tap...
+              </>
+            ) : (
+              <>
+                <CreditCard className="mr-2 h-4 w-4" />
+                Confirm &amp; Pay
+              </>
+            )}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
   );
 }

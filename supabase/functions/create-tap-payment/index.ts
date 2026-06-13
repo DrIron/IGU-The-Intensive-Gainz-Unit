@@ -142,11 +142,48 @@ serve(async (req) => {
 
     if (serviceError) throw serviceError;
 
+    // Level-based pricing: the client price depends on the ASSIGNED coach's level.
+    // The coach is assigned BEFORE payment (submit-onboarding -> assign_coach_atomic),
+    // so subscriptions.coach_id is already populated by the time we charge here.
+    const { data: assignedSub, error: assignedSubError } = await supabase
+      .from('subscriptions')
+      .select('id, coach_id')
+      .eq('user_id', userId)
+      .eq('service_id', serviceId)
+      .maybeSingle();
+    if (assignedSubError) {
+      console.error(JSON.stringify({ fn: "create-tap-payment", step: "load_subscription", ok: false, error: "query_failed" }));
+    }
+
+    let coachLevelAtPurchase: string | null = null;
+    let levelPrice: number | null = null;
+    if (assignedSub?.coach_id) {
+      const { data: coachRow } = await supabase
+        .from('coaches_public')
+        .select('coach_level')
+        .eq('user_id', assignedSub.coach_id)
+        .maybeSingle();
+      coachLevelAtPurchase = coachRow?.coach_level ?? 'junior';
+
+      const { data: levelPriceRow } = await supabase
+        .from('service_level_pricing')
+        .select('price_kwd')
+        .eq('service_id', serviceId)
+        .eq('coach_level', coachLevelAtPurchase)
+        .maybeSingle();
+      levelPrice = levelPriceRow?.price_kwd != null ? Number(levelPriceRow.price_kwd) : null;
+    }
+
+    // Charge the level-resolved price; fall back to the flat "from" price when no
+    // coach is assigned yet or the service has no level pricing (e.g. retired tiers).
+    const basePrice = levelPrice ?? service.price_kwd;
+    let billingAmount = basePrice;
+
+    console.log(JSON.stringify({ fn: "create-tap-payment", step: "price_resolved", ok: true, service_id: serviceId, coach_level: coachLevelAtPurchase, level_priced: levelPrice != null, base_price_kwd: basePrice }));
+
     // Server-side discount validation - NEVER trust client-side values
     let discountCodeData = null;
     let validatedCodeId: string | null = null;
-    const basePrice = service.price_kwd;
-    let billingAmount = basePrice;
 
     if (discountCode) {
       console.log(JSON.stringify({ fn: "create-tap-payment", step: "discount_validation", ok: true, service_id: serviceId }));
@@ -321,6 +358,9 @@ serve(async (req) => {
       next_billing_date: nextBillingDate.toISOString(),
       base_price_kwd: basePrice,
       billing_amount_kwd: billingAmount,
+      // Audit: record the level-resolved list price + coach level actually charged.
+      client_price_kwd: basePrice,
+      coach_level_at_purchase: coachLevelAtPurchase,
       discount_code_id: discountCodeData?.id || null,
       discount_cycles_used: 0,
       // Explicitly clear any legacy card/agreement fields

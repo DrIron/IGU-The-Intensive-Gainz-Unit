@@ -229,7 +229,7 @@ export function SubscriptionManagement({ subscription, userId, isAdminView = fal
           <div className="flex-1">
             <p className="font-medium">{subscription.services.name}</p>
             <p className="text-sm text-muted-foreground">
-              {subscription.services.price_kwd} KWD / month (manual payment)
+              from {subscription.services.price_kwd} KWD / month (manual payment)
             </p>
           </div>
         </div>

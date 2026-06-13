@@ -77,7 +77,6 @@ export function InviteClientDialog({
           // Only 1:1 service types (exclude any pure team/squad variants)
           return (
             s.type === "one_to_one_online" ||
-            s.type === "one_to_one_complete" ||
             s.type === "hybrid" ||
             s.type === "in_person" ||
             // fallback: include any non-team service

@@ -81,7 +81,7 @@ export function ClientCardView({
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <DollarSign className="h-4 w-4 flex-shrink-0" />
                         <span>
-                          {displaySubscription.services.name} - {displaySubscription.services.price_kwd} KWD
+                          {displaySubscription.services.name} - from {displaySubscription.services.price_kwd} KWD
                         </span>
                       </div>
                     </>

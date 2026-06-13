@@ -313,12 +313,30 @@ export type WorkTypeCategory = "online" | "in_person";
  * No hourly calculations — one number per tier per level.
  */
 export const COACH_PAYOUT_PER_CLIENT: Record<string, Record<ProfessionalLevel, number>> = {
-  team_plan:           { junior: 7, senior: 7, lead: 7 },
-  one_to_one_online:   { junior: 20, senior: 26, lead: 34 },
+  team_plan:           { junior: 6, senior: 6, lead: 6 },
+  one_to_one_online:   { junior: 17, senior: 24, lead: 30 },
+  hybrid:              { junior: 70, senior: 88, lead: 105 },
+  in_person:           { junior: 107, senior: 141, lead: 183 },
+  // Retired 2026-06 -- left for grandfathered subscriptions only. Not selectable for new clients.
   one_to_one_complete: { junior: 20, senior: 26, lead: 34 },
-  hybrid:              { junior: 60, senior: 80, lead: 105 },
-  in_person:           { junior: 105, senior: 140, lead: 185 },
 };
+
+/**
+ * Level-based CLIENT price per tier per month (KWD).
+ * Source of truth is DB `service_level_pricing`; this is for client-side reference.
+ * Team Plan is level-invariant. The PUBLIC "from" price is the junior column.
+ */
+export const CLIENT_PRICE_PER_LEVEL: Record<string, Record<ProfessionalLevel, number>> = {
+  team_plan:         { junior: 10, senior: 10, lead: 10 },
+  one_to_one_online: { junior: 30, senior: 35, lead: 40 },
+  hybrid:            { junior: 95, senior: 110, lead: 125 },
+  in_person:         { junior: 145, senior: 175, lead: 215 },
+};
+
+/** Public "from" price for a tier (the junior-level price). */
+export function getFromPriceKwd(slug: string): number | undefined {
+  return CLIENT_PRICE_PER_LEVEL[slug]?.junior;
+}
 
 /**
  * Flat dietitian payout per client per month (KWD).
@@ -379,10 +397,19 @@ export const LEVEL_ELIGIBILITY: Record<ServiceSlug, {
 };
 
 /**
- * Minimum IGU profit guardrail (KWD).
- * 3 KWD for Team/Online (high-volume, low-margin), 5 KWD for premium tiers.
+ * Minimum IGU profit guardrail (KWD), per tier. Mirrors the thresholds in the
+ * calculate_subscription_payout / coach_assignment_would_block RPCs:
+ *   Team 2 (keep is intentionally 2), 1:1 Online 3, premium tiers 5.
  */
-export const MIN_IGU_PROFIT_KWD = 3;
+export const MIN_IGU_PROFIT_BY_TIER: Record<string, number> = {
+  team_plan:         2,
+  one_to_one_online: 3,
+  hybrid:            5,
+  in_person:         5,
+};
+
+/** @deprecated Use MIN_IGU_PROFIT_BY_TIER. Premium-tier default kept for compat. */
+export const MIN_IGU_PROFIT_KWD = 5;
 
 /**
  * Maximum discount percentage without admin override.
@@ -392,7 +419,7 @@ export const MAX_DISCOUNT_PERCENT = 30;
 /**
  * Head Coach fixed payout per team plan client (KWD/month).
  */
-export const HEAD_COACH_TEAM_PAYOUT_KWD = 7;
+export const HEAD_COACH_TEAM_PAYOUT_KWD = 6;
 
 // ============================================================================
 // ACCESS VIOLATION LOGGING

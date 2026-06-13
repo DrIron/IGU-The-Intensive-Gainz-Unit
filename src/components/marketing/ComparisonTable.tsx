@@ -1,105 +1,43 @@
-import { Check, X, Minus } from "lucide-react";
+import { Check, Minus } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { getFromPriceKwd } from "@/auth/roles";
 
 interface FeatureRow {
   feature: string;
   team: boolean | string;
   online: boolean | string;
-  complete: boolean | string;
   hybrid: boolean | string;
   inPerson: boolean | string;
 }
 
+// Plan columns. Prices are data-driven from the level-based pricing in roles.ts
+// (CLIENT_PRICE_PER_LEVEL) -- the public display is the "from" (junior) price; the
+// exact price resolves at checkout once a coach is assigned. 1:1 Complete is retired.
+const PLAN_COLUMNS: Array<{
+  key: keyof Omit<FeatureRow, "feature">;
+  label: string;
+  slug: string;
+  highlight?: boolean;
+}> = [
+  { key: "team", label: "Team", slug: "team_plan" },
+  { key: "online", label: "1:1 Online", slug: "one_to_one_online" },
+  { key: "hybrid", label: "Hybrid", slug: "hybrid", highlight: true },
+  { key: "inPerson", label: "In-Person", slug: "in_person" },
+];
+
 // Features that are verified as built in the codebase
 const comparisonFeatures: FeatureRow[] = [
-  {
-    feature: "Personalized Training Program",
-    team: false,
-    online: true,
-    complete: true,
-    hybrid: true,
-    inPerson: true,
-  },
-  {
-    feature: "Group Programming",
-    team: true,
-    online: false,
-    complete: false,
-    hybrid: false,
-    inPerson: false,
-  },
-  {
-    feature: "Direct Coach Messaging",
-    team: false,
-    online: true,
-    complete: true,
-    hybrid: true,
-    inPerson: true,
-  },
-  {
-    feature: "Weekly Check-ins",
-    team: false,
-    online: true,
-    complete: true,
-    hybrid: true,
-    inPerson: true,
-  },
-  {
-    feature: "Nutrition Coaching",
-    team: false,
-    online: true,
-    complete: true,
-    hybrid: true,
-    inPerson: true,
-  },
-  {
-    feature: "Dedicated Dietitian",
-    team: false,
-    online: false,
-    complete: true,
-    hybrid: true,
-    inPerson: true,
-  },
-  {
-    feature: "Advanced Calorie Calculator",
-    team: true,
-    online: true,
-    complete: true,
-    hybrid: true,
-    inPerson: true,
-  },
-  {
-    feature: "In-Person Sessions",
-    team: false,
-    online: false,
-    complete: false,
-    hybrid: "Monthly",
-    inPerson: "Weekly",
-  },
-  {
-    feature: "Exercise Library Access",
-    team: true,
-    online: true,
-    complete: true,
-    hybrid: true,
-    inPerson: true,
-  },
-  {
-    feature: "Discord Community",
-    team: true,
-    online: true,
-    complete: true,
-    hybrid: true,
-    inPerson: true,
-  },
-  {
-    feature: "Progress Analytics",
-    team: false,
-    online: true,
-    complete: true,
-    hybrid: true,
-    inPerson: true,
-  },
+  { feature: "Personalized Training Program", team: false, online: true, hybrid: true, inPerson: true },
+  { feature: "Group Programming", team: true, online: false, hybrid: false, inPerson: false },
+  { feature: "Direct Coach Messaging", team: false, online: true, hybrid: true, inPerson: true },
+  { feature: "Weekly Check-ins", team: false, online: true, hybrid: true, inPerson: true },
+  { feature: "Nutrition Coaching", team: false, online: true, hybrid: true, inPerson: true },
+  { feature: "Dedicated Dietitian", team: false, online: false, hybrid: true, inPerson: true },
+  { feature: "Advanced Calorie Calculator", team: true, online: true, hybrid: true, inPerson: true },
+  { feature: "In-Person Sessions", team: false, online: false, hybrid: "Monthly", inPerson: "Weekly" },
+  { feature: "Exercise Library Access", team: true, online: true, hybrid: true, inPerson: true },
+  { feature: "Discord Community", team: true, online: true, hybrid: true, inPerson: true },
+  { feature: "Progress Analytics", team: false, online: true, hybrid: true, inPerson: true },
 ];
 
 function FeatureCell({ value }: { value: boolean | string }) {
@@ -135,43 +73,34 @@ export function ComparisonTable() {
         Swipe to see all plans →
       </p>
       <div className="w-full overflow-x-auto">
-      <div className="min-w-[720px]">
+      <div className="min-w-[640px]">
         <table className="w-full border-collapse">
           <thead>
             <tr>
               <th className="text-left p-4 font-semibold text-foreground border-b border-border">
                 Feature
               </th>
-              <th className="text-center p-4 font-semibold text-foreground border-b border-border">
-                <div className="flex flex-col items-center gap-1">
-                  <span>Team</span>
-                  <span className="text-xs font-normal text-muted-foreground">12 KWD/mo</span>
-                </div>
-              </th>
-              <th className="text-center p-4 font-semibold text-foreground border-b border-border">
-                <div className="flex flex-col items-center gap-1">
-                  <span>1:1 Online</span>
-                  <span className="text-xs font-normal text-muted-foreground">40 KWD/mo</span>
-                </div>
-              </th>
-              <th className="text-center p-4 font-semibold text-foreground border-b border-border">
-                <div className="flex flex-col items-center gap-1">
-                  <span>1:1 Complete</span>
-                  <span className="text-xs font-normal text-muted-foreground">75 KWD/mo</span>
-                </div>
-              </th>
-              <th className="text-center p-4 font-semibold text-foreground border-b border-border bg-primary/5">
-                <div className="flex flex-col items-center gap-1">
-                  <span className="text-primary">Hybrid</span>
-                  <span className="text-xs font-normal text-muted-foreground">150 KWD/mo</span>
-                </div>
-              </th>
-              <th className="text-center p-4 font-semibold text-foreground border-b border-border">
-                <div className="flex flex-col items-center gap-1">
-                  <span>In-Person</span>
-                  <span className="text-xs font-normal text-muted-foreground">250 KWD/mo</span>
-                </div>
-              </th>
+              {PLAN_COLUMNS.map((col) => {
+                const fromPrice = getFromPriceKwd(col.slug);
+                return (
+                  <th
+                    key={col.key}
+                    className={cn(
+                      "text-center p-4 font-semibold text-foreground border-b border-border",
+                      col.highlight && "bg-primary/5"
+                    )}
+                  >
+                    <div className="flex flex-col items-center gap-1">
+                      <span className={cn(col.highlight && "text-primary")}>{col.label}</span>
+                      {fromPrice !== undefined && (
+                        <span className="text-xs font-normal text-muted-foreground">
+                          from {fromPrice} KWD/mo
+                        </span>
+                      )}
+                    </div>
+                  </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody>
@@ -186,21 +115,17 @@ export function ComparisonTable() {
                 <td className="p-4 text-sm text-foreground border-b border-border/50">
                   {row.feature}
                 </td>
-                <td className="p-4 text-center border-b border-border/50">
-                  <FeatureCell value={row.team} />
-                </td>
-                <td className="p-4 text-center border-b border-border/50">
-                  <FeatureCell value={row.online} />
-                </td>
-                <td className="p-4 text-center border-b border-border/50">
-                  <FeatureCell value={row.complete} />
-                </td>
-                <td className="p-4 text-center border-b border-border/50 bg-primary/5">
-                  <FeatureCell value={row.hybrid} />
-                </td>
-                <td className="p-4 text-center border-b border-border/50">
-                  <FeatureCell value={row.inPerson} />
-                </td>
+                {PLAN_COLUMNS.map((col) => (
+                  <td
+                    key={col.key}
+                    className={cn(
+                      "p-4 text-center border-b border-border/50",
+                      col.highlight && "bg-primary/5"
+                    )}
+                  >
+                    <FeatureCell value={row[col.key]} />
+                  </td>
+                ))}
               </tr>
             ))}
           </tbody>

@@ -24,6 +24,12 @@ export const ServiceCard = ({ name, type, price, description, features = [], onS
       </CardHeader>
       <CardContent className="relative">
         <div className="mb-6">
+          {/* 1:1 tiers are level-priced -- show the public "from" (junior) price; the
+              exact price is confirmed at checkout once a coach is assigned. Team Plan
+              is a single flat price, so no "from" prefix. */}
+          {type !== "team" && (
+            <span className="text-muted-foreground text-base mr-1.5 align-middle">from</span>
+          )}
           <span className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             {price} KWD
           </span>
