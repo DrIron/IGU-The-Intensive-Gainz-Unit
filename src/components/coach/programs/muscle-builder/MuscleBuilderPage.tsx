@@ -49,6 +49,7 @@ import { ConvertToProgram } from "./ConvertToProgram";
 import { SaveStatusBadge, type SaveState } from "./SaveStatusBadge";
 import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import { DeloadDialog, type ApplyDeloadParams } from "./DeloadDialog";
+import { ProgressionRulesBar } from "./ProgressionRulesBar";
 
 interface MuscleBuilderPageProps {
   coachUserId: string;
@@ -766,6 +767,15 @@ export function MuscleBuilderPage({
               onSetWeekLabel={handleSetWeekLabel}
               onToggleDeload={handleToggleDeload}
               onOpenDeloadDialog={handleOpenDeloadDialog}
+            />
+
+            {/* Progression rules bar — aggregated authoring/review of the W1
+                delta rules, surfaced out of the per-slot popovers. Hidden for
+                single-week plans (handled inside the component). */}
+            <ProgressionRulesBar
+              weeks={state.weeks}
+              planHasRules={planHasRules}
+              onSetSlotDeltaRules={handleSetSlotDeltaRules}
             />
 
             {/* Phase 5 — Deload customisation dialog */}
