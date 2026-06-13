@@ -22,7 +22,6 @@ interface CoachCompensationCardProps {
 
 const TIER_ORDER = [
   { slug: "one_to_one_online", label: "Online" },
-  { slug: "one_to_one_complete", label: "Complete" },
   { slug: "hybrid", label: "Hybrid" },
   { slug: "in_person", label: "In-Person" },
 ] as const;

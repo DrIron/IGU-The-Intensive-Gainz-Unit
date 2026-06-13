@@ -14,12 +14,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { supabase } from "@/integrations/supabase/client";
-import { DollarSign, Percent, Edit2, X, Check, Plus, Package, Wallet, Award, Info, History, Eye } from "lucide-react";
+import { DollarSign, Edit2, X, Check, Plus, Package, Award, Info, History, Eye, Layers } from "lucide-react";
 import { format } from "date-fns";
 import { PricingAuditLogDialog } from "./PricingAuditLogDialog";
 import { SubscriptionPayoutPreview } from "./SubscriptionPayoutPreview";
 import { AddonServicesManager } from "./AddonServicesManager";
 import { ProfessionalLevelManager } from "./ProfessionalLevelManager";
+import { LevelPricingManager } from "./LevelPricingManager";
 import { logPricingChange, logCreateAction } from "@/lib/auditLog";
 
 interface ServicePricingRow {
@@ -51,12 +52,15 @@ interface AddonPricingRow {
  * PricingPayoutsPage - Centralized admin page for all pricing and payout configurations
  * 
  * This is the SINGLE SOURCE OF TRUTH for:
- * - Service pricing (service_pricing table)
+ * - Level-based pricing + coach payouts (service_level_pricing + coach_payout_rates) -- "Level Pricing" tab
+ * - Service "from" / flat display price + billing mode (service_pricing table) -- "Services" tab
  * - Add-on catalog (addon_pricing table)
- * - Coach payout rules (payout_rules table)
- * - Add-on payout rules (addon_payout_rules table)
- * - Monthly payment calculations
- * 
+ * - Care team specialist pricing (addon_catalog table)
+ *
+ * The legacy percentage-based payout_rules editors were retired in 2026-06 (orphaned and
+ * disagreed with the live calculate_subscription_payout RPC). Coach pay now comes from the
+ * flat per-level coach_payout_rates model.
+ *
  * IMPORTANT: Coach payouts are calculated from GROSS prices.
  * Discounts do NOT reduce coach compensation.
  */
@@ -87,8 +91,12 @@ export function PricingPayoutsPage() {
       <PricingAuditLogDialog open={auditDialogOpen} onOpenChange={setAuditDialogOpen} />
 
       {/* Tabs */}
-      <Tabs defaultValue="pricing" className="w-full">
-        <TabsList className="grid w-full grid-cols-5 max-w-4xl">
+      <Tabs defaultValue="levelpricing" className="w-full">
+        <TabsList className="grid w-full grid-cols-6 max-w-4xl">
+          <TabsTrigger value="levelpricing" className="gap-2">
+            <Layers className="h-4 w-4" />
+            <span className="hidden sm:inline">Level Pricing</span>
+          </TabsTrigger>
           <TabsTrigger value="pricing" className="gap-2">
             <Package className="h-4 w-4" />
             <span className="hidden sm:inline">Services</span>
@@ -111,7 +119,19 @@ export function PricingPayoutsPage() {
           </TabsTrigger>
         </TabsList>
 
+        <TabsContent value="levelpricing" className="mt-6">
+          <LevelPricingManager />
+        </TabsContent>
+
         <TabsContent value="pricing" className="mt-6">
+          <Alert className="mb-4">
+            <Info className="h-4 w-4" />
+            <AlertDescription>
+              This tab manages the flat "from" / display price + billing mode + active flag.
+              Per-level client prices and coach payouts live in the <strong>Level Pricing</strong> tab,
+              which mirrors each tier's Junior price here on save.
+            </AlertDescription>
+          </Alert>
           <ServicePricingSection />
         </TabsContent>
 
@@ -225,37 +245,26 @@ function ServicePricingSection() {
   };
 
   const saveEdit = async (row: ServicePricingRow) => {
-    if (editForm.price_kwd !== undefined && editForm.price_kwd < 0) {
-      toast({
-        title: "Validation Error",
-        description: "Price must be >= 0",
-        variant: "destructive",
-      });
-      return;
-    }
-
     setSaving(row.service_id);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      
-      // Capture before state for audit log
+
+      // Price is NOT editable here -- it mirrors the Level Pricing tab's Junior price.
+      // Only billing_mode + is_active are managed on this tab.
       const beforeState = {
-        price_kwd: row.price_kwd,
         billing_mode: row.billing_mode,
         is_active: row.is_active,
       };
       const afterState = {
-        price_kwd: editForm.price_kwd,
         billing_mode: editForm.billing_mode,
         is_active: editForm.is_active,
       };
-      
+
       if (row.id) {
         // Update existing
         const { error } = await supabase
           .from("service_pricing")
           .update({
-            price_kwd: editForm.price_kwd,
             billing_mode: editForm.billing_mode,
             is_active: editForm.is_active,
             updated_by: user?.id,
@@ -267,12 +276,12 @@ function ServicePricingSection() {
         // Log audit entry
         await logPricingChange('service_pricing', row.id, row.service_name, beforeState, afterState);
       } else {
-        // Insert new
+        // Insert new (price defaults to the current "from" mirror; managed in Level Pricing)
         const { data: insertedData, error } = await supabase
           .from("service_pricing")
           .insert({
             service_id: row.service_id,
-            price_kwd: editForm.price_kwd,
+            price_kwd: row.price_kwd,
             billing_mode: editForm.billing_mode,
             is_active: editForm.is_active,
             updated_by: user?.id,
@@ -402,18 +411,10 @@ function ServicePricingSection() {
                     </Badge>
                   </TableCell>
                   <TableCell>
-                    {editingId === row.service_id ? (
-                      <Input
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        value={editForm.price_kwd ?? ""}
-                        onChange={(e) => setEditForm({ ...editForm, price_kwd: parseFloat(e.target.value) || 0 })}
-                        className="w-24"
-                      />
-                    ) : (
-                      <span>{row.price_kwd.toFixed(2)} KWD</span>
-                    )}
+                    {/* Price is read-only here -- it is the "from" mirror of the Junior level
+                        price. Edit prices in the Level Pricing tab (LevelPricingManager). */}
+                    <span>{row.price_kwd.toFixed(2)} KWD</span>
+                    <span className="block text-xs text-muted-foreground">from price · edit in Level Pricing</span>
                   </TableCell>
                   <TableCell>
                     {editingId === row.service_id ? (

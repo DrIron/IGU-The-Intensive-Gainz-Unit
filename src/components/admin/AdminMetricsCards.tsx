@@ -43,35 +43,60 @@ export function AdminMetricsCards() {
         .select("*", { count: "exact", head: true })
         .in("status", ["pending_coach_approval", "pending_payment", "needs_medical_review"]);
 
-      // Monthly revenue from active subscriptions
+      // Monthly revenue from active subscriptions.
+      // Realized revenue = what was actually charged (subscriptions.client_price_kwd).
+      // services.price_kwd is only the public "from"/junior price now, so summing it
+      // understates Senior/Lead clients. Legacy rows (null client_price_kwd, pre-dating
+      // the column) fall back to the level price tables, then the flat "from" price.
       const { data: activeSubs, error: activeSubsError } = await supabase
         .from("subscriptions")
-        .select("service_id")
+        .select("service_id, client_price_kwd, coach_id, coach_level_at_purchase")
         .eq("status", "active");
       if (activeSubsError) throw activeSubsError;
 
       let monthlyRevenue = 0;
       if (activeSubs && activeSubs.length > 0) {
-        const serviceIds = Array.from(
-          new Set(activeSubs.map(s => s.service_id).filter((id): id is string => !!id))
-        );
-        if (serviceIds.length > 0) {
-          const { data: services, error: servicesError } = await supabase
-            .from("services")
-            .select("id, price_kwd")
-            .in("id", serviceIds);
-          if (servicesError) throw servicesError;
+        const legacySubs = activeSubs.filter(s => s.client_price_kwd == null && s.service_id);
 
-          const priceById = new Map<string, number>();
-          for (const svc of services ?? []) {
-            if (svc.price_kwd != null) priceById.set(svc.id, svc.price_kwd);
+        // Resolve fallbacks only for legacy rows.
+        const levelPriceById = new Map<string, number>(); // `${service_id}:${level}`
+        const flatPriceById = new Map<string, number>();
+        const coachLevelById = new Map<string, string>();
+        if (legacySubs.length > 0) {
+          const serviceIds = Array.from(new Set(legacySubs.map(s => s.service_id as string)));
+          const coachIds = Array.from(
+            new Set(legacySubs.map(s => s.coach_id).filter((id): id is string => !!id))
+          );
+
+          const [{ data: levelPrices }, { data: services }, { data: coaches }] = await Promise.all([
+            supabase.from("service_level_pricing").select("service_id, coach_level, price_kwd").in("service_id", serviceIds),
+            supabase.from("services").select("id, price_kwd").in("id", serviceIds),
+            coachIds.length > 0
+              ? supabase.from("coaches_public").select("user_id, coach_level").in("user_id", coachIds)
+              : Promise.resolve({ data: [] as { user_id: string; coach_level: string | null }[] }),
+          ]);
+
+          for (const lp of levelPrices ?? []) {
+            if (lp.price_kwd != null) levelPriceById.set(`${lp.service_id}:${lp.coach_level}`, Number(lp.price_kwd));
           }
+          for (const svc of services ?? []) {
+            if (svc.price_kwd != null) flatPriceById.set(svc.id, Number(svc.price_kwd));
+          }
+          for (const c of coaches ?? []) {
+            if (c.coach_level) coachLevelById.set(c.user_id, c.coach_level);
+          }
+        }
 
-          for (const sub of activeSubs) {
-            if (sub.service_id) {
-              const price = priceById.get(sub.service_id);
-              if (price) monthlyRevenue += price;
-            }
+        for (const sub of activeSubs) {
+          if (sub.client_price_kwd != null) {
+            monthlyRevenue += Number(sub.client_price_kwd);
+          } else if (sub.service_id) {
+            const level = sub.coach_level_at_purchase
+              ?? (sub.coach_id ? coachLevelById.get(sub.coach_id) : undefined)
+              ?? "junior";
+            const price = levelPriceById.get(`${sub.service_id}:${level}`)
+              ?? flatPriceById.get(sub.service_id);
+            if (price) monthlyRevenue += price;
           }
         }
       }

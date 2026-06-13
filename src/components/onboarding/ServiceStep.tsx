@@ -194,6 +194,11 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
                           {service.description}
                         </div>
                         <div className="text-lg font-bold text-primary">
+                          {/* 1:1 tiers are level-priced -- the exact price is set once a
+                              coach is assigned and confirmed at checkout. */}
+                          {service.type !== "team" && (
+                            <span className="text-sm font-normal text-muted-foreground mr-1">from</span>
+                          )}
                           {service.price_kwd} KWD/month
                         </div>
                       </div>

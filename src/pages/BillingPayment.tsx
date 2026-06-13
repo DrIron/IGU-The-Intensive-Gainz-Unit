@@ -5,20 +5,23 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Navigation } from "@/components/Navigation";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { LEVEL_LABELS, type ProfessionalLevel } from "@/auth/roles";
 import { PaymentHistoryCard } from "@/components/client/PaymentHistoryCard";
-import { 
-  CreditCard, 
-  Calendar, 
-  AlertTriangle, 
-  Loader2, 
+import {
+  CreditCard,
+  Calendar,
+  AlertTriangle,
+  Loader2,
   CheckCircle2,
   ArrowLeft,
-  Clock
+  Clock,
+  UserCheck
 } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 
@@ -43,11 +46,23 @@ interface SubscriptionData {
   } | null;
 }
 
+// Resolved level-based price for the client's own subscription (get_subscription_price_quote RPC).
+interface PriceQuote {
+  price_kwd: number;
+  coach_level: ProfessionalLevel | null;
+  coach_display_name: string | null;
+  coach_assigned: boolean;
+  service_name: string | null;
+  service_slug: string | null;
+}
+
 export default function BillingPayment() {
   const [loading, setLoading] = useState(true);
   const [processingPayment, setProcessingPayment] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [subscription, setSubscription] = useState<SubscriptionData | null>(null);
+  const [quote, setQuote] = useState<PriceQuote | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [userEmail, setUserEmail] = useState<string>("");
   const [userName, setUserName] = useState<string>("");
@@ -133,6 +148,18 @@ export default function BillingPayment() {
         services: service ?? { name: "", price_kwd: 0 },
         discount_codes: discount,
       } as SubscriptionData);
+
+      // Resolve the level-based price for THIS subscription (depends on the assigned
+      // coach's level). services.price_kwd is only the public "from" price, so it
+      // would under-state the charge for a Senior/Lead coach -- always use the quote.
+      const { data: quoteData, error: quoteError } = await supabase
+        .rpc("get_subscription_price_quote", { p_subscription_id: sub.id });
+      if (quoteError) {
+        if (import.meta.env.DEV) console.error("Error resolving price quote:", quoteError);
+        setQuote(null);
+      } else if (quoteData) {
+        setQuote(quoteData as unknown as PriceQuote);
+      }
     } catch (error) {
       if (import.meta.env.DEV) console.error("Error loading billing data:", error);
       toast({
@@ -263,8 +290,13 @@ export default function BillingPayment() {
   }
 
   const serviceName = subscription.services?.name || "Your Plan";
-  const originalPrice = subscription.services?.price_kwd || 0;
+  // Resolved level-based list price (falls back to the public "from" price only if the
+  // quote RPC failed). NOT services.price_kwd, which is just the "from" display price.
+  const originalPrice = quote?.price_kwd ?? subscription.services?.price_kwd ?? 0;
   const finalPrice = subscription.billing_amount_kwd ?? originalPrice;
+  // Build B: the client must explicitly confirm their assigned coach + resolved price
+  // before we charge. Gate on the quote being present.
+  const requiresConfirmation = quote !== null;
   const hasDiscount = subscription.discount_code_id && finalPrice < originalPrice;
   const discountAmount = originalPrice - finalPrice;
   
@@ -403,10 +435,54 @@ export default function BillingPayment() {
               </Alert>
             )}
 
+            {/* Build B: confirm assigned coach + resolved price before charging */}
+            {quote && (
+              <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
+                <div className="flex items-center gap-2">
+                  <UserCheck className="h-5 w-5 text-primary" />
+                  <span className="font-medium">Confirm your coaching plan</span>
+                </div>
+                {quote.coach_assigned ? (
+                  <p className="text-sm text-muted-foreground">
+                    You've been matched with{" "}
+                    <span className="font-medium text-foreground">
+                      {quote.coach_display_name || "your coach"}
+                    </span>
+                    {quote.coach_level
+                      ? ` (${LEVEL_LABELS[quote.coach_level] ?? quote.coach_level} coach)`
+                      : ""}
+                    . Your price for {quote.service_name || serviceName} is{" "}
+                    <span className="font-semibold text-foreground">
+                      {quote.price_kwd} KWD/month
+                    </span>
+                    .
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">
+                    Your price for {quote.service_name || serviceName} is{" "}
+                    <span className="font-semibold text-foreground">
+                      {quote.price_kwd} KWD/month
+                    </span>
+                    .
+                  </p>
+                )}
+                <label className="flex items-start gap-2 cursor-pointer">
+                  <Checkbox
+                    checked={confirmed}
+                    onCheckedChange={(v) => setConfirmed(v === true)}
+                    className="mt-0.5"
+                  />
+                  <span className="text-sm">
+                    I understand and agree to be charged {finalPrice} KWD for this month.
+                  </span>
+                </label>
+              </div>
+            )}
+
             {/* Pay button */}
             <Button
               onClick={handlePayment}
-              disabled={processingPayment}
+              disabled={processingPayment || (requiresConfirmation && !confirmed)}
               variant="gradient"
               size="lg"
               className="w-full"

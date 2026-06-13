@@ -27,7 +27,7 @@ export default function TeamsPage() {
   const [submittingWaitlist, setSubmittingWaitlist] = useState(false);
 
   const heroTitle = content?.hero?.title || "TEAM PLANS";
-  const heroSubtitle = content?.hero?.subtitle || "Join a structured group training program led by our expert coaches. 12 KWD/month.";
+  const heroSubtitle = content?.hero?.subtitle || "Join a structured group training program led by our expert coaches. 10 KWD/month.";
   const heroDescription = content?.hero?.description || "";
 
   // Filter teams

@@ -162,7 +162,7 @@ export function ManualClientCreation({ onClientCreated }: ManualClientCreationPr
                     <SelectContent>
                       {services.map((service) => (
                         <SelectItem key={service.id} value={service.id}>
-                          {service.name} - {service.price_kwd} KWD
+                          {service.name} - from {service.price_kwd} KWD
                         </SelectItem>
                       ))}
                     </SelectContent>

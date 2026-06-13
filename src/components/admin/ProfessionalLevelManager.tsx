@@ -435,7 +435,7 @@ export function ProfessionalLevelManager() {
                   const currentLevel = specialistEdits[specialist.id] || specialist.level;
                   const changed = specialistEdits[specialist.id] && specialistEdits[specialist.id] !== specialist.level;
                   const rate = specialist.role === "dietitian"
-                    ? (DIETITIAN_PAYOUT_PER_CLIENT["one_to_one_complete"]?.[currentLevel] ?? 0)
+                    ? (DIETITIAN_PAYOUT_PER_CLIENT["hybrid"]?.[currentLevel] ?? 0)
                     : (COACH_PAYOUT_PER_CLIENT["one_to_one_online"]?.[currentLevel] ?? 0);
                   return (
                     <TableRow key={specialist.id}>
