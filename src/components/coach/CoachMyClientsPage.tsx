@@ -850,7 +850,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
         <TabsContent value="clients" className="mt-6 space-y-6">
           {/* Header with Refresh and Filters */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-lg font-semibold">Client Queue</h2>
               <Button
                 variant="outline"

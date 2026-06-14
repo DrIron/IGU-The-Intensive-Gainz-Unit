@@ -20,7 +20,7 @@ export function TestEnvironmentBanner() {
   useEffect(() => {
     if (isProduction) return;
     const root = document.documentElement;
-    root.style.setProperty("--app-top-offset", "calc(4rem + 2rem)");
+    root.style.setProperty("--app-top-offset", "calc(4rem + 2rem + env(safe-area-inset-top))");
     return () => {
       root.style.removeProperty("--app-top-offset");
     };

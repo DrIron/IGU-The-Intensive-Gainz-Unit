@@ -8,7 +8,7 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --app-top-offset: 4rem;
+    --app-top-offset: calc(4rem + env(safe-area-inset-top));
     --background: 220 20% 97%;
     --foreground: 240 10% 3.9%;
 
