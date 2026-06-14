@@ -43,7 +43,9 @@ import {
   type SlotExercise,
 } from "@/types/muscle-builder";
 
-const SESSION_TYPES: ActivityType[] = ['strength', 'cardio', 'hiit', 'yoga_mobility', 'recovery', 'sport_specific'];
+// Used by the "Change type" submenu only — new sessions are created name-first
+// as 'general'. Includes 'general' so a coach can revert to the neutral focus.
+const SESSION_TYPES: ActivityType[] = ['general', 'strength', 'cardio', 'hiit', 'yoga_mobility', 'recovery', 'sport_specific'];
 
 interface MobileDayDetailProps {
   slots: MuscleSlotData[];
@@ -135,7 +137,6 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   // pickerSessionId: when non-null, the inline picker is scoped to adding
   // slots to this session. Null = no picker open.
   const [pickerSessionId, setPickerSessionId] = useState<string | null>(null);
-  const [addSessionOpen, setAddSessionOpen] = useState(false);
 
   const daySlots = useMemo(
     () => slots.filter(s => s.dayIndex === selectedDayIndex).sort((a, b) => a.sortOrder - b.sortOrder),
@@ -296,7 +297,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                 <span>Rest day</span>
                 <button
                   className="underline underline-offset-2 hover:text-foreground"
-                  onClick={() => setAddSessionOpen(true)}
+                  onClick={() => onAddSession(selectedDayIndex, 'general')}
                 >
                   Add session
                 </button>
@@ -408,26 +409,17 @@ export const MobileDayDetail = memo(function MobileDayDetail({
               </div>
             )}
 
-            {/* + Session at day level */}
-            <DropdownMenu open={addSessionOpen} onOpenChange={setAddSessionOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full h-9 text-xs">
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Add session
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-44" align="center">
-                {SESSION_TYPES.map(t => (
-                  <DropdownMenuItem
-                    key={t}
-                    onClick={() => { onAddSession(selectedDayIndex, t); setAddSessionOpen(false); }}
-                  >
-                    <div className={cn("w-1.5 h-1.5 rounded-full mr-2", ACTIVITY_TYPE_COLORS[t].colorClass)} />
-                    {ACTIVITY_TYPE_LABELS[t]}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* + Session at day level — creates a name-first session immediately
+                (no type menu); coach can set a focus later via the kebab. */}
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full h-9 text-xs"
+              onClick={() => onAddSession(selectedDayIndex, 'general')}
+            >
+              <Plus className="h-3.5 w-3.5 mr-1.5" />
+              Add session
+            </Button>
           </>
         )}
       </CardContent>

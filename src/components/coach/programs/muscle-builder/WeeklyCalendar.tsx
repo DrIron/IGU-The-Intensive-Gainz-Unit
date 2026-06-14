@@ -51,6 +51,8 @@ interface WeeklyCalendarProps {
   // Phase 4 — Inheritance bar on W2+
   w1RuleTargetsBySlotId?: Map<string, import("./weeklyDeltaEngine").DeltaTarget[]>;
   onClearSlotOverride?: (slotId: string, target: import("./weeklyDeltaEngine").DeltaTarget) => void;
+  // Name-first sessions — id of a just-created session whose name should auto-focus
+  focusSessionId?: string | null;
 }
 
 export const WeeklyCalendar = memo(function WeeklyCalendar({
@@ -98,6 +100,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onSetSlotDeltaRules,
   w1RuleTargetsBySlotId,
   onClearSlotOverride,
+  focusSessionId,
 }: WeeklyCalendarProps) {
   const days = [1, 2, 3, 4, 5, 6, 7];
 
@@ -198,6 +201,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onSetSlotDeltaRules={onSetSlotDeltaRules}
             w1RuleTargetsBySlotId={w1RuleTargetsBySlotId}
             onClearSlotOverride={onClearSlotOverride}
+            focusSessionId={focusSessionId}
           />
         ))}
       </div>

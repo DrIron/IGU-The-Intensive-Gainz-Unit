@@ -1,7 +1,6 @@
-import { memo, useMemo, useState, useCallback } from "react";
+import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Copy, ClipboardPaste, Plus, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
@@ -12,8 +11,6 @@ import {
 import { SessionBlock } from "./SessionBlock";
 import {
   DAYS_OF_WEEK,
-  ACTIVITY_TYPE_LABELS,
-  ACTIVITY_TYPE_COLORS,
   resolveParentMuscleId,
   getMuscleDisplay,
   type ActivityType,
@@ -21,8 +18,6 @@ import {
   type SessionData,
   type SlotExercise,
 } from "@/types/muscle-builder";
-
-const ADDABLE_SESSION_TYPES: ActivityType[] = ['strength', 'cardio', 'hiit', 'yoga_mobility', 'recovery', 'sport_specific'];
 
 interface DayColumnProps {
   dayIndex: number;
@@ -72,6 +67,8 @@ interface DayColumnProps {
   // Phase 4 — Inheritance bar on W2+
   w1RuleTargetsBySlotId?: Map<string, import("./weeklyDeltaEngine").DeltaTarget[]>;
   onClearSlotOverride?: (slotId: string, target: import("./weeklyDeltaEngine").DeltaTarget) => void;
+  // Name-first sessions — id of a just-created session whose name should auto-focus
+  focusSessionId?: string | null;
 }
 
 export const DayColumn = memo(function DayColumn({
@@ -120,9 +117,8 @@ export const DayColumn = memo(function DayColumn({
   onSetSlotDeltaRules,
   w1RuleTargetsBySlotId,
   onClearSlotOverride,
+  focusSessionId,
 }: DayColumnProps) {
-  const [addSessionOpen, setAddSessionOpen] = useState(false);
-
   const daySlots = useMemo(
     () => slots.filter(s => s.dayIndex === dayIndex),
     [slots, dayIndex]
@@ -195,11 +191,6 @@ export const DayColumn = memo(function DayColumn({
     return map;
   }, [daySlots]);
 
-  const handleAddSession = useCallback((type: ActivityType) => {
-    onAddSession(dayIndex, type);
-    setAddSessionOpen(false);
-  }, [onAddSession, dayIndex]);
-
   const hasCopied = copiedDayIndex != null;
   const isCopiedDay = copiedDayIndex === dayIndex;
   const hasAnyContent = daySessions.length > 0 || daySlots.length > 0;
@@ -220,37 +211,16 @@ export const DayColumn = memo(function DayColumn({
             {DAYS_OF_WEEK[dayIndex - 1]}
           </span>
           <div className="flex items-center gap-1 shrink-0">
-            {/* + Session — opens a quick type picker */}
-            <Popover open={addSessionOpen} onOpenChange={setAddSessionOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={e => e.stopPropagation()}
-                  title="Add session"
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-44 p-1"
-                onClick={e => e.stopPropagation()}
-                align="end"
-              >
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 py-1">Session type</p>
-                {ADDABLE_SESSION_TYPES.map(t => (
-                  <button
-                    key={t}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted w-full text-left"
-                    onClick={() => handleAddSession(t)}
-                  >
-                    <div className={cn("w-1.5 h-1.5 rounded-full", ACTIVITY_TYPE_COLORS[t].colorClass)} />
-                    <span>{ACTIVITY_TYPE_LABELS[t]}</span>
-                  </button>
-                ))}
-              </PopoverContent>
-            </Popover>
+            {/* + Session — creates a name-first session immediately (no type menu) */}
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+              onClick={e => { e.stopPropagation(); onAddSession(dayIndex, 'general'); }}
+              title="Add session"
+            >
+              <Plus className="h-3 w-3" />
+            </Button>
             {/* Copy day */}
             {hasAnyContent && onCopyDay && (
               <Button
@@ -322,7 +292,7 @@ export const DayColumn = memo(function DayColumn({
             </span>
             <button
               className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-              onClick={e => { e.stopPropagation(); setAddSessionOpen(true); }}
+              onClick={e => { e.stopPropagation(); onAddSession(dayIndex, 'general'); }}
             >
               Add session
             </button>
@@ -338,6 +308,7 @@ export const DayColumn = memo(function DayColumn({
                   slots={sessionSlots}
                   sessionPosition={i}
                   daySessionsCount={daySessions.length}
+                  autoFocusName={session.id === focusSessionId}
                   highlightedMuscleId={highlightedMuscleId}
                   globalClientInputs={globalClientInputs}
                   weekCount={weekCount}

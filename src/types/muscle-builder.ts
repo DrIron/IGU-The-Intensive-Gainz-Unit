@@ -27,7 +27,7 @@ export interface MuscleGroupDef {
 // Activity Types (multi-session support)
 // ============================================================
 
-export type ActivityType = 'strength' | 'cardio' | 'hiit' | 'yoga_mobility' | 'recovery' | 'sport_specific';
+export type ActivityType = 'general' | 'strength' | 'cardio' | 'hiit' | 'yoga_mobility' | 'recovery' | 'sport_specific';
 
 export interface ActivityDef {
   id: string;
@@ -38,6 +38,7 @@ export interface ActivityDef {
 }
 
 export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
+  general: 'General',
   strength: 'Strength',
   cardio: 'Cardio',
   hiit: 'HIIT',
@@ -68,6 +69,7 @@ export function exerciseCategoryToActivityType(category: string | null | undefin
 }
 
 export const ACTIVITY_TYPE_COLORS: Record<ActivityType, { colorClass: string; colorHex: string }> = {
+  general: { colorClass: 'bg-slate-400', colorHex: '#94a3b8' },
   strength: { colorClass: 'bg-blue-500', colorHex: '#3b82f6' },
   cardio: { colorClass: 'bg-green-500', colorHex: '#22c55e' },
   hiit: { colorClass: 'bg-orange-500', colorHex: '#f97316' },
@@ -212,6 +214,7 @@ export interface WeekData {
 // session card — auto-abbreviate so the default label always fits.
 // Coach-entered custom names bypass this.
 const SESSION_TYPE_SHORT_LABELS: Record<ActivityType, string> = {
+  general: 'Session',
   strength: 'Strength',
   cardio: 'Cardio',
   hiit: 'HIIT',

@@ -37,7 +37,7 @@ type Action =
   | { type: 'APPLY_SLOT_TO_REMAINING'; slotId: string; fields: Partial<MuscleSlotData> }
   | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string; sets?: number; sessionId?: string }
   | { type: 'REMOVE_MUSCLE'; slotId: string }
-  | { type: 'ADD_SESSION'; dayIndex: number; sessionType: ActivityType; name?: string }
+  | { type: 'ADD_SESSION'; dayIndex: number; sessionType: ActivityType; name?: string; sessionId?: string }
   | { type: 'REMOVE_SESSION'; sessionId: string }
   | { type: 'RENAME_SESSION'; sessionId: string; name: string }
   | { type: 'SET_SESSION_TYPE'; sessionId: string; sessionType: ActivityType }
@@ -651,7 +651,7 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       return withUpdatedCurrentWeekFull(state, (s, sessions) => {
         const sameDayCount = sessions.filter(x => x.dayIndex === action.dayIndex).length;
         const newSession: SessionData = {
-          id: crypto.randomUUID(),
+          id: action.sessionId ?? crypto.randomUUID(),
           dayIndex: action.dayIndex,
           type: action.sessionType,
           name: action.name,
