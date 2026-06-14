@@ -56,7 +56,7 @@ export function PublicLayout({ children, minimal = false }: PublicLayoutProps) {
   return (
     <div className="min-h-screen bg-background">
       {/* Desktop Navigation */}
-      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/70 backdrop-blur-xl">
+      <header className="sticky top-0 z-50 border-b border-border/50 bg-background/70 backdrop-blur-xl pt-[env(safe-area-inset-top)]">
         <div className="container flex h-16 items-center justify-between">
           {/* Logo */}
           <Link to="/" className="hover:opacity-80 transition-opacity">

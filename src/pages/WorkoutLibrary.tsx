@@ -256,7 +256,7 @@ export default function WorkoutLibrary() {
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <Navigation />
 
-      <main className="container mx-auto px-4 pt-24 pb-12 max-w-7xl">
+      <main className="container mx-auto px-4 pt-24 pb-24 md:pb-12 max-w-7xl">
         <div className="text-center mb-10">
           <div className="flex justify-center mb-4">
             <div className="p-3 rounded-full bg-gradient-to-r from-primary to-accent">

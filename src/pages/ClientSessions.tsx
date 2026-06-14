@@ -351,7 +351,7 @@ function ClientSessionsContent() {
     return (
       <>
         <Navigation />
-        <main className="container mx-auto px-4 py-8 max-w-6xl pt-24">
+        <main className="container mx-auto px-4 py-8 max-w-6xl pt-24 pb-24 md:pb-8">
           <Skeleton className="h-10 w-64 mb-8" />
           <div className="grid gap-6">
             <Skeleton className="h-32 w-full" />
@@ -368,7 +368,7 @@ function ClientSessionsContent() {
     return (
       <>
         <Navigation />
-        <main className="container mx-auto px-4 py-8 max-w-6xl pt-24">
+        <main className="container mx-auto px-4 py-8 max-w-6xl pt-24 pb-24 md:pb-8">
           <h1 className="text-3xl font-bold mb-8">Sessions</h1>
           <Alert>
             <AlertCircle className="h-4 w-4" />
@@ -387,7 +387,7 @@ function ClientSessionsContent() {
     return (
       <>
         <Navigation />
-        <main className="container mx-auto px-4 py-8 max-w-6xl pt-24">
+        <main className="container mx-auto px-4 py-8 max-w-6xl pt-24 pb-24 md:pb-8">
           <h1 className="text-3xl font-bold mb-8">Sessions</h1>
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -404,7 +404,7 @@ function ClientSessionsContent() {
   return (
     <>
       <Navigation />
-      <main className="container mx-auto px-4 py-8 max-w-6xl pt-24">
+      <main className="container mx-auto px-4 py-8 max-w-6xl pt-24 pb-24 md:pb-8">
         <h1 className="text-3xl font-bold mb-8">Sessions</h1>
 
         {/* Weekly Summary */}

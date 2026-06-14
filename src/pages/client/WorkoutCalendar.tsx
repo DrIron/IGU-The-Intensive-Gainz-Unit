@@ -104,7 +104,7 @@ function WorkoutCalendarContent() {
   return (
     <>
       <Navigation user={user} userRole="client" />
-      <div className="container max-w-4xl py-8 pt-24 space-y-6">
+      <div className="container max-w-4xl py-8 pt-24 pb-24 md:pb-8 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
