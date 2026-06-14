@@ -103,14 +103,14 @@ All colors MUST be HSL.
   }
 
   html {
-    overflow-x: hidden;
+    overflow-x: clip;
     scroll-behavior: smooth;
     max-width: 100vw;
   }
 
   body {
     @apply bg-background text-foreground;
-    overflow-x: hidden;
+    overflow-x: clip;
     max-width: 100vw;
     min-height: 100vh;
     min-height: 100dvh;
@@ -121,7 +121,7 @@ All colors MUST be HSL.
   #root {
     min-height: 100vh;
     min-height: 100dvh;
-    overflow-x: hidden;
+    overflow-x: clip;
     max-width: 100vw;
   }
 
