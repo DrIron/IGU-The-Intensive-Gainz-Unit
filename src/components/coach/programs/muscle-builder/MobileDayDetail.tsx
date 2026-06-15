@@ -584,7 +584,7 @@ const MobileActivityRow = memo(function MobileActivityRow({
       style={{ backgroundColor: `${colorHex}08` }}
     >
       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorClass}`} />
-      <Drawer open={open} onOpenChange={setOpen} shouldScaleBackground={false}>
+      <Drawer open={open} onOpenChange={setOpen} dismissible={false} repositionInputs={false} shouldScaleBackground={false}>
         <DrawerTrigger asChild>
           <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
             <span className="font-medium truncate text-foreground">{label}</span>
@@ -737,7 +737,7 @@ const MobileSlotRow = memo(function MobileSlotRow({
     >
       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${muscle.colorClass}`} />
 
-      <Drawer open={popoverOpen} onOpenChange={setPopoverOpen} shouldScaleBackground={false}>
+      <Drawer open={popoverOpen} onOpenChange={setPopoverOpen} dismissible={false} repositionInputs={false} shouldScaleBackground={false}>
         <DrawerTrigger asChild>
           <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
             <span className="font-medium truncate text-foreground">
