@@ -598,7 +598,7 @@ const MobileActivityRow = memo(function MobileActivityRow({
         </DrawerTrigger>
         <DrawerContent className="max-h-[85vh]">
           <DrawerTitle className="sr-only">{label}</DrawerTitle>
-          <div className="overflow-y-auto overscroll-contain px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
+          <div data-vaul-no-drag className="overflow-y-auto overscroll-contain px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -767,7 +767,7 @@ const MobileSlotRow = memo(function MobileSlotRow({
         </DrawerTrigger>
         <DrawerContent className="max-h-[85vh]">
           <DrawerTitle className="sr-only">{fullLabel}</DrawerTitle>
-          <div className="overflow-y-auto overscroll-contain px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
+          <div data-vaul-no-drag className="overflow-y-auto overscroll-contain px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
           <div className="space-y-4">
             {/* Header with muscle label */}
             <div className="flex items-center justify-between">
