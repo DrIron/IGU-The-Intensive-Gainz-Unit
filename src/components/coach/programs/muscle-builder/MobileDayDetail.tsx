@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle } from "@/components/ui/drawer";
+import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle, DrawerScrollArea } from "@/components/ui/drawer";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -598,7 +598,7 @@ const MobileActivityRow = memo(function MobileActivityRow({
         </DrawerTrigger>
         <DrawerContent className="max-h-[85vh]">
           <DrawerTitle className="sr-only">{label}</DrawerTitle>
-          <div data-vaul-no-drag className="overflow-y-auto overscroll-contain px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
+          <DrawerScrollArea className="px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
@@ -621,7 +621,7 @@ const MobileActivityRow = memo(function MobileActivityRow({
                 />
               </div>
             </div>
-          </div>
+          </DrawerScrollArea>
         </DrawerContent>
       </Drawer>
       {onMoveUp && (
@@ -767,7 +767,7 @@ const MobileSlotRow = memo(function MobileSlotRow({
         </DrawerTrigger>
         <DrawerContent className="max-h-[85vh]">
           <DrawerTitle className="sr-only">{fullLabel}</DrawerTitle>
-          <div data-vaul-no-drag className="overflow-y-auto overscroll-contain px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
+          <DrawerScrollArea className="px-4 pb-6 pt-2" style={{ maxHeight: 'calc(85vh - 2rem)' }}>
           <div className="space-y-4">
             {/* Header with muscle label */}
             <div className="flex items-center justify-between">
@@ -997,7 +997,7 @@ const MobileSlotRow = memo(function MobileSlotRow({
               </Button>
             )}
           </div>
-          </div>
+          </DrawerScrollArea>
         </DrawerContent>
       </Drawer>
 

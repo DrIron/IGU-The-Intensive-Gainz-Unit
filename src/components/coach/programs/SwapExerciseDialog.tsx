@@ -19,6 +19,7 @@ import {
   DrawerContent,
   DrawerDescription,
   DrawerHeader,
+  DrawerScrollArea,
   DrawerTitle,
 } from "@/components/ui/drawer";
 
@@ -153,7 +154,7 @@ export function SwapExerciseDialog({
     );
 
   const body = (
-    <div data-vaul-no-drag className={(isMobile ? "flex-1 min-h-0" : "max-h-[55vh]") + " overflow-y-auto overscroll-contain"}>
+    <DrawerScrollArea className={isMobile ? "flex-1 min-h-0" : "max-h-[55vh]"}>
       {loading ? (
         <div className="flex items-center justify-center h-40 gap-2 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -183,7 +184,7 @@ export function SwapExerciseDialog({
           )}
         </div>
       )}
-    </div>
+    </DrawerScrollArea>
   );
 
   const title = (

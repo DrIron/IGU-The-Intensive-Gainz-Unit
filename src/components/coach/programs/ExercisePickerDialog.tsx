@@ -18,6 +18,7 @@ import {
   DrawerContent,
   DrawerDescription,
   DrawerHeader,
+  DrawerScrollArea,
   DrawerTitle,
 } from "@/components/ui/drawer";
 import {
@@ -440,7 +441,7 @@ export function ExercisePickerDialog({
   const listHeightClass = isMobile ? "flex-1 min-h-0" : "h-[400px]";
 
   const listArea = (
-    <div data-vaul-no-drag className={`${listHeightClass} border rounded-md overflow-y-auto overscroll-contain`}>
+    <DrawerScrollArea className={`${listHeightClass} border rounded-md`}>
       {rowsLoading ? (
         <div className="flex items-center justify-center h-40">
           <span className="text-muted-foreground">Loading exercises...</span>
@@ -517,7 +518,7 @@ export function ExercisePickerDialog({
           })}
         </div>
       )}
-    </div>
+    </DrawerScrollArea>
   );
 
   const footer = multiSelect ? (
