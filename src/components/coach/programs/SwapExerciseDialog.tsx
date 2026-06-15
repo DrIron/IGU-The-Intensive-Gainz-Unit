@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { Card, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -154,7 +153,7 @@ export function SwapExerciseDialog({
     );
 
   const body = (
-    <ScrollArea className={isMobile ? "flex-1 min-h-0" : "max-h-[55vh]"}>
+    <div className={(isMobile ? "flex-1 min-h-0" : "max-h-[55vh]") + " overflow-y-auto overscroll-contain"}>
       {loading ? (
         <div className="flex items-center justify-center h-40 gap-2 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
@@ -184,7 +183,7 @@ export function SwapExerciseDialog({
           )}
         </div>
       )}
-    </ScrollArea>
+    </div>
   );
 
   const title = (
