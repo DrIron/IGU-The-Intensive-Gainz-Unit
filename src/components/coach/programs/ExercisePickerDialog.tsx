@@ -28,7 +28,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Enums } from "@/integrations/supabase/types";
 import { MUSCLE_TO_EXERCISE_FILTER, getMuscleDisplay } from "@/types/muscle-builder";
 import {
@@ -441,7 +440,7 @@ export function ExercisePickerDialog({
   const listHeightClass = isMobile ? "flex-1 min-h-0" : "h-[400px]";
 
   const listArea = (
-    <ScrollArea className={`${listHeightClass} border rounded-md`}>
+    <div className={`${listHeightClass} border rounded-md overflow-y-auto overscroll-contain`}>
       {rowsLoading ? (
         <div className="flex items-center justify-center h-40">
           <span className="text-muted-foreground">Loading exercises...</span>
@@ -518,7 +517,7 @@ export function ExercisePickerDialog({
           })}
         </div>
       )}
-    </ScrollArea>
+    </div>
   );
 
   const footer = multiSelect ? (
