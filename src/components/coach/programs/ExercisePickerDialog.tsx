@@ -440,7 +440,7 @@ export function ExercisePickerDialog({
   const listHeightClass = isMobile ? "flex-1 min-h-0" : "h-[400px]";
 
   const listArea = (
-    <div className={`${listHeightClass} border rounded-md overflow-y-auto overscroll-contain`}>
+    <div data-vaul-no-drag className={`${listHeightClass} border rounded-md overflow-y-auto overscroll-contain`}>
       {rowsLoading ? (
         <div className="flex items-center justify-center h-40">
           <span className="text-muted-foreground">Loading exercises...</span>

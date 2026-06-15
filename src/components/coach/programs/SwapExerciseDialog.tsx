@@ -153,7 +153,7 @@ export function SwapExerciseDialog({
     );
 
   const body = (
-    <div className={(isMobile ? "flex-1 min-h-0" : "max-h-[55vh]") + " overflow-y-auto overscroll-contain"}>
+    <div data-vaul-no-drag className={(isMobile ? "flex-1 min-h-0" : "max-h-[55vh]") + " overflow-y-auto overscroll-contain"}>
       {loading ? (
         <div className="flex items-center justify-center h-40 gap-2 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
