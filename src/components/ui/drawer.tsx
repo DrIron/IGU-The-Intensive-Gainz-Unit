@@ -73,6 +73,20 @@ const DrawerDescription = React.forwardRef<
 ));
 DrawerDescription.displayName = DrawerPrimitive.Description.displayName;
 
+// Scrollable region for content inside a Drawer. Bakes in native vertical
+// scroll (`overflow-y-auto overscroll-contain`) plus `data-vaul-no-drag` so vaul
+// ignores drags that start here — the drawer scrolls instead of dismissing, and
+// is closed only via the handle / overlay / explicit buttons. Use this instead
+// of a hand-rolled scroll div so the four-call-site drift (PRs #151, #153) can't
+// recur. Accepts className/style/children like a plain div; the attribute is
+// harmless when the same body is reused in a desktop Dialog (no vaul there).
+const DrawerScrollArea = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} data-vaul-no-drag className={cn("overflow-y-auto overscroll-contain", className)} {...props} />
+  ),
+);
+DrawerScrollArea.displayName = "DrawerScrollArea";
+
 export {
   Drawer,
   DrawerPortal,
@@ -84,4 +98,5 @@ export {
   DrawerFooter,
   DrawerTitle,
   DrawerDescription,
+  DrawerScrollArea,
 };

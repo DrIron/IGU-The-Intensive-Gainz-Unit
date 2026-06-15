@@ -27,6 +27,7 @@ import {
   DrawerContent,
   DrawerDescription,
   DrawerHeader,
+  DrawerScrollArea,
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { Plus, Wand2 } from "lucide-react";
@@ -253,7 +254,7 @@ export const ProgressionRulesSheet = memo(function ProgressionRulesSheet({
           </DrawerHeader>
           <div className="flex flex-col flex-1 min-h-0 px-4 pb-[calc(env(safe-area-inset-bottom,0)+1rem)] gap-3 overflow-hidden">
             {blanketHeader}
-            <div data-vaul-no-drag className="flex-1 min-h-0 -mx-1 px-1 overflow-y-auto overscroll-contain">{list}</div>
+            <DrawerScrollArea className="flex-1 min-h-0 -mx-1 px-1">{list}</DrawerScrollArea>
           </div>
         </DrawerContent>
       </Drawer>
