@@ -153,6 +153,19 @@ All colors MUST be HSL.
   }
 }
 
+/* Prevent iOS auto-zoom on input focus.
+   Safari zooms the page when a focused field's font-size is < 16px. The base
+   Input is already 16px on mobile, but dense overrides (e.g. h-7 text-xs in the
+   planning board) drop below it and trigger the zoom. Force >=16px on mobile
+   form controls only; desktop keeps its compact sizing and pinch-zoom still works. */
+@media (max-width: 767px) {
+  input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* Fade-up scroll animation */
 .fade-up {
   opacity: 0;
