@@ -265,6 +265,14 @@ function recomputeDownstreamWeeks(
         overrides,
       );
       if (derivedFields.length === 0) return weekSlot;
+      // Targets whose W1 rule carries a per-set scope also wrote to setsDetail,
+      // so their resolved setsDetail must flow through (Phase 1d). Slot-level
+      // rules leave the week's own setsDetail untouched.
+      const perSetDerived = new Set(
+        w1Sibling.deltaRules
+          .filter((r) => 'scope' in r && r.scope !== undefined)
+          .map((r) => r.target),
+      );
       const merged: MuscleSlotData = { ...weekSlot };
       for (const target of derivedFields) {
         switch (target) {
@@ -274,12 +282,15 @@ function recomputeDownstreamWeeks(
             break;
           case 'repMin':
             merged.repMin = resolved.repMin;
+            if (perSetDerived.has('repMin')) merged.setsDetail = resolved.setsDetail;
             break;
           case 'repMax':
             merged.repMax = resolved.repMax;
+            if (perSetDerived.has('repMax')) merged.setsDetail = resolved.setsDetail;
             break;
           case 'tempo':
             merged.tempo = resolved.tempo;
+            if (perSetDerived.has('tempo')) merged.setsDetail = resolved.setsDetail;
             break;
           case 'rir':
             merged.rir = resolved.rir;
@@ -296,6 +307,7 @@ function recomputeDownstreamWeeks(
                 instructions: resolved.exercise.instructions,
               };
             }
+            if (perSetDerived.has('instructions')) merged.setsDetail = resolved.setsDetail;
             break;
         }
       }
