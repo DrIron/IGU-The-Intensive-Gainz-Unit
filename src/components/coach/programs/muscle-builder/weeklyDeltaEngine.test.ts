@@ -261,7 +261,7 @@ describe('applyRule — active range', () => {
     expect(applyRule(r, 3, 3, false)).toEqual({ ok: true, value: 1 });
   });
 
-  it('rule with activeWeekEnd=4 stops applying after W4', () => {
+  it('rule with activeWeekEnd=4 HOLDS the W4 value after the window ends (Phase 1b)', () => {
     const r = rule({
       id: 'ar2',
       target: 'rir',
@@ -270,8 +270,61 @@ describe('applyRule — active range', () => {
       scope: { kind: 'all' },
       activeWeekEnd: 4,
     });
-    expect(applyRule(r, 3, 3, false)).toEqual({ ok: true, value: 0 }); // W4 = 3 - 3 = 0
-    expect(applyRule(r, 3, 4, false)).toEqual({ ok: false, skipped: true, reason: 'out_of_active_range' });
+    expect(applyRule(r, 3, 3, false)).toEqual({ ok: true, value: 0 }); // W4 = 3 - 3 = 0 (last in-window)
+    // W5+ no longer snap back to base — they plateau at the W4 value.
+    expect(applyRule(r, 3, 4, false)).toEqual({ ok: true, value: 0 });
+    expect(applyRule(r, 3, 7, false)).toEqual({ ok: true, value: 0 });
+  });
+});
+
+// ============================================================
+// applyRule — hold-at-last after window end (Phase 1b)
+// ============================================================
+
+describe('applyRule — hold-at-last (Phase 1b)', () => {
+  it('sets +1/wk windowed W2-4: ramps then plateaus at the W4 value', () => {
+    const r = rule({ id: 'h1', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 4 });
+    expect(applyRule(r, 3, 0, false)).toEqual({ ok: false, skipped: true, reason: 'out_of_active_range' }); // W1 dormant
+    expect(applyRule(r, 3, 1, false)).toEqual({ ok: true, value: 4 }); // W2
+    expect(applyRule(r, 3, 2, false)).toEqual({ ok: true, value: 5 }); // W3
+    expect(applyRule(r, 3, 3, false)).toEqual({ ok: true, value: 6 }); // W4 (window end)
+    expect(applyRule(r, 3, 4, false)).toEqual({ ok: true, value: 6 }); // W5 holds
+    expect(applyRule(r, 3, 8, false)).toEqual({ ok: true, value: 6 }); // W9 holds
+  });
+
+  it('tempo digit windowed: holds the last in-window digit', () => {
+    const r = rule({ id: 'h2', target: 'tempo', op: 'digit_add', position: 0, amount: -1, activeWeekStart: 2, activeWeekEnd: 3 });
+    expect(applyRule(r, '3010', 1, false)).toEqual({ ok: true, value: '2010' }); // W2
+    expect(applyRule(r, '3010', 2, false)).toEqual({ ok: true, value: '1010' }); // W3 (end)
+    expect(applyRule(r, '3010', 5, false)).toEqual({ ok: true, value: '1010' }); // holds
+  });
+
+  it('weeks before the window still return dormant (base falls through)', () => {
+    const r = rule({ id: 'h3', target: 'sets', op: 'add', amount: 1, activeWeekStart: 4, activeWeekEnd: 6 });
+    expect(applyRule(r, 3, 1, false)).toEqual({ ok: false, skipped: true, reason: 'out_of_active_range' }); // W2
+    expect(applyRule(r, 3, 2, false)).toEqual({ ok: false, skipped: true, reason: 'out_of_active_range' }); // W3
+    expect(applyRule(r, 3, 3, false)).toEqual({ ok: true, value: 4 }); // W4 first applied
+    expect(applyRule(r, 3, 6, false)).toEqual({ ok: true, value: 6 }); // W7 holds at W6 (3 + 1×3)
+  });
+
+  it('replace_per_week holds the last provided text past the window end', () => {
+    const r = rule({
+      id: 'h4',
+      target: 'instructions',
+      op: 'replace_per_week',
+      texts: ['W2 cue', 'W3 cue'],
+      activeWeekStart: 2,
+      activeWeekEnd: 3,
+    });
+    expect(applyRule(r, 'W1 cue', 1, false)).toEqual({ ok: true, value: 'W2 cue' });
+    expect(applyRule(r, 'W1 cue', 2, false)).toEqual({ ok: true, value: 'W3 cue' }); // window end
+    expect(applyRule(r, 'W1 cue', 5, false)).toEqual({ ok: true, value: 'W3 cue' }); // holds last
+  });
+
+  it('replace_per_week with no window end still out_of_range when texts run out', () => {
+    // Regression guard — open-ended window keeps the historical skip.
+    const r = rule({ id: 'h5', target: 'instructions', op: 'replace_per_week', texts: ['W2 cue'] });
+    expect(applyRule(r, 'W1 cue', 2, false)).toEqual({ ok: false, skipped: true, reason: 'out_of_range' });
   });
 });
 
@@ -611,6 +664,173 @@ describe('Hasan example end-to-end', () => {
     expect(applyRule(r, 5, 2, false)).toEqual({ ok: true, value: 7.5 });
     // W4 would be 8.75 if uncapped; capped at 10.
     expect(applyRule(r, 5, 3, false)).toEqual({ ok: true, value: 8.75 });
+  });
+});
+
+// ============================================================
+// resolveSlotForWeek — set_numbers scope (Phase 1c)
+// ============================================================
+
+describe('resolveSlotForWeek — set_numbers scope', () => {
+  it('rir -1/wk on set_numbers [2,4] only mutates those entries', () => {
+    const slot = baseSlot({ sets: 4, setsDetail: setsDetailOfLength(4, { rir: 3 }) });
+    const r = rule({ id: 'r', target: 'rir', op: 'add', amount: -1, scope: { kind: 'set_numbers', setNumbers: [2, 4] } });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.slot.setsDetail!.map((s) => s.rir)).toEqual([3, 2, 3, 2]);
+    expect(out.derivedFields).toContain('rir');
+  });
+
+  it('skips out-of-range set numbers but applies the in-range ones', () => {
+    const slot = baseSlot({ sets: 4, setsDetail: setsDetailOfLength(4, { rir: 3 }) });
+    const r = rule({ id: 'r', target: 'rir', op: 'add', amount: -1, scope: { kind: 'set_numbers', setNumbers: [2, 5] } });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.slot.setsDetail!.map((s) => s.rir)).toEqual([3, 2, 3, 3]); // set 5 ignored
+    expect(out.skipped).toEqual([]); // at least one applied → no skip surfaced
+  });
+
+  it('all set numbers out of range → skip out_of_range', () => {
+    const slot = baseSlot({ sets: 3, setsDetail: setsDetailOfLength(3, { rir: 3 }) });
+    const r = rule({ id: 'r', target: 'rir', op: 'add', amount: -1, scope: { kind: 'set_numbers', setNumbers: [8, 9] } });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.skipped[0].reason).toBe('out_of_range');
+    expect(out.derivedFields).toEqual([]);
+  });
+
+  it('set_numbers on slot without setsDetail → missing_setsdetail', () => {
+    const slot = baseSlot({ rir: 3 });
+    const r = rule({ id: 'r', target: 'rir', op: 'add', amount: -1, scope: { kind: 'set_numbers', setNumbers: [1, 2] } });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.skipped[0].reason).toBe('missing_setsdetail');
+  });
+});
+
+// ============================================================
+// resolveSlotForWeek — per-set scope for ALL per-set-able targets (Phase 1d)
+// ============================================================
+
+describe('resolveSlotForWeek — per-set for all targets', () => {
+  it('repMin +1/wk scope last writes setsDetail[last].rep_range_min, leaves slot-level repMin', () => {
+    const slot = baseSlot({
+      repMin: 8,
+      setsDetail: [
+        { set_number: 1, rep_range_min: 8 },
+        { set_number: 2, rep_range_min: 8 },
+      ],
+    });
+    const r = rule({ id: 'r', target: 'repMin', op: 'add', amount: 1, scope: { kind: 'last' } });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.slot.setsDetail!.map((s) => s.rep_range_min)).toEqual([8, 9]);
+    expect(out.slot.repMin).toBe(8); // slot-level untouched
+    expect(out.derivedFields).toContain('repMin');
+  });
+
+  it('repMax +1/wk scope all writes BOTH slot-level repMax AND every setsDetail.rep_range_max', () => {
+    const slot = baseSlot({
+      repMax: 12,
+      setsDetail: [
+        { set_number: 1, rep_range_max: 12 },
+        { set_number: 2, rep_range_max: 12 },
+      ],
+    });
+    const r = rule({ id: 'r', target: 'repMax', op: 'add', amount: 1, scope: { kind: 'all' } });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.slot.repMax).toBe(13);
+    expect(out.slot.setsDetail!.map((s) => s.rep_range_max)).toEqual([13, 13]);
+  });
+
+  it('tempo digit scope first writes setsDetail[0].tempo only', () => {
+    const slot = baseSlot({
+      tempo: '3010',
+      setsDetail: [
+        { set_number: 1, tempo: '3010' },
+        { set_number: 2, tempo: '3010' },
+      ],
+    });
+    const r = rule({ id: 'r', target: 'tempo', op: 'digit_add', position: 0, amount: -1, scope: { kind: 'first' } });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.slot.setsDetail!.map((s) => s.tempo)).toEqual(['2010', '3010']);
+    expect(out.slot.tempo).toBe('3010'); // slot-level untouched
+  });
+
+  it('instructions append scope all writes every setsDetail.notes (no exercise needed)', () => {
+    const slot = baseSlot({
+      setsDetail: [{ set_number: 1 }, { set_number: 2, notes: 'go slow' }],
+    });
+    const r = rule({ id: 'r', target: 'instructions', op: 'append', text: 'add pause', scope: { kind: 'all' } });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.slot.setsDetail!.map((s) => s.notes)).toEqual(['add pause', 'go slow\nadd pause']);
+    expect(out.derivedFields).toContain('instructions');
+  });
+
+  it('unscoped repMin rule still writes slot-level only (back-compat)', () => {
+    const slot = baseSlot({
+      repMin: 8,
+      setsDetail: [{ set_number: 1, rep_range_min: 8 }],
+    });
+    const r = rule({ id: 'r', target: 'repMin', op: 'add', amount: 1 });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.slot.repMin).toBe(9);
+    expect(out.slot.setsDetail![0].rep_range_min).toBe(8); // per-set untouched
+  });
+
+  it('per-set-scoped repMin on slot without setsDetail → missing_setsdetail (slot-level repMin unchanged)', () => {
+    const slot = baseSlot({ repMin: 8 });
+    const r = rule({ id: 'r', target: 'repMin', op: 'add', amount: 1, scope: { kind: 'last' } });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.skipped[0].reason).toBe('missing_setsdetail');
+    expect(out.slot.repMin).toBe(8);
+  });
+});
+
+// ============================================================
+// resolveSlotForWeek — addedSetSpec (Phase 1e)
+// ============================================================
+
+describe('resolveSlotForWeek — addedSetSpec', () => {
+  it('prescribes the added set from addedSetSpec, merged onto the cloned last entry', () => {
+    const slot = baseSlot({
+      sets: 3,
+      setsDetail: [
+        { set_number: 1, reps: 8, weight: 50 },
+        { set_number: 2, reps: 8, weight: 55 },
+        { set_number: 3, reps: 8, weight: 60 },
+      ],
+    });
+    const r = rule({ id: 's', target: 'sets', op: 'add', amount: 1, addedSetSpec: { reps: 5, rir: 0 } });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.slot.sets).toBe(4);
+    // Unspecified fields (weight) clone from the last entry; reps/rir from the spec.
+    expect(out.slot.setsDetail![3]).toEqual({ set_number: 4, reps: 5, weight: 60, rir: 0 });
+  });
+
+  it('adds two sets, both prescribed from addedSetSpec', () => {
+    const slot = baseSlot({
+      sets: 2,
+      setsDetail: [
+        { set_number: 1, reps: 10 },
+        { set_number: 2, reps: 10 },
+      ],
+    });
+    const r = rule({ id: 's', target: 'sets', op: 'add', amount: 1, addedSetSpec: { reps: 6, notes: 'backoff' } });
+    const out = resolveSlotForWeek(slot, [r], 2, false); // W3 → +2 sets
+    expect(out.slot.sets).toBe(4);
+    expect(out.slot.setsDetail!.map((s) => s.reps)).toEqual([10, 10, 6, 6]);
+    expect(out.slot.setsDetail![2].notes).toBe('backoff');
+    expect(out.slot.setsDetail![3].notes).toBe('backoff');
+  });
+
+  it('without addedSetSpec keeps clone-last behavior (back-compat)', () => {
+    const slot = baseSlot({
+      sets: 3,
+      setsDetail: [
+        { set_number: 1, reps: 8, weight: 50 },
+        { set_number: 2, reps: 8, weight: 55 },
+        { set_number: 3, reps: 8, weight: 60 },
+      ],
+    });
+    const r = rule({ id: 's', target: 'sets', op: 'add', amount: 1 });
+    const out = resolveSlotForWeek(slot, [r], 1, false);
+    expect(out.slot.setsDetail![3]).toEqual({ set_number: 4, reps: 8, weight: 60 });
   });
 });
 

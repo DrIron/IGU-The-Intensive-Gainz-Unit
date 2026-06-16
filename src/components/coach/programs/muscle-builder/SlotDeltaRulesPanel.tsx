@@ -22,8 +22,10 @@ import { cn } from "@/lib/utils";
 import { SlotDeltaRuleEditor } from "./SlotDeltaRuleEditor";
 import {
   createDefaultRule,
+  PER_SET_PRESCRIPTION_FIELD,
   type WeeklyDeltaRule,
   type DeltaTarget,
+  type PerSetTarget,
   type SetScope,
 } from "./weeklyDeltaEngine";
 import type { SetPrescription } from "@/types/workout-builder";
@@ -71,27 +73,29 @@ const TARGET_PICKER_LABELS: Record<DeltaTarget, string> = {
 };
 
 /**
- * Derive the right base value for a rule's preview. For rir/rpe rules with a
- * per-set scope (last / first / index N), reads from setsDetail. Falls back
- * to the slot-level value otherwise. For non-rir/rpe rules and instructions,
- * the slot-level value is the only one that matters.
+ * Derive the right base value for a rule's preview. For any per-set-scoped rule
+ * (rir/rpe always, plus repMin/repMax/tempo/instructions when scoped), reads
+ * from setsDetail via the target's per-set field. Unscoped rules use the
+ * slot-level value. `set_numbers` previews against the first selected set.
  */
 function resolveBaseForRule(
   rule: WeeklyDeltaRule,
   baseValues: Partial<Record<DeltaTarget, number | string | undefined>>,
   setsDetail: SetPrescription[] | undefined,
 ): number | string | undefined {
-  if (rule.target !== "rir" && rule.target !== "rpe") {
+  const scope: SetScope | undefined = "scope" in rule ? rule.scope : undefined;
+  if (!scope) {
+    // Slot-level (unscoped) rule.
     return baseValues[rule.target];
   }
-  const scope: SetScope = rule.scope;
+  const setField = PER_SET_PRESCRIPTION_FIELD[rule.target as PerSetTarget];
   if (scope.kind === "all") {
     // Prefer slot-level when set. Fall back to setsDetail[0] when slot-level is
     // missing so the preview shows SOMETHING instead of "—". The engine's
     // fan-out path handles the actual application across all sets.
     const slotVal = baseValues[rule.target];
     if (slotVal !== undefined) return slotVal;
-    return setsDetail?.[0]?.[rule.target];
+    return setsDetail?.[0]?.[setField] as number | string | undefined;
   }
   if (!setsDetail || setsDetail.length === 0) {
     // No per-set data — fall back to slot-level (the rule will be inert at run
@@ -101,9 +105,10 @@ function resolveBaseForRule(
   const idx =
     scope.kind === "first" ? 0 :
     scope.kind === "last" ? setsDetail.length - 1 :
-    scope.setNumber - 1;
+    scope.kind === "index" ? scope.setNumber - 1 :
+    /* set_numbers */ (scope.setNumbers[0] ?? 1) - 1;
   if (idx < 0 || idx >= setsDetail.length) return undefined;
-  return setsDetail[idx]?.[rule.target];
+  return setsDetail[idx]?.[setField] as number | string | undefined;
 }
 
 export const SlotDeltaRulesPanel = memo(function SlotDeltaRulesPanel({
@@ -195,6 +200,7 @@ export const SlotDeltaRulesPanel = memo(function SlotDeltaRulesPanel({
             baseValue={resolveBaseForRule(rule, baseValues, setsDetail)}
             totalWeeks={totalWeeks}
             isDeloadByWeek={isDeloadByWeek}
+            setCount={setsDetail?.length ?? (typeof baseValues.sets === "number" ? baseValues.sets : undefined)}
             onChange={handleUpdateRule}
             onRemove={() => handleRemoveRule(rule.id)}
           />

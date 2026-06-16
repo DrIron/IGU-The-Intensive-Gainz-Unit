@@ -37,7 +37,8 @@ export type SetScope =
   | { kind: 'all' }                             // mutates slot-level field
   | { kind: 'first' }                           // setsDetail[0]
   | { kind: 'last' }                            // setsDetail[N-1]
-  | { kind: 'index'; setNumber: number };       // setsDetail[setNumber - 1] (1-indexed)
+  | { kind: 'index'; setNumber: number }        // setsDetail[setNumber - 1] (1-indexed)
+  | { kind: 'set_numbers'; setNumbers: number[] }; // setsDetail[n-1] for each (1-indexed) n
 
 export type DeloadBehavior =
   | 'skip'        // keep base; don't apply rule on deload week
@@ -62,12 +63,15 @@ interface BaseRule {
 }
 
 export type WeeklyDeltaRule =
-  | (BaseRule & { target: 'sets';   op: 'add'; amount: number })
-  | (BaseRule & { target: 'repMin' | 'repMax'; op: 'add'; amount: number })
+  // `sets` (count) is slot-level only — you can't apply a count change "to set 3".
+  // `addedSetSpec` (Phase 1e) prescribes what a newly-added set looks like.
+  | (BaseRule & { target: 'sets';   op: 'add'; amount: number; addedSetSpec?: Partial<SetPrescription> })
+  // `scope` is OPTIONAL on these — absent ⇒ slot-level (back-compat); present ⇒ per-set (Phase 1d).
+  | (BaseRule & { target: 'repMin' | 'repMax'; op: 'add'; amount: number; scope?: SetScope })
   | (BaseRule & { target: 'rir' | 'rpe'; op: 'add'; amount: number; scope: SetScope })
-  | (BaseRule & { target: 'tempo'; op: 'digit_add'; position: 0 | 1 | 2 | 3; amount: number })
-  | (BaseRule & { target: 'instructions'; op: 'append'; text: string })
-  | (BaseRule & { target: 'instructions'; op: 'replace_per_week'; texts: string[] });
+  | (BaseRule & { target: 'tempo'; op: 'digit_add'; position: 0 | 1 | 2 | 3; amount: number; scope?: SetScope })
+  | (BaseRule & { target: 'instructions'; op: 'append'; text: string; scope?: SetScope })
+  | (BaseRule & { target: 'instructions'; op: 'replace_per_week'; texts: string[]; scope?: SetScope });
 
 export type SkipReason =
   | 'literal_token'           // tempo position holds 'A' or 'X'
@@ -108,6 +112,48 @@ const CLAMP = {
  * engine NEVER auto-converts digits ↔ letters (D2).
  */
 const TEMPO_LITERAL_TOKENS = new Set(['A', 'X']);
+
+/** Targets that can be scoped to individual sets (Phase 1d). `sets` cannot. */
+export type PerSetTarget = 'repMin' | 'repMax' | 'tempo' | 'rir' | 'rpe' | 'instructions';
+
+/**
+ * The `SetPrescription` field a per-set rule writes for each target. Note the
+ * slot-level → per-set name shifts: slot `repMin`/`repMax` live as
+ * `rep_range_min`/`rep_range_max` per set, and a per-set `instructions` rule
+ * writes the set's `notes` (distinct from the exercise-level instruction cue).
+ */
+export const PER_SET_PRESCRIPTION_FIELD: Record<PerSetTarget, keyof SetPrescription> = {
+  repMin: 'rep_range_min',
+  repMax: 'rep_range_max',
+  tempo: 'tempo',
+  rir: 'rir',
+  rpe: 'rpe',
+  instructions: 'notes',
+} as const;
+
+/**
+ * The slot-level scalar field that scope:'all' also mirrors. `instructions`
+ * has no per-set-equivalent slot scalar (its slot-level home is
+ * `exercise.instructions`, handled separately), so it returns null — per-set
+ * instructions rules only ever touch `setsDetail[n].notes`.
+ */
+const PER_SET_SLOT_FIELD: Record<PerSetTarget, keyof MuscleSlotData | null> = {
+  repMin: 'repMin',
+  repMax: 'repMax',
+  tempo: 'tempo',
+  rir: 'rir',
+  rpe: 'rpe',
+  instructions: null,
+} as const;
+
+/**
+ * True when a rule carries a per-set scope (any kind, including 'all'). `rir`/
+ * `rpe` always do; `repMin`/`repMax`/`tempo`/`instructions` do only when the
+ * coach opted into per-set mode. A scoped rule routes through `applyPerSetRule`.
+ */
+function isScopedRule(rule: WeeklyDeltaRule): rule is WeeklyDeltaRule & { scope: SetScope } {
+  return 'scope' in rule && rule.scope !== undefined;
+}
 
 // ============================================================
 // Helpers
@@ -162,38 +208,45 @@ function serializeTempo(parts: TempoPart[]): string {
 }
 
 /**
- * Sync setsDetail length to a new sets count. Trims from the end; extends
- * by cloning the last entry (preserving its prescription). When sets goes
- * from 3 → 4, the 4th set inherits the 3rd set's reps/weight/etc.
+ * Sync setsDetail length to a new sets count. Trims from the end; extends to
+ * reach `targetCount`.
+ *
+ * Phase 1e: when `addedSetSpec` is provided, new entries are prescribed from
+ * it — merged onto the last entry as a sensible default so unspecified fields
+ * (weight, rest, …) still carry over while the coach's chosen reps/RIR/tempo/
+ * notes win. Absent `addedSetSpec`, the historical clone-last behavior holds.
  */
 function syncSetsDetailToCount(
   setsDetail: SetPrescription[],
   targetCount: number,
+  addedSetSpec?: Partial<SetPrescription>,
 ): SetPrescription[] {
   if (setsDetail.length === targetCount) return setsDetail;
   if (setsDetail.length > targetCount) {
     return setsDetail.slice(0, targetCount).map((s, i) => ({ ...s, set_number: i + 1 }));
   }
   if (setsDetail.length === 0) {
-    // No template to clone from — fabricate empty entries.
+    // No template to clone from — fabricate entries from the spec (or empty).
     const out: SetPrescription[] = [];
-    for (let i = 0; i < targetCount; i++) out.push({ set_number: i + 1 });
+    for (let i = 0; i < targetCount; i++) out.push({ ...addedSetSpec, set_number: i + 1 });
     return out;
   }
   const last = setsDetail[setsDetail.length - 1];
   const out = [...setsDetail];
   for (let i = setsDetail.length; i < targetCount; i++) {
-    out.push({ ...last, set_number: i + 1 });
+    // Clone-last as the default base, then overlay the coach's added-set spec.
+    out.push({ ...last, ...addedSetSpec, set_number: i + 1 });
   }
   return out;
 }
 
 function resolveSetIndex(scope: SetScope, setCount: number): number {
   switch (scope.kind) {
-    case 'first':  return 0;
-    case 'last':   return setCount - 1;
-    case 'index':  return scope.setNumber - 1;
-    case 'all':    return -1; // sentinel — caller routes to slot-level
+    case 'first':       return 0;
+    case 'last':        return setCount - 1;
+    case 'index':       return scope.setNumber - 1;
+    case 'all':         return -1; // sentinel — caller routes to slot-level
+    case 'set_numbers': return -1; // handled by the caller's iteration path
   }
 }
 
@@ -218,14 +271,21 @@ export function applyRule(
   // Active week window — engine supports it cheaply per D13.
   const startOffset = (rule.activeWeekStart ?? 2) - 1;     // default W2 → offset 1
   const endOffset = rule.activeWeekEnd !== undefined ? rule.activeWeekEnd - 1 : Infinity;
-  if (weekOffset < startOffset || weekOffset > endOffset) {
+  // Before the window opens → dormant (field falls back to W1 base).
+  if (weekOffset < startOffset) {
     return { ok: false, skipped: true, reason: 'out_of_active_range' };
   }
+
+  // Hold-at-last (Phase 1b): once the window closes, do NOT snap back to base.
+  // Clamp the step count to the window's last in-range week so the value
+  // plateaus at whatever it reached on `endOffset`.
+  const isHoldZone = weekOffset > endOffset;
+  const clampedOffset = isHoldZone ? endOffset : weekOffset;
 
   // Steps relative to the first applied week. With default start=2, a rule
   // applied at W2 (offset 1) gets steps=1 → matches Hasan's mental model
   // (W2 = base + amount × 1).
-  const effectiveSteps = weekOffset - startOffset + 1;
+  const effectiveSteps = clampedOffset - startOffset + 1;
 
   // Deload handling — runs before arithmetic.
   const deloadMode: DeloadBehavior = rule.deload ?? 'skip';
@@ -298,10 +358,16 @@ export function applyRule(
       // op === 'replace_per_week'
       const idx = effectiveSteps - 1;
       const candidate = rule.texts[idx];
-      if (candidate === undefined) {
-        return { ok: false, skipped: true, reason: 'out_of_range' };
+      if (candidate !== undefined) {
+        return { ok: true, value: candidate };
       }
-      return { ok: true, value: candidate };
+      // Past the window end (Phase 1b): hold the last provided text instead of
+      // snapping back. Inside an open-ended window with the texts array simply
+      // exhausted, keep the historical out_of_range skip.
+      if (isHoldZone && rule.texts.length > 0) {
+        return { ok: true, value: rule.texts[rule.texts.length - 1] };
+      }
+      return { ok: false, skipped: true, reason: 'out_of_range' };
     }
   }
 }
@@ -355,6 +421,13 @@ function applyRuleToSlot(
   derived: DeltaTarget[],
   skipped: SlotResolveResult['skipped'],
 ): MuscleSlotData {
+  // --- Per-set routing (Phase 1c/1d): rir/rpe always; repMin/repMax/tempo/
+  // instructions only when the coach opted into a per-set scope. `sets`
+  // (count) is never per-set. ---
+  if (rule.target !== 'sets' && isScopedRule(rule)) {
+    return applyPerSetRule(slot, rule, weekOffset, isDeload, derived, skipped);
+  }
+
   // --- Slot-level scalars: sets, repMin, repMax, tempo ---
   if (rule.target === 'sets') {
     const result = applyRule(rule, slot.sets, weekOffset, isDeload);
@@ -363,7 +436,9 @@ function applyRuleToSlot(
       return slot;
     }
     const newCount = result.value as number;
-    const newSetsDetail = slot.setsDetail ? syncSetsDetailToCount(slot.setsDetail, newCount) : undefined;
+    const newSetsDetail = slot.setsDetail
+      ? syncSetsDetailToCount(slot.setsDetail, newCount, rule.addedSetSpec)
+      : undefined;
     derived.push('sets');
     return { ...slot, sets: newCount, setsDetail: newSetsDetail };
   }
@@ -389,12 +464,10 @@ function applyRuleToSlot(
     return { ...slot, tempo: result.value as string };
   }
 
-  // --- Scoped per-set fields: rir, rpe ---
-  if (rule.target === 'rir' || rule.target === 'rpe') {
-    return applyPerSetRule(slot, rule, weekOffset, isDeload, derived, skipped);
-  }
+  // Scoped rir/rpe (always) and scoped repMin/repMax/tempo/instructions are
+  // routed to applyPerSetRule above, before this point.
 
-  // --- Instructions live on slot.exercise.instructions ---
+  // --- Slot-level instructions live on slot.exercise.instructions ---
   if (rule.target === 'instructions') {
     const base = slot.exercise?.instructions ?? '';
     const result = applyRule(rule, base, weekOffset, isDeload);
@@ -415,36 +488,50 @@ function applyRuleToSlot(
   return slot;
 }
 
+/**
+ * Apply a per-set-scoped rule. Handles rir/rpe (always per-set) plus
+ * repMin/repMax/tempo/instructions when the coach opted into a scope (Phase
+ * 1d). The target's per-set home is `PER_SET_PRESCRIPTION_FIELD[target]`; its
+ * slot-level scalar mirror (for scope:'all') is `PER_SET_SLOT_FIELD[target]`
+ * (null for instructions, which only writes `setsDetail[n].notes`).
+ */
 function applyPerSetRule(
   slot: MuscleSlotData,
-  rule: Extract<WeeklyDeltaRule, { target: 'rir' | 'rpe' }>,
+  rule: WeeklyDeltaRule & { scope: SetScope },
   weekOffset: number,
   isDeload: boolean,
   derived: DeltaTarget[],
   skipped: SlotResolveResult['skipped'],
 ): MuscleSlotData {
-  const fieldKey = rule.target; // 'rir' | 'rpe'
+  const target = rule.target as PerSetTarget;
+  const setField = PER_SET_PRESCRIPTION_FIELD[target];
+  const slotField = PER_SET_SLOT_FIELD[target];
+  // `notes` (instructions) may legitimately start empty — applyRule's append/
+  // replace ops treat a missing base as "". Numeric/tempo targets need a base.
+  const allowEmptyBase = target === 'instructions';
 
-  // Scope 'all' — write to BOTH slot-level (when present) AND every setsDetail
-  // entry (when present). The popover renders setsDetail values, so writing
-  // only to slot-level leaves the UI stale even though the rule "ran". This
-  // matches coach mental model: "All sets" means every per-set entry gets
-  // the delta, and the slot-level scalar (which is conceptually a default for
-  // the next set added) tracks alongside.
+  // Scope 'all' — write to BOTH the slot-level scalar (when one exists and is
+  // set) AND every setsDetail entry (when present). The popover renders
+  // setsDetail values, so writing only to slot-level leaves the UI stale even
+  // though the rule "ran". "All sets" means every per-set entry gets the delta,
+  // and the slot-level scalar (a default for the next set added) tracks along.
   if (rule.scope.kind === 'all') {
-    let nextSlotVal: number | undefined = slot[fieldKey];
+    const nextSlot: MuscleSlotData = { ...slot };
     let nextSetsDetail = slot.setsDetail;
     let touched = false;
     let lastSkipReason: SkipReason | null = null;
 
-    // Slot-level path.
-    if (slot[fieldKey] !== undefined && slot[fieldKey] !== null) {
-      const result = applyRule(rule, slot[fieldKey], weekOffset, isDeload);
-      if (result.ok) {
-        nextSlotVal = result.value as number;
-        touched = true;
-      } else {
-        lastSkipReason = result.reason;
+    // Slot-level scalar path (skipped for instructions — slotField is null).
+    if (slotField !== null) {
+      const cur = slot[slotField];
+      if (cur !== undefined && cur !== null) {
+        const result = applyRule(rule, cur as number | string, weekOffset, isDeload);
+        if (result.ok) {
+          (nextSlot as Record<string, unknown>)[slotField] = result.value;
+          touched = true;
+        } else {
+          lastSkipReason = result.reason;
+        }
       }
     }
 
@@ -452,18 +539,18 @@ function applyPerSetRule(
     if (slot.setsDetail && slot.setsDetail.length > 0) {
       let anyEntryApplied = false;
       nextSetsDetail = slot.setsDetail.map((s) => {
-        const setBase = s[fieldKey];
-        if (setBase === undefined || setBase === null) {
+        const setBase = s[setField];
+        if ((setBase === undefined || setBase === null) && !allowEmptyBase) {
           lastSkipReason = lastSkipReason ?? 'no_base';
           return s;
         }
-        const result = applyRule(rule, setBase, weekOffset, isDeload);
+        const result = applyRule(rule, setBase as number | string | undefined, weekOffset, isDeload);
         if (!result.ok) {
           lastSkipReason = result.reason;
           return s;
         }
         anyEntryApplied = true;
-        return { ...s, [fieldKey]: result.value as number };
+        return { ...s, [setField]: result.value } as SetPrescription;
       });
       if (anyEntryApplied) touched = true;
     }
@@ -473,31 +560,47 @@ function applyPerSetRule(
       return slot;
     }
     derived.push(rule.target);
-    return { ...slot, [fieldKey]: nextSlotVal, setsDetail: nextSetsDetail };
+    return { ...nextSlot, setsDetail: nextSetsDetail };
   }
 
-  // Per-set scope needs setsDetail.
+  // Specific-set scopes (first / last / index / set_numbers) need setsDetail.
   if (!slot.setsDetail || slot.setsDetail.length === 0) {
     skipped.push({ ruleId: rule.id, target: rule.target, reason: 'missing_setsdetail' });
     return slot;
   }
 
-  const idx = resolveSetIndex(rule.scope, slot.setsDetail.length);
-  if (idx < 0 || idx >= slot.setsDetail.length) {
-    skipped.push({ ruleId: rule.id, target: rule.target, reason: 'out_of_range' });
-    return slot;
+  // Resolve the 0-indexed targets. set_numbers iterates; the others are single.
+  const indices =
+    rule.scope.kind === 'set_numbers'
+      ? rule.scope.setNumbers.map((n) => n - 1)
+      : [resolveSetIndex(rule.scope, slot.setsDetail.length)];
+
+  const nextSetsDetail = [...slot.setsDetail];
+  let anyApplied = false;
+  let lastSkipReason: SkipReason | null = null;
+  for (const idx of indices) {
+    if (idx < 0 || idx >= nextSetsDetail.length) {
+      lastSkipReason = 'out_of_range';
+      continue;
+    }
+    const base = nextSetsDetail[idx][setField];
+    if ((base === undefined || base === null) && !allowEmptyBase) {
+      lastSkipReason = 'no_base';
+      continue;
+    }
+    const result = applyRule(rule, base as number | string | undefined, weekOffset, isDeload);
+    if (!result.ok) {
+      lastSkipReason = result.reason;
+      continue;
+    }
+    nextSetsDetail[idx] = { ...nextSetsDetail[idx], [setField]: result.value } as SetPrescription;
+    anyApplied = true;
   }
 
-  const base = slot.setsDetail[idx][fieldKey];
-  const result = applyRule(rule, base, weekOffset, isDeload);
-  if (!result.ok) {
-    skipped.push({ ruleId: rule.id, target: rule.target, reason: result.reason });
+  if (!anyApplied) {
+    skipped.push({ ruleId: rule.id, target: rule.target, reason: lastSkipReason ?? 'out_of_range' });
     return slot;
   }
-
-  const nextSetsDetail = slot.setsDetail.map((s, i) =>
-    i === idx ? { ...s, [fieldKey]: result.value as number } : s,
-  );
   derived.push(rule.target);
   return { ...slot, setsDetail: nextSetsDetail };
 }
