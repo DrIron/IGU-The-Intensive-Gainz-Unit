@@ -241,12 +241,20 @@ function tagSlotOverrides(
  * pre-existing W2+ values flip from stale-base to rule-derived without the
  * coach having to know about the button).
  */
-function recomputeDownstreamWeeks(
+export function recomputeDownstreamWeeks(
   state: MusclePlanState,
   targetSlotId?: string,
 ): MusclePlanState {
   const w1 = state.weeks[0];
   if (!w1) return state;
+  // Phase 2: the chaining engine needs the full program length + per-week
+  // deload flags to walk the trajectory. Built once and passed to every
+  // resolveSlotForWeek call so multi-rule targets chain (never the
+  // first-rule-only fallback).
+  const ctx = {
+    totalWeeks: state.weeks.length,
+    isDeloadByWeek: state.weeks.map(w => !!w.isDeload),
+  };
   const updatedWeeks = state.weeks.map((week, wi) => {
     if (wi === 0) return week;
     const isDeload = !!week.isDeload;
@@ -263,6 +271,7 @@ function recomputeDownstreamWeeks(
         wi,
         isDeload,
         overrides,
+        ctx,
       );
       if (derivedFields.length === 0) return weekSlot;
       // Targets whose W1 rule carries a per-set scope also wrote to setsDetail,
@@ -402,6 +411,12 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       const cloned = deepCloneWeek(lastWeek);
       const newWeekOffset = state.weeks.length;       // 0-indexed: W2 = 1, W3 = 2, ...
       const isDeload = !!cloned.isDeload;
+      // ctx spans the program INCLUDING the week being added, so the chaining
+      // walker (multi-rule targets) can resolve the new week's offset.
+      const addWeekCtx = {
+        totalWeeks: state.weeks.length + 1,
+        isDeloadByWeek: [...state.weeks.map(w => !!w.isDeload), isDeload],
+      };
 
       const updatedSlots = cloned.slots.map(clonedSlot => {
         const w1Slot = w1?.slots.find(
@@ -419,6 +434,7 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
           newWeekOffset,
           isDeload,
           [], // new week, no overrides yet
+          addWeekCtx,
         );
         // Merge: cloned-slot identity (id, sessionId, dayIndex, sortOrder,
         // muscleId, replacements) + resolved prescription fields.

@@ -43,6 +43,15 @@ interface SlotDeltaRuleEditorProps {
   isDeloadByWeek: boolean[];
   /** Slot's prescribed set count — drives the set-number checkboxes (Phase 1c). */
   setCount?: number;
+  /**
+   * Phase 2: precomputed chained per-week values for this rule's target (when
+   * the target has ≥2 rules). When present the preview strip renders these
+   * instead of the single-rule applyRule walk, so the coach sees the real
+   * chained sequence across all windows.
+   */
+  previewValues?: (number | string | undefined)[];
+  /** Phase 2a: inline error when this rule's window overlaps a same-target sibling. */
+  overlapError?: string;
   onChange: (rule: WeeklyDeltaRule) => void;
   onRemove: () => void;
 }
@@ -72,6 +81,8 @@ export const SlotDeltaRuleEditor = memo(function SlotDeltaRuleEditor({
   totalWeeks,
   isDeloadByWeek,
   setCount,
+  previewValues,
+  overlapError,
   onChange,
   onRemove,
 }: SlotDeltaRuleEditorProps) {
@@ -86,9 +97,21 @@ export const SlotDeltaRuleEditor = memo(function SlotDeltaRuleEditor({
       skipped: boolean;
       skipReason?: string;
     }> = [];
+    const fmt = (v: number | string | undefined): string =>
+      v === undefined || v === null
+        ? "—"
+        : typeof v === "number"
+        ? Number.isInteger(v) ? String(v) : v.toFixed(2)
+        : String(v);
     for (let i = 0; i < totalWeeks; i++) {
       const isDeload = !!isDeloadByWeek[i];
       const weekLabel = `W${i + 1}`;
+      // Phase 2: when chained preview values are supplied (target has ≥2 rules),
+      // render those — the per-rule applyRule walk can't see sibling windows.
+      if (previewValues) {
+        cells.push({ weekIndex: i, label: weekLabel, isDeload, value: fmt(previewValues[i]), skipped: false });
+        continue;
+      }
       if (i === 0) {
         cells.push({
           weekIndex: i,
@@ -124,7 +147,7 @@ export const SlotDeltaRuleEditor = memo(function SlotDeltaRuleEditor({
       }
     }
     return cells;
-  }, [rule, baseValue, totalWeeks, isDeloadByWeek]);
+  }, [rule, baseValue, totalWeeks, isDeloadByWeek, previewValues]);
 
   const anyLiteralTokenSkip = preview.some((c) => c.skipReason === "literal_token");
 
@@ -253,6 +276,14 @@ export const SlotDeltaRuleEditor = memo(function SlotDeltaRuleEditor({
           <Trash2 className="h-3 w-3" />
         </Button>
       </div>
+
+      {/* Window-overlap error (Phase 2a) */}
+      {overlapError && (
+        <div className="flex items-start gap-1 rounded border border-destructive/40 bg-destructive/5 px-2 py-1 text-[10px] text-destructive">
+          <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0" />
+          <span>{overlapError}</span>
+        </div>
+      )}
 
       {/* Per-target controls */}
       <div className="grid grid-cols-2 gap-2 text-xs">

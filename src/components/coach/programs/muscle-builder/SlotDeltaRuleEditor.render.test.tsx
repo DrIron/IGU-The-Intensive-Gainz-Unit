@@ -10,6 +10,7 @@
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { SlotDeltaRuleEditor } from './SlotDeltaRuleEditor';
+import { SlotDeltaRulesPanel } from './SlotDeltaRulesPanel';
 import type { WeeklyDeltaRule } from './weeklyDeltaEngine';
 
 const noop = () => {};
@@ -52,5 +53,62 @@ describe('SlotDeltaRuleEditor — Phase 1e added-set mini-form', () => {
   it('hides the form for a non-sets target (rir)', () => {
     const html = markup({ id: 'r1', target: 'rir', op: 'add', amount: -1, scope: { kind: 'all' } });
     expect(html).not.toContain('New set looks like');
+  });
+});
+
+// ============================================================
+// Phase 2 — chained preview + overlap banner (via the panel)
+// ============================================================
+
+function panelMarkup(rules: WeeklyDeltaRule[]): string {
+  return renderToStaticMarkup(
+    <SlotDeltaRulesPanel
+      rules={rules}
+      totalWeeks={6}
+      isDeloadByWeek={[false, false, false, false, false, false]}
+      baseValues={{ sets: 3 }}
+      hasExercise={false}
+      onChange={noop}
+    />,
+  );
+}
+
+/** Pull the preview-strip cell values (the `leading-tight` value spans). */
+function previewValuesFromMarkup(html: string): string[] {
+  return [...html.matchAll(/leading-tight">([^<]*)</g)].map((m) => m[1]);
+}
+
+describe('SlotDeltaRulesPanel — Phase 2 chained preview', () => {
+  it('previews the CHAINED sequence 3,4,5,6,8,10 for two non-overlapping Sets rules', () => {
+    // Block A: +1 weeks 2-4. Block B: +2 weeks 5-6. B must build on A's W4 value (6).
+    const html = panelMarkup([
+      { id: 'a', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 4 },
+      { id: 'b', target: 'sets', op: 'add', amount: 2, activeWeekStart: 5, activeWeekEnd: 6 },
+    ]);
+    // Two sets rows render → the same trajectory appears twice; assert the
+    // first row's six cells are the chained sequence (NOT a reset to base).
+    expect(previewValuesFromMarkup(html).slice(0, 6)).toEqual(['3', '4', '5', '6', '8', '10']);
+    // 8 and 10 only arise from chaining (Block B from 6); a base-anchored
+    // preview of either rule alone could never produce them.
+    expect(html).toContain('leading-tight">8<');
+    expect(html).toContain('leading-tight">10<');
+  });
+});
+
+describe('SlotDeltaRulesPanel — Phase 2 overlap banner', () => {
+  it('renders the inline overlap error when two same-target windows collide', () => {
+    const html = panelMarkup([
+      { id: 'a', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 4 },
+      { id: 'b', target: 'sets', op: 'add', amount: 1, activeWeekStart: 3, activeWeekEnd: 5 },
+    ]);
+    expect(html).toContain('overlaps another rule for the same target');
+  });
+
+  it('does NOT render the overlap error for disjoint windows', () => {
+    const html = panelMarkup([
+      { id: 'a', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 4 },
+      { id: 'b', target: 'sets', op: 'add', amount: 2, activeWeekStart: 5, activeWeekEnd: 6 },
+    ]);
+    expect(html).not.toContain('overlaps another rule for the same target');
   });
 });

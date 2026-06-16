@@ -156,6 +156,229 @@ function isScopedRule(rule: WeeklyDeltaRule): rule is WeeklyDeltaRule & { scope:
 }
 
 // ============================================================
+// Phase 2 — chaining: windows, overlap, per-field trajectory
+// ============================================================
+
+/**
+ * Targets the chaining engine walks week-by-week, carrying a running value
+ * across window boundaries. `instructions` is intentionally excluded — text
+ * has no running-accumulator semantics; multiple instructions rules (rare)
+ * apply per-window independently via the legacy per-rule path.
+ */
+const CHAINABLE_TARGETS: ReadonlySet<DeltaTarget> = new Set<DeltaTarget>([
+  'sets', 'repMin', 'repMax', 'rir', 'rpe', 'tempo',
+]);
+
+/** Context the chaining path needs: program length + per-week deload flags. */
+export interface ResolveCtx {
+  totalWeeks: number;
+  /** length === totalWeeks; index i flags week (i+1) as a deload. */
+  isDeloadByWeek: boolean[];
+}
+
+/** 1-indexed first week a rule applies (default W2). */
+function windowStartWeek(rule: WeeklyDeltaRule): number {
+  return rule.activeWeekStart ?? 2;
+}
+/** 1-indexed last week a rule applies (Infinity when open-ended). */
+function windowEndWeek(rule: WeeklyDeltaRule): number {
+  return rule.activeWeekEnd ?? Infinity;
+}
+
+/**
+ * True when two rules' [start, end] windows overlap on any week. Open-ended
+ * windows (no `activeWeekEnd`) extend to Infinity and "consume the rest", so
+ * any later-starting window collides with them.
+ */
+export function windowsOverlap(a: WeeklyDeltaRule, b: WeeklyDeltaRule): boolean {
+  return windowStartWeek(a) <= windowEndWeek(b) && windowStartWeek(b) <= windowEndWeek(a);
+}
+
+/**
+ * Find the first overlapping pair among rules that share a target. Returns the
+ * two rule ids (and target) or null when every same-target pair is disjoint.
+ * Used by the editor/panel to reject overlapping windows (2a).
+ */
+export function findWindowOverlap(
+  rules: WeeklyDeltaRule[],
+): { target: DeltaTarget; a: string; b: string } | null {
+  const byTarget = new Map<DeltaTarget, WeeklyDeltaRule[]>();
+  for (const r of rules) {
+    const arr = byTarget.get(r.target) ?? [];
+    arr.push(r);
+    byTarget.set(r.target, arr);
+  }
+  for (const [target, group] of byTarget) {
+    for (let i = 0; i < group.length; i++) {
+      for (let j = i + 1; j < group.length; j++) {
+        if (windowsOverlap(group[i], group[j])) {
+          return { target, a: group[i].id, b: group[j].id };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+/**
+ * Walk weeks 1..totalWeeks carrying a running value, chaining across the
+ * (non-overlapping) windows in `rulesForTarget`. Returns the per-week value
+ * array (index 0 = W1 = base).
+ *
+ * Semantics (Phase 2b/2c):
+ *  - Before the first window: hold `base` (running hasn't advanced).
+ *  - Inside a window: advance `running` one step per week, chained from the
+ *    prior week's running (NOT from base) — reusing applyRule's per-step
+ *    arithmetic/clamp/tempo logic for DRY.
+ *  - Gaps between windows and after the last window: hold `running` (plateau).
+ *  - Deload weeks: TWO tracks. The true `running` always advances (ignores
+ *    deload) so the chain continues underneath; the *emitted* value applies the
+ *    active rule's DeloadBehavior (skip → hold prior, apply → stepped, invert →
+ *    reverse step, fixed → fixedValue). A deload is a one-week dip, not a
+ *    permanent lowering.
+ */
+export function resolveFieldTrajectory(
+  base: number | string | undefined,
+  rulesForTarget: WeeklyDeltaRule[],
+  totalWeeks: number,
+  isDeloadByWeek: boolean[],
+): (number | string | undefined)[] {
+  const out: (number | string | undefined)[] = new Array(totalWeeks);
+  out[0] = base;
+  let running: number | string | undefined = base;
+  // Earliest-start first so the per-week lookup is deterministic.
+  const sorted = [...rulesForTarget].sort((a, b) => windowStartWeek(a) - windowStartWeek(b));
+
+  for (let wi = 1; wi < totalWeeks; wi++) {
+    const weekNum = wi + 1;
+    const rule = sorted.find((r) => weekNum >= windowStartWeek(r) && weekNum <= windowEndWeek(r));
+    if (!rule) {
+      out[wi] = running; // hold: base before first window; plateau in gaps / after last
+      continue;
+    }
+    // oneStepOffset == the rule's startOffset → applyRule yields effectiveSteps=1,
+    // i.e. exactly one increment applied to `running`.
+    const oneStepOffset = windowStartWeek(rule) - 1;
+    const isDl = !!isDeloadByWeek[wi];
+    const prevRunning = running;
+    const trueRes = applyRule(rule, prevRunning, oneStepOffset, false);
+    if (trueRes.ok) running = trueRes.value; // chain continues regardless of deload
+    if (isDl) {
+      const emitRes = applyRule(rule, prevRunning, oneStepOffset, true);
+      out[wi] = emitRes.ok ? emitRes.value : prevRunning; // skip/literal → hold prior
+    } else {
+      out[wi] = trueRes.ok ? trueRes.value : prevRunning;
+    }
+  }
+  return out;
+}
+
+/** Does a rule write the slot-level scalar for its target? (sets always; unscoped or scope:'all'.) */
+function ruleWritesSlotLevel(rule: WeeklyDeltaRule): boolean {
+  if (rule.target === 'sets') return true;
+  if (!isScopedRule(rule)) return true;
+  return rule.scope.kind === 'all';
+}
+
+/** Does a rule write setsDetail entry `setIndex` (0-based) of `setCount`? */
+function ruleWritesSet(rule: WeeklyDeltaRule, setIndex: number, setCount: number): boolean {
+  if (rule.target === 'sets' || !isScopedRule(rule)) return false;
+  const s = rule.scope;
+  switch (s.kind) {
+    case 'all':         return true;
+    case 'first':       return setIndex === 0;
+    case 'last':        return setIndex === setCount - 1;
+    case 'index':       return setIndex === s.setNumber - 1;
+    case 'set_numbers': return s.setNumbers.includes(setIndex + 1);
+  }
+}
+
+/**
+ * Resolve a target that has ≥2 rules by chaining per LOCATION (Phase 2b).
+ * Locations: the slot-level scalar (for `sets`, and for unscoped/`all` rules)
+ * plus each setsDetail entry whose value a rule's scope covers. Each location
+ * builds its own trajectory from the rules that touch it and writes
+ * `traj[weekOffset]`.
+ */
+function applyChainedTarget(
+  slot: MuscleSlotData,
+  target: DeltaTarget,
+  rules: WeeklyDeltaRule[],
+  weekOffset: number,
+  ctx: ResolveCtx,
+  derived: DeltaTarget[],
+  skipped: SlotResolveResult['skipped'],
+): MuscleSlotData {
+  const { totalWeeks, isDeloadByWeek } = ctx;
+
+  // `sets` — slot-level count drives setsDetail length (uses the covering
+  // rule's addedSetSpec, Phase 1e).
+  if (target === 'sets') {
+    const traj = resolveFieldTrajectory(slot.sets, rules, totalWeeks, isDeloadByWeek);
+    const newCount = traj[weekOffset] as number;
+    const weekNum = weekOffset + 1;
+    const covering = [...rules]
+      .sort((a, b) => windowStartWeek(a) - windowStartWeek(b))
+      .find((r) => weekNum >= windowStartWeek(r) && weekNum <= windowEndWeek(r));
+    const addedSetSpec = covering && covering.target === 'sets' ? covering.addedSetSpec : undefined;
+    const newSetsDetail = slot.setsDetail
+      ? syncSetsDetailToCount(slot.setsDetail, newCount, addedSetSpec)
+      : undefined;
+    derived.push('sets');
+    return { ...slot, sets: newCount, setsDetail: newSetsDetail };
+  }
+
+  const slotField = PER_SET_SLOT_FIELD[target as PerSetTarget];
+  const setField = PER_SET_PRESCRIPTION_FIELD[target as PerSetTarget];
+  const nextSlot: MuscleSlotData = { ...slot };
+  const nextSetsDetail = slot.setsDetail ? [...slot.setsDetail] : undefined;
+  let touched = false;
+  let lastSkipReason: SkipReason | null = null;
+
+  // Slot-level location.
+  if (slotField !== null) {
+    const slotRules = rules.filter(ruleWritesSlotLevel);
+    if (slotRules.length > 0) {
+      const base = slot[slotField];
+      if (base !== undefined && base !== null) {
+        const traj = resolveFieldTrajectory(base as number | string, slotRules, totalWeeks, isDeloadByWeek);
+        (nextSlot as Record<string, unknown>)[slotField] = traj[weekOffset];
+        touched = true;
+      } else {
+        lastSkipReason = 'no_base';
+      }
+    }
+  }
+
+  // Per-set locations.
+  if (nextSetsDetail && nextSetsDetail.length > 0) {
+    const count = nextSetsDetail.length;
+    for (let i = 0; i < count; i++) {
+      const setRules = rules.filter((r) => ruleWritesSet(r, i, count));
+      if (setRules.length === 0) continue;
+      const base = nextSetsDetail[i][setField];
+      if (base === undefined || base === null) {
+        lastSkipReason = lastSkipReason ?? 'no_base';
+        continue;
+      }
+      const traj = resolveFieldTrajectory(base as number | string, setRules, totalWeeks, isDeloadByWeek);
+      nextSetsDetail[i] = { ...nextSetsDetail[i], [setField]: traj[weekOffset] } as SetPrescription;
+      touched = true;
+    }
+  } else if (rules.some((r) => isScopedRule(r) && r.scope.kind !== 'all')) {
+    // Per-set-only rules with no setsDetail to write into.
+    lastSkipReason = lastSkipReason ?? 'missing_setsdetail';
+  }
+
+  if (!touched) {
+    skipped.push({ ruleId: rules[0].id, target, reason: lastSkipReason ?? 'no_base' });
+    return slot;
+  }
+  derived.push(target);
+  return { ...nextSlot, setsDetail: nextSetsDetail };
+}
+
+// ============================================================
 // Helpers
 // ============================================================
 
@@ -393,6 +616,7 @@ export function resolveSlotForWeek(
   weekOffset: number,
   isDeload: boolean,
   manualOverrides: DeltaTarget[] = [],
+  ctx?: ResolveCtx,
 ): SlotResolveResult {
   let workingSlot: MuscleSlotData = {
     ...baseSlot,
@@ -403,7 +627,34 @@ export function resolveSlotForWeek(
   const derivedFields: DeltaTarget[] = [];
   const skipped: SlotResolveResult['skipped'] = [];
 
+  // Phase 2: targets with ≥2 chainable rules are resolved by the chaining
+  // walker (needs ctx). Everything else — single-rule targets and
+  // instructions — flows through the unchanged per-rule path, so all Phase-1
+  // behavior (and its tests) is preserved byte-for-byte. Without ctx, NO target
+  // chains (the legacy path runs for all rules) — which can silently
+  // mis-resolve multi-window rules, so warn loudly in dev when that happens.
+  const counts = new Map<DeltaTarget, number>();
+  for (const r of rules) counts.set(r.target, (counts.get(r.target) ?? 0) + 1);
+  const chainedTargets = new Set<DeltaTarget>();
+  for (const [t, c] of counts) {
+    if (c < 2 || !CHAINABLE_TARGETS.has(t)) continue;
+    if (ctx) {
+      chainedTargets.add(t);
+    } else if (import.meta.env?.DEV) {
+      console.warn(
+        `[deltaEngine] multi-window chaining needs ctx — falling back, values may be wrong (target: ${t})`,
+      );
+    }
+  }
+
+  for (const t of chainedTargets) {
+    if (manualOverrides.includes(t)) continue; // override masks the write; chain not fed
+    const rulesForTarget = rules.filter((r) => r.target === t);
+    workingSlot = applyChainedTarget(workingSlot, t, rulesForTarget, weekOffset, ctx!, derivedFields, skipped);
+  }
+
   for (const rule of rules) {
+    if (chainedTargets.has(rule.target)) continue; // handled by the chaining walker
     if (manualOverrides.includes(rule.target)) {
       continue; // Manual override wins; rule does not write.
     }
