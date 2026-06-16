@@ -16,9 +16,13 @@ import { describe, it, expect } from 'vitest';
 import {
   applyRule,
   resolveSlotForWeek,
+  resolveFieldTrajectory,
+  windowsOverlap,
+  findWindowOverlap,
   createDefaultRule,
   type WeeklyDeltaRule,
   type DeltaTarget,
+  type ResolveCtx,
 } from './weeklyDeltaEngine';
 import type { MuscleSlotData } from '@/types/muscle-builder';
 import type { SetPrescription } from '@/types/workout-builder';
@@ -831,6 +835,170 @@ describe('resolveSlotForWeek — addedSetSpec', () => {
     const r = rule({ id: 's', target: 'sets', op: 'add', amount: 1 });
     const out = resolveSlotForWeek(slot, [r], 1, false);
     expect(out.slot.setsDetail![3]).toEqual({ set_number: 4, reps: 8, weight: 60 });
+  });
+});
+
+// ============================================================
+// Phase 2b — resolveFieldTrajectory chaining
+// ============================================================
+
+const noDeload = (n: number) => Array(n).fill(false);
+
+describe('resolveFieldTrajectory — chaining', () => {
+  it('two-block chaining: 3 → 4 → 5 → 6 → 8 → 10 (Block B builds on Block A)', () => {
+    const a = rule({ id: 'a', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 4 });
+    const b = rule({ id: 'b', target: 'sets', op: 'add', amount: 2, activeWeekStart: 5, activeWeekEnd: 6 });
+    expect(resolveFieldTrajectory(3, [a, b], 6, noDeload(6))).toEqual([3, 4, 5, 6, 8, 10]);
+  });
+
+  it('rule order in the array does not matter (sorted by window start)', () => {
+    const a = rule({ id: 'a', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 4 });
+    const b = rule({ id: 'b', target: 'sets', op: 'add', amount: 2, activeWeekStart: 5, activeWeekEnd: 6 });
+    expect(resolveFieldTrajectory(3, [b, a], 6, noDeload(6))).toEqual([3, 4, 5, 6, 8, 10]);
+  });
+
+  it('gap then resume: holds across the gap and resumes from the held value', () => {
+    const a = rule({ id: 'a', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 3 });
+    const b = rule({ id: 'b', target: 'sets', op: 'add', amount: 1, activeWeekStart: 5, activeWeekEnd: 6 });
+    // W4 is a gap → holds 5; W5 resumes from 5.
+    expect(resolveFieldTrajectory(3, [a, b], 6, noDeload(6))).toEqual([3, 4, 5, 5, 6, 7]);
+  });
+
+  it('open-ended last window builds on the prior block and never stops', () => {
+    const a = rule({ id: 'a', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 3 });
+    const b = rule({ id: 'b', target: 'sets', op: 'add', amount: 2, activeWeekStart: 4 }); // no end
+    expect(resolveFieldTrajectory(3, [a, b], 6, noDeload(6))).toEqual([3, 4, 5, 7, 9, 11]);
+  });
+
+  it('single open-ended rule before its start holds base, then ramps + holds-at-last not applicable', () => {
+    const a = rule({ id: 'a', target: 'sets', op: 'add', amount: 1, activeWeekStart: 4 });
+    // Dormant W2-W3 (hold base 3), ramp from W4.
+    expect(resolveFieldTrajectory(3, [a], 6, noDeload(6))).toEqual([3, 3, 3, 4, 5, 6]);
+  });
+
+  it('clamps each step (rir floor 0) while chaining', () => {
+    const a = rule({ id: 'a', target: 'rir', op: 'add', amount: -1, scope: { kind: 'all' }, activeWeekStart: 2, activeWeekEnd: 4 });
+    const b = rule({ id: 'b', target: 'rir', op: 'add', amount: -1, scope: { kind: 'all' }, activeWeekStart: 5, activeWeekEnd: 6 });
+    // 4 → 3 → 2 → 1 → 0 → 0 (floor)
+    expect(resolveFieldTrajectory(4, [a, b], 6, noDeload(6))).toEqual([4, 3, 2, 1, 0, 0]);
+  });
+
+  it('tempo digit chains as a string across windows', () => {
+    const a = rule({ id: 'a', target: 'tempo', op: 'digit_add', position: 0, amount: -1, activeWeekStart: 2, activeWeekEnd: 3 });
+    const b = rule({ id: 'b', target: 'tempo', op: 'digit_add', position: 0, amount: -1, activeWeekStart: 4, activeWeekEnd: 5 });
+    // ecc 3 → 2 → 1 → 0 → 0(clamp) → hold
+    expect(resolveFieldTrajectory('3010', [a, b], 6, noDeload(6))).toEqual(['3010', '2010', '1010', '0010', '0010', '0010']);
+  });
+});
+
+// ============================================================
+// Phase 2c — deload inside a chain (two tracks)
+// ============================================================
+
+describe('resolveFieldTrajectory — deload mid-chain', () => {
+  const base = 3;
+  const deloadAtW4 = [false, false, false, true, false, false];
+
+  it('deload=skip dips for one week; the chain continues underneath', () => {
+    const r = rule({ id: 'r', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 6, deload: 'skip' });
+    // Emitted dips to 5 at W4 (skip), but the true track went 5→6 so W5 = 7.
+    expect(resolveFieldTrajectory(base, [r], 6, deloadAtW4)).toEqual([3, 4, 5, 5, 7, 8]);
+  });
+
+  it('deload=invert reverses one week; the chain still continues from the non-deloaded value', () => {
+    const r = rule({ id: 'r', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 6, deload: 'invert' });
+    // W4 emitted = 5 + (-1) = 4 (dip); true running = 6 → W5 = 7.
+    expect(resolveFieldTrajectory(base, [r], 6, deloadAtW4)).toEqual([3, 4, 5, 4, 7, 8]);
+  });
+
+  it('deload=fixed pins the week but the chain continues from the non-deloaded value', () => {
+    const r = rule({ id: 'r', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 6, deload: 'fixed', deloadFixedValue: 2 });
+    expect(resolveFieldTrajectory(base, [r], 6, deloadAtW4)).toEqual([3, 4, 5, 2, 7, 8]);
+  });
+
+  it('deload=apply shows the stepped value (no dip), chain unaffected', () => {
+    const r = rule({ id: 'r', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 6, deload: 'apply' });
+    expect(resolveFieldTrajectory(base, [r], 6, deloadAtW4)).toEqual([3, 4, 5, 6, 7, 8]);
+  });
+
+  it('deload spanning a block boundary still carries the running value into the next block', () => {
+    const a = rule({ id: 'a', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 4, deload: 'skip' });
+    const b = rule({ id: 'b', target: 'sets', op: 'add', amount: 2, activeWeekStart: 5, activeWeekEnd: 6, deload: 'skip' });
+    // W4 deload (in block A): emitted holds 5, true running = 6; block B starts from 6 → 8, 10.
+    expect(resolveFieldTrajectory(3, [a, b], 6, deloadAtW4)).toEqual([3, 4, 5, 5, 8, 10]);
+  });
+});
+
+// ============================================================
+// Phase 2a — window overlap helpers
+// ============================================================
+
+describe('windowsOverlap / findWindowOverlap', () => {
+  const setsRule = (id: string, start?: number, end?: number): WeeklyDeltaRule =>
+    rule({ id, target: 'sets', op: 'add', amount: 1, activeWeekStart: start, activeWeekEnd: end });
+
+  it('disjoint windows do not overlap', () => {
+    expect(windowsOverlap(setsRule('a', 2, 4), setsRule('b', 5, 6))).toBe(false);
+  });
+
+  it('windows sharing a week overlap', () => {
+    expect(windowsOverlap(setsRule('a', 2, 4), setsRule('b', 4, 6))).toBe(true);
+  });
+
+  it('an open-ended window consumes the rest — any later window collides', () => {
+    expect(windowsOverlap(setsRule('a', 2), setsRule('b', 5, 6))).toBe(true);
+  });
+
+  it('findWindowOverlap returns null for disjoint same-target windows', () => {
+    expect(findWindowOverlap([setsRule('a', 2, 4), setsRule('b', 5, 6)])).toBeNull();
+  });
+
+  it('findWindowOverlap reports the colliding pair', () => {
+    expect(findWindowOverlap([setsRule('a', 2, 4), setsRule('b', 4, 6)])).toEqual({ target: 'sets', a: 'a', b: 'b' });
+  });
+
+  it('different targets never collide with each other', () => {
+    const s = setsRule('s', 2, 6);
+    const r = rule({ id: 'r', target: 'rir', op: 'add', amount: -1, scope: { kind: 'all' }, activeWeekStart: 2, activeWeekEnd: 6 });
+    expect(findWindowOverlap([s, r])).toBeNull();
+  });
+});
+
+// ============================================================
+// Phase 2 — resolveSlotForWeek multi-rule (with ctx)
+// ============================================================
+
+describe('resolveSlotForWeek — multi-rule chaining via ctx', () => {
+  const ctx: ResolveCtx = { totalWeeks: 6, isDeloadByWeek: noDeload(6) };
+  const a = rule({ id: 'a', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 4 });
+  const b = rule({ id: 'b', target: 'sets', op: 'add', amount: 2, activeWeekStart: 5, activeWeekEnd: 6 });
+
+  it('chains two sets rules to the W6 value (8 at W5, 10 at W6)', () => {
+    const slot = baseSlot({ sets: 3 });
+    expect(resolveSlotForWeek(slot, [a, b], 3, false, [], ctx).slot.sets).toBe(6); // W4
+    expect(resolveSlotForWeek(slot, [a, b], 4, false, [], ctx).slot.sets).toBe(8); // W5
+    expect(resolveSlotForWeek(slot, [a, b], 5, false, [], ctx).slot.sets).toBe(10); // W6
+  });
+
+  it('chains per-set: two rir "all" rules drive slot-level AND every setsDetail entry to 0 by W6', () => {
+    const slot = baseSlot({ rir: 4, setsDetail: setsDetailOfLength(3, { rir: 4 }) });
+    const ra = rule({ id: 'ra', target: 'rir', op: 'add', amount: -1, scope: { kind: 'all' }, activeWeekStart: 2, activeWeekEnd: 4 });
+    const rb = rule({ id: 'rb', target: 'rir', op: 'add', amount: -1, scope: { kind: 'all' }, activeWeekStart: 5, activeWeekEnd: 6 });
+    const out = resolveSlotForWeek(slot, [ra, rb], 5, false, [], ctx); // W6
+    expect(out.slot.rir).toBe(0);
+    expect(out.slot.setsDetail!.map((s) => s.rir)).toEqual([0, 0, 0]);
+    expect(out.derivedFields).toContain('rir');
+  });
+
+  it('deload mid-chain materializes the dip at the slot level, chain resumes after', () => {
+    const slot = baseSlot({ sets: 3 });
+    // Two disjoint sets rules (W2-3, W4-6) → routes through the chained walker.
+    const a2 = rule({ id: 'a2', target: 'sets', op: 'add', amount: 1, activeWeekStart: 2, activeWeekEnd: 3, deload: 'skip' });
+    const b2 = rule({ id: 'b2', target: 'sets', op: 'add', amount: 1, activeWeekStart: 4, activeWeekEnd: 6, deload: 'skip' });
+    const deloadCtx: ResolveCtx = { totalWeeks: 6, isDeloadByWeek: [false, false, false, true, false, false] };
+    // base 3: W2 4, W3 5, W4 deload-skip → emit 5 (true running 6), W5 7, W6 8.
+    expect(resolveSlotForWeek(slot, [a2, b2], 3, false, [], deloadCtx).slot.sets).toBe(5); // W4 dip
+    expect(resolveSlotForWeek(slot, [a2, b2], 4, false, [], deloadCtx).slot.sets).toBe(7); // W5 resume
   });
 });
 

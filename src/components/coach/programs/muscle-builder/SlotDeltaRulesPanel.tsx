@@ -22,6 +22,8 @@ import { cn } from "@/lib/utils";
 import { SlotDeltaRuleEditor } from "./SlotDeltaRuleEditor";
 import {
   createDefaultRule,
+  resolveFieldTrajectory,
+  windowsOverlap,
   PER_SET_PRESCRIPTION_FIELD,
   type WeeklyDeltaRule,
   type DeltaTarget,
@@ -125,18 +127,65 @@ export const SlotDeltaRulesPanel = memo(function SlotDeltaRulesPanel({
   // coach immediately sees them.
   const [isOpen, setIsOpen] = useState(rules.length > 0);
 
-  // Targets already covered by a rule — disabled in the Add menu per D12.
-  const takenTargets = useMemo(() => new Set(rules.map((r) => r.target)), [rules]);
-
+  // Phase 2a: multiple rules per target are allowed as long as their week
+  // windows don't overlap. A new rule for an already-covered target gets a
+  // default window starting after the latest existing window; if that still
+  // collides (e.g. an open-ended rule already consumes the rest), the offending
+  // rows surface an inline error and the coach adjusts the windows.
   const handleAddTarget = useCallback(
     (target: DeltaTarget) => {
-      if (takenTargets.has(target)) return; // belt-and-suspenders against D12 violation
       const next = createDefaultRule(target);
+      const existing = rules.filter((r) => r.target === target);
+      if (existing.length > 0) {
+        const maxEnd = Math.max(...existing.map((r) => r.activeWeekEnd ?? totalWeeks));
+        next.activeWeekStart = Math.min(Math.max(2, maxEnd + 1), totalWeeks);
+        next.activeWeekEnd = totalWeeks;
+      }
       onChange([...rules, next]);
       setIsOpen(true);
     },
-    [rules, takenTargets, onChange],
+    [rules, totalWeeks, onChange],
   );
+
+  // Rule ids whose window overlaps a same-target sibling → inline error rows.
+  const overlapErrorIds = useMemo(() => {
+    const ids = new Set<string>();
+    const byTarget = new Map<DeltaTarget, WeeklyDeltaRule[]>();
+    for (const r of rules) {
+      const arr = byTarget.get(r.target) ?? [];
+      arr.push(r);
+      byTarget.set(r.target, arr);
+    }
+    for (const group of byTarget.values()) {
+      for (let i = 0; i < group.length; i++) {
+        for (let j = i + 1; j < group.length; j++) {
+          if (windowsOverlap(group[i], group[j])) {
+            ids.add(group[i].id);
+            ids.add(group[j].id);
+          }
+        }
+      }
+    }
+    return ids;
+  }, [rules]);
+
+  // For targets with ≥2 rules, precompute the chained per-week trajectory so the
+  // editor rows preview the REAL chained values (not each rule in isolation).
+  const previewByTarget = useMemo(() => {
+    const out = new Map<DeltaTarget, (number | string | undefined)[]>();
+    const byTarget = new Map<DeltaTarget, WeeklyDeltaRule[]>();
+    for (const r of rules) {
+      const arr = byTarget.get(r.target) ?? [];
+      arr.push(r);
+      byTarget.set(r.target, arr);
+    }
+    for (const [target, group] of byTarget) {
+      if (group.length < 2) continue;
+      const base = resolveBaseForRule(group[0], baseValues, setsDetail);
+      out.set(target, resolveFieldTrajectory(base, group, totalWeeks, isDeloadByWeek));
+    }
+    return out;
+  }, [rules, baseValues, setsDetail, totalWeeks, isDeloadByWeek]);
 
   const handleUpdateRule = useCallback(
     (updated: WeeklyDeltaRule) => {
@@ -201,6 +250,12 @@ export const SlotDeltaRulesPanel = memo(function SlotDeltaRulesPanel({
             totalWeeks={totalWeeks}
             isDeloadByWeek={isDeloadByWeek}
             setCount={setsDetail?.length ?? (typeof baseValues.sets === "number" ? baseValues.sets : undefined)}
+            previewValues={previewByTarget.get(rule.target)}
+            overlapError={
+              overlapErrorIds.has(rule.id)
+                ? "This window overlaps another rule for the same target. Adjust the week range so they don't collide."
+                : undefined
+            }
             onChange={handleUpdateRule}
             onRemove={() => handleRemoveRule(rule.id)}
           />
@@ -224,21 +279,25 @@ export const SlotDeltaRulesPanel = memo(function SlotDeltaRulesPanel({
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" className="w-56">
             {ALL_TARGETS.map((target) => {
-              const isTaken = takenTargets.has(target);
+              // Phase 2a: a target may carry multiple (non-overlapping) rules,
+              // so "already added" no longer disables it. Instructions still
+              // needs an assigned exercise.
+              const count = rules.filter((r) => r.target === target).length;
               const isInstructionsGated = target === "instructions" && !hasExercise;
-              const disabled = isTaken || isInstructionsGated;
               return (
                 <DropdownMenuItem
                   key={target}
                   onClick={() => handleAddTarget(target)}
-                  disabled={disabled}
+                  disabled={isInstructionsGated}
                   className="text-xs"
                 >
                   <span className="flex-1">{TARGET_PICKER_LABELS[target]}</span>
-                  {isTaken && (
-                    <span className="text-[10px] text-muted-foreground ml-2">added</span>
+                  {count > 0 && !isInstructionsGated && (
+                    <span className="text-[10px] text-muted-foreground ml-2">
+                      {count} added
+                    </span>
                   )}
-                  {!isTaken && isInstructionsGated && (
+                  {isInstructionsGated && (
                     <span className="text-[10px] text-muted-foreground ml-2">
                       assign exercise first
                     </span>
