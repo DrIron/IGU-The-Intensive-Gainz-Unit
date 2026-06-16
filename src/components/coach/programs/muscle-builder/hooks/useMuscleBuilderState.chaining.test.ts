@@ -8,10 +8,16 @@
 //
 // Run: npm test -- useMuscleBuilderState.chaining
 
-import { describe, it, expect } from 'vitest';
-import { recomputeDownstreamWeeks } from './useMuscleBuilderState';
+import { describe, it, expect, vi } from 'vitest';
 import type { MusclePlanState, MuscleSlotData, WeekData } from '@/types/muscle-builder';
 import type { WeeklyDeltaRule } from '../weeklyDeltaEngine';
+
+// recomputeDownstreamWeeks is pure, but its module transitively imports the
+// Supabase client, whose createClient() throws without VITE_SUPABASE_URL (e.g.
+// in CI). Stub the client module so importing the reducer never touches env.
+vi.mock('@/integrations/supabase/client', () => ({ supabase: {} }));
+
+const { recomputeDownstreamWeeks } = await import('./useMuscleBuilderState');
 
 let idCounter = 0;
 function slot(overrides: Partial<MuscleSlotData> = {}): MuscleSlotData {
