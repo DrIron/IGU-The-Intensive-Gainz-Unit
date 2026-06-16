@@ -23,9 +23,15 @@ export interface TaxonomyNode {
 }
 export interface Muscle extends TaxonomyNode {
   primary_region_id: string;
+  /** Legacy muscle-builder slug this muscle's volume counts toward (MUSCLE_GROUPS.id).
+   *  NULL = not volume-tracked. Editable in DB (migration 20260616120000). */
+  volume_key: string | null;
 }
 export interface Subdivision extends TaxonomyNode {
   muscle_id: string;
+  /** Legacy slug this subdivision's volume counts toward (SUBDIVISIONS.id or parent
+   *  muscle slug). NULL = not volume-tracked. Editable in DB. */
+  volume_key: string | null;
 }
 
 interface LookupResult<T> {

@@ -5,6 +5,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SessionAddPicker } from "./SessionAddPicker";
+import { StrengthTaxonomyBrowse } from "./StrengthTaxonomyBrowse";
 import {
   ACTIVITY_TYPE_COLORS,
   exerciseCategoryToActivityType,
@@ -64,6 +65,14 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
   const [category, setCategory] = useState<string>(initialCategory);
   const isRoomy = variant === "roomy";
 
+  // Strength tab renders the DB taxonomy (7 regions / muscles / subdivisions) so
+  // it matches the Workout Library breakdown. Fall back to the legacy hardcoded
+  // SessionAddPicker only if the volume_key backfill migration hasn't landed yet
+  // (no muscle has a volume_key) -- avoids an empty strength tab in that window.
+  const { data: taxonomy } = useExerciseTaxonomy();
+  const strengthUsesDbTaxonomy =
+    !taxonomy || taxonomy.muscles.some((m) => m.volume_key != null);
+
   return (
     <div className={cn("space-y-2", isRoomy && "space-y-3")}>
       {/* Category tabs */}
@@ -86,18 +95,27 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
       </div>
 
       {category === "strength" ? (
-        // Reuse the muscle picker for the strength tab (region/muscle/subdivision).
-        <SessionAddPicker
-          sessionType="strength"
-          placementCounts={placementCounts}
-          recentMuscleIds={recentMuscleIds}
-          onAddMuscle={onAddMuscle}
-          // Non-strength activities are handled by the library browse below;
-          // strength never calls onAddActivity.
-          onAddActivity={() => {}}
-          variant={variant}
-          autoFocusSearch={autoFocusSearch}
-        />
+        strengthUsesDbTaxonomy ? (
+          // DB taxonomy tree (matches the Workout Library breakdown). Emits the
+          // node's volume_key (legacy slug) so volume tracking is unchanged.
+          <StrengthTaxonomyBrowse
+            placementCounts={placementCounts}
+            onAddMuscle={onAddMuscle}
+            variant={variant}
+            autoFocusSearch={autoFocusSearch}
+          />
+        ) : (
+          // Fallback: legacy hardcoded muscle picker (pre-migration only).
+          <SessionAddPicker
+            sessionType="strength"
+            placementCounts={placementCounts}
+            recentMuscleIds={recentMuscleIds}
+            onAddMuscle={onAddMuscle}
+            onAddActivity={() => {}}
+            variant={variant}
+            autoFocusSearch={autoFocusSearch}
+          />
+        )
       ) : (
         <LibraryBrowse
           category={category}

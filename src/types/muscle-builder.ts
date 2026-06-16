@@ -317,11 +317,19 @@ export const MUSCLE_GROUPS: MuscleGroupDef[] = [
   { id: 'triceps', label: 'Triceps', bodyRegion: 'push', colorClass: 'bg-amber-500', colorHex: '#f59e0b', landmarks: { MV: 4, MEV: 6, MAV: 14, MRV: 18 } },
   { id: 'rotator_cuff', label: 'Rotator Cuff', bodyRegion: 'push', colorClass: 'bg-pink-400', colorHex: '#f472b6', landmarks: { MV: 2, MEV: 4, MAV: 10, MRV: 14 } },
   { id: 'serratus', label: 'Serratus Anterior', bodyRegion: 'push', colorClass: 'bg-pink-300', colorHex: '#f9a8d4', landmarks: { MV: 2, MEV: 4, MAV: 10, MRV: 14 } },
+  // Pec Minor — added with the DB-taxonomy alignment (Phase A). Small stabilizer,
+  // trained indirectly by pressing/serratus work. Landmarks are an extrapolation
+  // (RP has no published table for it) — confirm/adjust.
+  { id: 'pec_minor', label: 'Pec Minor', bodyRegion: 'push', colorClass: 'bg-rose-400', colorHex: '#fb7185', landmarks: { MV: 0, MEV: 2, MAV: 6, MRV: 10 } },
   // Pull muscles (blue/sky/cyan/indigo/violet)
   { id: 'lats', label: 'Lats', bodyRegion: 'pull', colorClass: 'bg-blue-500', colorHex: '#3b82f6', landmarks: { MV: 6, MEV: 10, MAV: 20, MRV: 25 } },
   { id: 'upper_mid_back', label: 'Upper / Mid Back', bodyRegion: 'pull', colorClass: 'bg-sky-500', colorHex: '#0ea5e9', landmarks: { MV: 6, MEV: 8, MAV: 18, MRV: 22 } },
   { id: 'elbow_flexors', label: 'Elbow Flexors', bodyRegion: 'pull', colorClass: 'bg-indigo-500', colorHex: '#6366f1', landmarks: { MV: 4, MEV: 8, MAV: 18, MRV: 22 } },
   { id: 'forearm', label: 'Forearm', bodyRegion: 'pull', colorClass: 'bg-violet-400', colorHex: '#a78bfa', landmarks: { MV: 2, MEV: 4, MAV: 12, MRV: 16 } },
+  // Lower Back / spinal erectors — added with the DB-taxonomy alignment (Phase A).
+  // Heavy indirect load from deadlifts/squats/rows, so modest DIRECT volume.
+  // Landmarks extrapolated from the small/indirect family — confirm/adjust.
+  { id: 'lower_back', label: 'Lower Back', bodyRegion: 'pull', colorClass: 'bg-sky-600', colorHex: '#0284c7', landmarks: { MV: 2, MEV: 4, MAV: 12, MRV: 16 } },
   // Leg muscles (emerald/green/lime/teal)
   { id: 'quads', label: 'Quads', bodyRegion: 'legs', colorClass: 'bg-emerald-500', colorHex: '#10b981', landmarks: { MV: 6, MEV: 8, MAV: 18, MRV: 22 } },
   { id: 'hamstrings', label: 'Hamstrings', bodyRegion: 'legs', colorClass: 'bg-green-500', colorHex: '#22c55e', landmarks: { MV: 4, MEV: 6, MAV: 16, MRV: 20 } },
@@ -333,6 +341,9 @@ export const MUSCLE_GROUPS: MuscleGroupDef[] = [
   { id: 'tibialis', label: 'Tibialis Anterior', bodyRegion: 'legs', colorClass: 'bg-cyan-400', colorHex: '#22d3ee', landmarks: { MV: 2, MEV: 4, MAV: 8, MRV: 12 } },
   // Core (yellow)
   { id: 'core', label: 'Core', bodyRegion: 'core', colorClass: 'bg-yellow-500', colorHex: '#eab308', landmarks: { MV: 4, MEV: 6, MAV: 16, MRV: 20 } },
+  // Obliques — split out of Core by the DB taxonomy (Phase A). Scaled down from
+  // Core since direct oblique work is a subset. Landmarks extrapolated — confirm.
+  { id: 'obliques', label: 'Obliques', bodyRegion: 'core', colorClass: 'bg-yellow-600', colorHex: '#ca8a04', landmarks: { MV: 2, MEV: 4, MAV: 12, MRV: 16 } },
   { id: 'neck', label: 'Neck', bodyRegion: 'core', colorClass: 'bg-yellow-400', colorHex: '#facc15', landmarks: { MV: 2, MEV: 4, MAV: 10, MRV: 14 } },
 ];
 
