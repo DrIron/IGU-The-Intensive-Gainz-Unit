@@ -47,6 +47,20 @@ All colors MUST be HSL.
     --status-success: 142 76% 36%;
     --status-warning: 38 92% 50%;
     --status-error: 0 84% 60%;
+    /* CC4 interpretation tone tokens (distinct from billing success/warning/error):
+       on-track=green, attention=amber (e.g. "ahead"/overshooting), risk=red, neutral=slate. */
+    --status-ontrack: 142 71% 45%;
+    --status-attention: 38 92% 50%;
+    --status-risk: 0 84% 60%;
+    --status-neutral: 215 16% 47%;
+    /* Chart palette — referenced by hsl(var(--chart-N)) (WeightProgressGraph etc.) but previously undefined. */
+    --chart-1: 12 76% 61%;
+    --chart-2: 173 58% 39%;
+    --chart-3: 197 37% 24%;
+    --chart-4: 43 74% 66%;
+    --chart-5: 27 87% 67%;
+    /* --warning: raw alias used by hsl(var(--warning)) in WeightProgressGraph (was undefined). */
+    --warning: 38 92% 50%;
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -93,6 +107,18 @@ All colors MUST be HSL.
     --status-success: 142 76% 36%;
     --status-warning: 38 92% 50%;
     --status-error: 0 84% 60%;
+    /* CC4 interpretation tone tokens (dark) */
+    --status-ontrack: 142 64% 52%;
+    --status-attention: 38 92% 55%;
+    --status-risk: 0 84% 64%;
+    --status-neutral: 215 14% 60%;
+    /* Chart palette (dark) */
+    --chart-1: 220 70% 50%;
+    --chart-2: 160 60% 45%;
+    --chart-3: 30 80% 55%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 340 75% 55%;
+    --warning: 38 92% 55%;
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   }
 }

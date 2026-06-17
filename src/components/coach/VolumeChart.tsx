@@ -2,6 +2,10 @@ import { useVolumeTracking } from "@/hooks/useVolumeTracking";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, BarChart3 } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { toneClasses, type Interpretation } from "@/lib/interpret";
+import { DeltaChip } from "@/components/ui/delta-chip";
+import { Sparkline } from "@/components/ui/sparkline";
 
 interface VolumeChartProps {
   clientUserId: string;
@@ -54,16 +58,53 @@ export function VolumeChart({ clientUserId }: VolumeChartProps) {
   // Find max sets for bar width calculation
   const maxSets = Math.max(...latestWeek.muscle_groups.map((mg) => mg.total_sets));
 
+  // MetricCard-pattern summary: total sets this week + WoW delta + 4-week trend.
+  const weeklyTotals = weeklyVolume.map((w) => w.muscle_groups.reduce((s, mg) => s + mg.total_sets, 0));
+  const latestTotal = weeklyTotals[weeklyTotals.length - 1];
+  const prevTotal = weeklyTotals.length > 1 ? weeklyTotals[weeklyTotals.length - 2] : null;
+  const totalDelta = prevTotal != null ? latestTotal - prevTotal : null;
+  const interpretation: Interpretation =
+    totalDelta == null
+      ? { tone: "neutral", label: "", sentence: "First tracked week of volume." }
+      : totalDelta > 0
+        ? { tone: "on_track", label: "", sentence: `Up ${totalDelta} sets vs last week.` }
+        : totalDelta < 0
+          ? { tone: "attention", label: "", sentence: `Down ${Math.abs(totalDelta)} sets vs last week.` }
+          : { tone: "neutral", label: "", sentence: "Same total sets as last week." };
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="text-base flex items-center gap-2">
-          <BarChart3 className="h-4 w-4" />
-          Weekly Volume
-        </CardTitle>
-        <CardDescription>
-          Week of {new Date(latestWeek.week_start).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
-        </CardDescription>
+      <CardHeader className="space-y-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-base flex items-center gap-2">
+            <BarChart3 className="h-4 w-4" />
+            Weekly Volume
+          </CardTitle>
+          <CardDescription className="m-0">
+            Week of {new Date(latestWeek.week_start).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+          </CardDescription>
+        </div>
+        <div className="flex items-end justify-between gap-2">
+          <div className="flex items-baseline gap-1">
+            <span className="text-2xl font-semibold tabular-nums">{latestTotal}</span>
+            <span className="text-sm text-muted-foreground">sets</span>
+          </div>
+          {totalDelta != null && <DeltaChip value={totalDelta} tone={interpretation.tone} />}
+        </div>
+        {weeklyTotals.length >= 2 && (
+          <div className="w-24">
+            <Sparkline data={weeklyTotals} height={28} />
+          </div>
+        )}
+        {interpretation.sentence && (
+          <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+            <span
+              aria-hidden
+              className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", toneClasses(interpretation.tone).dot)}
+            />
+            {interpretation.sentence}
+          </p>
+        )}
       </CardHeader>
       <CardContent className="space-y-3">
         {latestWeek.muscle_groups.map((mg) => {
@@ -98,14 +139,6 @@ export function VolumeChart({ clientUserId }: VolumeChartProps) {
             </div>
           );
         })}
-
-        {/* Total summary */}
-        <div className="pt-2 border-t flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Total</span>
-          <span className="font-medium">
-            {latestWeek.muscle_groups.reduce((sum, mg) => sum + mg.total_sets, 0)} sets
-          </span>
-        </div>
       </CardContent>
     </Card>
   );

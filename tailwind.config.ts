@@ -5,6 +5,15 @@ export default {
   darkMode: ["class"],
   content: ["./pages/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./app/**/*.{ts,tsx}", "./src/**/*.{ts,tsx}"],
   prefix: "",
+  // toneClasses() in src/lib/interpret.ts builds these class names dynamically
+  // (`text-status-${t}`), so the JIT scanner can't find them in source. Safelist
+  // the full set of tone utilities used by DeltaChip / MetricCard.
+  safelist: [
+    "text-status-ontrack", "bg-status-ontrack", "bg-status-ontrack/10",
+    "text-status-attention", "bg-status-attention", "bg-status-attention/10",
+    "text-status-risk", "bg-status-risk", "bg-status-risk/10",
+    "text-status-neutral", "bg-status-neutral", "bg-status-neutral/10",
+  ],
   theme: {
     container: {
       center: true,
@@ -59,6 +68,16 @@ export default {
         "status-success": "hsl(var(--status-success))",
         "status-warning": "hsl(var(--status-warning))",
         "status-error": "hsl(var(--status-error))",
+        // CC4 interpretation tone tokens (consumed by toneClasses() in src/lib/interpret.ts)
+        "status-ontrack": "hsl(var(--status-ontrack))",
+        "status-attention": "hsl(var(--status-attention))",
+        "status-risk": "hsl(var(--status-risk))",
+        "status-neutral": "hsl(var(--status-neutral))",
+        "chart-1": "hsl(var(--chart-1))",
+        "chart-2": "hsl(var(--chart-2))",
+        "chart-3": "hsl(var(--chart-3))",
+        "chart-4": "hsl(var(--chart-4))",
+        "chart-5": "hsl(var(--chart-5))",
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

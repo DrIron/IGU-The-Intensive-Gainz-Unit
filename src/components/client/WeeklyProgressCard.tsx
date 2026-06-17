@@ -6,6 +6,8 @@ import { Progress } from "@/components/ui/progress";
 import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Circle, TrendingDown, TrendingUp, Minus, ChevronRight } from "lucide-react";
 import { startOfWeek, endOfWeek, format } from "date-fns";
+import { interpretWeeklyHabit, toneClasses } from "@/lib/interpret";
+import { cn } from "@/lib/utils";
 
 interface WeeklyProgressCardProps {
   userId: string;
@@ -181,6 +183,18 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
               </div>
             ))}
           </div>
+          {(() => {
+            const habit = interpretWeeklyHabit(stats.workoutsCompleted, stats.workoutsTotal, "sessions");
+            return habit.sentence ? (
+              <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
+                <span
+                  aria-hidden
+                  className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", toneClasses(habit.tone).dot)}
+                />
+                {habit.sentence}
+              </p>
+            ) : null;
+          })()}
         </div>
 
         {/* Nutrition */}

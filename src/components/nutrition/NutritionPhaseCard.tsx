@@ -6,6 +6,7 @@ import { Pencil, ArrowDown } from "lucide-react";
 import { MacroDistributionRibbon } from "./MacroDistributionRibbon";
 import { cn } from "@/lib/utils";
 import { differenceInCalendarWeeks } from "date-fns";
+import { classifyPhaseStatus, interpretPhaseStatus, toneClasses, type PhaseStatus } from "@/lib/interpret";
 
 /**
  * Hero overview card for a client's nutrition phase. Follows the
@@ -59,8 +60,6 @@ const GOAL_LABELS: Record<string, string> = {
   maintenance: "Maintenance",
 };
 
-type Status = "completed" | "on_track" | "ahead" | "behind" | "no_data";
-
 export function NutritionPhaseCard({
   phase,
   latestAverageWeight,
@@ -86,27 +85,31 @@ export function NutritionPhaseCard({
   }, [phase.start_date, phase.is_active, phase.completed_at, phase.end_date, weeksElapsed]);
 
   const goalType = phase.goal_type;
-  const status: Status = useMemo(() => {
-    // Completed takes precedence over rate-derived status. Past phases shouldn't
-    // surface on_track / behind based on the most recent in-phase delta -- the
-    // phase is over, the badge should reflect that.
-    if (phase.is_active === false) return "completed";
-    if (latestActualChangePercent == null) return "no_data";
-    const expected = phase.weekly_rate_percentage;
-    // Maintenance: "on track" if actual stayed within +-0.25% of zero.
-    if (goalType === "maintenance") {
-      return Math.abs(latestActualChangePercent) <= 0.25 ? "on_track" : "behind";
-    }
-    // For fat_loss/muscle_gain, sign matters: overshooting = "ahead", undershooting = "behind".
-    const signedExpected = goalType === "fat_loss" ? -expected : expected;
-    if (signedExpected === 0) return "on_track";
-    const deviation = ((latestActualChangePercent - signedExpected) / Math.abs(signedExpected)) * 100;
-    if (Math.abs(deviation) <= 30) return "on_track";
-    if (goalType === "fat_loss") {
-      return latestActualChangePercent < signedExpected ? "ahead" : "behind";
-    }
-    return latestActualChangePercent > signedExpected ? "ahead" : "behind";
-  }, [phase.is_active, latestActualChangePercent, goalType, phase.weekly_rate_percentage]);
+  // Status comes from the single-source classifier in src/lib/interpret.ts
+  // (extracted verbatim from this card -- see interpret.ts + NutritionPhaseCard.status.test.ts
+  // for the parity proof). Do not re-inline a second copy here.
+  const normalizedGoal = goalType as "fat_loss" | "muscle_gain" | "maintenance";
+  const status: PhaseStatus = useMemo(
+    () =>
+      classifyPhaseStatus({
+        isActive: phase.is_active !== false,
+        latestActualChangePercent: latestActualChangePercent ?? null,
+        weeklyRatePercentage: phase.weekly_rate_percentage,
+        goalType: normalizedGoal,
+      }),
+    [phase.is_active, latestActualChangePercent, normalizedGoal, phase.weekly_rate_percentage],
+  );
+
+  const interpretation = useMemo(
+    () =>
+      interpretPhaseStatus({
+        status,
+        latestActualChangePercent: latestActualChangePercent ?? null,
+        weeklyRatePercentage: phase.weekly_rate_percentage,
+        goalType: normalizedGoal,
+      }),
+    [status, latestActualChangePercent, normalizedGoal, phase.weekly_rate_percentage],
+  );
 
   const goalLabel = GOAL_LABELS[goalType] || goalType;
   const expectedLabel = phase.weekly_rate_percentage?.toFixed(2) ?? "0.00";
@@ -121,10 +124,10 @@ export function NutritionPhaseCard({
             aria-hidden
             className={cn(
               "w-1 shrink-0",
-              status === "completed" && "bg-slate-400 dark:bg-slate-500",
-              status === "on_track" && "bg-emerald-500",
-              status === "ahead" && "bg-amber-500",
-              status === "behind" && "bg-destructive",
+              status === "completed" && "bg-status-neutral",
+              status === "on_track" && "bg-status-ontrack",
+              status === "ahead" && "bg-status-attention",
+              status === "behind" && "bg-status-risk",
               status === "no_data" && "bg-muted",
             )}
           />
@@ -145,6 +148,17 @@ export function NutritionPhaseCard({
               </div>
               <StatusBadge status={status} />
             </div>
+
+            {/* CC2 plain-language interpretation of the status (single source: interpret.ts). */}
+            {interpretation.sentence && (
+              <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+                <span
+                  aria-hidden
+                  className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", toneClasses(interpretation.tone).dot)}
+                />
+                {interpretation.sentence}
+              </p>
+            )}
 
             {/* Hero numbers */}
             <div className="flex items-baseline gap-4 font-mono tabular-nums">
@@ -211,12 +225,12 @@ export function NutritionPhaseCard({
   );
 }
 
-function StatusBadge({ status }: { status: Status }) {
-  const map: Record<Status, { label: string; classes: string }> = {
-    completed: { label: "Completed", classes: "border-slate-400/50 bg-slate-400/10 text-slate-600 dark:border-slate-500/50 dark:bg-slate-500/10 dark:text-slate-300" },
-    on_track: { label: "On Track", classes: "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400" },
-    ahead: { label: "Ahead", classes: "border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-400" },
-    behind: { label: "Behind", classes: "border-destructive/40 bg-destructive/10 text-destructive" },
+function StatusBadge({ status }: { status: PhaseStatus }) {
+  const map: Record<PhaseStatus, { label: string; classes: string }> = {
+    completed: { label: "Completed", classes: "border-status-neutral/40 bg-status-neutral/10 text-status-neutral" },
+    on_track: { label: "On Track", classes: "border-status-ontrack/40 bg-status-ontrack/10 text-status-ontrack" },
+    ahead: { label: "Ahead", classes: "border-status-attention/40 bg-status-attention/10 text-status-attention" },
+    behind: { label: "Behind", classes: "border-status-risk/40 bg-status-risk/10 text-status-risk" },
     no_data: { label: "No data yet", classes: "border-muted-foreground/30 bg-muted/60 text-muted-foreground" },
   };
   const { label, classes } = map[status];

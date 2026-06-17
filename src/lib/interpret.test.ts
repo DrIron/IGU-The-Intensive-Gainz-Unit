@@ -1,0 +1,102 @@
+import { describe, it, expect } from "vitest";
+import {
+  classifyPhaseStatus,
+  interpretPhaseStatus,
+  interpretWeeklyHabit,
+  interpretCheckIns,
+  interpretWeighInRecency,
+} from "./interpret";
+
+describe("classifyPhaseStatus (fat loss, rate 0.6)", () => {
+  const base = { isActive: true, weeklyRatePercentage: 0.6, goalType: "fat_loss" as const };
+  it("on_track inside the ±30% band", () =>
+    expect(classifyPhaseStatus({ ...base, latestActualChangePercent: -0.6 })).toBe("on_track"));
+  it("ahead when losing too fast", () =>
+    expect(classifyPhaseStatus({ ...base, latestActualChangePercent: -1.2 })).toBe("ahead"));
+  it("behind when too slow", () =>
+    expect(classifyPhaseStatus({ ...base, latestActualChangePercent: -0.2 })).toBe("behind"));
+  it("no_data when null", () =>
+    expect(classifyPhaseStatus({ ...base, latestActualChangePercent: null })).toBe("no_data"));
+  it("completed when inactive", () =>
+    expect(classifyPhaseStatus({ ...base, isActive: false, latestActualChangePercent: -0.6 })).toBe("completed"));
+});
+
+describe("classifyPhaseStatus (muscle gain + maintenance)", () => {
+  it("muscle_gain ahead when gaining too fast", () =>
+    expect(
+      classifyPhaseStatus({ isActive: true, weeklyRatePercentage: 0.5, goalType: "muscle_gain", latestActualChangePercent: 1.0 }),
+    ).toBe("ahead"));
+  it("muscle_gain behind when gaining too slow", () =>
+    expect(
+      classifyPhaseStatus({ isActive: true, weeklyRatePercentage: 0.5, goalType: "muscle_gain", latestActualChangePercent: 0.1 }),
+    ).toBe("behind"));
+  it("maintenance on_track within ±0.25%", () =>
+    expect(
+      classifyPhaseStatus({ isActive: true, weeklyRatePercentage: 0, goalType: "maintenance", latestActualChangePercent: -0.2 }),
+    ).toBe("on_track"));
+  it("maintenance behind when drifting", () =>
+    expect(
+      classifyPhaseStatus({ isActive: true, weeklyRatePercentage: 0, goalType: "maintenance", latestActualChangePercent: 0.5 }),
+    ).toBe("behind"));
+});
+
+describe("interpretPhaseStatus tone mapping", () => {
+  const args = { latestActualChangePercent: -1.2, weeklyRatePercentage: 0.6, goalType: "fat_loss" as const };
+  it("ahead → attention tone", () =>
+    expect(interpretPhaseStatus({ ...args, status: "ahead" }).tone).toBe("attention"));
+  it("behind → risk tone", () =>
+    expect(interpretPhaseStatus({ ...args, status: "behind" }).tone).toBe("risk"));
+  it("on_track → on_track tone + sentence", () => {
+    const r = interpretPhaseStatus({ ...args, status: "on_track", latestActualChangePercent: -0.6 });
+    expect(r.tone).toBe("on_track");
+    expect(r.sentence).toContain("target band");
+  });
+});
+
+describe("interpretPhaseStatus direction follows the ACTUAL sign, not the goal", () => {
+  it("fat-loss client who GAINED reads 'up', never 'Losing'", () => {
+    const r = interpretPhaseStatus({
+      status: "behind",
+      latestActualChangePercent: 20.94,
+      weeklyRatePercentage: 0.75,
+      goalType: "fat_loss",
+    });
+    expect(r.sentence).toContain("up 20.9%/wk");
+    expect(r.sentence.toLowerCase()).not.toContain("losing");
+    expect(r.sentence).toContain("0.75%"); // target matches the card's strip, not 0.8
+  });
+  it("fat-loss losing slowly reads 'down'", () => {
+    const r = interpretPhaseStatus({
+      status: "behind",
+      latestActualChangePercent: -0.2,
+      weeklyRatePercentage: 0.6,
+      goalType: "fat_loss",
+    });
+    expect(r.sentence).toContain("down 0.2%/wk");
+  });
+  it("near-zero change reads 'flat'", () => {
+    const r = interpretPhaseStatus({
+      status: "on_track",
+      latestActualChangePercent: 0.02,
+      weeklyRatePercentage: 0.6,
+      goalType: "fat_loss",
+    });
+    expect(r.sentence).toContain("flat");
+  });
+});
+
+describe("coach signals", () => {
+  it("overdue check-in is risk", () => expect(interpretCheckIns(3, 9).tone).toBe("risk"));
+  it("recently-due check-in is attention", () => expect(interpretCheckIns(1, 2).tone).toBe("attention"));
+  it("no check-ins is on_track", () => expect(interpretCheckIns(0, null).tone).toBe("on_track"));
+  it("7d+ since weigh-in drifts", () => expect(interpretWeighInRecency(8).label).toBe("Drifting"));
+  it("4-6d since weigh-in slows", () => expect(interpretWeighInRecency(5).tone).toBe("attention"));
+  it("null weigh-in is neutral", () => expect(interpretWeighInRecency(null).tone).toBe("neutral"));
+});
+
+describe("interpretWeeklyHabit", () => {
+  it("complete is on_track", () => expect(interpretWeeklyHabit(3, 3, "weigh-ins").tone).toBe("on_track"));
+  it("none started is attention", () => expect(interpretWeeklyHabit(0, 3, "weigh-ins").label).toBe("Not started"));
+  it("partial shows remaining", () =>
+    expect(interpretWeeklyHabit(1, 3, "weigh-ins").sentence).toContain("2 to go"));
+});

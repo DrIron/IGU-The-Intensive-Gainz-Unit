@@ -4,10 +4,12 @@ import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ClickableCard } from "@/components/ui/clickable-card";
-import { Loader2, Users2, ChevronRight, Award, Dumbbell, TrendingUp } from "lucide-react";
+import { Loader2, Users2, ChevronRight, Award, Dumbbell, TrendingUp, ClipboardCheck, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { startOfIguWeek } from "@/lib/weekUtils";
 import { cn } from "@/lib/utils";
+import { MetricCard } from "@/components/ui/metric-card";
+import { interpretCheckIns, type Interpretation, type Tone } from "@/lib/interpret";
 
 import { EnhancedCapacityCard } from "./EnhancedCapacityCard";
 import { CoachTodaysTasks } from "./CoachTodaysTasks";
@@ -26,6 +28,8 @@ interface DashboardMetrics {
   pendingApprovals: number;
   checkInsDue: number;
   checkInsDueToday: number;
+  /** Worst overdue gap (days) across due check-ins; drives the risk tone. */
+  mostOverdueCheckInDays: number;
   inactiveFor14Days: number;
   programsCreated: number;
   workoutsThisWeek: number;
@@ -41,6 +45,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
     pendingApprovals: 0,
     checkInsDue: 0,
     checkInsDueToday: 0,
+    mostOverdueCheckInDays: 0,
     inactiveFor14Days: 0,
     programsCreated: 0,
     workoutsThisWeek: 0,
@@ -133,6 +138,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
       let checkInsDue = 0;
       let checkInsDueToday = 0;
       let inactiveFor14Days = 0;
+      let mostOverdueCheckInDays = 0;
 
       if (nutritionPhases && nutritionPhases.length > 0) {
         const phaseIds = nutritionPhases.map(p => p.id);
@@ -154,14 +160,21 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
         for (const phase of nutritionPhases) {
           const latest = latestLogByPhase.get(phase.id);
           if (!latest) {
+            // Never-logged active phase: counts as due (unchanged). Use updated_at
+            // as the overdue proxy for the display number only -- doesn't affect counts.
             checkInsDue++;
             inactiveFor14Days++;
+            const proxyDays = phase.updated_at
+              ? Math.floor((now - new Date(phase.updated_at).getTime()) / 86_400_000)
+              : 0;
+            mostOverdueCheckInDays = Math.max(mostOverdueCheckInDays, proxyDays);
             continue;
           }
           const daysSinceLog = Math.floor((now - new Date(latest).getTime()) / 86_400_000);
           if (daysSinceLog >= 7) {
             checkInsDue++;
             if (daysSinceLog === 7) checkInsDueToday++;
+            mostOverdueCheckInDays = Math.max(mostOverdueCheckInDays, daysSinceLog);
           }
           if (daysSinceLog >= 14) inactiveFor14Days++;
         }
@@ -220,6 +233,7 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
         pendingApprovals,
         checkInsDue,
         checkInsDueToday,
+        mostOverdueCheckInDays,
         inactiveFor14Days,
         programsCreated: programsCreated || 0,
         workoutsThisWeek,
@@ -399,56 +413,92 @@ interface CoachOverviewStatsProps {
   onNavigate: (section: string, filter?: string) => void;
 }
 
+// Tone severity for CO1: float the most urgent interpreted metric to the top.
+const TONE_SEVERITY: Record<Tone, number> = { risk: 3, attention: 2, on_track: 1, neutral: 0 };
+
 const CoachOverviewStats = memo(function CoachOverviewStats({ metrics, onNavigate }: CoachOverviewStatsProps) {
-  const stats = [
+  // Each metric carries a CC2 interpretation. Sentences are derived from the
+  // real counts (no fabricated week-over-week deltas -- there is no historical
+  // snapshot to compare against, so no DeltaChip here).
+  const cards: Array<{
+    key: string;
+    label: string;
+    value: number;
+    icon: LucideIcon;
+    interpretation: Interpretation;
+    onClick: () => void;
+  }> = [
     {
+      key: "checkins",
+      label: "Check-ins Due",
+      value: metrics.checkInsDue,
+      icon: ClipboardCheck,
+      interpretation: interpretCheckIns(metrics.checkInsDue, metrics.mostOverdueCheckInDays || null),
+      onClick: () => onNavigate("clients"),
+    },
+    {
+      key: "active",
       label: "Active Clients",
       value: metrics.activeClients,
       icon: Users2,
-      color: "text-blue-600 bg-blue-100 dark:bg-blue-900/50",
+      interpretation:
+        metrics.activeClients > 0
+          ? {
+              tone: "on_track",
+              label: "",
+              sentence: `${metrics.activeClients} of ${metrics.totalClients} client${metrics.totalClients !== 1 ? "s" : ""} active.`,
+            }
+          : {
+              tone: "neutral",
+              label: "",
+              sentence: metrics.totalClients > 0 ? `No active clients yet (${metrics.totalClients} assigned).` : "No clients assigned yet.",
+            },
       onClick: () => onNavigate("clients", "active"),
     },
     {
-      label: "Programs Created",
-      value: metrics.programsCreated,
-      icon: Dumbbell,
-      color: "text-purple-600 bg-purple-100 dark:bg-purple-900/50",
-      onClick: () => onNavigate("programs"),
-    },
-    {
+      key: "workouts",
       label: "Workouts This Week",
       value: metrics.workoutsThisWeek,
       icon: TrendingUp,
-      color: "text-green-600 bg-green-100 dark:bg-green-900/50",
+      interpretation:
+        metrics.workoutsThisWeek > 0
+          ? { tone: "on_track", label: "", sentence: "Sessions completed across your roster this week." }
+          : { tone: "neutral", label: "", sentence: "No sessions logged yet this week." },
       onClick: () => onNavigate("clients"),
+    },
+    {
+      key: "programs",
+      label: "Programs Created",
+      value: metrics.programsCreated,
+      icon: Dumbbell,
+      interpretation: {
+        tone: "neutral",
+        label: "",
+        sentence: `${metrics.programsCreated} program template${metrics.programsCreated !== 1 ? "s" : ""} in your library.`,
+      },
+      onClick: () => onNavigate("programs"),
     },
   ];
 
+  // CO1: sort is stable, so equal-tone cards keep their declared order while the
+  // highest-tone (most urgent) card floats to the front.
+  const ordered = [...cards].sort(
+    (a, b) => TONE_SEVERITY[b.interpretation.tone] - TONE_SEVERITY[a.interpretation.tone],
+  );
+
   return (
-    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-      {stats.map((stat) => (
-        <ClickableCard
-          key={stat.label}
-          ariaLabel={`${stat.label}: ${stat.value}`}
-          onClick={stat.onClick}
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {ordered.map((c) => (
+        <MetricCard
+          key={c.key}
+          label={c.label}
+          value={c.value}
+          icon={c.icon}
+          interpretation={c.interpretation}
+          onClick={c.onClick}
+          ariaLabel={`${c.label}: ${c.value}. ${c.interpretation.sentence}`}
           className="h-full"
-        >
-          {/* shadcn CardContent ships `pt-0 md:pt-0` so content sits flush
-              under a CardHeader -- without one (these are header-less stat
-              tiles) that becomes "glued to the top". Using `p-4 md:p-6`
-              (the same all-sides shape) lets tailwind-merge actually drop
-              the pt-0 override, and h-full + items-center then centers the
-              row inside a stretched card. */}
-          <CardContent className="h-full p-4 md:p-6 flex items-center gap-4">
-            <div className={`inline-flex items-center justify-center p-2.5 rounded-lg ${stat.color} shrink-0`}>
-              <stat.icon className="h-5 w-5" aria-hidden="true" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-2xl font-bold tabular-nums leading-tight">{stat.value}</p>
-              <p className="text-sm text-muted-foreground">{stat.label}</p>
-            </div>
-          </CardContent>
-        </ClickableCard>
+        />
       ))}
     </div>
   );

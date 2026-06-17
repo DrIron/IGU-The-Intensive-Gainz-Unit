@@ -317,7 +317,11 @@ export default function ClientNutrition() {
 
               <TabsContent value="history" className="mt-4 space-y-6">
                 {weightLogs.length > 0 ? (
-                  <WeightProgressGraph phase={activePhase} weightLogs={weightLogs} />
+                  <WeightProgressGraph
+                    phase={activePhase}
+                    weightLogs={weightLogs}
+                    latestActualChangePercent={latestActualChangePercent}
+                  />
                 ) : (
                   <Card>
                     <CardContent className="pt-6 text-center text-sm text-muted-foreground">
