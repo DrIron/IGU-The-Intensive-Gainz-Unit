@@ -137,7 +137,8 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           status,
           start_date,
           next_billing_date,
-          service_id
+          service_id,
+          payment_failed_at
         `)
         .eq("coach_id", coachUserId);
 
@@ -150,7 +151,8 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
               status,
               start_date,
               next_billing_date,
-              service_id
+              service_id,
+              payment_failed_at
             `)
             .in("team_id", teamIds)
         : Promise.resolve({ data: [], error: null });
@@ -242,7 +244,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           first_name: profile?.first_name || null,
           profile_status: profile?.status || null,
           payment_deadline: profile?.payment_deadline || null,
-          payment_failed_at: null,
+          payment_failed_at: sub.payment_failed_at,
           subscription_id: sub.id,
           subscription_status: sub.status,
           service_name: service?.name ?? null,

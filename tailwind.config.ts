@@ -7,12 +7,13 @@ export default {
   prefix: "",
   // toneClasses() in src/lib/interpret.ts builds these class names dynamically
   // (`text-status-${t}`), so the JIT scanner can't find them in source. Safelist
-  // the full set of tone utilities used by DeltaChip / MetricCard.
+  // the full set of tone utilities used by DeltaChip / MetricCard, plus the
+  // /5 /15 /20 background-tint variants the coach-roster triage rows use.
   safelist: [
-    "text-status-ontrack", "bg-status-ontrack", "bg-status-ontrack/10",
-    "text-status-attention", "bg-status-attention", "bg-status-attention/10",
-    "text-status-risk", "bg-status-risk", "bg-status-risk/10",
-    "text-status-neutral", "bg-status-neutral", "bg-status-neutral/10",
+    "text-status-ontrack", "bg-status-ontrack", "bg-status-ontrack/5", "bg-status-ontrack/10", "bg-status-ontrack/15", "bg-status-ontrack/20",
+    "text-status-attention", "bg-status-attention", "bg-status-attention/5", "bg-status-attention/10", "bg-status-attention/15", "bg-status-attention/20",
+    "text-status-risk", "bg-status-risk", "bg-status-risk/5", "bg-status-risk/10", "bg-status-risk/15", "bg-status-risk/20",
+    "text-status-neutral", "bg-status-neutral", "bg-status-neutral/5", "bg-status-neutral/10", "bg-status-neutral/15", "bg-status-neutral/20",
   ],
   theme: {
     container: {
