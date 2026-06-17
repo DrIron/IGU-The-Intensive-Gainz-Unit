@@ -438,7 +438,10 @@ export function ExercisePickerDialog({
     </div>
   );
 
-  const listHeightClass = isMobile ? "flex-1 min-h-0" : "h-[400px]";
+  // Both mobile and desktop bound the list to the available flex space and let
+  // only the results region scroll -- a fixed desktop height overflowed
+  // max-h-[80vh] on laptop viewports and pushed the footer out of bounds.
+  const listHeightClass = "flex-1 min-h-0";
 
   const listArea = (
     <DrawerScrollArea className={`${listHeightClass} border rounded-md`}>
@@ -554,7 +557,7 @@ export function ExercisePickerDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[80vh]">
+      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col overflow-hidden">
         <DialogHeader>
           <DialogTitle>{multiSelect ? "Add Replacements" : "Add Exercise"}</DialogTitle>
           <DialogDescription>
@@ -564,9 +567,13 @@ export function ExercisePickerDialog({
           </DialogDescription>
         </DialogHeader>
 
-        {body}
-        {listArea}
-        {footer}
+        {/* Bounded flex column: filters stay pinned, only the results list scrolls
+            (mirrors the mobile drawer structure). */}
+        <div className="flex flex-col flex-1 min-h-0 gap-4 overflow-hidden">
+          {body}
+          {listArea}
+          {footer}
+        </div>
       </DialogContent>
     </Dialog>
   );

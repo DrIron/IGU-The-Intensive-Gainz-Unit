@@ -14,7 +14,6 @@
 
 import { memo, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Dialog,
   DialogContent,
@@ -273,7 +272,7 @@ export const ProgressionRulesSheet = memo(function ProgressionRulesSheet({
         </DialogHeader>
         <div className="flex flex-col flex-1 min-h-0 gap-3">
           {blanketHeader}
-          <ScrollArea className="flex-1 min-h-0 -mx-1 px-1">{list}</ScrollArea>
+          <DrawerScrollArea className="flex-1 min-h-0 -mx-1 px-1">{list}</DrawerScrollArea>
         </div>
       </DialogContent>
     </Dialog>
