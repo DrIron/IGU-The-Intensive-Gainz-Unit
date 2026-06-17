@@ -58,6 +58,7 @@ export default function DietitianMyClientsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [planFilter, setPlanFilter] = useState<string>("all");
+  const [sortBy, setSortBy] = useState<"at_risk" | "name">("at_risk");
   const hasFetched = useRef<string | null>(null);
 
   // Unread message badges (shared RPC, RLS-gated to care_team_assignments).
@@ -300,12 +301,16 @@ export default function DietitianMyClientsPage() {
   // urgent) first, then most pending adjustments, then name.
   const weighInUrgency = (c: DietitianClient) => c.daysSinceLastWeighIn ?? Number.POSITIVE_INFINITY;
   for (const key of Object.keys(sections) as SectionKey[]) {
-    sections[key].sort(
-      (a, b) =>
-        weighInUrgency(b) - weighInUrgency(a) ||
-        b.pendingAdjustments - a.pendingAdjustments ||
-        a.displayName.localeCompare(b.displayName),
-    );
+    if (sortBy === "name") {
+      sections[key].sort((a, b) => a.displayName.localeCompare(b.displayName));
+    } else {
+      sections[key].sort(
+        (a, b) =>
+          weighInUrgency(b) - weighInUrgency(a) ||
+          b.pendingAdjustments - a.pendingAdjustments ||
+          a.displayName.localeCompare(b.displayName),
+      );
+    }
   }
 
   const uniquePlans = Array.from(new Set(clients.map(c => c.serviceName).filter(Boolean) as string[]));
@@ -351,6 +356,15 @@ export default function DietitianMyClientsPage() {
               {uniquePlans.map(plan => (
                 <SelectItem key={plan} value={plan}>{plan}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={sortBy} onValueChange={(v) => setSortBy(v as "at_risk" | "name")}>
+            <SelectTrigger className="w-40" aria-label="Sort clients">
+              <SelectValue placeholder="Sort" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="at_risk">At risk first</SelectItem>
+              <SelectItem value="name">Name (A–Z)</SelectItem>
             </SelectContent>
           </Select>
         </div>

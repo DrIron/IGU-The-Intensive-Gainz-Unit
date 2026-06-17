@@ -86,6 +86,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   
   // Filter state
   const [planFilter, setPlanFilter] = useState<string>('all');
+  const [sortBy, setSortBy] = useState<'at_risk' | 'name'>('at_risk');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Nutrition dialog
@@ -376,8 +377,15 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
       });
     }
 
-    // At-risk-first: surface the most urgent rows at the top of each section.
-    return filtered.slice().sort(byRosterUrgency(trainingToneFor, getClientDisplayName));
+    // Sort: At-risk-first (default) surfaces the most urgent rows at the top of
+    // each section; Name is a plain A–Z alphabetical.
+    const sorted = filtered.slice();
+    if (sortBy === 'name') {
+      sorted.sort((a, b) => getClientDisplayName(a).localeCompare(getClientDisplayName(b)));
+    } else {
+      sorted.sort(byRosterUrgency(trainingToneFor, getClientDisplayName));
+    }
+    return sorted;
   };
 
   const getClientDisplayName = (client: CoachClient): string => {
@@ -930,6 +938,15 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                   {uniquePlans.map(plan => (
                     <SelectItem key={plan} value={plan!}>{plan}</SelectItem>
                   ))}
+                </SelectContent>
+              </Select>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'at_risk' | 'name')}>
+                <SelectTrigger className="w-40" aria-label="Sort clients">
+                  <SelectValue placeholder="Sort" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="at_risk">At risk first</SelectItem>
+                  <SelectItem value="name">Name (A–Z)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
