@@ -12,6 +12,8 @@ import {
 } from "@/components/ui/sidebar";
 import { getCoachNavItems } from "@/lib/routeConfig";
 import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
+import { useCoachRosterAttention } from "@/hooks/useCoachRosterAttention";
+import { Badge } from "@/components/ui/badge";
 import { GraduationCap, Salad, UserCog } from "lucide-react";
 
 interface CoachSidebarProps {
@@ -58,6 +60,9 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
   const navigate = useNavigate();
   const location = useLocation();
   const { isDietitian } = useSubrolePermissions();
+  // Single source for the roster-attention headline (RO1/CO5) — same RPC the
+  // dashboard/roster read; the "My Clients" item carries the count.
+  const { attention } = useCoachRosterAttention();
 
   // Inject the dietitian-only "Nutrition clients" entry just after "My Clients"
   // when the viewer has an approved dietitian subrole. Sorted by navOrder so
@@ -148,9 +153,10 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
                   {groupItems.map((item) => {
                     const Icon = item.icon;
                     const isActive = getIsActive(item);
+                    const attentionCount = item.id === "coach-clients" ? attention.total : 0;
 
                     return (
-                      <SidebarMenuItem key={item.id}>
+                      <SidebarMenuItem key={item.id} className="relative">
                         <SidebarMenuButton
                           onClick={() => handleNavigation(item.path)}
                           className={isActive ? "bg-primary/10 text-primary font-medium" : ""}
@@ -158,7 +164,22 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
                         >
                           {Icon && <Icon className="h-4 w-4" />}
                           {!collapsed && <span>{item.label}</span>}
+                          {!collapsed && attentionCount > 0 && (
+                            <Badge
+                              variant="destructive"
+                              className="ml-auto h-5 min-w-5 justify-center px-1.5 text-[10px] tabular-nums"
+                              aria-label={`${attentionCount} clients need attention`}
+                            >
+                              {attentionCount > 99 ? "99+" : attentionCount}
+                            </Badge>
+                          )}
                         </SidebarMenuButton>
+                        {collapsed && attentionCount > 0 && (
+                          <span
+                            className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-destructive"
+                            aria-label={`${attentionCount} clients need attention`}
+                          />
+                        )}
                       </SidebarMenuItem>
                     );
                   })}

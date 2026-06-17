@@ -8024,6 +8024,7 @@ export type Database = {
         }[]
       }
       get_coach_for_client: { Args: { p_coach_user_id: string }; Returns: Json }
+      get_coach_roster_attention: { Args: never; Returns: Json }
       get_coaches_for_subscription_addons: {
         Args: { p_subscription_id: string }
         Returns: Json
