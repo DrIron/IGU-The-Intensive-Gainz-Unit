@@ -15,6 +15,9 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useStaffUnreadCounts } from "@/hooks/useStaffUnreadCounts";
 import { useCoachDeloadRequestCounts } from "@/hooks/useCoachDeloadRequests";
+import { cn } from "@/lib/utils";
+import { toneClasses } from "@/lib/interpret";
+import { rosterTone, byRosterUrgency } from "@/lib/rosterTone";
 import {
   Users, Search, Eye, Activity, AlertCircle, TrendingUp, TrendingDown,
   Dumbbell, Library, MoreVertical, MessageSquare, ArrowRight,
@@ -348,14 +351,23 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
     c.payment_failed_at !== null
   );
 
+  // Per-row triage tone (RO1/CO5 §2c) from the row's existing fields.
+  const trainingToneFor = (c: CoachClient) =>
+    rosterTone({
+      profileStatus: c.profile_status,
+      subscriptionStatus: c.subscription_status,
+      paymentFailedAt: c.payment_failed_at,
+      daysSinceCheckIn: c.days_since_check_in,
+    });
+
   // Apply search and plan filters to all sections
   const applyFilters = (list: CoachClient[]) => {
     let filtered = list;
-    
+
     if (planFilter !== 'all') {
       filtered = filtered.filter(c => c.service_name === planFilter);
     }
-    
+
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
       filtered = filtered.filter(c => {
@@ -363,8 +375,9 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
         return name.includes(query);
       });
     }
-    
-    return filtered;
+
+    // At-risk-first: surface the most urgent rows at the top of each section.
+    return filtered.slice().sort(byRosterUrgency(trainingToneFor, getClientDisplayName));
   };
 
   const getClientDisplayName = (client: CoachClient): string => {
@@ -378,10 +391,10 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
       return <Badge variant="default">Active</Badge>;
     }
     if (profileStatus === 'pending_coach_approval') {
-      return <Badge className="bg-amber-500 hover:bg-amber-600">Pending Approval</Badge>;
+      return <Badge variant="outline" className="border-status-attention/40 bg-status-attention/10 text-status-attention">Pending Approval</Badge>;
     }
     if (profileStatus === 'pending_payment') {
-      return <Badge className="bg-blue-500 hover:bg-blue-600">Pending Payment</Badge>;
+      return <Badge variant="outline" className="border-status-attention/40 bg-status-attention/10 text-status-attention">Pending Payment</Badge>;
     }
     if (subStatus === 'cancelled' || profileStatus === 'cancelled') {
       return <Badge variant="outline">Cancelled</Badge>;
@@ -394,15 +407,15 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
 
   const getProgressBadge = (daysSinceCheckIn: number | null) => {
     if (daysSinceCheckIn === null) {
-      return <span className="text-muted-foreground text-xs">No data</span>;
+      return <span className="text-muted-foreground text-xs">No check-in</span>;
     }
     if (daysSinceCheckIn <= 3) {
-      return <Badge variant="default" className="gap-1 bg-green-500"><TrendingUp className="h-3 w-3" /> On track</Badge>;
+      return <Badge variant="outline" className="gap-1 border-status-ontrack/40 bg-status-ontrack/10 text-status-ontrack"><TrendingUp className="h-3 w-3" /> On track</Badge>;
     }
-    if (daysSinceCheckIn <= 7) {
-      return <Badge variant="secondary">Due soon</Badge>;
+    if (daysSinceCheckIn <= 6) {
+      return <Badge variant="outline" className="gap-1 border-status-attention/40 bg-status-attention/10 text-status-attention">{daysSinceCheckIn}d quiet</Badge>;
     }
-    return <Badge variant="destructive" className="gap-1"><TrendingDown className="h-3 w-3" /> Needs attention</Badge>;
+    return <Badge variant="outline" className="gap-1 border-status-risk/40 bg-status-risk/10 text-status-risk"><TrendingDown className="h-3 w-3" /> {daysSinceCheckIn}d quiet</Badge>;
   };
 
   // ========== APPROVAL HANDLERS ==========
@@ -602,27 +615,29 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
     const page = sectionPages[sectionKey] || 1;
     const { paginate } = createPagination(filteredClients, CLIENTS_PER_PAGE);
     const { paginatedItems: pageClients, totalPages, totalItems, pageSize } = paginate(page);
+    // Status sections use --status-* tokens; blue (Awaiting Payment) is a
+    // distinct info cue, not one of the four triage tones, so it stays as-is.
     const variantStyles = {
-      amber: 'border-amber-500/20 bg-amber-500/5',
+      amber: 'border-status-attention/20 bg-status-attention/5',
       blue: 'border-blue-500/20 bg-blue-500/5',
-      green: 'border-emerald-500/20 bg-emerald-500/5',
-      red: 'border-red-500/20 bg-red-500/5',
+      green: 'border-status-ontrack/20 bg-status-ontrack/5',
+      red: 'border-status-risk/20 bg-status-risk/5',
       default: ''
     };
 
     const iconStyles = {
-      amber: 'text-amber-400',
+      amber: 'text-status-attention',
       blue: 'text-blue-400',
-      green: 'text-emerald-400',
-      red: 'text-red-400',
+      green: 'text-status-ontrack',
+      red: 'text-status-risk',
       default: 'text-muted-foreground'
     };
 
     const badgeStyles = {
-      amber: 'bg-amber-500/15 text-amber-400 border-amber-500/20',
+      amber: 'bg-status-attention/15 text-status-attention border-status-attention/20',
       blue: 'bg-blue-500/15 text-blue-400 border-blue-500/20',
-      green: 'bg-emerald-500/15 text-emerald-400 border-emerald-500/20',
-      red: 'bg-red-500/15 text-red-400 border-red-500/20',
+      green: 'bg-status-ontrack/15 text-status-ontrack border-status-ontrack/20',
+      red: 'bg-status-risk/15 text-status-risk border-status-risk/20',
       default: ''
     };
 
@@ -675,6 +690,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
             <div className="space-y-3">
               {pageClients.map((client) => {
                 const isProcessing = processingApproval === client.id || processingDecline === client.id;
+                const tone = trainingToneFor(client);
                 const handleRowClick = () => {
                   if (onViewClient) {
                     onViewClient(client.id);
@@ -688,7 +704,10 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                     key={client.id}
                     ariaLabel={`Open ${getClientDisplayName(client)}'s profile`}
                     onClick={handleRowClick}
-                    className="flex items-center justify-between p-3 rounded-lg shadow-none"
+                    className={cn(
+                      "flex items-center justify-between p-3 rounded-lg shadow-none border-l-4",
+                      toneClasses(tone).rail,
+                    )}
                   >
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -697,6 +716,10 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                           <Badge variant="outline" className="text-xs shrink-0">
                             {client.service_name}
                           </Badge>
+                        )}
+                        {/* Drift chip — surfaces the previously-dropped check-in recency signal. */}
+                        {client.days_since_check_in !== null && (
+                          <span className="shrink-0">{getProgressBadge(client.days_since_check_in)}</span>
                         )}
                         {unreadCounts[client.id] > 0 && (
                           <Badge

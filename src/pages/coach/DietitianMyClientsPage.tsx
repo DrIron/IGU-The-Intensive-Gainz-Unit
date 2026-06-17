@@ -14,6 +14,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { EmptyState } from "@/components/ui/empty-state";
 import { RoleBreadcrumb } from "@/components/coach/RoleBreadcrumb";
+import { cn } from "@/lib/utils";
+import { toneClasses, type Tone } from "@/lib/interpret";
 
 interface DietitianClient {
   id: string;
@@ -294,6 +296,18 @@ export default function DietitianMyClientsPage() {
     sections[sectionFor(c)].push(c);
   }
 
+  // At-risk-first within each bucket: most-overdue weigh-in (null = never, most
+  // urgent) first, then most pending adjustments, then name.
+  const weighInUrgency = (c: DietitianClient) => c.daysSinceLastWeighIn ?? Number.POSITIVE_INFINITY;
+  for (const key of Object.keys(sections) as SectionKey[]) {
+    sections[key].sort(
+      (a, b) =>
+        weighInUrgency(b) - weighInUrgency(a) ||
+        b.pendingAdjustments - a.pendingAdjustments ||
+        a.displayName.localeCompare(b.displayName),
+    );
+  }
+
   const uniquePlans = Array.from(new Set(clients.map(c => c.serviceName).filter(Boolean) as string[]));
 
   const openClient = useCallback(
@@ -412,25 +426,34 @@ interface SectionBlockProps {
   onRowClick: (clientId: string) => void;
 }
 
+// Section variant -> triage Tone (nutritionTone). Single source: the row's
+// section (from sectionFor) drives both the section chrome and the per-row rail.
+const VARIANT_TONE: Record<SectionVariant, Tone> = {
+  amber: "attention",
+  green: "on_track",
+  red: "risk",
+  muted: "neutral",
+};
+
 function SectionBlock({ title, icon: Icon, variant, emptyText, clients, unreadCounts, onRowClick }: SectionBlockProps) {
+  const tone = VARIANT_TONE[variant];
+  // Literal token classes (JIT-scannable) — migrated off ad-hoc amber/emerald/red-500.
   const cardClass = {
-    amber: "border-amber-500/20 bg-amber-500/5",
-    green: "border-emerald-500/20 bg-emerald-500/5",
-    red: "border-red-500/20 bg-red-500/5",
+    amber: "border-status-attention/20 bg-status-attention/5",
+    green: "border-status-ontrack/20 bg-status-ontrack/5",
+    red: "border-status-risk/20 bg-status-risk/5",
     muted: "",
   }[variant];
-
   const iconClass = {
-    amber: "text-amber-400",
-    green: "text-emerald-400",
-    red: "text-red-400",
+    amber: "text-status-attention",
+    green: "text-status-ontrack",
+    red: "text-status-risk",
     muted: "text-muted-foreground",
   }[variant];
-
   const badgeClass = {
-    amber: "bg-amber-500/15 text-amber-400 border-amber-500/20",
-    green: "bg-emerald-500/15 text-emerald-400 border-emerald-500/20",
-    red: "bg-red-500/15 text-red-400 border-red-500/20",
+    amber: "bg-status-attention/15 text-status-attention border-status-attention/20",
+    green: "bg-status-ontrack/15 text-status-ontrack border-status-ontrack/20",
+    red: "bg-status-risk/15 text-status-risk border-status-risk/20",
     muted: "",
   }[variant];
 
@@ -456,6 +479,7 @@ function SectionBlock({ title, icon: Icon, variant, emptyText, clients, unreadCo
               <ClientRow
                 key={client.id}
                 client={client}
+                tone={tone}
                 unread={unreadCounts[client.id] ?? 0}
                 onClick={() => onRowClick(client.id)}
               />
@@ -475,11 +499,12 @@ const GOAL_LABEL: Record<string, string> = {
 
 interface ClientRowProps {
   client: DietitianClient;
+  tone: Tone;
   unread: number;
   onClick: () => void;
 }
 
-function ClientRow({ client, unread, onClick }: ClientRowProps) {
+function ClientRow({ client, tone, unread, onClick }: ClientRowProps) {
   const goalLabel = client.phaseGoalType ? GOAL_LABEL[client.phaseGoalType] ?? client.phaseGoalType : null;
   const weighInLabel = formatWeighInHint(client.daysSinceLastWeighIn);
 
@@ -487,7 +512,10 @@ function ClientRow({ client, unread, onClick }: ClientRowProps) {
     <ClickableCard
       ariaLabel={`Open ${client.displayName}'s nutrition surface`}
       onClick={onClick}
-      className="flex items-start justify-between p-3 rounded-lg shadow-none"
+      className={cn(
+        "flex items-start justify-between p-3 rounded-lg shadow-none border-l-4",
+        toneClasses(tone).rail,
+      )}
     >
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
@@ -515,11 +543,11 @@ function ClientRow({ client, unread, onClick }: ClientRowProps) {
               {goalLabel && ` -- ${goalLabel}`}
             </span>
           ) : (
-            <span className="text-amber-500">No active phase</span>
+            <span className="text-status-attention">No active phase</span>
           )}
           {weighInLabel && <span>{weighInLabel}</span>}
           {client.pendingAdjustments > 0 && (
-            <Badge variant="secondary" className="text-[10px] gap-1 bg-amber-500/15 text-amber-400 border-amber-500/20">
+            <Badge variant="secondary" className="text-[10px] gap-1 bg-status-attention/15 text-status-attention border-status-attention/20">
               {client.pendingAdjustments} pending
             </Badge>
           )}

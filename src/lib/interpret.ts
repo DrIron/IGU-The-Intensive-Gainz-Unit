@@ -40,6 +40,7 @@ export const toneClasses = (tone: Tone) => {
     text: `text-status-${t}`,
     dot: `bg-status-${t}`,
     soft: `bg-status-${t}/10`,
+    rail: `border-l-status-${t}`,
   };
 };
 
