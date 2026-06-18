@@ -10,15 +10,16 @@ import {
   Dialog,
   DialogContent,
   DialogHeader,
+  DialogScrollArea,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
+  DrawerScrollArea,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Dumbbell, Clock, Check } from "lucide-react";
 import { format } from "date-fns";
@@ -124,12 +125,12 @@ export const SessionLogViewer = memo(function SessionLogViewer({
             <DrawerTitle className="sr-only">Session log</DrawerTitle>
             {header}
           </DrawerHeader>
-          <ScrollArea
+          <DrawerScrollArea
             className="px-4 pb-6"
             style={{ maxHeight: "calc(92vh - 8rem)" }}
           >
             {body}
-          </ScrollArea>
+          </DrawerScrollArea>
         </DrawerContent>
       </Drawer>
     );
@@ -142,7 +143,7 @@ export const SessionLogViewer = memo(function SessionLogViewer({
           <DialogTitle className="sr-only">Session log</DialogTitle>
           {header}
         </DialogHeader>
-        <ScrollArea className="flex-1 pr-2">{body}</ScrollArea>
+        <DialogScrollArea className="flex-1 min-h-0 pr-2">{body}</DialogScrollArea>
       </DialogContent>
     </Dialog>
   );

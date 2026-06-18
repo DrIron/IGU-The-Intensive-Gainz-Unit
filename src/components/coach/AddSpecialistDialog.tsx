@@ -8,6 +8,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogScrollArea,
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -27,7 +28,6 @@ import {
   Apple, Heart, Dumbbell, Medal, 
   PersonStanding, Accessibility, Activity
 } from "lucide-react";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -354,7 +354,7 @@ export function AddSpecialistDialog({
 
           {/* Specialists List */}
           <div className="border rounded-lg">
-            <ScrollArea className="h-[200px]">
+            <DialogScrollArea className="h-[200px]">
               {loading ? (
                 <div className="flex items-center justify-center h-full py-8">
                   <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -413,7 +413,7 @@ export function AddSpecialistDialog({
                   ))}
                 </div>
               )}
-            </ScrollArea>
+            </DialogScrollArea>
           </div>
 
           {/* Selected Specialist Details */}

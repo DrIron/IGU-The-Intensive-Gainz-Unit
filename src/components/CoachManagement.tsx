@@ -6,11 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogScrollArea, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText, Sliders, Tag, Award, CheckCircle2, ChevronDown, Apple, Stethoscope } from "lucide-react";
 import { CoachCapacityManager } from "@/components/admin/CoachCapacityManager";
 import { CoachLoadOverview } from "@/components/admin/CoachLoadOverview";
@@ -804,7 +803,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
                           : `Add ${STAFF_TYPE_LABEL[staffType]}`}
                       </DialogTitle>
                     </DialogHeader>
-                    <ScrollArea className="max-h-[calc(90vh-8rem)] pr-4">
+                    <DialogScrollArea className="max-h-[calc(90vh-8rem)] pr-4">
                       <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div className="space-y-2 md:col-span-2">
@@ -907,7 +906,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
                           </Button>
                         </div>
                       </form>
-                    </ScrollArea>
+                    </DialogScrollArea>
                   </DialogContent>
                 </Dialog>
               </div>
@@ -968,7 +967,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
               Clients of {selectedCoach?.first_name} {selectedCoach?.last_name}
             </DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[60vh]">
+          <DialogScrollArea className="max-h-[60vh]">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -1013,7 +1012,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
                 )}
               </TableBody>
             </Table>
-          </ScrollArea>
+          </DialogScrollArea>
         </DialogContent>
       </Dialog>
     </div>

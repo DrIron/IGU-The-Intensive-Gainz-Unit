@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogScrollArea, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Loader2, History, ChevronDown, ChevronUp } from "lucide-react";
 import { format } from "date-fns";
 
@@ -129,7 +128,7 @@ export function PricingAuditLogDialog({ open, onOpenChange }: PricingAuditLogDia
             No audit entries found for pricing changes.
           </div>
         ) : (
-          <ScrollArea className="h-[60vh] pr-4">
+          <DialogScrollArea className="h-[60vh] pr-4">
             <div className="space-y-3">
               {entries.map((entry) => (
                 <div
@@ -194,7 +193,7 @@ export function PricingAuditLogDialog({ open, onOpenChange }: PricingAuditLogDia
                 </div>
               ))}
             </div>
-          </ScrollArea>
+          </DialogScrollArea>
         )}
       </DialogContent>
     </Dialog>

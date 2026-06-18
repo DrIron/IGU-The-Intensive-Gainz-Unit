@@ -27,6 +27,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogScrollArea,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -102,13 +103,28 @@ export function ResponsiveDialogContent({
       </DrawerContent>
     );
   }
+  // Bounded flex column so long content scrolls inside the dialog instead of
+  // overflowing the viewport. max-h is content-fit until hit, so SHORT content
+  // renders unchanged (no scrollbar) — overflow-y-auto only engages past max-h.
+  // A consumer passing its own max-h / flex / height in `className` overrides
+  // these (cn merge order), so existing layouts keep their behavior.
+  //
+  // The footer is split out of the scroll region so it stays pinned at the
+  // bottom — consumers nest <ResponsiveDialogFooter> inside the content, so a
+  // blanket wrap would otherwise scroll it away with long bodies.
+  const childArray = React.Children.toArray(children);
+  const footer = childArray.find(
+    (c) => React.isValidElement(c) && c.type === ResponsiveDialogFooter,
+  );
+  const body = footer ? childArray.filter((c) => c !== footer) : childArray;
   return (
-    <DialogContent className={className}>
+    <DialogContent className={cn("max-h-[85vh] flex flex-col", className)}>
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
         {description && <DialogDescription>{description}</DialogDescription>}
       </DialogHeader>
-      {children}
+      <DialogScrollArea className="flex-1 min-h-0">{body}</DialogScrollArea>
+      {footer}
     </DialogContent>
   );
 }

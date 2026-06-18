@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from "@/components/ui/drawer";
+import { Dialog, DialogContent, DialogHeader, DialogScrollArea, DialogTitle } from "@/components/ui/dialog";
+import { Drawer, DrawerContent, DrawerHeader, DrawerScrollArea, DrawerTitle } from "@/components/ui/drawer";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Flame, Beef, Croissant, Droplet } from "lucide-react";
@@ -8,7 +8,6 @@ import { CoachNutritionGoal } from "@/components/nutrition/CoachNutritionGoal";
 import { CoachNutritionGraphs } from "@/components/nutrition/CoachNutritionGraphs";
 import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface TeamMemberNutritionDialogProps {
@@ -162,9 +161,9 @@ export function TeamMemberNutritionDialog({
           <DialogHeader>
             <DialogTitle>{clientName} - Nutrition Details</DialogTitle>
           </DialogHeader>
-          <ScrollArea className="max-h-[calc(90vh-80px)] pr-4">
+          <DialogScrollArea className="max-h-[calc(90vh-80px)] pr-4">
             {content}
-          </ScrollArea>
+          </DialogScrollArea>
         </DialogContent>
       </Dialog>
     );
@@ -176,9 +175,9 @@ export function TeamMemberNutritionDialog({
         <DrawerHeader>
           <DrawerTitle>{clientName} - Nutrition Details</DrawerTitle>
         </DrawerHeader>
-        <ScrollArea className="max-h-[80vh] px-4 pb-6">
+        <DrawerScrollArea className="max-h-[80vh] px-4 pb-6">
           {content}
-        </ScrollArea>
+        </DrawerScrollArea>
       </DrawerContent>
     </Drawer>
   );

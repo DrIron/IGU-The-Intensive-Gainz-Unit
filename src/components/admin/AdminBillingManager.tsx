@@ -12,6 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
+  DialogScrollArea,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -30,7 +31,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
   Calendar,
   CreditCard,
@@ -718,7 +718,7 @@ export function AdminBillingManager() {
             </DialogDescription>
           </DialogHeader>
 
-          <ScrollArea className="flex-1 pr-4">
+          <DialogScrollArea className="flex-1 min-h-0 pr-4">
             <div className="space-y-6">
               {/* Current Status */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -904,7 +904,7 @@ export function AdminBillingManager() {
                 )}
               </div>
             </div>
-          </ScrollArea>
+          </DialogScrollArea>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDetailsDialog(false)}>
