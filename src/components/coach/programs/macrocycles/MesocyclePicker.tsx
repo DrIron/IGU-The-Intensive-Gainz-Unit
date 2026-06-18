@@ -7,7 +7,7 @@ import { memo, useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { ScrollArea } from "@/components/ui/scroll-area";
+import { DrawerScrollArea } from "@/components/ui/drawer";
 import { Search, Plus, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -115,7 +115,7 @@ export const MesocyclePicker = memo(function MesocyclePicker({
           className="pl-8 h-9 text-sm"
         />
       </div>
-      <ScrollArea className="flex-1 min-h-0">
+      <DrawerScrollArea className="flex-1 min-h-0">
         {loading ? (
           <p className="text-xs text-muted-foreground py-4 text-center">Loading...</p>
         ) : filtered.length === 0 ? (
@@ -154,7 +154,7 @@ export const MesocyclePicker = memo(function MesocyclePicker({
             ))}
           </div>
         )}
-      </ScrollArea>
+      </DrawerScrollArea>
     </div>
   );
 });
