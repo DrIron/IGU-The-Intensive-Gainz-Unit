@@ -81,6 +81,20 @@ const DialogDescription = React.forwardRef<
 ));
 DialogDescription.displayName = DialogPrimitive.Description.displayName;
 
+/**
+ * Plain-overflow scroll region for the body of a bounded Dialog. Mirrors
+ * DrawerScrollArea (drawer.tsx). Use this instead of Radix <ScrollArea> inside
+ * a `flex flex-col` DialogContent — Radix's ScrollArea viewport doesn't get a
+ * bounded height in a flex column and silently won't scroll. Pair with a
+ * `flex flex-col` + max-h DialogContent and `flex-1 min-h-0` on this element.
+ */
+const DialogScrollArea = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(
+  ({ className, ...props }, ref) => (
+    <div ref={ref} className={cn("overflow-y-auto overscroll-contain", className)} {...props} />
+  ),
+);
+DialogScrollArea.displayName = "DialogScrollArea";
+
 export {
   Dialog,
   DialogPortal,
@@ -92,4 +106,5 @@ export {
   DialogFooter,
   DialogTitle,
   DialogDescription,
+  DialogScrollArea,
 };

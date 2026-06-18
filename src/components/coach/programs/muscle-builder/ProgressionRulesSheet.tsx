@@ -19,6 +19,7 @@ import {
   DialogContent,
   DialogDescription,
   DialogHeader,
+  DialogScrollArea,
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
@@ -272,7 +273,7 @@ export const ProgressionRulesSheet = memo(function ProgressionRulesSheet({
         </DialogHeader>
         <div className="flex flex-col flex-1 min-h-0 gap-3">
           {blanketHeader}
-          <DrawerScrollArea className="flex-1 min-h-0 -mx-1 px-1">{list}</DrawerScrollArea>
+          <DialogScrollArea className="flex-1 min-h-0 -mx-1 px-1">{list}</DialogScrollArea>
         </div>
       </DialogContent>
     </Dialog>

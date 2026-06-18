@@ -36,10 +36,10 @@ import {
   DrawerDescription,
   DrawerFooter,
   DrawerHeader,
+  DrawerScrollArea,
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
 
@@ -98,7 +98,7 @@ export function ResponsiveDialogContent({
           <DrawerTitle>{title}</DrawerTitle>
           {description && <DrawerDescription>{description}</DrawerDescription>}
         </DrawerHeader>
-        <ScrollArea className="flex-1 overflow-y-auto px-4">{children}</ScrollArea>
+        <DrawerScrollArea className="flex-1 px-4">{children}</DrawerScrollArea>
       </DrawerContent>
     );
   }
