@@ -252,30 +252,32 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
               {!isComplete ? (
                 <Button
                   size="lg"
-                  className="flex-1 h-12 text-base font-semibold"
+                  className="flex-1 min-w-0 h-12 text-base font-semibold"
                   onClick={handleStartWorkout}
                 >
-                  <Play className="h-5 w-5 mr-2" />
-                  {completedCount > 0 ? 'Continue Workout' : 'Start Workout'}
+                  <Play className="h-5 w-5 mr-2 shrink-0" />
+                  <span className="truncate">
+                    {completedCount > 0 ? 'Continue Workout' : 'Start Workout'}
+                  </span>
                 </Button>
               ) : (
                 <Button
                   size="lg"
                   variant="outline"
-                  className="flex-1 h-12 border-green-500 text-green-600 hover:bg-green-500/10"
+                  className="flex-1 min-w-0 h-12 border-green-500 text-green-600 hover:bg-green-500/10"
                   onClick={handleStartWorkout}
                 >
-                  <CheckCircle2 className="h-5 w-5 mr-2" />
-                  View Completed
+                  <CheckCircle2 className="h-5 w-5 mr-2 shrink-0" />
+                  <span className="truncate">View Completed</span>
                 </Button>
               )}
               <Button
                 variant="outline"
                 size="lg"
-                className="h-12"
+                className="h-12 shrink-0"
                 onClick={() => navigate('/client/workout/calendar')}
               >
-                <Calendar className="h-4 w-4 mr-2" />
+                <Calendar className="h-4 w-4 mr-2 shrink-0" />
                 Calendar
               </Button>
             </div>
