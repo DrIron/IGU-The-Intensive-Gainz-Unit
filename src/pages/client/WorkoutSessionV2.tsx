@@ -26,6 +26,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import {
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+  DrawerDescription,
+  DrawerScrollArea,
+} from "@/components/ui/drawer";
+import { useIsMobile } from "@/hooks/use-mobile";
+import {
   Collapsible,
   CollapsibleContent,
   CollapsibleTrigger,
@@ -949,6 +957,7 @@ function SwapExercisePicker({
   >([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     const load = async () => {
@@ -982,9 +991,79 @@ function SwapExercisePicker({
     return aMatch - bMatch || a.name.localeCompare(b.name);
   });
 
+  // Shared search box + scrollable results, reused by both the mobile Drawer
+  // and the desktop overlay so the list markup lives in one place.
+  const searchAndList = (
+    <>
+      <div className="p-4 border-b">
+        <Input
+          placeholder="Search exercises..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          // No autofocus on mobile: focusing on mount opens the keyboard, which
+          // resizes the visual viewport and makes the bottom sheet drift and
+          // clip its title. Desktop keeps autofocus for fast typing.
+          autoFocus={!isMobile}
+        />
+      </div>
+      <DrawerScrollArea className="flex-1 min-h-0">
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : sorted.length === 0 ? (
+          <p className="text-center text-muted-foreground py-8">
+            {searchQuery
+              ? `No exercises found matching "${searchQuery}"`
+              : "No exercises found"}
+          </p>
+        ) : (
+          <div className="divide-y">
+            {sorted.map((ex) => (
+              <button
+                key={ex.id}
+                onClick={() => onSelect(ex.id)}
+                className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
+              >
+                <p className="font-medium text-sm">{ex.name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {ex.primary_muscle}
+                  {ex.equipment && ` \u2022 ${ex.equipment}`}
+                </p>
+              </button>
+            ))}
+          </div>
+        )}
+      </DrawerScrollArea>
+    </>
+  );
+
+  // Mobile: vaul Drawer. Safe-area aware + dvh-bounded so the sheet stays put
+  // and the title never clips off-screen (CLAUDE.md "Mobile branching").
+  if (isMobile) {
+    return (
+      <Drawer open onOpenChange={(open) => { if (!open) onClose(); }}>
+        <DrawerContent className="max-h-[92dvh] flex flex-col">
+          <div className="px-4 pt-2 pb-1">
+            <DrawerTitle>Swap Exercise</DrawerTitle>
+            {currentExercise && (
+              <DrawerDescription>
+                Replace {currentExercise.exercise.name}
+              </DrawerDescription>
+            )}
+          </div>
+          <div className="flex flex-col min-h-0 flex-1 pb-[env(safe-area-inset-bottom)]">
+            {searchAndList}
+          </div>
+        </DrawerContent>
+      </Drawer>
+    );
+  }
+
+  // Desktop: centered modal overlay.
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 flex items-end sm:items-center justify-center">
-      <div className="bg-background w-full max-w-lg max-h-[80vh] rounded-t-2xl sm:rounded-2xl flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center">
+      <div className="bg-background w-full max-w-lg max-h-[80vh] rounded-2xl flex flex-col">
         <div className="p-4 border-b flex items-center justify-between">
           <div>
             <h3 className="font-semibold">Swap Exercise</h3>
@@ -998,39 +1077,7 @@ function SwapExercisePicker({
             <X className="w-5 h-5" />
           </Button>
         </div>
-        <div className="p-4 border-b">
-          <Input
-            placeholder="Search exercises..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            autoFocus
-          />
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : sorted.length === 0 ? (
-            <p className="text-center text-muted-foreground py-8">No exercises found</p>
-          ) : (
-            <div className="divide-y">
-              {sorted.map((ex) => (
-                <button
-                  key={ex.id}
-                  onClick={() => onSelect(ex.id)}
-                  className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
-                >
-                  <p className="font-medium text-sm">{ex.name}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {ex.primary_muscle}
-                    {ex.equipment && ` \u2022 ${ex.equipment}`}
-                  </p>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
+        {searchAndList}
       </div>
     </div>
   );
