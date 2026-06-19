@@ -156,6 +156,22 @@ export function interpretCheckIns(due: number, mostOverdueDays: number | null): 
   };
 }
 
+/**
+ * Broad roster-attention headline (CO1) — the deduped total spans payment +
+ * inactive + check-in + pending + adjustments, so frame it generically rather
+ * than as "N check-ins due" (that would under-describe it). The check-in slice
+ * keeps its own interpretCheckIns sentence on the dedicated card.
+ */
+export function interpretAttention(total: number, mostOverdueDays: number | null): Interpretation {
+  if (total <= 0) return { tone: "on_track", label: "Clear", sentence: "Nothing needs attention right now." };
+  const tail = mostOverdueDays && mostOverdueDays > 0 ? ` · most overdue ${mostOverdueDays}d` : "";
+  return {
+    tone: mostOverdueDays && mostOverdueDays >= 7 ? "risk" : "attention",
+    label: `${total} to review`,
+    sentence: `${total} ${total === 1 ? "client needs" : "clients need"} attention${tail}.`,
+  };
+}
+
 /** Days since last weigh-in → drift signal for the coach roster. */
 export function interpretWeighInRecency(daysSince: number | null): Interpretation {
   if (daysSince == null) return { tone: "neutral", label: "No weigh-in", sentence: "No weigh-in logged yet." };

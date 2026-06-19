@@ -13,16 +13,25 @@ export interface RosterAttentionTiles {
   inactive: number;
   check_in_overdue: number;
   pending_approval: number;
+  adjustments_pending: number;
 }
+
+/** Per-bucket flagged client ids, so consumers can deep-link to the single
+ *  flagged client without a second query. */
+export type RosterAttentionClientIds = Record<keyof RosterAttentionTiles, string[]>;
 
 export interface RosterAttention {
   total: number;
+  most_overdue_days: number;
   tiles: RosterAttentionTiles;
+  client_ids: RosterAttentionClientIds;
 }
 
 const EMPTY: RosterAttention = {
   total: 0,
-  tiles: { payment_failed: 0, inactive: 0, check_in_overdue: 0, pending_approval: 0 },
+  most_overdue_days: 0,
+  tiles: { payment_failed: 0, inactive: 0, check_in_overdue: 0, pending_approval: 0, adjustments_pending: 0 },
+  client_ids: { payment_failed: [], inactive: [], check_in_overdue: [], pending_approval: [], adjustments_pending: [] },
 };
 
 export function useCoachRosterAttention(): {

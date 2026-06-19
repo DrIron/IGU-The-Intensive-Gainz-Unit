@@ -10,6 +10,7 @@ import { startOfIguWeek } from "@/lib/weekUtils";
 import { cn } from "@/lib/utils";
 import { MetricCard } from "@/components/ui/metric-card";
 import { interpretCheckIns, type Interpretation, type Tone } from "@/lib/interpret";
+import { useCoachRosterAttention, type RosterAttention } from "@/hooks/useCoachRosterAttention";
 
 import { EnhancedCapacityCard } from "./EnhancedCapacityCard";
 import { CoachTodaysTasks } from "./CoachTodaysTasks";
@@ -39,6 +40,10 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
   const hasFetched = useRef(false);
+  // CO1: single roster-attention source — the banner headline + the Check-ins
+  // Due card both read THIS (deduped server-side, same number as the sidebar
+  // badge + roster). Fetched once here, threaded down as a prop.
+  const { attention } = useCoachRosterAttention();
   const [metrics, setMetrics] = useState<DashboardMetrics>({
     totalClients: 0,
     activeClients: 0,
@@ -275,12 +280,12 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
     <div className="space-y-6 w-full max-w-full overflow-hidden">
       {/* 1. Needs Attention Alerts - Top Priority */}
       <NeedsAttentionAlerts
-        coachUserId={coachUserId}
+        attention={attention}
         onNavigate={handleNavigate}
       />
 
       {/* 2. Stats Row — compact, non-redundant KPIs */}
-      <CoachOverviewStats metrics={metrics} onNavigate={handleNavigate} />
+      <CoachOverviewStats metrics={metrics} attention={attention} onNavigate={handleNavigate} />
 
       {/* 3. Two Column: Today's Tasks + Activity Feed */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -410,13 +415,14 @@ const CoachTeamsSummaryCard = memo(function CoachTeamsSummaryCard({
 // Compact stats row — replaces redundant StatsCards + KPIRow
 interface CoachOverviewStatsProps {
   metrics: DashboardMetrics;
+  attention: RosterAttention;
   onNavigate: (section: string, filter?: string) => void;
 }
 
 // Tone severity for CO1: float the most urgent interpreted metric to the top.
 const TONE_SEVERITY: Record<Tone, number> = { risk: 3, attention: 2, on_track: 1, neutral: 0 };
 
-const CoachOverviewStats = memo(function CoachOverviewStats({ metrics, onNavigate }: CoachOverviewStatsProps) {
+const CoachOverviewStats = memo(function CoachOverviewStats({ metrics, attention, onNavigate }: CoachOverviewStatsProps) {
   // Each metric carries a CC2 interpretation. Sentences are derived from the
   // real counts (no fabricated week-over-week deltas -- there is no historical
   // snapshot to compare against, so no DeltaChip here).
@@ -429,11 +435,13 @@ const CoachOverviewStats = memo(function CoachOverviewStats({ metrics, onNavigat
     onClick: () => void;
   }> = [
     {
+      // CO1: check-in-specific slice of the roster-attention RPC (same source as
+      // the sidebar badge + roster), so this card never disagrees with the banner.
       key: "checkins",
       label: "Check-ins Due",
-      value: metrics.checkInsDue,
+      value: attention.tiles.check_in_overdue,
       icon: ClipboardCheck,
-      interpretation: interpretCheckIns(metrics.checkInsDue, metrics.mostOverdueCheckInDays || null),
+      interpretation: interpretCheckIns(attention.tiles.check_in_overdue, attention.most_overdue_days || null),
       onClick: () => onNavigate("clients"),
     },
     {
