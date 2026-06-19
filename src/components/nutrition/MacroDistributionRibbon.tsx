@@ -20,9 +20,11 @@ interface MacroDistributionRibbonProps {
   className?: string;
 }
 
-const COLOR_PROTEIN = "hsl(0 72% 51%)"; // red
-const COLOR_FAT = "hsl(38 92% 50%)"; // amber
-const COLOR_CARBS = "hsl(217 91% 60%)"; // blue
+// Macro palette tokens (src/index.css --macro-*). Same HSL values as before —
+// migrated to CSS vars so the donut + ribbon share one source (zero visual change).
+export const COLOR_PROTEIN = "hsl(var(--macro-protein))"; // red
+export const COLOR_FAT = "hsl(var(--macro-fat))"; // amber
+export const COLOR_CARBS = "hsl(var(--macro-carb))"; // blue
 
 export function MacroDistributionRibbon({
   protein,

@@ -53,6 +53,12 @@ All colors MUST be HSL.
     --status-attention: 38 92% 50%;
     --status-risk: 0 84% 60%;
     --status-neutral: 215 16% 47%;
+    /* Macro palette (protein/fat/carb) — distinct from status tokens. Exact
+       values lifted from MacroDistributionRibbon's former hardcoded HSLs;
+       theme-independent (same in light + dark), so defined only here. */
+    --macro-protein: 0 72% 51%;
+    --macro-fat: 38 92% 50%;
+    --macro-carb: 217 91% 60%;
     /* Chart palette — referenced by hsl(var(--chart-N)) (WeightProgressGraph etc.) but previously undefined. */
     --chart-1: 12 76% 61%;
     --chart-2: 173 58% 39%;

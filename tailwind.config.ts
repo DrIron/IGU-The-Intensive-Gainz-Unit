@@ -75,6 +75,10 @@ export default {
         "status-attention": "hsl(var(--status-attention))",
         "status-risk": "hsl(var(--status-risk))",
         "status-neutral": "hsl(var(--status-neutral))",
+        // Macro palette (protein/fat/carb) — NutritionGoal donut + MacroDistributionRibbon.
+        "macro-protein": "hsl(var(--macro-protein))",
+        "macro-fat": "hsl(var(--macro-fat))",
+        "macro-carb": "hsl(var(--macro-carb))",
         "chart-1": "hsl(var(--chart-1))",
         "chart-2": "hsl(var(--chart-2))",
         "chart-3": "hsl(var(--chart-3))",

@@ -10,6 +10,21 @@ import { Loader2, Edit } from "lucide-react";
 import { StepWizardGoalSetting } from "@/components/calculator/StepWizardGoalSetting";
 import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
+import { MacroDonut } from "./MacroDonut";
+import { MacroDistributionRibbon } from "./MacroDistributionRibbon";
+
+// "fat_loss" -> "Fat Loss" (capitalize leaves the underscore — a real miss).
+const formatGoalType = (g: string) =>
+  g ? g.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()) : "";
+
+// Tokenized chip per goal type (status palette; non-judgmental differentiation).
+const GOAL_TONE: Record<string, string> = {
+  fat_loss: "bg-status-attention/10 text-status-attention border-status-attention/30",
+  muscle_gain: "bg-status-ontrack/10 text-status-ontrack border-status-ontrack/30",
+  maintenance: "bg-status-neutral/10 text-status-neutral border-status-neutral/30",
+};
 
 export function NutritionGoal() {
   const { toast } = useToast();
@@ -353,6 +368,18 @@ export function NutritionGoal() {
                 Started {new Date(activeGoal.start_date).toLocaleDateString()}
                 {activeGoal.estimated_end_date && ` • Est. end ${new Date(activeGoal.estimated_end_date).toLocaleDateString()}`}
               </CardDescription>
+              <Badge
+                variant="outline"
+                className={cn("mt-2 font-medium", GOAL_TONE[activeGoal.goal_type] ?? GOAL_TONE.maintenance)}
+              >
+                {[
+                  formatGoalType(activeGoal.goal_type),
+                  activeGoal.weekly_rate_percentage ? `${activeGoal.weekly_rate_percentage}%/wk` : null,
+                  activeGoal.estimated_duration_weeks ? `${activeGoal.estimated_duration_weeks} wks` : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+              </Badge>
             </div>
             <Button onClick={() => setIsEditing(true)} variant="outline" size="sm">
               <Edit className="h-4 w-4 mr-2" />
@@ -364,29 +391,34 @@ export function NutritionGoal() {
           <div className="grid md:grid-cols-2 gap-6">
             <div>
               <h3 className="font-semibold mb-3">Current Targets</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Daily Calories:</span>
-                  <span className="font-medium">{activeGoal.daily_calories} kcal</span>
+              <div className="space-y-4">
+                {/* Calorie hero — reuse the NutritionPhaseCard treatment; foreground, never destructive */}
+                <div className="flex items-baseline gap-2 font-mono tabular-nums">
+                  <span className="text-3xl md:text-4xl font-display leading-none text-foreground">
+                    {Math.round(activeGoal.daily_calories)}
+                  </span>
+                  <span className="text-xs text-muted-foreground">kcal · daily target</span>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Protein:</span>
-                  <span className="font-medium">{activeGoal.protein_grams}g</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Fat:</span>
-                  <span className="font-medium">{activeGoal.fat_grams}g</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Carbs:</span>
-                  <span className="font-medium">{activeGoal.carb_grams}g</span>
-                </div>
-                {activeGoal.fiber_grams && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Fiber:</span>
-                    <span className="font-medium">{activeGoal.fiber_grams}g</span>
-                  </div>
-                )}
+                {/* Macro donut (by calorie contribution) + legend (grams + %) */}
+                <MacroDonut
+                  protein={activeGoal.protein_grams}
+                  fat={activeGoal.fat_grams}
+                  carbs={activeGoal.carb_grams}
+                />
+                {/* Thin macro ribbon — same vocabulary as the dashboard card */}
+                <MacroDistributionRibbon
+                  protein={activeGoal.protein_grams}
+                  fat={activeGoal.fat_grams}
+                  carbs={activeGoal.carb_grams}
+                  variant="thin"
+                  showLabels={false}
+                />
+                {/* Fiber — a chip, not a calorie macro */}
+                {activeGoal.fiber_grams ? (
+                  <Badge variant="secondary" className="font-mono text-xs tabular-nums">
+                    Fiber {Math.round(activeGoal.fiber_grams)}g
+                  </Badge>
+                ) : null}
               </div>
             </div>
             <div>
