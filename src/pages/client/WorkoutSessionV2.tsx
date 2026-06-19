@@ -1214,19 +1214,86 @@ function WorkoutSessionV2Content() {
 
       if (exercisesError) throw exercisesError;
 
-      // Get existing logs
+      // Get existing logs (this module). Wrapped in selectWithRetry too — a
+      // transient 5xx here used to strand the load exactly like the embed read.
       const exerciseIds = exercisesData?.map((e) => e.id) || [];
-      const { data: logsData } = await supabase
-        .from("exercise_set_logs")
-        .select("*")
-        .in("client_module_exercise_id", exerciseIds);
+      const { data: logsData } = await selectWithRetry(() =>
+        supabase
+          .from("exercise_set_logs")
+          .select("*")
+          .in("client_module_exercise_id", exerciseIds),
+      );
+
+      // --- Batched cross-instance reads (WK7 §1.5) ---------------------------
+      // The page used to fan out THREE reads PER exercise inside the map below
+      // (same-exercise lookup + history + PB), so a 7-exercise session fired
+      // ~15-20 concurrent requests. Under a cold/concurrent load that exhausts
+      // the connection pooler: some reads 500 (selectWithRetry rescues those)
+      // but the rest hang PENDING indefinitely, so loadSession's Promise.all
+      // never resolves and the client is stranded on the loading skeleton —
+      // retry can't rescue a hung-pending request. Collapse the per-exercise
+      // fan-out into batched in.() reads keyed by every exercise at once so the
+      // burst stays at ~3-4 reads and never starves the pool.
+      const distinctExerciseIds = [
+        ...new Set((exercisesData || []).map((e) => e.exercise_id)),
+      ];
+
+      // 1) Every client_module_exercises instance of these movements (across
+      //    the client's programs, RLS-scoped) in ONE query — replaces the
+      //    per-exercise exercise_id=eq.&id=neq. lookups. Grouped by exercise_id
+      //    so each exercise can find its "other instances" for history/PB.
+      let allInstances: { id: string; exercise_id: string }[] = [];
+      if (distinctExerciseIds.length > 0) {
+        const { data } = await selectWithRetry(() =>
+          supabase
+            .from("client_module_exercises")
+            .select("id, exercise_id")
+            .in("exercise_id", distinctExerciseIds),
+        );
+        allInstances = data || [];
+      }
+      const instancesByExerciseId = new Map<string, string[]>();
+      for (const inst of allInstances) {
+        const arr = instancesByExerciseId.get(inst.exercise_id);
+        if (arr) arr.push(inst.id);
+        else instancesByExerciseId.set(inst.exercise_id, [inst.id]);
+      }
+
+      // 2) Every historical set log for those instances in ONE query (newest
+      //    first). Per-exercise history slicing AND personal-best are both
+      //    derived from this single batch client-side — so the per-exercise
+      //    history and PB round-trips collapse into this one read.
+      const allInstanceIds = allInstances.map((i) => i.id);
+      let allHistoryLogs: Array<{
+        client_module_exercise_id: string;
+        set_index: number;
+        performed_reps: number | null;
+        performed_load: number | null;
+        performed_rir: number | null;
+        performed_rpe: number | null;
+        created_at: string;
+      }> = [];
+      if (allInstanceIds.length > 0) {
+        const { data } = await selectWithRetry(() =>
+          supabase
+            .from("exercise_set_logs")
+            .select(
+              "client_module_exercise_id, set_index, performed_reps, performed_load, performed_rir, performed_rpe, created_at",
+            )
+            .in("client_module_exercise_id", allInstanceIds)
+            .eq("created_by_user_id", currentUser.id)
+            .order("created_at", { ascending: false }),
+        );
+        allHistoryLogs = data || [];
+      }
 
       // Initialize logs state
       const initialLogs: Record<string, SetLog[]> = {};
 
-      // Format exercises with history
-      const formattedExercises: Exercise[] = await Promise.all(
-        (exercisesData || []).map(async (ex: any) => {
+      // Format exercises with history — now a SYNCHRONOUS map: every read was
+      // hoisted into the batched queries above, so there is no per-exercise
+      // fan-out left (this is what removes the pool-starving burst).
+      const formattedExercises: Exercise[] = (exercisesData || []).map((ex: any) => {
           const prescription = ex.prescription_snapshot_json || {};
 
           // Fix #3: Read sets_json from inside prescription_snapshot_json, not as a top-level column
@@ -1276,53 +1343,48 @@ function WorkoutSessionV2Content() {
             };
           });
 
-          // Fix #5: History/PB queries — filter by exercise_id through client_module_exercises
-          // Find other client_module_exercises with the same exercise_id (same movement)
-          const { data: sameExerciseInstances } = await supabase
-            .from("client_module_exercises")
-            .select("id")
-            .eq("exercise_id", ex.exercise_id)
-            .neq("id", ex.id);
+          // History/PB — derived from the batched reads above, NO per-exercise
+          // round-trip. sameExerciseIds = other instances of this movement
+          // (same exercise_id, excluding this row). Skip for activities:
+          // history/PB are weight×reps-centric and those columns are null for
+          // activity rows (the data lives in performed_json).
+          const sameExerciseIds = (
+            instancesByExerciseId.get(ex.exercise_id) || []
+          ).filter((id) => id !== ex.id);
 
-          const sameExerciseIds =
-            sameExerciseInstances?.map((e) => e.id) || [];
-
-          // Get last performance (history) — only for the same exercise.
-          // Skip for activities: history/PB are weight×reps-centric and those
-          // columns are null for activity rows (the data lives in performed_json).
-          let historyData: any[] | null = null;
+          let historyData: Array<(typeof allHistoryLogs)[number]> | null = null;
+          let pbData:
+            | Array<{ performed_load: number; performed_reps: number | null; created_at: string }>
+            | null = null;
           if (!isActivity && sameExerciseIds.length > 0) {
-            const { data } = await supabase
-              .from("exercise_set_logs")
-              .select(
-                `
-                set_index,
-                performed_reps,
-                performed_load,
-                performed_rir,
-                performed_rpe,
-                created_at
-              `
-              )
-              .in("client_module_exercise_id", sameExerciseIds)
-              .eq("created_by_user_id", currentUser.id)
-              .order("created_at", { ascending: false })
-              .limit(setCount);
-            historyData = data;
-          }
+            const sameSet = new Set(sameExerciseIds);
+            // allHistoryLogs is globally newest-first, so filtering preserves
+            // order; take the most recent setCount (matches the old .limit()).
+            const logsForExercise = allHistoryLogs.filter((l) =>
+              sameSet.has(l.client_module_exercise_id),
+            );
+            historyData = logsForExercise.slice(0, setCount);
 
-          // Get personal best — only for the same exercise (strength only).
-          let pbData: any[] | null = null;
-          if (!isActivity && sameExerciseIds.length > 0) {
-            const { data } = await supabase
-              .from("exercise_set_logs")
-              .select("performed_load, performed_reps, created_at")
-              .in("client_module_exercise_id", sameExerciseIds)
-              .eq("created_by_user_id", currentUser.id)
-              .not("performed_load", "is", null)
-              .order("performed_load", { ascending: false })
-              .limit(1);
-            pbData = data;
+            // Personal best = heaviest logged load (matches the old
+            // order=performed_load.desc&limit=1; ties resolve to most recent).
+            let best: (typeof allHistoryLogs)[number] | null = null;
+            for (const l of logsForExercise) {
+              if (
+                l.performed_load != null &&
+                (best == null || l.performed_load > best.performed_load!)
+              ) {
+                best = l;
+              }
+            }
+            pbData = best
+              ? [
+                  {
+                    performed_load: best.performed_load!,
+                    performed_reps: best.performed_reps,
+                    created_at: best.created_at,
+                  },
+                ]
+              : null;
           }
 
           return {
@@ -1362,8 +1424,7 @@ function WorkoutSessionV2Content() {
                   }
                 : undefined,
           };
-        })
-      );
+      });
 
       setSetLogs(initialLogs);
       setModule({
