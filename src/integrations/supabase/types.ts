@@ -963,6 +963,7 @@ export type Database = {
           module_type: string
           session_timing: string | null
           session_type: string | null
+          skipped_at: string | null
           sort_order: number
           source_day_module_id: string | null
           status: Database["public"]["Enums"]["client_module_status"]
@@ -978,6 +979,7 @@ export type Database = {
           module_type: string
           session_timing?: string | null
           session_type?: string | null
+          skipped_at?: string | null
           sort_order?: number
           source_day_module_id?: string | null
           status?: Database["public"]["Enums"]["client_module_status"]
@@ -993,6 +995,7 @@ export type Database = {
           module_type?: string
           session_timing?: string | null
           session_type?: string | null
+          skipped_at?: string | null
           sort_order?: number
           source_day_module_id?: string | null
           status?: Database["public"]["Enums"]["client_module_status"]
@@ -1039,6 +1042,8 @@ export type Database = {
           instructions: string | null
           prescription_snapshot_json: Json
           section: Database["public"]["Enums"]["exercise_section"]
+          skipped: boolean
+          skipped_at: string | null
           sort_order: number
           updated_at: string
         }
@@ -1050,6 +1055,8 @@ export type Database = {
           instructions?: string | null
           prescription_snapshot_json?: Json
           section?: Database["public"]["Enums"]["exercise_section"]
+          skipped?: boolean
+          skipped_at?: string | null
           sort_order?: number
           updated_at?: string
         }
@@ -1061,6 +1068,8 @@ export type Database = {
           instructions?: string | null
           prescription_snapshot_json?: Json
           section?: Database["public"]["Enums"]["exercise_section"]
+          skipped?: boolean
+          skipped_at?: string | null
           sort_order?: number
           updated_at?: string
         }
@@ -1080,6 +1089,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      client_preferences: {
+        Row: {
+          created_at: string
+          updated_at: string
+          user_id: string
+          weight_unit: string
+        }
+        Insert: {
+          created_at?: string
+          updated_at?: string
+          user_id: string
+          weight_unit?: string
+        }
+        Update: {
+          created_at?: string
+          updated_at?: string
+          user_id?: string
+          weight_unit?: string
+        }
+        Relationships: []
       }
       client_program_days: {
         Row: {
@@ -3429,6 +3459,7 @@ export type Database = {
           performed_rpe: number | null
           prescribed: Json
           set_index: number
+          skipped: boolean
         }
         Insert: {
           client_module_exercise_id: string
@@ -3443,6 +3474,7 @@ export type Database = {
           performed_rpe?: number | null
           prescribed?: Json
           set_index: number
+          skipped?: boolean
         }
         Update: {
           client_module_exercise_id?: string
@@ -3457,6 +3489,7 @@ export type Database = {
           performed_rpe?: number | null
           prescribed?: Json
           set_index?: number
+          skipped?: boolean
         }
         Relationships: [
           {
@@ -4622,6 +4655,7 @@ export type Database = {
           slug: string
           sort_order: number
           updated_at: string
+          volume_key: string | null
         }
         Insert: {
           created_at?: string
@@ -4632,6 +4666,7 @@ export type Database = {
           slug: string
           sort_order?: number
           updated_at?: string
+          volume_key?: string | null
         }
         Update: {
           created_at?: string
@@ -4642,6 +4677,7 @@ export type Database = {
           slug?: string
           sort_order?: number
           updated_at?: string
+          volume_key?: string | null
         }
         Relationships: [
           {
@@ -4663,6 +4699,7 @@ export type Database = {
           slug: string
           sort_order: number
           updated_at: string
+          volume_key: string | null
         }
         Insert: {
           created_at?: string
@@ -4673,6 +4710,7 @@ export type Database = {
           slug: string
           sort_order?: number
           updated_at?: string
+          volume_key?: string | null
         }
         Update: {
           created_at?: string
@@ -4683,6 +4721,7 @@ export type Database = {
           slug?: string
           sort_order?: number
           updated_at?: string
+          volume_key?: string | null
         }
         Relationships: [
           {
@@ -8561,6 +8600,11 @@ export type Database = {
         }
         Returns: boolean
       }
+      skip_client_day_module: { Args: { p_module_id: string }; Returns: Json }
+      skip_client_exercise: {
+        Args: { p_cme_id: string; p_skipped?: boolean }
+        Returns: Json
+      }
       soft_delete_team_atomic: { Args: { p_team_id: string }; Returns: Json }
       terminate_care_team_member: {
         Args: {
@@ -8992,3 +9036,4 @@ export const Constants = {
     },
   },
 } as const
+

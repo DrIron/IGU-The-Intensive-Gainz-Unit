@@ -24,7 +24,6 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Progress } from "@/components/ui/progress";
 import {
   Drawer,
   DrawerContent,
@@ -54,10 +53,11 @@ import {
   Dumbbell,
   X,
   ArrowRightLeft,
+  SkipForward,
+  MoreVertical,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { useProgressionSuggestions } from "@/hooks/useProgressionSuggestions";
@@ -68,6 +68,31 @@ import {
   splitColumnsByCategory,
   PERFORMED_JSON_COLUMN_TYPES,
 } from "@/types/workout-builder";
+import { fromCanonicalKg, toCanonicalKg, type WeightUnit } from "@/utils/weightUnits";
+import { epley1RM } from "@/lib/oneRepMax";
+import { useWeightUnit } from "@/hooks/useWeightUnit";
+import { SessionProgressRing } from "@/components/workout/SessionProgressRing";
+import { WeightUnitToggle } from "@/components/workout/WeightUnitToggle";
+import {
+  WorkoutCompletionSheet,
+  type WorkoutSummary,
+} from "@/components/workout/WorkoutCompletionSheet";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // =============================================================================
 // TYPES
@@ -138,6 +163,9 @@ interface Exercise {
     reps: number;
     date: string;
   };
+  // Coach-recorded skip (client_module_exercises.skipped) — distinct from
+  // incomplete; a skipped exercise drops out of the remaining tally.
+  skipped?: boolean;
 }
 
 interface SetLog {
@@ -151,6 +179,9 @@ interface SetLog {
   performed_extra: Record<string, string | number>;
   notes: string;
   completed: boolean;
+  // exercise_set_logs.skipped — a skipped set is a row with skipped=true and
+  // null performed_* values; counts as addressed but renders neutral, not done.
+  skipped: boolean;
 }
 
 interface Module {
@@ -292,64 +323,6 @@ function VideoThumbnail({
   );
 }
 
-// Compact History Block
-function HistoryBlock({
-  history,
-  personalBest,
-}: {
-  history?: Exercise["history"];
-  personalBest?: Exercise["personal_best"];
-}) {
-  if (!history && !personalBest) {
-    return (
-      <div className="px-3 py-2 bg-muted/30 rounded-lg border border-dashed">
-        <p className="text-xs text-muted-foreground text-center">
-          First time — no history
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="px-3 py-2 bg-muted/30 rounded-lg space-y-2">
-      {history && (
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <History className="w-3.5 h-3.5 text-muted-foreground" />
-            <span className="text-xs text-muted-foreground">
-              Last: {format(new Date(history.date), "MMM d")}
-            </span>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {history.sets.map((set, i) => (
-              <Badge
-                key={i}
-                variant="secondary"
-                className="text-xs font-mono px-1.5 py-0"
-              >
-                {set.weight}×{set.reps}
-              </Badge>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {personalBest && (
-        <div
-          className={cn(
-            "flex items-center gap-2",
-            history && "pt-1.5 border-t"
-          )}
-        >
-          <Trophy className="w-3.5 h-3.5 text-amber-500" />
-          <span className="text-xs text-amber-600 dark:text-amber-400 font-medium">
-            PR: {personalBest.weight}kg × {personalBest.reps}
-          </span>
-        </div>
-      )}
-    </div>
-  );
-}
 
 // Client-input column types that render as free text rather than a number.
 const TEXT_INPUT_TYPES: ReadonlySet<string> = new Set([
@@ -368,9 +341,11 @@ function SetRow({
   onUpdate,
   onUpdateExtra,
   onComplete,
+  onSkip,
   isActive,
   inputColumns,
   isActivity,
+  unit,
 }: {
   prescription: SetPrescription;
   historySet?: HistorySet;
@@ -378,10 +353,16 @@ function SetRow({
   onUpdate: (field: keyof SetLog, value: any) => void;
   onUpdateExtra: (key: string, value: string | number | null) => void;
   onComplete: () => void;
+  onSkip: () => void;
   isActive: boolean;
   inputColumns: ColumnConfig[];
   isActivity: boolean;
+  unit: WeightUnit;
 }) {
+  // A completed set collapses to one line; tapping expands the editable inputs
+  // again (persisted values stay until re-saved). Weights display in `unit`;
+  // storage stays canonical kg.
+  const [reopened, setReopened] = useState(false);
   const hasRir = prescription.rir !== undefined;
   const hasRpe = prescription.rpe !== undefined;
   const repsDisplay =
@@ -395,7 +376,7 @@ function SetRow({
   // Current logged value for an input column.
   const inputValue = (col: ColumnConfig): string | number => {
     switch (col.type as ClientInputColumnType) {
-      case "performed_weight": return log.performed_load ?? "";
+      case "performed_weight": return fromCanonicalKg(log.performed_load, unit, unit === "kg" ? 1 : 0) ?? "";
       case "performed_reps": return log.performed_reps ?? "";
       case "performed_rir": return log.performed_rir ?? "";
       case "performed_rpe": return log.performed_rpe ?? "";
@@ -411,7 +392,7 @@ function SetRow({
     const isText = TEXT_INPUT_TYPES.has(type);
     const val: string | number | null = raw === "" ? null : isText ? raw : Number(raw);
     switch (type) {
-      case "performed_weight": onUpdate("performed_load", val); break;
+      case "performed_weight": onUpdate("performed_load", toCanonicalKg(val === null ? null : Number(val), unit)); break;
       case "performed_reps": onUpdate("performed_reps", val); break;
       case "performed_rir": onUpdate("performed_rir", val); break;
       case "performed_rpe": onUpdate("performed_rpe", val); break;
@@ -457,13 +438,65 @@ function SetRow({
     if (prescription.target_hr != null) activityBadges.push(`${prescription.target_hr} bpm`);
   }
 
+  // Skipped → neutral line (§5), distinct from completed; Undo to un-skip.
+  if (log.skipped) {
+    return (
+      <div className="rounded-xl border border-status-neutral/30 bg-status-neutral/10 px-3 py-2 flex items-center justify-between gap-2">
+        <span className="text-sm text-muted-foreground flex items-center gap-2 min-w-0">
+          <span className="w-7 h-7 rounded-full bg-muted flex items-center justify-center shrink-0">
+            <SkipForward className="w-3.5 h-3.5" />
+          </span>
+          <span className="truncate">Set {prescription.set_number} · Skipped</span>
+        </span>
+        <Button variant="ghost" size="sm" className="h-8 shrink-0" onClick={onSkip}>
+          Undo
+        </Button>
+      </div>
+    );
+  }
+
+  // Completed → one-line summary (§2c); tap to re-open the inputs.
+  if (log.completed && !reopened) {
+    const wDisplay = fromCanonicalKg(log.performed_load, unit, unit === "kg" ? 1 : 0);
+    const intensity =
+      log.performed_rpe != null
+        ? ` @ RPE ${log.performed_rpe}`
+        : log.performed_rir != null
+          ? ` @ RIR ${log.performed_rir}`
+          : "";
+    return (
+      <button
+        type="button"
+        onClick={() => setReopened(true)}
+        className="w-full rounded-xl border border-status-ontrack/30 bg-status-ontrack/5 px-3 py-2 flex items-center justify-between gap-2 text-left touch-manipulation"
+      >
+        <span className="text-sm flex items-center gap-2 min-w-0">
+          <span className="w-7 h-7 rounded-full bg-status-ontrack text-white flex items-center justify-center shrink-0">
+            <CheckCircle2 className="w-4 h-4" />
+          </span>
+          <span className="font-medium shrink-0">Set {prescription.set_number}</span>
+          {!isActivity && (
+            <span className="font-mono text-muted-foreground truncate">
+              {wDisplay ?? "—"}
+              {unit}×{log.performed_reps ?? "—"}
+              {intensity}
+            </span>
+          )}
+        </span>
+        <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+      </button>
+    );
+  }
+
+  // Active (dominant) or upcoming (dimmed). Completed+reopened lands here too.
   return (
     <div
       className={cn(
         "rounded-xl border transition-all",
-        log.completed && "bg-green-500/5 border-green-500/30",
-        isActive && !log.completed && "bg-primary/5 border-primary/30",
-        !isActive && !log.completed && "bg-card border-border"
+        isActive
+          ? "bg-primary/5 border-primary/30 border-l-2 border-l-status-ontrack"
+          : "bg-card border-border",
+        !isActive && "opacity-60"
       )}
     >
       {/* Set header with prescription badges */}
@@ -529,11 +562,22 @@ function SetRow({
           )}
         </div>
 
-        {prescription.weight_suggestion && (
-          <span className="text-xs text-amber-600 dark:text-amber-400 italic">
-            {prescription.weight_suggestion}
-          </span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {prescription.weight_suggestion && (
+            <span className="text-xs text-amber-600 dark:text-amber-400 italic">
+              {prescription.weight_suggestion}
+            </span>
+          )}
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-7 text-xs text-muted-foreground"
+            onClick={onSkip}
+          >
+            <SkipForward className="w-3.5 h-3.5 mr-1" />
+            Skip
+          </Button>
+        </div>
       </div>
 
       {/* Input row */}
@@ -565,7 +609,7 @@ function SetRow({
                     placeholder={col.placeholder || "—"}
                     value={inputValue(col)}
                     onChange={(e) => updateInput(col, e.target.value)}
-                    disabled={log.completed}
+                    disabled={false}
                     className="h-10 text-center"
                   />
                 </div>
@@ -576,21 +620,23 @@ function SetRow({
           <div className="flex-1 grid grid-cols-3 gap-2">
             <div>
               <label className="text-[10px] text-muted-foreground block mb-1">
-                Weight (kg)
+                Weight ({unit})
               </label>
               <Input
                 type="number"
                 inputMode="decimal"
-                step="0.5"
-                placeholder={historySet?.weight?.toString() || "—"}
-                value={log.performed_load ?? ""}
+                step={unit === "kg" ? "0.5" : "1"}
+                placeholder={(
+                  fromCanonicalKg(historySet?.weight ?? null, unit, unit === "kg" ? 1 : 0) ?? "—"
+                ).toString()}
+                value={fromCanonicalKg(log.performed_load, unit, unit === "kg" ? 1 : 0) ?? ""}
                 onChange={(e) =>
                   onUpdate(
                     "performed_load",
-                    e.target.value ? parseFloat(e.target.value) : null
+                    e.target.value ? toCanonicalKg(parseFloat(e.target.value), unit) : null
                   )
                 }
-                disabled={log.completed}
+                disabled={false}
                 className="h-10 text-center"
               />
             </div>
@@ -609,7 +655,7 @@ function SetRow({
                     e.target.value ? parseInt(e.target.value) : null
                   )
                 }
-                disabled={log.completed}
+                disabled={false}
                 className="h-10 text-center"
               />
             </div>
@@ -636,7 +682,7 @@ function SetRow({
                   const val = e.target.value ? parseInt(e.target.value) : null;
                   onUpdate(hasRpe ? "performed_rpe" : "performed_rir", val);
                 }}
-                disabled={log.completed}
+                disabled={false}
                 className="h-10 text-center"
               />
             </div>
@@ -645,16 +691,14 @@ function SetRow({
 
         {/* Complete button */}
         <Button
-          variant={
-            log.completed ? "ghost" : isFilledOut ? "default" : "outline"
-          }
+          variant={isFilledOut ? "default" : "outline"}
           size="icon"
-          onClick={onComplete}
-          disabled={!isFilledOut || log.completed}
-          className={cn(
-            "h-10 w-10 shrink-0",
-            log.completed && "text-green-500"
-          )}
+          onClick={() => {
+            setReopened(false);
+            onComplete();
+          }}
+          disabled={!isFilledOut}
+          className="h-10 w-10 shrink-0"
         >
           <CheckCircle2 className="w-5 h-5" />
         </Button>
@@ -672,10 +716,13 @@ function ExerciseCard({
   onUpdateLogExtra,
   onCompleteSet,
   onSwapExercise,
+  onSkipExercise,
+  onSkipSet,
   isExpanded,
   onToggle,
   activeSuggestionForSet,
   onDismissSuggestion,
+  unit,
 }: {
   exercise: Exercise;
   exerciseIndex: number;
@@ -684,10 +731,13 @@ function ExerciseCard({
   onUpdateLogExtra: (setIndex: number, key: string, value: string | number | null) => void;
   onCompleteSet: (setIndex: number, restSeconds?: number) => void;
   onSwapExercise: () => void;
+  onSkipExercise: () => void;
+  onSkipSet: (setIndex: number) => void;
   isExpanded: boolean;
   onToggle: () => void;
   activeSuggestionForSet: Map<number, { id: string; type: string; text: string }>;
   onDismissSuggestion: (suggestionId: string) => void;
+  unit: WeightUnit;
 }) {
   // Get per-set prescriptions: V2 from prescription_snapshot_json.sets_json, or convert from legacy
   const prescriptions: SetPrescription[] =
@@ -695,14 +745,70 @@ function ExerciseCard({
     exercise.prescription_snapshot_json.sets_json ||
     legacyToPerSet(exercise.prescription_snapshot_json);
 
-  const completedSets = logs.filter((l) => l.completed).length;
   const totalSets = prescriptions.length;
-  const isComplete = completedSets === totalSets;
-  const activeSetIndex = logs.findIndex((l) => !l.completed);
+  const completedSets = logs.filter((l) => l.completed).length;
+  // "Addressed" = completed OR skipped (§5): both count toward done so the
+  // workout can finish; the active set is the first not-yet-addressed one.
+  const isComplete = totalSets > 0 && completedSets === totalSets;
+  const allAddressed =
+    totalSets > 0 && logs.filter((l) => l.completed || l.skipped).length === totalSets;
+  const activeSetIndex = logs.findIndex((l) => !l.completed && !l.skipped);
+
+  const fmtW = (kg: number) => fromCanonicalKg(kg, unit, unit === "kg" ? 1 : 0);
+
+  // --- Skipped exercise (§5): muted collapsed row, Undo to restore ---
+  if (exercise.skipped) {
+    return (
+      <Card className="border-status-neutral/30 bg-status-neutral/5">
+        <CardHeader className="py-3 px-4">
+          <div className="flex items-center gap-3">
+            <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0">
+              <SkipForward className="w-3.5 h-3.5 text-muted-foreground" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <CardTitle className="text-base truncate text-muted-foreground">
+                {exercise.exercise.name}
+              </CardTitle>
+              <CardDescription className="text-xs">Skipped</CardDescription>
+            </div>
+            <Button variant="ghost" size="sm" onClick={onSkipExercise}>
+              Undo
+            </Button>
+          </div>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  // One-line prescription summary (§2c) from the representative (first) set.
+  const p0 = prescriptions[0];
+  const presReps =
+    p0?.reps ||
+    (p0?.rep_range_min && p0?.rep_range_max ? `${p0.rep_range_min}-${p0.rep_range_max}` : null);
+  const presParts: string[] = [];
+  if (!exercise.is_activity && p0) {
+    if (presReps) presParts.push(`${presReps} reps`);
+    if (p0.rpe != null) presParts.push(`RPE ${p0.rpe}`);
+    else if (p0.rir != null) presParts.push(`RIR ${p0.rir}`);
+    if (p0.tempo) presParts.push(p0.tempo);
+    if (p0.rest_seconds)
+      presParts.push(
+        p0.rest_seconds_max && p0.rest_seconds_max !== p0.rest_seconds
+          ? `rest ${p0.rest_seconds}-${p0.rest_seconds_max}s`
+          : `rest ${p0.rest_seconds}s`,
+      );
+  }
+
+  const lastSet = exercise.history?.sets?.[0];
+  const pb = exercise.personal_best;
 
   return (
     <Card
-      className={cn("transition-colors", isComplete && "border-green-500/40")}
+      className={cn(
+        "transition-colors",
+        isComplete && "border-status-ontrack/40",
+        !isComplete && allAddressed && "border-status-neutral/40",
+      )}
     >
       <Collapsible open={isExpanded} onOpenChange={onToggle}>
         <CollapsibleTrigger asChild>
@@ -712,16 +818,10 @@ function ExerciseCard({
               <div
                 className={cn(
                   "w-6 h-6 rounded-full flex items-center justify-center shrink-0 mt-0.5 text-sm font-bold",
-                  isComplete
-                    ? "bg-green-500 text-white"
-                    : "bg-primary/20 text-primary"
+                  isComplete ? "bg-status-ontrack text-white" : "bg-primary/20 text-primary",
                 )}
               >
-                {isComplete ? (
-                  <CheckCircle2 className="w-4 h-4" />
-                ) : (
-                  exerciseIndex + 1
-                )}
+                {isComplete ? <CheckCircle2 className="w-4 h-4" /> : exerciseIndex + 1}
               </div>
 
               {/* Video thumbnail */}
@@ -732,27 +832,38 @@ function ExerciseCard({
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <CardTitle className="text-base truncate">
-                  {exercise.exercise.name}
-                </CardTitle>
+                <CardTitle className="text-base truncate">{exercise.exercise.name}</CardTitle>
                 <CardDescription className="text-sm">
                   {exercise.exercise.primary_muscle}
                 </CardDescription>
-                <div className="flex items-center gap-2 mt-1">
+                {/* Per-set mini progress segments (§2b) */}
+                <div className="flex items-center gap-2 mt-1.5">
+                  <div className="flex items-center gap-1">
+                    {prescriptions.map((_, i) => {
+                      const l = logs[i];
+                      return (
+                        <span
+                          key={i}
+                          className={cn(
+                            "h-1.5 w-4 rounded-full",
+                            l?.completed
+                              ? "bg-status-ontrack"
+                              : l?.skipped
+                                ? "bg-status-neutral"
+                                : "bg-muted",
+                          )}
+                        />
+                      );
+                    })}
+                  </div>
                   <span className="text-xs text-muted-foreground">
-                    {completedSets}/{totalSets}{" "}
-                    {exercise.is_activity ? (totalSets > 1 ? "rounds" : "entry") : "sets"}
+                    {completedSets}/{totalSets}
+                    {exercise.is_activity ? (totalSets > 1 ? " rounds" : " entry") : " sets"}
                   </span>
-                  {exercise.personal_best && (
-                    <span className="text-xs text-amber-500 flex items-center gap-1">
-                      <Trophy className="w-3 h-3" />
-                      {exercise.personal_best.weight}kg
-                    </span>
-                  )}
                 </div>
               </div>
 
-              {/* Swap + Expand */}
+              {/* Swap + Skip + Expand */}
               <div className="flex items-center gap-1 shrink-0">
                 {!isComplete && (
                   <Button
@@ -763,9 +874,23 @@ function ExerciseCard({
                       e.stopPropagation();
                       onSwapExercise();
                     }}
-                    title="Swap Exercise"
+                    title="Swap exercise"
                   >
                     <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
+                  </Button>
+                )}
+                {!isComplete && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onSkipExercise();
+                    }}
+                    title="Skip exercise"
+                  >
+                    <SkipForward className="w-4 h-4 text-muted-foreground" />
                   </Button>
                 )}
                 {isExpanded ? (
@@ -790,11 +915,34 @@ function ExerciseCard({
               </Alert>
             )}
 
-            {/* History block */}
-            <HistoryBlock
-              history={exercise.history}
-              personalBest={exercise.personal_best}
-            />
+            {/* Prescription (one line) + history/PR inline (§2c/§2d) */}
+            <div className="space-y-1">
+              {presParts.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">Target</span> {presParts.join(" · ")}
+                </p>
+              )}
+              {lastSet || pb ? (
+                <p className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
+                  {lastSet && (
+                    <span>
+                      <History className="inline w-3 h-3 mr-1 -mt-0.5" />
+                      Last {fmtW(lastSet.weight)}
+                      {unit}×{lastSet.reps}
+                    </span>
+                  )}
+                  {pb && (
+                    <span className="text-amber-600 dark:text-amber-400">
+                      <Trophy className="inline w-3 h-3 mr-1 -mt-0.5" />
+                      PR {fmtW(pb.weight)}
+                      {unit}×{pb.reps}
+                    </span>
+                  )}
+                </p>
+              ) : (
+                <p className="text-xs text-muted-foreground">First time — no history</p>
+              )}
+            </div>
 
             {/* Per-set rows */}
             <div className="space-y-2">
@@ -815,16 +963,17 @@ function ExerciseCard({
                           performed_extra: {},
                           notes: "",
                           completed: false,
+                          skipped: false,
                         }
                       }
                       onUpdate={(field, value) => onUpdateLog(i, field, value)}
                       onUpdateExtra={(key, value) => onUpdateLogExtra(i, key, value)}
-                      onComplete={() =>
-                        onCompleteSet(i, prescription.rest_seconds)
-                      }
+                      onComplete={() => onCompleteSet(i, prescription.rest_seconds)}
+                      onSkip={() => onSkipSet(i)}
                       isActive={activeSetIndex === i}
                       inputColumns={exercise.input_columns}
                       isActivity={exercise.is_activity}
+                      unit={unit}
                     />
                     {suggestion && (
                       <ProgressionSuggestionBanner
@@ -1136,6 +1285,17 @@ function WorkoutSessionV2Content() {
   const [swapExerciseId, setSwapExerciseId] = useState<string | null>(null);
   const [showSwapPicker, setShowSwapPicker] = useState(false);
 
+  // WK7 §4 — per-client display/entry unit (weights persist canonically in kg).
+  const { unit, setUnit } = useWeightUnit();
+  // WK7 §2e — completion summary sheet shown before navigating to the calendar.
+  const [summary, setSummary] = useState<WorkoutSummary | null>(null);
+  // WK7 §5 — confirm before skipping the whole workout.
+  const [skipWorkoutOpen, setSkipWorkoutOpen] = useState(false);
+  // Elapsed source (§2e): earliest persisted set-log created_at for this session
+  // (survives reload/resume); mount time is the fallback before any set logged.
+  const sessionMountRef = useRef<number>(Date.now());
+  const [earliestLoggedAtMs, setEarliestLoggedAtMs] = useState<number | null>(null);
+
   const hasFetched = useRef(false);
   const setLogsRef = useRef(setLogs);
   setLogsRef.current = setLogs;
@@ -1223,6 +1383,13 @@ function WorkoutSessionV2Content() {
           .select("*")
           .in("client_module_exercise_id", exerciseIds),
       );
+
+      // Elapsed-time source (§2e): earliest created_at among THIS session's
+      // logs. Persisted, so it survives reload/resume (vs the mount fallback).
+      const logCreatedAts = (logsData ?? [])
+        .map((l) => (l.created_at ? new Date(l.created_at).getTime() : NaN))
+        .filter((t) => Number.isFinite(t));
+      setEarliestLoggedAtMs(logCreatedAts.length ? Math.min(...logCreatedAts) : null);
 
       // --- Batched cross-instance reads (WK7 §1.5) ---------------------------
       // The page used to fan out THREE reads PER exercise inside the map below
@@ -1335,7 +1502,9 @@ function WorkoutSessionV2Content() {
               performed_rpe: existing?.performed_rpe ?? null,
               performed_extra: existingExtra,
               notes: existing?.notes || "",
-              completed: existing
+              skipped: existing?.skipped ?? false,
+              // A skipped set is addressed but NOT completed (null performed_*).
+              completed: existing && !existing.skipped
                 ? existing.performed_reps !== null ||
                   existing.performed_load !== null ||
                   Object.keys(existingExtra).length > 0
@@ -1397,6 +1566,7 @@ function WorkoutSessionV2Content() {
             sets_json: setsJson || undefined,
             input_columns: inputColumns,
             is_activity: isActivity,
+            skipped: ex.skipped ?? false,
             exercise: {
               name: ex.exercise_library?.name || "Unknown Exercise",
               default_video_url: ex.exercise_library?.default_video_url,
@@ -1629,6 +1799,102 @@ function WorkoutSessionV2Content() {
     }
   };
 
+  // WK7 §5 — Skip a single set: write an exercise_set_logs row with skipped=true
+  // and null performed_* via the EXISTING upsert (no RPC), same onConflict as
+  // completeSet. Sibling to completeSet, never overloading it. Toggling off
+  // re-upserts skipped=false.
+  const skipSet = async (exerciseId: string, setIndex: number) => {
+    const current = setLogsRef.current[exerciseId]?.[setIndex];
+    const nextSkipped = !current?.skipped;
+    setSetLogs((prev) => ({
+      ...prev,
+      [exerciseId]: prev[exerciseId].map((log, i) =>
+        i === setIndex ? { ...log, skipped: nextSkipped, completed: false } : log,
+      ),
+    }));
+    if (!user || !current) return;
+    const { error } = await supabase.from("exercise_set_logs").upsert(
+      {
+        client_module_exercise_id: exerciseId,
+        set_index: current.set_index,
+        skipped: nextSkipped,
+        performed_reps: null,
+        performed_load: null,
+        performed_rir: null,
+        performed_rpe: null,
+        performed_json: {},
+        created_by_user_id: user.id,
+      },
+      { onConflict: "client_module_exercise_id,set_index" },
+    );
+    if (error) {
+      // Revert local flag so the UI doesn't lie about a skip that didn't persist.
+      setSetLogs((prev) => ({
+        ...prev,
+        [exerciseId]: prev[exerciseId].map((log, i) =>
+          i === setIndex ? { ...log, skipped: !nextSkipped } : log,
+        ),
+      }));
+      toast({
+        title: "Couldn't update set",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    }
+  };
+
+  // WK7 §5 — Skip (or un-skip) a whole exercise via the skip_client_exercise RPC.
+  const skipExercise = async (exerciseId: string) => {
+    if (!module) return;
+    const ex = module.exercises.find((e) => e.id === exerciseId);
+    const nextSkipped = !ex?.skipped;
+    const { error } = await supabase.rpc("skip_client_exercise", {
+      p_cme_id: exerciseId,
+      p_skipped: nextSkipped,
+    });
+    if (error) {
+      toast({
+        title: "Couldn't update exercise",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+      return;
+    }
+    setModule((prev) =>
+      prev
+        ? {
+            ...prev,
+            exercises: prev.exercises.map((e) =>
+              e.id === exerciseId ? { ...e, skipped: nextSkipped } : e,
+            ),
+          }
+        : prev,
+    );
+  };
+
+  // WK7 §5 — Skip the whole workout/day via the skip_client_day_module RPC, then
+  // leave for the calendar. Confirmed through the AlertDialog in the header menu.
+  const skipWorkout = async () => {
+    if (!module) return;
+    setSkipWorkoutOpen(false);
+    const { error } = await supabase.rpc("skip_client_day_module", {
+      p_module_id: module.id,
+    });
+    if (error) {
+      toast({
+        title: "Couldn't skip workout",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+      return;
+    }
+    if (user) {
+      await queryClient.invalidateQueries({ queryKey: ["client-workouts", user.id] });
+    }
+    toast({ title: "Workout skipped", description: "We've let your coach know." });
+    navigate("/client/workout/calendar");
+  };
+
   // Swap exercise
   const swapExercise = async (newExerciseId: string) => {
     if (!swapExerciseId || !module) return;
@@ -1841,12 +2107,56 @@ function WorkoutSessionV2Content() {
         });
       }
 
-      toast({
-        title: "Workout completed!",
-        description: "Great job finishing your workout!",
-      });
-
-      navigate("/client/workout/calendar");
+      // WK7 §2e — build the session summary and show it before leaving; the
+      // sheet's "Done" performs the navigate. Volume in canonical kg (the sheet
+      // converts to the display unit). PRs = exercises whose best completed-set
+      // e1RM beats the prior personal_best e1RM (epley1RM helper).
+      let volumeKg = 0;
+      let setsCompleted = 0;
+      let setsSkipped = 0;
+      for (const exLogs of Object.values(setLogs)) {
+        for (const l of exLogs) {
+          if (l.completed) {
+            setsCompleted += 1;
+            volumeKg += (l.performed_load || 0) * (l.performed_reps || 0);
+          }
+          if (l.skipped) setsSkipped += 1;
+        }
+      }
+      const prs: WorkoutSummary["prs"] = [];
+      for (const ex of module.exercises) {
+        if (ex.is_activity) continue;
+        let bestSet: SetLog | null = null;
+        let bestE1rm = 0;
+        for (const l of setLogs[ex.id] || []) {
+          if (l.completed && l.performed_load != null && l.performed_reps != null) {
+            const e = epley1RM(l.performed_load, l.performed_reps);
+            if (e > bestE1rm) {
+              bestE1rm = e;
+              bestSet = l;
+            }
+          }
+        }
+        if (!bestSet || bestSet.performed_load == null || bestSet.performed_reps == null) continue;
+        const pbE1rm = ex.personal_best
+          ? epley1RM(ex.personal_best.weight, ex.personal_best.reps)
+          : 0;
+        if (bestE1rm > pbE1rm) {
+          prs.push({
+            name: ex.exercise.name,
+            weightKg: bestSet.performed_load,
+            reps: bestSet.performed_reps,
+          });
+        }
+      }
+      const base = earliestLoggedAtMs ?? sessionMountRef.current;
+      let elapsedSeconds: number | null = (Date.now() - base) / 1000;
+      // Guard a misleading number (e.g. a resume where the first set is from a
+      // prior day) — omit rather than show a wrong elapsed.
+      if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 || elapsedSeconds > 24 * 3600) {
+        elapsedSeconds = null;
+      }
+      setSummary({ volumeKg, setsCompleted, setsSkipped, prs, elapsedSeconds });
     } catch (error: any) {
       toast({
         title: "Error completing workout",
@@ -1858,13 +2168,22 @@ function WorkoutSessionV2Content() {
     }
   };
 
-  // Calculate progress
-  const totalSets = Object.values(setLogs).flat().length;
-  const completedSets = Object.values(setLogs)
-    .flat()
-    .filter((l) => l.completed).length;
-  const progressPercent =
-    totalSets > 0 ? (completedSets / totalSets) * 100 : 0;
+  // Calculate progress (§5): skipped sets — and every set of a skipped exercise
+  // — drop OUT of the remaining tally (they count as addressed), so a workout
+  // with skips can still reach 100% and complete.
+  let totalSets = 0;
+  let completedSets = 0;
+  if (module) {
+    for (const ex of module.exercises) {
+      if (ex.skipped) continue;
+      for (const l of setLogs[ex.id] || []) {
+        if (l.skipped) continue;
+        totalSets += 1;
+        if (l.completed) completedSets += 1;
+      }
+    }
+  }
+  const progressPercent = totalSets > 0 ? (completedSets / totalSets) * 100 : 100;
 
   // Loading state
   if (loading) {
@@ -1931,6 +2250,7 @@ function WorkoutSessionV2Content() {
                   by {module.coach_name}
                 </p>
               </div>
+              <WeightUnitToggle unit={unit} onChange={setUnit} />
               <Button
                 variant="outline"
                 size="sm"
@@ -1944,17 +2264,34 @@ function WorkoutSessionV2Content() {
                 )}
                 <span className="ml-2 hidden sm:inline">Save</span>
               </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" aria-label="More options">
+                    <MoreVertical className="w-5 h-5" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={() => setSkipWorkoutOpen(true)}>
+                    <SkipForward className="w-4 h-4 mr-2" />
+                    Skip workout
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
 
-            {/* Progress bar */}
-            <div className="mt-3">
-              <div className="flex items-center justify-between text-sm mb-1.5">
-                <span className="text-muted-foreground">Progress</span>
-                <span className="font-medium">
+            {/* Progress ring + context (§2a) */}
+            <div className="mt-3 flex items-center gap-3">
+              <SessionProgressRing completed={completedSets} total={totalSets} />
+              <div className="leading-tight">
+                <p className="text-sm font-medium">
                   {completedSets}/{totalSets} sets
-                </span>
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {progressPercent >= 100
+                    ? "All sets done"
+                    : `${totalSets - completedSets} to go`}
+                </p>
               </div>
-              <Progress value={progressPercent} className="h-2" />
             </div>
           </div>
         </div>
@@ -1996,6 +2333,8 @@ function WorkoutSessionV2Content() {
                   setSwapExerciseId(exercise.id);
                   setShowSwapPicker(true);
                 }}
+                onSkipExercise={() => skipExercise(exercise.id)}
+                onSkipSet={(setIndex) => skipSet(exercise.id, setIndex)}
                 isExpanded={expandedExercise === exercise.id}
                 onToggle={() =>
                   setExpandedExercise(
@@ -2006,6 +2345,7 @@ function WorkoutSessionV2Content() {
                 onDismissSuggestion={(id) =>
                   logProgressionResponse(id, "dismissed")
                 }
+                unit={unit}
               />
             );
           })}
@@ -2056,6 +2396,34 @@ function WorkoutSessionV2Content() {
             </Button>
           </div>
         </div>
+
+        {/* WK7 §2e — completion summary; Done navigates to the calendar. */}
+        <WorkoutCompletionSheet
+          open={summary !== null}
+          summary={summary}
+          unit={unit}
+          onDone={() => {
+            setSummary(null);
+            navigate("/client/workout/calendar");
+          }}
+        />
+
+        {/* WK7 §5 — confirm skipping the whole workout. */}
+        <AlertDialog open={skipWorkoutOpen} onOpenChange={setSkipWorkoutOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Skip this workout?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This marks the whole session as skipped and lets your coach know.
+                You can still open it again later.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={skipWorkout}>Skip workout</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </>
   );
