@@ -2356,7 +2356,19 @@ function WorkoutSessionV2Content() {
                           <SkipForward className="w-4 h-4 text-muted-foreground" />
                         </span>
                       ) : (
-                        <SessionProgressRing completed={done} total={total} size={34} strokeWidth={3} />
+                        <SessionProgressRing
+                          completed={allAddressed ? total : done}
+                          total={total}
+                          size={34}
+                          strokeWidth={3}
+                          label={
+                            allAddressed ? (
+                              <CheckCircle2 className="w-4 h-4 text-status-ontrack" />
+                            ) : started ? (
+                              `${done}/${total}`
+                            ) : null
+                          }
+                        />
                       )}
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{exercise.exercise.name}</p>
