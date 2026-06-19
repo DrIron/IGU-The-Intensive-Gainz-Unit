@@ -1087,6 +1087,25 @@ function SwapExercisePicker({
 // MAIN COMPONENT
 // =============================================================================
 
+// Transient 5xx / network failures on cold or concurrent page loads occasionally
+// make Supabase reads fail (observed in prod: the client_module_exercises +
+// exercise_library(...) embed 500s at load, then succeeds on a warm retry).
+// These reads are idempotent selects, so retry a few times with linear backoff
+// before surfacing an error — without this a single transient blip strands the
+// client on the loading skeleton with no recovery.
+async function selectWithRetry<R extends { error: unknown }>(
+  run: () => PromiseLike<R>,
+  attempts = 3,
+  baseDelayMs = 400,
+): Promise<R> {
+  let result = await run();
+  for (let i = 1; i < attempts && result.error; i++) {
+    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * i));
+    result = await run();
+  }
+  return result;
+}
+
 function WorkoutSessionV2Content() {
   const { moduleId } = useParams<{ moduleId: string }>();
   const navigate = useNavigate();
@@ -1095,6 +1114,7 @@ function WorkoutSessionV2Content() {
 
   const [module, setModule] = useState<Module | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [user, setUser] = useState<any>(null);
 
@@ -1138,6 +1158,7 @@ function WorkoutSessionV2Content() {
     if (!moduleId) return;
 
     try {
+      setLoadError(false);
       // Get current user
       const {
         data: { user: currentUser },
@@ -1149,11 +1170,13 @@ function WorkoutSessionV2Content() {
       setUser(currentUser);
 
       // Get module data
-      const { data: moduleData, error: moduleError } = await supabase
-        .from("client_day_modules")
-        .select("*")
-        .eq("id", moduleId)
-        .maybeSingle();
+      const { data: moduleData, error: moduleError } = await selectWithRetry(() =>
+        supabase
+          .from("client_day_modules")
+          .select("*")
+          .eq("id", moduleId)
+          .maybeSingle(),
+      );
 
       if (moduleError) throw moduleError;
       if (!moduleData) {
@@ -1174,17 +1197,20 @@ function WorkoutSessionV2Content() {
       const coachData = coachJson as { first_name?: string } | null;
 
       // Get exercises
-      const { data: exercisesData, error: exercisesError } = await supabase
-        .from("client_module_exercises")
-        .select(
-          `
+      const { data: exercisesData, error: exercisesError } = await selectWithRetry(
+        () =>
+          supabase
+            .from("client_module_exercises")
+            .select(
+              `
           *,
           exercise_library(name, primary_muscle, default_video_url)
-        `
-        )
-        .eq("client_day_module_id", moduleId)
-        .order("section")
-        .order("sort_order");
+        `,
+            )
+            .eq("client_day_module_id", moduleId)
+            .order("section")
+            .order("sort_order"),
+      );
 
       if (exercisesError) throw exercisesError;
 
@@ -1361,6 +1387,7 @@ function WorkoutSessionV2Content() {
       }
     } catch (error: any) {
       console.error("Error loading session:", error);
+      setLoadError(true);
       toast({
         title: "Error loading workout",
         description: sanitizeErrorForUser(error),
@@ -1370,6 +1397,15 @@ function WorkoutSessionV2Content() {
       setLoading(false);
     }
   }, [moduleId, navigate, toast]);
+
+  // Manual retry after a failed load — the hasFetched guard otherwise blocks
+  // re-runs, so a transient failure would strand the user with no recovery.
+  const handleRetryLoad = useCallback(() => {
+    hasFetched.current = true;
+    setLoadError(false);
+    setLoading(true);
+    loadSession();
+  }, [loadSession]);
 
   // hasFetched ref guard pattern to prevent infinite loops
   useEffect(() => {
@@ -1779,10 +1815,25 @@ function WorkoutSessionV2Content() {
     return (
       <>
         <Navigation user={user} userRole="client" />
-        <div className="container max-w-3xl mx-auto px-4 py-6 pt-20">
+        <div className="container max-w-3xl mx-auto px-4 py-6 pt-20 space-y-4">
           <Alert variant="destructive">
-            <AlertDescription>Workout not found</AlertDescription>
+            <AlertDescription>
+              {loadError
+                ? "We couldn't load this workout -- this is usually a temporary connection issue. Please try again."
+                : "Workout not found"}
+            </AlertDescription>
           </Alert>
+          {loadError && (
+            <div className="flex gap-3">
+              <Button onClick={handleRetryLoad}>Try again</Button>
+              <Button
+                variant="outline"
+                onClick={() => navigate("/client/workout/calendar")}
+              >
+                Back to calendar
+              </Button>
+            </div>
+          )}
         </div>
       </>
     );
