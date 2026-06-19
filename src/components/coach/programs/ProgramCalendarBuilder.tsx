@@ -50,6 +50,7 @@ import {
 import { SessionTypeSelector } from "./SessionTypeSelector";
 import { ProgramMetadataHeader } from "./ProgramMetadataHeader";
 import { SessionEditorSheet } from "./SessionEditorSheet";
+import { SwipeableRow, type SwipeAction } from "./SwipeableRow";
 import {
   SessionType,
   SessionTiming,
@@ -86,6 +87,9 @@ interface SessionCardProps {
   onToggleStatus: (moduleId: string, currentStatus: string) => void;
   onDeleteSession: (moduleId: string) => void;
   layout?: "grid" | "list";
+  /** List layout only: swipe-to-paste into this session's day (when a session is copied). */
+  onPaste?: () => void;
+  canPaste?: boolean;
 }
 
 const SessionCard = memo(function SessionCard({
@@ -96,6 +100,8 @@ const SessionCard = memo(function SessionCard({
   onToggleStatus,
   onDeleteSession,
   layout = "grid",
+  onPaste,
+  canPaste,
 }: SessionCardProps) {
   const sessionTypeInfo = SESSION_TYPES.find((t) => t.value === session.sessionType);
   const isPublished = session.status === "published";
@@ -151,12 +157,13 @@ const SessionCard = memo(function SessionCard({
       </DropdownMenu>
     );
 
-  // --- Mobile list row: full-width, tap-to-edit, token status chip, inline publish toggle ---
+  // --- Mobile list row: full-width, tap-to-edit, token status chip, inline publish
+  //     toggle, ⋯ menu; swipe-left reveals paste/copy/delete (Phase 2). ---
   if (layout === "list") {
     const chip = statusChip(session.status);
-    return (
+    const row = (
       <div
-        className={`flex items-center gap-2 px-3 py-2.5 ${readOnly ? "" : "cursor-pointer hover:bg-muted/40"}`}
+        className={`flex items-center gap-2 bg-card px-3 py-2.5 ${readOnly ? "" : "cursor-pointer hover:bg-muted/40"}`}
         onClick={readOnly ? undefined : () => onEditDay?.(session.id)}
       >
         <div className={`w-2 h-2 rounded-full shrink-0 ${sessionTypeInfo?.color || "bg-gray-500"}`} />
@@ -187,6 +194,32 @@ const SessionCard = memo(function SessionCard({
         )}
       </div>
     );
+    if (readOnly) return row;
+    const swipeActions: SwipeAction[] = [
+      ...(canPaste && onPaste
+        ? [{
+            key: "paste",
+            label: "Paste",
+            icon: <ClipboardPaste className="h-4 w-4" />,
+            onClick: onPaste,
+            className: "bg-primary text-primary-foreground",
+          }]
+        : []),
+      {
+        key: "copy",
+        label: "Copy",
+        icon: <Clipboard className="h-4 w-4" />,
+        onClick: () => onCopySession(session.id, session.title),
+      },
+      {
+        key: "delete",
+        label: "Delete",
+        icon: <Trash2 className="h-4 w-4" />,
+        onClick: () => onDeleteSession(session.id),
+        className: "bg-destructive text-destructive-foreground",
+      },
+    ];
+    return <SwipeableRow actions={swipeActions}>{row}</SwipeableRow>;
   }
 
   // --- Desktop grid card (unchanged) ---
@@ -228,6 +261,8 @@ interface DayCellProps {
   onToggleStatus: (moduleId: string, currentStatus: string) => void;
   onDeleteSession: (moduleId: string) => void;
   layout?: "grid" | "list";
+  /** List layout only: bulk publish/unpublish all sessions in the day (Phase 2). */
+  onPublishDay?: (day: CalendarDay) => void;
 }
 
 const DayCell = memo(function DayCell({
@@ -241,6 +276,7 @@ const DayCell = memo(function DayCell({
   onToggleStatus,
   onDeleteSession,
   layout = "grid",
+  onPublishDay,
 }: DayCellProps) {
   // --- Mobile list layout: full-width day row + session rows; slim rest-day row ---
   if (layout === "list") {
@@ -281,13 +317,33 @@ const DayCell = memo(function DayCell({
       );
     }
 
+    const anyDraft = day.sessions.some((s) => s.status !== "published");
     return (
       <div className="rounded-lg border bg-card overflow-hidden">
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/20">
           <span className="text-sm font-medium">
             {dayName} <span className="text-muted-foreground font-normal">· Day {day.dayIndex}</span>
           </span>
-          {controls}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* Per-day bulk publish toggle (Phase 2) */}
+            {!readOnly && onPublishDay && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                title={anyDraft ? "Publish all sessions in this day" : "Unpublish this day"}
+                onClick={() => onPublishDay(day)}
+              >
+                {anyDraft ? (
+                  <Eye className="h-3.5 w-3.5 mr-1 text-status-attention" />
+                ) : (
+                  <EyeOff className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                )}
+                {anyDraft ? "Publish day" : "Published"}
+              </Button>
+            )}
+            {controls}
+          </div>
         </div>
         <div className="divide-y">
           {day.sessions.map((session) => (
@@ -300,6 +356,8 @@ const DayCell = memo(function DayCell({
               onCopySession={onCopySession}
               onToggleStatus={onToggleStatus}
               onDeleteSession={onDeleteSession}
+              canPaste={!!copiedSessionId}
+              onPaste={() => onPasteSession(day.dayIndex)}
             />
           ))}
         </div>
@@ -710,6 +768,31 @@ export function ProgramCalendarBuilder({
     }
   }, [weeks, loadProgramStructure, toast]);
 
+  // Per-day bulk publish/unpublish (CAL1 Phase 2, mobile). If any session in the
+  // day is still draft, publish them all; otherwise unpublish the whole day.
+  // Mirrors publishAllDrafts (one bulk update + refetch), scoped to one day.
+  const publishDay = useCallback(async (day: CalendarDay) => {
+    const anyDraft = day.sessions.some((s) => s.status !== "published");
+    const newStatus = anyDraft ? "published" : "draft";
+    const targetIds = day.sessions
+      .filter((s) => (anyDraft ? s.status !== "published" : s.status === "published"))
+      .map((s) => s.id);
+    if (targetIds.length === 0) return;
+    try {
+      const { error } = await supabase.from("day_modules").update({ status: newStatus }).in("id", targetIds);
+      if (error) throw error;
+      hasFetched.current = false;
+      await loadProgramStructure();
+      hasFetched.current = true;
+      toast({
+        title: anyDraft ? "Day published" : "Day unpublished",
+        description: `${targetIds.length} session${targetIds.length === 1 ? "" : "s"} ${anyDraft ? "now visible to clients" : "hidden"}.`,
+      });
+    } catch (error: unknown) {
+      toast({ title: "Error updating day", description: sanitizeErrorForUser(error), variant: "destructive" });
+    }
+  }, [loadProgramStructure, toast]);
+
   const deleteSession = async (moduleId: string) => {
     try {
       await supabase.from("day_modules").delete().eq("id", moduleId);
@@ -1027,6 +1110,7 @@ export function ProgramCalendarBuilder({
               onCopySession={handleCopySession}
               onToggleStatus={toggleModuleStatus}
               onDeleteSession={deleteSession}
+              onPublishDay={publishDay}
             />
           ))}
         </div>
