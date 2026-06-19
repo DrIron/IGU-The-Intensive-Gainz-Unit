@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
 import { useAuthSession } from "@/hooks/useAuthSession";
-import { Loader2, Edit } from "lucide-react";
+import { Loader2, Edit, ChevronDown } from "lucide-react";
 import { StepWizardGoalSetting } from "@/components/calculator/StepWizardGoalSetting";
 import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -14,6 +14,9 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { MacroDonut } from "./MacroDonut";
 import { MacroDistributionRibbon } from "./MacroDistributionRibbon";
+import { JourneyArc, PhaseTimeline } from "./GoalJourney";
+import { useCurrentBodyComp } from "@/hooks/useCurrentBodyComp";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 
 // "fat_loss" -> "Fat Loss" (capitalize leaves the underscore — a real miss).
 const formatGoalType = (g: string) =>
@@ -33,6 +36,8 @@ export function NutritionGoal() {
   const [saving, setSaving] = useState(false);
   const [activeGoal, setActiveGoal] = useState<any>(null);
   const [isEditing, setIsEditing] = useState(false);
+  // NU7 Phase 2 — current weight/body-fat for the journey marker (goal id == phase id).
+  const { currentWeightKg, currentBodyFat } = useCurrentBodyComp(activeGoal?.id);
 
   // Form state (same as CalorieCalculator)
   const [weight, setWeight] = useState("");
@@ -392,9 +397,9 @@ export function NutritionGoal() {
             <div>
               <h3 className="font-semibold mb-3">Current Targets</h3>
               <div className="space-y-4">
-                {/* Calorie hero — reuse the NutritionPhaseCard treatment; foreground, never destructive */}
+                {/* Calorie hero — brand/primary (aligned with the home Daily Targets card), never destructive */}
                 <div className="flex items-baseline gap-2 font-mono tabular-nums">
-                  <span className="text-3xl md:text-4xl font-display leading-none text-foreground">
+                  <span className="text-3xl md:text-4xl font-display leading-none text-primary">
                     {Math.round(activeGoal.daily_calories)}
                   </span>
                   <span className="text-xs text-muted-foreground">kcal · daily target</span>
@@ -422,47 +427,109 @@ export function NutritionGoal() {
               </div>
             </div>
             <div>
-              <h3 className="font-semibold mb-3">Goal Details</h3>
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Goal Type:</span>
-                  <span className="font-medium capitalize">{activeGoal.goal_type}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Weekly Rate:</span>
-                  <span className="font-medium">{activeGoal.weekly_rate_percentage}%</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Starting Weight:</span>
-                  <span className="font-medium">{activeGoal.starting_weight_kg} kg</span>
-                </div>
-                {activeGoal.body_fat_percentage && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Starting Body Fat:</span>
-                    <span className="font-medium">{activeGoal.body_fat_percentage}%</span>
-                  </div>
-                )}
-                {activeGoal.target_weight_kg && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Target Weight:</span>
-                    <span className="font-medium">{activeGoal.target_weight_kg} kg</span>
-                  </div>
-                )}
-                {activeGoal.target_body_fat && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Target Body Fat:</span>
-                    <span className="font-medium">{activeGoal.target_body_fat}%</span>
-                  </div>
-                )}
-                {activeGoal.estimated_duration_weeks && (
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Est. Duration:</span>
-                    <span className="font-medium">{activeGoal.estimated_duration_weeks} weeks</span>
-                  </div>
-                )}
+              <h3 className="font-semibold mb-3">Your Journey</h3>
+              <div className="space-y-4">
+                {/* Journey arc: body-fat if start+target BF exist, else weight fallback.
+                    Current marker sourced from useCurrentBodyComp (NutritionProgress path). */}
+                {activeGoal.body_fat_percentage != null && activeGoal.target_body_fat != null ? (
+                  <JourneyArc
+                    label="Body fat"
+                    start={activeGoal.body_fat_percentage}
+                    current={currentBodyFat}
+                    target={activeGoal.target_body_fat}
+                    unit="%"
+                  />
+                ) : activeGoal.target_weight_kg != null ? (
+                  <JourneyArc
+                    label="Weight"
+                    start={activeGoal.starting_weight_kg}
+                    current={currentWeightKg}
+                    target={activeGoal.target_weight_kg}
+                    unit=" kg"
+                  />
+                ) : null}
+                <PhaseTimeline
+                  startDate={activeGoal.start_date}
+                  endDate={activeGoal.estimated_end_date}
+                  durationWeeks={activeGoal.estimated_duration_weeks}
+                />
               </div>
             </div>
           </div>
+
+          {/* All numbers — detail on demand; the exact rows from the prior layout */}
+          <Collapsible className="mt-6 border-t pt-2">
+            <CollapsibleTrigger className="group flex w-full items-center justify-between py-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+              All numbers
+              <ChevronDown className="h-4 w-4 transition-transform group-data-[state=open]:rotate-180" />
+            </CollapsibleTrigger>
+            <CollapsibleContent>
+              <div className="grid md:grid-cols-2 gap-6 pt-2">
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Daily Calories:</span>
+                    <span className="font-medium">{activeGoal.daily_calories} kcal</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Protein:</span>
+                    <span className="font-medium">{activeGoal.protein_grams}g</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Fat:</span>
+                    <span className="font-medium">{activeGoal.fat_grams}g</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Carbs:</span>
+                    <span className="font-medium">{activeGoal.carb_grams}g</span>
+                  </div>
+                  {activeGoal.fiber_grams && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Fiber:</span>
+                      <span className="font-medium">{activeGoal.fiber_grams}g</span>
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Goal Type:</span>
+                    <span className="font-medium">{formatGoalType(activeGoal.goal_type)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Weekly Rate:</span>
+                    <span className="font-medium">{activeGoal.weekly_rate_percentage}%</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Starting Weight:</span>
+                    <span className="font-medium">{activeGoal.starting_weight_kg} kg</span>
+                  </div>
+                  {activeGoal.body_fat_percentage && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Starting Body Fat:</span>
+                      <span className="font-medium">{activeGoal.body_fat_percentage}%</span>
+                    </div>
+                  )}
+                  {activeGoal.target_weight_kg && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Target Weight:</span>
+                      <span className="font-medium">{activeGoal.target_weight_kg} kg</span>
+                    </div>
+                  )}
+                  {activeGoal.target_body_fat && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Target Body Fat:</span>
+                      <span className="font-medium">{activeGoal.target_body_fat}%</span>
+                    </div>
+                  )}
+                  {activeGoal.estimated_duration_weeks && (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Est. Duration:</span>
+                      <span className="font-medium">{activeGoal.estimated_duration_weeks} weeks</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </CollapsibleContent>
+          </Collapsible>
         </CardContent>
       </Card>
     );
