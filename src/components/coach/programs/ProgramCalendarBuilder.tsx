@@ -9,6 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import {
   Dialog,
@@ -68,6 +69,14 @@ interface ProgramCalendarBuilderProps {
 
 const DAYS_OF_WEEK = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
+// Mobile status chip — --status-* tokens only (published=ontrack, draft=attention, else=neutral).
+const STATUS_CHIP: Record<string, { label: string; cls: string }> = {
+  published: { label: "Published", cls: "bg-status-ontrack/10 text-status-ontrack" },
+  draft: { label: "Draft", cls: "bg-status-attention/10 text-status-attention" },
+};
+const statusChip = (status: string) =>
+  STATUS_CHIP[status] ?? { label: status, cls: "bg-status-neutral/10 text-status-neutral" };
+
 // Memoized session card to prevent re-renders when other sessions/days change
 interface SessionCardProps {
   session: CalendarSession;
@@ -76,6 +85,7 @@ interface SessionCardProps {
   onCopySession: (sessionId: string, title: string) => void;
   onToggleStatus: (moduleId: string, currentStatus: string) => void;
   onDeleteSession: (moduleId: string) => void;
+  layout?: "grid" | "list";
 }
 
 const SessionCard = memo(function SessionCard({
@@ -85,12 +95,105 @@ const SessionCard = memo(function SessionCard({
   onCopySession,
   onToggleStatus,
   onDeleteSession,
+  layout = "grid",
 }: SessionCardProps) {
   const sessionTypeInfo = SESSION_TYPES.find((t) => t.value === session.sessionType);
+  const isPublished = session.status === "published";
+
+  // Shared Edit/Copy/Publish/Delete menu — same handlers in both layouts; only the
+  // trigger sizing differs (grid keeps its exact desktop sizes → no regression).
+  const renderMenu = (triggerClass: string, iconClass: string) =>
+    readOnly ? null : (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            variant="ghost"
+            size="icon"
+            className={`${triggerClass} shrink-0`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <MoreVertical className={iconClass} />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => onEditDay?.(session.id)}>
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Session
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onClick={(e) => {
+              e.stopPropagation();
+              onCopySession(session.id, session.title);
+            }}
+          >
+            <Clipboard className="h-4 w-4 mr-2" />
+            Copy Session
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onToggleStatus(session.id, session.status)}>
+            {isPublished ? (
+              <>
+                <EyeOff className="h-4 w-4 mr-2" />
+                Unpublish
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4 mr-2" />
+                Publish
+              </>
+            )}
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="text-destructive" onClick={() => onDeleteSession(session.id)}>
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+
+  // --- Mobile list row: full-width, tap-to-edit, token status chip, inline publish toggle ---
+  if (layout === "list") {
+    const chip = statusChip(session.status);
+    return (
+      <div
+        className={`flex items-center gap-2 px-3 py-2.5 ${readOnly ? "" : "cursor-pointer hover:bg-muted/40"}`}
+        onClick={readOnly ? undefined : () => onEditDay?.(session.id)}
+      >
+        <div className={`w-2 h-2 rounded-full shrink-0 ${sessionTypeInfo?.color || "bg-gray-500"}`} />
+        <span className="font-medium text-sm truncate flex-1">{session.title}</span>
+        <span className={`text-[11px] font-medium px-2 py-0.5 rounded-full shrink-0 ${chip.cls}`}>
+          {chip.label}
+        </span>
+        {!readOnly && (
+          <>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7 shrink-0"
+              title={isPublished ? "Unpublish" : "Publish"}
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleStatus(session.id, session.status);
+              }}
+            >
+              {isPublished ? (
+                <EyeOff className="h-4 w-4 text-muted-foreground" />
+              ) : (
+                <Eye className="h-4 w-4 text-status-attention" />
+              )}
+            </Button>
+            {renderMenu("h-7 w-7", "h-4 w-4")}
+          </>
+        )}
+      </div>
+    );
+  }
+
+  // --- Desktop grid card (unchanged) ---
   return (
     <div
       className={`p-2 rounded-md text-xs transition-opacity ${
-        session.status === "published"
+        isPublished
           ? "bg-primary/10 border border-primary/20"
           : "bg-muted border border-dashed"
       } ${readOnly ? "" : "cursor-pointer hover:opacity-80"}`}
@@ -101,54 +204,10 @@ const SessionCard = memo(function SessionCard({
           <div className={`w-2 h-2 rounded-full shrink-0 ${sessionTypeInfo?.color || "bg-gray-500"}`} />
           <span className="font-medium truncate">{session.title}</span>
         </div>
-        {!readOnly && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-5 w-5 shrink-0"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <MoreVertical className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onEditDay?.(session.id)}>
-                <Edit className="h-4 w-4 mr-2" />
-                Edit Session
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={(e) => {
-                e.stopPropagation();
-                onCopySession(session.id, session.title);
-              }}>
-                <Clipboard className="h-4 w-4 mr-2" />
-                Copy Session
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onToggleStatus(session.id, session.status)}>
-                {session.status === "published" ? (
-                  <>
-                    <EyeOff className="h-4 w-4 mr-2" />
-                    Unpublish
-                  </>
-                ) : (
-                  <>
-                    <Eye className="h-4 w-4 mr-2" />
-                    Publish
-                  </>
-                )}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="text-destructive" onClick={() => onDeleteSession(session.id)}>
-                <Trash2 className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        {renderMenu("h-5 w-5", "h-3 w-3")}
       </div>
       <Badge
-        variant={session.status === "published" ? "default" : "secondary"}
+        variant={isPublished ? "default" : "secondary"}
         className="text-[10px] h-4 px-1 mt-1"
       >
         {session.status}
@@ -168,6 +227,7 @@ interface DayCellProps {
   onCopySession: (sessionId: string, title: string) => void;
   onToggleStatus: (moduleId: string, currentStatus: string) => void;
   onDeleteSession: (moduleId: string) => void;
+  layout?: "grid" | "list";
 }
 
 const DayCell = memo(function DayCell({
@@ -180,7 +240,73 @@ const DayCell = memo(function DayCell({
   onCopySession,
   onToggleStatus,
   onDeleteSession,
+  layout = "grid",
 }: DayCellProps) {
+  // --- Mobile list layout: full-width day row + session rows; slim rest-day row ---
+  if (layout === "list") {
+    const dayName = DAYS_OF_WEEK[day.dayIndex - 1] ?? `Day ${day.dayIndex}`;
+    const controls = readOnly ? null : (
+      <div className="flex items-center gap-0.5 shrink-0">
+        {copiedSessionId && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7 text-primary"
+            title="Paste session here"
+            onClick={() => onPasteSession(day.dayIndex)}
+          >
+            <ClipboardPaste className="h-4 w-4" />
+          </Button>
+        )}
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-7 w-7"
+          title="Add session"
+          onClick={() => onAddSession(day.dayIndex)}
+        >
+          <Plus className="h-4 w-4" />
+        </Button>
+      </div>
+    );
+
+    if (day.sessions.length === 0) {
+      return (
+        <div className="flex items-center justify-between gap-2 rounded-lg border border-dashed bg-muted/30 px-3 py-2">
+          <span className="text-sm text-muted-foreground">
+            <span className="font-medium text-foreground/70">{dayName}</span> · Rest day
+          </span>
+          {controls}
+        </div>
+      );
+    }
+
+    return (
+      <div className="rounded-lg border bg-card overflow-hidden">
+        <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/20">
+          <span className="text-sm font-medium">
+            {dayName} <span className="text-muted-foreground font-normal">· Day {day.dayIndex}</span>
+          </span>
+          {controls}
+        </div>
+        <div className="divide-y">
+          {day.sessions.map((session) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              readOnly={readOnly}
+              layout="list"
+              onEditDay={onEditDay}
+              onCopySession={onCopySession}
+              onToggleStatus={onToggleStatus}
+              onDeleteSession={onDeleteSession}
+            />
+          ))}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <Card
       className={`min-h-[140px] ${day.isRestDay ? "bg-muted/30" : ""} hover:shadow-md transition-shadow`}
@@ -257,6 +383,7 @@ export function ProgramCalendarBuilder({
   const [loading, setLoading] = useState(true);
   const [weeks, setWeeks] = useState<CalendarWeek[]>([]);
   const [selectedWeek, setSelectedWeek] = useState(1);
+  const isMobile = useIsMobile();
   const [showAddDayDialog, setShowAddDayDialog] = useState(false);
   const [showCopyWeekDialog, setShowCopyWeekDialog] = useState(false);
   const [addDayIndex, setAddDayIndex] = useState<number | null>(null);
@@ -760,59 +887,117 @@ export function ProgramCalendarBuilder({
       )}
 
       {/* Week Navigation */}
-      <div className="flex items-center justify-between">
+      {isMobile ? (
         <div className="flex items-center gap-2">
           {readOnly && onBack && (
-            <Button variant="ghost" size="sm" onClick={onBack}>
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              Back
+            <Button variant="ghost" size="icon" className="shrink-0" onClick={onBack}>
+              <ChevronLeft className="h-4 w-4" />
             </Button>
           )}
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setSelectedWeek(Math.max(1, selectedWeek - 1))}
-            disabled={selectedWeek <= 1}
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </Button>
-          <div className="flex items-center gap-2 px-4 py-2 bg-muted rounded-md">
-            <Calendar className="h-4 w-4" />
-            <span className="font-medium">Week {selectedWeek}</span>
-            <span className="text-muted-foreground text-sm">of {weeks.length}</span>
+          {/* Swipeable week chip strip (MobileWeekStrip pattern, bound to weeks) */}
+          <div className="flex-1 flex items-center gap-1 overflow-x-auto pb-1">
+            {weeks.map((w) => {
+              const active = w.weekNumber === selectedWeek;
+              const hasDrafts = w.days.some((d) => d.sessions.some((s) => s.status !== "published"));
+              return (
+                <button
+                  key={w.weekNumber}
+                  onClick={() => setSelectedWeek(w.weekNumber)}
+                  className={`relative shrink-0 rounded-lg px-3 py-1.5 text-xs font-medium transition-all ${
+                    active
+                      ? "ring-2 ring-primary bg-primary/10 text-primary"
+                      : "bg-card/50 border border-border/50 text-muted-foreground"
+                  }`}
+                >
+                  W{w.weekNumber}
+                  {hasDrafts && (
+                    <span className="absolute -top-0.5 -right-0.5 h-1.5 w-1.5 rounded-full bg-status-attention" />
+                  )}
+                </button>
+              );
+            })}
           </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => setSelectedWeek(Math.min(weeks.length, selectedWeek + 1))}
-            disabled={selectedWeek >= weeks.length}
-          >
-            <ChevronRight className="h-4 w-4" />
-          </Button>
+          {!readOnly && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="icon" className="shrink-0" aria-label="Calendar actions">
+                  <MoreVertical className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                {weeks.some((w) => w.days.some((d) => d.sessions.some((s) => s.status !== "published"))) && (
+                  <DropdownMenuItem onClick={publishAllDrafts}>
+                    <Eye className="h-4 w-4 mr-2" />
+                    Publish all
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => setShowCopyWeekDialog(true)}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Week
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={addWeek}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Week
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
-
-        {!readOnly && (
+      ) : (
+        <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            {/* Bulk publish -- surfaces a single action for converted programs
-                whose modules default to draft. Hidden when everything is
-                already published so the header isn't cluttered. */}
-            {weeks.some(w => w.days.some(d => d.sessions.some(s => s.status !== "published"))) && (
-              <Button variant="outline" onClick={publishAllDrafts}>
-                <Eye className="h-4 w-4 mr-2" />
-                Publish all
+            {readOnly && onBack && (
+              <Button variant="ghost" size="sm" onClick={onBack}>
+                <ChevronLeft className="h-4 w-4 mr-1" />
+                Back
               </Button>
             )}
-            <Button variant="outline" onClick={() => setShowCopyWeekDialog(true)}>
-              <Copy className="h-4 w-4 mr-2" />
-              Copy Week
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setSelectedWeek(Math.max(1, selectedWeek - 1))}
+              disabled={selectedWeek <= 1}
+            >
+              <ChevronLeft className="h-4 w-4" />
             </Button>
-            <Button onClick={addWeek}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Week
+            <div className="flex items-center gap-2 px-4 py-2 bg-muted rounded-md">
+              <Calendar className="h-4 w-4" />
+              <span className="font-medium">Week {selectedWeek}</span>
+              <span className="text-muted-foreground text-sm">of {weeks.length}</span>
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => setSelectedWeek(Math.min(weeks.length, selectedWeek + 1))}
+              disabled={selectedWeek >= weeks.length}
+            >
+              <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
-        )}
-      </div>
+
+          {!readOnly && (
+            <div className="flex items-center gap-2">
+              {/* Bulk publish -- surfaces a single action for converted programs
+                  whose modules default to draft. Hidden when everything is
+                  already published so the header isn't cluttered. */}
+              {weeks.some(w => w.days.some(d => d.sessions.some(s => s.status !== "published"))) && (
+                <Button variant="outline" onClick={publishAllDrafts}>
+                  <Eye className="h-4 w-4 mr-2" />
+                  Publish all
+                </Button>
+              )}
+              <Button variant="outline" onClick={() => setShowCopyWeekDialog(true)}>
+                <Copy className="h-4 w-4 mr-2" />
+                Copy Week
+              </Button>
+              <Button onClick={addWeek}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Week
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Clipboard Banner */}
       {!readOnly && copiedSessionId && (
@@ -826,29 +1011,49 @@ export function ProgramCalendarBuilder({
         </div>
       )}
 
-      {/* Calendar Grid */}
-      <div className="grid grid-cols-7 gap-2">
-        {DAYS_OF_WEEK.map((day) => (
-          <div key={day} className="text-center font-medium text-sm text-muted-foreground py-2">
-            {day}
-          </div>
-        ))}
+      {/* Calendar — mobile: vertical full-width day list; desktop: 7-column grid (unchanged) */}
+      {isMobile ? (
+        <div className="flex flex-col gap-2">
+          {currentWeek?.days.map((day) => (
+            <DayCell
+              key={day.dayIndex}
+              layout="list"
+              day={day}
+              readOnly={readOnly}
+              copiedSessionId={copiedSessionId}
+              onPasteSession={pasteSession}
+              onAddSession={handleAddSession}
+              onEditDay={handleEditSession}
+              onCopySession={handleCopySession}
+              onToggleStatus={toggleModuleStatus}
+              onDeleteSession={deleteSession}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-7 gap-2">
+          {DAYS_OF_WEEK.map((day) => (
+            <div key={day} className="text-center font-medium text-sm text-muted-foreground py-2">
+              {day}
+            </div>
+          ))}
 
-        {currentWeek?.days.map((day) => (
-          <DayCell
-            key={day.dayIndex}
-            day={day}
-            readOnly={readOnly}
-            copiedSessionId={copiedSessionId}
-            onPasteSession={pasteSession}
-            onAddSession={handleAddSession}
-            onEditDay={handleEditSession}
-            onCopySession={handleCopySession}
-            onToggleStatus={toggleModuleStatus}
-            onDeleteSession={deleteSession}
-          />
-        ))}
-      </div>
+          {currentWeek?.days.map((day) => (
+            <DayCell
+              key={day.dayIndex}
+              day={day}
+              readOnly={readOnly}
+              copiedSessionId={copiedSessionId}
+              onPasteSession={pasteSession}
+              onAddSession={handleAddSession}
+              onEditDay={handleEditSession}
+              onCopySession={handleCopySession}
+              onToggleStatus={toggleModuleStatus}
+              onDeleteSession={deleteSession}
+            />
+          ))}
+        </div>
+      )}
 
       {/* Add Session Dialog */}
       <Dialog open={showAddDayDialog} onOpenChange={setShowAddDayDialog}>
