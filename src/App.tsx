@@ -1,4 +1,5 @@
-import { lazy, Suspense, useEffect, memo } from "react";
+import { Suspense, useEffect, memo } from "react";
+import { lazyWithReload } from "@/lib/lazyWithReload";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -10,7 +11,7 @@ import { GlobalErrorBoundary } from "@/components/GlobalErrorBoundary";
 import { TestEnvironmentBanner } from "@/components/TestEnvironmentBanner";
 import { PublicLayout } from "@/components/layouts/PublicLayout";
 import { LoadingSpinner } from "@/components/ui/LoadingSpinner";
-const RoutesDebugPanel = lazy(() =>
+const RoutesDebugPanel = lazyWithReload(() =>
   import("./components/admin/RoutesDebugPanel").then(m => ({ default: m.RoutesDebugPanel }))
 );
 import { OnboardingGuard } from "@/components/OnboardingGuard";
@@ -20,59 +21,59 @@ import { captureUTMParams } from "@/lib/utm";
 import { PWAUpdatePrompt } from "@/components/PWAUpdatePrompt";
 
 // Lazy-loaded page components
-const Index = lazy(() => import("./pages/Index"));
-const Auth = lazy(() => import("./pages/Auth"));
-const Dashboard = lazy(() => import("./pages/Dashboard"));
-const AccountManagement = lazy(() => import("./pages/AccountManagement"));
-const OnboardingForm = lazy(() => import("./pages/OnboardingForm"));
-const ResetPassword = lazy(() => import("./pages/ResetPassword"));
-const CalorieCalculator = lazy(() => import("./pages/CalorieCalculator"));
-const WorkoutLibrary = lazy(() => import("./pages/WorkoutLibrary"));
-const Services = lazy(() => import("./pages/Services"));
-const Testimonial = lazy(() => import("./pages/Testimonial"));
-const ClientSubmission = lazy(() => import("./pages/ClientSubmission"));
-const MeetOurTeam = lazy(() => import("./pages/MeetOurTeam"));
-const CoachSignup = lazy(() => import("./pages/CoachSignup"));
-const CoachPasswordSetup = lazy(() => import("./pages/CoachPasswordSetup"));
-const NotFound = lazy(() => import("./pages/NotFound"));
-const Nutrition = lazy(() => import("./pages/Nutrition"));
-const TeamNutrition = lazy(() => import("./pages/TeamNutrition"));
-const ClientNutrition = lazy(() => import("./pages/ClientNutrition"));
-const CoachClientOverview = lazy(() => import("./pages/CoachClientOverview"));
-const PaymentStatus = lazy(() => import("./pages/PaymentStatus"));
-const PaymentReturn = lazy(() => import("./pages/PaymentReturn"));
-const BillingPayment = lazy(() => import("./pages/BillingPayment"));
-const EducationalVideos = lazy(() => import("./pages/EducationalVideos"));
-const PendingClientsPage = lazy(() => import("./pages/coach/PendingClientsPage"));
-const ClientDiagnostics = lazy(() => import("./pages/admin/ClientDiagnostics"));
-const EmailLog = lazy(() => import("./pages/admin/EmailLog"));
-const ClientSessions = lazy(() => import("./pages/ClientSessions"));
-const ClientMessages = lazy(() => import("./pages/ClientMessages"));
-const AddonsCatalog = lazy(() => import("./pages/client/AddonsCatalog"));
-const AdminDashboard = lazy(() => import("./pages/admin/AdminDashboard"));
-const CoachDashboard = lazy(() => import("./pages/coach/CoachDashboard"));
-const StudioPreview = lazy(() => import("./pages/coach/StudioPreview"));
-const LaunchTestChecklist = lazy(() => import("./pages/admin/LaunchTestChecklist"));
-const WorkoutBuilderQA = lazy(() => import("./pages/admin/WorkoutBuilderQA"));
-const RolesDebug = lazy(() => import("./pages/admin/RolesDebug"));
-const SecurityHardeningChecklist = lazy(() => import("./pages/admin/SecurityHardeningChecklist"));
-const SiteMapDiagnostics = lazy(() => import("./pages/admin/SiteMapDiagnostics"));
-const DiagnosticsIndex = lazy(() => import("./pages/admin/DiagnosticsIndex"));
-const SystemHealth = lazy(() => import("./pages/admin/SystemHealth"));
-const ContentEngagement = lazy(() => import("./pages/admin/ContentEngagement"));
-const CoachContentAssignments = lazy(() => import("./pages/coach/CoachContentAssignments"));
-const Unauthorized = lazy(() => import("./pages/Unauthorized"));
-const WorkoutSessionV2 = lazy(() => import("./pages/client/WorkoutSessionV2"));
-const WorkoutCalendar = lazy(() => import("./pages/client/WorkoutCalendar"));
-const ExerciseHistory = lazy(() => import("./pages/client/ExerciseHistory"));
-const AccessDebug = lazy(() => import("./pages/AccessDebug"));
-const EmailConfirmed = lazy(() => import("./pages/EmailConfirmed"));
-const Waitlist = lazy(() => import("./pages/Waitlist"));
-const TeamsPage = lazy(() => import("./pages/TeamsPage"));
+const Index = lazyWithReload(() => import("./pages/Index"));
+const Auth = lazyWithReload(() => import("./pages/Auth"));
+const Dashboard = lazyWithReload(() => import("./pages/Dashboard"));
+const AccountManagement = lazyWithReload(() => import("./pages/AccountManagement"));
+const OnboardingForm = lazyWithReload(() => import("./pages/OnboardingForm"));
+const ResetPassword = lazyWithReload(() => import("./pages/ResetPassword"));
+const CalorieCalculator = lazyWithReload(() => import("./pages/CalorieCalculator"));
+const WorkoutLibrary = lazyWithReload(() => import("./pages/WorkoutLibrary"));
+const Services = lazyWithReload(() => import("./pages/Services"));
+const Testimonial = lazyWithReload(() => import("./pages/Testimonial"));
+const ClientSubmission = lazyWithReload(() => import("./pages/ClientSubmission"));
+const MeetOurTeam = lazyWithReload(() => import("./pages/MeetOurTeam"));
+const CoachSignup = lazyWithReload(() => import("./pages/CoachSignup"));
+const CoachPasswordSetup = lazyWithReload(() => import("./pages/CoachPasswordSetup"));
+const NotFound = lazyWithReload(() => import("./pages/NotFound"));
+const Nutrition = lazyWithReload(() => import("./pages/Nutrition"));
+const TeamNutrition = lazyWithReload(() => import("./pages/TeamNutrition"));
+const ClientNutrition = lazyWithReload(() => import("./pages/ClientNutrition"));
+const CoachClientOverview = lazyWithReload(() => import("./pages/CoachClientOverview"));
+const PaymentStatus = lazyWithReload(() => import("./pages/PaymentStatus"));
+const PaymentReturn = lazyWithReload(() => import("./pages/PaymentReturn"));
+const BillingPayment = lazyWithReload(() => import("./pages/BillingPayment"));
+const EducationalVideos = lazyWithReload(() => import("./pages/EducationalVideos"));
+const PendingClientsPage = lazyWithReload(() => import("./pages/coach/PendingClientsPage"));
+const ClientDiagnostics = lazyWithReload(() => import("./pages/admin/ClientDiagnostics"));
+const EmailLog = lazyWithReload(() => import("./pages/admin/EmailLog"));
+const ClientSessions = lazyWithReload(() => import("./pages/ClientSessions"));
+const ClientMessages = lazyWithReload(() => import("./pages/ClientMessages"));
+const AddonsCatalog = lazyWithReload(() => import("./pages/client/AddonsCatalog"));
+const AdminDashboard = lazyWithReload(() => import("./pages/admin/AdminDashboard"));
+const CoachDashboard = lazyWithReload(() => import("./pages/coach/CoachDashboard"));
+const StudioPreview = lazyWithReload(() => import("./pages/coach/StudioPreview"));
+const LaunchTestChecklist = lazyWithReload(() => import("./pages/admin/LaunchTestChecklist"));
+const WorkoutBuilderQA = lazyWithReload(() => import("./pages/admin/WorkoutBuilderQA"));
+const RolesDebug = lazyWithReload(() => import("./pages/admin/RolesDebug"));
+const SecurityHardeningChecklist = lazyWithReload(() => import("./pages/admin/SecurityHardeningChecklist"));
+const SiteMapDiagnostics = lazyWithReload(() => import("./pages/admin/SiteMapDiagnostics"));
+const DiagnosticsIndex = lazyWithReload(() => import("./pages/admin/DiagnosticsIndex"));
+const SystemHealth = lazyWithReload(() => import("./pages/admin/SystemHealth"));
+const ContentEngagement = lazyWithReload(() => import("./pages/admin/ContentEngagement"));
+const CoachContentAssignments = lazyWithReload(() => import("./pages/coach/CoachContentAssignments"));
+const Unauthorized = lazyWithReload(() => import("./pages/Unauthorized"));
+const WorkoutSessionV2 = lazyWithReload(() => import("./pages/client/WorkoutSessionV2"));
+const WorkoutCalendar = lazyWithReload(() => import("./pages/client/WorkoutCalendar"));
+const ExerciseHistory = lazyWithReload(() => import("./pages/client/ExerciseHistory"));
+const AccessDebug = lazyWithReload(() => import("./pages/AccessDebug"));
+const EmailConfirmed = lazyWithReload(() => import("./pages/EmailConfirmed"));
+const Waitlist = lazyWithReload(() => import("./pages/Waitlist"));
+const TeamsPage = lazyWithReload(() => import("./pages/TeamsPage"));
 // Onboarding pages
-const MedicalReview = lazy(() => import("./pages/onboarding/MedicalReview"));
-const AwaitingApproval = lazy(() => import("./pages/onboarding/AwaitingApproval"));
-const PaymentOnboarding = lazy(() => import("./pages/onboarding/Payment"));
+const MedicalReview = lazyWithReload(() => import("./pages/onboarding/MedicalReview"));
+const AwaitingApproval = lazyWithReload(() => import("./pages/onboarding/AwaitingApproval"));
+const PaymentOnboarding = lazyWithReload(() => import("./pages/onboarding/Payment"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -123,7 +124,7 @@ const ClientMobileNavGlobal = memo(function ClientMobileNavGlobal() {
 });
 
 // Lazy-load the actual nav to avoid pulling sidebar code into the initial bundle
-const MobileBottomNavClient = lazy(() =>
+const MobileBottomNavClient = lazyWithReload(() =>
   Promise.all([
     import("@/components/layouts/MobileBottomNav"),
     import("@/components/client/ClientSidebar"),
@@ -164,7 +165,7 @@ function CoachClientNutritionRedirect() {
 // Pure-dietitian dock swaps Programs -> Nutrition clients. We surface
 // `isDietitian` + `isCoach` from useSubrolePermissions inside the component
 // so the dock re-renders when the subrole resolves (the hook is async).
-const MobileBottomNavCoach = lazy(() =>
+const MobileBottomNavCoach = lazyWithReload(() =>
   Promise.all([
     import("@/components/layouts/MobileBottomNav"),
     import("@/components/coach/CoachSidebar"),
@@ -192,7 +193,7 @@ const AdminMobileNavGlobal = memo(function AdminMobileNavGlobal() {
   return <MobileBottomNavAdmin />;
 });
 
-const MobileBottomNavAdmin = lazy(() =>
+const MobileBottomNavAdmin = lazyWithReload(() =>
   Promise.all([
     import("@/components/layouts/MobileBottomNav"),
     import("@/components/admin/AdminSidebar"),

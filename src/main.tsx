@@ -4,6 +4,17 @@ import { HelmetProvider } from "react-helmet-async";
 import './i18n/config';
 import App from "./App.tsx";
 import "./index.css";
+import { reloadOnceForChunkError } from "@/lib/lazyWithReload";
+
+// Stale-chunk recovery (P2). Vite fires `vite:preloadError` when a modulepreload
+// for a hashed chunk 404s — which happens to a still-open tab after a deploy
+// (old index.html points at chunks the CDN no longer has). Default behavior is
+// to throw, crashing to the error boundary; instead hard-reload once to pick up
+// the fresh deploy. Loop-guarded in reloadOnceForChunkError.
+window.addEventListener("vite:preloadError", (event) => {
+  event.preventDefault();
+  reloadOnceForChunkError();
+});
 
 // Initialize Sentry as early as possible.
 // DSN comes from VITE_SENTRY_DSN, set in Vercel for Production + Preview.

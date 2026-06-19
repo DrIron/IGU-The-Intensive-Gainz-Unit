@@ -3,6 +3,7 @@ import { AlertCircle, RefreshCw, Home, Mail } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { logErrorBoundary, captureException } from "@/lib/errorLogging";
+import { isChunkLoadError, reloadOnceForChunkError } from "@/lib/lazyWithReload";
 
 interface GlobalErrorBoundaryProps {
   children: React.ReactNode;
@@ -14,6 +15,8 @@ interface GlobalErrorBoundaryState {
   hasError: boolean;
   error: Error | null;
   errorId?: string;
+  /** Stale-chunk error → show an "Updating…" placeholder + auto-reload, not the crash UI. */
+  isChunkError?: boolean;
 }
 
 export class GlobalErrorBoundary extends React.Component<
@@ -28,12 +31,23 @@ export class GlobalErrorBoundary extends React.Component<
   static getDerivedStateFromError(error: Error): GlobalErrorBoundaryState {
     // Generate a unique error ID for tracking
     const errorId = `err_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    return { hasError: true, error, errorId };
+    // A stale-chunk error (post-deploy) shows the "Updating…" placeholder while
+    // componentDidCatch triggers the one-shot reload — not the crash UI.
+    return { hasError: true, error, errorId, isChunkError: isChunkLoadError(error) };
   }
 
   componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
     const boundaryName = this.props.name || "Global";
-    
+
+    // Stale-chunk error: auto-reload once to fetch the fresh deploy instead of
+    // crashing or logging a fatal. If the loop guard suppresses the reload
+    // (already reloaded moments ago → genuinely broken), fall through to the
+    // normal crash UI + logging.
+    if (this.state.isChunkError) {
+      if (reloadOnceForChunkError()) return;
+      this.setState({ isChunkError: false });
+    }
+
     // Log to console
     console.error(`[${boundaryName}ErrorBoundary] Caught error:`, error, errorInfo);
     
@@ -61,6 +75,17 @@ export class GlobalErrorBoundary extends React.Component<
 
   render() {
     if (this.state.hasError) {
+      // Reloading for a fresh deploy — minimal placeholder, not the crash UI.
+      if (this.state.isChunkError) {
+        return (
+          <div className="min-h-screen flex items-center justify-center p-4">
+            <div className="flex items-center gap-3 text-muted-foreground">
+              <RefreshCw className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Updating to the latest version…</span>
+            </div>
+          </div>
+        );
+      }
       return (
         <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
           <Card className="max-w-md w-full border-destructive/30 bg-card shadow-xl">

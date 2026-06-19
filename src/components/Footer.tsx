@@ -1,4 +1,5 @@
-import { lazy, Suspense, useRef, useState } from "react";
+import { Suspense, useRef, useState } from "react";
+import { lazyWithReload } from "@/lib/lazyWithReload";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Loader2 } from "lucide-react";
@@ -13,7 +14,7 @@ import { captureException } from "@/lib/errorLogging";
 
 const TURNSTILE_SITE_KEY = import.meta.env.VITE_TURNSTILE_SITE_KEY || "";
 
-const CoachApplicationForm = lazy(() =>
+const CoachApplicationForm = lazyWithReload(() =>
   import("@/components/CoachApplicationForm").then(m => ({ default: m.CoachApplicationForm }))
 );
 
