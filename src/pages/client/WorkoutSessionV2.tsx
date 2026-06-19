@@ -1533,23 +1533,29 @@ function WorkoutSessionV2Content() {
     const exerciseForSave = module?.exercises.find((e) => e.id === exerciseId);
     const logForSave = setLogsRef.current[exerciseId]?.[setIndex];
     if (user && exerciseForSave && logForSave) {
-      const { error } = await supabase
-        .from("exercise_set_logs")
-        .upsert(
-          {
-            client_module_exercise_id: exerciseId,
-            set_index: logForSave.set_index,
-            prescribed: exerciseForSave.prescription_snapshot_json,
-            performed_reps: logForSave.performed_reps,
-            performed_load: logForSave.performed_load,
-            performed_rir: logForSave.performed_rir,
-            performed_rpe: logForSave.performed_rpe,
-            performed_json: logForSave.performed_extra ?? {},
-            notes: logForSave.notes || null,
-            created_by_user_id: user.id,
-          },
-          { onConflict: "client_module_exercise_id,set_index" },
-        );
+      // Retry on transient failures — the upsert is idempotent (onConflict), and
+      // on mobile a brief connectivity/pooler blip would otherwise permanently
+      // drop the set with no recovery. Observed in prod: whole exercises lost
+      // their sets to short blips while neighbouring exercises saved fine.
+      const { error } = await selectWithRetry(() =>
+        supabase
+          .from("exercise_set_logs")
+          .upsert(
+            {
+              client_module_exercise_id: exerciseId,
+              set_index: logForSave.set_index,
+              prescribed: exerciseForSave.prescription_snapshot_json,
+              performed_reps: logForSave.performed_reps,
+              performed_load: logForSave.performed_load,
+              performed_rir: logForSave.performed_rir,
+              performed_rpe: logForSave.performed_rpe,
+              performed_json: logForSave.performed_extra ?? {},
+              notes: logForSave.notes || null,
+              created_by_user_id: user.id,
+            },
+            { onConflict: "client_module_exercise_id,set_index" },
+          ),
+      );
       if (error) {
         // Revert the local "completed" flag so the coach/client isn't misled
         // about a set that didn't actually save.
@@ -1745,9 +1751,13 @@ function WorkoutSessionV2Content() {
       // tally both rejected promises AND fulfilled-with-error results.
       const results = await Promise.allSettled(
         allLogs.map((log) =>
-          supabase.from("exercise_set_logs").upsert(log, {
-            onConflict: "client_module_exercise_id,set_index",
-          }),
+          // Retry each idempotent upsert so a transient mobile/pooler blip on the
+          // bulk save doesn't permanently drop sets (matches completeSet).
+          selectWithRetry(() =>
+            supabase.from("exercise_set_logs").upsert(log, {
+              onConflict: "client_module_exercise_id,set_index",
+            }),
+          ),
         ),
       );
 
