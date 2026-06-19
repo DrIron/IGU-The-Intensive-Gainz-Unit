@@ -40,11 +40,15 @@ export function NutritionGoal() {
 
   const loadActiveGoal = useCallback(async (user: SupabaseUser) => {
     try {
+      // order + limit(1) so a legacy duplicate (more than one is_active row)
+      // can't make .maybeSingle() throw — we always load the newest active goal.
       const { data, error } = await supabase
         .from('nutrition_goals')
         .select('*')
         .eq('user_id', user.id)
         .eq('is_active', true)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
       if (error) throw error;
@@ -263,6 +267,17 @@ export function NutritionGoal() {
       if (!calculatedAge) {
         throw new Error('Invalid date of birth');
       }
+
+      // Enforce one active goal per user (also guarded by the partial unique
+      // index nutrition_goals(user_id) WHERE is_active). Deactivate the prior
+      // active goal first; otherwise two active rows make loadActiveGoal()'s
+      // .maybeSingle() throw ("Failed to load nutrition goal").
+      const { error: deactivateError } = await supabase
+        .from('nutrition_goals')
+        .update({ is_active: false })
+        .eq('user_id', user.id)
+        .eq('is_active', true);
+      if (deactivateError) throw deactivateError;
 
       const { error } = await supabase
         .from('nutrition_goals')
