@@ -55,6 +55,7 @@ import {
   ArrowRightLeft,
   SkipForward,
   MoreVertical,
+  List,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -71,6 +72,7 @@ import {
 import { fromCanonicalKg, toCanonicalKg, type WeightUnit } from "@/utils/weightUnits";
 import { epley1RM } from "@/lib/oneRepMax";
 import { useWeightUnit } from "@/hooks/useWeightUnit";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { SessionProgressRing } from "@/components/workout/SessionProgressRing";
 import { WeightUnitToggle } from "@/components/workout/WeightUnitToggle";
 import {
@@ -1268,7 +1270,9 @@ function WorkoutSessionV2Content() {
   const [user, setUser] = useState<any>(null);
 
   const [setLogs, setSetLogs] = useState<Record<string, SetLog[]>>({});
-  const [expandedExercise, setExpandedExercise] = useState<string | null>(null);
+  // WK7 §3 — overview (whole-session list) ↔ focus (one exercise at a time).
+  const [mode, setMode] = useState<"overview" | "focus">("overview");
+  const [focusIndex, setFocusIndex] = useState(0);
   // `token` increments each time a fresh timer starts so <RestTimer> remounts
   // via its `key` prop and the internal countdown resets. Without it, a second
   // completeSet while the previous timer is still running keeps the stale
@@ -1608,13 +1612,14 @@ function WorkoutSessionV2Content() {
         exercises: formattedExercises,
       });
 
-      // Auto-expand first incomplete exercise
-      const firstIncomplete = formattedExercises.find((ex) => {
+      // §3 — default the focus index to the first incomplete exercise so Resume
+      // and the segment row land in the right place (overview stays the entry).
+      const firstIncomplete = formattedExercises.findIndex((ex) => {
         const logs = initialLogs[ex.id];
-        return logs && logs.some((l) => !l.completed);
+        return !ex.skipped && logs && logs.some((l) => !l.completed && !l.skipped);
       });
-      if (firstIncomplete) {
-        setExpandedExercise(firstIncomplete.id);
+      if (firstIncomplete >= 0) {
+        setFocusIndex(firstIncomplete);
       }
     } catch (error: any) {
       console.error("Error loading session:", error);
@@ -2185,6 +2190,22 @@ function WorkoutSessionV2Content() {
   }
   const progressPercent = totalSets > 0 ? (completedSets / totalSets) * 100 : 100;
 
+  // §3 paging — Resume jumps to the first exercise with an unaddressed set;
+  // Begin starts at 0. `hasLoggedProgress` flips Begin → Resume on a resumed
+  // session (any set already completed/skipped).
+  const firstIncompleteIndex = module
+    ? module.exercises.findIndex((ex) => {
+        if (ex.skipped) return false;
+        return (setLogs[ex.id] || []).some((l) => !l.completed && !l.skipped);
+      })
+    : -1;
+  const hasLoggedProgress = Object.values(setLogs)
+    .flat()
+    .some((l) => l.completed || l.skipped);
+  const focusExercise = module?.exercises[focusIndex];
+  const isLastFocus = module ? focusIndex >= module.exercises.length - 1 : true;
+  const remainingSets = totalSets - completedSets;
+
   // Loading state
   if (loading) {
     return (
@@ -2296,59 +2317,154 @@ function WorkoutSessionV2Content() {
           </div>
         </div>
 
-        {/* Exercise list */}
+        {/* Body — §3: overview list OR single-exercise focus */}
         <main className="container max-w-3xl mx-auto px-4 py-4 space-y-3 pb-28">
-          {module.exercises.map((exercise, index) => {
-            // Build a map of active suggestions for this exercise (setNumber → suggestion)
-            const suggestionsForExercise = new Map<
-              number,
-              { id: string; type: string; text: string }
-            >();
-            for (const s of activeSuggestions) {
-              if (s.exerciseId === exercise.id) {
-                suggestionsForExercise.set(s.setNumber, {
-                  id: s.id,
-                  type: s.result.type,
-                  text: s.result.text,
-                });
-              }
-            }
-
-            return (
-              <ExerciseCard
-                key={exercise.id}
-                exercise={exercise}
-                exerciseIndex={index}
-                logs={setLogs[exercise.id] || []}
-                onUpdateLog={(setIndex, field, value) =>
-                  updateSetLog(exercise.id, setIndex, field, value)
+          {mode === "overview" ? (
+            /* Overview — whole session at a glance (§3b) */
+            <div className="space-y-2">
+              {module.exercises.map((exercise, index) => {
+                const logs = setLogs[exercise.id] || [];
+                const total = logs.length;
+                const done = logs.filter((l) => l.completed).length;
+                const skipped = logs.filter((l) => l.skipped).length;
+                const allAddressed = total > 0 && done + skipped === total;
+                const started = done > 0 || skipped > 0;
+                const status = exercise.skipped
+                  ? { label: "Skipped", cls: "bg-status-neutral/10 text-muted-foreground" }
+                  : allAddressed
+                    ? { label: "Done", cls: "bg-status-ontrack/10 text-status-ontrack" }
+                    : started
+                      ? { label: "In progress", cls: "bg-primary/10 text-primary" }
+                      : { label: "Not started", cls: "bg-muted text-muted-foreground" };
+                const unitNoun = exercise.is_activity
+                  ? total === 1
+                    ? "entry"
+                    : "entries"
+                  : "sets";
+                return (
+                  <ClickableCard
+                    key={exercise.id}
+                    ariaLabel={`${exercise.exercise.name} — ${status.label}. Open to log.`}
+                    onClick={() => {
+                      setFocusIndex(index);
+                      setMode("focus");
+                    }}
+                  >
+                    <div className="flex items-center gap-3 p-3">
+                      {exercise.skipped ? (
+                        <span className="w-[34px] h-[34px] rounded-full bg-muted flex items-center justify-center shrink-0">
+                          <SkipForward className="w-4 h-4 text-muted-foreground" />
+                        </span>
+                      ) : (
+                        <SessionProgressRing completed={done} total={total} size={34} strokeWidth={3} />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{exercise.exercise.name}</p>
+                        <p className="text-xs text-muted-foreground truncate">
+                          {exercise.exercise.primary_muscle}
+                          {total > 0 ? ` · ${total} ${unitNoun}` : ""}
+                        </p>
+                      </div>
+                      <span className={cn("text-xs px-2 py-0.5 rounded-full shrink-0", status.cls)}>
+                        {status.label}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" />
+                    </div>
+                  </ClickableCard>
+                );
+              })}
+            </div>
+          ) : focusExercise ? (
+            /* Focus — one exercise at a time (§3c) */
+            <div className="space-y-3">
+              {/* Stepper header */}
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="text-xs text-muted-foreground truncate">
+                    {focusExercise.exercise.primary_muscle}
+                  </p>
+                  <p className="text-sm font-medium">
+                    Exercise {focusIndex + 1} of {module.exercises.length}
+                  </p>
+                </div>
+                <Button variant="ghost" size="sm" onClick={() => setMode("overview")}>
+                  <List className="w-4 h-4 mr-1" />
+                  Overview
+                </Button>
+              </div>
+              {/* Segment row — tap to jump */}
+              <div className="flex items-center gap-1.5">
+                {module.exercises.map((ex, i) => {
+                  const exLogs = setLogs[ex.id] || [];
+                  const exAddressed =
+                    exLogs.length > 0 &&
+                    exLogs.filter((l) => l.completed || l.skipped).length === exLogs.length;
+                  return (
+                    <button
+                      key={ex.id}
+                      type="button"
+                      onClick={() => setFocusIndex(i)}
+                      aria-label={`Go to exercise ${i + 1}`}
+                      className={cn(
+                        "h-1.5 flex-1 rounded-full transition-colors",
+                        i === focusIndex
+                          ? "bg-primary"
+                          : ex.skipped
+                            ? "bg-status-neutral"
+                            : exAddressed
+                              ? "bg-status-ontrack"
+                              : "bg-muted",
+                      )}
+                    />
+                  );
+                })}
+              </div>
+              {/* The single exercise card (always expanded) */}
+              {(() => {
+                const suggestionsForExercise = new Map<
+                  number,
+                  { id: string; type: string; text: string }
+                >();
+                for (const s of activeSuggestions) {
+                  if (s.exerciseId === focusExercise.id) {
+                    suggestionsForExercise.set(s.setNumber, {
+                      id: s.id,
+                      type: s.result.type,
+                      text: s.result.text,
+                    });
+                  }
                 }
-                onUpdateLogExtra={(setIndex, key, value) =>
-                  updateSetExtra(exercise.id, setIndex, key, value)
-                }
-                onCompleteSet={(setIndex, restSeconds) =>
-                  completeSet(exercise.id, setIndex, restSeconds)
-                }
-                onSwapExercise={() => {
-                  setSwapExerciseId(exercise.id);
-                  setShowSwapPicker(true);
-                }}
-                onSkipExercise={() => skipExercise(exercise.id)}
-                onSkipSet={(setIndex) => skipSet(exercise.id, setIndex)}
-                isExpanded={expandedExercise === exercise.id}
-                onToggle={() =>
-                  setExpandedExercise(
-                    expandedExercise === exercise.id ? null : exercise.id
-                  )
-                }
-                activeSuggestionForSet={suggestionsForExercise}
-                onDismissSuggestion={(id) =>
-                  logProgressionResponse(id, "dismissed")
-                }
-                unit={unit}
-              />
-            );
-          })}
+                return (
+                  <ExerciseCard
+                    key={focusExercise.id}
+                    exercise={focusExercise}
+                    exerciseIndex={focusIndex}
+                    logs={setLogs[focusExercise.id] || []}
+                    onUpdateLog={(setIndex, field, value) =>
+                      updateSetLog(focusExercise.id, setIndex, field, value)
+                    }
+                    onUpdateLogExtra={(setIndex, key, value) =>
+                      updateSetExtra(focusExercise.id, setIndex, key, value)
+                    }
+                    onCompleteSet={(setIndex, restSeconds) =>
+                      completeSet(focusExercise.id, setIndex, restSeconds)
+                    }
+                    onSwapExercise={() => {
+                      setSwapExerciseId(focusExercise.id);
+                      setShowSwapPicker(true);
+                    }}
+                    onSkipExercise={() => skipExercise(focusExercise.id)}
+                    onSkipSet={(setIndex) => skipSet(focusExercise.id, setIndex)}
+                    isExpanded={true}
+                    onToggle={() => {}}
+                    activeSuggestionForSet={suggestionsForExercise}
+                    onDismissSuggestion={(id) => logProgressionResponse(id, "dismissed")}
+                    unit={unit}
+                  />
+                );
+              })()}
+            </div>
+          ) : null}
         </main>
 
         {/* Rest timer */}
@@ -2377,23 +2493,65 @@ function WorkoutSessionV2Content() {
           />
         )}
 
-        {/* Complete workout button */}
+        {/* Bottom CTA — §3: Begin/Resume/Finish on overview; Next/Finish on focus */}
         <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-background via-background to-transparent">
           <div className="container max-w-3xl mx-auto">
-            <Button
-              className="w-full h-12 text-base"
-              onClick={completeWorkout}
-              disabled={submitting || progressPercent < 100}
-            >
-              {submitting ? (
-                <Loader2 className="w-5 h-5 animate-spin mr-2" />
-              ) : (
-                <CheckCircle2 className="w-5 h-5 mr-2" />
-              )}
-              {progressPercent < 100
-                ? `Complete ${totalSets - completedSets} more set${totalSets - completedSets !== 1 ? "s" : ""}`
-                : "Complete Workout"}
-            </Button>
+            {mode === "overview" ? (
+              <Button
+                className="w-full h-12 text-base"
+                disabled={submitting}
+                onClick={() => {
+                  if (progressPercent >= 100) {
+                    completeWorkout();
+                    return;
+                  }
+                  setFocusIndex(
+                    hasLoggedProgress && firstIncompleteIndex >= 0 ? firstIncompleteIndex : 0,
+                  );
+                  setMode("focus");
+                }}
+              >
+                {submitting ? (
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                ) : progressPercent >= 100 ? (
+                  <CheckCircle2 className="w-5 h-5 mr-2" />
+                ) : null}
+                {progressPercent >= 100
+                  ? "Finish workout"
+                  : hasLoggedProgress
+                    ? "Resume"
+                    : "Begin workout"}
+              </Button>
+            ) : progressPercent >= 100 ? (
+              <Button
+                className="w-full h-12 text-base"
+                onClick={completeWorkout}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <Loader2 className="w-5 h-5 animate-spin mr-2" />
+                ) : (
+                  <CheckCircle2 className="w-5 h-5 mr-2" />
+                )}
+                Finish workout
+              </Button>
+            ) : !isLastFocus ? (
+              <Button
+                className="w-full h-12 text-base"
+                onClick={() =>
+                  setFocusIndex((i) =>
+                    Math.min(i + 1, (module?.exercises.length ?? 1) - 1),
+                  )
+                }
+              >
+                Next exercise
+                <ChevronRight className="w-5 h-5 ml-1" />
+              </Button>
+            ) : (
+              <Button className="w-full h-12 text-base" disabled>
+                Complete {remainingSets} more set{remainingSets !== 1 ? "s" : ""}
+              </Button>
+            )}
           </div>
         </div>
 
