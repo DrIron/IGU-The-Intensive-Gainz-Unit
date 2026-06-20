@@ -20,6 +20,7 @@ import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
 import { FAQSection } from "@/components/marketing/FAQSection";
 import { HowItWorksSection } from "@/components/marketing/HowItWorksSection";
+import { cn } from "@/lib/utils";
 
 interface Service {
   id: string;
@@ -295,23 +296,32 @@ export default function Index() {
   // Derive CTA variant for hero
   const ctaVariant = getHeroCtaVariant(user, profile, subscription);
 
+  // Single-source primary CTA (hero + mobile sticky bar share this descriptor)
+  const primaryCta =
+    ctaVariant === "logged_out"
+      ? { label: "Choose Your Plan", onClick: () => document.getElementById("services")?.scrollIntoView({ behavior: "smooth" }) }
+      : ctaVariant === "inactive_cancelled"
+        ? { label: "Browse Plans & Restart", onClick: () => navigate("/services") }
+        : { label: "Go to Your Dashboard", onClick: () => navigate("/dashboard") };
+
+  const heroCtaRef = useRef<HTMLDivElement>(null);
+  const [heroCtaInView, setHeroCtaInView] = useState(true);
+  useEffect(() => {
+    const el = heroCtaRef.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => setHeroCtaInView(e.isIntersecting), { threshold: 0 });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const showStickyCta = isMobile && !heroCtaInView;
+
   // Render hero CTA based on variant
   const renderHeroCta = () => {
     switch (ctaVariant) {
       case 'logged_out':
         return (
           <>
-            <Button 
-              variant="hero" 
-              size="xl" 
-              className="w-full sm:w-auto"
-              onClick={() => {
-                const servicesSection = document.getElementById('services');
-                servicesSection?.scrollIntoView({ behavior: 'smooth' });
-              }}
-            >
-              Choose Your Plan
-            </Button>
+            <Button variant="hero" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
             <p className="text-white/80 text-sm md:text-base mt-3" style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.6)' }}>
               Already a client?{" "}
               <button
@@ -327,14 +337,7 @@ export default function Index() {
       case 'active':
         return (
           <>
-            <Button 
-              variant="hero" 
-              size="xl" 
-              className="w-full sm:w-auto"
-              onClick={() => navigate("/dashboard")}
-            >
-              Go to Your Dashboard
-            </Button>
+            <Button variant="hero" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
             <p className="text-white/80 text-sm md:text-base mt-3" style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.6)' }}>
               <Link
                 to="/services"
@@ -349,14 +352,7 @@ export default function Index() {
       case 'inactive_cancelled':
         return (
           <>
-            <Button 
-              variant="hero" 
-              size="xl" 
-              className="w-full sm:w-auto"
-              onClick={() => navigate("/services")}
-            >
-              Browse Plans & Restart
-            </Button>
+            <Button variant="hero" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
             <p className="text-white/80 text-sm md:text-base mt-3" style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.6)' }}>
               <a
                 href="mailto:support@theigu.com"
@@ -373,14 +369,7 @@ export default function Index() {
         // Pending states - send to dashboard which handles detailed messaging
         return (
           <>
-            <Button 
-              variant="hero" 
-              size="xl" 
-              className="w-full sm:w-auto"
-              onClick={() => navigate("/dashboard")}
-            >
-              Go to Your Dashboard
-            </Button>
+            <Button variant="hero" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
             <p className="text-white/80 text-sm md:text-base mt-3" style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.6)' }}>
               <a
                 href="mailto:support@theigu.com"
@@ -440,7 +429,7 @@ export default function Index() {
             {cmsContent?.hero?.subtitle || "Professional bodybuilding coaching tailored to your goals. Choose from team training or personalized 1:1 programs."}
           </p>
 
-          <div className="flex flex-col items-center gap-4 px-4">
+          <div ref={heroCtaRef} className="flex flex-col items-center gap-4 px-4">
             {renderHeroCta()}
           </div>
         </div>
@@ -728,6 +717,19 @@ export default function Index() {
         </div>
       </section>
 
+      {isMobile && (
+        <div
+          aria-hidden={!showStickyCta}
+          className={cn(
+            "fixed inset-x-0 bottom-0 z-40 md:hidden border-t border-border bg-background/95 backdrop-blur px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] transition-transform duration-300",
+            showStickyCta ? "translate-y-0" : "translate-y-full pointer-events-none"
+          )}
+        >
+          <Button variant="hero" size="lg" className="w-full" onClick={primaryCta.onClick}>
+            {primaryCta.label}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
