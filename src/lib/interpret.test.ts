@@ -7,6 +7,7 @@ import {
   interpretWeighInRecency,
   interpretMacroTargets,
   interpretE1rmTrend,
+  interpretAdjustment,
 } from "./interpret";
 
 describe("classifyPhaseStatus (fat loss, rate 0.6)", () => {
@@ -130,5 +131,30 @@ describe("interpretE1rmTrend (HX1)", () => {
     const r = interpretE1rmTrend(0, 1);
     expect(r.tone).toBe("neutral");
     expect(r.label).toBe("");
+  });
+});
+
+describe("interpretAdjustment (NU3)", () => {
+  it("increase reads up + the why line", () => {
+    const r = interpretAdjustment({ calorieDelta: 120, newCalories: 2120, expectedPct: -0.6, actualPct: -0.8, isDietBreak: false });
+    expect(r.tone).toBe("on_track");
+    expect(r.label).toBe("New target");
+    expect(r.sentence).toContain("up 120 kcal to 2,120 kcal");
+    expect(r.sentence).toContain("-0.8% vs your -0.6%");
+  });
+  it("decrease reads down", () => {
+    const r = interpretAdjustment({ calorieDelta: -150, newCalories: 1850, expectedPct: -0.6, actualPct: -0.3, isDietBreak: false });
+    expect(r.sentence).toContain("down 150 kcal to 1,850 kcal");
+  });
+  it("diet break is neutral maintenance", () => {
+    const r = interpretAdjustment({ calorieDelta: 0, newCalories: 2400, expectedPct: null, actualPct: null, isDietBreak: true });
+    expect(r.tone).toBe("neutral");
+    expect(r.label).toBe("Diet break");
+    expect(r.sentence).toContain("maintenance");
+  });
+  it("held with null pcts has no why line", () => {
+    const r = interpretAdjustment({ calorieDelta: 0, newCalories: 2000, expectedPct: null, actualPct: null, isDietBreak: false });
+    expect(r.sentence).toContain("held at 2,000 kcal");
+    expect(r.sentence).not.toContain("vs your");
   });
 });

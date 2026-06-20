@@ -216,3 +216,37 @@ export function interpretE1rmTrend(deltaKg: number, sessions: number): Interpret
   if (deltaKg <= -0.5) return { tone: "attention", label: "Dipped", sentence: `Est. 1RM down ${mag} kg over ${sessions} sessions — could be fatigue or a deload.` };
   return { tone: "neutral", label: "Holding", sentence: `Est. 1RM steady over ${sessions} sessions.` };
 }
+
+/**
+ * NU3 — the client "here's your new target & why" moment for an APPLIED
+ * nutrition adjustment. Ground-truth only: built from the applied calorie
+ * delta + the stored expected/actual percentages. It never RE-DERIVES
+ * direction from raw weight signs (that path caused the PR #70 advice flip).
+ */
+export function interpretAdjustment(args: {
+  calorieDelta: number | null;   // approved_calorie_adjustment (signed kcal)
+  newCalories: number | null;    // new_daily_calories
+  expectedPct: number | null;    // expected_weight_change_percentage
+  actualPct: number | null;      // actual_weight_change_percentage
+  isDietBreak: boolean;
+}): Interpretation {
+  const { calorieDelta, newCalories, expectedPct, actualPct, isDietBreak } = args;
+  const target = newCalories != null ? `${Math.round(newCalories).toLocaleString()} kcal` : "your new target";
+  if (isDietBreak) {
+    return {
+      tone: "neutral",
+      label: "Diet break",
+      sentence: `Recovery week — calories set to maintenance (${target}). Back to the plan next week.`,
+    };
+  }
+  const d = calorieDelta == null ? 0 : Math.round(calorieDelta);
+  const moved =
+    d > 0 ? `up ${d.toLocaleString()} kcal to ${target}`
+    : d < 0 ? `down ${Math.abs(d).toLocaleString()} kcal to ${target}`
+    : `held at ${target}`;
+  const why =
+    expectedPct != null && actualPct != null
+      ? ` Your weekly change came in at ${f1(actualPct)}% vs your ${f1(expectedPct)}% target.`
+      : "";
+  return { tone: "on_track", label: "New target", sentence: `Your daily target is ${moved}.${why}` };
+}
