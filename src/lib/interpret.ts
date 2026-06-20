@@ -179,3 +179,31 @@ export function interpretWeighInRecency(daysSince: number | null): Interpretatio
   if (daysSince >= 4) return { tone: "attention", label: "Slowing", sentence: `${daysSince} days since last weigh-in.` };
   return { tone: "on_track", label: "Active", sentence: `Weighed in ${daysSince === 0 ? "today" : `${daysSince}d ago`}.` };
 }
+
+/** Daily macro targets (CL2) — describes the plan's macro split + goal intent.
+ *  Neutral tone: a prescription isn't on/off-track. Pure function of the four
+ *  stored numbers — NO bodyweight or BMR/TDEE math (that lives only in
+ *  calculateNutritionGoals). */
+export function interpretMacroTargets(args: {
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  goalType: "fat_loss" | "muscle_gain" | "maintenance" | string;
+}): Interpretation {
+  const { calories, protein, carbs, fat, goalType } = args;
+  if (!calories || calories <= 0) return { tone: "neutral", label: "", sentence: "" };
+  const proteinPct = Math.round(((protein * 4) / calories) * 100);
+  const carbPct = Math.round(((carbs * 4) / calories) * 100);
+  const fatPct = Math.round(((fat * 9) / calories) * 100);
+  const shape = proteinPct >= 35 ? "protein-forward" : proteinPct >= 25 ? "balanced" : "carb-led";
+  const intent =
+    goalType === "fat_loss" ? "to hold muscle while you lose fat"
+    : goalType === "muscle_gain" ? "to fuel growth"
+    : "to maintain where you are";
+  return {
+    tone: "neutral",
+    label: `${proteinPct}P/${carbPct}C/${fatPct}F`,
+    sentence: `${proteinPct}% protein · ${carbPct}% carbs · ${fatPct}% fat — a ${shape} split ${intent}.`,
+  };
+}

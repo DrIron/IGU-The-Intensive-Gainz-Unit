@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { interpretMacroTargets, toneClasses } from "@/lib/interpret";
+import { cn } from "@/lib/utils";
 import { Apple, ChevronRight } from "lucide-react";
 
 interface NutritionTargetsCardProps {
@@ -129,21 +131,33 @@ export function NutritionTargetsCard({ userId }: NutritionTargetsCardProps) {
           <p className="text-xs text-muted-foreground">calories</p>
         </div>
 
-        {/* Macros - Grid */}
+        {/* Macros — grams + % of calories */}
         <div className="grid grid-cols-3 gap-2 text-center">
-          <div className="p-2 bg-muted/50 rounded-lg">
-            <p className="text-lg font-semibold">{targets.protein}g</p>
-            <p className="text-xs text-muted-foreground">Protein</p>
-          </div>
-          <div className="p-2 bg-muted/50 rounded-lg">
-            <p className="text-lg font-semibold">{targets.carbs}g</p>
-            <p className="text-xs text-muted-foreground">Carbs</p>
-          </div>
-          <div className="p-2 bg-muted/50 rounded-lg">
-            <p className="text-lg font-semibold">{targets.fat}g</p>
-            <p className="text-xs text-muted-foreground">Fat</p>
-          </div>
+          {[
+            { label: "Protein", grams: targets.protein, kcal: targets.protein * 4 },
+            { label: "Carbs", grams: targets.carbs, kcal: targets.carbs * 4 },
+            { label: "Fat", grams: targets.fat, kcal: targets.fat * 9 },
+          ].map((m) => (
+            <div key={m.label} className="p-2 bg-muted/50 rounded-lg">
+              <p className="text-lg font-semibold tabular-nums">{m.grams}g</p>
+              <p className="text-xs text-muted-foreground">{m.label}</p>
+              <p className="text-[11px] text-muted-foreground/70 tabular-nums">
+                {targets.calories > 0 ? Math.round((m.kcal / targets.calories) * 100) : 0}%
+              </p>
+            </div>
+          ))}
         </div>
+
+        {/* CC2 interpretation line (mirrors WeeklyProgressCard) */}
+        {(() => {
+          const macro = interpretMacroTargets(targets);
+          return macro.sentence ? (
+            <p className="flex items-start gap-1.5 text-xs text-muted-foreground">
+              <span aria-hidden className={cn("mt-1 h-1.5 w-1.5 shrink-0 rounded-full", toneClasses(macro.tone).dot)} />
+              {macro.sentence}
+            </p>
+          ) : null;
+        })()}
 
         <Button
           variant="ghost"
