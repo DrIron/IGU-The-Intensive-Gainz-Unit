@@ -207,3 +207,12 @@ export function interpretMacroTargets(args: {
     sentence: `${proteinPct}% protein · ${carbPct}% carbs · ${fatPct}% fat — a ${shape} split ${intent}.`,
   };
 }
+
+/** Strength trend on the exercise-detail e1RM metric (HX1). Up = good. */
+export function interpretE1rmTrend(deltaKg: number, sessions: number): Interpretation {
+  if (sessions < 2) return { tone: "neutral", label: "", sentence: "Log another session to see your strength trend." };
+  const mag = f1(Math.abs(deltaKg));
+  if (deltaKg >= 0.5) return { tone: "on_track", label: "Trending up", sentence: `Est. 1RM up ${mag} kg over ${sessions} sessions — getting stronger.` };
+  if (deltaKg <= -0.5) return { tone: "attention", label: "Dipped", sentence: `Est. 1RM down ${mag} kg over ${sessions} sessions — could be fatigue or a deload.` };
+  return { tone: "neutral", label: "Holding", sentence: `Est. 1RM steady over ${sessions} sessions.` };
+}

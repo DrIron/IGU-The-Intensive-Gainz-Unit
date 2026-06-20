@@ -1,20 +1,23 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ArrowLeft, History, Search, TrendingUp, Dumbbell } from "lucide-react";
+import { ArrowLeft, History, Search, Dumbbell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { format } from "date-fns";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { epley1RM } from "@/lib/oneRepMax";
+import { interpretE1rmTrend } from "@/lib/interpret";
 
 interface ExerciseOption {
   id: string;
@@ -30,6 +33,18 @@ interface LogEntry {
   performed_rir: number | null;
   performed_rpe: number | null;
   notes: string | null;
+}
+
+function PrTile({ label, value, date }: { label: string; value: string; date: string }) {
+  return (
+    <Card>
+      <CardContent className="p-3 text-center space-y-0.5">
+        <p className="text-base font-semibold tabular-nums">{value}</p>
+        <p className="text-[11px] text-muted-foreground">{label}</p>
+        <p className="text-[10px] text-muted-foreground/70">{format(new Date(date), "MMM d")}</p>
+      </CardContent>
+    </Card>
+  );
 }
 
 function ExerciseHistoryContent() {
@@ -170,27 +185,34 @@ function ExerciseHistoryContent() {
     ex.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Calculate progress metrics
-  const getProgressMetrics = () => {
-    if (logs.length < 2) return null;
-    
-    // Get first and last sessions
-    const firstLog = logs[logs.length - 1];
-    const lastLog = logs[0];
-    
-    if (!firstLog.performed_load || !lastLog.performed_load) return null;
-    
-    const loadChange = lastLog.performed_load - firstLog.performed_load;
-    const percentChange = ((loadChange / firstLog.performed_load) * 100).toFixed(1);
-    
+  const analysis = useMemo(() => {
+    if (logs.length === 0) return null;
+    const byDate = new Map<string, { date: string; topLoad: number; bestE1rm: number; volume: number }>();
+    for (const l of logs) {
+      if (l.performed_load == null) continue;
+      const cur = byDate.get(l.date) ?? { date: l.date, topLoad: 0, bestE1rm: 0, volume: 0 };
+      const reps = l.performed_reps ?? 0;
+      cur.topLoad = Math.max(cur.topLoad, l.performed_load);
+      cur.bestE1rm = Math.max(cur.bestE1rm, epley1RM(l.performed_load, reps));
+      if (reps > 0) cur.volume += l.performed_load * reps;
+      byDate.set(l.date, cur);
+    }
+    const sessions = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+    if (sessions.length === 0) return null;
+    const e1rmSeries = sessions.map((s) => Math.round(s.bestE1rm));
+    const e1rmDelta = Math.round((e1rmSeries[e1rmSeries.length - 1] - e1rmSeries[0]) * 10) / 10;
+    const best = (key: "topLoad" | "bestE1rm" | "volume") =>
+      sessions.reduce((m, s) => (s[key] > m[key] ? s : m), sessions[0]);
     return {
-      loadChange,
-      percentChange,
-      isPositive: loadChange >= 0,
+      sessionCount: sessions.length,
+      e1rmSeries,
+      latestE1rm: e1rmSeries[e1rmSeries.length - 1],
+      e1rmDelta,
+      prTopLoad: best("topLoad"),
+      prE1rm: best("bestE1rm"),
+      prVolume: best("volume"),
     };
-  };
-
-  const metrics = getProgressMetrics();
+  }, [logs]);
 
   return (
     <>
@@ -252,26 +274,24 @@ function ExerciseHistoryContent() {
           </CardContent>
         </Card>
 
-        {/* Progress Summary */}
-        {selectedExercise && metrics && (
-          <Card className={metrics.isPositive ? "border-green-500/30" : "border-red-500/30"}>
-            <CardContent className="py-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <TrendingUp className={`h-5 w-5 ${metrics.isPositive ? 'text-green-500' : 'text-red-500 rotate-180'}`} />
-                  <span className="font-medium">Progress</span>
-                </div>
-                <div className="text-right">
-                  <span className={`text-lg font-bold ${metrics.isPositive ? 'text-green-500' : 'text-red-500'}`}>
-                    {metrics.isPositive ? '+' : ''}{metrics.loadChange}kg
-                  </span>
-                  <span className="text-sm text-muted-foreground ml-2">
-                    ({metrics.percentChange}%)
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {/* Strength progress — e1RM trend + PRs */}
+        {selectedExercise && analysis && (
+          <div className="space-y-4">
+            <MetricCard
+              label="Estimated 1RM"
+              timeframe={`last ${analysis.sessionCount} ${analysis.sessionCount === 1 ? "session" : "sessions"}`}
+              value={analysis.latestE1rm}
+              unit="kg"
+              delta={analysis.sessionCount >= 2 ? { value: analysis.e1rmDelta, suffix: " kg" } : undefined}
+              interpretation={interpretE1rmTrend(analysis.e1rmDelta, analysis.sessionCount)}
+              spark={analysis.sessionCount >= 2 ? analysis.e1rmSeries : undefined}
+            />
+            <div className="grid grid-cols-3 gap-3">
+              <PrTile label="Heaviest set" value={`${Math.round(analysis.prTopLoad.topLoad)} kg`} date={analysis.prTopLoad.date} />
+              <PrTile label="Best est. 1RM" value={`${Math.round(analysis.prE1rm.bestE1rm)} kg`} date={analysis.prE1rm.date} />
+              <PrTile label="Best volume" value={`${Math.round(analysis.prVolume.volume).toLocaleString()} kg`} date={analysis.prVolume.date} />
+            </div>
+          </div>
         )}
 
         {/* History Table */}

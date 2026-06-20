@@ -6,6 +6,7 @@ import {
   interpretCheckIns,
   interpretWeighInRecency,
   interpretMacroTargets,
+  interpretE1rmTrend,
 } from "./interpret";
 
 describe("classifyPhaseStatus (fat loss, rate 0.6)", () => {
@@ -112,4 +113,22 @@ describe("interpretMacroTargets (CL2)", () => {
   });
   it("no calories → empty interpretation", () =>
     expect(interpretMacroTargets({ calories: 0, protein: 0, carbs: 0, fat: 0, goalType: "maintenance" }).sentence).toBe(""));
+});
+
+describe("interpretE1rmTrend (HX1)", () => {
+  it("rising e1RM is on_track and reads stronger", () => {
+    const r = interpretE1rmTrend(5, 6);
+    expect(r.tone).toBe("on_track");
+    expect(r.sentence).toContain("stronger");
+  });
+  it("falling e1RM is attention and mentions a deload", () => {
+    const r = interpretE1rmTrend(-5, 6);
+    expect(r.tone).toBe("attention");
+    expect(r.sentence).toContain("deload");
+  });
+  it("single session is neutral with no real trend", () => {
+    const r = interpretE1rmTrend(0, 1);
+    expect(r.tone).toBe("neutral");
+    expect(r.label).toBe("");
+  });
 });
