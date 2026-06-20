@@ -50,6 +50,10 @@ export function SEOHead({
       <meta property="og:title" content={finalTitle} />
       <meta property="og:description" content={finalDescription} />
       <meta property="og:image" content={finalImage} />
+      <meta property="og:image:width" content="2400" />
+      <meta property="og:image:height" content="1260" />
+      <meta property="og:image:alt" content={finalTitle} />
+      <meta property="og:locale" content="en_US" />
       <meta property="og:site_name" content={SITE_NAME} />
 
       {/* Twitter */}
