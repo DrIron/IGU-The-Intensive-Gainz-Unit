@@ -1,84 +1,26 @@
 # NU3 — Weekly check-in: "here's your new target & why" moment
 
-**Status:** Spec ready (authored 2026-06-20, Cowork). Implement on a clean `main` after CL2 + HX1 merge — NU3 adds a helper to `src/lib/interpret.ts`, the same file CL2/HX1 touched, so wait for those to land to avoid a 3-deep stack.
+**Status:** RE-TARGET spec (v2, 2026-06-20). The first attempt (PR #168) shipped the banner into `ClientNutritionAdjustments.tsx`, which is **orphaned — never imported or mounted by any page** (dead since the Lovable migration), so it had zero UI effect. The live prod smoke caught it. This v2 points the banner at the surface the client actually sees.
 
-**Priority / effort:** P0 / M (re-scoped to S–M).
-
-**Surface:** `src/components/nutrition/ClientNutritionAdjustments.tsx` (the client-facing adjustment view). Coach side (`CoachNutritionProgress`, `NutritionAdjustmentWeekCard`) is **out of scope**.
+**Priority / effort:** P1 / S–M (the `interpretAdjustment` helper + tests already landed in `interpret.ts` via #168 — reuse them unchanged; this is mount + wiring + cleanup).
 
 ---
 
-## Why / re-scope
+## What's already done (keep, don't redo)
+- `src/lib/interpret.ts` → `interpretAdjustment(...)` and its 4 vitest cases — **already merged (#168), generic, reusable as-is.** Do not re-add or modify.
 
-The client already sees a full **adjustment history** (per-week expected / actual / deviation + applied calorie change + new macros + coach notes). What's missing is the *moment*: when an adjustment is applied, there's no single, legible "your plan just changed — here's the new target and why" hero. The adaptive loop is the core value of coached nutrition; right now it reads as a flat audit log.
+## What was wrong
+- Banner was added to `src/components/nutrition/ClientNutritionAdjustments.tsx` → **orphaned component, delete it** (see step 3).
+- It read the `nutrition_adjustments` table → **empty platform-wide and unused on the client path** (the coach-approval adjustment flow is legacy). The real adjustment data for clients lives in **`weekly_progress`**.
 
-NU3 = surface the **latest applied** adjustment as a celebratory hero banner above the history list, using a new `interpretAdjustment()` plain-language helper and the existing `MacroDistributionRibbon`, plus a light status-token pass on the history cards (CC5).
-
----
-
-## Data (no new fetch)
-
-`ClientNutritionAdjustments` already loads `nutrition_adjustments` for the phase, ordered `week_number` **descending** (newest first). The latest applied adjustment is therefore:
-
-```ts
-const latestApplied = adjustments.find((a) => a.status === "approved"); // 'approved' renders as "Applied"
-```
-
-Relevant columns (all already in the row): `new_daily_calories`, `new_protein_grams`, `new_fat_grams`, `new_carb_grams`, `approved_calorie_adjustment` (signed kcal), `expected_weight_change_percentage`, `actual_weight_change_percentage`, `is_diet_break_week`, `coach_notes`, `week_number`, `created_at`.
-
-**Status vocabulary** (from the existing `getStatusBadge`): `approved` = Applied, `pending` = Pending Review, `rejected` = Not Applied.
+## Surface map (verified 2026-06-20)
+- **Team-plan client** → `TeamNutrition` page → **`NutritionProgress.tsx`** → reads `weekly_progress`; shows an "Active Goal Summary Card" (`currentCalories` + computed `currentProteinGrams/currentFatGrams/currentCarbGrams`) and a per-week green/orange adjustment `Alert`. **← NU3 target.**
+- **1:1 client** → `ClientNutrition` page → `NutritionPhaseCard` (already a rich read-only hero) + `ClientNutritionProgress` (logging only; doesn't display adjusted calories). The 1:1 hero already exists, so **NU3 scope = the team-flow `NutritionProgress` only.**
+- Data is empty pre-launch (`weekly_progress` = 0 rows), so the banner only appears once a client completes a weekly check-in. Verify via a temporary seeded row (step 5).
 
 ---
 
-## 1) `src/lib/interpret.ts` — add `interpretAdjustment`
-
-Add to the "Net-new helpers" section (reuses module-private `f1`). **The sentence is built only from the applied calorie delta + the stored expected/actual percentages — it must NOT re-derive direction from raw weight signs.** That re-derivation is exactly what flipped advice in PR #70 (see CLAUDE.md "sign-sensitive adjustment math"). Here the coach/system decision (`approved_calorie_adjustment`) is ground truth, so we render it directly.
-
-```ts
-/**
- * NU3 — the client "here's your new target & why" moment for an APPLIED
- * nutrition adjustment. Ground-truth only: built from the applied calorie
- * delta + the stored expected/actual percentages. It never RE-DERIVES
- * direction from raw weight signs (that path caused the PR #70 advice flip).
- */
-export function interpretAdjustment(args: {
-  calorieDelta: number | null;   // approved_calorie_adjustment (signed kcal)
-  newCalories: number | null;    // new_daily_calories
-  expectedPct: number | null;    // expected_weight_change_percentage
-  actualPct: number | null;      // actual_weight_change_percentage
-  isDietBreak: boolean;
-}): Interpretation {
-  const { calorieDelta, newCalories, expectedPct, actualPct, isDietBreak } = args;
-  const target = newCalories != null ? `${Math.round(newCalories).toLocaleString()} kcal` : "your new target";
-  if (isDietBreak) {
-    return {
-      tone: "neutral",
-      label: "Diet break",
-      sentence: `Recovery week — calories set to maintenance (${target}). Back to the plan next week.`,
-    };
-  }
-  const d = calorieDelta == null ? 0 : Math.round(calorieDelta);
-  const moved =
-    d > 0 ? `up ${d.toLocaleString()} kcal to ${target}`
-    : d < 0 ? `down ${Math.abs(d).toLocaleString()} kcal to ${target}`
-    : `held at ${target}`;
-  const why =
-    expectedPct != null && actualPct != null
-      ? ` Your weekly change came in at ${f1(actualPct)}% vs your ${f1(expectedPct)}% target.`
-      : "";
-  return { tone: "on_track", label: "New target", sentence: `Your daily target is ${moved}.${why}` };
-}
-```
-
-**Tests** (`src/lib/interpret.test.ts`, new `describe("interpretAdjustment (NU3)")`):
-- increase `{120, 2120, -0.8, -0.6, false}` → tone `on_track`, label `New target`, sentence contains `up 120 kcal to 2,120 kcal` and `-0.8% vs your -0.6%`.
-- decrease `{-150, 1850, -0.3, -0.6, false}` → sentence contains `down 150 kcal to 1,850 kcal`.
-- diet break `{0, 2400, null, null, true}` → tone `neutral`, label `Diet break`, contains `maintenance`.
-- held / null pcts `{0, 2000, null, null, false}` → contains `held at 2,000 kcal`, no `vs your`.
-
----
-
-## 2) `src/components/nutrition/ClientNutritionAdjustments.tsx` — hero banner
+## 1) `src/components/nutrition/NutritionProgress.tsx` — add the hero banner
 
 **Imports to add:**
 ```ts
@@ -86,86 +28,89 @@ import { interpretAdjustment, toneClasses } from "@/lib/interpret";
 import { cn } from "@/lib/utils";
 import { MacroDistributionRibbon } from "@/components/nutrition/MacroDistributionRibbon";
 ```
-(`Badge`, `Card*`, `format` are already imported.)
+(`Card`, `Alert`, `AlertCircle` are already imported.)
 
-**Compute** `latestApplied` (see Data) inside the component after `adjustments` is set.
+`latestProgress`, `currentCalories`, `currentProteinGrams/currentFatGrams/currentCarbGrams`, and `activeGoal` are already in scope (computed at the top of the component).
 
-**Render the banner** at the top of the returned `<div className="space-y-6">`, immediately **above** the existing "Adjustment History" header card — only when `latestApplied` exists:
+**Render the banner** as the FIRST child of the top-level `<div className="space-y-6">` (i.e. directly above the `{/* Active Goal Summary Card */}` Card), shown only when the latest week has an applied target:
 
 ```tsx
-{latestApplied && (() => {
+{latestProgress && latestProgress.new_daily_calories != null && (() => {
   const interp = interpretAdjustment({
-    calorieDelta: latestApplied.approved_calorie_adjustment,
-    newCalories: latestApplied.new_daily_calories,
-    expectedPct: latestApplied.expected_weight_change_percentage,
-    actualPct: latestApplied.actual_weight_change_percentage,
-    isDietBreak: latestApplied.is_diet_break_week,
+    calorieDelta: latestProgress.calorie_adjustment,
+    newCalories: latestProgress.new_daily_calories,
+    // actual = the logged weekly change %; expected = the goal's target rate, signed by direction
+    actualPct: latestProgress.weight_change_percentage ?? null,
+    expectedPct:
+      latestProgress.weight_change_percentage == null
+        ? null
+        : activeGoal.goal_type === "fat_loss"
+          ? -activeGoal.weekly_rate_percentage
+          : activeGoal.goal_type === "muscle_gain"
+            ? activeGoal.weekly_rate_percentage
+            : 0,
+    isDietBreak: !!latestProgress.is_diet_break_week,
   });
   const tc = toneClasses(interp.tone);
   return (
     <Card className={cn("border-l-4", tc.rail, tc.soft)}>
       <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-base">Your plan just updated</CardTitle>
-            <CardDescription>
-              Week {latestApplied.week_number} · {format(new Date(latestApplied.created_at), "MMM d, yyyy")}
-            </CardDescription>
-          </div>
-          <Badge variant="secondary">Applied</Badge>
-        </div>
+        <CardTitle className="text-base">Your plan just updated</CardTitle>
+        <CardDescription>Week {latestProgress.week_number} target</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-baseline gap-2">
           <span className="text-3xl font-bold tabular-nums">
-            {Math.round(latestApplied.new_daily_calories || 0).toLocaleString()}
+            {Math.round(latestProgress.new_daily_calories).toLocaleString()}
           </span>
           <span className="text-sm text-muted-foreground">kcal / day</span>
         </div>
         <MacroDistributionRibbon
-          protein={latestApplied.new_protein_grams || 0}
-          fat={latestApplied.new_fat_grams || 0}
-          carbs={latestApplied.new_carb_grams || 0}
+          protein={currentProteinGrams}
+          fat={currentFatGrams}
+          carbs={currentCarbGrams}
           showLabels
         />
         <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
           <span aria-hidden className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", tc.dot)} />
           {interp.sentence}
         </p>
-        {latestApplied.coach_notes && (
-          <div className="border-t pt-3">
-            <p className="text-xs font-medium mb-1">From your coach</p>
-            <p className="text-sm text-muted-foreground whitespace-pre-wrap">{latestApplied.coach_notes}</p>
-          </div>
-        )}
       </CardContent>
     </Card>
   );
 })()}
 ```
 
-Leave the existing "Adjustment History" list untouched below the banner (the latest applied week still appears in the list — that's fine; the banner is the *moment*, the list is the record).
+Notes:
+- Macros come from the component's already-computed `currentProteinGrams/Fat/Carb` (weekly_progress stores only `new_daily_calories`, not new macros).
+- No coach-notes block here — `weekly_progress.notes` is the **client's own** note, not a coaching message; don't mislabel it.
+
+## 2) CC5 token pass on the per-week adjustment Alert (in the same file)
+The `WeekCard`'s adjustment `Alert` (~L941) hardcodes `border-green-200 bg-green-50` / `border-orange-200 bg-orange-50`. An increase/decrease is **directional, not good/bad** — route it through the neutral status surface: replace those conditional classes with `cn(toneClasses("neutral").soft)` (keep the up/down wording + AlertCircle as the direction cue). Don't tone it green/red.
+
+## 3) Delete the orphaned component
+Remove `src/components/nutrition/ClientNutritionAdjustments.tsx` entirely (dead code; the NU3 banner + token pass it received in #168 go away with it). Confirm nothing imports it (grep is clean today).
 
 ---
 
-## 3) Light token pass (CC5) on the history cards
-
-Within the existing per-week card, route the ad-hoc colors through the status vocabulary:
-- The deviation value (currently `text-destructive` when `|deviation| > 30`): replace with `cn(Math.abs(adjustment.deviation_percentage || 0) > 30 && toneClasses("risk").text)`.
-- The applied calorie-change line (currently `text-green-500` / `text-red-500` on the Trending icons): an increase/decrease is **directional, not good/bad**, so don't tone it green/red — use `text-muted-foreground` for both icons and keep the up/down icon as the only directional cue. (Avoids implying a calorie cut is "bad news".)
-
-Do **not** otherwise restructure the history cards — NU3 is the banner moment + this token tidy, nothing more.
-
----
-
-## Verification
-
+## 4) Verify (build + unit)
 - `npx tsc --noEmit` clean.
-- `vitest` green incl. the 4 new `interpretAdjustment` cases.
-- Live render needs a client with an `approved` adjustment on an active phase → fold into post-deploy smoke: confirm the banner shows the new kcal hero + macro ribbon + plain-language line + coach notes, and that a client with only `pending` adjustments sees **no** banner (just the history).
+- `npx vitest run src/lib/interpret.test.ts` green (the 4 `interpretAdjustment` cases already exist).
 
-## Notes / non-goals
+## 5) Verify (live — requires seeding, platform data is empty)
+`weekly_progress` has 0 rows, so seed ONE temporary row against an active team-plan phase, screenshot the banner on `/nutrition-team?tab=progress` as that client, then DELETE the row:
+```sql
+-- pick an active team-plan goal_id + its user_id, then:
+insert into weekly_progress (goal_id, user_id, week_number, week_start_date,
+  new_daily_calories, calorie_adjustment, weight_change_percentage, is_diet_break_week)
+values ('<goal_id>','<user_id>',1, current_date, 1620, -130, -0.85, false);
+-- view banner → expect: 1,620 kcal hero + ribbon + "Your daily target is down 130 kcal to 1,620 kcal. Your weekly change came in at -0.85% vs your -<rate>% target."
+-- then clean up:
+delete from weekly_progress where goal_id='<goal_id>' and week_number=1 and created_at > now() - interval '1 hour';
+```
+Confirm the banner does NOT appear for a client with no `weekly_progress` row (no crash, just absent).
 
-- No `goal_type` needed anywhere here, so the `loss`/`fat_loss` enum mismatch is irrelevant to NU3 — keep it that way.
-- No new DB reads, RPCs, or migrations.
-- Macro **interpretation** of the split (protein-forward etc.) is CL2's `interpretMacroTargets`; NU3 deliberately doesn't duplicate it — the banner shows the ribbon + the *change* story, not a macro-split sentence.
+## Non-goals
+- 1:1 flow (`ClientNutritionProgress` / `NutritionPhaseCard`) — out of scope; it already has a hero.
+- The legacy `nutrition_adjustments` table / coach-approval flow — untouched.
+- No new DB columns, RPCs, or migrations.
