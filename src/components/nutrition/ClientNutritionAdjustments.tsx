@@ -4,6 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, TrendingDown, AlertCircle } from "lucide-react";
 import { format } from "date-fns";
+import { interpretAdjustment, toneClasses } from "@/lib/interpret";
+import { cn } from "@/lib/utils";
+import { MacroDistributionRibbon } from "@/components/nutrition/MacroDistributionRibbon";
 
 interface ClientNutritionAdjustmentsProps {
   phase: any;
@@ -71,8 +74,60 @@ export function ClientNutritionAdjustments({ phase }: ClientNutritionAdjustments
     );
   }
 
+  const latestApplied = adjustments.find((a) => a.status === "approved"); // 'approved' renders as "Applied"
+
   return (
     <div className="space-y-6">
+      {latestApplied && (() => {
+        const interp = interpretAdjustment({
+          calorieDelta: latestApplied.approved_calorie_adjustment,
+          newCalories: latestApplied.new_daily_calories,
+          expectedPct: latestApplied.expected_weight_change_percentage,
+          actualPct: latestApplied.actual_weight_change_percentage,
+          isDietBreak: latestApplied.is_diet_break_week,
+        });
+        const tc = toneClasses(interp.tone);
+        return (
+          <Card className={cn("border-l-4", tc.rail, tc.soft)}>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">Your plan just updated</CardTitle>
+                  <CardDescription>
+                    Week {latestApplied.week_number} · {format(new Date(latestApplied.created_at), "MMM d, yyyy")}
+                  </CardDescription>
+                </div>
+                <Badge variant="secondary">Applied</Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold tabular-nums">
+                  {Math.round(latestApplied.new_daily_calories || 0).toLocaleString()}
+                </span>
+                <span className="text-sm text-muted-foreground">kcal / day</span>
+              </div>
+              <MacroDistributionRibbon
+                protein={latestApplied.new_protein_grams || 0}
+                fat={latestApplied.new_fat_grams || 0}
+                carbs={latestApplied.new_carb_grams || 0}
+                showLabels
+              />
+              <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                <span aria-hidden className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", tc.dot)} />
+                {interp.sentence}
+              </p>
+              {latestApplied.coach_notes && (
+                <div className="border-t pt-3">
+                  <p className="text-xs font-medium mb-1">From your coach</p>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">{latestApplied.coach_notes}</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       <Card>
         <CardHeader>
           <CardTitle>Adjustment History</CardTitle>
@@ -104,7 +159,7 @@ export function ClientNutritionAdjustments({ phase }: ClientNutritionAdjustments
               </div>
               <div>
                 <p className="text-sm text-muted-foreground">Deviation</p>
-                <p className={`text-lg font-semibold ${Math.abs(adjustment.deviation_percentage || 0) > 30 ? 'text-destructive' : ''}`}>
+                <p className={cn("text-lg font-semibold", Math.abs(adjustment.deviation_percentage || 0) > 30 && toneClasses("risk").text)}>
                   {adjustment.deviation_percentage?.toFixed(0)}%
                 </p>
               </div>
@@ -115,9 +170,9 @@ export function ClientNutritionAdjustments({ phase }: ClientNutritionAdjustments
               <div className="space-y-3 border-t pt-4">
                 <div className="flex items-center gap-2">
                   {adjustment.approved_calorie_adjustment > 0 ? (
-                    <TrendingUp className="h-5 w-5 text-green-500" />
+                    <TrendingUp className="h-5 w-5 text-muted-foreground" />
                   ) : (
-                    <TrendingDown className="h-5 w-5 text-red-500" />
+                    <TrendingDown className="h-5 w-5 text-muted-foreground" />
                   )}
                   <p className="font-medium">
                     Calories {adjustment.approved_calorie_adjustment > 0 ? 'increased' : 'decreased'} by {Math.abs(adjustment.approved_calorie_adjustment)} kcal
