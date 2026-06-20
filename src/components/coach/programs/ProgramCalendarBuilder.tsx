@@ -280,7 +280,11 @@ const DayCell = memo(function DayCell({
 }: DayCellProps) {
   // --- Mobile list layout: full-width day row + session rows; slim rest-day row ---
   if (layout === "list") {
-    const dayName = DAYS_OF_WEEK[day.dayIndex - 1] ?? `Day ${day.dayIndex}`;
+    // dayIndex is the GLOBAL index ((week-1)*7 + d), so map to within-week
+    // position for the weekday name + the "Day N" suffix (the week strip already
+    // shows which week). Desktop grid keeps the global "Day {dayIndex}".
+    const dayOfWeek = ((day.dayIndex - 1) % 7) + 1;
+    const dayName = DAYS_OF_WEEK[(day.dayIndex - 1) % 7] ?? `Day ${day.dayIndex}`;
     const controls = readOnly ? null : (
       <div className="flex items-center gap-0.5 shrink-0">
         {copiedSessionId && (
@@ -322,7 +326,7 @@ const DayCell = memo(function DayCell({
       <div className="rounded-lg border bg-card overflow-hidden">
         <div className="flex items-center justify-between gap-2 px-3 py-2 border-b bg-muted/20">
           <span className="text-sm font-medium">
-            {dayName} <span className="text-muted-foreground font-normal">· Day {day.dayIndex}</span>
+            {dayName} <span className="text-muted-foreground font-normal">· Day {dayOfWeek}</span>
           </span>
           <div className="flex items-center gap-1 shrink-0">
             {/* Per-day bulk publish toggle (Phase 2) */}
