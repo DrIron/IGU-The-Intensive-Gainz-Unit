@@ -22,6 +22,9 @@ import { BodyFatProgressGraph } from "./BodyFatProgressGraph";
 import { TeamWeightProgressGraph } from "./TeamWeightProgressGraph";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { useAuthSession } from "@/hooks/useAuthSession";
+import { interpretAdjustment, toneClasses } from "@/lib/interpret";
+import { cn } from "@/lib/utils";
+import { MacroDistributionRibbon } from "@/components/nutrition/MacroDistributionRibbon";
 
 export function NutritionProgress() {
   const navigate = useNavigate();
@@ -193,6 +196,51 @@ export function NutritionProgress() {
 
   return (
     <div className="space-y-6">
+      {latestProgress && latestProgress.new_daily_calories != null && (() => {
+        const interp = interpretAdjustment({
+          calorieDelta: latestProgress.calorie_adjustment,
+          newCalories: latestProgress.new_daily_calories,
+          // actual = the logged weekly change %; expected = the goal's target rate, signed by direction
+          actualPct: latestProgress.weight_change_percentage ?? null,
+          expectedPct:
+            latestProgress.weight_change_percentage == null
+              ? null
+              : activeGoal.goal_type === "fat_loss"
+                ? -activeGoal.weekly_rate_percentage
+                : activeGoal.goal_type === "muscle_gain"
+                  ? activeGoal.weekly_rate_percentage
+                  : 0,
+          isDietBreak: !!latestProgress.is_diet_break_week,
+        });
+        const tc = toneClasses(interp.tone);
+        return (
+          <Card className={cn("border-l-4", tc.rail, tc.soft)}>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">Your plan just updated</CardTitle>
+              <CardDescription>Week {latestProgress.week_number} target</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-baseline gap-2">
+                <span className="text-3xl font-bold tabular-nums">
+                  {Math.round(latestProgress.new_daily_calories).toLocaleString()}
+                </span>
+                <span className="text-sm text-muted-foreground">kcal / day</span>
+              </div>
+              <MacroDistributionRibbon
+                protein={currentProteinGrams}
+                fat={currentFatGrams}
+                carbs={currentCarbGrams}
+                showLabels
+              />
+              <p className="flex items-start gap-1.5 text-sm text-muted-foreground">
+                <span aria-hidden className={cn("mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full", tc.dot)} />
+                {interp.sentence}
+              </p>
+            </CardContent>
+          </Card>
+        );
+      })()}
+
       {/* Active Goal Summary Card */}
       <Card>
         <CardHeader>
@@ -939,7 +987,7 @@ function WeekCard({
 
             {/* Adjustment Display */}
             {existingProgress && typeof existingProgress.calorie_adjustment === 'number' && existingProgress.calorie_adjustment !== 0 && (
-              <Alert className={existingProgress.calorie_adjustment > 0 ? "border-green-200 bg-green-50" : "border-orange-200 bg-orange-50"}>
+              <Alert className={cn(toneClasses("neutral").soft)}>
                 <AlertCircle className="h-4 w-4" />
                 <AlertDescription>
                   <p className="font-semibold mb-1">
