@@ -5,6 +5,7 @@ import {
   interpretWeeklyHabit,
   interpretCheckIns,
   interpretWeighInRecency,
+  interpretMacroTargets,
 } from "./interpret";
 
 describe("classifyPhaseStatus (fat loss, rate 0.6)", () => {
@@ -99,4 +100,16 @@ describe("interpretWeeklyHabit", () => {
   it("none started is attention", () => expect(interpretWeeklyHabit(0, 3, "weigh-ins").label).toBe("Not started"));
   it("partial shows remaining", () =>
     expect(interpretWeeklyHabit(1, 3, "weigh-ins").sentence).toContain("2 to go"));
+});
+
+describe("interpretMacroTargets (CL2)", () => {
+  it("fat-loss split labels %s and reads protein-forward", () => {
+    const r = interpretMacroTargets({ calories: 2000, protein: 180, carbs: 150, fat: 60, goalType: "fat_loss" });
+    expect(r.tone).toBe("neutral");
+    expect(r.label).toBe("36P/30C/27F");
+    expect(r.sentence).toContain("protein-forward");
+    expect(r.sentence).toContain("lose fat");
+  });
+  it("no calories → empty interpretation", () =>
+    expect(interpretMacroTargets({ calories: 0, protein: 0, carbs: 0, fat: 0, goalType: "maintenance" }).sentence).toBe(""));
 });
