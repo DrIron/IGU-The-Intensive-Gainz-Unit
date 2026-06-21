@@ -116,13 +116,15 @@ export function AdminMetricsCards() {
         }
       }
 
-      // New clients this month
+      // New (paying) clients this month. Reads paying_subscriptions (subscriptions
+      // minus payment-exempt) so head-coach/admin comps don't inflate the "+N this
+      // month" figure under the Active (paying) Clients tile.
       const monthStart = new Date();
       monthStart.setDate(1);
       monthStart.setHours(0, 0, 0, 0);
 
       const { count: newClientsThisMonth } = await supabase
-        .from("subscriptions")
+        .from("paying_subscriptions")
         .select("*", { count: "exact", head: true })
         .gte("created_at", monthStart.toISOString());
 

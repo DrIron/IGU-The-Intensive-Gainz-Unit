@@ -137,13 +137,16 @@ export function DiscountAnalytics() {
       const subscriptionStatuses: Record<string, string> = {};
       
       if (subscriptionIds.length > 0) {
+        // paying_subscriptions excludes payment-exempt clients, so the per-code
+        // "active subscriptions" count below only reflects paying clients. Exempt
+        // subs simply don't resolve a status and never get counted as active.
         const { data: subs } = await supabase
-          .from('subscriptions')
+          .from('paying_subscriptions')
           .select('id, status')
           .in('id', subscriptionIds);
-        
+
         subs?.forEach(s => {
-          subscriptionStatuses[s.id] = s.status;
+          if (s.id) subscriptionStatuses[s.id] = s.status ?? '';
         });
       }
 

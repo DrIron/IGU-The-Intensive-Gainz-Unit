@@ -7707,6 +7707,114 @@ export type Database = {
         }
         Relationships: []
       }
+      paying_subscriptions: {
+        Row: {
+          activation_override_by: string | null
+          activation_override_reason: string | null
+          added_to_truecoach_team: boolean | null
+          addons_total_kwd: number | null
+          base_price_kwd: number | null
+          billing_amount_kwd: number | null
+          billing_mode: Database["public"]["Enums"]["billing_mode"] | null
+          cancel_at_period_end: boolean | null
+          cancelled_at: string | null
+          client_price_kwd: number | null
+          coach_assignment_method: string | null
+          coach_id: string | null
+          coach_level_at_purchase:
+            | Database["public"]["Enums"]["professional_level"]
+            | null
+          created_at: string | null
+          discount_code_id: string | null
+          discount_cycles_used: number | null
+          end_date: string | null
+          grace_period_days: number | null
+          id: string | null
+          last_payment_status: string | null
+          last_payment_verified_at: string | null
+          last_team_change_at: string | null
+          last_verified_charge_id: string | null
+          needs_coach_assignment: boolean | null
+          next_billing_date: string | null
+          past_due_since: string | null
+          payment_failed_at: string | null
+          service_id: string | null
+          session_booking_enabled: boolean | null
+          session_duration_minutes: number | null
+          start_date: string | null
+          status: string | null
+          tap_amount_kwd: number | null
+          tap_card_id: string | null
+          tap_charge_id: string | null
+          tap_customer_id: string | null
+          tap_payment_agreement_id: string | null
+          tap_subscription_id: string | null
+          tap_subscription_status: string | null
+          team_id: string | null
+          total_price_kwd: number | null
+          updated_at: string | null
+          user_id: string | null
+          weekly_session_limit: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "subscriptions_coach_id_fkey"
+            columns: ["coach_id"]
+            isOneToOne: false
+            referencedRelation: "coaches_client_safe"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "subscriptions_discount_code_id_fkey"
+            columns: ["discount_code_id"]
+            isOneToOne: false
+            referencedRelation: "discount_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "coach_teams"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_legacy"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_user_id_profiles_public_fk"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscriptions_user_id_profiles_public_fk"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           activation_completed_at: string | null

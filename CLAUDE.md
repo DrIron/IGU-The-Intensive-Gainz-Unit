@@ -480,6 +480,16 @@ Pattern B columns (`status`, `max_*_clients`, `last_assigned_at`) intentionally 
 ### `profiles` is a VIEW
 Joins `profiles_public` + `profiles_private`. Cannot use PostgREST FK joins — FK `subscriptions_user_id_fkey` references `profiles_legacy`, not the view. Always use separate direct queries.
 
+### Payment-exempt clients must never count as revenue / paying clients
+Payment-exempt clients (`profiles_public.payment_exempt = true` — head-coach/admin comps via `AddExemptClientDialog`/`create-manual-client`, or the admin toggle in `AdminBillingManager`) hold an **active** subscription but pay nothing (`subscriptions.client_price_kwd` is typically NULL). They MUST be excluded from every money/paying-client surface: revenue totals, "active/total/new paying clients" counts, and coach/dietitian payouts. This bug has recurred repeatedly (PR #159 admin metrics, PR #161 payout RPC) because each surface re-queried `subscriptions` and re-forgot the filter.
+
+**Canonical fix — use the exempt-aware sources, don't re-filter ad hoc:**
+- **Subscription money/count queries:** read from the **`paying_subscriptions`** view (migration `20260617130000`), NOT `subscriptions`. It is `subscriptions` minus exempt clients, `security_invoker=true` (caller RLS applies). A new revenue/paying-client surface that reads it is correct by construction.
+- **Payouts:** go through `calculate_subscription_payout` (returns zero + `payment_exempt:true` for exempt subs — migration `20260617120000`). Never sum `coach_payout_rates`/`COACH_PAYOUT_PER_CLIENT` over raw active subs.
+- **Operational surfaces that SHOULD include exempt** (they still need coaching/time): coach workload & capacity (`CoachWorkloadPanel`, `CoachLoadOverview`), coaching-engagement digests (`send-weekly-coach-digest`), status pipelines (`ClientPipelineSection`), system-health — these keep using `subscriptions`.
+
+Decision rule: if the number is about **money or "paying" clients → `paying_subscriptions`**; if it's about **work/engagement/status → `subscriptions`**. When adding any new stat, state which and why in the PR.
+
 ### Column and enum names that have tripped past fixes
 - `coaches` has `first_name`, `last_name`, `nickname` — NO `name` column
 - `services` has `price_kwd` — NO `price` column

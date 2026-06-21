@@ -42,12 +42,16 @@ Deno.serve(async (req) => {
       totalClientsResult,
       totalCoachesResult,
     ] = await Promise.all([
+      // Active + new (paying) subs read paying_subscriptions (subscriptions minus
+      // payment-exempt clients) so head-coach/admin comps don't inflate the
+      // admin daily summary's paying-client figures. Failed subs stay on
+      // subscriptions (a payment-failure signal, not a paying-client count).
       supabase
-        .from("subscriptions")
+        .from("paying_subscriptions")
         .select("id", { count: "exact", head: true })
         .eq("status", "active"),
       supabase
-        .from("subscriptions")
+        .from("paying_subscriptions")
         .select("id", { count: "exact", head: true })
         .gte("created_at", oneDayAgo),
       supabase

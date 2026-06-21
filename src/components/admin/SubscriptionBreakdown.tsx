@@ -18,8 +18,10 @@ export function SubscriptionBreakdown() {
 
   const loadBreakdown = useCallback(async () => {
     try {
+      // paying_subscriptions = subscriptions minus payment-exempt clients, so the
+      // active-subscriptions-by-service breakdown reflects only paying clients.
       const { data: subs, error: subsError } = await supabase
-        .from("subscriptions")
+        .from("paying_subscriptions")
         .select("service_id")
         .eq("status", "active");
       if (subsError) throw subsError;
