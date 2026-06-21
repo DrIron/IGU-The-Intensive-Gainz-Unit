@@ -5,6 +5,11 @@ _Captured 2026-06-20 from a brainstorm with Hasan. Each item below is grounded i
 ## How to use this
 These are Hasan's ideas, not committed work. For each: **what it is**, **current state in the repo**, **considerations**, **a recommendation**, **rough effort**, and **suggested timing**. Discuss with Hasan before building any of them — several are strategic (especially #4).
 
+### Decisions confirmed (2026-06-20)
+- **#1 Discord is OUT** — Hasan confirmed it's being dropped. Proceed with the client-facing removal pre-launch, backend/DB cleanup post-launch (no need to re-ask whether to remove it).
+- **#4 Messaging = HYBRID, confirmed** — WhatsApp becomes the primary client↔coach channel; **keep in-app `care_team_messages` for staff/MDT internal discussion**. The only open sub-question (post-launch, data-driven) is whether to retire the *general* client↔coach in-app thread (`coach_client_messages`).
+- Still open: #2/#3/#5 scope and exact pre-launch capacity.
+
 ---
 
 ## 1. Remove Discord
@@ -105,4 +110,4 @@ These are Hasan's ideas, not committed work. For each: **what it is**, **current
 | **Post-launch** | #1 Discord — backend/DB cleanup | Lower-risk once no live flow depends on it |
 | **Post-launch** | #5 MDT pre-formation | Meatier build; ad-hoc care teams already work |
 
-**Net for the pre-launch window:** if capacity is tight, do **#2 (legal)** as the must-have and **#3 (WhatsApp button)** as the high-value quick win; everything else is post-launch. Confirm the Discord drop and the messaging direction with Hasan before either is actioned.
+**Net for the pre-launch window:** if capacity is tight, do **#2 (legal)** as the must-have and **#3 (WhatsApp button)** as the high-value quick win; everything else is post-launch. The Discord drop (#1) and the hybrid messaging direction (#4) are **already confirmed** (see "Decisions confirmed" up top) — no need to re-ask; just scope and schedule them.
