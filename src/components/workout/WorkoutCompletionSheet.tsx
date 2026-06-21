@@ -5,7 +5,7 @@
  * ScrollArea in a max-h container). All weights display in the client's unit;
  * volume/PR magnitudes are canonical kg converted via fromCanonicalKg.
  */
-import { Trophy, Dumbbell, CheckCircle2, Clock, SkipForward } from "lucide-react";
+import { Trophy, Dumbbell, CheckCircle2, Clock, SkipForward, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -46,6 +46,21 @@ function formatElapsed(seconds: number | null): string | null {
   const h = Math.floor(mins / 60);
   const m = mins % 60;
   return m === 0 ? `${h}h` : `${h}h ${m}m`;
+}
+
+function buildCoachMessage(summary: WorkoutSummary, unit: WeightUnit, moduleTitle?: string, dateLabel?: string): string {
+  const vol = fromCanonicalKg(summary.volumeKg, unit, 0) ?? 0;
+  const lines: string[] = [];
+  lines.push(`Hi coach -- just finished ${moduleTitle ?? "my session"}${dateLabel ? ` (${dateLabel})` : ""}.`);
+  lines.push(`Volume ${vol.toLocaleString()} ${unit} · ${summary.setsCompleted} sets${(() => { const e = formatElapsed(summary.elapsedSeconds); return e ? ` · ${e}` : ""; })()}`);
+  if (summary.prs.length) {
+    lines.push("New PRs:");
+    for (const pr of summary.prs) {
+      lines.push(`- ${pr.name}: ${fromCanonicalKg(pr.weightKg, unit, unit === "kg" ? 1 : 0)} ${unit} x ${pr.reps}`);
+    }
+  }
+  lines.push("", ""); // leave room for the client to keep typing
+  return lines.join("\n");
 }
 
 function StatTile({ icon, value, label }: { icon: React.ReactNode; value: string; label: string }) {
@@ -110,14 +125,33 @@ export function WorkoutCompletionSheet({
   summary,
   unit,
   onDone,
+  coachWhatsApp,
+  moduleTitle,
+  sessionDateLabel,
 }: {
   open: boolean;
   summary: WorkoutSummary | null;
   unit: WeightUnit;
   onDone: () => void;
+  coachWhatsApp?: string | null;
+  moduleTitle?: string;
+  sessionDateLabel?: string;
 }) {
   const isMobile = useIsMobile();
   if (!summary) return null;
+
+  const coachWaButton = coachWhatsApp ? (
+    <a
+      href={`https://wa.me/${coachWhatsApp.replace(/\D/g, "")}?text=${encodeURIComponent(buildCoachMessage(summary, unit, moduleTitle, sessionDateLabel))}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      className="mb-2 block"
+    >
+      <Button variant="outline" className="w-full gap-2">
+        <MessageCircle className="w-4 h-4" /> Message coach about this session
+      </Button>
+    </a>
+  ) : null;
 
   const title = "Workout complete";
   const description = "Nice work -- here's how this session went.";
@@ -134,6 +168,7 @@ export function WorkoutCompletionSheet({
             <SummaryBody summary={summary} unit={unit} />
           </DrawerScrollArea>
           <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t">
+            {coachWaButton}
             <Button className="w-full" onClick={onDone}>Done</Button>
           </div>
         </DrawerContent>
@@ -151,6 +186,7 @@ export function WorkoutCompletionSheet({
         <DialogScrollArea className="flex-1 min-h-0 -mx-6 px-2">
           <SummaryBody summary={summary} unit={unit} />
         </DialogScrollArea>
+        {coachWaButton}
         <Button className="w-full" onClick={onDone}>Done</Button>
       </DialogContent>
     </Dialog>
