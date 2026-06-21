@@ -25,12 +25,6 @@ export function AdminMetricsCards() {
 
   const loadMetrics = useCallback(async () => {
     try {
-      // Active clients (active subscriptions)
-      const { count: activeClients } = await supabase
-        .from("subscriptions")
-        .select("*", { count: "exact", head: true })
-        .eq("status", "active");
-
       // Active coaches
       const { count: activeCoaches } = await supabase
         .from("coaches")
@@ -43,19 +37,40 @@ export function AdminMetricsCards() {
         .select("*", { count: "exact", head: true })
         .in("status", ["pending_coach_approval", "pending_payment", "needs_medical_review"]);
 
-      // Monthly revenue from active subscriptions.
+      // Monthly revenue + active (paying) client count from active subscriptions.
       // Realized revenue = what was actually charged (subscriptions.client_price_kwd).
       // services.price_kwd is only the public "from"/junior price now, so summing it
       // understates Senior/Lead clients. Legacy rows (null client_price_kwd, pre-dating
       // the column) fall back to the level price tables, then the flat "from" price.
-      const { data: activeSubs, error: activeSubsError } = await supabase
+      // Payment-exempt clients (head-coach/admin comps) hold an active subscription but
+      // pay nothing -- they must NOT count toward revenue or the "paying clients" tile.
+      // (profiles is a VIEW; FK joins are unreliable, so fetch payment_exempt separately.)
+      const { data: activeSubsRaw, error: activeSubsError } = await supabase
         .from("subscriptions")
-        .select("service_id, client_price_kwd, coach_id, coach_level_at_purchase")
+        .select("user_id, service_id, client_price_kwd, coach_id, coach_level_at_purchase")
         .eq("status", "active");
       if (activeSubsError) throw activeSubsError;
 
+      const allActiveSubs = activeSubsRaw ?? [];
+      const exemptUserIds = new Set<string>();
+      if (allActiveSubs.length > 0) {
+        const userIds = Array.from(new Set(allActiveSubs.map(s => s.user_id).filter(Boolean)));
+        const { data: exemptProfiles, error: exemptError } = await supabase
+          .from("profiles_public")
+          .select("id, payment_exempt")
+          .in("id", userIds);
+        if (exemptError) throw exemptError;
+        for (const p of exemptProfiles ?? []) {
+          if (p.payment_exempt) exemptUserIds.add(p.id);
+        }
+      }
+
+      // Only non-exempt active subscriptions are "paying" clients / count as revenue.
+      const activeSubs = allActiveSubs.filter(s => !exemptUserIds.has(s.user_id));
+      const activeClients = activeSubs.length;
+
       let monthlyRevenue = 0;
-      if (activeSubs && activeSubs.length > 0) {
+      if (activeSubs.length > 0) {
         const legacySubs = activeSubs.filter(s => s.client_price_kwd == null && s.service_id);
 
         // Resolve fallbacks only for legacy rows.
