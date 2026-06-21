@@ -1,6 +1,7 @@
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { Check, Star } from "lucide-react";
 
 interface ServiceCardProps {
   name: string;
@@ -9,13 +10,29 @@ interface ServiceCardProps {
   description: string;
   features: string[] | null;
   onSelect: () => void;
+  mostPopular?: boolean;
+  ctaLabel?: string;
 }
 
-export const ServiceCard = ({ name, type, price, description, features = [], onSelect }: ServiceCardProps) => {
+export const ServiceCard = ({
+  name, type, price, description, features = [],
+  onSelect, mostPopular = false, ctaLabel = "Get Started",
+}: ServiceCardProps) => {
   return (
-    <Card className="relative overflow-hidden border-border/50 bg-card/50 backdrop-blur-sm hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/20">
+    <Card className={cn(
+      "relative overflow-hidden bg-card/50 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:shadow-primary/20",
+      mostPopular
+        ? "border-primary/60 ring-2 ring-primary/30 shadow-lg shadow-primary/10 md:scale-[1.02]"
+        : "border-border/50 hover:border-primary/50",
+    )}>
       <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5" />
       <CardHeader className="relative">
+        {mostPopular && (
+          <div className="inline-flex items-center gap-1 px-3 py-1 mb-2 w-fit text-xs font-semibold rounded-full bg-primary text-primary-foreground">
+            <Star className="h-3 w-3 fill-current" />
+            Most popular
+          </div>
+        )}
         <div className="inline-block px-3 py-1 mb-2 text-xs font-semibold rounded-full bg-primary/10 text-primary w-fit">
           {type === 'team' ? 'Team Plan' : '1:1 Coaching'}
         </div>
@@ -46,11 +63,11 @@ export const ServiceCard = ({ name, type, price, description, features = [], onS
       </CardContent>
       <CardFooter className="relative">
         <Button 
-          variant="gradient" 
+          variant="gradient"
           className="w-full"
           onClick={onSelect}
         >
-          Get Started
+          {ctaLabel}
         </Button>
       </CardFooter>
     </Card>
