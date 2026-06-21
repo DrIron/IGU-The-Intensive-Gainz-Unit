@@ -1293,6 +1293,10 @@ function WorkoutSessionV2Content() {
   const { unit, setUnit } = useWeightUnit();
   // WK7 §2e — completion summary sheet shown before navigating to the calendar.
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
+  // WA1 — coach WhatsApp number for the "Message coach about this session"
+  // button (1:1 clients only; null => no button). Resolved in a separate
+  // ref-guarded effect, NOT in loadSession's read burst (BUG3 / WK7 §1.5).
+  const [coachWhatsApp, setCoachWhatsApp] = useState<string | null>(null);
   // WK7 §5 — confirm before skipping the whole workout.
   const [skipWorkoutOpen, setSkipWorkoutOpen] = useState(false);
   // Elapsed source (§2e): earliest persisted set-log created_at for this session
@@ -1649,6 +1653,43 @@ function WorkoutSessionV2Content() {
     hasFetched.current = true;
     loadSession();
   }, [loadSession]);
+
+  // WA1 — resolve the coach's WhatsApp number for the completion-sheet button.
+  // Deliberately NOT part of loadSession's Promise.all burst (BUG3 / WK7 §1.5
+  // pooler-starvation rule): its own ref-guarded effect that runs once after
+  // `module` + `user` are set. Gated to 1:1 tiers (team_plan excluded); the
+  // button only appears when the coach also has a number set (RPC returns null
+  // otherwise). Non-critical — failures never block the session UI.
+  const coachWaResolvedRef = useRef(false);
+  useEffect(() => {
+    if (coachWaResolvedRef.current) return;
+    if (!module || !user?.id) return;
+    coachWaResolvedRef.current = true;
+    (async () => {
+      try {
+        const { data: sub } = await supabase
+          .from("subscriptions")
+          .select("service_id")
+          .eq("user_id", user.id)
+          .eq("status", "active")
+          .maybeSingle();
+        if (!sub?.service_id) return;
+        const { data: svc } = await supabase
+          .from("services")
+          .select("slug")
+          .eq("id", sub.service_id)
+          .maybeSingle();
+        const oneToOneSlugs = ["one_to_one_online", "one_to_one_complete", "hybrid", "in_person"];
+        if (!svc?.slug || !oneToOneSlugs.includes(svc.slug)) return; // team_plan / unknown => no button
+        const { data: wa } = await supabase.rpc("get_coach_whatsapp_for_client", {
+          p_coach_user_id: module.module_owner_coach_id,
+        });
+        setCoachWhatsApp((wa as string | null) ?? null);
+      } catch (err) {
+        console.error("WA1: failed to resolve coach WhatsApp", err);
+      }
+    })();
+  }, [module, user]);
 
   // Update log
   const updateSetLog = (
@@ -2576,6 +2617,9 @@ function WorkoutSessionV2Content() {
             setSummary(null);
             navigate("/client/workout/calendar");
           }}
+          coachWhatsApp={coachWhatsApp}
+          moduleTitle={module?.title}
+          sessionDateLabel={new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
         />
 
         {/* WK7 §5 — confirm skipping the whole workout. */}
