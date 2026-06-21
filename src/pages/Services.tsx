@@ -16,10 +16,18 @@ interface Service {
   id: string;
   name: string;
   type: string;
+  slug: string;        // already returned by select("*")
   price_kwd: number;
   description: string;
   features: string[];
 }
+
+const CTA_BY_SLUG: Record<string, string> = {
+  team_plan: "Join the team",
+  one_to_one_online: "Start online",
+  hybrid: "Start hybrid",
+  in_person: "Start in-person",
+};
 
 export default function Services() {
   const navigate = useNavigate();
@@ -27,6 +35,10 @@ export default function Services() {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [teamPlansOpen, setTeamPlansOpen] = useState(true);
+  const [teamPlanAnnouncement, setTeamPlanAnnouncement] = useState<{
+    startDate: string | null;
+    text: string | null;
+  }>({ startDate: null, text: null });
   const isMobile = useIsMobile();
 
   // SEOHead rendered in JSX below
@@ -38,11 +50,14 @@ export default function Services() {
     try {
       const { data, error } = await supabase
         .from('team_plan_settings')
-        .select('is_registration_open')
-        .single();
-
+        .select('is_registration_open, next_program_start_date, announcement_text')
+        .maybeSingle();
       if (error) throw error;
       setTeamPlansOpen(data?.is_registration_open ?? true);
+      setTeamPlanAnnouncement({
+        startDate: data?.next_program_start_date ?? null,
+        text: data?.announcement_text ?? null,
+      });
     } catch (error: any) {
       console.error('Error loading team plan settings:', error);
     }
@@ -164,6 +179,20 @@ export default function Services() {
                 <p className="text-center text-muted-foreground mb-8 max-w-2xl mx-auto">
                   {cmsContent?.team?.subtitle || "Train with a community of dedicated athletes"}
                 </p>
+                {(teamPlanAnnouncement.text || teamPlanAnnouncement.startDate) && (
+                  <div className="max-w-2xl mx-auto mb-8 p-4 bg-primary/10 border border-primary/20 rounded-lg text-center">
+                    <p className="text-lg font-medium text-primary">
+                      {teamPlanAnnouncement.text || 'Next team program starting soon!'}
+                    </p>
+                    {teamPlanAnnouncement.startDate && (
+                      <p className="text-sm text-muted-foreground mt-2">
+                        Program starts: {new Date(teamPlanAnnouncement.startDate).toLocaleDateString('en-US', {
+                          weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+                        })}
+                      </p>
+                    )}
+                  </div>
+                )}
                 {isMobile ? (
                   <Carousel className="w-full max-w-sm mx-auto">
                     <CarouselContent>
@@ -178,6 +207,8 @@ export default function Services() {
                               description={service.description}
                               features={service.features}
                               onSelect={() => handleServiceSelect(service.id)}
+                              mostPopular={service.slug === "hybrid"}
+                              ctaLabel={CTA_BY_SLUG[service.slug] ?? "Get Started"}
                             />
                           </CarouselItem>
                         ))}
@@ -198,6 +229,8 @@ export default function Services() {
                           description={service.description}
                           features={service.features}
                           onSelect={() => handleServiceSelect(service.id)}
+                          mostPopular={service.slug === "hybrid"}
+                          ctaLabel={CTA_BY_SLUG[service.slug] ?? "Get Started"}
                         />
                       ))}
                   </div>
@@ -227,6 +260,8 @@ export default function Services() {
                             description={service.description}
                             features={service.features}
                             onSelect={() => handleServiceSelect(service.id)}
+                            mostPopular={service.slug === "hybrid"}
+                            ctaLabel={CTA_BY_SLUG[service.slug] ?? "Get Started"}
                           />
                         </CarouselItem>
                       ))}
@@ -247,6 +282,8 @@ export default function Services() {
                         description={service.description}
                         features={service.features}
                         onSelect={() => handleServiceSelect(service.id)}
+                        mostPopular={service.slug === "hybrid"}
+                        ctaLabel={CTA_BY_SLUG[service.slug] ?? "Get Started"}
                       />
                     ))}
                 </div>
