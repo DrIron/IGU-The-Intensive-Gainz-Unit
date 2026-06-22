@@ -181,17 +181,6 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         weeklyLogsCount={weeklyLogsCount}
       />
 
-      {/* Inline weight + steps logging. The AlertsCard above still routes to
-          /nutrition-client for heavier tracking (BF%, circumference, weekly
-          check-in); this card handles the daily two-input habit loop. */}
-      {user?.id && (
-        <LogTodayCard
-          userId={user.id}
-          phaseId={activePhase?.id ?? null}
-          phaseStartDate={activePhase?.start_date ?? null}
-        />
-      )}
-
       {/* Hero: Today's Workout — or empty state if onboarded but no program yet */}
       {programCount === 0 && profile?.status === "active" && subscription?.status === "active" ? (
         <ClickableCard
@@ -220,49 +209,50 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         <TodaysWorkoutHero userId={user?.id} />
       )}
 
-      {/* Two Column Layout for Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        {/* Left Column */}
-        <div className="space-y-6">
-          <NutritionTargetsCard userId={user?.id} />
-          {coach && (
-            <CoachCard
-              coach={{ ...coach, id: coach.user_id }}
-              clientFirstName={profile?.first_name}
-            />
-          )}
-        </div>
+      {/* Daily log — today's habit loop, directly under the hero. The AlertsCard
+          above still routes to /nutrition-client for heavier tracking (BF%,
+          circumference, weekly check-in); this card handles the daily
+          two-input habit loop. */}
+      {user?.id && (
+        <LogTodayCard
+          userId={user.id}
+          phaseId={activePhase?.id ?? null}
+          phaseStartDate={activePhase?.start_date ?? null}
+        />
+      )}
 
-        {/* Right Column */}
-        <div className="space-y-6">
-          <WeeklyProgressCard userId={user?.id} />
-          <QuickActionsGrid
-            profile={profile}
-            subscription={subscription}
-          />
-        </div>
-      </div>
-
-      {/* Adherence Summary — clickable to workout calendar */}
+      {/* Ranked training stack — single column, importance order */}
+      <NutritionTargetsCard userId={user?.id} />
+      <WeeklyProgressCard userId={user?.id} />
       <AdherenceSummaryCard userId={user?.id} />
+      {coach && (
+        <CoachCard
+          coach={{ ...coach, id: coach.user_id }}
+          clientFirstName={profile?.first_name}
+        />
+      )}
+      <MyCareTeamCard
+        subscriptionId={subscription?.id}
+        primaryCoach={primaryCoach}
+        nextBillingDate={subscription?.next_billing_date}
+      />
 
-      {/* Billing & Care Team Section */}
-      <div className="grid gap-6 lg:grid-cols-2">
-        {/* Left Column */}
+      {/* Utility nav */}
+      <QuickActionsGrid
+        profile={profile}
+        subscription={subscription}
+      />
+
+      {/* Quiet "Account" group — billing demoted, visually secondary */}
+      <section className="space-y-4 pt-4 border-t border-border/60">
+        <h2 className="text-sm font-semibold text-muted-foreground">Account</h2>
         <PlanBillingCard
           subscription={subscription}
           onManageBilling={() => {
             navigate("/billing/pay");
           }}
         />
-
-        {/* Right Column */}
-        <MyCareTeamCard
-          subscriptionId={subscription?.id}
-          primaryCoach={primaryCoach}
-          nextBillingDate={subscription?.next_billing_date}
-        />
-      </div>
+      </section>
     </div>
   );
 }
