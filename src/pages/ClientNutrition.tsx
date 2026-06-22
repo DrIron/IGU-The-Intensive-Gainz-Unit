@@ -3,8 +3,8 @@ import { useNavigate } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2 } from "lucide-react";
@@ -32,15 +32,16 @@ import { differenceInCalendarWeeks, differenceInDays } from "date-fns";
  *   2. NutritionPhaseCard hero -- the same component the coach sees, read-only.
  *      Macro ribbon + kcal hero + rate strip. Gives the client a visual of
  *      "what you're aiming for" before the input forms.
- *   3. Three tabs instead of two:
- *      - Log Today -- the tiny inline weight + steps inputs (same
- *        LogTodayCard used on /dashboard). Lowest-friction path for the
- *        daily habit.
- *      - This Week -- the full tracking form (circumference, BF%,
- *        weekly check-in) wrapping the existing ClientNutritionProgress
- *        monolith. No refactor there -- that's a separate cleanup.
- *      - Graphs -- weight + body fat trend graphs, plus the
- *        PhaseSummaryReport once the phase is complete.
+ *   3. One consolidated scroll, no tabs (NU redesign Phase 2):
+ *      - "Message coach to adjust" link under the hero (1:1 goals are
+ *        coach-set, so the page is read-only -- no Edit sheet).
+ *      - Log Today inline right after the ribbon (same LogTodayCard used
+ *        on /dashboard) -- the daily habit.
+ *      - Trend: a range control (4W/12W/All) + Weight|Body-fat toggle
+ *        above the chart, replacing the old Graphs tab.
+ *      - This week -- the full tracking form (circumference, BF%, weekly
+ *        check-in) wrapping the existing ClientNutritionProgress monolith.
+ *      PhaseSummaryReport still renders at the top once the phase completes.
  *
  * No data model change. All queries still fire against nutrition_phases /
  * weight_logs / circumference_logs / adherence_logs / weekly_progress /
@@ -69,6 +70,9 @@ export default function ClientNutrition() {
   // Bumped when LogTodayCard finishes a save so the ribbon re-fetches without
   // reloading the page. Any integer change forces the ribbon's useEffect to fire.
   const [ribbonRefreshKey, setRibbonRefreshKey] = useState(0);
+  // Trend controls (replace the old Graphs tab).
+  const [range, setRange] = useState<"4w" | "12w" | "all">("all");
+  const [metric, setMetric] = useState<"weight" | "bodyfat">("weight");
 
   const loadActivePhase = useCallback(async (user: SupabaseUser | null) => {
     try {
@@ -240,6 +244,14 @@ export default function ClientNutrition() {
     ? Math.max(1, Math.floor(differenceInDays(new Date(), new Date(activePhase.start_date)) / 7) + 1)
     : 1;
 
+  // Trend range filter (1:1 = dated weight_logs): keep logs within the window;
+  // skip the filter for "all". Filtered upstream so the graph stays untouched.
+  const trendWeightLogs = range === "all"
+    ? weightLogs
+    : weightLogs.filter(
+        (w) => differenceInDays(new Date(), new Date(w.log_date)) <= (range === "4w" ? 28 : 84),
+      );
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
       <Navigation user={user} />
@@ -276,7 +288,16 @@ export default function ClientNutrition() {
               latestActualChangePercent={latestActualChangePercent}
             />
 
-            {/* Weekly status ribbon. Read-only; the inputs live in the tabs below. */}
+            {/* 1:1 goals are coach-set -- no self-edit; nudge to message instead. */}
+            <button
+              type="button"
+              onClick={() => navigate("/messages")}
+              className="text-sm text-primary underline underline-offset-2 hover:text-primary/80"
+            >
+              Message coach to adjust
+            </button>
+
+            {/* Weekly status ribbon. */}
             {user?.id && (
               <ClientWeeklyRibbon
                 userId={user.id}
@@ -286,52 +307,84 @@ export default function ClientNutrition() {
               />
             )}
 
-            <Tabs defaultValue="today" className="w-full">
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="today">Log Today</TabsTrigger>
-                <TabsTrigger value="week">This Week</TabsTrigger>
-                <TabsTrigger value="history">History</TabsTrigger>
-              </TabsList>
+            {/* Log Today -- the daily habit, promoted inline right after the ribbon. */}
+            {user?.id && (
+              <LogTodayCard
+                userId={user.id}
+                phaseId={activePhase.id}
+                phaseStartDate={activePhase.start_date ?? null}
+                onLogged={() => setRibbonRefreshKey((k) => k + 1)}
+              />
+            )}
 
-              <TabsContent value="today" className="mt-4">
-                {user?.id && (
-                  <LogTodayCard
-                    userId={user.id}
-                    phaseId={activePhase.id}
-                    phaseStartDate={activePhase.start_date ?? null}
-                    onLogged={() => setRibbonRefreshKey((k) => k + 1)}
-                  />
-                )}
-                <p className="text-[11px] text-muted-foreground mt-3">
-                  Weight and steps are the daily habit. Body fat, circumference, and the weekly check-in live under &quot;This Week&quot;.
-                </p>
-              </TabsContent>
-
-              <TabsContent value="week" className="mt-4">
-                <ClientNutritionProgress
-                  phase={activePhase}
-                  userGender={userGender}
-                  initialBodyFat={initialBodyFat}
-                />
-              </TabsContent>
-
-              <TabsContent value="history" className="mt-4 space-y-6">
-                {weightLogs.length > 0 ? (
+            {/* Trend -- range control + Weight|Body-fat toggle above the chart. */}
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="inline-flex rounded-lg border p-0.5">
+                  {(["4w", "12w", "all"] as const).map((r) => (
+                    <button
+                      key={r}
+                      type="button"
+                      onClick={() => setRange(r)}
+                      className={cn(
+                        "px-3 py-1 text-sm rounded-md transition-colors",
+                        range === r
+                          ? "bg-secondary border border-secondary"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {r === "4w" ? "4W" : r === "12w" ? "12W" : "All"}
+                    </button>
+                  ))}
+                </div>
+                <div className="inline-flex rounded-lg border p-0.5">
+                  {(["weight", "bodyfat"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setMetric(m)}
+                      className={cn(
+                        "px-3 py-1 text-sm rounded-md transition-colors",
+                        metric === m
+                          ? "bg-secondary border border-secondary"
+                          : "text-muted-foreground hover:text-foreground",
+                      )}
+                    >
+                      {m === "weight" ? "Weight" : "Body fat"}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {metric === "weight" ? (
+                trendWeightLogs.length > 0 ? (
                   <WeightProgressGraph
                     phase={activePhase}
-                    weightLogs={weightLogs}
+                    weightLogs={trendWeightLogs}
                     latestActualChangePercent={latestActualChangePercent}
                   />
                 ) : (
                   <Card>
                     <CardContent className="pt-6 text-center text-sm text-muted-foreground">
-                      Log weight this week to see your trend graph here.
+                      {weightLogs.length > 0
+                        ? "No weight logs in this range."
+                        : "Log weight this week to see your trend graph here."}
                     </CardContent>
                   </Card>
-                )}
+                )
+              ) : (
                 <BodyFatProgressGraph weeklyProgress={weeklyProgress} />
-              </TabsContent>
-            </Tabs>
+              )}
+            </div>
+
+            {/* This week -- the full tracking form (circumference, BF%, check-in). */}
+            <div className="space-y-3">
+              <h2 className="text-xl font-bold">This week</h2>
+              <ClientNutritionProgress
+                phase={activePhase}
+                userGender={userGender}
+                initialBodyFat={initialBodyFat}
+              />
+            </div>
           </div>
         )}
       </main>
