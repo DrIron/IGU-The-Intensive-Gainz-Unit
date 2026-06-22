@@ -20,6 +20,7 @@ import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
 import { FAQSection } from "@/components/marketing/FAQSection";
 import { HowItWorksSection } from "@/components/marketing/HowItWorksSection";
+import { HeroSocialProof } from "@/components/marketing/HeroSocialProof";
 import { cn } from "@/lib/utils";
 
 interface Service {
@@ -432,6 +433,8 @@ export default function Index() {
           <div ref={heroCtaRef} className="flex flex-col items-center gap-4 px-4">
             {renderHeroCta()}
           </div>
+
+          <HeroSocialProof content={cmsContent?.social_proof} />
         </div>
       </section>
 
