@@ -1193,7 +1193,12 @@ function SwapExercisePicker({
   // and the title never clips off-screen (CLAUDE.md "Mobile branching").
   if (isMobile) {
     return (
-      <Drawer open onOpenChange={(open) => { if (!open) onClose(); }}>
+      <Drawer
+        open
+        onOpenChange={(open) => { if (!open) onClose(); }}
+        repositionInputs={false}
+        shouldScaleBackground={false}
+      >
         <DrawerContent className="max-h-[92dvh] flex flex-col">
           <div className="px-4 pt-2 pb-1">
             <DrawerTitle>Swap Exercise</DrawerTitle>
