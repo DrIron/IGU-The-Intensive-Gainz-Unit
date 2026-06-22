@@ -29,7 +29,12 @@ const GOAL_TONE: Record<string, string> = {
   maintenance: "bg-status-neutral/10 text-status-neutral border-status-neutral/30",
 };
 
-export function NutritionGoal() {
+interface NutritionGoalProps {
+  /** Called after a goal is successfully saved (e.g. to close a hosting sheet + refresh). */
+  onSaved?: () => void;
+}
+
+export function NutritionGoal({ onSaved }: NutritionGoalProps = {}) {
   const { toast } = useToast();
   const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [loading, setLoading] = useState(true);
@@ -342,6 +347,7 @@ export function NutritionGoal() {
 
       await loadActiveGoal();
       setIsEditing(false);
+      onSaved?.();
     } catch (error: any) {
       console.error('Error saving goal:', error);
       toast({

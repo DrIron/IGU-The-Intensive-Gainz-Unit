@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +6,6 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
@@ -25,9 +23,12 @@ import { useAuthSession } from "@/hooks/useAuthSession";
 import { interpretAdjustment, toneClasses } from "@/lib/interpret";
 import { cn } from "@/lib/utils";
 import { MacroDistributionRibbon } from "@/components/nutrition/MacroDistributionRibbon";
+import { useIsMobile } from "@/hooks/use-mobile";
+import { Drawer, DrawerContent, DrawerTitle, DrawerDescription, DrawerScrollArea } from "@/components/ui/drawer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogScrollArea } from "@/components/ui/dialog";
+import { NutritionGoal } from "@/components/nutrition/NutritionGoal";
 
 export function NutritionProgress() {
-  const navigate = useNavigate();
   const { toast } = useToast();
   const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [loading, setLoading] = useState(true);
@@ -35,6 +36,10 @@ export function NutritionProgress() {
   const [weeklyProgress, setWeeklyProgress] = useState<any[]>([]);
   const [currentWeek, setCurrentWeek] = useState(1);
   const [expandedWeeks, setExpandedWeeks] = useState<Set<number>>(new Set([1]));
+  const isMobile = useIsMobile();
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const [range, setRange] = useState<"4w" | "12w" | "all">("all");
+  const [metric, setMetric] = useState<"weight" | "bodyfat">("weight");
 
   const loadData = useCallback(async (user: SupabaseUser) => {
     try {
@@ -108,6 +113,35 @@ export function NutritionProgress() {
     setExpandedWeeks(newExpanded);
   };
 
+  // Edit-targets sheet: hosts the existing NutritionGoal calculator. Built
+  // manually (not ResponsiveDialog) because NutritionGoal is input-heavy and
+  // needs repositionInputs={false} on mobile to avoid the keyboard drift (BUG6).
+  const editTargetsSheet = isMobile ? (
+    <Drawer open={sheetOpen} onOpenChange={setSheetOpen} repositionInputs={false} shouldScaleBackground={false}>
+      <DrawerContent className="max-h-[92dvh] flex flex-col">
+        <div className="px-4 pt-3 pb-1">
+          <DrawerTitle>Edit targets</DrawerTitle>
+          <DrawerDescription>Update your nutrition goal and macros.</DrawerDescription>
+        </div>
+        <DrawerScrollArea className="flex-1 min-h-0 px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          <NutritionGoal onSaved={() => { setSheetOpen(false); if (sessionUser) loadData(sessionUser); }} />
+        </DrawerScrollArea>
+      </DrawerContent>
+    </Drawer>
+  ) : (
+    <Dialog open={sheetOpen} onOpenChange={setSheetOpen}>
+      <DialogContent className="max-w-2xl max-h-[85vh] flex flex-col">
+        <DialogHeader>
+          <DialogTitle>Edit targets</DialogTitle>
+          <DialogDescription>Update your nutrition goal and macros.</DialogDescription>
+        </DialogHeader>
+        <DialogScrollArea className="flex-1 min-h-0">
+          <NutritionGoal onSaved={() => { setSheetOpen(false); if (sessionUser) loadData(sessionUser); }} />
+        </DialogScrollArea>
+      </DialogContent>
+    </Dialog>
+  );
+
   if (loading) {
     return (
       <div className="flex justify-center items-center py-12">
@@ -118,12 +152,20 @@ export function NutritionProgress() {
 
   if (!activeGoal) {
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle>No Active Goal</CardTitle>
-          <CardDescription>Please set a nutrition goal first in the Goal tab</CardDescription>
-        </CardHeader>
-      </Card>
+      <div className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle>Set your nutrition targets</CardTitle>
+            <CardDescription>
+              Create your nutrition goal to see daily calories, macros, and weekly progress.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Button onClick={() => setSheetOpen(true)}>Set your targets</Button>
+          </CardContent>
+        </Card>
+        {editTargetsSheet}
+      </div>
     );
   }
 
@@ -194,6 +236,11 @@ export function NutritionProgress() {
     ? Math.min(100, (loggedWeeksCount / estimatedTotalWeeks) * 100)
     : 0;
 
+  // Trend range filter — slice the weekly series before the graph (no graph-internal change).
+  const trendProgress = range === "all"
+    ? weeklyProgress
+    : weeklyProgress.slice(-(range === "4w" ? 4 : 12));
+
   return (
     <div className="space-y-6">
       {latestProgress && latestProgress.new_daily_calories != null && (() => {
@@ -253,8 +300,8 @@ export function NutritionProgress() {
                   ` • Adjusted from ${activeGoal.estimated_duration_weeks} weeks`}
               </CardDescription>
             </div>
-            <Button onClick={() => navigate('/nutrition')} variant="outline" size="sm">
-              Change Goal
+            <Button onClick={() => setSheetOpen(true)} variant="outline" size="sm">
+              Edit targets
             </Button>
           </div>
         </CardHeader>
@@ -276,6 +323,15 @@ export function NutritionProgress() {
               <p className="text-sm text-muted-foreground">Carbs</p>
               <p className="text-2xl font-bold">{currentCarbGrams}g</p>
             </div>
+          </div>
+
+          <div className="mt-4">
+            <MacroDistributionRibbon
+              protein={currentProteinGrams}
+              fat={currentFatGrams}
+              carbs={currentCarbGrams}
+              showLabels
+            />
           </div>
 
           {/* Progress Bars */}
@@ -306,51 +362,80 @@ export function NutritionProgress() {
         </CardContent>
       </Card>
 
-      {/* Tabs for Progress vs Graphs */}
-      <Tabs defaultValue="progress" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 mb-4">
-          <TabsTrigger value="progress">Progress</TabsTrigger>
-          <TabsTrigger value="graphs">Graphs</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="progress" className="space-y-3">
-          <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-bold">Weekly Logs</h2>
-            <Button onClick={() => {}} variant="outline" size="sm">
-              Add Inputs
-            </Button>
+      {/* Trend — range control + Weight|Body-fat toggle above the chart (replaces the buried Graphs tab) */}
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="inline-flex rounded-lg border p-0.5">
+            {(["4w", "12w", "all"] as const).map((r) => (
+              <button
+                key={r}
+                type="button"
+                onClick={() => setRange(r)}
+                className={cn(
+                  "px-3 py-1 text-sm rounded-md transition-colors",
+                  range === r
+                    ? "bg-secondary border border-secondary"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {r === "4w" ? "4W" : r === "12w" ? "12W" : "All"}
+              </button>
+            ))}
           </div>
+          <div className="inline-flex rounded-lg border p-0.5">
+            {(["weight", "bodyfat"] as const).map((m) => (
+              <button
+                key={m}
+                type="button"
+                onClick={() => setMetric(m)}
+                className={cn(
+                  "px-3 py-1 text-sm rounded-md transition-colors",
+                  metric === m
+                    ? "bg-secondary border border-secondary"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {m === "weight" ? "Weight" : "Body fat"}
+              </button>
+            ))}
+          </div>
+        </div>
+        {metric === "weight" ? (
+          <TeamWeightProgressGraph goal={activeGoal} weeklyProgress={trendProgress} />
+        ) : (
+          <BodyFatProgressGraph weeklyProgress={trendProgress} />
+        )}
+      </div>
 
-          {Array.from({ length: currentWeek }, (_, i) => currentWeek - i).map((week) => (
-            <WeekCard
-              key={week}
-              week={week}
-              goalId={activeGoal.id}
-              goalType={activeGoal.goal_type}
-              sex={activeGoal.sex}
-              weeklyRate={activeGoal.weekly_rate_percentage}
-              currentCalories={currentCalories}
-              startingWeight={activeGoal.starting_weight_kg}
-              goalStartDate={activeGoal.start_date}
-              isDietBreakWeek={
-                activeGoal.diet_breaks_enabled &&
-                activeGoal.diet_break_frequency_weeks &&
-                week % activeGoal.diet_break_frequency_weeks === 0
-              }
-              isExpanded={expandedWeeks.has(week)}
-              onToggle={() => toggleWeek(week)}
-              existingProgress={weeklyProgress.find(p => p.week_number === week)}
-              previousWeekProgress={weeklyProgress.find(p => p.week_number === week - 1)}
-              onSaved={loadData}
-            />
-          ))}
-        </TabsContent>
+      {/* Weekly check-ins — current week expanded, past weeks collapsed */}
+      <div className="space-y-3">
+        <h2 className="text-xl font-bold">Weekly Logs</h2>
+        {Array.from({ length: currentWeek }, (_, i) => currentWeek - i).map((week) => (
+          <WeekCard
+            key={week}
+            week={week}
+            goalId={activeGoal.id}
+            goalType={activeGoal.goal_type}
+            sex={activeGoal.sex}
+            weeklyRate={activeGoal.weekly_rate_percentage}
+            currentCalories={currentCalories}
+            startingWeight={activeGoal.starting_weight_kg}
+            goalStartDate={activeGoal.start_date}
+            isDietBreakWeek={
+              activeGoal.diet_breaks_enabled &&
+              activeGoal.diet_break_frequency_weeks &&
+              week % activeGoal.diet_break_frequency_weeks === 0
+            }
+            isExpanded={expandedWeeks.has(week)}
+            onToggle={() => toggleWeek(week)}
+            existingProgress={weeklyProgress.find(p => p.week_number === week)}
+            previousWeekProgress={weeklyProgress.find(p => p.week_number === week - 1)}
+            onSaved={loadData}
+          />
+        ))}
+      </div>
 
-        <TabsContent value="graphs" className="space-y-6">
-          <TeamWeightProgressGraph goal={activeGoal} weeklyProgress={weeklyProgress} />
-          <BodyFatProgressGraph weeklyProgress={weeklyProgress} />
-        </TabsContent>
-      </Tabs>
+      {editTargetsSheet}
     </div>
   );
 }

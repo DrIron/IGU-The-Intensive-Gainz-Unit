@@ -1,10 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Navigation } from "@/components/Navigation";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Calculator, TrendingUp } from "lucide-react";
-import { NutritionGoal } from "@/components/nutrition/NutritionGoal";
+import { Calculator } from "lucide-react";
 import { NutritionProgress } from "@/components/nutrition/NutritionProgress";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/useAuthSession";
@@ -12,14 +10,12 @@ import { useToast } from "@/hooks/use-toast";
 import { ErrorFallback } from "@/components/ui/error-fallback";
 
 export default function TeamNutrition() {
-  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [user, setUser] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const activeTab = searchParams.get("tab") || "goal";
 
   const loadUser = useCallback(async (user: SupabaseUser | null) => {
     try {
@@ -137,33 +133,14 @@ export default function TeamNutrition() {
           </div>
           <h1 className="text-4xl md:text-5xl font-bold mb-4">Nutrition</h1>
           <p className="text-xl text-muted-foreground">
-            Team Plan – Self-service nutrition calculator and progress tracking
+            Team Plan – Your targets, trend, and weekly check-ins
           </p>
           <p className="text-sm text-muted-foreground mt-2">
             Your IGU coach may review and adjust these targets if needed.
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(value) => navigate(`/nutrition-team?tab=${value}`)} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 mb-8">
-            <TabsTrigger value="goal" className="flex items-center gap-2">
-              <Calculator className="h-4 w-4" />
-              Goal Setting
-            </TabsTrigger>
-            <TabsTrigger value="progress" className="flex items-center gap-2">
-              <TrendingUp className="h-4 w-4" />
-              Progress Tracker
-            </TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="goal">
-            <NutritionGoal />
-          </TabsContent>
-
-          <TabsContent value="progress">
-            <NutritionProgress />
-          </TabsContent>
-        </Tabs>
+        <NutritionProgress />
       </main>
     </div>
   );
