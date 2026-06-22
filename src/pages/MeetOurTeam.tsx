@@ -5,7 +5,7 @@ import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CoachDetailDialog } from "@/components/CoachDetailDialog";
-import { MapPin } from "lucide-react";
+import { MapPin, Award } from "lucide-react";
 import { SEOHead } from "@/components/SEOHead";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 import { useSiteContent } from "@/hooks/useSiteContent";
@@ -139,6 +139,31 @@ export default function MeetOurTeam() {
                 )}
               </CardHeader>
               <CardContent className="space-y-3">
+                {coach.qualifications && coach.qualifications.length > 0 && (
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-2">
+                      <Award className="h-3.5 w-3.5 text-primary" />
+                      <h4 className="text-sm font-semibold">Certifications</h4>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {coach.qualifications.slice(0, 2).map((qual, idx) => (
+                        <Badge
+                          key={idx}
+                          variant="outline"
+                          className="text-xs max-w-[180px] truncate"
+                          title={qual}
+                        >
+                          {qual}
+                        </Badge>
+                      ))}
+                      {coach.qualifications.length > 2 && (
+                        <Badge variant="outline" className="text-xs">
+                          +{coach.qualifications.length - 2} more
+                        </Badge>
+                      )}
+                    </div>
+                  </div>
+                )}
                 {coach.specializations && coach.specializations.length > 0 && (
                   <div>
                     <h4 className="text-sm font-semibold mb-2">Specializations</h4>
