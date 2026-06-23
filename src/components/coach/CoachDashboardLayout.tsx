@@ -10,6 +10,7 @@ import { ExerciseLibrary } from "./ExerciseLibrary";
 import { CoachDashboardOverview } from "./CoachDashboardOverview";
 import DietitianDashboardOverview from "./DietitianDashboardOverview";
 import { CoachMyClientsPage } from "./CoachMyClientsPage";
+import { CoachClientsWorkspace } from "./CoachClientsWorkspace";
 import DietitianMyClientsPage from "@/pages/coach/DietitianMyClientsPage";
 import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 import { CoachProgramsPage } from "./programs/CoachProgramsPage";
@@ -165,12 +166,10 @@ export function CoachDashboardLayout({
           ? <DietitianDashboardOverview userId={user.id} onNavigate={handleNavigateWithFilter} />
           : <CoachDashboardOverview coachUserId={user.id} onNavigate={handleNavigateWithFilter} />;
       case "clients":
-        return (
-          <CoachMyClientsPage
-            coachUserId={user.id}
-            onViewClient={handleViewClientDetail}
-          />
-        );
+        // CO6: master-detail workspace (condensed roster + ClientOverviewPanel).
+        // The full Client Queue (Pending/Awaiting/At-Risk + approvals) stays
+        // reachable from the workspace via "Full queue" (?view=queue).
+        return <CoachClientsWorkspace coachUserId={user.id} />;
       case "nutrition-clients":
         return <DietitianMyClientsPage />;
       case "teams":

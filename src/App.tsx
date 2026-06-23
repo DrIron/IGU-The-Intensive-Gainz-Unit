@@ -39,7 +39,6 @@ const NotFound = lazyWithReload(() => import("./pages/NotFound"));
 const Nutrition = lazyWithReload(() => import("./pages/Nutrition"));
 const TeamNutrition = lazyWithReload(() => import("./pages/TeamNutrition"));
 const ClientNutrition = lazyWithReload(() => import("./pages/ClientNutrition"));
-const CoachClientOverview = lazyWithReload(() => import("./pages/CoachClientOverview"));
 const PaymentStatus = lazyWithReload(() => import("./pages/PaymentStatus"));
 const PaymentReturn = lazyWithReload(() => import("./pages/PaymentReturn"));
 const BillingPayment = lazyWithReload(() => import("./pages/BillingPayment"));
@@ -239,7 +238,8 @@ const App = () => {
                   {/* Role-scoped Coach routes - requires coach role ONLY (admins must use separate coach account) */}
                   <Route path="/coach" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
                   <Route path="/coach/studio-preview" element={<RoleProtectedRoute requiredRole="coach"><StudioPreview /></RoleProtectedRoute>} />
-                  <Route path="/coach/clients/:clientUserId" element={<RoleProtectedRoute requiredRole="coach"><CoachClientOverview /></RoleProtectedRoute>} />
+                  {/* CO6: detail mounts inside the coach shell (CoachDashboard -> CoachClientsWorkspace). /coach/clients is covered by /coach/:section. */}
+                  <Route path="/coach/clients/:clientUserId" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
                   <Route path="/coach/:section" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
 
                   {/* Onboarding routes - allow incomplete onboarding */}

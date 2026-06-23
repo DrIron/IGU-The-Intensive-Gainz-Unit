@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Navigation } from "@/components/Navigation";
@@ -26,6 +26,7 @@ const SECTION_MAP: Record<string, string> = {
 export default function CoachDashboard() {
   const navigate = useNavigate();
   const { section } = useParams();
+  const location = useLocation();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -41,7 +42,12 @@ export default function CoachDashboard() {
     description: "Coach management dashboard for IGU.",
   });
 
-  const activeSection = SECTION_MAP[section || "dashboard"] || "overview";
+  // The /coach/clients and /coach/clients/:clientUserId routes carry a
+  // :clientUserId param (not :section), so derive the section from the path so
+  // the CO6 master-detail workspace renders under the "clients" section.
+  const activeSection = location.pathname.startsWith("/coach/clients")
+    ? "clients"
+    : SECTION_MAP[section || "dashboard"] || "overview";
 
   useEffect(() => {
     if (cachedRoles && cachedRoles.length > 0) {
