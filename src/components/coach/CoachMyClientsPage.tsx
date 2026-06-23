@@ -16,6 +16,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useStaffUnreadCounts } from "@/hooks/useStaffUnreadCounts";
 import { useCoachDeloadRequestCounts } from "@/hooks/useCoachDeloadRequests";
 import { useCoachRosterAttention } from "@/hooks/useCoachRosterAttention";
+import { useCoachRosterStats } from "@/hooks/useCoachRosterStats";
 import { cn } from "@/lib/utils";
 import { toneClasses } from "@/lib/interpret";
 import { rosterTone, byRosterUrgency } from "@/lib/rosterTone";
@@ -88,10 +89,13 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   // strip counts AND the per-row alert flags (membership in client_ids.*). Never
   // recompute the headline client-side.
   const { attention } = useCoachRosterAttention();
+  // RO Phase 2 — per-active-client stats (adherence / weigh-ins / last weigh-in /
+  // has-program) via the coach-scoped RPC (coach RLS hides the raw tables).
+  const { stats } = useCoachRosterStats();
 
   // Filter state
   const [planFilter, setPlanFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'at_risk' | 'name' | 'check_in_due'>('at_risk');
+  const [sortBy, setSortBy] = useState<'at_risk' | 'name' | 'check_in_due' | 'adherence'>('at_risk');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Nutrition dialog
@@ -398,6 +402,15 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
         if (da == null) return 1; // nulls (no check-in) last
         if (db == null) return -1;
         return db - da; // descending: most days since check-in first
+      });
+    } else if (sortBy === 'adherence') {
+      sorted.sort((a, b) => {
+        const aa = stats[a.id]?.adherence_pct;
+        const ab = stats[b.id]?.adherence_pct;
+        if (aa == null && ab == null) return 0;
+        if (aa == null) return 1; // nulls (no recent data) last
+        if (ab == null) return -1;
+        return aa - ab; // ascending: lowest adherence (needs attention) first
       });
     } else {
       sorted.sort(byRosterUrgency(trainingToneFor, getClientDisplayName));
@@ -746,7 +759,14 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                 const adjustmentPending = attention.client_ids.adjustments_pending.includes(client.id);
                 const unread = unreadCounts[client.id] ?? 0;
                 const deload = deloadCounts.get(client.id) ?? 0;
-                const hasAlerts = checkInOverdue || paymentFlagged || adjustmentPending || unread > 0 || deload > 0;
+                // RO Phase 2 stats (active clients only; undefined for other sections).
+                const stat = stats[client.id];
+                const noProgram = stat ? stat.has_program === false : false;
+                const adherencePct = stat?.adherence_pct ?? null;
+                const lastWeighInDays = stat?.last_weigh_in_date
+                  ? Math.floor((Date.now() - new Date(stat.last_weigh_in_date).getTime()) / (1000 * 60 * 60 * 24))
+                  : null;
+                const hasAlerts = checkInOverdue || paymentFlagged || adjustmentPending || noProgram || unread > 0 || deload > 0;
                 const handleRowClick = () => {
                   if (onViewClient) {
                     onViewClient(client.id);
@@ -787,6 +807,9 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                             {adjustmentPending && (
                               <SlidersHorizontal className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" aria-label="Adjustment pending" />
                             )}
+                            {noProgram && (
+                              <Dumbbell className="h-3.5 w-3.5 text-status-attention" aria-label="No program assigned yet" />
+                            )}
                             {unread > 0 && (
                               <span className="inline-flex items-center gap-0.5 text-destructive" aria-label={`${unread} unread ${unread === 1 ? "message" : "messages"}`}>
                                 <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
@@ -800,14 +823,42 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                         )}
                       </div>
 
-                      {/* Line 2: status · adherence (Phase 2) · check-ins (Phase 2) · last weigh-in. */}
+                      {/* Line 2: status · adherence · check-ins X/expected · last weigh-in. */}
                       <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid sm:grid-cols-4">
                         <span className="flex items-center">
                           {getStatusBadge(client.profile_status, client.subscription_status)}
                         </span>
-                        <span>Adherence <span className="text-muted-foreground/50">—</span></span>
-                        <span>Check-ins <span className="text-muted-foreground/50">—</span></span>
-                        <span>Last weigh-in <span className="text-foreground font-medium">{lastWeighInLabel(client.days_since_check_in)}</span></span>
+                        <span>
+                          Adherence{' '}
+                          {adherencePct == null ? (
+                            <span className="text-muted-foreground/50">—</span>
+                          ) : (
+                            <span className={cn(
+                              "font-medium",
+                              adherencePct >= 80 ? "text-status-ontrack"
+                                : adherencePct >= 50 ? "text-status-attention"
+                                : "text-status-risk",
+                            )}>
+                              {adherencePct}%
+                            </span>
+                          )}
+                        </span>
+                        <span>
+                          Check-ins{' '}
+                          {stat ? (
+                            <span className={cn(
+                              "font-medium",
+                              stat.weigh_ins_this_week >= stat.expected_weigh_ins ? "text-status-ontrack"
+                                : stat.weigh_ins_this_week > 0 ? "text-status-attention"
+                                : "text-status-risk",
+                            )}>
+                              {stat.weigh_ins_this_week}/{stat.expected_weigh_ins}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/50">—</span>
+                          )}
+                        </span>
+                        <span>Last weigh-in <span className="text-foreground font-medium">{lastWeighInLabel(lastWeighInDays)}</span></span>
                       </div>
                       {/* Note: Email hidden from coaches for privacy */}
 
@@ -1000,13 +1051,14 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'at_risk' | 'name' | 'check_in_due')}>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'at_risk' | 'name' | 'check_in_due' | 'adherence')}>
                 <SelectTrigger className="w-40" aria-label="Sort clients">
                   <SelectValue placeholder="Sort" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="at_risk">At risk first</SelectItem>
                   <SelectItem value="check_in_due">Check-in due</SelectItem>
+                  <SelectItem value="adherence">Adherence (low first)</SelectItem>
                   <SelectItem value="name">Name (A–Z)</SelectItem>
                 </SelectContent>
               </Select>
