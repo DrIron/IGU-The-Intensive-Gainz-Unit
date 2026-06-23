@@ -194,7 +194,7 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
                 </div>
               </div>
               <div className="space-y-1">
-                <p className="font-medium">No ad-hoc sessions yet</p>
+                <p className="font-medium">No booked sessions yet</p>
                 <p className="text-sm text-muted-foreground max-w-md mx-auto">
                   Direct calendar sessions a coach schedules outside the recurring
                   program, and add-on bookings, will appear here once any are

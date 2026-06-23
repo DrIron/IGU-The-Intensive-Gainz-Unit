@@ -255,7 +255,7 @@ export function DirectClientCalendar({
             Direct Calendar for {clientName}
           </h2>
           <p className="text-sm text-muted-foreground">
-            Create ad-hoc workouts directly on the client's calendar
+            Add a session to the client's calendar
           </p>
         </div>
       </div>

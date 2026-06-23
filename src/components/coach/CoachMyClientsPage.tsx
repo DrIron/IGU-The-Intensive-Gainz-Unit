@@ -824,7 +824,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                       </div>
 
                       {/* Line 2: status · adherence · check-ins X/expected · last weigh-in. */}
-                      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid sm:grid-cols-4">
+                      <div className="mt-1.5 flex flex-wrap items-baseline gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid sm:grid-cols-4 sm:items-baseline">
                         <span className="flex items-center">
                           {getStatusBadge(client.profile_status, client.subscription_status)}
                         </span>
