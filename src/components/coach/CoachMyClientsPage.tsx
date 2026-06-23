@@ -15,14 +15,15 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useStaffUnreadCounts } from "@/hooks/useStaffUnreadCounts";
 import { useCoachDeloadRequestCounts } from "@/hooks/useCoachDeloadRequests";
+import { useCoachRosterAttention } from "@/hooks/useCoachRosterAttention";
 import { cn } from "@/lib/utils";
 import { toneClasses } from "@/lib/interpret";
 import { rosterTone, byRosterUrgency } from "@/lib/rosterTone";
 import {
-  Users, Search, Eye, Activity, AlertCircle, TrendingUp, TrendingDown,
+  Users, Search, Eye, Activity, AlertCircle,
   Dumbbell, Library, MoreVertical, MessageSquare, ArrowRight,
   Check, X, Mail, Phone, DollarSign, Calendar, UserCheck, Clock, CreditCard,
-  AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown, UserPlus, Snowflake, Gift
+  AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown, UserPlus, Snowflake, Gift, SlidersHorizontal
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -83,10 +84,14 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   const { counts: unreadCounts } = useStaffUnreadCounts();
   // Phase 6 — pending deload requests per client. Same batch-rpc shape.
   const { counts: deloadCounts } = useCoachDeloadRequestCounts(coachUserId);
-  
+  // RO Phase 1 — single batched "who needs me" read: powers the needs-attention
+  // strip counts AND the per-row alert flags (membership in client_ids.*). Never
+  // recompute the headline client-side.
+  const { attention } = useCoachRosterAttention();
+
   // Filter state
   const [planFilter, setPlanFilter] = useState<string>('all');
-  const [sortBy, setSortBy] = useState<'at_risk' | 'name'>('at_risk');
+  const [sortBy, setSortBy] = useState<'at_risk' | 'name' | 'check_in_due'>('at_risk');
   const [searchQuery, setSearchQuery] = useState('');
   
   // Nutrition dialog
@@ -112,8 +117,10 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   // empty-state cards. Coach can toggle and the explicit choice sticks.
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
-  // Ref for pending section (auto-scroll when needed)
+  // Refs for sections the needs-attention strip can jump to (auto-scroll).
   const pendingRef = useRef<HTMLDivElement>(null);
+  const awaitingRef = useRef<HTMLDivElement>(null);
+  const atRiskRef = useRef<HTMLDivElement>(null);
   const hasFetchedClients = useRef(false);
   const hasFetchedLevel = useRef(false);
 
@@ -378,10 +385,20 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
     }
 
     // Sort: At-risk-first (default) surfaces the most urgent rows at the top of
-    // each section; Name is a plain A–Z alphabetical.
+    // each section; Name is a plain A–Z alphabetical; Check-in-due orders by
+    // days since last weigh-in (most overdue first, never-checked-in last).
     const sorted = filtered.slice();
     if (sortBy === 'name') {
       sorted.sort((a, b) => getClientDisplayName(a).localeCompare(getClientDisplayName(b)));
+    } else if (sortBy === 'check_in_due') {
+      sorted.sort((a, b) => {
+        const da = a.days_since_check_in;
+        const db = b.days_since_check_in;
+        if (da == null && db == null) return 0;
+        if (da == null) return 1; // nulls (no check-in) last
+        if (db == null) return -1;
+        return db - da; // descending: most days since check-in first
+      });
     } else {
       sorted.sort(byRosterUrgency(trainingToneFor, getClientDisplayName));
     }
@@ -413,18 +430,42 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
     return <Badge variant="outline">{profileStatus || subStatus || 'Unknown'}</Badge>;
   };
 
-  const getProgressBadge = (daysSinceCheckIn: number | null) => {
-    if (daysSinceCheckIn === null) {
-      return <span className="text-muted-foreground text-xs">No check-in</span>;
-    }
-    if (daysSinceCheckIn <= 3) {
-      return <Badge variant="outline" className="gap-1 border-status-ontrack/40 bg-status-ontrack/10 text-status-ontrack"><TrendingUp className="h-3 w-3" /> On track</Badge>;
-    }
-    if (daysSinceCheckIn <= 6) {
-      return <Badge variant="outline" className="gap-1 border-status-attention/40 bg-status-attention/10 text-status-attention">{daysSinceCheckIn}d quiet</Badge>;
-    }
-    return <Badge variant="outline" className="gap-1 border-status-risk/40 bg-status-risk/10 text-status-risk"><TrendingDown className="h-3 w-3" /> {daysSinceCheckIn}d quiet</Badge>;
+  // Last weigh-in label from days_since_check_in (line-2 stat; replaces the
+  // old drift chip — the recency signal stays, just as a plain stat).
+  const lastWeighInLabel = (daysSinceCheckIn: number | null): string => {
+    if (daysSinceCheckIn === null) return "No check-in";
+    if (daysSinceCheckIn === 0) return "today";
+    return `${daysSinceCheckIn}d ago`;
   };
+
+  // Needs-attention strip jump targets — reuse the collapsedSections + section-ref
+  // machinery (pendingRef pattern) to expand + scroll a section, or deep-link to
+  // the single flagged client.
+  const jumpToSection = (sectionKey: string, ref: React.RefObject<HTMLDivElement>) => {
+    setCollapsedSections(prev => ({ ...prev, [sectionKey]: false }));
+    setTimeout(() => ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 100);
+  };
+  const jumpToClient = (clientId?: string) => {
+    if (!clientId) return;
+    if (onViewClient) onViewClient(clientId);
+    else navigate(`/coach/clients/${clientId}`);
+  };
+
+  // Needs-attention chip styling — colored by severity; zero-count chips render
+  // muted (not hidden) so the strip stays a stable, scannable row.
+  const attnChipClass = (count: number, tone: 'warning' | 'danger' | 'info' | 'neutral') =>
+    cn(
+      "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-sm transition-colors hover:opacity-90",
+      count === 0
+        ? "border-border bg-transparent text-muted-foreground/60"
+        : tone === 'danger'
+          ? "border-status-risk/30 bg-status-risk/10 text-status-risk"
+          : tone === 'warning'
+            ? "border-status-attention/30 bg-status-attention/10 text-status-attention"
+            : tone === 'info'
+              ? "border-blue-500/30 bg-blue-500/10 text-blue-600 dark:text-blue-400"
+              : "border-border bg-muted/50 text-foreground",
+    );
 
   // ========== APPROVAL HANDLERS ==========
   const handleApproveClient = async (client: CoachClient) => {
@@ -699,6 +740,13 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
               {pageClients.map((client) => {
                 const isProcessing = processingApproval === client.id || processingDecline === client.id;
                 const tone = trainingToneFor(client);
+                // Alert cluster = union of three existing batched sources.
+                const checkInOverdue = attention.client_ids.check_in_overdue.includes(client.id);
+                const paymentFlagged = attention.client_ids.payment_failed.includes(client.id);
+                const adjustmentPending = attention.client_ids.adjustments_pending.includes(client.id);
+                const unread = unreadCounts[client.id] ?? 0;
+                const deload = deloadCounts.get(client.id) ?? 0;
+                const hasAlerts = checkInOverdue || paymentFlagged || adjustmentPending || unread > 0 || deload > 0;
                 const handleRowClick = () => {
                   if (onViewClient) {
                     onViewClient(client.id);
@@ -718,39 +766,51 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                     )}
                   >
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-medium truncate">{getClientDisplayName(client)}</span>
-                        {client.service_name && (
-                          <Badge variant="outline" className="text-xs shrink-0">
-                            {client.service_name}
-                          </Badge>
-                        )}
-                        {/* Drift chip — surfaces the previously-dropped check-in recency signal. */}
-                        {client.days_since_check_in !== null && (
-                          <span className="shrink-0">{getProgressBadge(client.days_since_check_in)}</span>
-                        )}
-                        {unreadCounts[client.id] > 0 && (
-                          <Badge
-                            variant="destructive"
-                            className="text-[10px] shrink-0 gap-1 px-1.5 h-5"
-                            aria-label={`${unreadCounts[client.id]} unread ${unreadCounts[client.id] === 1 ? "message" : "messages"}`}
-                          >
-                            <MessageSquare className="h-3 w-3" aria-hidden="true" />
-                            {unreadCounts[client.id] >= 100 ? "99+" : unreadCounts[client.id]}
-                          </Badge>
-                        )}
-                        {(deloadCounts.get(client.id) ?? 0) > 0 && (
-                          <Badge
-                            className="text-[10px] shrink-0 gap-1 px-1.5 h-5 bg-blue-500/15 text-blue-700 dark:text-blue-400 border border-blue-500/30 hover:bg-blue-500/20"
-                            aria-label={`${deloadCounts.get(client.id)} pending deload ${deloadCounts.get(client.id) === 1 ? "request" : "requests"}`}
-                          >
-                            <Snowflake className="h-3 w-3" aria-hidden="true" />
-                            Deload
-                          </Badge>
+                      {/* Line 1: name + plan + right-aligned alert cluster (icons only when flagged) */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-medium truncate">{getClientDisplayName(client)}</span>
+                          {client.service_name && (
+                            <Badge variant="outline" className="text-xs shrink-0">
+                              {client.service_name}
+                            </Badge>
+                          )}
+                        </div>
+                        {hasAlerts && (
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {checkInOverdue && (
+                              <Clock className="h-3.5 w-3.5 text-status-attention" aria-label="Check-in overdue" />
+                            )}
+                            {paymentFlagged && (
+                              <CreditCard className="h-3.5 w-3.5 text-status-risk" aria-label="Payment failed" />
+                            )}
+                            {adjustmentPending && (
+                              <SlidersHorizontal className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" aria-label="Adjustment pending" />
+                            )}
+                            {unread > 0 && (
+                              <span className="inline-flex items-center gap-0.5 text-destructive" aria-label={`${unread} unread ${unread === 1 ? "message" : "messages"}`}>
+                                <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                                <span className="text-[10px] font-semibold">{unread >= 100 ? "99+" : unread}</span>
+                              </span>
+                            )}
+                            {deload > 0 && (
+                              <Snowflake className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" aria-label="Pending deload request" />
+                            )}
+                          </div>
                         )}
                       </div>
+
+                      {/* Line 2: status · adherence (Phase 2) · check-ins (Phase 2) · last weigh-in. */}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground sm:grid sm:grid-cols-4">
+                        <span className="flex items-center">
+                          {getStatusBadge(client.profile_status, client.subscription_status)}
+                        </span>
+                        <span>Adherence <span className="text-muted-foreground/50">—</span></span>
+                        <span>Check-ins <span className="text-muted-foreground/50">—</span></span>
+                        <span>Last weigh-in <span className="text-foreground font-medium">{lastWeighInLabel(client.days_since_check_in)}</span></span>
+                      </div>
                       {/* Note: Email hidden from coaches for privacy */}
-                      
+
                       {showPaymentInfo && client.payment_deadline && (
                         <div className="flex items-center gap-1 mt-1 text-xs text-muted-foreground">
                           <Clock className="h-3 w-3" />
@@ -940,12 +1000,13 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                   ))}
                 </SelectContent>
               </Select>
-              <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'at_risk' | 'name')}>
+              <Select value={sortBy} onValueChange={(v) => setSortBy(v as 'at_risk' | 'name' | 'check_in_due')}>
                 <SelectTrigger className="w-40" aria-label="Sort clients">
                   <SelectValue placeholder="Sort" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="at_risk">At risk first</SelectItem>
+                  <SelectItem value="check_in_due">Check-in due</SelectItem>
                   <SelectItem value="name">Name (A–Z)</SelectItem>
                 </SelectContent>
               </Select>
@@ -958,7 +1019,62 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
             </div>
           ) : (
             <div className="space-y-6">
-              {/* A) Pending Approvals - Always visible at top, no scrolling needed */}
+              {/* Needs-attention strip — count chips that jump to the relevant
+                  section/client. Zero-count chips stay (muted) so the row is stable. */}
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => jumpToSection('pending', pendingRef)}
+                  className={attnChipClass(attention.tiles.pending_approval, 'warning')}
+                >
+                  <span className="font-semibold tabular-nums">{attention.tiles.pending_approval}</span>
+                  <span>To approve</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => jumpToSection('awaiting_payment', awaitingRef)}
+                  className={attnChipClass(awaitingPayment.length, 'neutral')}
+                >
+                  <span className="font-semibold tabular-nums">{awaitingPayment.length}</span>
+                  <span>Awaiting payment</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => jumpToSection('at_risk', atRiskRef)}
+                  className={attnChipClass(attention.tiles.payment_failed + attention.tiles.inactive, 'danger')}
+                >
+                  <span className="font-semibold tabular-nums">{attention.tiles.payment_failed + attention.tiles.inactive}</span>
+                  <span>At-risk</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => jumpToClient(attention.client_ids.check_in_overdue[0])}
+                  className={attnChipClass(attention.tiles.check_in_overdue, 'warning')}
+                >
+                  <span className="font-semibold tabular-nums">{attention.tiles.check_in_overdue}</span>
+                  <span>Check-ins overdue{attention.most_overdue_days > 0 ? ` · ${attention.most_overdue_days}d` : ''}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => jumpToClient(attention.client_ids.adjustments_pending[0])}
+                  className={attnChipClass(attention.tiles.adjustments_pending, 'info')}
+                >
+                  <span className="font-semibold tabular-nums">{attention.tiles.adjustments_pending}</span>
+                  <span>Adjustments</span>
+                </button>
+              </div>
+
+              {/* Active first — the primary roster is no longer buried. */}
+              <QueueSectionCard
+                sectionKey="active"
+                title="Active Clients"
+                icon={Users}
+                clients={activeClients}
+                variant="green"
+                emptyText="No active clients yet"
+              />
+
+              {/* Pending Approvals */}
               <QueueSectionCard
                 sectionRef={pendingRef}
                 sectionKey="pending"
@@ -970,8 +1086,9 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                 showActions={true}
               />
 
-              {/* B) Approved - Awaiting Payment (read-only) */}
+              {/* Awaiting Payment (read-only) */}
               <QueueSectionCard
+                sectionRef={awaitingRef}
                 sectionKey="awaiting_payment"
                 title="Awaiting Payment"
                 icon={CreditCard}
@@ -981,27 +1098,16 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                 showPaymentInfo={true}
               />
 
-              {/* C) Active Clients */}
+              {/* At-Risk — always rendered now; collapses when empty (strip surfaces the count). */}
               <QueueSectionCard
-                sectionKey="active"
-                title="Active Clients"
-                icon={Users}
-                clients={activeClients}
-                variant="green"
-                emptyText="No active clients yet"
+                sectionRef={atRiskRef}
+                sectionKey="at_risk"
+                title="At-Risk"
+                icon={AlertTriangle}
+                clients={atRiskClients}
+                variant="red"
+                emptyText="No at-risk clients"
               />
-
-              {/* D) At-Risk Clients */}
-              {atRiskClients.length > 0 && (
-                <QueueSectionCard
-                  sectionKey="at_risk"
-                  title="At-Risk"
-                  icon={AlertTriangle}
-                  clients={atRiskClients}
-                  variant="red"
-                  emptyText="No at-risk clients"
-                />
-              )}
             </div>
           )}
 
