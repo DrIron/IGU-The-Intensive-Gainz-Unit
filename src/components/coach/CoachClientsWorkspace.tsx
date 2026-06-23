@@ -188,7 +188,10 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
   };
 
   // ---- Master list (used in the grid pane AND the mobile drawer) -----------
-  const masterList = (
+  // `condensed` (desktop, a client is open) drops the plan badge + stat line so
+  // the rows are just name + urgency rail + alert dots — keeps the open client's
+  // detail the focus. Full rows otherwise (and always in the mobile drawer).
+  const masterListEl = (condensed: boolean) => (
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-sm font-semibold">Clients</h2>
@@ -238,6 +241,7 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
             const stat = stats[c.id];
             const active = c.id === clientUserId;
             const adherence = stat?.adherence_pct ?? null;
+            const lastDays = daysSinceWeighIn(c.id);
             const dots = [
               attention.client_ids.check_in_overdue.includes(c.id) && { key: "checkin", cls: "bg-status-attention", label: "Check-in overdue" },
               attention.client_ids.payment_failed.includes(c.id) && { key: "pay", cls: "bg-status-risk", label: "Payment failed" },
@@ -259,24 +263,30 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
                   active && "bg-muted ring-1 ring-primary/40",
                 )}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium text-sm truncate">{nameOf(c)}</span>
+                {/* Line 1: name + plan, alert dots pushed right */}
+                <div className="flex items-baseline justify-between gap-2">
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <span className="font-medium text-sm truncate">{nameOf(c)}</span>
+                    {!condensed && c.service_name && (
+                      <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">{c.service_name}</Badge>
+                    )}
+                  </div>
                   {dots.length > 0 && (
-                    <span className="flex items-center gap-1 shrink-0">
+                    <span className="flex items-center gap-1 shrink-0 self-center">
                       {dots.map((d) => (
                         <span key={d.key} className={cn("h-1.5 w-1.5 rounded-full", d.cls)} aria-label={d.label} />
                       ))}
                     </span>
                   )}
                 </div>
-                <div className="mt-1 flex items-center gap-2 text-[11px] text-muted-foreground">
-                  {c.service_name && <Badge variant="outline" className="px-1.5 py-0 text-[10px]">{c.service_name}</Badge>}
-                  <span>
-                    Adh{' '}
-                    {adherence == null ? "—" : `${adherence}%`}
-                  </span>
-                  {stat && <span>· {stat.weigh_ins_this_week}/{stat.expected_weigh_ins}</span>}
-                </div>
+                {/* Line 2: adherence · check-ins · last weigh-in, evenly spaced (rail conveys status) */}
+                {!condensed && (
+                  <div className="mt-1.5 flex items-baseline justify-between gap-2 text-[11px] text-muted-foreground tabular-nums">
+                    <span>Adh {adherence == null ? "—" : `${adherence}%`}</span>
+                    <span>{stat ? `${stat.weigh_ins_this_week}/${stat.expected_weigh_ins}` : "—"}</span>
+                    <span>{lastDays == null ? "No weigh-in" : lastDays === 0 ? "today" : `${lastDays}d ago`}</span>
+                  </div>
+                )}
               </button>
             );
           })}
@@ -306,7 +316,7 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
   // ---- Mobile: detail-focused; master in a drawer --------------------------
   if (isMobile) {
     if (!clientUserId) {
-      return <div className="pb-24">{masterList}</div>;
+      return <div className="pb-24">{masterListEl(false)}</div>;
     }
     return (
       <div className="space-y-4 pb-24">
@@ -328,7 +338,7 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
               <DrawerDescription>Select a client to view their overview.</DrawerDescription>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-              {masterList}
+              {masterListEl(false)}
             </div>
           </DrawerContent>
         </Drawer>
@@ -340,7 +350,7 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
   return (
     <div className="lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-6 lg:h-[calc(100vh-12rem)]">
       <aside className="hidden lg:block lg:overflow-y-auto lg:pr-1">
-        {masterList}
+        {masterListEl(!!clientUserId)}
       </aside>
       <section className="lg:overflow-y-auto pb-24 md:pb-8">
         <ClientOverviewPanel clientUserId={clientUserId} />
