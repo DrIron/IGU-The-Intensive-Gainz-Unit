@@ -6,9 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
   Users, UserPlus, Crown, CalendarClock, AlertTriangle,
-  Apple, Heart, Dumbbell, Medal, 
+  Apple, Heart, Dumbbell, Medal,
   PersonStanding, Accessibility, Activity,
-  MoreHorizontal
+  MoreHorizontal, Lock
 } from "lucide-react";
 import { AddSpecialistDialog } from "./AddSpecialistDialog";
 import { DischargeSpecialistDialog, TerminateSpecialistDialog } from "./DischargeSpecialistDialog";
@@ -233,6 +233,11 @@ export function CareTeamCard({
           </div>
         </CardHeader>
         <CardContent>
+          {/* Staff-only trust signal -- the client never sees this tab (RLS-enforced) */}
+          <div className="mb-3 flex items-center gap-2 rounded-md bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
+            <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            Staff only. This care team and its notes are never visible to the client.
+          </div>
           <div className="space-y-3">
             {/* Primary Coach */}
             {primaryCoach && (
