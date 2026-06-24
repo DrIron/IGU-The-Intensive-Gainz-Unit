@@ -348,7 +348,17 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
 
   // ---- lg+: two-pane grid, each pane its own scroll ------------------------
   return (
-    <div className="lg:grid lg:grid-cols-[340px_minmax(0,1fr)] lg:gap-6 lg:h-[calc(100vh-12rem)]">
+    <div
+      className={cn(
+        "lg:grid lg:gap-6 lg:h-[calc(100vh-12rem)] lg:transition-[grid-template-columns] lg:duration-200",
+        // When a client is open the master condenses to names-only, so narrow
+        // its column too — the whole point of collapsing is to hand that width
+        // to the detail pane. Full 340px only when no client is selected.
+        clientUserId
+          ? "lg:grid-cols-[220px_minmax(0,1fr)]"
+          : "lg:grid-cols-[340px_minmax(0,1fr)]",
+      )}
+    >
       <aside className="hidden lg:block lg:overflow-y-auto lg:pr-1">
         {masterListEl(!!clientUserId)}
       </aside>
