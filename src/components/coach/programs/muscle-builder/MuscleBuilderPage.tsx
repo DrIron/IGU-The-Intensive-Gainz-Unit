@@ -164,6 +164,10 @@ export function MuscleBuilderPage({
   const [highlightedMuscleId, setHighlightedMuscleId] = useState<string | null>(null);
   const highlightTimeoutRef = useRef<ReturnType<typeof setTimeout>>();
 
+  // Name-first sessions — id of a just-created session whose name input should
+  // auto-focus on mount. Set by handleAddSession; SessionBlock reads it once.
+  const [focusSessionId, setFocusSessionId] = useState<string | null>(null);
+
   // ── Exercise Picker state ───────────────────────────────────
   const [exercisePickerOpen, setExercisePickerOpen] = useState(false);
   const [pickerSlotId, setPickerSlotId] = useState<string | null>(null);
@@ -282,7 +286,10 @@ export function MuscleBuilderPage({
 
   const handleAddSession = useCallback(
     (dayIndex: number, sessionType: ActivityType) => {
-      dispatch({ type: 'ADD_SESSION', dayIndex, sessionType });
+      // Generate the id here so we can auto-focus the new session's name input.
+      const sessionId = crypto.randomUUID();
+      dispatch({ type: 'ADD_SESSION', dayIndex, sessionType, sessionId });
+      setFocusSessionId(sessionId);
     },
     [dispatch]
   );
@@ -858,6 +865,7 @@ export function MuscleBuilderPage({
               onSetSlotDeltaRules={handleSetSlotDeltaRules}
               w1RuleTargetsBySlotId={w1RuleTargetsBySlotId}
               onClearSlotOverride={handleClearSlotOverride}
+              focusSessionId={focusSessionId}
             />
 
             {/* #4 — First-time onboarding guide */}

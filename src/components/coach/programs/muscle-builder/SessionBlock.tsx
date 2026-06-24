@@ -30,13 +30,15 @@ import {
   type SlotExercise,
 } from "@/types/muscle-builder";
 
-const ALL_ACTIVITY_TYPES: ActivityType[] = ['strength', 'cardio', 'hiit', 'yoga_mobility', 'recovery', 'sport_specific'];
+// Includes 'general' so a coach can revert a session to the neutral focus.
+const ALL_ACTIVITY_TYPES: ActivityType[] = ['general', 'strength', 'cardio', 'hiit', 'yoga_mobility', 'recovery', 'sport_specific'];
 
 interface SessionBlockProps {
   session: SessionData;
   slots: MuscleSlotData[];
   sessionPosition: number;           // position among day's sessions (0-indexed)
   daySessionsCount: number;
+  autoFocusName?: boolean;           // when true (just-created session), start in name-edit mode
   highlightedMuscleId?: string | null;
   globalClientInputs?: string[];
   weekCount?: number;
@@ -92,6 +94,7 @@ export const SessionBlock = memo(function SessionBlock({
   slots,
   sessionPosition,
   daySessionsCount,
+  autoFocusName,
   highlightedMuscleId,
   globalClientInputs,
   weekCount,
@@ -125,12 +128,20 @@ export const SessionBlock = memo(function SessionBlock({
   placementCounts,
   recentMuscleIds,
 }: SessionBlockProps) {
-  const [isEditingName, setIsEditingName] = useState(false);
+  // A just-created, still-unnamed session (autoFocusName) mounts straight into
+  // name-edit mode. SessionBlock is keyed by session.id in DayColumn, so this
+  // lazy initializer captures the flag once at mount — no effect or parent-clear
+  // needed. The `!session.name` gate means a renamed session won't re-open its
+  // editor if it remounts (e.g. navigating away and back to its week).
+  const [isEditingName, setIsEditingName] = useState(() => !!autoFocusName && !session.name);
   const [nameDraft, setNameDraft] = useState(session.name ?? '');
   const [addOpen, setAddOpen] = useState(false);
 
   const typeColors = ACTIVITY_TYPE_COLORS[session.type];
   const displayName = session.name?.trim() || defaultSessionName(session.type);
+  // Neutral 'general' sessions have no meaningful default name — prompt the
+  // coach to name it; typed sessions show their type's default as placeholder.
+  const namePlaceholder = session.type === 'general' ? 'Name this session' : defaultSessionName(session.type);
 
   const sessionSlots = useMemo(
     () => slots.slice().sort((a, b) => a.sortOrder - b.sortOrder),
@@ -187,7 +198,7 @@ export const SessionBlock = memo(function SessionBlock({
             }}
             onClick={e => e.stopPropagation()}
             className="h-5 text-[11px] px-1 py-0 flex-1 min-w-0"
-            placeholder={defaultSessionName(session.type)}
+            placeholder={namePlaceholder}
           />
         ) : (
           <button
