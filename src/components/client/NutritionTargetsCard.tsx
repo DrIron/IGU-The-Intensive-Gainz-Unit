@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { interpretMacroTargets, toneClasses } from "@/lib/interpret";
+import { MacroDistributionRibbon } from "@/components/nutrition/MacroDistributionRibbon";
 import { cn } from "@/lib/utils";
 import { Apple, ChevronRight } from "lucide-react";
 
@@ -130,6 +131,14 @@ export function NutritionTargetsCard({ userId }: NutritionTargetsCardProps) {
           <p className="text-3xl font-bold text-primary">{targets.calories}</p>
           <p className="text-xs text-muted-foreground">calories</p>
         </div>
+
+        {/* Macro split ribbon — shared P/F/C visual used on the coach nutrition tab */}
+        <MacroDistributionRibbon
+          protein={targets.protein}
+          fat={targets.fat}
+          carbs={targets.carbs}
+          className="px-1"
+        />
 
         {/* Macros — grams + % of calories */}
         <div className="grid grid-cols-3 gap-2 text-center">

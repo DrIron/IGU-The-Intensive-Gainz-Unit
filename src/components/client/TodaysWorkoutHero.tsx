@@ -123,7 +123,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
 
   if (isLoading) {
     return (
-      <Card className="bg-gradient-to-br from-primary/10 via-primary/5 to-background border-primary/20">
+      <Card className="bg-card border-border">
         <CardContent className="p-6">
           <div className="space-y-4">
             <Skeleton className="h-4 w-32" />
@@ -138,7 +138,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
   // No workout today - show rest day with upcoming workout preview
   if (!workout) {
     return (
-      <Card className="border-primary/20 bg-gradient-to-br from-primary/5 via-background to-background">
+      <Card className="bg-card border-border">
         <CardContent className="p-0">
           {/* Header with greeting */}
           <div className="p-6 pb-4">
@@ -203,7 +203,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
   const estimatedTime = Math.max(20, totalExercises * 3); // rough estimate: 3 min per exercise, min 20 min
 
   return (
-    <Card className={`border-2 overflow-hidden ${isComplete ? 'bg-gradient-to-br from-green-500/10 via-green-500/5 to-background border-green-500/30' : 'bg-gradient-to-br from-primary/10 via-primary/5 to-background border-primary/30'}`}>
+    <Card className={`border-2 overflow-hidden bg-card ${isComplete ? 'border-emerald-500/40' : 'border-primary/40'}`}>
       <CardContent className="p-0">
         {/* Header with greeting */}
         <div className="p-6 pb-4">
