@@ -22,7 +22,13 @@ export function BodyFatProgressGraph({ weeklyProgress }: BodyFatProgressGraphPro
     .sort((a, b) => a.week - b.week);
 
   if (dataWithBodyFat.length === 0) {
-    return null;
+    return (
+      <Card>
+        <CardContent className="pt-6 text-center text-sm text-muted-foreground">
+          No body-fat readings yet. Log one below to see your trend here.
+        </CardContent>
+      </Card>
+    );
   }
 
   // MetricCard-pattern header: latest reading + WoW delta + interpretation.
