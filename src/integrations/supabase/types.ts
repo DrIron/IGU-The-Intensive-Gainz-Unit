@@ -1732,40 +1732,61 @@ export type Database = {
       }
       coach_educational_content: {
         Row: {
+          author: string | null
+          category: string | null
+          content_type: string
+          cover_url: string | null
           created_at: string
           description: string | null
           duration_minutes: number
+          external_url: string | null
           id: string
           is_active: boolean
           is_required: boolean
+          level: string | null
+          section: string
           sort_order: number
           title: string
           updated_at: string
-          video_url: string
+          video_url: string | null
         }
         Insert: {
+          author?: string | null
+          category?: string | null
+          content_type?: string
+          cover_url?: string | null
           created_at?: string
           description?: string | null
           duration_minutes?: number
+          external_url?: string | null
           id?: string
           is_active?: boolean
           is_required?: boolean
+          level?: string | null
+          section?: string
           sort_order?: number
           title: string
           updated_at?: string
-          video_url: string
+          video_url?: string | null
         }
         Update: {
+          author?: string | null
+          category?: string | null
+          content_type?: string
+          cover_url?: string | null
           created_at?: string
           description?: string | null
           duration_minutes?: number
+          external_url?: string | null
           id?: string
           is_active?: boolean
           is_required?: boolean
+          level?: string | null
+          section?: string
           sort_order?: number
           title?: string
           updated_at?: string
-          video_url?: string
+          video_url?: string | null
         }
         Relationships: []
       }

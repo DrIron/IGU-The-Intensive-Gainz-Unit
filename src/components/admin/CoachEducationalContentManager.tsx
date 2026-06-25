@@ -24,15 +24,33 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Plus, Pencil, Trash2, Video, Clock, CheckCircle2, GripVertical } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Plus, Pencil, Trash2, Video, Clock, CheckCircle2, FileText, Award, PlayCircle, GraduationCap } from "lucide-react";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { validateVideoUrl } from "@/lib/educationalContent";
+
+type Section = "training" | "library" | "resources";
+type ContentType = "video" | "ebook" | "course" | "link";
+type Level = "" | "intro" | "advanced";
 
 interface ContentItem {
   id: string;
   title: string;
   description: string | null;
-  video_url: string;
+  video_url: string | null;
+  external_url: string | null;
+  cover_url: string | null;
+  author: string | null;
+  category: string | null;
+  level: string | null;
+  section: string;
+  content_type: string;
   duration_minutes: number;
   is_required: boolean;
   sort_order: number;
@@ -45,7 +63,14 @@ interface ContentItem {
 interface ContentFormData {
   title: string;
   description: string;
+  section: Section;
+  content_type: ContentType;
   video_url: string;
+  external_url: string;
+  cover_url: string;
+  author: string;
+  category: string;
+  level: Level;
   duration_minutes: number;
   is_required: boolean;
   sort_order: number;
@@ -55,12 +80,24 @@ interface ContentFormData {
 const EMPTY_FORM: ContentFormData = {
   title: "",
   description: "",
+  section: "training",
+  content_type: "video",
   video_url: "",
+  external_url: "",
+  cover_url: "",
+  author: "",
+  category: "",
+  level: "",
   duration_minutes: 10,
   is_required: true,
   sort_order: 0,
   is_active: true,
 };
+
+const SECTION_LABEL: Record<string, string> = { training: "Training", library: "Library", resources: "Resources" };
+const TYPE_LABEL: Record<string, string> = { video: "Video", ebook: "Ebook / PDF", course: "Course", link: "Link" };
+// Resources sections are non-video; library/training are video.
+const isVideoType = (t: ContentType) => t === "video";
 
 export function CoachEducationalContentManager() {
   const { toast } = useToast();
@@ -134,7 +171,14 @@ export function CoachEducationalContentManager() {
     setFormData({
       title: item.title,
       description: item.description || "",
-      video_url: item.video_url,
+      section: (item.section as Section) || "training",
+      content_type: (item.content_type as ContentType) || "video",
+      video_url: item.video_url || "",
+      external_url: item.external_url || "",
+      cover_url: item.cover_url || "",
+      author: item.author || "",
+      category: item.category || "",
+      level: (item.level as Level) || "",
       duration_minutes: item.duration_minutes,
       is_required: item.is_required,
       sort_order: item.sort_order,
@@ -144,14 +188,25 @@ export function CoachEducationalContentManager() {
   };
 
   const handleSave = async () => {
-    if (!formData.title.trim() || !formData.video_url.trim()) {
-      toast({ title: "Validation", description: "Title and video URL are required.", variant: "destructive" });
+    if (!formData.title.trim()) {
+      toast({ title: "Validation", description: "Title is required.", variant: "destructive" });
       return;
     }
 
-    const v = validateVideoUrl(formData.video_url);
-    if (!v.valid) {
-      toast({ title: "Validation", description: v.error, variant: "destructive" });
+    const videoType = isVideoType(formData.content_type);
+
+    if (videoType) {
+      if (!formData.video_url.trim()) {
+        toast({ title: "Validation", description: "Video URL is required for video content.", variant: "destructive" });
+        return;
+      }
+      const v = validateVideoUrl(formData.video_url);
+      if (!v.valid) {
+        toast({ title: "Validation", description: v.error, variant: "destructive" });
+        return;
+      }
+    } else if (!formData.external_url.trim()) {
+      toast({ title: "Validation", description: "A link/URL is required for this content type.", variant: "destructive" });
       return;
     }
 
@@ -160,9 +215,16 @@ export function CoachEducationalContentManager() {
       const payload = {
         title: formData.title.trim(),
         description: formData.description.trim() || null,
-        video_url: formData.video_url.trim(),
+        section: formData.section,
+        content_type: formData.content_type,
+        video_url: videoType ? formData.video_url.trim() : null,
+        external_url: videoType ? (formData.external_url.trim() || null) : formData.external_url.trim(),
+        cover_url: formData.cover_url.trim() || null,
+        author: formData.author.trim() || null,
+        category: formData.category.trim() || null,
+        level: formData.level || null,
         duration_minutes: formData.duration_minutes,
-        is_required: formData.is_required,
+        is_required: formData.section === "training" ? formData.is_required : false,
         sort_order: formData.sort_order,
         is_active: formData.is_active,
         updated_at: new Date().toISOString(),
@@ -252,6 +314,7 @@ export function CoachEducationalContentManager() {
                 <TableRow>
                   <TableHead className="w-10">#</TableHead>
                   <TableHead>Title</TableHead>
+                  <TableHead className="w-28">Section</TableHead>
                   <TableHead className="w-24">Duration</TableHead>
                   <TableHead className="w-24">Required</TableHead>
                   <TableHead className="w-24">Active</TableHead>
@@ -265,20 +328,35 @@ export function CoachEducationalContentManager() {
                     <TableCell className="text-muted-foreground">{item.sort_order + 1}</TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Video className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        {item.content_type === "ebook" || item.content_type === "link" ? (
+                          <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        ) : item.content_type === "course" ? (
+                          <Award className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        ) : item.section === "training" ? (
+                          <GraduationCap className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        ) : (
+                          <PlayCircle className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        )}
                         <div className="min-w-0">
                           <p className="font-medium truncate">{item.title}</p>
-                          {item.description && (
-                            <p className="text-xs text-muted-foreground line-clamp-1">{item.description}</p>
+                          {(item.category || item.author) && (
+                            <p className="text-xs text-muted-foreground line-clamp-1">{item.category || item.author}</p>
                           )}
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <div className="flex items-center gap-1 text-sm">
-                        <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                        {item.duration_minutes}m
-                      </div>
+                      <Badge variant="outline" className="text-xs">{SECTION_LABEL[item.section] ?? item.section}</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {item.content_type === "video" ? (
+                        <div className="flex items-center gap-1 text-sm">
+                          <Clock className="h-3.5 w-3.5 text-muted-foreground" />
+                          {item.duration_minutes}m
+                        </div>
+                      ) : (
+                        <span className="text-sm text-muted-foreground">{TYPE_LABEL[item.content_type] ?? "--"}</span>
+                      )}
                     </TableCell>
                     <TableCell>
                       {item.is_required ? (
@@ -348,26 +426,121 @@ export function CoachEducationalContentManager() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label>Video URL *</Label>
-              <Input
-                type="url"
-                value={formData.video_url}
-                onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
-                placeholder="https://www.youtube.com/watch?v=..."
-              />
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label>Duration (minutes)</Label>
+                <Label>Section</Label>
+                <Select
+                  value={formData.section}
+                  onValueChange={(value) => {
+                    const section = value as Section;
+                    // Resources default to ebook; training/library stay video.
+                    const content_type: ContentType = section === "resources" ? "ebook" : "video";
+                    setFormData((f) => ({ ...f, section, content_type }));
+                  }}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="training">Training (onboarding gate)</SelectItem>
+                    <SelectItem value="library">Library (advanced videos)</SelectItem>
+                    <SelectItem value="resources">Resources (ebooks / courses)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Content type</Label>
+                <Select
+                  value={formData.content_type}
+                  onValueChange={(value) => setFormData((f) => ({ ...f, content_type: value as ContentType }))}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {formData.section === "resources" ? (
+                      <>
+                        <SelectItem value="ebook">Ebook / PDF</SelectItem>
+                        <SelectItem value="course">Course / certification</SelectItem>
+                        <SelectItem value="link">Link</SelectItem>
+                      </>
+                    ) : (
+                      <SelectItem value="video">Video</SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+
+            {isVideoType(formData.content_type) ? (
+              <div className="space-y-2">
+                <Label>Video URL *</Label>
                 <Input
-                  type="number"
-                  min={1}
-                  value={formData.duration_minutes}
-                  onChange={(e) => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) || 1 })}
+                  type="url"
+                  value={formData.video_url}
+                  onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                  placeholder="https://www.youtube.com/watch?v=..."
                 />
               </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>{formData.content_type === "ebook" ? "PDF / file URL *" : "External URL *"}</Label>
+                <Input
+                  type="url"
+                  value={formData.external_url}
+                  onChange={(e) => setFormData({ ...formData, external_url: e.target.value })}
+                  placeholder="https://..."
+                />
+                <p className="text-xs text-muted-foreground">Opens in a new tab. Host the file externally and paste the link.</p>
+              </div>
+            )}
+
+            {formData.section !== "training" && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Category</Label>
+                  <Input
+                    value={formData.category}
+                    onChange={(e) => setFormData({ ...formData, category: e.target.value })}
+                    placeholder={formData.section === "library" ? "e.g., Programming" : "e.g., Nutrition"}
+                  />
+                </div>
+                {formData.section === "library" ? (
+                  <div className="space-y-2">
+                    <Label>Level</Label>
+                    <Select
+                      value={formData.level || "none"}
+                      onValueChange={(value) => setFormData((f) => ({ ...f, level: value === "none" ? "" : (value as Level) }))}
+                    >
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">No level</SelectItem>
+                        <SelectItem value="intro">Intro</SelectItem>
+                        <SelectItem value="advanced">Advanced</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    <Label>Author / provider</Label>
+                    <Input
+                      value={formData.author}
+                      onChange={(e) => setFormData({ ...formData, author: e.target.value })}
+                      placeholder="e.g., Precision Nutrition"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4">
+              {isVideoType(formData.content_type) && (
+                <div className="space-y-2">
+                  <Label>Duration (minutes)</Label>
+                  <Input
+                    type="number"
+                    min={1}
+                    value={formData.duration_minutes}
+                    onChange={(e) => setFormData({ ...formData, duration_minutes: parseInt(e.target.value) || 1 })}
+                  />
+                </div>
+              )}
               <div className="space-y-2">
                 <Label>Sort Order</Label>
                 <Input
@@ -379,14 +552,16 @@ export function CoachEducationalContentManager() {
               </div>
             </div>
 
-            <div className="flex items-center justify-between">
-              <Label htmlFor="is-required">Required for activation</Label>
-              <Switch
-                id="is-required"
-                checked={formData.is_required}
-                onCheckedChange={(checked) => setFormData({ ...formData, is_required: checked })}
-              />
-            </div>
+            {formData.section === "training" && (
+              <div className="flex items-center justify-between">
+                <Label htmlFor="is-required">Required for activation</Label>
+                <Switch
+                  id="is-required"
+                  checked={formData.is_required}
+                  onCheckedChange={(checked) => setFormData({ ...formData, is_required: checked })}
+                />
+              </div>
+            )}
 
             <div className="flex items-center justify-between">
               <Label htmlFor="is-active">Active (visible to coaches)</Label>

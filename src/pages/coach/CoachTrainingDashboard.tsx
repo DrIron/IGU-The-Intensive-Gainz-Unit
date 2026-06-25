@@ -55,6 +55,7 @@ export function CoachTrainingDashboard({ coachUserId, onTrainingComplete }: Coac
           .from("coach_educational_content")
           .select("id, title, description, video_url, duration_minutes, is_required, sort_order")
           .eq("is_active", true)
+          .eq("section", "training")
           .order("sort_order", { ascending: true }),
         supabase
           .from("coach_content_completions")

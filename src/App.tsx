@@ -60,6 +60,7 @@ const DiagnosticsIndex = lazyWithReload(() => import("./pages/admin/DiagnosticsI
 const SystemHealth = lazyWithReload(() => import("./pages/admin/SystemHealth"));
 const ContentEngagement = lazyWithReload(() => import("./pages/admin/ContentEngagement"));
 const CoachContentAssignments = lazyWithReload(() => import("./pages/coach/CoachContentAssignments"));
+const CoachHub = lazyWithReload(() => import("./pages/coach/CoachHub"));
 const Unauthorized = lazyWithReload(() => import("./pages/Unauthorized"));
 const WorkoutSessionV2 = lazyWithReload(() => import("./pages/client/WorkoutSessionV2"));
 const WorkoutCalendar = lazyWithReload(() => import("./pages/client/WorkoutCalendar"));
@@ -283,6 +284,7 @@ const App = () => {
                   <Route path="/educational-videos" element={<Navigate to="/learn?tab=videos" replace />} />
                   <Route path="/coach/pending-clients" element={<RoleProtectedRoute requiredRole="coach"><PendingClientsPage /></RoleProtectedRoute>} />
                   <Route path="/coach/content-assignments" element={<RoleProtectedRoute requiredRole="coach"><CoachContentAssignments /></RoleProtectedRoute>} />
+                  <Route path="/coach/hub" element={<RoleProtectedRoute requiredRole="coach"><CoachHub /></RoleProtectedRoute>} />
                   <Route path="/sessions" element={<AuthGuard><OnboardingGuard><ClientSessions /></OnboardingGuard></AuthGuard>} />
                   <Route path="/messages" element={<AuthGuard><OnboardingGuard><ClientMessages /></OnboardingGuard></AuthGuard>} />
                   <Route path="/services/addons" element={<AuthGuard><OnboardingGuard><AddonsCatalog /></OnboardingGuard></AuthGuard>} />
