@@ -209,42 +209,38 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         <TodaysWorkoutHero userId={user?.id} />
       )}
 
-      {/* Nutrition target + daily log paired on desktop. The log card is
-          intentionally small (two inputs), so it sits beside the taller targets
-          card instead of taking a full row — items-start keeps it compact.
-          Stacks on mobile. The AlertsCard above still routes to
-          /nutrition-client for heavier tracking (BF%, circumference, check-in);
-          this card handles the daily two-input habit loop. */}
-      <div className="grid gap-6 md:grid-cols-2 md:items-start">
-        <NutritionTargetsCard userId={user?.id} />
-        {user?.id && (
-          <LogTodayCard
-            userId={user.id}
-            phaseId={activePhase?.id ?? null}
-            phaseStartDate={activePhase?.start_date ?? null}
+      {/* Main + rail. The main column carries the substantial, scannable
+          content top-down (nutrition target → weekly numbers → adherence); the
+          rail holds the quick + relational cards (daily log, coach, care team).
+          The two columns flow independently (masonry-like) so the short cards
+          stack to fill the rail's height instead of leaving dead space beside a
+          taller card. Stacks to a single column on mobile (main, then rail). */}
+      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr] lg:items-start">
+        <div className="space-y-6">
+          <NutritionTargetsCard userId={user?.id} />
+          <WeeklyProgressCard userId={user?.id} />
+          <AdherenceSummaryCard userId={user?.id} />
+        </div>
+        <div className="space-y-6">
+          {user?.id && (
+            <LogTodayCard
+              userId={user.id}
+              phaseId={activePhase?.id ?? null}
+              phaseStartDate={activePhase?.start_date ?? null}
+            />
+          )}
+          {coach && (
+            <CoachCard
+              coach={{ ...coach, id: coach.user_id }}
+              clientFirstName={profile?.first_name}
+            />
+          )}
+          <MyCareTeamCard
+            subscriptionId={subscription?.id}
+            primaryCoach={primaryCoach}
+            nextBillingDate={subscription?.next_billing_date}
           />
-        )}
-      </div>
-
-      {/* Progress + adherence — two info cards side by side on desktop. */}
-      <div className="grid gap-6 md:grid-cols-2 md:items-start">
-        <WeeklyProgressCard userId={user?.id} />
-        <AdherenceSummaryCard userId={user?.id} />
-      </div>
-
-      {/* Coach + care team — relationship cards paired. */}
-      <div className="grid gap-6 md:grid-cols-2 md:items-start">
-        {coach && (
-          <CoachCard
-            coach={{ ...coach, id: coach.user_id }}
-            clientFirstName={profile?.first_name}
-          />
-        )}
-        <MyCareTeamCard
-          subscriptionId={subscription?.id}
-          primaryCoach={primaryCoach}
-          nextBillingDate={subscription?.next_billing_date}
-        />
+        </div>
       </div>
 
       {/* Utility nav */}
