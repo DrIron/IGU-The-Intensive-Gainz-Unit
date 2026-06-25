@@ -173,9 +173,11 @@ export function useClientWorkoutsToday(userId: string | undefined) {
 
 export interface ClientWeekModuleRow {
   id: string;
+  title: string | null;
   module_type: string;
   status: string;
   completed_at: string | null;
+  client_program_days: { date: string } | null;
 }
 
 /**
@@ -207,6 +209,7 @@ export function useClientWorkoutsWeek(
         .from("client_day_modules")
         .select(`
           id,
+          title,
           module_type,
           status,
           completed_at,

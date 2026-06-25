@@ -1,262 +1,264 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuthSession } from "@/hooks/useAuthSession";
-import { Navigation } from "@/components/Navigation";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Calendar, ArrowLeft, CheckCircle2, Clock, ChevronLeft, ChevronRight, Dumbbell } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { useIsMobile } from "@/hooks/use-mobile";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { format, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, addMonths, subMonths, isToday } from "date-fns";
-import { useClientWorkoutsMonth } from "@/hooks/useClientWorkouts";
+import {
+  Calendar as CalendarIcon,
+  ChevronLeft,
+  ChevronRight,
+  CheckCircle2,
+} from "lucide-react";
+import {
+  addWeeks,
+  eachDayOfInterval,
+  endOfWeek,
+  format,
+  isSameWeek,
+  isToday,
+  startOfWeek,
+  subWeeks,
+} from "date-fns";
+import { cn } from "@/lib/utils";
+import { useClientWorkoutsWeek } from "@/hooks/useClientWorkouts";
 
-interface DayData {
-  date: string;
-  title: string;
-  modules: {
-    id: string;
-    title: string;
-    module_type: string;
-    status: string;
-  }[];
+const WEEK_OPTS = { weekStartsOn: 1 as const };
+
+interface WeekModule {
+  id: string;
+  title: string | null;
+  module_type: string;
+  status: string;
+}
+
+function formatType(t: string) {
+  return t.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function statusChipClass(status: string) {
+  if (status === "completed") {
+    return "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30";
+  }
+  return "bg-primary/10 text-primary border-primary/25";
+}
+
+function SessionChip({ m, onOpen }: { m: WeekModule; onOpen: (id: string) => void }) {
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(m.id)}
+      className={cn(
+        "min-h-[36px] w-full rounded-md border px-2 py-1.5 text-left text-xs font-medium transition-opacity hover:opacity-90",
+        statusChipClass(m.status),
+      )}
+      aria-label={`Open ${m.title || formatType(m.module_type)}`}
+    >
+      <span className="flex items-center gap-1.5">
+        {m.status === "completed" && (
+          <CheckCircle2 className="h-3 w-3 shrink-0" aria-hidden="true" />
+        )}
+        <span className="truncate">{m.title || formatType(m.module_type)}</span>
+      </span>
+    </button>
+  );
+}
+
+function DayColumn({
+  day,
+  modules,
+  onOpen,
+}: {
+  day: Date;
+  modules: WeekModule[];
+  onOpen: (id: string) => void;
+}) {
+  const today = isToday(day);
+  return (
+    <div
+      className={cn(
+        "flex min-h-[150px] flex-col rounded-lg border bg-card p-2",
+        today ? "border-primary" : "border-border",
+      )}
+    >
+      <div className="mb-2 text-center">
+        <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+          {format(day, "EEE")}
+        </p>
+        <p className={cn("text-sm font-semibold", today && "text-primary")}>
+          {format(day, "d")}
+        </p>
+      </div>
+      <div className="flex flex-1 flex-col gap-1.5">
+        {modules.length > 0 ? (
+          modules.map((m) => <SessionChip key={m.id} m={m} onOpen={onOpen} />)
+        ) : (
+          <div className="flex flex-1 items-center justify-center">
+            <span className="text-[11px] text-muted-foreground/50">Rest</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function DayRow({
+  day,
+  modules,
+  onOpen,
+}: {
+  day: Date;
+  modules: WeekModule[];
+  onOpen: (id: string) => void;
+}) {
+  const today = isToday(day);
+  return (
+    <div
+      className={cn(
+        "rounded-lg border bg-card p-3",
+        today ? "border-primary" : "border-border",
+      )}
+    >
+      <p className={cn("mb-2 text-sm font-semibold", today && "text-primary")}>
+        {format(day, "EEEE, MMM d")}
+        {today && <span className="ml-2 text-[11px] font-normal text-primary">Today</span>}
+      </p>
+      {modules.length > 0 ? (
+        <div className="flex flex-col gap-2">
+          {modules.map((m) => (
+            <SessionChip key={m.id} m={m} onOpen={onOpen} />
+          ))}
+        </div>
+      ) : (
+        <p className="text-xs text-muted-foreground/50">Rest day</p>
+      )}
+    </div>
+  );
 }
 
 function WorkoutCalendarContent() {
   const navigate = useNavigate();
-  const { toast } = useToast();
-  const { user: sessionUser } = useAuthSession();
-  const [currentMonth, setCurrentMonth] = useState(new Date());
-  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const user = sessionUser;
+  const { user } = useAuthSession();
+  const isMobile = useIsMobile();
+  const [weekAnchor, setWeekAnchor] = useState(new Date());
 
   useDocumentTitle({
     title: "Workout Calendar",
     description: "View your workout schedule",
   });
 
-  const { data: monthRows, isLoading, error: monthError } = useClientWorkoutsMonth(
-    sessionUser?.id,
-    currentMonth,
-  );
+  const { data: rows, isLoading } = useClientWorkoutsWeek(user?.id, weekAnchor);
 
-  // Surface query failures via the existing toast UI. Fires once per error
-  // instance (a key change triggers a fresh query, with its own error if any).
-  useEffect(() => {
-    if (!monthError) return;
-    toast({
-      title: "Error loading calendar",
-      description: sanitizeErrorForUser(monthError),
-      variant: "destructive",
-    });
-  }, [monthError, toast]);
+  const weekStart = startOfWeek(weekAnchor, WEEK_OPTS);
+  const weekEnd = endOfWeek(weekAnchor, WEEK_OPTS);
+  const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+  const isCurrentWeek = isSameWeek(weekAnchor, new Date(), WEEK_OPTS);
+  const rangeLabel = `${format(weekStart, "MMM d")} -- ${format(weekEnd, "MMM d")}`;
 
-  const daysData = useMemo<Record<string, DayData>>(() => {
-    const map: Record<string, DayData> = {};
-    for (const day of monthRows ?? []) {
-      map[day.date] = {
-        date: day.date,
-        title: day.title,
-        modules: day.client_day_modules || [],
-      };
+  const byDate = useMemo(() => {
+    const map: Record<string, WeekModule[]> = {};
+    for (const row of rows ?? []) {
+      const d = row.client_program_days?.date;
+      if (!d) continue;
+      (map[d] ??= []).push({
+        id: row.id,
+        title: row.title,
+        module_type: row.module_type,
+        status: row.status,
+      });
     }
     return map;
-  }, [monthRows]);
+  }, [rows]);
 
-  const loading = isLoading;
+  const onOpen = (id: string) => navigate(`/client/workout/session/${id}`);
 
-  const days = eachDayOfInterval({
-    start: startOfMonth(currentMonth),
-    end: endOfMonth(currentMonth),
-  });
-
-  // Pad start of month to align with weekday
-  const startDay = startOfMonth(currentMonth).getDay();
-  const paddedDays = Array(startDay).fill(null).concat(days);
-
-  const getDayStatus = (date: Date): 'completed' | 'partial' | 'scheduled' | 'none' => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    const dayData = daysData[dateStr];
-    
-    if (!dayData || dayData.modules.length === 0) return 'none';
-    
-    const completed = dayData.modules.filter(m => m.status === 'completed').length;
-    const total = dayData.modules.length;
-    
-    if (completed === total) return 'completed';
-    if (completed > 0) return 'partial';
-    return 'scheduled';
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'bg-green-500';
-      case 'partial': return 'bg-yellow-500';
-      case 'scheduled': return 'bg-primary';
-      default: return '';
-    }
-  };
-
-  const selectedDayData = selectedDate ? daysData[format(selectedDate, 'yyyy-MM-dd')] : null;
-
-  return (
-    <>
-      <Navigation user={user} userRole="client" />
-      <div className="container max-w-4xl py-8 pt-24 pb-24 md:pb-8 space-y-6">
-        {/* Header */}
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
-            <ArrowLeft className="h-5 w-5" />
+  const header = (
+    <div className="space-y-4">
+      <div>
+        <h1 className="flex items-center gap-2 text-2xl font-bold">
+          <CalendarIcon className="h-6 w-6 text-primary" aria-hidden="true" />
+          Workout Calendar
+        </h1>
+        <p className="text-sm text-muted-foreground">
+          Your training schedule, week by week.
+        </p>
+      </div>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Previous week"
+            onClick={() => setWeekAnchor((d) => subWeeks(d, 1))}
+          >
+            <ChevronLeft className="h-4 w-4" />
           </Button>
-          <div>
-            <h1 className="text-2xl font-bold flex items-center gap-2">
-              <Calendar className="h-6 w-6 text-primary" />
-              Workout Calendar
-            </h1>
-            <p className="text-muted-foreground">View your workout schedule</p>
-          </div>
-        </div>
-
-        {/* Calendar Navigation */}
-        <div className="flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(subMonths(currentMonth, 1))}>
-            <ChevronLeft className="h-5 w-5" />
-          </Button>
-          <h2 className="text-lg font-semibold">{format(currentMonth, 'MMMM yyyy')}</h2>
-          <Button variant="ghost" size="icon" onClick={() => setCurrentMonth(addMonths(currentMonth, 1))}>
-            <ChevronRight className="h-5 w-5" />
+          <span className="min-w-[150px] text-center text-base font-semibold tabular-nums">
+            {rangeLabel}
+          </span>
+          <Button
+            variant="outline"
+            size="icon"
+            aria-label="Next week"
+            onClick={() => setWeekAnchor((d) => addWeeks(d, 1))}
+          >
+            <ChevronRight className="h-4 w-4" />
           </Button>
         </div>
-
-        {/* Calendar Grid */}
-        <Card>
-          <CardContent className="p-4">
-            {loading ? (
-              <div className="grid grid-cols-7 gap-2">
-                {Array(35).fill(0).map((_, i) => (
-                  <Skeleton key={i} className="aspect-square" />
-                ))}
-              </div>
-            ) : (
-              <>
-                {/* Weekday Headers */}
-                <div className="grid grid-cols-7 gap-2 mb-2">
-                  {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(day => (
-                    <div key={day} className="text-center text-sm font-medium text-muted-foreground py-2">
-                      {day}
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Days Grid */}
-                <div className="grid grid-cols-7 gap-2">
-                  {paddedDays.map((date, idx) => {
-                    if (!date) {
-                      return <div key={`pad-${idx}`} className="aspect-square" />;
-                    }
-                    
-                    const status = getDayStatus(date);
-                    const isSelected = selectedDate && isSameDay(date, selectedDate);
-                    const dateStr = format(date, 'yyyy-MM-dd');
-                    const hasWorkout = daysData[dateStr]?.modules?.length > 0;
-                    
-                    return (
-                      <button
-                        key={dateStr}
-                        onClick={() => setSelectedDate(date)}
-                        className={`
-                          aspect-square rounded-lg flex flex-col items-center justify-center relative
-                          transition-colors border
-                          ${isToday(date) ? 'border-primary' : 'border-transparent'}
-                          ${isSelected ? 'bg-primary/10 border-primary' : 'hover:bg-muted/50'}
-                          ${hasWorkout ? 'cursor-pointer' : 'cursor-default'}
-                        `}
-                      >
-                        <span className={`text-sm ${isToday(date) ? 'font-bold text-primary' : ''}`}>
-                          {format(date, 'd')}
-                        </span>
-                        {status !== 'none' && (
-                          <div className={`absolute bottom-1 w-2 h-2 rounded-full ${getStatusColor(status)}`} />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Legend */}
-        <div className="flex items-center justify-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-green-500" />
-            <span>Completed</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-yellow-500" />
-            <span>Partial</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-3 h-3 rounded-full bg-primary" />
-            <span>Scheduled</span>
-          </div>
-        </div>
-
-        {/* Selected Day Details */}
-        {selectedDate && (
-          <Card>
-            <CardHeader>
-              <CardTitle>{format(selectedDate, 'EEEE, MMMM d')}</CardTitle>
-              <CardDescription>
-                {selectedDayData ? selectedDayData.title : 'No workouts scheduled'}
-              </CardDescription>
-            </CardHeader>
-            {selectedDayData && selectedDayData.modules.length > 0 && (
-              <CardContent className="space-y-3">
-                {selectedDayData.modules.map((module) => (
-                  <div
-                    key={module.id}
-                    className="flex items-center justify-between p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
-                    onClick={() => navigate(`/client/workout/session/${module.id}`)}
-                  >
-                    <div className="flex items-center gap-3">
-                      {module.status === 'completed' ? (
-                        <CheckCircle2 className="h-5 w-5 text-green-500" />
-                      ) : (
-                        <Clock className="h-5 w-5 text-muted-foreground" />
-                      )}
-                      <div>
-                        <p className="font-medium">{module.title}</p>
-                        <Badge variant="outline" className="text-xs">
-                          {module.module_type.replace(/_/g, ' ')}
-                        </Badge>
-                      </div>
-                    </div>
-                    <Badge variant={module.status === 'completed' ? 'default' : 'secondary'}>
-                      {module.status}
-                    </Badge>
-                  </div>
-                ))}
-              </CardContent>
-            )}
-            {(!selectedDayData || selectedDayData.modules.length === 0) && (
-              <CardContent>
-                <div className="text-center py-6 text-muted-foreground">
-                  <Dumbbell className="h-8 w-8 mx-auto mb-2 opacity-30" />
-                  <p>Rest day - no workouts scheduled</p>
-                </div>
-              </CardContent>
-            )}
-          </Card>
+        {!isCurrentWeek && (
+          <Button variant="ghost" size="sm" onClick={() => setWeekAnchor(new Date())}>
+            This week
+          </Button>
         )}
       </div>
-    </>
+    </div>
+  );
+
+  return (
+    <div className="container mx-auto max-w-6xl space-y-6 px-4 pt-6 pb-24 md:pt-8 md:pb-12">
+      {header}
+
+      {isLoading ? (
+        <div className={cn("grid gap-2", isMobile ? "grid-cols-1" : "grid-cols-7")}>
+          {Array(isMobile ? 4 : 7)
+            .fill(0)
+            .map((_, i) => (
+              <Skeleton key={i} className={isMobile ? "h-20" : "h-40"} />
+            ))}
+        </div>
+      ) : isMobile ? (
+        <div className="space-y-3">
+          {weekDays.map((day) => (
+            <DayRow
+              key={day.toISOString()}
+              day={day}
+              modules={byDate[format(day, "yyyy-MM-dd")] ?? []}
+              onOpen={onOpen}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="grid grid-cols-7 items-start gap-2">
+          {weekDays.map((day) => (
+            <DayColumn
+              key={day.toISOString()}
+              day={day}
+              modules={byDate[format(day, "yyyy-MM-dd")] ?? []}
+              onOpen={onOpen}
+            />
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
 export default function WorkoutCalendar() {
-  return <WorkoutCalendarContent />;
+  return (
+    <ClientPageLayout>
+      <WorkoutCalendarContent />
+    </ClientPageLayout>
+  );
 }
