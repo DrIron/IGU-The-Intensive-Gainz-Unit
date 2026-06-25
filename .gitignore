@@ -48,3 +48,7 @@ coverage/
 
 # Deno lockfile (edge fns checked ad-hoc; not committed)
 deno.lock
+
+ios/DerivedData/
+ios/App/Pods/
+ios/App/App/public/

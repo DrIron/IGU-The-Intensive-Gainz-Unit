@@ -572,7 +572,10 @@ function WeekCard({
           tracked_accurately: trackedAccurately === 'yes' ? true : trackedAccurately === 'no' ? false : null,
           notes: notes || null,
         }, {
-          onConflict: 'user_id,goal_id,week_number'
+          // weekly_progress has a narrower UNIQUE (goal_id, week_number) alongside
+          // (user_id, goal_id, week_number); conflict on the narrower one or an
+          // existing row 409s. See ClientNutritionProgress for the same fix.
+          onConflict: 'goal_id,week_number'
         });
 
       if (error) throw error;

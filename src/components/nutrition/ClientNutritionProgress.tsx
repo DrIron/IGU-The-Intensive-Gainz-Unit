@@ -287,7 +287,10 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
           week_start_date: new Date(new Date(phase.start_date).getTime() + (currentWeek - 1) * 7 * 24 * 60 * 60 * 1000).toISOString(),
           body_fat_percentage: bfNum,
         },
-        { onConflict: "user_id,goal_id,week_number" },
+        // weekly_progress has TWO unique constraints: (goal_id, week_number) and
+        // (user_id, goal_id, week_number). Conflict on the NARROWER (goal_id,
+        // week_number) -- targeting the wider one 409s when a row already exists.
+        { onConflict: "goal_id,week_number" },
       );
 
       if (error) throw error;
@@ -360,7 +363,10 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
             week_start_date: new Date(new Date(phase.start_date).getTime() + (currentWeek - 1) * 7 * 24 * 60 * 60 * 1000).toISOString(),
             notes: notesText,
           },
-          { onConflict: "user_id,goal_id,week_number" },
+          // Conflict on the narrower (goal_id, week_number) unique constraint --
+          // see saveBodyFat note. Targeting (user_id, goal_id, week_number) 409s
+          // when a weekly_progress row already exists for the goal+week.
+          { onConflict: "goal_id,week_number" },
         );
 
         if (notesError) throw notesError;
