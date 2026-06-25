@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/useAuthSession";
-import { Navigation } from "@/components/Navigation";
+import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
@@ -215,9 +215,8 @@ function ExerciseHistoryContent() {
   }, [logs]);
 
   return (
-    <>
-      <Navigation user={user} userRole="client" />
-      <div className="container max-w-4xl py-8 pt-24 pb-24 md:pb-8 space-y-6">
+    <ClientPageLayout>
+      <div className="container mx-auto max-w-4xl px-4 py-8 pb-24 md:pb-8 space-y-6">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -348,7 +347,7 @@ function ExerciseHistoryContent() {
           </Card>
         )}
       </div>
-    </>
+    </ClientPageLayout>
   );
 }
 

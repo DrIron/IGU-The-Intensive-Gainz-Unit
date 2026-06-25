@@ -2,7 +2,7 @@ import { Link } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, Loader2, MessageSquare } from "lucide-react";
-import { Navigation } from "@/components/Navigation";
+import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { CoachClientThread } from "@/components/messaging/CoachClientThread";
 
@@ -25,8 +25,7 @@ export default function ClientMessages() {
   const showNotSignedIn = !isLoading && !user;
 
   return (
-    <>
-      <Navigation user={viewerId ? { id: viewerId } : null} userRole="client" />
+    <ClientPageLayout>
       <div className="space-y-6 px-4 pt-6 pb-24 md:pb-8 max-w-4xl mx-auto">
         <div className="flex items-center justify-between">
           <div className="space-y-1">
@@ -73,6 +72,6 @@ export default function ClientMessages() {
           />
         )}
       </div>
-    </>
+    </ClientPageLayout>
   );
 }

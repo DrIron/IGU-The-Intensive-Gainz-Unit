@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { ChevronLeft, Loader2, Lock, ShoppingBag, Sparkles } from "lucide-react";
-import { Navigation } from "@/components/Navigation";
+import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -96,8 +96,7 @@ export default function AddonsCatalog() {
   const hasNoActiveSub = subSlugLoaded && !subscriptionSlug;
 
   return (
-    <>
-      <Navigation user={userId ? { id: userId } : null} userRole="client" />
+    <ClientPageLayout>
       <div className="space-y-6 px-4 pt-6 pb-24 md:pb-8 max-w-5xl mx-auto">
         <div className="space-y-1">
           <Link
@@ -254,6 +253,6 @@ export default function AddonsCatalog() {
         onOpenChange={(open) => { if (!open) setCheckoutAddon(null); }}
         activeSubscriptionSlug={subscriptionSlug}
       />
-    </>
+    </ClientPageLayout>
   );
 }
