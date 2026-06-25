@@ -240,8 +240,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
         { label: t('dashboard'), path: "/dashboard", section: "overview", icon: LayoutDashboard },
         { label: t('mySubscription'), path: "/dashboard", section: "subscription", icon: CreditCard },
         { label: t('nutrition'), path: "/nutrition", icon: Apple },
-        { label: t('exerciseLibrary'), path: "/workout-library", icon: Library },
-        { label: t('videos'), path: "/educational-videos", icon: Video },
+        { label: "Learn", path: "/learn", icon: Library },
       ],
     };
   };
@@ -292,10 +291,8 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
       client: [
         { label: t('overview'), section: "overview" },
         { label: t('nutrition'), section: "nutrition" },
-        { label: "Workout Calendar", path: "/client/workout/calendar" },
-        { label: "Exercise History", path: "/client/workout/history" },
-        { label: "Exercise Library", path: "/workout-library" },
-        { label: "Educational Videos", path: "/educational-videos" },
+        { label: "Workouts", path: "/client/workout/calendar" },
+        { label: "Learn", path: "/learn" },
       ]
     };
   };

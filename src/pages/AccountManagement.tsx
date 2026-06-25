@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
-import { Navigation } from "@/components/Navigation";
+import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -478,20 +478,17 @@ export default function AccountManagement() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background">
-        <Navigation user={user} />
-        <div className="pt-24 flex items-center justify-center">
+      <ClientPageLayout>
+        <div className="flex items-center justify-center py-24">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
-      </div>
+      </ClientPageLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation user={user} />
-      
-      <main className="pt-24 pb-24 md:pb-12 px-4">
+    <ClientPageLayout>
+      <main className="pt-6 pb-24 md:pb-12 px-4">
         <div className="container mx-auto max-w-4xl">
           <h1 className="text-4xl font-bold mb-8">Account Settings</h1>
 
@@ -967,6 +964,6 @@ export default function AccountManagement() {
           </Tabs>
         </div>
       </main>
-    </div>
+    </ClientPageLayout>
   );
 }

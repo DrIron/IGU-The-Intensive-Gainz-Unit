@@ -82,7 +82,10 @@ export function useClientWorkoutsMonth(
             id,
             title,
             module_type,
-            status
+            status,
+            client_module_exercises (
+              exercise_library ( primary_muscle )
+            )
           )
         `)
         .eq("client_programs.user_id", userId!)
@@ -213,6 +216,9 @@ export function useClientWorkoutsWeek(
           module_type,
           status,
           completed_at,
+          client_module_exercises (
+            exercise_library ( primary_muscle )
+          ),
           client_program_days!inner (
             date,
             client_programs!inner (
@@ -229,4 +235,19 @@ export function useClientWorkoutsWeek(
       return (data ?? []) as unknown as ClientWeekModuleRow[];
     },
   });
+}
+
+/**
+ * Derive a one-line session brief (exercise count + primary muscles) from a
+ * client_day_module that selected `client_module_exercises (exercise_library
+ * (primary_muscle))`. Tolerant of the raw nested shape — accepts `any`.
+ */
+export function deriveModuleBrief(module: any): { exerciseCount: number; muscles: string[] } {
+  const exs: any[] = Array.isArray(module?.client_module_exercises) ? module.client_module_exercises : [];
+  const muscles: string[] = [];
+  for (const e of exs) {
+    const m: string | null | undefined = e?.exercise_library?.primary_muscle;
+    if (m && !muscles.includes(m)) muscles.push(m);
+  }
+  return { exerciseCount: exs.length, muscles: muscles.slice(0, 3) };
 }

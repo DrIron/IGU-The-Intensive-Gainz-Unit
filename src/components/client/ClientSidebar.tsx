@@ -31,8 +31,8 @@ const routeNavItems = getClientNavItems();
 const groups = [
   { id: "main", label: "Dashboard", routeIds: ["client-dashboard"] },
   { id: "nutrition", label: "Nutrition", routeIds: ["nutrition"] },
-  { id: "workouts", label: "Workouts", routeIds: ["client-workout-calendar", "client-workout-history", "workout-library"] },
-  { id: "resources", label: "Resources", routeIds: ["educational-videos", "sessions"] },
+  { id: "workouts", label: "Workouts", routeIds: ["client-workout-calendar"] },
+  { id: "resources", label: "Resources", routeIds: ["learn", "sessions"] },
   { id: "messages", label: "Messages", routeIds: ["client-messages"] },
 ];
 
@@ -85,8 +85,8 @@ export function ClientSidebar({
   // Filter nav items based on user status
   const getVisibleItems = () => {
     return routeNavItems.filter(item => {
-      // Hide workout library and educational videos for non-active clients
-      if (!isActiveClient && (item.id === 'workout-library' || item.id === 'educational-videos')) {
+      // Hide Learn (exercises/videos/pathways) for non-active clients
+      if (!isActiveClient && item.id === 'learn') {
         return false;
       }
       
@@ -210,11 +210,11 @@ export function getClientMobileNavItems() {
   const MOBILE_LABELS: Record<string, string> = {
     "client-dashboard": "Home",
     "nutrition": "Nutrition",
-    "client-workout-calendar": "Calendar",
-    "workout-library": "Library",
+    "client-workout-calendar": "Workouts",
+    "learn": "Learn",
     "client-messages": "Messages",
   };
-  const mobileIds = ["client-dashboard", "nutrition", "client-workout-calendar", "workout-library", "client-messages"];
+  const mobileIds = ["client-dashboard", "nutrition", "client-workout-calendar", "learn", "client-messages"];
   return routeNavItems
     .filter(item => mobileIds.includes(item.id))
     .map(item => ({

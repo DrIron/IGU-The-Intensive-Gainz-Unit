@@ -28,7 +28,7 @@ const AccountManagement = lazyWithReload(() => import("./pages/AccountManagement
 const OnboardingForm = lazyWithReload(() => import("./pages/OnboardingForm"));
 const ResetPassword = lazyWithReload(() => import("./pages/ResetPassword"));
 const CalorieCalculator = lazyWithReload(() => import("./pages/CalorieCalculator"));
-const WorkoutLibrary = lazyWithReload(() => import("./pages/WorkoutLibrary"));
+const Learn = lazyWithReload(() => import("./pages/Learn"));
 const Services = lazyWithReload(() => import("./pages/Services"));
 const Testimonial = lazyWithReload(() => import("./pages/Testimonial"));
 const ClientSubmission = lazyWithReload(() => import("./pages/ClientSubmission"));
@@ -42,7 +42,6 @@ const ClientNutrition = lazyWithReload(() => import("./pages/ClientNutrition"));
 const PaymentStatus = lazyWithReload(() => import("./pages/PaymentStatus"));
 const PaymentReturn = lazyWithReload(() => import("./pages/PaymentReturn"));
 const BillingPayment = lazyWithReload(() => import("./pages/BillingPayment"));
-const EducationalVideos = lazyWithReload(() => import("./pages/EducationalVideos"));
 const PendingClientsPage = lazyWithReload(() => import("./pages/coach/PendingClientsPage"));
 const ClientDiagnostics = lazyWithReload(() => import("./pages/admin/ClientDiagnostics"));
 const EmailLog = lazyWithReload(() => import("./pages/admin/EmailLog"));
@@ -64,7 +63,6 @@ const CoachContentAssignments = lazyWithReload(() => import("./pages/coach/Coach
 const Unauthorized = lazyWithReload(() => import("./pages/Unauthorized"));
 const WorkoutSessionV2 = lazyWithReload(() => import("./pages/client/WorkoutSessionV2"));
 const WorkoutCalendar = lazyWithReload(() => import("./pages/client/WorkoutCalendar"));
-const ExerciseHistory = lazyWithReload(() => import("./pages/client/ExerciseHistory"));
 const AccessDebug = lazyWithReload(() => import("./pages/AccessDebug"));
 const EmailConfirmed = lazyWithReload(() => import("./pages/EmailConfirmed"));
 const Waitlist = lazyWithReload(() => import("./pages/Waitlist"));
@@ -105,6 +103,7 @@ const ClientMobileNavGlobal = memo(function ClientMobileNavGlobal() {
     "/nutrition-team",
     "/sessions",
     "/messages",
+    "/learn",
     "/workout-library",
     "/educational-videos",
     "/account",
@@ -256,12 +255,13 @@ const App = () => {
                   <Route path="/client/dashboard" element={<AuthGuard><OnboardingGuard><Dashboard /></OnboardingGuard></AuthGuard>} />
                   <Route path="/client/workout/session/:moduleId" element={<AuthGuard><OnboardingGuard><WorkoutSessionV2 /></OnboardingGuard></AuthGuard>} />
                   <Route path="/client/workout/calendar" element={<AuthGuard><OnboardingGuard><WorkoutCalendar /></OnboardingGuard></AuthGuard>} />
-                  <Route path="/client/workout/history" element={<AuthGuard><OnboardingGuard><ExerciseHistory /></OnboardingGuard></AuthGuard>} />
+                  <Route path="/client/workout/history" element={<Navigate to="/client/workout/calendar?tab=history" replace />} />
 
                   <Route path="/account" element={<AuthGuard><AccountManagement /></AuthGuard>} />
                   <Route path="/reset-password" element={<PublicLayout minimal><ResetPassword /></PublicLayout>} />
                   <Route path="/calorie-calculator" element={<WaitlistGuard><PublicLayout><CalorieCalculator /></PublicLayout></WaitlistGuard>} />
-                  <Route path="/workout-library" element={<AuthGuard><OnboardingGuard><WorkoutLibrary /></OnboardingGuard></AuthGuard>} />
+                  <Route path="/learn" element={<AuthGuard><OnboardingGuard><Learn /></OnboardingGuard></AuthGuard>} />
+                  <Route path="/workout-library" element={<Navigate to="/learn?tab=exercises" replace />} />
                   <Route path="/testimonial" element={<WaitlistGuard><PublicLayout><Testimonial /></PublicLayout></WaitlistGuard>} />
                   <Route path="/client-submission/:userId" element={<AuthGuard><ClientSubmission /></AuthGuard>} />
                   <Route path="/meet-our-team" element={<WaitlistGuard><PublicLayout><MeetOurTeam /></PublicLayout></WaitlistGuard>} />
@@ -279,7 +279,7 @@ const App = () => {
                   <Route path="/payment-status" element={<AuthGuard><PaymentStatus /></AuthGuard>} />
                   <Route path="/payment-return" element={<AuthGuard><PaymentReturn /></AuthGuard>} />
                   <Route path="/billing/pay" element={<AuthGuard><BillingPayment /></AuthGuard>} />
-                  <Route path="/educational-videos" element={<AuthGuard><OnboardingGuard><EducationalVideos /></OnboardingGuard></AuthGuard>} />
+                  <Route path="/educational-videos" element={<Navigate to="/learn?tab=videos" replace />} />
                   <Route path="/coach/pending-clients" element={<RoleProtectedRoute requiredRole="coach"><PendingClientsPage /></RoleProtectedRoute>} />
                   <Route path="/coach/content-assignments" element={<RoleProtectedRoute requiredRole="coach"><CoachContentAssignments /></RoleProtectedRoute>} />
                   <Route path="/sessions" element={<AuthGuard><OnboardingGuard><ClientSessions /></OnboardingGuard></AuthGuard>} />

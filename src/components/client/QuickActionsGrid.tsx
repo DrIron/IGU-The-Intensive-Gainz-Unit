@@ -32,9 +32,9 @@ export function QuickActionsGrid({ profile, subscription, sessionBookingEnabled 
     },
     ...(isActiveClient ? [{
       icon: Dumbbell,
-      title: "Exercise Library",
-      description: "Browse exercises with instructions",
-      onClick: () => navigate("/workout-library"),
+      title: "Learn",
+      description: "Exercises, videos & pathways",
+      onClick: () => navigate("/learn"),
     }] : []),
     ...(isActiveClient && sessionBookingEnabled ? [{
       icon: CalendarDays,

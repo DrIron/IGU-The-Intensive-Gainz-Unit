@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Navigation } from "@/components/Navigation";
+import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { useClientAccess, getAccessDeniedMessage } from "@/hooks/useClientAccess";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
@@ -349,9 +349,8 @@ function ClientSessionsContent() {
 
   if (access.loading || loading) {
     return (
-      <>
-        <Navigation />
-        <main className="container mx-auto px-4 py-8 max-w-6xl pt-24 pb-24 md:pb-8">
+      <ClientPageLayout>
+        <main className="container mx-auto px-4 py-8 max-w-6xl pt-6 pb-24 md:pb-8">
           <Skeleton className="h-10 w-64 mb-8" />
           <div className="grid gap-6">
             <Skeleton className="h-32 w-full" />
@@ -359,16 +358,15 @@ function ClientSessionsContent() {
             <Skeleton className="h-96 w-full" />
           </div>
         </main>
-      </>
+      </ClientPageLayout>
     );
   }
 
   // No session-enabled subscription
   if (!sessionSubscription) {
     return (
-      <>
-        <Navigation />
-        <main className="container mx-auto px-4 py-8 max-w-6xl pt-24 pb-24 md:pb-8">
+      <ClientPageLayout>
+        <main className="container mx-auto px-4 py-8 max-w-6xl pt-6 pb-24 md:pb-8">
           <h1 className="text-3xl font-bold mb-8">Sessions</h1>
           <Alert>
             <AlertCircle className="h-4 w-4" />
@@ -378,16 +376,15 @@ function ClientSessionsContent() {
             </AlertDescription>
           </Alert>
         </main>
-      </>
+      </ClientPageLayout>
     );
   }
 
   // No weekly limit set
   if (weeklyLimit === 0 || weeklyLimit === null) {
     return (
-      <>
-        <Navigation />
-        <main className="container mx-auto px-4 py-8 max-w-6xl pt-24 pb-24 md:pb-8">
+      <ClientPageLayout>
+        <main className="container mx-auto px-4 py-8 max-w-6xl pt-6 pb-24 md:pb-8">
           <h1 className="text-3xl font-bold mb-8">Sessions</h1>
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
@@ -397,7 +394,7 @@ function ClientSessionsContent() {
             </AlertDescription>
           </Alert>
         </main>
-      </>
+      </ClientPageLayout>
     );
   }
 
