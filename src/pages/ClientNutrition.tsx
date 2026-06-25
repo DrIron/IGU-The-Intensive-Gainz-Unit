@@ -276,100 +276,106 @@ export default function ClientNutrition() {
           <div className="space-y-6">
             {phaseSummary && <PhaseSummaryReport phase={activePhase} summary={phaseSummary} />}
 
-            {/* Hero phase card -- same component coaches see, read-only from the
-                client's side (no onEditPhase / onScrollToAdjustments props). */}
-            <NutritionPhaseCard
-              phase={activePhase}
-              weeksElapsed={currentWeekNumber}
-              latestAverageWeight={latestAverageWeight}
-              latestActualChangePercent={latestActualChangePercent}
-            />
-
-            {/* 1:1 goals are coach-set -- no self-edit; nudge to message instead. */}
-            <button
-              type="button"
-              onClick={() => navigate("/messages")}
-              className="text-sm text-primary underline underline-offset-2 hover:text-primary/80"
-            >
-              Message coach to adjust
-            </button>
-
-            {/* Weekly status ribbon. */}
-            {user?.id && (
-              <ClientWeeklyRibbon
-                userId={user.id}
-                phaseId={activePhase.id}
-                weekNumber={currentWeekNumber}
-                refreshKey={ribbonRefreshKey}
-              />
-            )}
-
-            {/* Log Today -- the daily habit, promoted inline right after the ribbon. */}
-            {user?.id && (
-              <LogTodayCard
-                userId={user.id}
-                phaseId={activePhase.id}
-                phaseStartDate={activePhase.start_date ?? null}
-                onLogged={() => setRibbonRefreshKey((k) => k + 1)}
-              />
-            )}
-
-            {/* Trend -- range control + Weight|Body-fat toggle above the chart. */}
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="inline-flex rounded-lg border p-0.5">
-                  {(["4w", "12w", "all"] as const).map((r) => (
-                    <button
-                      key={r}
-                      type="button"
-                      onClick={() => setRange(r)}
-                      className={cn(
-                        "px-3 py-1 text-sm rounded-md transition-colors",
-                        range === r
-                          ? "bg-secondary border border-secondary"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {r === "4w" ? "4W" : r === "12w" ? "12W" : "All"}
-                    </button>
-                  ))}
-                </div>
-                <div className="inline-flex rounded-lg border p-0.5">
-                  {(["weight", "bodyfat"] as const).map((m) => (
-                    <button
-                      key={m}
-                      type="button"
-                      onClick={() => setMetric(m)}
-                      className={cn(
-                        "px-3 py-1 text-sm rounded-md transition-colors",
-                        metric === m
-                          ? "bg-secondary border border-secondary"
-                          : "text-muted-foreground hover:text-foreground",
-                      )}
-                    >
-                      {m === "weight" ? "Weight" : "Body fat"}
-                    </button>
-                  ))}
-                </div>
+            {/* Row A: the target/calorie summary beside the trend graph --
+                grouped per design ("daily target card next to the graphs").
+                lg breakpoint so the two wide cards only split when there's room
+                (the sidebar already eats width on md). */}
+            <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+              <div className="space-y-3">
+                {/* Hero phase card -- same component coaches see, read-only. */}
+                <NutritionPhaseCard
+                  phase={activePhase}
+                  weeksElapsed={currentWeekNumber}
+                  latestAverageWeight={latestAverageWeight}
+                  latestActualChangePercent={latestActualChangePercent}
+                />
+                {/* 1:1 goals are coach-set -- nudge to message instead. */}
+                <button
+                  type="button"
+                  onClick={() => navigate("/messages")}
+                  className="text-sm text-primary underline underline-offset-2 hover:text-primary/80"
+                >
+                  Message coach to adjust
+                </button>
               </div>
-              {metric === "weight" ? (
-                trendWeightLogs.length > 0 ? (
-                  <WeightProgressGraph
-                    phase={activePhase}
-                    weightLogs={trendWeightLogs}
-                    latestActualChangePercent={latestActualChangePercent}
-                  />
+
+              {/* Trend -- range control + Weight|Body-fat toggle above the chart. */}
+              <div className="space-y-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="inline-flex rounded-lg border p-0.5">
+                    {(["4w", "12w", "all"] as const).map((r) => (
+                      <button
+                        key={r}
+                        type="button"
+                        onClick={() => setRange(r)}
+                        className={cn(
+                          "px-3 py-1 text-sm rounded-md transition-colors",
+                          range === r
+                            ? "bg-secondary border border-secondary"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {r === "4w" ? "4W" : r === "12w" ? "12W" : "All"}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="inline-flex rounded-lg border p-0.5">
+                    {(["weight", "bodyfat"] as const).map((m) => (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setMetric(m)}
+                        className={cn(
+                          "px-3 py-1 text-sm rounded-md transition-colors",
+                          metric === m
+                            ? "bg-secondary border border-secondary"
+                            : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        {m === "weight" ? "Weight" : "Body fat"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {metric === "weight" ? (
+                  trendWeightLogs.length > 0 ? (
+                    <WeightProgressGraph
+                      phase={activePhase}
+                      weightLogs={trendWeightLogs}
+                      latestActualChangePercent={latestActualChangePercent}
+                    />
+                  ) : (
+                    <Card>
+                      <CardContent className="pt-6 text-center text-sm text-muted-foreground">
+                        {weightLogs.length > 0
+                          ? "No weight logs in this range."
+                          : "Log weight this week to see your trend graph here."}
+                      </CardContent>
+                    </Card>
+                  )
                 ) : (
-                  <Card>
-                    <CardContent className="pt-6 text-center text-sm text-muted-foreground">
-                      {weightLogs.length > 0
-                        ? "No weight logs in this range."
-                        : "Log weight this week to see your trend graph here."}
-                    </CardContent>
-                  </Card>
-                )
-              ) : (
-                <BodyFatProgressGraph weeklyProgress={weeklyProgress} />
+                  <BodyFatProgressGraph weeklyProgress={weeklyProgress} />
+                )}
+              </div>
+            </div>
+
+            {/* Row B: weekly status ribbon + the daily log, grouped. */}
+            <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
+              {user?.id && (
+                <ClientWeeklyRibbon
+                  userId={user.id}
+                  phaseId={activePhase.id}
+                  weekNumber={currentWeekNumber}
+                  refreshKey={ribbonRefreshKey}
+                />
+              )}
+              {user?.id && (
+                <LogTodayCard
+                  userId={user.id}
+                  phaseId={activePhase.id}
+                  phaseStartDate={activePhase.start_date ?? null}
+                  onLogged={() => setRibbonRefreshKey((k) => k + 1)}
+                />
               )}
             </div>
 
