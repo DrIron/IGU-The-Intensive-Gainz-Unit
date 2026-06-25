@@ -8,7 +8,6 @@ import {
 } from "./sections";
 import { useUnreadMessageCount } from "@/hooks/useUnreadMessageCount";
 import { OverviewTab } from "./tabs/OverviewTab";
-import { ProgressTab } from "./tabs/ProgressTab";
 import { NutritionTab } from "./tabs/NutritionTab";
 import { WorkoutsTab } from "./tabs/WorkoutsTab";
 import { SessionsTab } from "./tabs/SessionsTab";
@@ -115,8 +114,6 @@ function SectionPanel({
   switch (slug) {
     case "overview":
       return <OverviewTab context={context} />;
-    case "progress":
-      return <ProgressTab context={context} />;
     case "nutrition":
       return <NutritionTab context={context} />;
     case "workouts":

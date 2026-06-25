@@ -1,7 +1,6 @@
 import { useCallback, useMemo, type KeyboardEvent } from "react";
 import {
   LayoutGrid,
-  TrendingUp,
   Apple,
   Dumbbell,
   CalendarClock,
@@ -27,7 +26,6 @@ interface SectionDef {
  */
 const SECTION_DEFS: Record<SectionSlug, { label: string; icon: LucideIcon }> = {
   overview: { label: "Overview", icon: LayoutGrid },
-  progress: { label: "Progress", icon: TrendingUp },
   nutrition: { label: "Nutrition", icon: Apple },
   workouts: { label: "Workouts", icon: Dumbbell },
   sessions: { label: "Sessions", icon: CalendarClock },

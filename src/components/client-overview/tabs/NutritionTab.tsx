@@ -15,6 +15,7 @@ import { RefeedDayScheduler } from "@/components/nutrition/RefeedDayScheduler";
 import { StepProgressDisplay } from "@/components/nutrition/StepProgressDisplay";
 import { StepRecommendationCard } from "@/components/nutrition/StepRecommendationCard";
 import { LinkedContentList } from "@/components/educational/LinkedContentList";
+import { PhaseWeightTrendCard } from "../nutrition/PhaseWeightTrendCard";
 import type { ClientOverviewTabProps } from "../types";
 
 interface PhaseStats {
@@ -158,6 +159,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6">
+          <PhaseWeightTrendCard phase={selectedPhase} />
           <NutritionPermissionGate clientUserId={clientUserId}>
             <CoachNutritionGoal
               clientUserId={clientUserId}

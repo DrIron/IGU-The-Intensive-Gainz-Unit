@@ -8,7 +8,6 @@ import type { ViewerRole } from "./types";
 
 export const SECTION_SLUGS = [
   "overview",
-  "progress",
   "nutrition",
   "workouts",
   "sessions",
