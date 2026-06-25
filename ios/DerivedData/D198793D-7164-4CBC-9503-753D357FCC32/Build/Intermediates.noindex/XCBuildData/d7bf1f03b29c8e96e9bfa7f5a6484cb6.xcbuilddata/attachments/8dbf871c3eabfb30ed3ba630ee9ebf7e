@@ -1,0 +1,23 @@
+{
+  "version": 0,
+  "use-external-names": false,
+  "case-sensitive": false,
+  "roots": [{
+    "type": "directory",
+    "name": "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Products/Debug-iphonesimulator/Capacitor/Capacitor.framework/Modules",
+    "contents": [{
+      "type": "file",
+      "name": "module.modulemap",
+      "external-contents": "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/unextended-module.modulemap",
+    }]
+    },
+    {
+    "type": "directory",
+    "name": "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Products/Debug-iphonesimulator/Capacitor/Capacitor.framework/Headers",
+    "contents": [{
+      "type": "file",
+      "name": "Capacitor-Swift.h",
+      "external-contents": "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/unextended-interface-header.h",
+    }]
+  }]
+}

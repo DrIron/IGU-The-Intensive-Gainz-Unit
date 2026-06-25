@@ -376,29 +376,35 @@ export type Database = {
       }
       adherence_logs: {
         Row: {
+          calorie_adherence: string | null
           created_at: string
           followed_calories: boolean
           id: string
           phase_id: string
           tracked_accurately: boolean
+          tracking_accuracy: string | null
           user_id: string
           week_number: number
         }
         Insert: {
+          calorie_adherence?: string | null
           created_at?: string
           followed_calories: boolean
           id?: string
           phase_id: string
           tracked_accurately: boolean
+          tracking_accuracy?: string | null
           user_id: string
           week_number: number
         }
         Update: {
+          calorie_adherence?: string | null
           created_at?: string
           followed_calories?: boolean
           id?: string
           phase_id?: string
           tracked_accurately?: boolean
+          tracking_accuracy?: string | null
           user_id?: string
           week_number?: number
         }

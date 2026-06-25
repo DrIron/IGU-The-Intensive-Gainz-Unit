@@ -1,0 +1,37 @@
+{
+  "/Users/HasDash/Projects/intensive-gainz-unit-main/node_modules/@capacitor/ios/Capacitor/Capacitor/Codable/JSValueDecoder.swift" : {
+    "const-values" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/JSValueDecoder.swiftconstvalues",
+    "dependencies" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/JSValueDecoder.d",
+    "diagnostics" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/JSValueDecoder.dia",
+    "object" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/JSValueDecoder.o",
+    "swift-dependencies" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/JSValueDecoder.swiftdeps"
+  },
+  "/Users/HasDash/Projects/intensive-gainz-unit-main/node_modules/@capacitor/ios/Capacitor/Capacitor/Codable/JSValueEncoder.swift" : {
+    "const-values" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/JSValueEncoder.swiftconstvalues",
+    "dependencies" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/JSValueEncoder.d",
+    "diagnostics" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/JSValueEncoder.dia",
+    "object" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/JSValueEncoder.o",
+    "swift-dependencies" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/JSValueEncoder.swiftdeps"
+  },
+  "/Users/HasDash/Projects/intensive-gainz-unit-main/node_modules/@capacitor/ios/Capacitor/Capacitor/KeyPath.swift" : {
+    "const-values" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/KeyPath.swiftconstvalues",
+    "dependencies" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/KeyPath.d",
+    "diagnostics" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/KeyPath.dia",
+    "object" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/KeyPath.o",
+    "swift-dependencies" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/KeyPath.swiftdeps"
+  },
+  "/Users/HasDash/Projects/intensive-gainz-unit-main/node_modules/@capacitor/ios/Capacitor/Capacitor/KeyValueStore.swift" : {
+    "const-values" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/KeyValueStore.swiftconstvalues",
+    "dependencies" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/KeyValueStore.d",
+    "diagnostics" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/KeyValueStore.dia",
+    "object" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/KeyValueStore.o",
+    "swift-dependencies" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/KeyValueStore.swiftdeps"
+  },
+  "/Users/HasDash/Projects/intensive-gainz-unit-main/node_modules/@capacitor/ios/Capacitor/Capacitor/NotificationHandlerProtocol.swift" : {
+    "const-values" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/NotificationHandlerProtocol.swiftconstvalues",
+    "dependencies" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/NotificationHandlerProtocol.d",
+    "diagnostics" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/NotificationHandlerProtocol.dia",
+    "object" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/NotificationHandlerProtocol.o",
+    "swift-dependencies" : "/Users/HasDash/Projects/intensive-gainz-unit-main/ios/DerivedData/D198793D-7164-4CBC-9503-753D357FCC32/Build/Intermediates.noindex/Pods.build/Debug-iphonesimulator/Capacitor.build/Objects-normal/arm64/NotificationHandlerProtocol.swiftdeps"
+  }
+}

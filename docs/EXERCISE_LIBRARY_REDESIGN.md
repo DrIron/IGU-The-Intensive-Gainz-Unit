@@ -95,10 +95,13 @@ categories they apply to.
 
 ### 1. Strength
 ```
-Body region → Muscle → Subdivision → Movement pattern → Equipment → Resistance profile → exercise
-  (chest)    (pec major) (sternal)    (Flat Press)        (BB)        (Mid-range)
+Body region → Muscle → Subdivision → Movement pattern → Resistance profile → [Positioning?] → Equipment → [Equipment brand?] → exercise
+  (chest)    (pec major) (sternal)    (Flat Press)        (Mid-range)          (optional)       (BB)         (optional)
 ```
-Substitute key: **subdivision + movement pattern + resistance profile** (equipment varies).
+Substitute key: **muscle → subdivision → movement pattern → resistance profile** (positioning,
+equipment, and brand all vary within a class — they are NOT part of the key). See
+**"Naming, Swap & Content Model (LOCKED 2026-06-21)"** below for the finalized axis
+stack, the reasoning for excluding positioning, and the compute-not-store swap data model.
 
 #### Canonical strength tree — LOCKED 2026-06-13
 
@@ -190,6 +193,213 @@ Target structure / joint → Purpose → Equipment → exercise
 ```
 Substitute key: **target structure + purpose**. Physio cues remain gated to the
 physiotherapist subrole (`can_write_injury_notes`) per CLAUDE.md.
+
+---
+
+## Naming, Swap & Content Model (LOCKED 2026-06-21)
+
+This section refines the 2026-06-13 taxonomy with the naming system, the finalized
+swap engine, the content-authoring model, and the admin flow. Where it differs from
+earlier lines (axis order, substitute key), this section wins. Decided with Hasan in
+the 2026-06-21 design session; validated against prod data inline.
+
+### The single idea
+
+**Naming, swapping, and content all derive from one ordered axis stack.** We do not
+build three systems — we build one taxonomy and read it three ways. The exercise's
+position in the tree *is* its name, *is* its swap-equivalence key, and *is* the address
+where its execution/setup copy lives.
+
+### The axis stack
+
+Ordered top to bottom, with the role of each axis:
+
+| # | Axis | In swap key? | Drives |
+|---|------|:---:|--------|
+| 1 | Muscle group (body region) | ✓ | naming, swap |
+| 2 | Muscle | ✓ | naming, swap |
+| 3 | Subdivision | ✓ | naming, swap |
+| 4 | Movement pattern | ✓ | naming, swap, **execution copy** |
+| 5 | Resistance profile | ✓ | naming, swap — **swap key ends here** |
+| 6 | Positioning (optional, scoped) | ✗ | naming, setup |
+| 7 | Equipment (required) | ✗ | naming, setup |
+| 8 | Equipment brand (optional) | ✗ | naming, setup |
+
+Axes 1–5 are the **swap equivalence key**. Axes 6–8 vary freely within a swap class.
+
+### Two names from one stack
+
+The exact same row renders under two naming schemes, chosen by audience:
+
+- **Coach name** — the dense, precise label encoding the path: subdivision + equipment
+  code + movement + resistance bias. This is what `exercise_library.name` already holds
+  today (e.g. `"Clavicular Pec M Smith Incline Press (M)"`). Shown on all coach/admin
+  surfaces (program builder, picker, swap dialog, admin manager).
+- **Client name** — a friendly label (e.g. `"Smith Machine Incline Press"`). Stored in a
+  new nullable `exercise_library.client_name`; when NULL, surfaces fall back to `name`.
+  Shown on all client surfaces (workout session, client library browse).
+
+Render rule everywhere: client surfaces show `client_name ?? name`; coach/admin surfaces
+always show `name`. Client name generation is a later pass (auto-compose from
+equipment-expansion + movement, with manual override) — the column + fallback ship first
+so nothing blocks on naming all rows.
+
+> **Why this matters / current bug:** clients today are shown the raw coach `name` in
+> `WorkoutSessionV2` (e.g. `"Iliac Lat C-AA Single Arm Vertical Pull Around (L)"`). The
+> `client_name` column + fallback fixes the leak.
+
+#### Generation strategy (DECIDED 2026-06-21)
+
+- **Coach `name` = auto-generated, editable.** Built from the taxonomy on save and stored
+  in the existing `name` column; admin can override per exercise (a "regenerate" action
+  rebuilds it from the axes). Stored (not computed-on-read) so every existing reader of
+  `name` keeps working. Drift is acceptable because the override is explicit and regenerate
+  is one click.
+- **Client `client_name` = auto-composed, editable.** Generated from equipment + movement
+  (+ positioning), stored, hand-fixable per exercise; blank → falls back to coach `name`.
+
+**Prerequisite:** movement must become a controlled dropdown writing `movement_pattern_id`
+(today the admin form types `movement_pattern` as free text and never sets the FK). Without
+a real movement token, neither name generates deterministically. This single fix also
+relinks execution cues and the swap key.
+
+#### Naming grammar (CONFIRMED 2026-06-21)
+
+Token order, cable collapse, and equipment words confirmed by Hasan. Smith Machine = its
+own equipment code `SM`.
+
+Token order, top of the stack to bottom. Optional tokens omitted when absent.
+
+**Coach name:** `{subdivision|muscle} {equipment-code}[ {brand}] [{positioning}] {movement} ({resistance-initial})`
+- e.g. `Clavicular Pec M Hammer Incline Press (M)` · `Biceps Long BB Drag Curl (S)` · `Iliac Lat C-AA Pull Around (L)`
+- Keeps the precise equipment code (`C-FT` ≠ `C-AA` ≠ `C-FS`) and resistance bias — coach signal.
+
+**Client name:** `[{brand} ]{equipment-word} [{positioning}] {movement}`
+- e.g. `Hammer Strength Machine Incline Press` · `Cable Lying Leg Curl` · `Smith Machine Incline Press`
+- Drops subdivision + resistance; **collapses cable subtypes** `C-FT/C-AA/C-FS → "Cable"` (clients don't need the distinction). Muscle is shown separately as a badge in-context, so it's left out of the client name.
+
+**Equipment word map (glossary-as-data, CONFIRMED):**
+`M → Machine`, `SM → Smith Machine`, `BB → Barbell`, `DB → Dumbbell`,
+`C-FT / C-AA / C-FS → Cable`, `BW → Bodyweight`.
+Stored as the `display_name`/tooltip on the equipment lookup row.
+
+**Equipment data cleanup needed before name generation:**
+- **Add `SM` and re-tag 9 Smith exercises** (currently coded `M` with "Smith" hand-typed
+  in the name; verified prod 2026-06-21). After re-tag, the generator emits "Smith Machine"
+  from the code and the hand-typed token disappears.
+- **Normalize compound equipment values** — prod still has `C-FT / C-AA`, `DB / BB`,
+  `DB (plate)`, `BW / M`, `BW / DB` (~15 rows). These fragment swap classes and break clean
+  naming; resolve to atomic codes (or model multi-equipment via the planned
+  `exercise_equipment` junction).
+
+### Swap engine — finalized
+
+**Equivalence key (strength):** two exercises are swappable iff they share
+`muscle → subdivision → movement_pattern → resistance_profile`. Equipment, positioning,
+and brand vary within the class.
+
+**Empirical validation (prod, 326 strength rows, 2026-06-21):** grouping by this key
+yields 120 classes; 86 (72%) have 2+ members and **292 of 326 exercises (90%) have at
+least one in-class alternative**. Only 34 are singletons. The key produces useful swap
+sets — it does not collapse to mostly classes-of-one.
+
+**Positioning is deliberately excluded from the key.** A Smith incline press and a Smith
+flat press are NOT swap-equal, but subdivision already separates them (incline →
+Clavicular Head, flat → Sternal Head). You would never use a flat press to target the
+clavicular head, so subdivision *carries* the positioning's training effect; adding
+positioning to the key would be redundant. For muscles where subdivision isn't a
+meaningful split (e.g. hamstrings, currently NULL subdivision), the class simply forms at
+the muscle level — the key adapts to however deep the tagging goes.
+
+**Graded fallback:** exact match = full key. If a class is thin/singleton, relax one axis
+(drop resistance, then subdivision) and label those results "close" rather than "equal."
+
+**Compute-not-store data model (important):** do NOT snapshot a frozen list of
+alternatives into each plan. When a coach builds a plan, store only (a) the chosen primary
+exercise and (b) the coach's explicit deltas (alternatives removed, or manually added). The
+default alternative set is **derived live from the equivalence class**. Consequence: adding
+new library exercises later automatically enriches every existing plan's swap menu; a
+snapshot would rot.
+
+**Swap UX (coach AND client, identical behavior):** the "+ add replacement" action opens a
+picker **pre-filtered to the equivalence class** (up to resistance profile), so the in-class
+options surface first. The user can accept all, pick individually, or clear the filter and
+free-search the whole library as today. An "accept all" shortcut gives the speed of
+auto-add without forcing un-vetted exercises onto a plan. Clients get the same pre-filtered
+group when changing an exercise mid-workout — **this closes the existing bug** where the
+client mid-workout swap bypassed the engine for a dumb name/`primary_muscle` text search
+(`WorkoutSessionV2.tsx` inline `SwapExercisePicker`).
+
+**Other categories — same engine, different key columns:**
+- Cardio → `energy_system + movement_pattern` (treadmill intervals ↔ bike/rower intervals).
+- Mobility / warmup / cooldown → `target_region + technique`.
+- Physio → `physio_structure + purpose`.
+
+### Content authoring — keyed at two depths
+
+- **Execution** is shared down to the **movement node** (axes 1–4). Authored once per
+  `{muscle group, subdivision, movement pattern}` and inherited by every exercise in it.
+  Home = `movement_patterns.execution_text` / `execution_points` (already exists and is
+  already keyed there). Client library "Execution" should read from the movement node, not
+  per-exercise `description`.
+- **Setup** is **per-exercise** (the leaf). Entered as each exercise is added; brand is an
+  optional part of the leaf, not a separate node. We deliberately do NOT build a setup node
+  keyed by equipment/brand — the brand level is ragged (present only for machines, e.g.
+  Nautilus vs Atlantis vs Hammer Strength), so leaf storage is simpler than an
+  inherit-from-deepest-node scheme.
+
+This matches the production insight: within a movement class the **execution** is ~identical
+(write once), and only the **setup** differs by equipment/brand (write per exercise). It
+also makes video production tractable — one execution script per movement class, setup
+notes per exercise.
+
+### Positioning is a scoped vocabulary
+
+Positioning terms are NOT a flat global list — they are valid **per muscle / subdivision**:
+- Biceps: "shoulder-extended / shoulder-flexed" (the maintained position changes the stimulus).
+- Hamstrings: "prone / seated".
+- Chest, triceps: no positioning terms.
+
+So positioning = a lookup table **plus** a mapping of which terms apply to which
+muscle/subdivision. The admin add-exercise flow only offers the applicable terms (no "prone
+triceps"). New positions can be added to a muscle later.
+
+### Equipment brand
+
+Equipment can have an optional brand sub-level (`machine_brand`, currently empty). Only
+equipment types with real brand variance (machines) carry brands; dumbbells/barbells do
+not. Admin can add brands as needed. Brand affects **setup only** — never the swap key.
+
+### Glossary-as-data, not a static doc
+
+Equipment codes (`M`, `C-FT`, `BB`, …) and other lookup terms each carry a human
+`description`/`tooltip` field on their lookup row. The glossary then renders in-app
+(hover/info on the code) AND is the single source of truth — no separate static glossary
+to drift.
+
+### Admin authoring = a guided cascade down the stack
+
+Adding an exercise walks the same axis stack as a template/wizard, each step constraining
+the next:
+
+`region → muscle → subdivision → movement → resistance → positioning (only if that
+subdivision has terms) → equipment → brand (only if that equipment has brands) → setup`
+
+- **Execution** auto-inherits from the chosen movement node (editable at that node).
+- **Setup** is entered for the exercise being added.
+- Every lookup in the cascade (movements, positions, equipment, brands) is itself admin
+  add/editable inline ("add as needed"). (Check the current `ExerciseLibraryManager` —
+  some of these fields exist from the original library and can be built on rather than
+  rebuilt.)
+
+### Schema deltas this section implies (beyond the 2026-06-13 plan)
+
+- `exercise_library.client_name text NULL` — client-facing label, falls back to `name`.
+- `positioning_terms` lookup + `positioning_applicability(positioning_id, muscle_id|subdivision_id)` mapping.
+- `machine_brands` lookup (FK from the equipment/exercise level); brand stays optional.
+- `description`/`tooltip` column on equipment + other code lookups (glossary-as-data).
+- Swap stays a **computed** RPC over the equivalence key; persistence is only the coach's
+  primary pick + deltas (no materialized alternative lists).
 
 ---
 
