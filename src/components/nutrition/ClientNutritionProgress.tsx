@@ -9,7 +9,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
 import { useToast } from "@/hooks/use-toast";
 import { Plus, Trash2, CalendarIcon, AlertCircle } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
@@ -361,25 +360,32 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
 
   return (
     <div className="space-y-6">
-      {/* Summary Card with Add Inputs Button */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Week {currentWeek} Progress</CardTitle>
-              <CardDescription>Current macros: {Math.round(phase.daily_calories)} kcal - P: {Math.round(phase.protein_grams)}g F: {Math.round(phase.fat_grams)}g C: {Math.round(phase.carb_grams)}g</CardDescription>
-            </div>
-            <div className="flex items-center gap-2">
-              <Badge variant="secondary">
-                {thisWeekLogs.length}/3 weigh-ins
-              </Badge>
+      {/* This-week completion anchor -- replaces the old summary card whose
+          "Add Inputs" button was a dead no-op. Rail + chips mirror the
+          ClientWeeklyRibbon vocabulary (emerald = done, amber = due). */}
+      <Card className="overflow-hidden">
+        <CardContent className="p-0">
+          <div className="flex">
+            <div
+              aria-hidden
+              className={cn(
+                "w-1 shrink-0",
+                thisWeekLogs.length >= 3 && thisWeekAdherence ? "bg-emerald-500" : "bg-amber-500",
+              )}
+            />
+            <div className="flex-1 p-4 md:p-6 space-y-3">
+              <div>
+                <p className="font-medium">Week {currentWeek}</p>
+                <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                  {Math.round(phase.daily_calories)} kcal -- P {Math.round(phase.protein_grams)}g F {Math.round(phase.fat_grams)}g C {Math.round(phase.carb_grams)}g
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <CompletionChip done={thisWeekLogs.length >= 3} label={`Weigh-ins ${thisWeekLogs.length}/3`} />
+                <CompletionChip done={!!thisWeekAdherence} label={thisWeekAdherence ? "Check-in done" : "Check-in due"} />
+              </div>
             </div>
           </div>
-        </CardHeader>
-        <CardContent>
-          <Button onClick={() => {}} className="w-full" size="lg">
-            Add Inputs
-          </Button>
         </CardContent>
       </Card>
 
@@ -676,5 +682,21 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function CompletionChip({ done, label }: { done: boolean; label: string }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium",
+        done
+          ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+          : "bg-amber-500/10 text-amber-600 dark:text-amber-400",
+      )}
+    >
+      <span className={cn("h-1.5 w-1.5 rounded-full", done ? "bg-emerald-500" : "bg-amber-500")} />
+      {label}
+    </span>
   );
 }
