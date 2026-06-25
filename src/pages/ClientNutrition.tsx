@@ -276,12 +276,14 @@ export default function ClientNutrition() {
           <div className="space-y-6">
             {phaseSummary && <PhaseSummaryReport phase={activePhase} summary={phaseSummary} />}
 
-            {/* Row A: the target/calorie summary beside the trend graph --
-                grouped per design ("daily target card next to the graphs").
-                lg breakpoint so the two wide cards only split when there's room
-                (the sidebar already eats width on md). */}
+            {/* Status/action stack (left) beside the trend graph (right). The
+                short cards -- phase, weekly ribbon, daily log -- stack into one
+                column so together they fill the height of the tall graph,
+                instead of each leaving dead space next to it. Groups "where you
+                stand + log" on the left, "your trend" on the right. lg only (the
+                sidebar already eats width on md). */}
             <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-              <div className="space-y-3">
+              <div className="space-y-6">
                 {/* Hero phase card -- same component coaches see, read-only. */}
                 <NutritionPhaseCard
                   phase={activePhase}
@@ -289,6 +291,24 @@ export default function ClientNutrition() {
                   latestAverageWeight={latestAverageWeight}
                   latestActualChangePercent={latestActualChangePercent}
                 />
+                {/* Weekly status ribbon. */}
+                {user?.id && (
+                  <ClientWeeklyRibbon
+                    userId={user.id}
+                    phaseId={activePhase.id}
+                    weekNumber={currentWeekNumber}
+                    refreshKey={ribbonRefreshKey}
+                  />
+                )}
+                {/* Daily log -- the quick habit loop. */}
+                {user?.id && (
+                  <LogTodayCard
+                    userId={user.id}
+                    phaseId={activePhase.id}
+                    phaseStartDate={activePhase.start_date ?? null}
+                    onLogged={() => setRibbonRefreshKey((k) => k + 1)}
+                  />
+                )}
                 {/* 1:1 goals are coach-set -- nudge to message instead. */}
                 <button
                   type="button"
@@ -357,26 +377,6 @@ export default function ClientNutrition() {
                   <BodyFatProgressGraph weeklyProgress={weeklyProgress} />
                 )}
               </div>
-            </div>
-
-            {/* Row B: weekly status ribbon + the daily log, grouped. */}
-            <div className="grid gap-6 lg:grid-cols-2 lg:items-start">
-              {user?.id && (
-                <ClientWeeklyRibbon
-                  userId={user.id}
-                  phaseId={activePhase.id}
-                  weekNumber={currentWeekNumber}
-                  refreshKey={ribbonRefreshKey}
-                />
-              )}
-              {user?.id && (
-                <LogTodayCard
-                  userId={user.id}
-                  phaseId={activePhase.id}
-                  phaseStartDate={activePhase.start_date ?? null}
-                  onLogged={() => setRibbonRefreshKey((k) => k + 1)}
-                />
-              )}
             </div>
 
             {/* This week -- the full tracking form (circumference, BF%, check-in). */}
