@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { Navigation } from "@/components/Navigation";
+import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Calculator } from "lucide-react";
 import { NutritionProgress } from "@/components/nutrition/NutritionProgress";
 import { supabase } from "@/integrations/supabase/client";
@@ -111,20 +111,17 @@ export default function TeamNutrition() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-        <Navigation user={null} />
-        <main className="container mx-auto px-4 pt-24">
+      <ClientPageLayout>
+        <div className="container mx-auto px-4 pt-6 md:pt-8">
           <ErrorFallback onRetry={() => window.location.reload()} />
-        </main>
-      </div>
+        </div>
+      </ClientPageLayout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-      <Navigation user={user} />
-      
-      <main className="container mx-auto px-4 pt-24 pb-24 md:pb-12 max-w-4xl">
+    <ClientPageLayout>
+      <div className="container mx-auto px-4 pt-6 md:pt-8 pb-24 md:pb-12 max-w-4xl">
         <div className="text-center mb-12">
           <div className="flex justify-center mb-4">
             <div className="p-3 rounded-full bg-gradient-to-r from-primary to-accent">
@@ -141,7 +138,7 @@ export default function TeamNutrition() {
         </div>
 
         <NutritionProgress />
-      </main>
-    </div>
+      </div>
+    </ClientPageLayout>
   );
 }

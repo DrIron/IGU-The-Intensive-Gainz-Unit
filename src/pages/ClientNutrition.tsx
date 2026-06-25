@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { Navigation } from "@/components/Navigation";
+import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
@@ -230,12 +230,11 @@ export default function ClientNutrition() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-        <Navigation user={null} />
-        <main className="container mx-auto px-4 pt-24">
+      <ClientPageLayout>
+        <div className="container mx-auto px-4 pt-6 md:pt-8">
           <ErrorFallback onRetry={() => window.location.reload()} />
-        </main>
-      </div>
+        </div>
+      </ClientPageLayout>
     );
   }
 
@@ -253,10 +252,8 @@ export default function ClientNutrition() {
       );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
-      <Navigation user={user} />
-
-      <main className="container mx-auto px-4 pt-24 pb-24 md:pb-12 max-w-6xl">
+    <ClientPageLayout>
+      <div className="container mx-auto px-4 pt-6 md:pt-8 pb-24 md:pb-12 max-w-6xl">
         <div className="mb-6">
           <h1 className="text-3xl md:text-4xl font-bold mb-1">Nutrition</h1>
           <p className="text-muted-foreground">Track your nutrition goals and progress.</p>
@@ -387,7 +384,7 @@ export default function ClientNutrition() {
             </div>
           </div>
         )}
-      </main>
-    </div>
+      </div>
+    </ClientPageLayout>
   );
 }
