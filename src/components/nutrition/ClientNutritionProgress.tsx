@@ -13,6 +13,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { startOfIguWeek } from "@/lib/weekUtils";
 import { StepLogForm } from "./StepLogForm";
 import { BodyFatLogForm } from "./BodyFatLogForm";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -289,13 +290,13 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
       return;
     }
 
-    // Validate minimum weight logs for current week
-    const currentWeekLogs = weightLogs.filter(log => {
-      const logDate = new Date(log.log_date);
-      const weekStartDate = new Date(new Date(phase.start_date).getTime() + (currentWeek - 1) * 7 * 24 * 60 * 60 * 1000);
-      const weekEndDate = new Date(weekStartDate.getTime() + 7 * 24 * 60 * 60 * 1000);
-      return logDate >= weekStartDate && logDate < weekEndDate;
-    });
+    // Validate minimum weight logs for the current IGU week (Mon-Sun) -- the
+    // canonical "this week" used by ClientWeeklyRibbon + the dashboard, so this
+    // gate matches the count the user sees in the ribbon and the anchor card.
+    const iguWeekStart = format(startOfIguWeek(), "yyyy-MM-dd");
+    const currentWeekLogs = weightLogs.filter(
+      (log) => String(log.log_date).slice(0, 10) >= iguWeekStart,
+    );
 
     if (currentWeekLogs.length < 3) {
       toast({ 
@@ -355,8 +356,15 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
     }
   };
 
-  const thisWeekLogs = weightLogs.filter(log => log.week_number === currentWeek);
   const thisWeekAdherence = adherenceLogs.find(log => log.week_number === currentWeek);
+  // Weigh-ins logged in the current IGU calendar week (Mon-Sun) -- the canonical
+  // "this week" across the client app (ClientWeeklyRibbon + dashboard). The
+  // anchor chip and the check-in save-gate both read this so every surface
+  // shows one number instead of phase-week vs calendar-week disagreement.
+  const iguWeekStartStr = format(startOfIguWeek(), "yyyy-MM-dd");
+  const weighInsThisWeek = weightLogs.filter(
+    (log) => String(log.log_date).slice(0, 10) >= iguWeekStartStr,
+  ).length;
 
   return (
     <div className="space-y-6">
@@ -370,7 +378,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
               aria-hidden
               className={cn(
                 "w-1 shrink-0",
-                thisWeekLogs.length >= 3 && thisWeekAdherence ? "bg-emerald-500" : "bg-amber-500",
+                weighInsThisWeek >= 3 && thisWeekAdherence ? "bg-emerald-500" : "bg-amber-500",
               )}
             />
             <div className="flex-1 p-4 md:p-6 space-y-3">
@@ -381,7 +389,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <CompletionChip done={thisWeekLogs.length >= 3} label={`Weigh-ins ${thisWeekLogs.length}/3`} />
+                <CompletionChip done={weighInsThisWeek >= 3} label={`Weigh-ins ${weighInsThisWeek}/3`} />
                 <CompletionChip done={!!thisWeekAdherence} label={thisWeekAdherence ? "Check-in done" : "Check-in due"} />
               </div>
             </div>
@@ -652,12 +660,7 @@ export function ClientNutritionProgress({ phase, userGender = 'male', initialBod
               user click Save and get a destructive toast. Count this-week rows
               client-side the same way saveAdherenceAndNotes does. */}
           {(() => {
-            const weekStart = new Date(new Date(phase.start_date).getTime() + (currentWeek - 1) * 7 * 24 * 60 * 60 * 1000);
-            const weekEnd = new Date(weekStart.getTime() + 7 * 24 * 60 * 60 * 1000);
-            const thisWeekCount = weightLogs.filter((log: any) => {
-              const d = new Date(log.log_date);
-              return d >= weekStart && d < weekEnd;
-            }).length;
+            const thisWeekCount = weighInsThisWeek;
             const notEnough = thisWeekCount < 3;
             return (
               <>
