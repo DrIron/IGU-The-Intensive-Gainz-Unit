@@ -106,7 +106,7 @@ export default function CoachContentAssignments() {
     !r.is_completed && r.due_by && new Date(r.due_by).getTime() < now;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen bg-background">
       <Navigation />
       <div className="container mx-auto px-4 py-24 max-w-7xl pb-24 md:pb-8">
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">

@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription } from "@/components/ui/drawer";
-import { Loader2, Search, ChevronLeft, Users, ListFilter } from "lucide-react";
+import { Loader2, Search, ChevronLeft, ChevronRight, Users, ListFilter } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { toneClasses } from "@/lib/interpret";
 import { rosterTone, byRosterUrgency } from "@/lib/rosterTone";
@@ -58,7 +58,15 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState<SortKey>("at_risk");
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Desktop: when a client is open, the master list collapses to a thin rail so
+  // the detail pane gets the full canvas. Expanding is a per-session toggle;
+  // selecting a client (clientUserId changes) always re-collapses.
+  const [listCollapsed, setListCollapsed] = useState(false);
   const hasFetched = useRef(false);
+
+  useEffect(() => {
+    setListCollapsed(!!clientUserId);
+  }, [clientUserId]);
 
   const fetchClients = useCallback(async () => {
     try {
@@ -347,20 +355,64 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
   }
 
   // ---- lg+: two-pane grid, each pane its own scroll ------------------------
+  // Three column states:
+  //   no client       -> full 340px picker (the list IS the page)
+  //   client + open   -> 300px full picker (deliberately expanded to switch)
+  //   client + closed -> 48px thin rail, detail pane gets the rest
+  const railCollapsed = !!clientUserId && listCollapsed;
   return (
     <div
       className={cn(
         "lg:grid lg:gap-6 lg:h-[calc(100vh-12rem)] lg:transition-[grid-template-columns] lg:duration-200",
-        // When a client is open the master condenses to names-only, so narrow
-        // its column too — the whole point of collapsing is to hand that width
-        // to the detail pane. Full 340px only when no client is selected.
-        clientUserId
-          ? "lg:grid-cols-[220px_minmax(0,1fr)]"
-          : "lg:grid-cols-[340px_minmax(0,1fr)]",
+        !clientUserId
+          ? "lg:grid-cols-[340px_minmax(0,1fr)]"
+          : railCollapsed
+            ? "lg:grid-cols-[48px_minmax(0,1fr)]"
+            : "lg:grid-cols-[300px_minmax(0,1fr)]",
       )}
     >
       <aside className="hidden lg:block lg:overflow-y-auto lg:pr-1">
-        {masterListEl(!!clientUserId)}
+        {railCollapsed ? (
+          <button
+            type="button"
+            onClick={() => setListCollapsed(false)}
+            aria-label="Show client list"
+            aria-expanded={false}
+            className="group flex w-12 flex-col items-center gap-3 rounded-lg border bg-card py-3 transition-colors hover:bg-muted/60"
+          >
+            <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
+            <Users className="h-4 w-4 text-muted-foreground" />
+            {attention.total > 0 && (
+              <span
+                className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-medium tabular-nums text-destructive-foreground"
+                aria-label={`${attention.total} clients need attention`}
+              >
+                {attention.total > 9 ? "9+" : attention.total}
+              </span>
+            )}
+            <span className="mt-1 text-[11px] tracking-wide text-muted-foreground [writing-mode:vertical-rl] rotate-180">
+              Clients
+            </span>
+          </button>
+        ) : (
+          <>
+            {clientUserId && (
+              <div className="mb-2 flex justify-end">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 gap-1 text-xs"
+                  onClick={() => setListCollapsed(true)}
+                  aria-label="Collapse client list"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                  Collapse
+                </Button>
+              </div>
+            )}
+            {masterListEl(false)}
+          </>
+        )}
       </aside>
       <section className="lg:overflow-y-auto pb-24 md:pb-8">
         <ClientOverviewPanel clientUserId={clientUserId} />

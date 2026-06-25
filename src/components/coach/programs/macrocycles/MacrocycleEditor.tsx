@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import {
   Drawer,
   DrawerContent,
@@ -472,7 +473,11 @@ function DesktopBlockCard({
 }) {
   const weekEnd = weekStart + block.weeks - 1;
   return (
-    <Card className="w-64 shrink-0 group hover:border-primary/50 transition-colors cursor-pointer" onClick={onOpen}>
+    <ClickableCard
+      ariaLabel={`Open ${block.title}`}
+      onClick={onOpen}
+      className="w-64 shrink-0 group hover:border-primary/50 transition-colors"
+    >
       <CardContent className="p-3 space-y-2">
         <div className="flex items-start justify-between gap-1">
           <div className="min-w-0">
@@ -518,7 +523,7 @@ function DesktopBlockCard({
           {block.weeks} {block.weeks === 1 ? "week" : "weeks"}
         </div>
       </CardContent>
-    </Card>
+    </ClickableCard>
   );
 }
 

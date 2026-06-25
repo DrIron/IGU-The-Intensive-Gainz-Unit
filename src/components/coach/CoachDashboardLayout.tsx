@@ -200,7 +200,7 @@ export function CoachDashboardLayout({
 
   return (
     <SidebarProvider defaultOpen={false}>
-      <div className="flex min-h-screen w-full bg-gradient-to-br from-background via-background to-primary/5 pt-[var(--app-top-offset)]">
+      <div className="flex min-h-screen w-full bg-background pt-[var(--app-top-offset)]">
         <CoachSidebar activeSection={isTrainingMode ? "training" : activeSection} onSectionChange={setActiveSection} trainingMode={isTrainingMode} />
         
         <main className="flex-1 min-w-0">
