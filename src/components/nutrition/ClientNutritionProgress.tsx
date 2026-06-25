@@ -103,42 +103,47 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
   const loadProgressData = useCallback(async () => {
     if (!phase) return;
     try {
-      // step_logs is keyed by user_id (not phase), so resolve the user first.
-      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000).catch(() => ({ data: { user: null } }));
+      // step_logs + body_fat_logs are keyed by user_id (not phase). Resolve the
+      // user once, inside a single promise, so the phase-scoped queries below
+      // aren't gated on getUser. weekly_progress is intentionally NOT read here:
+      // its goal_id FK references nutrition_goals, but the check-in is
+      // phase-scoped (disjoint id spaces), so it was always empty for phases.
       const sevenDaysAgo = format(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd");
+      const userScoped = withTimeout(supabase.auth.getUser(), 8000)
+        .then(({ data: { user } }) =>
+          user
+            ? Promise.all([
+                supabase.from("step_logs").select("*").eq("user_id", user.id).gte("log_date", sevenDaysAgo).order("log_date", { ascending: false }).limit(7),
+                supabase.from("body_fat_logs").select("*").eq("user_id", user.id).order("log_date", { ascending: false }).limit(20),
+              ])
+            : [{ data: [] as any[] }, { data: [] as any[] }],
+        )
+        .catch(() => [{ data: [] as any[] }, { data: [] as any[] }]);
 
-      const [weights, circumferences, adherence, weeklyProgress, steps] = await Promise.all([
+      const [weights, circumferences, adherence, userData] = await Promise.all([
         supabase.from("weight_logs").select("*").eq("phase_id", phase.id).order("log_date", { ascending: false }),
         supabase.from("circumference_logs").select("*").eq("phase_id", phase.id).order("week_number", { ascending: false }),
         supabase.from("adherence_logs").select("*").eq("phase_id", phase.id).order("week_number", { ascending: false }),
-        supabase
-          .from("weekly_progress")
-          .select("body_fat_percentage, week_number, notes")
-          .eq("goal_id", phase.id)
-          .order("week_number", { ascending: false }),
-        user
-          ? supabase.from("step_logs").select("*").eq("user_id", user.id).gte("log_date", sevenDaysAgo).order("log_date", { ascending: false }).limit(7)
-          : Promise.resolve({ data: [] as any[] }),
+        userScoped,
       ]);
+      const [steps, bodyFat] = userData as any[];
 
       setWeightLogs(weights.data || []);
       setCircumferenceLogs(circumferences.data || []);
       setAdherenceLogs(adherence.data || []);
-      setBodyFatLogs(weeklyProgress.data || []);
+      setBodyFatLogs(bodyFat.data || []);
       setStepLogs(steps.data || []);
 
       // Pre-fill this week's answers so a returning client sees what they saved.
+      // Notes + physical changes now live on the phase-scoped adherence row.
       const thisWeekRow = adherence.data?.find((a: any) => a.week_number === currentWeek);
       if (thisWeekRow) {
         const cal = (thisWeekRow.calorie_adherence ?? (thisWeekRow.followed_calories ? "on_point" : "off_track")) as CalorieAdherence;
         const trk = (thisWeekRow.tracking_accuracy ?? (thisWeekRow.tracked_accurately ? "weighed" : "guessed")) as TrackingAccuracy;
         setCalorieAdherence(cal);
         setTrackingAccuracy(trk);
-      }
-
-      const thisWeekProgress = weeklyProgress.data?.find((p: any) => p.week_number === currentWeek);
-      if (thisWeekProgress?.notes) {
-        setNotes(thisWeekProgress.notes);
+        if (thisWeekRow.physical_changes) setPhysicalChanges(thisWeekRow.physical_changes);
+        if (thisWeekRow.notes) setNotes(thisWeekRow.notes);
       }
     } catch (error: any) {
       console.error("Error loading progress data:", error);
@@ -323,6 +328,9 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
       const latestWeightKg = weightLogs[0]?.weight_kg;
       const ffm = typeof latestWeightKg === "number" ? calculateFatFreeMass(latestWeightKg, bfNum) : null;
 
+      // body_fat_logs is the canonical store -- it feeds the coach graphs and the
+      // demographics pre-fill. (The old weekly_progress aggregate write was
+      // dropped: its goal_id FK never accepts a phase id.)
       const { error: logError } = await supabase.from("body_fat_logs").upsert(
         {
           user_id: user.id,
@@ -334,22 +342,6 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
         { onConflict: "user_id,log_date,method" },
       );
       if (logError) throw logError;
-
-      const { error } = await supabase.from("weekly_progress").upsert(
-        {
-          user_id: user.id,
-          goal_id: phase.id,
-          week_number: currentWeek,
-          week_start_date: new Date(new Date(phase.start_date).getTime() + (currentWeek - 1) * 7 * 24 * 60 * 60 * 1000).toISOString(),
-          body_fat_percentage: bfNum,
-        },
-        // weekly_progress has TWO unique constraints: (goal_id, week_number) and
-        // (user_id, goal_id, week_number). Conflict on the NARROWER (goal_id,
-        // week_number) -- targeting the wider one 409s when a row already exists.
-        { onConflict: "goal_id,week_number" },
-      );
-
-      if (error) throw error;
 
       toast({ title: "Success", description: "Body fat percentage saved" });
       setBodyFat("");
@@ -387,10 +379,10 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
       const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
-      // Dual-write the 3-level scale AND the derived booleans (compatibility
-      // shadow). onConflict is required -- adherence_logs has a UNIQUE
-      // (phase_id, week_number); without it the upsert would always try to
-      // INSERT and hit that constraint on a second submit for the same week.
+      // One write: the whole check-in lives on the phase-scoped adherence_logs
+      // row (scale + derived compat booleans + free-text note + changes choice).
+      // onConflict is required -- adherence_logs has a UNIQUE (phase_id,
+      // week_number); without it a second submit for the same week would 23505.
       const { error: adherenceError } = await supabase.from("adherence_logs").upsert(
         {
           phase_id: phase.id,
@@ -400,36 +392,15 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
           tracking_accuracy: trackingAccuracy,
           followed_calories: followedFromScale(calorieAdherence),
           tracked_accurately: trackedFromScale(trackingAccuracy),
+          notes: notes.trim() || null,
+          physical_changes: physicalChanges,
         },
         { onConflict: "phase_id,week_number" },
       );
 
       if (adherenceError) throw adherenceError;
 
-      const notesText = [notes, physicalChanges !== "none" ? `Physical changes: ${physicalChanges.replace(/_/g, " ")}` : null]
-        .filter(Boolean)
-        .join("\n\n");
-
-      if (notesText) {
-        const { error: notesError } = await supabase.from("weekly_progress").upsert(
-          {
-            user_id: user.id,
-            goal_id: phase.id,
-            week_number: currentWeek,
-            week_start_date: new Date(new Date(phase.start_date).getTime() + (currentWeek - 1) * 7 * 24 * 60 * 60 * 1000).toISOString(),
-            notes: notesText,
-          },
-          // Conflict on the narrower (goal_id, week_number) unique constraint --
-          // see saveBodyFat note. Targeting (user_id, goal_id, week_number) 409s
-          // when a weekly_progress row already exists for the goal+week.
-          { onConflict: "goal_id,week_number" },
-        );
-
-        if (notesError) throw notesError;
-      }
-
       toast({ title: "Success", description: "Check-in saved" });
-      setPhysicalChanges("");
       loadProgressData();
     } catch (error: any) {
       toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
@@ -446,7 +417,7 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
   const stepAvg7 = stepLogs.length > 0 ? Math.round(stepLogs.reduce((sum, l) => sum + (l.steps || 0), 0) / stepLogs.length) : 0;
   const stepsThisWeek = stepLogs.filter((log) => String(log.log_date).slice(0, 10) >= iguWeekStartStr).length;
   const circumDoneThisWeek = circumferenceLogs.some((log) => log.week_number === currentWeek);
-  const bodyFatDoneThisWeek = bodyFatLogs.some((log: any) => log.week_number === currentWeek && log.body_fat_percentage);
+  const bodyFatDoneThisWeek = bodyFatLogs.some((log: any) => String(log.log_date).slice(0, 10) >= iguWeekStartStr && log.body_fat_percentage);
 
   // Completion tasks drive the header progress bar + chips.
   const tasks: { label: string; done: boolean }[] = [

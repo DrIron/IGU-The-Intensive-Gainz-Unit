@@ -380,7 +380,9 @@ export type Database = {
           created_at: string
           followed_calories: boolean
           id: string
+          notes: string | null
           phase_id: string
+          physical_changes: string | null
           tracked_accurately: boolean
           tracking_accuracy: string | null
           user_id: string
@@ -391,7 +393,9 @@ export type Database = {
           created_at?: string
           followed_calories: boolean
           id?: string
+          notes?: string | null
           phase_id: string
+          physical_changes?: string | null
           tracked_accurately: boolean
           tracking_accuracy?: string | null
           user_id: string
@@ -402,7 +406,9 @@ export type Database = {
           created_at?: string
           followed_calories?: boolean
           id?: string
+          notes?: string | null
           phase_id?: string
+          physical_changes?: string | null
           tracked_accurately?: boolean
           tracking_accuracy?: string | null
           user_id?: string
