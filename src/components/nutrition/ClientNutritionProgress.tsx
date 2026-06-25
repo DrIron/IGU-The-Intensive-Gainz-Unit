@@ -7,13 +7,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
 import { useToast } from "@/hooks/use-toast";
-import { Plus, Trash2, CalendarIcon, AlertCircle, Scale, Ruler, Droplet, Stethoscope, Check } from "lucide-react";
+import { Plus, Trash2, CalendarIcon, AlertCircle, Scale, Ruler, Droplet, Stethoscope, Check, Footprints } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { startOfIguWeek } from "@/lib/weekUtils";
-import { StepLogForm } from "./StepLogForm";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { calculateFatFreeMass } from "@/types/nutrition-phase22";
 
@@ -72,6 +71,11 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
   const [newWeightDate, setNewWeightDate] = useState<Date>();
   const [newWeight, setNewWeight] = useState("");
 
+  // Step log form (optional but recommended as often as weight)
+  const [stepLogs, setStepLogs] = useState<any[]>([]);
+  const [newStepDate, setNewStepDate] = useState<Date>();
+  const [newSteps, setNewSteps] = useState("");
+
   // Circumference form
   const [circumDate, setCircumDate] = useState<Date>();
   const [waist, setWaist] = useState("");
@@ -99,7 +103,11 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
   const loadProgressData = useCallback(async () => {
     if (!phase) return;
     try {
-      const [weights, circumferences, adherence, weeklyProgress] = await Promise.all([
+      // step_logs is keyed by user_id (not phase), so resolve the user first.
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000).catch(() => ({ data: { user: null } }));
+      const sevenDaysAgo = format(new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), "yyyy-MM-dd");
+
+      const [weights, circumferences, adherence, weeklyProgress, steps] = await Promise.all([
         supabase.from("weight_logs").select("*").eq("phase_id", phase.id).order("log_date", { ascending: false }),
         supabase.from("circumference_logs").select("*").eq("phase_id", phase.id).order("week_number", { ascending: false }),
         supabase.from("adherence_logs").select("*").eq("phase_id", phase.id).order("week_number", { ascending: false }),
@@ -108,12 +116,16 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
           .select("body_fat_percentage, week_number, notes")
           .eq("goal_id", phase.id)
           .order("week_number", { ascending: false }),
+        user
+          ? supabase.from("step_logs").select("*").eq("user_id", user.id).gte("log_date", sevenDaysAgo).order("log_date", { ascending: false }).limit(7)
+          : Promise.resolve({ data: [] as any[] }),
       ]);
 
       setWeightLogs(weights.data || []);
       setCircumferenceLogs(circumferences.data || []);
       setAdherenceLogs(adherence.data || []);
       setBodyFatLogs(weeklyProgress.data || []);
+      setStepLogs(steps.data || []);
 
       // Pre-fill this week's answers so a returning client sees what they saved.
       const thisWeekRow = adherence.data?.find((a: any) => a.week_number === currentWeek);
@@ -192,6 +204,50 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
       const { error } = await supabase.from("weight_logs").delete().eq("id", id);
       if (error) throw error;
       toast({ title: "Success", description: "Weight log deleted" });
+      loadProgressData();
+    } catch (error: any) {
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
+    }
+  };
+
+  const addStepLog = async () => {
+    if (!newStepDate || !newSteps) {
+      toast({ title: "Missing Data", description: "Please select a date and enter steps", variant: "destructive" });
+      return;
+    }
+    const s = parseInt(newSteps, 10);
+    if (!Number.isFinite(s) || s < 0 || s > 100000) {
+      toast({ title: "Invalid steps", description: "Enter a step count between 0 and 100,000", variant: "destructive" });
+      return;
+    }
+    try {
+      setLoading(true);
+      const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
+      if (!user) return;
+      const { error } = await supabase.from("step_logs").insert({
+        user_id: user.id,
+        log_date: format(newStepDate, "yyyy-MM-dd"),
+        steps: s,
+        source: "manual",
+      });
+      if (error) throw error;
+      toast({ title: "Success", description: "Step log added" });
+      setNewStepDate(undefined);
+      setNewSteps("");
+      loadProgressData();
+    } catch (error: any) {
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const deleteStepLog = async (id: string) => {
+    if (!window.confirm("Delete this step log? This can't be undone.")) return;
+    try {
+      const { error } = await supabase.from("step_logs").delete().eq("id", id);
+      if (error) throw error;
+      toast({ title: "Success", description: "Step log deleted" });
       loadProgressData();
     } catch (error: any) {
       toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
@@ -387,6 +443,8 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
   // "this week" across the client app (ClientWeeklyRibbon + dashboard).
   const iguWeekStartStr = format(startOfIguWeek(), "yyyy-MM-dd");
   const weighInsThisWeek = weightLogs.filter((log) => String(log.log_date).slice(0, 10) >= iguWeekStartStr).length;
+  const stepAvg7 = stepLogs.length > 0 ? Math.round(stepLogs.reduce((sum, l) => sum + (l.steps || 0), 0) / stepLogs.length) : 0;
+  const stepsThisWeek = stepLogs.filter((log) => String(log.log_date).slice(0, 10) >= iguWeekStartStr).length;
   const circumDoneThisWeek = circumferenceLogs.some((log) => log.week_number === currentWeek);
   const bodyFatDoneThisWeek = bodyFatLogs.some((log: any) => log.week_number === currentWeek && log.body_fat_percentage);
 
@@ -462,7 +520,7 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
           </Section>
 
           {/* Section: Measurements due this week */}
-          <Section rail="amber" title="Measurements due this week" subtitle="Only what's on cadence -- nothing extra to chase.">
+          <Section rail="amber" title="Measurements" subtitle="Log weight and steps often; the rest appears when it's due.">
             <div className="space-y-4">
               {/* Weight (always) */}
               <div className="rounded-lg border p-3">
@@ -515,6 +573,74 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
                           {format(new Date(log.log_date), "MMM dd")} · {log.weight_kg} kg
                         </span>
                         <Button variant="ghost" size="sm" onClick={() => deleteWeightLog(log.id)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Steps (optional but recommended as often as weight) */}
+              <div className="rounded-lg border p-3">
+                <div className="mb-3 flex items-center gap-2">
+                  <Footprints className="h-4 w-4 text-emerald-500" aria-hidden />
+                  <span className="text-sm font-medium">Steps</span>
+                  <span className="ml-auto font-mono text-xs text-muted-foreground">
+                    {stepLogs.length > 0 ? `${stepAvg7.toLocaleString()} avg · ${stepsThisWeek} this week` : "recommended"}
+                  </span>
+                </div>
+                <p className="mb-3 -mt-1 text-xs text-muted-foreground">Activity insight -- doesn't change your targets.</p>
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Date</Label>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button variant="outline" className={cn("w-full justify-start text-left", !newStepDate && "text-muted-foreground")}>
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {newStepDate ? format(newStepDate, "PPP") : "Pick a date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0">
+                        <Calendar
+                          mode="single"
+                          selected={newStepDate}
+                          onSelect={setNewStepDate}
+                          initialFocus
+                          className="pointer-events-auto"
+                          disabled={(date) => date > new Date()}
+                        />
+                      </PopoverContent>
+                    </Popover>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Steps</Label>
+                    <Input
+                      type="number"
+                      inputMode="numeric"
+                      min={0}
+                      max={100000}
+                      value={newSteps}
+                      onChange={(e) => setNewSteps(e.target.value)}
+                      placeholder="10000"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">&nbsp;</Label>
+                    <Button onClick={addStepLog} disabled={loading} className="w-full">
+                      <Plus className="mr-2 h-4 w-4" />
+                      Add
+                    </Button>
+                  </div>
+                </div>
+                {stepLogs.length > 0 && (
+                  <div className="mt-3 space-y-2 border-t pt-3">
+                    {stepLogs.slice(0, 3).map((log) => (
+                      <div key={log.id} className="flex items-center justify-between rounded-lg bg-muted/50 p-2">
+                        <span className="font-mono text-xs">
+                          {format(new Date(log.log_date), "MMM dd")} · {(log.steps || 0).toLocaleString()} steps
+                        </span>
+                        <Button variant="ghost" size="sm" onClick={() => deleteStepLog(log.id)}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
@@ -642,9 +768,6 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
           </div>
         </CardContent>
       </Card>
-
-      {/* Steps -- its own surface for now (folds into the entries hub later). */}
-      <StepLogForm onLogAdded={loadProgressData} />
     </div>
   );
 }
