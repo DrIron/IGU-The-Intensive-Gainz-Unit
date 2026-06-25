@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Navigation } from "@/components/Navigation";
+import { CoachShell } from "@/components/coach/CoachShell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -84,9 +84,7 @@ export default function CoachHub() {
   const courses = resourceRows.filter((r) => r.content_type === "course");
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation user={user} userRole="coach" />
-      <main className="container mx-auto px-4 pt-24 pb-24 md:pb-12 max-w-7xl">
+    <CoachShell>
         <div className="mb-5 flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold">Coach Hub</h1>
@@ -240,8 +238,7 @@ export default function CoachHub() {
             </section>
           </div>
         )}
-      </main>
-    </div>
+    </CoachShell>
   );
 }
 

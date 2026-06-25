@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
 import { Users, BookOpen } from "lucide-react";
 
@@ -18,8 +19,9 @@ interface TeamCardProps {
 
 export const TeamCard = memo(function TeamCard({ team, onClick }: TeamCardProps) {
   return (
-    <Card
-      className="cursor-pointer hover:shadow-md transition-shadow"
+    <ClickableCard
+      ariaLabel={`Open team ${team.name}`}
+      className="h-full"
       onClick={() => onClick(team.id)}
     >
       <CardHeader className="pb-2">
@@ -53,6 +55,6 @@ export const TeamCard = memo(function TeamCard({ team, onClick }: TeamCardProps)
           </span>
         </div>
       </CardContent>
-    </Card>
+    </ClickableCard>
   );
 });

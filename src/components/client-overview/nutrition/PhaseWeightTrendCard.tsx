@@ -73,6 +73,14 @@ export function PhaseWeightTrendCard({ phase }: PhaseWeightTrendCardProps) {
   const current = points.length > 0 ? points[points.length - 1].weight : null;
   const delta = current != null && startKg != null ? current - startKg : null;
 
+  // Y domain must span the data AND the start/target reference lines, or a
+  // target that sits outside the logged range (common early in a phase) draws
+  // off-chart and the coach never sees it.
+  const refVals = [startKg, targetKg].filter((n): n is number => n != null && !Number.isNaN(n));
+  const allVals = [...points.map((p) => p.weight), ...refVals];
+  const yMin = allVals.length ? Math.floor(Math.min(...allVals) - 1) : 0;
+  const yMax = allVals.length ? Math.ceil(Math.max(...allVals) + 1) : 0;
+
   // Toward the target = current is closer to target than the start was.
   let towardTarget: boolean | null = null;
   if (current != null && startKg != null && targetKg != null) {
@@ -118,7 +126,7 @@ export function PhaseWeightTrendCard({ phase }: PhaseWeightTrendCardProps) {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" minTickGap={24} />
                 <YAxis
-                  domain={["dataMin - 1", "dataMax + 1"]}
+                  domain={[yMin, yMax]}
                   tick={{ fontSize: 11 }}
                   stroke="hsl(var(--muted-foreground))"
                   width={36}

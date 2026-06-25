@@ -166,9 +166,13 @@ export function useClientPrograms(clientUserId: string) {
         setPrograms(
           rows.map((r) => ({
             id: r.id,
-            title: r.source_template_id
-              ? templateMap.get(r.source_template_id) ?? "Untitled program"
-              : "Untitled program",
+            // No title column on client_programs — derive it: source template
+            // name first, then the macrocycle it belongs to, then a friendly
+            // generic (never the draft-sounding "Untitled program").
+            title:
+              (r.source_template_id ? templateMap.get(r.source_template_id) : null) ??
+              (r.macrocycle_id ? macrocycleMap.get(r.macrocycle_id) : null) ??
+              "Training program",
             status: r.status,
             startDate: r.start_date,
             macrocycleId: r.macrocycle_id,

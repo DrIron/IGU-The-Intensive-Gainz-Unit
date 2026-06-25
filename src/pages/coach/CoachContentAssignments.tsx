@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Navigation } from "@/components/Navigation";
+import { CoachShell } from "@/components/coach/CoachShell";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -106,9 +106,7 @@ export default function CoachContentAssignments() {
     !r.is_completed && r.due_by && new Date(r.due_by).getTime() < now;
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      <div className="container mx-auto px-4 py-24 max-w-7xl pb-24 md:pb-8">
+    <CoachShell>
         <div className="mb-8 flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-3xl md:text-4xl font-bold mb-2 flex items-center gap-3">
@@ -163,7 +161,7 @@ export default function CoachContentAssignments() {
             ) : filteredRows.length === 0 ? (
               <p className="text-center text-muted-foreground py-8">
                 {rows.length === 0
-                  ? "No assignments yet. Visit /educational-videos and use “Assign to client” on a card."
+                  ? "No assignments yet. Open Learn and use “Assign to client” on a video or pathway card."
                   : "All assignments are for lapsed clients. Toggle off “Hide lapsed clients” to view them."}
               </p>
             ) : (
@@ -272,7 +270,6 @@ export default function CoachContentAssignments() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
-      </div>
-    </div>
+    </CoachShell>
   );
 }

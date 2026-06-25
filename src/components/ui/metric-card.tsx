@@ -55,7 +55,7 @@ export function MetricCard({
       </div>
       <div className="flex items-end justify-between gap-2">
         <div className="flex items-baseline gap-1">
-          <span className="text-2xl font-semibold tabular-nums">{value}</span>
+          <span className="font-mono text-2xl font-semibold tabular-nums">{value}</span>
           {unit && <span className="text-sm text-muted-foreground">{unit}</span>}
         </div>
         {delta && <DeltaChip value={delta.value} suffix={delta.suffix} tone={tone} />}
