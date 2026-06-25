@@ -26,9 +26,15 @@ export default {
     },
     extend: {
       fontFamily: {
-        sans: ['DM Sans', 'system-ui', 'sans-serif'],
+        sans: ['Geist', 'system-ui', 'sans-serif'],
         display: ['Bebas Neue', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
+      },
+      // Design-foundation weight ceiling: cap `font-bold` at 600 so headers read
+      // crisp rather than heavy (paired with the Geist swap). Card titles use
+      // font-medium (500); semibold stays 600 for emphasis. No 700s anywhere.
+      fontWeight: {
+        bold: '600',
       },
       colors: {
         border: "hsl(var(--border))",
