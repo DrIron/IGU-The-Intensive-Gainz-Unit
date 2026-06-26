@@ -11,7 +11,8 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { Dumbbell, Plus, CalendarPlus, Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dumbbell, Plus, CalendarPlus, Loader2, CalendarClock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { DirectClientCalendar } from "@/components/coach/programs/DirectClientCalendar";
 import { AssignFromLibraryDialog } from "@/components/coach/programs/AssignFromLibraryDialog";
@@ -21,6 +22,7 @@ import { WorkoutAdherencePulse } from "../workouts/WorkoutAdherencePulse";
 import { ClientProgramList } from "../workouts/ClientProgramList";
 import { ClientProgramDrilldown } from "../workouts/ClientProgramDrilldown";
 import { SessionLogViewer } from "../workouts/SessionLogViewer";
+import { WorkoutPulse } from "../workouts/WorkoutPulse";
 import {
   useAdherencePulse,
   useClientPrograms,
@@ -77,6 +79,9 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
     programTitle: string;
   } | null>(null);
 
+  // B3 inner tabs: Pulse · Programs · Calendar · History.
+  const [innerTab, setInnerTab] = useState("pulse");
+
   const handleOpenProgram = useCallback((program: ClientProgramSummary) => {
     setSelected(program);
   }, []);
@@ -116,62 +121,108 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
 
   return (
     <div className="space-y-5">
-      <WorkoutAdherencePulse pulse={pulse} loading={pulseLoading || programsLoading} />
+      <Tabs value={innerTab} onValueChange={setInnerTab} className="w-full">
+        <TabsList className="grid w-full grid-cols-4">
+          <TabsTrigger value="pulse">Pulse</TabsTrigger>
+          <TabsTrigger value="programs">Programs</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
 
-      {/* Action bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          variant="default"
-          onClick={() => navigate("/coach/programs?tab=mesocycles")}
-        >
-          <Plus className="h-4 w-4 mr-1.5" />
-          Assign program
-        </Button>
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setDirectCalendarOpen(true)}
-          disabled={!coachUserId || !subscription}
-          title={
-            !subscription
-              ? "Client has no active subscription — cannot inject session"
-              : "Add a session directly to this client's calendar"
-          }
-        >
-          <CalendarPlus className="h-4 w-4 mr-1.5" />
-          Inject session
-        </Button>
-      </div>
+        {/* Pulse — the week at a glance (B3). */}
+        <TabsContent value="pulse" className="mt-5">
+          <WorkoutPulse clientUserId={clientUserId} />
+        </TabsContent>
 
-      {selected ? (
-        <ClientProgramDrilldown
-          program={selected}
-          days={drilldown.days}
-          loading={drilldown.loading}
-          error={drilldown.error}
-          onBack={handleBackToList}
-          onOpenModule={handleOpenModule}
-        />
-      ) : programsLoading ? (
-        <Card>
-          <CardContent className="py-12 flex items-center justify-center">
-            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-          </CardContent>
-        </Card>
-      ) : !hasAnyProgram ? (
-        <EmptyState onGoToPrograms={() => navigate("/coach/programs?tab=mesocycles")} />
-      ) : (
-        <ClientProgramList programs={programs} onOpen={handleOpenProgram} />
-      )}
+        {/* Programs — assign + the program list / drill-down. */}
+        <TabsContent value="programs" className="mt-5 space-y-5">
+          <WorkoutAdherencePulse pulse={pulse} loading={pulseLoading || programsLoading} />
 
-      {/* Volume chart — shown only when we have at least one program, and
-          only on the list view so the drill-down stays focused. */}
-      {!selected && hasAnyProgram && (
-        <div className="pt-2">
-          <VolumeChart clientUserId={clientUserId} />
-        </div>
-      )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="default"
+              onClick={() => navigate("/coach/programs?tab=mesocycles")}
+            >
+              <Plus className="h-4 w-4 mr-1.5" />
+              Assign program
+            </Button>
+          </div>
+
+          {selected ? (
+            <ClientProgramDrilldown
+              program={selected}
+              days={drilldown.days}
+              loading={drilldown.loading}
+              error={drilldown.error}
+              onBack={handleBackToList}
+              onOpenModule={handleOpenModule}
+            />
+          ) : programsLoading ? (
+            <Card>
+              <CardContent className="py-12 flex items-center justify-center">
+                <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+              </CardContent>
+            </Card>
+          ) : !hasAnyProgram ? (
+            <EmptyState onGoToPrograms={() => navigate("/coach/programs?tab=mesocycles")} />
+          ) : (
+            <ClientProgramList programs={programs} onOpen={handleOpenProgram} />
+          )}
+
+          {selected && selected.sourceTemplateId && (
+            <div className="pt-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => handleReassignSource(selected)}
+              >
+                Re-assign this program template
+              </Button>
+            </div>
+          )}
+        </TabsContent>
+
+        {/* Calendar — week/month view ships in B5; inject lives here. */}
+        <TabsContent value="calendar" className="mt-5 space-y-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setDirectCalendarOpen(true)}
+              disabled={!coachUserId || !subscription}
+              title={
+                !subscription
+                  ? "Client has no active subscription — cannot inject session"
+                  : "Add a session directly to this client's calendar"
+              }
+            >
+              <CalendarPlus className="h-4 w-4 mr-1.5" />
+              Inject session
+            </Button>
+          </div>
+          <Card className="border-dashed">
+            <CardContent className="py-12 text-center text-sm text-muted-foreground">
+              <CalendarClock className="h-6 w-6 mx-auto mb-2 opacity-50" aria-hidden="true" />
+              The week / month schedule view lands in B5. For now, inject one-off
+              sessions above; scheduled sessions appear under Programs.
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* History — training volume trend (session recaps open from Programs). */}
+        <TabsContent value="history" className="mt-5">
+          {hasAnyProgram ? (
+            <VolumeChart clientUserId={clientUserId} />
+          ) : (
+            <Card>
+              <CardContent className="py-12 text-center text-sm text-muted-foreground">
+                Volume history appears once this client has a program.
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+      </Tabs>
 
       {/* Session log drawer/dialog */}
       <SessionLogViewer
@@ -216,21 +267,6 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
             />
           </SheetContent>
         </Sheet>
-      )}
-
-      {/* Optional reassign shortcut — appears on the drill-down via a
-          callback. Kept out of list view for now to keep the quick-action
-          bar uncluttered. */}
-      {selected && selected.sourceTemplateId && (
-        <div className="pt-2">
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => handleReassignSource(selected)}
-          >
-            Re-assign this program template
-          </Button>
-        </div>
       )}
     </div>
   );
