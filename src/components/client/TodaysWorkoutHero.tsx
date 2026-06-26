@@ -257,7 +257,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
                 >
                   <Play className="h-5 w-5 mr-2 shrink-0" />
                   <span className="truncate">
-                    {completedCount > 0 ? 'Continue Workout' : 'Start Workout'}
+                    {completedCount > 0 ? 'Continue' : 'Start'}
                   </span>
                 </Button>
               ) : (
@@ -268,7 +268,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
                   onClick={handleStartWorkout}
                 >
                   <CheckCircle2 className="h-5 w-5 mr-2 shrink-0" />
-                  <span className="truncate">View Completed</span>
+                  <span className="truncate">Review</span>
                 </Button>
               )}
               <Button
