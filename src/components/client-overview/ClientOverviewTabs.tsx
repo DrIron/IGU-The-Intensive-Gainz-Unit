@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { ClientOverviewNav } from "./ClientOverviewNav";
+import { ClientVitalsRail } from "./ClientVitalsRail";
 import {
   defaultSectionForRole,
   visibleSectionsForRole,
@@ -97,9 +98,19 @@ export function ClientOverviewTabs({ context }: ClientOverviewTabsProps) {
         viewerRole={context.viewerRole}
         badgeCounts={{ messages: unreadMessages }}
       />
-      <section className="flex-1 min-w-0 mt-4 md:mt-0">
-        <SectionPanel slug={activeSlug} context={context} />
-      </section>
+      {/* Main + persistent vitals rail. Below xl the rail pins to the top
+          (order-first) as a compact summary; at xl+ it becomes a sticky right
+          column (order-last). One mount -- layouts are CSS-gated inside the
+          rail (see ClientVitalsRail). */}
+      <div className="flex-1 min-w-0 mt-4 md:mt-0 flex flex-col xl:flex-row xl:gap-6 xl:items-start">
+        <ClientVitalsRail
+          context={context}
+          className="order-first xl:order-last xl:w-72 xl:shrink-0 xl:sticky xl:top-20 mb-4 xl:mb-0"
+        />
+        <section className="flex-1 min-w-0">
+          <SectionPanel slug={activeSlug} context={context} />
+        </section>
+      </div>
     </div>
   );
 }

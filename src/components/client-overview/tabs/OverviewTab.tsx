@@ -179,7 +179,11 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
         </Card>
       )}
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+        At a glance
+      </p>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 -mt-2">
         <StatTile
           icon={<Apple className="h-4 w-4" aria-hidden="true" />}
           label="Nutrition Phase"
