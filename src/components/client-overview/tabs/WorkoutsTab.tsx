@@ -23,6 +23,7 @@ import { ClientProgramList } from "../workouts/ClientProgramList";
 import { ClientProgramDrilldown } from "../workouts/ClientProgramDrilldown";
 import { SessionLogViewer } from "../workouts/SessionLogViewer";
 import { WorkoutPulse } from "../workouts/WorkoutPulse";
+import { WorkoutTrendCards } from "../workouts/WorkoutTrendCards";
 import {
   useAdherencePulse,
   useClientPrograms,
@@ -210,10 +211,13 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
           </Card>
         </TabsContent>
 
-        {/* History — training volume trend (session recaps open from Programs). */}
-        <TabsContent value="history" className="mt-5">
+        {/* History — tonnage/TUST trends + training volume. */}
+        <TabsContent value="history" className="mt-5 space-y-5">
           {hasAnyProgram ? (
-            <VolumeChart clientUserId={clientUserId} />
+            <>
+              <WorkoutTrendCards clientUserId={clientUserId} />
+              <VolumeChart clientUserId={clientUserId} />
+            </>
           ) : (
             <Card>
               <CardContent className="py-12 text-center text-sm text-muted-foreground">

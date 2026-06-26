@@ -7,11 +7,13 @@
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Eye, TrendingUp, ArrowUp, ArrowDown, Minus, AlertTriangle, Trophy } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from "date-fns";
 import { useWorkoutPulse, type PulseExerciseRow } from "./useWorkoutPulse";
 import type { ProgressionFlag } from "@/utils/workoutFlags";
+import type { Interpretation } from "@/lib/interpret";
 
 export function WorkoutPulse({ clientUserId }: { clientUserId: string }) {
   const pulse = useWorkoutPulse(clientUserId);
@@ -26,52 +28,35 @@ export function WorkoutPulse({ clientUserId }: { clientUserId: string }) {
     );
   }
 
-  const tonnageWoW =
-    pulse.prevTonnageKg > 0
-      ? Math.round(((pulse.tonnageKg - pulse.prevTonnageKg) / pulse.prevTonnageKg) * 100)
-      : null;
-
   return (
     <div className="space-y-6">
-      {/* Metric row */}
+      {/* Metric row — Direction 3 MetricCards. Tonnage + TUST live in History. */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <Metric
+        <MetricCard
           label="Adherence"
           value={pulse.adherencePct != null ? `${pulse.adherencePct}%` : "—"}
-          sub={`${pulse.weeklyCompleted} / ${pulse.weeklyScheduled} sessions`}
-          rail={adherenceRail(pulse.adherencePct)}
+          interpretation={interpAdherence(pulse.adherencePct, pulse.weeklyCompleted, pulse.weeklyScheduled)}
         />
-        <Metric
-          label="Tonnage"
-          value={fmtTonnage(pulse.tonnageKg)}
-          sub={
-            tonnageWoW != null ? (
-              <span className={tonnageWoW >= 0 ? "text-emerald-600" : "text-destructive"}>
-                {tonnageWoW >= 0 ? "+" : ""}
-                {tonnageWoW}% vs last wk
-              </span>
-            ) : (
-              "this week"
-            )
-          }
-          rail="bg-emerald-500"
-        />
-        <Metric
-          label={
-            <>
-              TUST{" "}
-              <span className="text-[8px] border border-border rounded px-1 align-middle">EST</span>
-            </>
-          }
-          value={fmtMinutes(pulse.tustSeconds)}
-          sub="working sets · RIR≤4"
-          rail="bg-border"
-        />
-        <Metric
+        <MetricCard
           label="PRs"
           value={String(pulse.prCount)}
-          sub="this week"
-          rail="bg-primary"
+          timeframe="this week"
+          interpretation={interpPRs(pulse.prCount)}
+        />
+        <MetricCard
+          label="Needs attention"
+          value={String(pulse.flagCount)}
+          interpretation={interpAttention(pulse.flagCount)}
+        />
+        <MetricCard
+          label="Progressing"
+          value={
+            <>
+              {pulse.progressingCount}
+              <span className="text-sm text-muted-foreground">/{pulse.progressingTotal}</span>
+            </>
+          }
+          interpretation={interpProgressing(pulse.progressingCount, pulse.progressingTotal)}
         />
       </div>
 
@@ -186,31 +171,33 @@ function ExerciseRow({ row }: { row: PulseExerciseRow }) {
   );
 }
 
-function Metric({
-  label,
-  value,
-  sub,
-  rail,
-}: {
-  label: React.ReactNode;
-  value: string;
-  sub: React.ReactNode;
-  rail: string;
-}) {
-  return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-0">
-        <div className="flex h-full">
-          <div aria-hidden="true" className={cn("w-1 shrink-0", rail)} />
-          <div className="p-3 flex-1 min-w-0">
-            <div className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</div>
-            <div className="font-mono text-xl font-medium tabular-nums leading-tight">{value}</div>
-            <div className="text-[10px] text-muted-foreground truncate">{sub}</div>
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
+function interpAdherence(pct: number | null, done: number, scheduled: number): Interpretation {
+  const sentence = `${done} of ${scheduled} sessions this week.`;
+  if (pct == null) return { tone: "neutral", label: "", sentence: "No sessions scheduled." };
+  if (pct >= 80) return { tone: "on_track", label: "On track", sentence };
+  if (pct >= 50) return { tone: "attention", label: "Slipping", sentence };
+  return { tone: "risk", label: "Low", sentence };
+}
+
+function interpPRs(count: number): Interpretation {
+  if (count > 0)
+    return { tone: "on_track", label: "PRs", sentence: `${count} personal record${count === 1 ? "" : "s"} this week.` };
+  return { tone: "neutral", label: "", sentence: "No PRs yet this week." };
+}
+
+function interpAttention(flags: number): Interpretation {
+  if (flags <= 0) return { tone: "on_track", label: "Clear", sentence: "Nothing flagged this week." };
+  return {
+    tone: flags >= 3 ? "risk" : "attention",
+    label: `${flags}`,
+    sentence: `${flags} flag${flags === 1 ? "" : "s"} to review.`,
+  };
+}
+
+function interpProgressing(up: number, total: number): Interpretation {
+  if (total <= 0) return { tone: "neutral", label: "", sentence: "No lifts to compare yet." };
+  const sentence = `${up} of ${total} lifts up vs last session.`;
+  return { tone: up / total >= 0.5 ? "on_track" : "attention", label: `${up}/${total}`, sentence };
 }
 
 function FlagGlyph({ flag }: { flag: ProgressionFlag }) {
@@ -235,24 +222,6 @@ function LegendItem({ flag, label }: { flag: ProgressionFlag; label: string }) {
       {label}
     </span>
   );
-}
-
-function adherenceRail(pct: number | null): string {
-  if (pct == null) return "bg-border";
-  if (pct >= 80) return "bg-emerald-500";
-  if (pct >= 50) return "bg-amber-500";
-  return "bg-destructive";
-}
-
-function fmtTonnage(kg: number): string {
-  if (kg >= 1000) return `${(kg / 1000).toFixed(1)}t`;
-  return `${kg}kg`;
-}
-
-function fmtMinutes(seconds: number): string {
-  if (seconds <= 0) return "—";
-  const m = Math.round(seconds / 60);
-  return `${m}m`;
 }
 
 function fmtDate(iso: string): string {

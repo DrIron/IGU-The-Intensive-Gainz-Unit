@@ -63,6 +63,14 @@ export interface WorkoutPulse {
   prevTonnageKg: number;
   tustSeconds: number;
   prCount: number;
+  /** Lifts whose flag is "up" this week, over lifts that had a prior session. */
+  progressingCount: number;
+  progressingTotal: number;
+  /** down + off-prescription (== needsEyes.length). */
+  flagCount: number;
+  /** Last 6 weeks, oldest -> newest, for the History trend sparklines. */
+  weeklyTonnage: number[];
+  weeklyTust: number[];
   needsEyes: NeedsEyesItem[];
   sessions: PulseSession[];
 }
@@ -76,6 +84,11 @@ const EMPTY: WorkoutPulse = {
   prevTonnageKg: 0,
   tustSeconds: 0,
   prCount: 0,
+  progressingCount: 0,
+  progressingTotal: 0,
+  flagCount: 0,
+  weeklyTonnage: [],
+  weeklyTust: [],
   needsEyes: [],
   sessions: [],
 };
@@ -263,21 +276,32 @@ export function useWorkoutPulse(clientUserId: string): WorkoutPulse {
 
     const weekModuleIds = new Set(weekModules.map((m) => m.id));
 
-    // 6. Metrics — tonnage + TUST this week / prev week, by created_at.
+    // 6. Metrics — tonnage + TUST by week (last 6 weeks, oldest -> newest) +
+    // this-week / prev-week totals, bucketed by each log's created_at.
+    const N_WEEKS = 6;
+    const weeklyTonnage = new Array<number>(N_WEEKS).fill(0);
+    const weeklyTust = new Array<number>(N_WEEKS).fill(0);
     let tonnageKg = 0;
     let prevTonnageKg = 0;
     let tustSeconds = 0;
+    void prevMonday;
     for (const l of logs) {
       if (l.skipped) continue;
       const t = new Date(l.created_at);
       const ls = toLoggedSet(l);
-      const inThisWeek = t >= monday && t <= new Date(sunday.getTime() + 86400000);
-      const inPrevWeek = t >= prevMonday && t < monday;
-      if (inThisWeek) {
-        tonnageKg += setTonnage(ls);
-        tustSeconds += estimateSetTust(ls, tempoFromLog(l));
-      } else if (inPrevWeek) {
-        prevTonnageKg += setTonnage(ls);
+      const ton = setTonnage(ls);
+      const tus = estimateSetTust(ls, tempoFromLog(l));
+      const diffWeeks = Math.round((monday.getTime() - mondayOf(t).getTime()) / (7 * 86400000));
+      const idx = N_WEEKS - 1 - diffWeeks;
+      if (idx >= 0 && idx < N_WEEKS) {
+        weeklyTonnage[idx] += ton;
+        weeklyTust[idx] += tus;
+      }
+      if (diffWeeks === 0) {
+        tonnageKg += ton;
+        tustSeconds += tus;
+      } else if (diffWeeks === 1) {
+        prevTonnageKg += ton;
       }
     }
 
@@ -285,6 +309,8 @@ export function useWorkoutPulse(clientUserId: string): WorkoutPulse {
     const sessions: PulseSession[] = [];
     const needsEyes: NeedsEyesItem[] = [];
     let prCount = 0;
+    let progressingCount = 0;
+    let progressingTotal = 0;
 
     // chronological session order (oldest first) for the week
     const weekModulesSorted = [...weekModules].sort((a, b) => a.date.localeCompare(b.date));
@@ -324,6 +350,10 @@ export function useWorkoutPulse(clientUserId: string): WorkoutPulse {
         const prs = detectExercisePrs(category, thisLogged, priorLogged);
         const celebrated = prs.filter((p) => p.celebrate);
         sessionPrCount += celebrated.length;
+
+        // "Progressing" = lifts flagged up, over lifts that had a comparison.
+        if (flag !== "none") progressingTotal += 1;
+        if (flag === "up") progressingCount += 1;
 
         const name = meta?.name ?? "Exercise";
         const curBest = fmtBest(thisLogged.find((s) => s.performedLoad != null) ?? null);
@@ -377,6 +407,11 @@ export function useWorkoutPulse(clientUserId: string): WorkoutPulse {
       prevTonnageKg: Math.round(prevTonnageKg),
       tustSeconds: Math.round(tustSeconds),
       prCount,
+      progressingCount,
+      progressingTotal,
+      flagCount: needsEyes.length,
+      weeklyTonnage: weeklyTonnage.map((n) => Math.round(n)),
+      weeklyTust: weeklyTust.map((n) => Math.round(n)),
       needsEyes,
       sessions,
     });
