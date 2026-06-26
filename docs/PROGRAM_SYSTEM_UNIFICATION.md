@@ -59,6 +59,16 @@ Mirror the coaches-tables refactor: build canonical tables alongside the old, du
 
 - **P0 — schema.** Create `plan*`, `progression_rules`, `client_plan_assignment`, `client_plan_overrides` alongside existing tables. No rip-out.
 - **P1 — Planning Board on canonical.** The board reads/writes `plan*` directly (drop the JSONB `slot_config` as source; keep as backfill input). This becomes the ONE editor.
+  - **Current persistence:** `useMuscleBuilderState.ts` — `save()`/auto-save write `buildSlotConfig(state)` (shape `{ weeks:[{slots:MuscleSlotData[], sessions:SessionData[], label, isDeload}], globalClientInputs, globalPrescriptionColumns }`) into `muscle_program_templates.slot_config`; the load effect (~line 1259) parses it back into `WeekData[]`.
+  - **P1 adapter (low-risk, dual-write):** keep the in-memory `MusclePlanState` + reducer untouched. Add a materializer that, on save, mirrors the serialized state into the canonical rows; keep writing `slot_config` too during the soak (slot_config stays authoritative until P3). Mapping per save (delete-and-recreate children under one `plan`):
+    - `muscle_program_templates` row → one `plan` (keyed `plan.source_muscle_template_id = template.id`; upsert name/description).
+    - each `WeekData` → `plan_weeks` (`week_index`, `label`, `is_deload`).
+    - each `SessionData` → `plan_sessions` (`day_index`, `name`, `activity_type`, `sort_order`; denormalize `plan_id`).
+    - each `MuscleSlotData` → `plan_slots` (match session via `sessionId`; `exercise_id`, `section`, activity fields, `prescription_json` from sets/repMin/repMax/tempo/rir/rpe/setsDetail/columns, `manual_override`).
+    - W1 slot `deltaRules` → `progression_rules` rows, referenced by `plan_slots.progression_rule_id`.
+  - **Atomicity choice:** prefer ONE SECURITY DEFINER RPC `save_plan_from_builder(p_template_id, p_payload jsonb)` (transactional). A TS multi-insert adapter is acceptable as a fallback since canonical is a mirror during the soak (failure = stale mirror, not data loss — slot_config is authoritative). RPC needs the REVOKE/GRANT pattern.
+  - **Reads:** P1 keeps reading `slot_config`; canonical reads switch in P3. Regenerate `supabase gen types` once tables/RPCs land so the frontend is typed.
+  - **Risk:** intricate, untestable-in-sandbox plpgsql touching the most complex surface + prod. Build with fresh focus, verify materialization against a known plan via `execute_sql` before wiring auto-save.
 - **P2 — assignment writes the override model.** New assignments create `client_plan_assignment` (+ zero overrides). Keep writing legacy `client_*` in parallel (dual-write) until P3 proven.
 - **P3 — workout logging reads canonical.** `WorkoutSessionV2` loads from assignment + overrides instead of `client_*`. Verify identical behaviour, then stop dual-writing legacy.
 - **P4 — coach-client editor (B4).** The Planning Board, scoped to an `assignment` → writes overrides. Drag sessions, day-sync, progression copy-paste, per-client deload — all "for free" because it's the same engine.
