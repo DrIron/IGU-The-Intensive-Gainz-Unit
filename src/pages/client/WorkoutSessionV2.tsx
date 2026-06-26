@@ -166,6 +166,15 @@ interface Exercise {
     reps: number;
     date: string;
   };
+  // PR reference data, derived from ALL prior logs of this movement (canonical
+  // kg). Stable for the session (computed once at load). Drives the three PR
+  // types: heaviest-ever, heaviest-at-a-rep-count, and "got easier" (same
+  // load×reps at a higher RIR than before).
+  pr_refs?: {
+    bestAbsolute: number;
+    bestByReps: Record<number, number>;
+    bestRirByLoadReps: Record<string, number>;
+  };
   // Coach-recorded skip (client_module_exercises.skipped) — distinct from
   // incomplete; a skipped exercise drops out of the remaining tally.
   skipped?: boolean;
@@ -337,6 +346,38 @@ const TEXT_INPUT_TYPES: ReadonlySet<string> = new Set([
 // Per-Set Row with its own prescription.
 // Strength items render the classic Weight / Reps / RIR-or-RPE grid unchanged.
 // Activity items render inputs DYNAMICALLY from the coach-configured input columns.
+// A set is a PR if it beats any of three records vs the movement's prior
+// history: heaviest load ever, heaviest at this rep count (±1), or same
+// load×reps at a higher RIR than before ("got easier"). All loads canonical kg.
+function detectSetPr(
+  refs: Exercise["pr_refs"] | undefined,
+  load: number | null,
+  reps: number | null,
+  rir: number | null,
+): boolean {
+  if (!refs || load == null) return false;
+  if (load > refs.bestAbsolute) return true;
+  if (reps != null) {
+    let bestAtReps = 0;
+    for (let r = reps - 1; r <= reps + 1; r++) bestAtReps = Math.max(bestAtReps, refs.bestByReps[r] ?? 0);
+    if (bestAtReps > 0 && load > bestAtReps) return true;
+    if (rir != null) {
+      const prior = refs.bestRirByLoadReps[`${load}:${reps}`];
+      if (prior != null && rir > prior) return true;
+    }
+  }
+  return false;
+}
+
+// Heaviest historical load within ±1 of the target reps — the rep-range record
+// surfaced in the exercise header.
+function bestInRepWindow(refs: Exercise["pr_refs"] | undefined, targetReps: number | null): number | null {
+  if (!refs || targetReps == null) return null;
+  let best = 0;
+  for (let r = targetReps - 1; r <= targetReps + 1; r++) best = Math.max(best, refs.bestByReps[r] ?? 0);
+  return best > 0 ? best : null;
+}
+
 function SetRow({
   prescription,
   historySet,
@@ -349,6 +390,7 @@ function SetRow({
   inputColumns,
   isActivity,
   unit,
+  isPr,
 }: {
   prescription: SetPrescription;
   historySet?: HistorySet;
@@ -361,6 +403,7 @@ function SetRow({
   inputColumns: ColumnConfig[];
   isActivity: boolean;
   unit: WeightUnit;
+  isPr?: boolean;
 }) {
   // A completed set collapses to one line; tapping expands the editable inputs
   // again (persisted values stay until re-saved). Weights display in `unit`;
@@ -484,6 +527,11 @@ function SetRow({
               {wDisplay ?? "—"}
               {unit}×{log.performed_reps ?? "—"}
               {intensity}
+            </span>
+          )}
+          {isPr && (
+            <span className="shrink-0 inline-flex items-center gap-0.5 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-600 dark:text-amber-400">
+              <Trophy className="w-2.5 h-2.5" aria-hidden="true" /> PR
             </span>
           )}
         </span>
@@ -785,6 +833,14 @@ function ExerciseCard({
 
   const lastSet = exercise.history?.sets?.[0];
   const pb = exercise.personal_best;
+  // Rep-range record (heaviest within ±1 of the target reps) — the PR coaches
+  // and lifters actually train against, matching what the History screen shows.
+  const rngMin = p0?.rep_range_min;
+  const rngMax = p0?.rep_range_max;
+  const targetReps =
+    (typeof p0?.reps === "number" ? p0.reps : null) ??
+    (rngMin != null && rngMax != null ? Math.round((rngMin + rngMax) / 2) : rngMin ?? null);
+  const repRangeBest = bestInRepWindow(exercise.pr_refs, targetReps);
 
   return (
     <Card
@@ -920,12 +976,20 @@ function ExerciseCard({
                       {unit}×{lastSet.reps}
                     </span>
                   )}
-                  {pb && (
+                  {repRangeBest != null ? (
                     <span className="text-amber-600 dark:text-amber-400">
                       <Trophy className="inline w-3 h-3 mr-1 -mt-0.5" />
-                      PR {fmtW(pb.weight)}
-                      {unit}×{pb.reps}
+                      Best @{targetReps}: {fmtW(repRangeBest)}
+                      {unit}
                     </span>
+                  ) : (
+                    pb && (
+                      <span className="text-amber-600 dark:text-amber-400">
+                        <Trophy className="inline w-3 h-3 mr-1 -mt-0.5" />
+                        PR {fmtW(pb.weight)}
+                        {unit}×{pb.reps}
+                      </span>
+                    )
                   )}
                 </p>
               ) : (
@@ -937,6 +1001,11 @@ function ExerciseCard({
             <div className="space-y-2">
               {prescriptions.map((prescription, i) => {
                 const suggestion = activeSuggestionForSet.get(i + 1);
+                const setLog = logs[i];
+                const isPr =
+                  !exercise.is_activity && setLog?.completed
+                    ? detectSetPr(exercise.pr_refs, setLog.performed_load, setLog.performed_reps, setLog.performed_rir)
+                    : false;
                 return (
                   <div key={i} className="space-y-1">
                     <SetRow
@@ -963,6 +1032,7 @@ function ExerciseCard({
                       inputColumns={exercise.input_columns}
                       isActivity={exercise.is_activity}
                       unit={unit}
+                      isPr={isPr}
                     />
                     {suggestion && (
                       <ProgressionSuggestionBanner
@@ -1589,6 +1659,7 @@ function WorkoutSessionV2Content() {
           let pbData:
             | Array<{ performed_load: number; performed_reps: number | null; created_at: string }>
             | null = null;
+          let prRefs: Exercise["pr_refs"] | null = null;
           if (!isActivity && sameExerciseIds.length > 0) {
             const sameSet = new Set(sameExerciseIds);
             // allHistoryLogs is globally newest-first, so filtering preserves
@@ -1618,6 +1689,23 @@ function WorkoutSessionV2Content() {
                   },
                 ]
               : null;
+
+            // PR reference data from the full movement history (prior to today).
+            const bestByReps: Record<number, number> = {};
+            const bestRirByLoadReps: Record<string, number> = {};
+            let bestAbsolute = 0;
+            for (const l of logsForExercise) {
+              if (l.performed_load == null) continue;
+              bestAbsolute = Math.max(bestAbsolute, l.performed_load);
+              if (l.performed_reps != null) {
+                bestByReps[l.performed_reps] = Math.max(bestByReps[l.performed_reps] ?? 0, l.performed_load);
+                if (l.performed_rir != null) {
+                  const k = `${l.performed_load}:${l.performed_reps}`;
+                  bestRirByLoadReps[k] = Math.max(bestRirByLoadReps[k] ?? -1, l.performed_rir);
+                }
+              }
+            }
+            prRefs = { bestAbsolute, bestByReps, bestRirByLoadReps };
           }
 
           return {
@@ -1657,6 +1745,7 @@ function WorkoutSessionV2Content() {
                     date: pbData[0].created_at,
                   }
                 : undefined,
+            pr_refs: prRefs ?? undefined,
           };
       });
 
