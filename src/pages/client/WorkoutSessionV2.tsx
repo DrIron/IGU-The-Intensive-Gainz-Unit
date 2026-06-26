@@ -956,24 +956,11 @@ function ExerciseCard({
     );
   }
 
-  // One-line prescription summary (§2c) from the representative (first) set.
+  // p0 = the representative (first) set's prescription -- used below for the
+  // rep-range PR window. The one-line "Target" summary was dropped: it only
+  // reflected set 1 and misled when prescriptions ramp per set. Each set row
+  // shows its own target.
   const p0 = prescriptions[0];
-  const presReps =
-    p0?.reps ||
-    (p0?.rep_range_min && p0?.rep_range_max ? `${p0.rep_range_min}-${p0.rep_range_max}` : null);
-  const presParts: string[] = [];
-  if (!exercise.is_activity && p0) {
-    if (presReps) presParts.push(`${presReps} reps`);
-    if (p0.rpe != null) presParts.push(`RPE ${p0.rpe}`);
-    else if (p0.rir != null) presParts.push(`RIR ${p0.rir}`);
-    if (p0.tempo) presParts.push(p0.tempo);
-    if (p0.rest_seconds)
-      presParts.push(
-        p0.rest_seconds_max && p0.rest_seconds_max !== p0.rest_seconds
-          ? `rest ${p0.rest_seconds}-${p0.rest_seconds_max}s`
-          : `rest ${p0.rest_seconds}s`,
-      );
-  }
 
   const lastSet = exercise.history?.sets?.[0];
   const pb = exercise.personal_best;
@@ -1095,13 +1082,10 @@ function ExerciseCard({
               </Alert>
             )}
 
-            {/* Prescription (one line) + history/PR inline (§2c/§2d) */}
+            {/* History/PR inline (§2d). The per-set target lives on each set
+                row below -- a single summary line only reflected set 1's
+                prescription, so it was dropped. */}
             <div className="space-y-1">
-              {presParts.length > 0 && (
-                <p className="text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">Target</span> {presParts.join(" · ")}
-                </p>
-              )}
               {lastSet || pb ? (
                 <p className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
                   {lastSet && (
