@@ -56,6 +56,7 @@ import {
   SkipForward,
   MoreVertical,
   List,
+  Lock,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -470,7 +471,8 @@ function SetRow({
       <button
         type="button"
         onClick={() => setReopened(true)}
-        className="w-full rounded-xl border border-status-ontrack/30 bg-status-ontrack/5 px-3 py-2 flex items-center justify-between gap-2 text-left touch-manipulation"
+        aria-label={`Set ${prescription.set_number} logged — tap to edit`}
+        className="w-full rounded-xl border border-status-ontrack/30 bg-status-ontrack/5 px-3 py-2.5 min-h-[44px] flex items-center justify-between gap-2 text-left touch-manipulation"
       >
         <span className="text-sm flex items-center gap-2 min-w-0">
           <span className="w-7 h-7 rounded-full bg-status-ontrack text-white flex items-center justify-center shrink-0">
@@ -485,7 +487,8 @@ function SetRow({
             </span>
           )}
         </span>
-        <ChevronDown className="w-4 h-4 text-muted-foreground shrink-0" />
+        {/* Lock signals "done" — still tappable to fix a mis-log. */}
+        <Lock className="w-3.5 h-3.5 text-status-ontrack shrink-0" aria-hidden="true" />
       </button>
     );
   }
@@ -564,38 +567,17 @@ function SetRow({
           )}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
-          {prescription.weight_suggestion && (
-            <span className="text-xs text-amber-600 dark:text-amber-400 italic">
-              {prescription.weight_suggestion}
-            </span>
-          )}
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-7 text-xs text-muted-foreground"
-            onClick={onSkip}
-          >
-            <SkipForward className="w-3.5 h-3.5 mr-1" />
-            Skip
-          </Button>
-        </div>
+        {prescription.weight_suggestion && (
+          <span className="text-xs text-amber-600 dark:text-amber-400 italic shrink-0">
+            {prescription.weight_suggestion}
+          </span>
+        )}
       </div>
 
-      {/* Input row */}
-      <div className="px-3 py-2.5 flex items-end gap-2">
-        {/* Previous hint (strength only — weight×reps) */}
-        {historySet && !log.completed && !isActivity && (
-          <div className="w-14 shrink-0 text-center hidden sm:block">
-            <p className="text-[10px] text-muted-foreground">Last</p>
-            <p className="text-xs text-muted-foreground font-mono">
-              {historySet.weight}×{historySet.reps}
-            </p>
-          </div>
-        )}
-
-        {/* Inputs */}
-        {isActivity ? (
+      {/* Input row (WK4: ghost placeholders + fixed-height "last" captions so
+          inputs stay aligned; WK1: 44px targets). Activity keeps its 2-col grid. */}
+      {isActivity ? (
+        <div className="px-3 py-2.5 flex items-end gap-2">
           <div className="flex-1 grid grid-cols-2 gap-2">
             {visibleInputs.map((col) => {
               const isText = TEXT_INPUT_TYPES.has(col.type);
@@ -611,100 +593,98 @@ function SetRow({
                     placeholder={col.placeholder || "—"}
                     value={inputValue(col)}
                     onChange={(e) => updateInput(col, e.target.value)}
-                    disabled={false}
-                    className="h-10 text-center"
+                    className="h-11 text-center text-base"
                   />
                 </div>
               );
             })}
           </div>
-        ) : (
+          <Button
+            variant={isFilledOut ? "default" : "outline"}
+            size="icon"
+            onClick={() => { setReopened(false); onComplete(); }}
+            disabled={!isFilledOut}
+            aria-label="Complete set"
+            className="h-11 w-11 shrink-0"
+          >
+            <CheckCircle2 className="w-5 h-5" />
+          </Button>
+        </div>
+      ) : (
+        <div className="px-3 py-2.5 flex items-start gap-2">
           <div className="flex-1 grid grid-cols-3 gap-2">
-            <div>
-              <label className="text-[10px] text-muted-foreground block mb-1">
-                Weight ({unit})
-              </label>
+            {/* Weight */}
+            <div className="flex flex-col">
+              <label className="text-[10px] text-muted-foreground mb-1">Weight ({unit})</label>
               <Input
                 type="number"
                 inputMode="decimal"
                 step={unit === "kg" ? "0.5" : "1"}
-                placeholder={(
-                  fromCanonicalKg(historySet?.weight ?? null, unit, unit === "kg" ? 1 : 0) ?? "—"
-                ).toString()}
+                placeholder={(fromCanonicalKg(historySet?.weight ?? null, unit, unit === "kg" ? 1 : 0) ?? "—").toString()}
                 value={fromCanonicalKg(log.performed_load, unit, unit === "kg" ? 1 : 0) ?? ""}
                 onChange={(e) =>
-                  onUpdate(
-                    "performed_load",
-                    e.target.value ? toCanonicalKg(parseFloat(e.target.value), unit) : null
-                  )
+                  onUpdate("performed_load", e.target.value ? toCanonicalKg(parseFloat(e.target.value), unit) : null)
                 }
-                disabled={false}
-                className="h-10 text-center"
+                className="h-11 text-center text-base"
               />
+              <span className="mt-1 h-3.5 text-[9px] leading-[14px] font-mono text-muted-foreground text-center">
+                {historySet?.weight != null ? `last ${fromCanonicalKg(historySet.weight, unit, unit === "kg" ? 1 : 0)}` : ""}
+              </span>
             </div>
-            <div>
-              <label className="text-[10px] text-muted-foreground block mb-1">
-                Reps
-              </label>
+            {/* Reps */}
+            <div className="flex flex-col">
+              <label className="text-[10px] text-muted-foreground mb-1">Reps</label>
               <Input
                 type="number"
                 inputMode="numeric"
-                placeholder={prescription.rep_range_min?.toString() || "8"}
+                placeholder={(historySet?.reps ?? prescription.rep_range_min)?.toString() || "8"}
                 value={log.performed_reps ?? ""}
-                onChange={(e) =>
-                  onUpdate(
-                    "performed_reps",
-                    e.target.value ? parseInt(e.target.value) : null
-                  )
-                }
-                disabled={false}
-                className="h-10 text-center"
+                onChange={(e) => onUpdate("performed_reps", e.target.value ? parseInt(e.target.value) : null)}
+                className="h-11 text-center text-base"
               />
+              <span className="mt-1 h-3.5 text-[9px] leading-[14px] font-mono text-muted-foreground text-center">
+                {historySet?.reps != null ? `last ${historySet.reps}` : ""}
+              </span>
             </div>
-            <div>
-              <label className="text-[10px] text-muted-foreground block mb-1">
-                {hasRpe ? "RPE" : "RIR"}
-              </label>
+            {/* RIR / RPE */}
+            <div className="flex flex-col">
+              <label className="text-[10px] text-muted-foreground mb-1">{hasRpe ? "RPE" : "RIR"}</label>
               <Input
                 type="number"
                 inputMode="numeric"
                 min={hasRpe ? 1 : 0}
                 max={hasRpe ? 10 : 5}
-                placeholder={
-                  hasRpe
-                    ? prescription.rpe?.toString()
-                    : prescription.rir?.toString() || "2"
-                }
-                value={
-                  hasRpe
-                    ? (log.performed_rpe ?? "")
-                    : (log.performed_rir ?? "")
-                }
+                placeholder={(hasRpe ? (historySet?.rpe ?? prescription.rpe) : (historySet?.rir ?? prescription.rir))?.toString() || (hasRpe ? "8" : "2")}
+                value={hasRpe ? (log.performed_rpe ?? "") : (log.performed_rir ?? "")}
                 onChange={(e) => {
                   const val = e.target.value ? parseInt(e.target.value) : null;
                   onUpdate(hasRpe ? "performed_rpe" : "performed_rir", val);
                 }}
-                disabled={false}
-                className="h-10 text-center"
+                className="h-11 text-center text-base"
               />
+              <span className="mt-1 h-3.5 text-[9px] leading-[14px] font-mono text-muted-foreground text-center">
+                {hasRpe
+                  ? (historySet?.rpe != null ? `last ${historySet.rpe}` : "")
+                  : (historySet?.rir != null ? `last ${historySet.rir}` : "")}
+              </span>
             </div>
           </div>
-        )}
-
-        {/* Complete button */}
-        <Button
-          variant={isFilledOut ? "default" : "outline"}
-          size="icon"
-          onClick={() => {
-            setReopened(false);
-            onComplete();
-          }}
-          disabled={!isFilledOut}
-          className="h-10 w-10 shrink-0"
-        >
-          <CheckCircle2 className="w-5 h-5" />
-        </Button>
-      </div>
+          {/* Complete — invisible label spacer aligns the button to the input box top */}
+          <div className="flex flex-col shrink-0">
+            <span className="text-[10px] mb-1 invisible select-none" aria-hidden="true">.</span>
+            <Button
+              variant={isFilledOut ? "default" : "outline"}
+              size="icon"
+              onClick={() => { setReopened(false); onComplete(); }}
+              disabled={!isFilledOut}
+              aria-label="Complete set"
+              className="h-11 w-11"
+            >
+              <CheckCircle2 className="w-5 h-5" />
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -996,6 +976,12 @@ function ExerciseCard({
 }
 
 // Rest Timer
+// WK2: anchored to a wall-clock timestamp (`endAt`) rather than decrementing a
+// local counter on a setInterval. Mobile browsers throttle/suspend timers when
+// the tab is backgrounded (constant in a gym — screen locks mid-rest), which
+// made the old setInterval drift minutes behind. Here every tick recomputes
+// `remaining` from `Date.now()`, and we force an immediate resync on focus /
+// visibility so the countdown is correct the instant the user looks back.
 function RestTimer({
   duration,
   onComplete,
@@ -1005,24 +991,62 @@ function RestTimer({
   onComplete: () => void;
   onSkip: () => void;
 }) {
+  const [endAt, setEndAt] = useState(() => Date.now() + duration * 1000);
   const [remaining, setRemaining] = useState(duration);
   const [isPaused, setIsPaused] = useState(false);
+  // While paused we freeze the remaining seconds; resume re-anchors `endAt`.
+  const [pausedRemaining, setPausedRemaining] = useState<number | null>(null);
   const onCompleteRef = useRef(onComplete);
   onCompleteRef.current = onComplete;
+  const firedRef = useRef(false);
+
+  // New rest period (duration prop changes) — re-anchor and re-arm.
+  useEffect(() => {
+    setEndAt(Date.now() + duration * 1000);
+    setPausedRemaining(null);
+    setIsPaused(false);
+    firedRef.current = false;
+  }, [duration]);
 
   useEffect(() => {
-    if (isPaused) return;
-    const interval = setInterval(() => {
-      setRemaining((prev) => {
-        if (prev <= 1) {
-          onCompleteRef.current();
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-    return () => clearInterval(interval);
-  }, [isPaused]);
+    if (isPaused) {
+      setRemaining(pausedRemaining ?? 0);
+      return;
+    }
+    const tick = () => {
+      const secs = Math.max(0, Math.round((endAt - Date.now()) / 1000));
+      setRemaining(secs);
+      if (secs <= 0 && !firedRef.current) {
+        firedRef.current = true;
+        onCompleteRef.current();
+      }
+    };
+    tick();
+    const interval = setInterval(tick, 250);
+    const onVisible = () => {
+      if (!document.hidden) tick();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", tick);
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", tick);
+    };
+  }, [isPaused, endAt, pausedRemaining]);
+
+  const togglePause = () => {
+    if (isPaused) {
+      // Resume: re-anchor the end time from the frozen remaining.
+      setEndAt(Date.now() + (pausedRemaining ?? remaining) * 1000);
+      setPausedRemaining(null);
+      firedRef.current = false;
+      setIsPaused(false);
+    } else {
+      setPausedRemaining(remaining);
+      setIsPaused(true);
+    }
+  };
 
   const minutes = Math.floor(remaining / 60);
   const seconds = remaining % 60;
@@ -1076,7 +1100,8 @@ function RestTimer({
               <Button
                 variant="outline"
                 size="icon"
-                onClick={() => setIsPaused(!isPaused)}
+                onClick={togglePause}
+                aria-label={isPaused ? "Resume rest timer" : "Pause rest timer"}
               >
                 {isPaused ? (
                   <Play className="w-4 h-4" />
