@@ -222,8 +222,9 @@ export function detectSetPrs(
     const load = set.performedLoad;
     const reps = set.performedReps;
     if (load == null || reps == null) return out;
-    // S1 heaviest ever
-    if (load > h.bestLoad) add("S1", "Heaviest ever");
+    // S1 heaviest ever (needs prior history -- a first-ever set is a baseline,
+    // not a PR; h.bestLoad stays 0 until something was logged before).
+    if (h.bestLoad > 0 && load > h.bestLoad) add("S1", "Heaviest ever");
     // S2 heaviest at this rep-count ±1
     let bestAtReps = 0;
     for (let r = reps - 1; r <= reps + 1; r++) bestAtReps = Math.max(bestAtReps, h.bestLoadAtReps.get(r) ?? 0);
@@ -248,7 +249,8 @@ export function detectSetPrs(
     if (dist != null && dist > 0) {
       if (higherByPct(dist, h.bestDistance, 0.01, 50)) add("C1", "Longest distance");
       const bucket = distanceBucket(dist);
-      if (!h.distanceBucketsSeen.has(bucket)) add("C5", "New distance");
+      // Novelty only counts once there's a prior distance history to be "new" against.
+      if (h.distanceBucketsSeen.size > 0 && !h.distanceBucketsSeen.has(bucket)) add("C5", "New distance");
       if (time != null && time > 0) {
         const bestAt = h.bestTimeAtDistance.get(bucket);
         if (bestAt != null && lowerByPct(time, bestAt, 0.01, 2)) add("C4", "Faster at distance");
@@ -290,7 +292,7 @@ export function detectSetPrs(
 
   if (group === "physio") {
     const vol = set.performedReps ?? set.performedRounds ?? null;
-    if (vol != null && vol > h.bestRepsOrRounds) add("P1", "Progress", false);
+    if (vol != null && h.bestRepsOrRounds > 0 && vol > h.bestRepsOrRounds) add("P1", "Progress", false);
     return out;
   }
 
