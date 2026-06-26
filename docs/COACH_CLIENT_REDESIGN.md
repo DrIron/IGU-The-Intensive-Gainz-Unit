@@ -31,7 +31,8 @@ Reference patterns: Copilot, Jobber (persistent right info rail), Time2book (pin
 Tabs: **Pulse · Programs · Calendar · History.**
 
 ### Pulse
-- Metric row: **Adherence · Tonnage (volume) · Time under tension · PRs**. (e1RM dropped as a headline — not universal; stays as a per-lift detail in History.)
+- Metric row: **Adherence · Tonnage (volume) · Time under significant tension · PRs**. (e1RM dropped as a headline — not universal; stays as a per-lift detail in History.)
+  - **TUST** = time under tension summed only for *working* sets, i.e. sets rated **RIR ≤ 4**. Warm-ups / easy back-offs are excluded so it reflects real hard work.
 - **"Needs your eyes" digest** — auto-flags rolled up across this week's sessions.
 - **This week's sessions vs last** — each session lists its exercises with a progression flag:
   - 🟢 **Up** — load, reps, or effort-quality improved
@@ -67,6 +68,7 @@ A PR = any form of growth, per the activity:
 - **B1 — Client-detail shell + vitals rail.** Restructure the overview into rail-aware layout; build the persistent vitals rail. Foundation everything hangs off.
 - **B2 — Nutrition decision-first.** Promote recommended adjustment to top; tuck config behind "Edit phase"; surface check-in.
 - **B3 — Workouts pulse + session review.** Adherence/tonnage/TUT/PRs + "needs your eyes" + per-exercise progression flags (needs the flag/PR engine).
-- **B4 — Programs editor.** In-place edit: drag sessions, day-sync, progression rules + copy-paste. (Largest.)
+- **PROGRAM SYSTEM CONSOLIDATION (precedes B4).** The coach-client Programs editor must NOT be a separate surface — it forks logic from the Planning Board / muscle builder / macrocycle / assignment stack and creates drift. Instead: first consolidate + upgrade the program-creation system (Planning Board, program-creation flow, macrocycle assignment to a client, deload toggle when assigning, progression rules incl. copy-paste) into one engine. Then B4 = "the Planning Board, scoped to a client's instance" — reuses it. Open questions to resolve in that track: how a macrocycle assigned to a client renders/edits; how a coach (or client, optionally) toggles a deload week at assignment. Map of current surfaces lives in the redesign work; build this track before B4.
+- **B4 — Programs editor.** In-place edit via the consolidated Planning Board engine (drag sessions, day-sync, progression rules + copy-paste), scoped to the client instance.
 - **B5 — Calendar.** Week/month view-only with status + recap.
 - **B6 — Communication.** In-app contextual comments on sessions/check-ins/adjustments.
