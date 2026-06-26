@@ -705,6 +705,7 @@ function ExerciseCard({
   activeSuggestionForSet,
   onDismissSuggestion,
   unit,
+  onUnitChange,
 }: {
   exercise: Exercise;
   exerciseIndex: number;
@@ -720,6 +721,7 @@ function ExerciseCard({
   activeSuggestionForSet: Map<number, { id: string; type: string; text: string }>;
   onDismissSuggestion: (suggestionId: string) => void;
   unit: WeightUnit;
+  onUnitChange: (u: WeightUnit) => void;
 }) {
   // Get per-set prescriptions: V2 from prescription_snapshot_json.sets_json, or convert from legacy
   const prescriptions: SetPrescription[] =
@@ -845,8 +847,13 @@ function ExerciseCard({
                 </div>
               </div>
 
-              {/* Swap + Skip + Expand */}
+              {/* Unit toggle (strength only) + Swap + Skip + Expand */}
               <div className="flex items-center gap-1 shrink-0">
+                {!exercise.is_activity && (
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <WeightUnitToggle unit={unit} onChange={onUnitChange} />
+                  </div>
+                )}
                 {!isComplete && (
                   <Button
                     variant="ghost"
@@ -1320,7 +1327,26 @@ function WorkoutSessionV2Content() {
   const [showSwapPicker, setShowSwapPicker] = useState(false);
 
   // WK7 §4 — per-client display/entry unit (weights persist canonically in kg).
-  const { unit, setUnit } = useWeightUnit();
+  // `unit` is the client-wide default; individual exercises can override it
+  // (a machine reads in kg, the dumbbells are in lb — same gym). Overrides are
+  // remembered per exercise on the device via localStorage so the choice sticks
+  // across sessions. Storage stays canonical kg regardless of display unit.
+  const { unit } = useWeightUnit();
+  const [unitOverrides, setUnitOverrides] = useState<Record<string, WeightUnit>>({});
+  const unitForExercise = (exerciseId: string): WeightUnit => {
+    if (unitOverrides[exerciseId]) return unitOverrides[exerciseId];
+    try {
+      const s = localStorage.getItem(`igu_exercise_unit:${exerciseId}`);
+      if (s === "kg" || s === "lb") return s;
+    } catch { /* localStorage unavailable */ }
+    return unit;
+  };
+  const setUnitForExercise = (exerciseId: string, u: WeightUnit) => {
+    setUnitOverrides((prev) => ({ ...prev, [exerciseId]: u }));
+    try {
+      localStorage.setItem(`igu_exercise_unit:${exerciseId}`, u);
+    } catch { /* localStorage unavailable */ }
+  };
   // WK7 §2e — completion summary sheet shown before navigating to the calendar.
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   // WA1 — coach WhatsApp number for the "Message coach about this session"
@@ -2342,7 +2368,6 @@ function WorkoutSessionV2Content() {
                   by {module.coach_name}
                 </p>
               </div>
-              <WeightUnitToggle unit={unit} onChange={setUnit} />
               <Button
                 variant="outline"
                 size="sm"
@@ -2542,7 +2567,8 @@ function WorkoutSessionV2Content() {
                     onToggle={() => {}}
                     activeSuggestionForSet={suggestionsForExercise}
                     onDismissSuggestion={(id) => logProgressionResponse(id, "dismissed")}
-                    unit={unit}
+                    unit={unitForExercise(focusExercise.exercise_id)}
+                    onUnitChange={(u) => setUnitForExercise(focusExercise.exercise_id, u)}
                   />
                 );
               })()}
