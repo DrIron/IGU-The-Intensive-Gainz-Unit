@@ -500,6 +500,28 @@ function bestInRepWindow(refs: Exercise["pr_refs"] | undefined, targetReps: numb
   return best > 0 ? best : null;
 }
 
+// Which PR a set earned, for the summary label (most impressive first). Returns
+// null when the set beat no record.
+function classifySetPr(
+  refs: Exercise["pr_refs"] | undefined,
+  load: number | null,
+  reps: number | null,
+  rir: number | null,
+): "heaviest" | "rep_range" | "easier" | null {
+  if (!refs || load == null) return null;
+  if (load > refs.bestAbsolute) return "heaviest";
+  if (reps != null) {
+    let bestAtReps = 0;
+    for (let r = reps - 1; r <= reps + 1; r++) bestAtReps = Math.max(bestAtReps, refs.bestByReps[r] ?? 0);
+    if (bestAtReps > 0 && load > bestAtReps) return "rep_range";
+    if (rir != null) {
+      const prior = refs.bestRirByLoadReps[`${load}:${reps}`];
+      if (prior != null && rir > prior) return "easier";
+    }
+  }
+  return null;
+}
+
 function SetRow({
   prescription,
   historySet,
@@ -2530,29 +2552,24 @@ function WorkoutSessionV2Content() {
           if (l.skipped) setsSkipped += 1;
         }
       }
+      // Typed PRs via the three-record model (heaviest ever / rep-range / got
+      // easier), one entry per exercise (the most impressive record it earned).
       const prs: WorkoutSummary["prs"] = [];
       for (const ex of module.exercises) {
         if (ex.is_activity) continue;
-        let bestSet: SetLog | null = null;
-        let bestE1rm = 0;
+        let best: { set: SetLog; type: "heaviest" | "rep_range" | "easier" } | null = null;
+        const rank = { heaviest: 3, rep_range: 2, easier: 1 } as const;
         for (const l of setLogs[ex.id] || []) {
-          if (l.completed && l.performed_load != null && l.performed_reps != null) {
-            const e = epley1RM(l.performed_load, l.performed_reps);
-            if (e > bestE1rm) {
-              bestE1rm = e;
-              bestSet = l;
-            }
-          }
+          if (!l.completed) continue;
+          const t = classifySetPr(ex.pr_refs, l.performed_load, l.performed_reps, l.performed_rir);
+          if (t && (!best || rank[t] > rank[best.type])) best = { set: l, type: t };
         }
-        if (!bestSet || bestSet.performed_load == null || bestSet.performed_reps == null) continue;
-        const pbE1rm = ex.personal_best
-          ? epley1RM(ex.personal_best.weight, ex.personal_best.reps)
-          : 0;
-        if (bestE1rm > pbE1rm) {
+        if (best && best.set.performed_load != null && best.set.performed_reps != null) {
           prs.push({
             name: ex.exercise.name,
-            weightKg: bestSet.performed_load,
-            reps: bestSet.performed_reps,
+            weightKg: best.set.performed_load,
+            reps: best.set.performed_reps,
+            type: best.type,
           });
         }
       }
@@ -2563,7 +2580,10 @@ function WorkoutSessionV2Content() {
       if (!Number.isFinite(elapsedSeconds) || elapsedSeconds < 0 || elapsedSeconds > 24 * 3600) {
         elapsedSeconds = null;
       }
-      setSummary({ volumeKg, setsCompleted, setsSkipped, prs, elapsedSeconds });
+      const exerciseCount = module.exercises.filter(
+        (ex) => !ex.skipped && (setLogs[ex.id] || []).some((l) => l.completed),
+      ).length;
+      setSummary({ volumeKg, setsCompleted, setsSkipped, exerciseCount, prs, elapsedSeconds });
     } catch (error: any) {
       toast({
         title: "Error completing workout",

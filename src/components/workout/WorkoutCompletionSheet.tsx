@@ -5,7 +5,7 @@
  * ScrollArea in a max-h container). All weights display in the client's unit;
  * volume/PR magnitudes are canonical kg converted via fromCanonicalKg.
  */
-import { Trophy, Dumbbell, CheckCircle2, Clock, SkipForward, MessageCircle } from "lucide-react";
+import { Trophy, Dumbbell, CheckCircle2, Clock, MessageCircle, Flame, Share2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -24,16 +24,26 @@ import {
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fromCanonicalKg, type WeightUnit } from "@/utils/weightUnits";
 
+export type SessionPRType = "heaviest" | "rep_range" | "easier";
+
 export interface SessionPR {
   name: string;
   weightKg: number;
   reps: number;
+  type: SessionPRType;
 }
+
+const PR_TYPE_LABEL: Record<SessionPRType, string> = {
+  heaviest: "Heaviest ever",
+  rep_range: "Rep-range record",
+  easier: "Got easier",
+};
 
 export interface WorkoutSummary {
   volumeKg: number;
   setsCompleted: number;
   setsSkipped: number;
+  exerciseCount: number;
   prs: SessionPR[];
   elapsedSeconds: number | null;
 }
@@ -73,42 +83,60 @@ function StatTile({ icon, value, label }: { icon: React.ReactNode; value: string
   );
 }
 
+function buildShareText(summary: WorkoutSummary, unit: WeightUnit, moduleTitle?: string): string {
+  const vol = fromCanonicalKg(summary.volumeKg, unit, 0) ?? 0;
+  const elapsed = formatElapsed(summary.elapsedSeconds);
+  const lines: string[] = [];
+  lines.push(`${moduleTitle ?? "Workout"} done 💪`);
+  lines.push(
+    `${summary.exerciseCount} exercises · ${summary.setsCompleted} sets · ${vol.toLocaleString()} ${unit}${elapsed ? ` · ${elapsed}` : ""}`,
+  );
+  if (summary.prs.length) {
+    lines.push(`🏆 ${summary.prs.length} PR${summary.prs.length > 1 ? "s" : ""}: ${summary.prs.map((p) => p.name).join(", ")}`);
+  }
+  lines.push("— trained with IGU");
+  return lines.join("\n");
+}
+
 function SummaryBody({ summary, unit }: { summary: WorkoutSummary; unit: WeightUnit }) {
   const volume = fromCanonicalKg(summary.volumeKg, unit, 0) ?? 0;
   const elapsed = formatElapsed(summary.elapsedSeconds);
+  const volDisplay = volume >= 1000 ? `${(volume / 1000).toFixed(1)}k` : `${Math.round(volume)}`;
 
   return (
     <div className="space-y-4 px-4 pb-2">
-      <div className="grid grid-cols-2 gap-2">
-        <StatTile
-          icon={<Dumbbell className="w-4 h-4" />}
-          value={`${volume.toLocaleString()} ${unit}`}
-          label="Total volume"
-        />
-        <StatTile
-          icon={<CheckCircle2 className="w-4 h-4" />}
-          value={`${summary.setsCompleted}`}
-          label="Sets completed"
-        />
-        {elapsed && <StatTile icon={<Clock className="w-4 h-4" />} value={elapsed} label="Time" />}
-        {summary.setsSkipped > 0 && (
-          <StatTile icon={<SkipForward className="w-4 h-4" />} value={`${summary.setsSkipped}`} label="Skipped" />
-        )}
+      <div className="grid grid-cols-4 gap-2">
+        <StatTile icon={<Dumbbell className="w-4 h-4" />} value={`${summary.exerciseCount}`} label="Exercises" />
+        <StatTile icon={<CheckCircle2 className="w-4 h-4" />} value={`${summary.setsCompleted}`} label="Sets" />
+        <StatTile icon={<Flame className="w-4 h-4" />} value={volDisplay} label={`Vol ${unit}`} />
+        <StatTile icon={<Clock className="w-4 h-4" />} value={elapsed ?? "--"} label="Time" />
       </div>
+
+      {summary.setsSkipped > 0 && (
+        <p className="text-center text-xs text-muted-foreground">
+          {summary.setsSkipped} set{summary.setsSkipped > 1 ? "s" : ""} skipped
+        </p>
+      )}
 
       {summary.prs.length > 0 && (
         <div className="rounded-xl border border-status-ontrack/30 bg-status-ontrack/5 p-3">
           <div className="flex items-center gap-2 mb-2 text-status-ontrack">
             <Trophy className="w-4 h-4" />
             <span className="text-sm font-semibold">
-              {summary.prs.length} personal best{summary.prs.length > 1 ? "s" : ""} this session
+              {summary.prs.length} personal record{summary.prs.length > 1 ? "s" : ""} 🎉
             </span>
           </div>
-          <ul className="space-y-1.5">
+          <ul className="space-y-2">
             {summary.prs.map((pr, i) => (
-              <li key={i} className="flex items-center justify-between text-sm">
-                <span className="truncate pr-2">{pr.name}</span>
-                <span className="font-mono tabular-nums shrink-0">
+              <li key={i} className="flex items-center gap-2.5">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-amber-500/15 text-amber-600 dark:text-amber-400">
+                  <Trophy className="w-3.5 h-3.5" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium">{pr.name}</p>
+                  <p className="text-[11px] text-muted-foreground">{PR_TYPE_LABEL[pr.type]}</p>
+                </div>
+                <span className="shrink-0 font-mono text-sm tabular-nums">
                   {fromCanonicalKg(pr.weightKg, unit, unit === "kg" ? 1 : 0)} {unit} × {pr.reps}
                 </span>
               </li>
@@ -140,6 +168,25 @@ export function WorkoutCompletionSheet({
   const isMobile = useIsMobile();
   if (!summary) return null;
 
+  const handleShare = async () => {
+    const text = buildShareText(summary, unit, moduleTitle);
+    try {
+      if (typeof navigator !== "undefined" && navigator.share) {
+        await navigator.share({ title: "IGU workout", text });
+      } else if (typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(text);
+      }
+    } catch {
+      /* user dismissed the share sheet — no-op */
+    }
+  };
+
+  const shareButton = (
+    <Button variant="outline" className="mb-2 w-full gap-2" onClick={handleShare}>
+      <Share2 className="w-4 h-4" /> Share workout
+    </Button>
+  );
+
   const coachWaButton = coachWhatsApp ? (
     <a
       href={`https://wa.me/${coachWhatsApp.replace(/\D/g, "")}?text=${encodeURIComponent(buildCoachMessage(summary, unit, moduleTitle, sessionDateLabel))}`}
@@ -153,7 +200,7 @@ export function WorkoutCompletionSheet({
     </a>
   ) : null;
 
-  const title = "Workout complete";
+  const title = `${moduleTitle ?? "Workout"} complete 🎉`;
   const description = "Nice work -- here's how this session went.";
 
   if (isMobile) {
@@ -168,6 +215,7 @@ export function WorkoutCompletionSheet({
             <SummaryBody summary={summary} unit={unit} />
           </DrawerScrollArea>
           <div className="p-4 pb-[max(1rem,env(safe-area-inset-bottom))] border-t">
+            {shareButton}
             {coachWaButton}
             <Button className="w-full" onClick={onDone}>Done</Button>
           </div>
@@ -186,6 +234,7 @@ export function WorkoutCompletionSheet({
         <DialogScrollArea className="flex-1 min-h-0 -mx-6 px-2">
           <SummaryBody summary={summary} unit={unit} />
         </DialogScrollArea>
+        {shareButton}
         {coachWaButton}
         <Button className="w-full" onClick={onDone}>Done</Button>
       </DialogContent>
