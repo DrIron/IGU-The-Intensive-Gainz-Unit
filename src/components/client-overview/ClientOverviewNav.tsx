@@ -91,60 +91,23 @@ export function ClientOverviewNav({
     [onSelect, sections],
   );
 
+  // Horizontal, scrollable tab bar (underline-active). Replaces the old left
+  // rail -- the rail + the master strip + the vitals rail were three vertical
+  // columns squeezing the main content; moving sections to top tabs reclaims
+  // ~224px of width.
   return (
     <nav
       aria-label="Client sections"
       data-overview-nav
-      className="md:w-56 lg:w-64 md:shrink-0 md:sticky md:top-20 md:self-start z-10"
+      className="border-b border-border -mx-1 sticky top-16 z-10 bg-background/95 backdrop-blur"
     >
-      {/* Mobile: horizontal scroller under the top nav. */}
-      <div className="md:hidden -mx-4 px-4 pb-1 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <ul className="flex gap-2 min-w-max">
-          {sections.map((section, idx) => {
-            const isActive = section.slug === activeSlug;
-            const Icon = section.icon;
-            const badge = formatBadge(badgeCounts?.[section.slug]);
-            return (
-              <li key={section.slug}>
-                <button
-                  type="button"
-                  data-nav-item
-                  onClick={() => onSelect(section.slug)}
-                  onKeyDown={(e) => handleKeyDown(e, idx)}
-                  aria-current={isActive ? "page" : undefined}
-                  className={cn(
-                    "relative flex flex-col items-center justify-center gap-1 px-3 rounded-lg border text-xs min-w-[84px] min-h-[56px] touch-manipulation active:scale-[0.98] transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                    isActive
-                      ? "border-emerald-500/50 bg-emerald-500/10 text-foreground"
-                      : "border-border bg-card text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Icon className="h-4 w-4" aria-hidden="true" />
-                  <span className="leading-none whitespace-nowrap">{section.label}</span>
-                  {badge && (
-                    <span
-                      className="absolute top-1 right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold leading-none flex items-center justify-center tabular-nums"
-                      aria-label={`${badge} unread`}
-                    >
-                      {badge}
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      </div>
-
-      {/* Desktop: sticky left rail. */}
-      <ul className="hidden md:flex md:flex-col md:gap-1">
+      <ul className="flex gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {sections.map((section, idx) => {
           const isActive = section.slug === activeSlug;
           const Icon = section.icon;
           const badge = formatBadge(badgeCounts?.[section.slug]);
           return (
-            <li key={section.slug}>
+            <li key={section.slug} className="shrink-0">
               <button
                 type="button"
                 data-nav-item
@@ -152,40 +115,23 @@ export function ClientOverviewNav({
                 onKeyDown={(e) => handleKeyDown(e, idx)}
                 aria-current={isActive ? "page" : undefined}
                 className={cn(
-                  "w-full flex items-stretch rounded-md overflow-hidden text-left transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
-                  isActive ? "bg-muted/50" : "hover:bg-muted/30",
+                  "relative flex items-center gap-2 whitespace-nowrap border-b-2 -mb-px px-3 py-2.5 text-sm transition-colors touch-manipulation",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
+                  isActive
+                    ? "border-emerald-500 text-foreground font-medium"
+                    : "border-transparent text-muted-foreground hover:text-foreground",
                 )}
               >
-                <span
-                  aria-hidden="true"
-                  className={cn("w-1 shrink-0", isActive ? "bg-emerald-500" : "bg-transparent")}
-                />
-                <span className="flex-1 flex items-center gap-3 px-3 py-2">
-                  <Icon
-                    className={cn(
-                      "h-4 w-4 shrink-0",
-                      isActive ? "text-foreground" : "text-muted-foreground",
-                    )}
-                    aria-hidden="true"
-                  />
+                <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span>{section.label}</span>
+                {badge && (
                   <span
-                    className={cn(
-                      "text-sm flex-1",
-                      isActive ? "font-medium text-foreground" : "text-muted-foreground",
-                    )}
+                    className="ml-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold leading-none flex items-center justify-center tabular-nums"
+                    aria-label={`${badge} unread`}
                   >
-                    {section.label}
+                    {badge}
                   </span>
-                  {badge && (
-                    <span
-                      className="ml-auto shrink-0 min-w-[20px] h-5 px-1.5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-semibold leading-none flex items-center justify-center tabular-nums"
-                      aria-label={`${badge} unread`}
-                    >
-                      {badge}
-                    </span>
-                  )}
-                </span>
+                )}
               </button>
             </li>
           );

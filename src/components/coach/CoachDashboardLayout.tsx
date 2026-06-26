@@ -204,17 +204,22 @@ export function CoachDashboardLayout({
         <CoachSidebar activeSection={isTrainingMode ? "training" : activeSection} onSectionChange={setActiveSection} trainingMode={isTrainingMode} />
         
         <main className="flex-1 min-w-0">
-          <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
-            <div className="flex items-center gap-4">
-              <div className="flex-1 min-w-0">
-                <h1 className="text-2xl md:text-3xl font-bold truncate">{getPageTitle(activeSection)}</h1>
-                <p className="text-sm text-muted-foreground truncate">
-                  {getSectionSubtitle(activeSection)}
-                </p>
+          {/* The page header is dead space on a client-detail view (you're
+              looking at one client, not browsing). The detail's own breadcrumb
+              + identity card carry the context, so suppress it there. */}
+          {!/^\/coach\/clients\/[^/]+/.test(location.pathname) && (
+            <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
+              <div className="flex items-center gap-4">
+                <div className="flex-1 min-w-0">
+                  <h1 className="text-2xl md:text-3xl font-bold truncate">{getPageTitle(activeSection)}</h1>
+                  <p className="text-sm text-muted-foreground truncate">
+                    {getSectionSubtitle(activeSection)}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-          
+          )}
+
           <div className="p-4 md:p-6 pb-24 md:pb-8 safe-area-bottom">
             <div className="max-w-7xl mx-auto">
               <SectionErrorBoundary name="Dashboard">

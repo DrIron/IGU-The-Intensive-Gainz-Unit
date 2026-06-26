@@ -354,69 +354,19 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
     );
   }
 
-  // ---- lg+: two-pane grid, each pane its own scroll ------------------------
-  // Three column states:
-  //   no client       -> full 340px picker (the list IS the page)
-  //   client + open   -> 300px full picker (deliberately expanded to switch)
-  //   client + closed -> 48px thin rail, detail pane gets the rest
-  const railCollapsed = !!clientUserId && listCollapsed;
+  // ---- lg+: full-page navigation -------------------------------------------
+  // A client open -> full-width detail; otherwise the list IS the page. The old
+  // master-detail split (300px list / 48px collapsed rail) was a vertical strip
+  // squeezing the detail content; list <-> detail is now full-page (breadcrumb
+  // back from the detail header).
+  void listCollapsed;
   return (
-    <div
-      className={cn(
-        "lg:grid lg:gap-6 lg:h-[calc(100vh-12rem)] lg:transition-[grid-template-columns] lg:duration-200",
-        !clientUserId
-          ? "lg:grid-cols-[340px_minmax(0,1fr)]"
-          : railCollapsed
-            ? "lg:grid-cols-[48px_minmax(0,1fr)]"
-            : "lg:grid-cols-[300px_minmax(0,1fr)]",
-      )}
-    >
-      <aside className="hidden lg:block lg:overflow-y-auto lg:pr-1">
-        {railCollapsed ? (
-          <button
-            type="button"
-            onClick={() => setListCollapsed(false)}
-            aria-label="Show client list"
-            aria-expanded={false}
-            className="group flex w-12 flex-col items-center gap-3 rounded-lg border bg-card py-3 transition-colors hover:bg-muted/60"
-          >
-            <ChevronRight className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
-            <Users className="h-4 w-4 text-muted-foreground" />
-            {attention.total > 0 && (
-              <span
-                className="flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-medium tabular-nums text-destructive-foreground"
-                aria-label={`${attention.total} clients need attention`}
-              >
-                {attention.total > 9 ? "9+" : attention.total}
-              </span>
-            )}
-            <span className="mt-1 text-[11px] tracking-wide text-muted-foreground [writing-mode:vertical-rl] rotate-180">
-              Clients
-            </span>
-          </button>
-        ) : (
-          <>
-            {clientUserId && (
-              <div className="mb-2 flex justify-end">
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 gap-1 text-xs"
-                  onClick={() => setListCollapsed(true)}
-                  aria-label="Collapse client list"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                  Collapse
-                </Button>
-              </div>
-            )}
-            {masterListEl(false)}
-          </>
-        )}
-      </aside>
-      <section className="lg:overflow-y-auto pb-24 md:pb-8">
+    <div className="pb-24 md:pb-8">
+      {clientUserId ? (
         <ClientOverviewPanel clientUserId={clientUserId} />
-      </section>
+      ) : (
+        masterListEl(false)
+      )}
     </div>
   );
 }
