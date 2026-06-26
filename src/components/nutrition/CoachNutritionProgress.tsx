@@ -4,9 +4,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { shouldApplyAdjustment } from "@/utils/nutritionCalculations";
+import { shouldApplyAdjustment, recommendWeeklyAdjustment } from "@/utils/nutritionCalculations";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { NutritionAdjustmentWeekCard, type WeekSnapshot } from "./NutritionAdjustmentWeekCard";
+import { NutritionDecisionCard } from "./NutritionDecisionCard";
 
 /**
  * Weekly progress review for a coach -- drives the Adjustments tab.
@@ -37,9 +38,18 @@ interface CoachNutritionProgressProps {
    */
   isReadOnly?: boolean;
   onAdjustmentMade: () => void;
+  /**
+   * "grid" (default) renders the full per-week adjustment grid -- unchanged.
+   * "decision" renders only the current week's decision hero
+   * (NutritionDecisionCard) for the top of the redesigned Nutrition tab (B2).
+   * Both variants share this component's data load + handlers, so any action
+   * triggers onAdjustmentMade -> parent re-resolves the phase -> both mounts
+   * reload in lockstep (no drift between the hero and the grid).
+   */
+  variant?: "grid" | "decision";
 }
 
-export function CoachNutritionProgress({ phase, isReadOnly = false, onAdjustmentMade }: CoachNutritionProgressProps) {
+export function CoachNutritionProgress({ phase, isReadOnly = false, onAdjustmentMade, variant = "grid" }: CoachNutritionProgressProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [weeklyData, setWeeklyData] = useState<WeekSnapshot[]>([]);
@@ -283,6 +293,129 @@ export function CoachNutritionProgress({ phase, isReadOnly = false, onAdjustment
       setLoading(false);
     }
   };
+
+  /**
+   * One-click apply for the decision hero (B2): create the adjustment already
+   * approved AND push the new macros to the phase in a single coach action.
+   * Combines handleCreateAdjustment's insert (status 'approved') with
+   * handleApprove's phase update -- same field math, no new write semantics.
+   */
+  const handleApplyRecommendation = async (
+    weekNumber: number,
+    amount: number,
+    notes?: string,
+  ) => {
+    if (blockIfReadOnly()) return;
+    const week = weeklyData.find((w) => w.weekNumber === weekNumber);
+    if (!week) return;
+    if (!shouldApplyAdjustment(amount)) {
+      toast({
+        title: "Adjustment too small",
+        description: "Changes under ±50 kcal aren't applied.",
+        variant: "destructive",
+      });
+      return;
+    }
+    try {
+      setLoading(true);
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+
+      const newCalories = phase.daily_calories + amount;
+      const proteinCals = phase.protein_grams * 4;
+      const fatCals = phase.fat_grams * 9;
+      const carbCals = phase.carb_grams * 4;
+      const totalCals = proteinCals + fatCals + carbCals || 1;
+      const newProtein = (newCalories * (proteinCals / totalCals)) / 4;
+      const newFat = (newCalories * (fatCals / totalCals)) / 9;
+      const newCarbs = (newCalories * (carbCals / totalCals)) / 4;
+
+      const deviation =
+        week.actualChange != null && signedExpectedChange !== 0
+          ? ((week.actualChange - signedExpectedChange) / Math.abs(signedExpectedChange)) * 100
+          : null;
+
+      const { error: insertError } = await supabase.from("nutrition_adjustments").insert({
+        phase_id: phase.id,
+        week_number: weekNumber,
+        actual_weight_change_percentage: week.actualChange,
+        expected_weight_change_percentage: signedExpectedChange,
+        deviation_percentage: deviation,
+        suggested_calorie_adjustment: amount,
+        approved_calorie_adjustment: amount,
+        new_daily_calories: newCalories,
+        new_protein_grams: newProtein,
+        new_fat_grams: newFat,
+        new_carb_grams: newCarbs,
+        is_diet_break_week: false,
+        status: "approved",
+        approved_at: new Date().toISOString(),
+        coach_notes: notes || null,
+        approved_by: user.id,
+      });
+      if (insertError) throw insertError;
+
+      const { error: phaseError } = await supabase
+        .from("nutrition_phases")
+        .update({
+          daily_calories: newCalories,
+          protein_grams: newProtein,
+          fat_grams: newFat,
+          carb_grams: newCarbs,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", phase.id);
+      if (phaseError) throw phaseError;
+
+      toast({ title: "Applied", description: "Macros updated for the phase." });
+      await loadAllData();
+      onAdjustmentMade();
+    } catch (error: any) {
+      toast({ title: "Error", description: sanitizeErrorForUser(error), variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // --- Decision-hero variant (B2): just the current week's decision card. ---
+  if (variant === "decision") {
+    if (loadingInitial && weeklyData.length === 0) return null;
+    const current = weeklyData[0];
+    if (!current) return null;
+    const recommendation = recommendWeeklyAdjustment({
+      actualChangePct: current.actualChange,
+      signedExpectedChangePct: signedExpectedChange,
+      averageWeightKg: current.averageWeight,
+      weighInCount: current.weighInCount,
+      hasExistingAdjustment: !!current.adjustment,
+      current: {
+        calories: phase.daily_calories,
+        protein: phase.protein_grams,
+        fat: phase.fat_grams,
+        carbs: phase.carb_grams,
+      },
+    });
+    return (
+      <NutritionDecisionCard
+        weekNumber={current.weekNumber}
+        recommendation={recommendation}
+        existingAdjustment={current.adjustment}
+        averageWeight={current.averageWeight}
+        weighInCount={current.weighInCount}
+        actualChange={current.actualChange}
+        signedExpectedChange={signedExpectedChange}
+        currentCalories={phase.daily_calories}
+        loading={loading}
+        isReadOnly={isReadOnly}
+        onApply={handleApplyRecommendation}
+        onDietBreak={(weekNumber) =>
+          handleCreateAdjustment(weekNumber, { calories: 0, isDietBreak: true })
+        }
+        onApprove={handleApproveAdjustment}
+        onReject={handleRejectAdjustment}
+      />
+    );
+  }
 
   if (loadingInitial && weeklyData.length === 0) {
     return (

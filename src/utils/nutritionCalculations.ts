@@ -420,3 +420,133 @@ export function generatePhaseSummary(
     avgCarbs
   };
 }
+
+/**
+ * Scale macros to a new calorie target while preserving the current P/F/C
+ * energy ratios. Mirrors the inline math in CoachNutritionProgress.handleCreate
+ * so a recommended adjustment lands on the same numbers a manual one would.
+ */
+export function scaleMacrosToCalories(
+  newCalories: number,
+  current: { protein: number; fat: number; carbs: number },
+): { protein: number; fat: number; carbs: number } {
+  const proteinCals = current.protein * 4;
+  const fatCals = current.fat * 9;
+  const carbCals = current.carbs * 4;
+  const totalCals = proteinCals + fatCals + carbCals || 1;
+  return {
+    protein: (newCalories * (proteinCals / totalCals)) / 4,
+    fat: (newCalories * (fatCals / totalCals)) / 9,
+    carbs: (newCalories * (carbCals / totalCals)) / 4,
+  };
+}
+
+export interface AdjustmentRecommendation {
+  /** True when there's a concrete change worth surfacing to the coach. */
+  isDue: boolean;
+  /** Why it's due, or why not -- shown as the card's sub-line. */
+  reason: string;
+  /** Signed kcal/day delta (e.g. -225 = cut 225). 0 when not due. */
+  suggestedKcal: number;
+  newCalories: number;
+  newProtein: number;
+  newFat: number;
+  newCarbs: number;
+  /** ((actual - expected) / |expected|) * 100, or null for maintenance / no data. */
+  deviationPct: number | null;
+}
+
+const ENERGY_PER_KG = 7700; // kcal per kg of body mass (energy-balance approximation)
+const CORRECTION_DAMPING = 0.5; // correct ~half the weekly gap -- conservative; coach can Adjust up
+
+/**
+ * Sign-aware weekly calorie recommendation. Nudges the *actual* weekly weight
+ * change back toward the phase's *expected* rate.
+ *
+ * SIGN LANDMINE (see CLAUDE.md "sign-sensitive adjustment math"): the suggested
+ * delta must move calories in the direction that corrects the gap. Worked
+ * examples (gapPct = actual - expected; suggestedKcal = -(gapKg*E/7)*damping):
+ *   Fat loss, expected -0.75, actual -0.24 (lost LESS) -> gap +0.51 -> DECREASE kcal.
+ *   Fat loss, expected -0.75, actual -1.20 (lost MORE) -> gap -0.45 -> INCREASE kcal.
+ *   Muscle gain, expected +0.50, actual +0.10 (gained LESS) -> gap -0.40 -> INCREASE kcal.
+ *   Muscle gain, expected +0.50, actual +0.90 (gained MORE) -> gap +0.40 -> DECREASE kcal.
+ * In every case suggestedKcal carries the opposite sign of the gap, so a client
+ * who's moving too slowly gets pushed harder and one moving too fast gets eased.
+ *
+ * Maintenance (signedExpected === 0) never auto-recommends -- there's no rate
+ * target to correct toward.
+ */
+export function recommendWeeklyAdjustment(args: {
+  actualChangePct: number | null;
+  /** Expected change with sign already applied (loss negative, gain positive). */
+  signedExpectedChangePct: number;
+  averageWeightKg: number;
+  weighInCount: number;
+  hasExistingAdjustment: boolean;
+  current: { calories: number; protein: number; fat: number; carbs: number };
+}): AdjustmentRecommendation {
+  const {
+    actualChangePct,
+    signedExpectedChangePct,
+    averageWeightKg,
+    weighInCount,
+    hasExistingAdjustment,
+    current,
+  } = args;
+
+  const base: Omit<AdjustmentRecommendation, "isDue" | "reason"> = {
+    suggestedKcal: 0,
+    newCalories: current.calories,
+    newProtein: current.protein,
+    newFat: current.fat,
+    newCarbs: current.carbs,
+    deviationPct: null,
+  };
+
+  if (hasExistingAdjustment) {
+    return { ...base, isDue: false, reason: "An adjustment already exists for this week." };
+  }
+  if (signedExpectedChangePct === 0) {
+    return { ...base, isDue: false, reason: "Maintenance phase -- no rate target to correct toward." };
+  }
+  if (weighInCount < 3) {
+    return { ...base, isDue: false, reason: "Needs 3+ weigh-ins this week before a recommendation." };
+  }
+  if (actualChangePct == null) {
+    return { ...base, isDue: false, reason: "Not enough weight history yet." };
+  }
+
+  const deviationPct =
+    ((actualChangePct - signedExpectedChangePct) / Math.abs(signedExpectedChangePct)) * 100;
+
+  const gapPct = actualChangePct - signedExpectedChangePct; // signed gap this week
+  const gapKg = (gapPct / 100) * averageWeightKg;
+  const rawDailyKcal = -((gapKg * ENERGY_PER_KG) / 7) * CORRECTION_DAMPING;
+
+  const capped = calculateCappedAdjustment(rawDailyKcal, 300);
+  const suggestedKcal = Math.round(capped / 25) * 25;
+
+  if (!shouldApplyAdjustment(suggestedKcal)) {
+    return {
+      ...base,
+      deviationPct,
+      isDue: false,
+      reason: "On track -- within range, no change suggested.",
+    };
+  }
+
+  const newCalories = current.calories + suggestedKcal;
+  const macros = scaleMacrosToCalories(newCalories, current);
+  const direction = suggestedKcal < 0 ? "behind pace -- tighten" : "ahead of pace -- ease up";
+
+  return {
+    isDue: true,
+    reason: `Week is ${direction} (${Math.round(deviationPct)}% off expected rate).`,
+    suggestedKcal,
+    newCalories,
+    newProtein: macros.protein,
+    newFat: macros.fat,
+    newCarbs: macros.carbs,
+    deviationPct,
+  };
+}

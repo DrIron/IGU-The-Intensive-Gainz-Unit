@@ -7,6 +7,7 @@ import { PhaseSwitcher } from "@/components/nutrition/PhaseSwitcher";
 import { NutritionPermissionGate } from "@/components/nutrition/NutritionPermissionGate";
 import { CoachNutritionGoal } from "@/components/nutrition/CoachNutritionGoal";
 import { CoachNutritionProgress } from "@/components/nutrition/CoachNutritionProgress";
+import { NutritionCheckInCard } from "@/components/nutrition/NutritionCheckInCard";
 import { CoachNutritionGraphs } from "@/components/nutrition/CoachNutritionGraphs";
 import { CoachNutritionNotes } from "@/components/nutrition/CoachNutritionNotes";
 import { ScheduledEventsCalendar } from "@/components/nutrition/ScheduledEventsCalendar";
@@ -42,6 +43,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
   const [phases, setPhases] = useState<any[]>([]);
   const [selectedPhaseId, setSelectedPhaseId] = useState<string | null>(null);
   const [phaseStats, setPhaseStats] = useState<PhaseStats | null>(null);
+  const [innerTab, setInnerTab] = useState("this-week");
   const hasFetched = useRef<string | null>(null);
 
   // Stable identity so the phase-stats effect doesn't refire on every render.
@@ -139,72 +141,42 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
         onSelect={setSelectedPhaseId}
       />
 
+      {/* Decision-first (B2): the current week's adjustment decision leads,
+          above the phase hero. Active phases only -- past phases have no live
+          decision. Shares CoachNutritionProgress's data/handlers via the
+          "decision" variant, so it stays in lockstep with the History grid. */}
+      {selectedPhase?.is_active && (
+        <CoachNutritionProgress
+          phase={selectedPhase}
+          isReadOnly={isReadOnly}
+          onAdjustmentMade={loadClientPhases}
+          variant="decision"
+        />
+      )}
+
       {selectedPhase && (
         <NutritionPhaseCard
           phase={selectedPhase}
           weeksElapsed={phaseStats?.currentWeek}
           latestAverageWeight={phaseStats?.currentWeight}
-          onScrollToAdjustments={() => {
-            const el = document.getElementById("nutrition-adjustments");
-            if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
+          onEditPhase={() => setInnerTab("edit")}
         />
       )}
 
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs value={innerTab} onValueChange={setInnerTab} className="w-full">
         <TabsList className="grid w-full grid-cols-3">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="adjustments">Adjustments</TabsTrigger>
+          <TabsTrigger value="this-week">This week</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="edit">Edit phase</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-6">
-          <PhaseWeightTrendCard phase={selectedPhase} />
-          <NutritionPermissionGate clientUserId={clientUserId}>
-            <CoachNutritionGoal
-              clientUserId={clientUserId}
-              phase={selectedPhase}
-              isReadOnly={isReadOnly}
-              onPhaseUpdated={loadClientPhases}
-            />
-          </NutritionPermissionGate>
-
-          <div className="space-y-6">
-            <StepProgressDisplay userId={clientUserId} />
-            <NutritionPermissionGate clientUserId={clientUserId}>
-              <StepRecommendationCard
-                clientUserId={clientUserId}
-                canEdit
-                onRecommendationUpdated={loadClientPhases}
-              />
-            </NutritionPermissionGate>
-            {/* PR L-fix: recommended content linked to the selected phase.
-                Not wrapped in NutritionPermissionGate -- a coach-with-dietitian
-                should still see what's linked; RLS rejects unauthorized writes
-                with a toast. readOnly mirrors the page-level past-phase guard. */}
-            {selectedPhase && (
-              <LinkedContentList
-                target={{
-                  kind: "nutrition-phase",
-                  id: selectedPhase.id,
-                  title: selectedPhase.phase_name ?? "this phase",
-                }}
-                readOnly={isReadOnly}
-                emptyMessage="No content linked to this phase yet. Add recommended videos or learning paths."
-              />
-            )}
-          </div>
-        </TabsContent>
-
-        <TabsContent value="adjustments" className="space-y-6">
-          <div id="nutrition-adjustments" />
+        {/* This week -- the current-week context around the decision above. */}
+        <TabsContent value="this-week" className="space-y-6">
           {selectedPhase ? (
             <>
-              <CoachNutritionProgress
-                phase={selectedPhase}
-                isReadOnly={isReadOnly}
-                onAdjustmentMade={loadClientPhases}
-              />
+              <NutritionCheckInCard phaseId={selectedPhase.id} />
+              <PhaseWeightTrendCard phase={selectedPhase} />
+              <StepProgressDisplay userId={clientUserId} />
               <ScheduledEventsCalendar phaseId={selectedPhase.id} />
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 <NutritionPermissionGate clientUserId={clientUserId}>
@@ -230,16 +202,22 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
           ) : (
             <Card>
               <CardContent className="pt-6 text-center text-muted-foreground">
-                Create a nutrition phase from the Overview tab before adjusting.
+                Create a nutrition phase from Edit phase to start tracking this week.
               </CardContent>
             </Card>
           )}
         </TabsContent>
 
+        {/* History -- trends, notes, and the full week-by-week adjustment grid. */}
         <TabsContent value="history" className="space-y-6">
           {selectedPhase ? (
             <>
               <CoachNutritionGraphs phase={selectedPhase} />
+              <CoachNutritionProgress
+                phase={selectedPhase}
+                isReadOnly={isReadOnly}
+                onAdjustmentMade={loadClientPhases}
+              />
               <CoachNutritionNotes phase={selectedPhase} />
             </>
           ) : (
@@ -248,6 +226,40 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
                 No phase yet -- history will populate once the first phase is saved.
               </CardContent>
             </Card>
+          )}
+        </TabsContent>
+
+        {/* Edit phase -- the goal form + config, out of the daily path. */}
+        <TabsContent value="edit" className="space-y-6">
+          <NutritionPermissionGate clientUserId={clientUserId}>
+            <CoachNutritionGoal
+              clientUserId={clientUserId}
+              phase={selectedPhase}
+              isReadOnly={isReadOnly}
+              onPhaseUpdated={loadClientPhases}
+            />
+          </NutritionPermissionGate>
+          <NutritionPermissionGate clientUserId={clientUserId}>
+            <StepRecommendationCard
+              clientUserId={clientUserId}
+              canEdit
+              onRecommendationUpdated={loadClientPhases}
+            />
+          </NutritionPermissionGate>
+          {/* PR L-fix: recommended content linked to the selected phase.
+              Not wrapped in NutritionPermissionGate -- a coach-with-dietitian
+              should still see what's linked; RLS rejects unauthorized writes
+              with a toast. readOnly mirrors the page-level past-phase guard. */}
+          {selectedPhase && (
+            <LinkedContentList
+              target={{
+                kind: "nutrition-phase",
+                id: selectedPhase.id,
+                title: selectedPhase.phase_name ?? "this phase",
+              }}
+              readOnly={isReadOnly}
+              emptyMessage="No content linked to this phase yet. Add recommended videos or learning paths."
+            />
           )}
         </TabsContent>
       </Tabs>
