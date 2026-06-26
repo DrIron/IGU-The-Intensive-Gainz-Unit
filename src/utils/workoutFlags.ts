@@ -129,13 +129,31 @@ export function setTonnage(set: LoggedSet): number {
   return set.performedLoad * set.performedReps;
 }
 
-/** Tempo string ("3-0-1-0") -> seconds per rep (sum of the phase digits). */
+/**
+ * Tempo -> seconds per rep (sum of the phase counts). Handles both the
+ * separated form ("3-0-1-0", "3:0:1:0", "2 0 1 0") and the concatenated
+ * 4-digit bodybuilding form ("2010" = ecc-pauseBottom-con-pauseTop = 3s).
+ * "X" (explosive) counts as 1.
+ */
 export function tempoSecondsPerRep(tempo: string | null | undefined): number {
   if (!tempo) return 0;
-  const parts = tempo.split(/[-:\s]+/).map((p) => parseFloat(p));
-  let sum = 0;
-  for (const n of parts) if (Number.isFinite(n) && n > 0) sum += n;
-  return sum;
+  const t = tempo.trim();
+  const phaseValue = (p: string): number => {
+    if (p === "" ) return 0;
+    if (p.toLowerCase() === "x") return 1;
+    const n = parseFloat(p);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
+  // Separated: "3-0-1-0"
+  if (/[-:\s]/.test(t)) {
+    return t.split(/[-:\s]+/).reduce((s, p) => s + phaseValue(p), 0);
+  }
+  // Concatenated digits: "2010" -> 2+0+1+0
+  if (/^[0-9xX]{3,5}$/.test(t)) {
+    return [...t].reduce((s, ch) => s + phaseValue(ch), 0);
+  }
+  // Fallback: a single number (already seconds/rep).
+  return phaseValue(t);
 }
 
 /**

@@ -351,14 +351,18 @@ export function useWorkoutPulse(clientUserId: string): WorkoutPulse {
       }
 
       prCount += sessionPrCount;
-      sessions.push({
-        moduleId: mod.id,
-        title: mod.title,
-        date: mod.date,
-        prCount: sessionPrCount,
-        flagged,
-        exercises: rows,
-      });
+      // Skip completed-but-empty modules (e.g. a stray program with no logged
+      // exercises) -- nothing to review, just noise.
+      if (rows.length > 0) {
+        sessions.push({
+          moduleId: mod.id,
+          title: mod.title,
+          date: mod.date,
+          prCount: sessionPrCount,
+          flagged,
+          exercises: rows,
+        });
+      }
     }
 
     // newest session first for display

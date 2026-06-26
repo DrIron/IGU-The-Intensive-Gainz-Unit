@@ -224,11 +224,14 @@ export function detectSetPrs(
     if (load == null || reps == null) return out;
     // S1 heaviest ever (needs prior history -- a first-ever set is a baseline,
     // not a PR; h.bestLoad stays 0 until something was logged before).
-    if (h.bestLoad > 0 && load > h.bestLoad) add("S1", "Heaviest ever");
-    // S2 heaviest at this rep-count ±1
+    const s1 = h.bestLoad > 0 && load > h.bestLoad;
+    if (s1) add("S1", "Heaviest ever");
+    // S2 heaviest at this rep-count ±1. Suppressed when S1 already fired --
+    // an all-time heaviest is necessarily also heaviest at this rep count, so
+    // counting both double-reports the same lift.
     let bestAtReps = 0;
     for (let r = reps - 1; r <= reps + 1; r++) bestAtReps = Math.max(bestAtReps, h.bestLoadAtReps.get(r) ?? 0);
-    if (bestAtReps > 0 && load > bestAtReps) add("S2", `Heaviest @ ${reps} reps`);
+    if (!s1 && bestAtReps > 0 && load > bestAtReps) add("S2", `Heaviest @ ${reps} reps`);
     // S4 more reps at this exact load
     const bestRepsHere = h.bestRepsAtLoad.get(load);
     if (bestRepsHere != null && reps > bestRepsHere) add("S4", "Rep PR at weight");
