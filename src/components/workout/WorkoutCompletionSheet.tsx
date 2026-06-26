@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { fromCanonicalKg, type WeightUnit } from "@/utils/weightUnits";
+import { generateWorkoutShareImage } from "@/utils/workoutShareCard";
 
 export type SessionPRType = "heaviest" | "rep_range" | "easier";
 
@@ -170,14 +171,37 @@ export function WorkoutCompletionSheet({
 
   const handleShare = async () => {
     const text = buildShareText(summary, unit, moduleTitle);
+    // Preferred: share the branded image card to the OS share sheet (Stories,
+    // posts, WhatsApp). Falls back to a PNG download, then to a text share.
     try {
-      if (typeof navigator !== "undefined" && navigator.share) {
-        await navigator.share({ title: "IGU workout", text });
-      } else if (typeof navigator !== "undefined" && navigator.clipboard) {
-        await navigator.clipboard.writeText(text);
+      const blob = await generateWorkoutShareImage(summary, unit, {
+        moduleTitle,
+        dateLabel: sessionDateLabel,
+      });
+      if (blob) {
+        const file = new File([blob], "igu-workout.png", { type: "image/png" });
+        const nav = navigator as Navigator & { canShare?: (d: ShareData) => boolean };
+        if (nav.share && nav.canShare?.({ files: [file] })) {
+          await nav.share({ files: [file], title: "IGU workout", text });
+          return;
+        }
+        // No file-share support — download the card so it can be posted manually.
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "igu-workout.png";
+        a.click();
+        URL.revokeObjectURL(url);
+        return;
       }
     } catch {
-      /* user dismissed the share sheet — no-op */
+      /* user dismissed, or image/share failed — fall through to text */
+    }
+    try {
+      if (navigator.share) await navigator.share({ title: "IGU workout", text });
+      else if (navigator.clipboard) await navigator.clipboard.writeText(text);
+    } catch {
+      /* user dismissed — no-op */
     }
   };
 
