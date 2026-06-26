@@ -1507,6 +1507,9 @@ function WorkoutSessionV2Content() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Implicit skip: how many sets are unlogged when the client taps Finish.
+  // null = no confirm open; a number = show "N sets unlogged" confirmation.
+  const [finishUnloggedCount, setFinishUnloggedCount] = useState<number | null>(null);
   const [user, setUser] = useState<any>(null);
 
   const [setLogs, setSetLogs] = useState<Record<string, SetLog[]>>({});
@@ -2393,6 +2396,76 @@ function WorkoutSessionV2Content() {
   };
 
   // Complete workout
+  // Implicit skip — a set left empty AND unchecked counts as skipped. Compute
+  // the unlogged sets across non-skipped exercises (used to gate Finish and to
+  // record them as skipped so the session can complete cleanly).
+  const computeUnloggedSets = (): Array<{ exerciseId: string; setIndex: number; set_index: number }> => {
+    const out: Array<{ exerciseId: string; setIndex: number; set_index: number }> = [];
+    if (!module) return out;
+    for (const ex of module.exercises) {
+      if (ex.skipped) continue;
+      const logs = setLogsRef.current[ex.id] || [];
+      logs.forEach((l, i) => {
+        if (!l.completed && !l.skipped) {
+          out.push({ exerciseId: ex.id, setIndex: i, set_index: l.set_index });
+        }
+      });
+    }
+    return out;
+  };
+
+  const markUnloggedSkipped = async (
+    unlogged: Array<{ exerciseId: string; setIndex: number; set_index: number }>,
+  ) => {
+    if (unlogged.length === 0) return;
+    setSetLogs((prev) => {
+      const next = { ...prev };
+      for (const u of unlogged) {
+        next[u.exerciseId] = (next[u.exerciseId] || []).map((log, i) =>
+          i === u.setIndex ? { ...log, skipped: true, completed: false } : log,
+        );
+      }
+      return next;
+    });
+    if (!user) return;
+    // Parallel write-through — a skipped set carries null performed_* values.
+    await Promise.all(
+      unlogged.map((u) =>
+        supabase.from("exercise_set_logs").upsert(
+          {
+            client_module_exercise_id: u.exerciseId,
+            set_index: u.set_index,
+            skipped: true,
+            performed_reps: null,
+            performed_load: null,
+            performed_rir: null,
+            performed_rpe: null,
+            performed_json: {},
+            created_by_user_id: user.id,
+          },
+          { onConflict: "client_module_exercise_id,set_index" },
+        ),
+      ),
+    );
+  };
+
+  // Finish entry point: if anything is unlogged, confirm (it'll be skipped),
+  // otherwise complete straight away.
+  const handleFinish = () => {
+    const unlogged = computeUnloggedSets();
+    if (unlogged.length > 0) {
+      setFinishUnloggedCount(unlogged.length);
+    } else {
+      completeWorkout();
+    }
+  };
+
+  const confirmFinish = async () => {
+    setFinishUnloggedCount(null);
+    await markUnloggedSkipped(computeUnloggedSets());
+    await completeWorkout();
+  };
+
   const completeWorkout = async () => {
     if (!module) return;
 
@@ -2843,7 +2916,7 @@ function WorkoutSessionV2Content() {
                 disabled={submitting}
                 onClick={() => {
                   if (progressPercent >= 100) {
-                    completeWorkout();
+                    handleFinish();
                     return;
                   }
                   setFocusIndex(
@@ -2866,7 +2939,7 @@ function WorkoutSessionV2Content() {
             ) : progressPercent >= 100 ? (
               <Button
                 className="w-full h-12 text-base"
-                onClick={completeWorkout}
+                onClick={handleFinish}
                 disabled={submitting}
               >
                 {submitting ? (
@@ -2889,8 +2962,27 @@ function WorkoutSessionV2Content() {
                 <ChevronRight className="w-5 h-5 ml-1" />
               </Button>
             ) : (
-              <Button className="w-full h-12 text-base" disabled>
-                Complete {remainingSets} more set{remainingSets !== 1 ? "s" : ""}
+              /* Last exercise with sets still unlogged — implicit skip: finishing
+                 marks the remaining sets skipped after a confirm. */
+              <Button
+                className="w-full h-12 text-base"
+                variant="outline"
+                onClick={handleFinish}
+                disabled={submitting}
+              >
+                {submitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                Finish workout · {remainingSets} set{remainingSets !== 1 ? "s" : ""} left
+              </Button>
+            )}
+            {/* Partial finish from the overview — skip remaining unlogged sets. */}
+            {mode === "overview" && hasLoggedProgress && progressPercent < 100 && (
+              <Button
+                variant="ghost"
+                className="mt-2 w-full text-sm text-muted-foreground"
+                onClick={handleFinish}
+                disabled={submitting}
+              >
+                Finish &amp; skip remaining
               </Button>
             )}
           </div>
@@ -2909,6 +3001,27 @@ function WorkoutSessionV2Content() {
           moduleTitle={module?.title}
           sessionDateLabel={new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}
         />
+
+        {/* Implicit skip — confirm finishing with unlogged sets. */}
+        <AlertDialog
+          open={finishUnloggedCount !== null}
+          onOpenChange={(o) => { if (!o) setFinishUnloggedCount(null); }}
+        >
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Finish with {finishUnloggedCount} set{finishUnloggedCount !== 1 ? "s" : ""} unlogged?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                Any set you didn't log will be marked as skipped. Your logged sets are saved.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep logging</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmFinish}>Finish workout</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
 
         {/* WK7 §5 — confirm skipping the whole workout. */}
         <AlertDialog open={skipWorkoutOpen} onOpenChange={setSkipWorkoutOpen}>
