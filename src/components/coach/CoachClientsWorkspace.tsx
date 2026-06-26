@@ -243,61 +243,115 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
           {search ? "No clients match your search." : "No active clients yet."}
         </p>
       ) : (
-        <div className="flex flex-col gap-1.5">
-          {visible.map((c) => {
-            const tone = toneOf(c);
-            const stat = stats[c.id];
-            const active = c.id === clientUserId;
-            const adherence = stat?.adherence_pct ?? null;
-            const lastDays = daysSinceWeighIn(c.id);
-            const dots = [
-              attention.client_ids.check_in_overdue.includes(c.id) && { key: "checkin", cls: "bg-status-attention", label: "Check-in overdue" },
-              attention.client_ids.payment_failed.includes(c.id) && { key: "pay", cls: "bg-status-risk", label: "Payment failed" },
-              attention.client_ids.adjustments_pending.includes(c.id) && { key: "adj", cls: "bg-blue-500", label: "Adjustment pending" },
-              stat && stat.has_program === false && { key: "prog", cls: "bg-status-attention", label: "No program yet" },
-              (unreadCounts[c.id] ?? 0) > 0 && { key: "msg", cls: "bg-destructive", label: "Unread messages" },
-              (deloadCounts.get(c.id) ?? 0) > 0 && { key: "deload", cls: "bg-blue-500", label: "Pending deload" },
-            ].filter(Boolean) as Array<{ key: string; cls: string; label: string }>;
+        // Direction-3 roster table: avatar + name, plan, inline adherence bar,
+        // last weigh-in, status. Replaces the border-rail card list.
+        <div className="rounded-lg border overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b bg-muted/30 text-[11px] uppercase tracking-wide text-muted-foreground">
+                <th className="text-left font-normal px-3 py-2">Client</th>
+                <th className="text-left font-normal px-3 py-2 hidden sm:table-cell">Plan</th>
+                <th className="text-left font-normal px-3 py-2 w-[160px]">Adherence</th>
+                <th className="text-left font-normal px-3 py-2 hidden md:table-cell">Last weigh-in</th>
+                <th className="text-left font-normal px-3 py-2">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visible.map((c) => {
+                const tone = toneOf(c);
+                const stat = stats[c.id];
+                const active = c.id === clientUserId;
+                const adherence = stat?.adherence_pct ?? null;
+                const lastDays = daysSinceWeighIn(c.id);
+                const name = nameOf(c);
+                const initials =
+                  name.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join("").toUpperCase() || "?";
+                const dots = [
+                  attention.client_ids.check_in_overdue.includes(c.id) && { key: "checkin", cls: "bg-status-attention", label: "Check-in overdue" },
+                  attention.client_ids.payment_failed.includes(c.id) && { key: "pay", cls: "bg-status-risk", label: "Payment failed" },
+                  attention.client_ids.adjustments_pending.includes(c.id) && { key: "adj", cls: "bg-blue-500", label: "Adjustment pending" },
+                  stat && stat.has_program === false && { key: "prog", cls: "bg-status-attention", label: "No program yet" },
+                  (unreadCounts[c.id] ?? 0) > 0 && { key: "msg", cls: "bg-destructive", label: "Unread messages" },
+                  (deloadCounts.get(c.id) ?? 0) > 0 && { key: "deload", cls: "bg-blue-500", label: "Pending deload" },
+                ].filter(Boolean) as Array<{ key: string; cls: string; label: string }>;
+                const barColor =
+                  adherence == null ? "bg-muted-foreground/30"
+                  : adherence >= 80 ? "bg-status-ontrack"
+                  : adherence >= 50 ? "bg-status-attention"
+                  : "bg-status-risk";
 
-            return (
-              <button
-                key={c.id}
-                type="button"
-                onClick={() => selectClient(c.id)}
-                aria-current={active}
-                className={cn(
-                  "w-full text-left rounded-lg border-l-4 border bg-card p-2.5 transition-colors hover:bg-muted/60",
-                  toneClasses(tone).rail,
-                  active && "bg-muted ring-1 ring-primary/40",
-                )}
-              >
-                {/* Line 1: name + plan, alert dots pushed right */}
-                <div className="flex items-baseline justify-between gap-2">
-                  <div className="flex items-baseline gap-2 min-w-0">
-                    <span className="font-medium text-sm truncate">{nameOf(c)}</span>
-                    {!condensed && c.service_name && (
-                      <Badge variant="outline" className="shrink-0 px-1.5 py-0 text-[10px]">{c.service_name}</Badge>
+                return (
+                  <tr
+                    key={c.id}
+                    role="button"
+                    tabIndex={0}
+                    aria-current={active}
+                    onClick={() => selectClient(c.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        selectClient(c.id);
+                      }
+                    }}
+                    className={cn(
+                      "border-b last:border-0 cursor-pointer transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:bg-muted/50",
+                      active && "bg-muted",
                     )}
-                  </div>
-                  {dots.length > 0 && (
-                    <span className="flex items-center gap-1 shrink-0 self-center">
-                      {dots.map((d) => (
-                        <span key={d.key} className={cn("h-1.5 w-1.5 rounded-full", d.cls)} aria-label={d.label} />
-                      ))}
-                    </span>
-                  )}
-                </div>
-                {/* Line 2: adherence · check-ins · last weigh-in, evenly spaced (rail conveys status) */}
-                {!condensed && (
-                  <div className="mt-1.5 flex items-baseline justify-between gap-2 text-[11px] text-muted-foreground tabular-nums">
-                    <span>Adh {adherence == null ? "—" : `${adherence}%`}</span>
-                    <span>{stat ? `${stat.weigh_ins_this_week}/${stat.expected_weigh_ins}` : "—"}</span>
-                    <span>{lastDays == null ? "No weigh-in" : lastDays === 0 ? "today" : `${lastDays}d ago`}</span>
-                  </div>
-                )}
-              </button>
-            );
-          })}
+                  >
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary text-[11px] font-medium">
+                          {initials}
+                        </span>
+                        <span className="font-medium truncate">{name}</span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 hidden sm:table-cell">
+                      {c.service_name ? (
+                        <span className="text-xs text-muted-foreground">{c.service_name}</span>
+                      ) : (
+                        <span className="text-muted-foreground/50">—</span>
+                      )}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="h-1.5 flex-1 max-w-[90px] rounded-full bg-muted overflow-hidden">
+                          <span className={cn("block h-full", barColor)} style={{ width: `${adherence ?? 0}%` }} />
+                        </span>
+                        <span className="font-mono text-xs tabular-nums text-muted-foreground w-9 shrink-0">
+                          {adherence == null ? "—" : `${adherence}%`}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-3 py-2.5 hidden md:table-cell text-xs text-muted-foreground tabular-nums">
+                      {lastDays == null ? "No weigh-in" : lastDays === 0 ? "today" : `${lastDays}d ago`}
+                    </td>
+                    <td className="px-3 py-2.5">
+                      {dots.length > 0 ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px]",
+                              toneClasses(tone).soft,
+                              toneClasses(tone).text,
+                            )}
+                          >
+                            <span className={cn("h-1.5 w-1.5 rounded-full", dots[0].cls)} aria-hidden="true" />
+                            {dots[0].label}
+                          </span>
+                          {dots.slice(1).map((d) => (
+                            <span key={d.key} className={cn("h-1.5 w-1.5 rounded-full", d.cls)} aria-label={d.label} />
+                          ))}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-status-ontrack">On track</span>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
