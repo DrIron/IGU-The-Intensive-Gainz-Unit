@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import type { Interpretation } from "@/lib/interpret";
 import {
   Apple,
   Dumbbell,
@@ -184,40 +186,23 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
       </p>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 -mt-2">
-        <StatTile
-          icon={<Apple className="h-4 w-4" aria-hidden="true" />}
+        <MetricCard
           label="Nutrition Phase"
-          railColor={stats.phaseName ? "bg-emerald-500" : "bg-muted"}
-          loading={loading}
-          empty={!stats.phaseName}
-          emptyLabel="No active phase"
-          primary={stats.phaseWeek != null ? `Week ${stats.phaseWeek}` : "--"}
-          secondary={stats.phaseName ?? undefined}
-          tag={stats.phaseGoal ? goalBadge(stats.phaseGoal) : undefined}
+          icon={Apple}
+          value={loading ? "…" : stats.phaseWeek != null ? `Week ${stats.phaseWeek}` : "—"}
+          interpretation={loading ? undefined : phaseInterp(stats.phaseName, stats.phaseGoal)}
         />
-
-        <StatTile
-          icon={<Dumbbell className="h-4 w-4" aria-hidden="true" />}
+        <MetricCard
           label="Last Workout"
-          railColor={workoutRail(stats.lastWorkoutAt)}
-          loading={loading}
-          empty={!stats.lastWorkoutAt}
-          emptyLabel="No completions yet"
-          primary={stats.lastWorkoutAt ? relative(stats.lastWorkoutAt) : "--"}
-          secondary={stats.lastWorkoutAt ? absolute(stats.lastWorkoutAt) : undefined}
+          icon={Dumbbell}
+          value={loading ? "…" : stats.lastWorkoutAt ? relative(stats.lastWorkoutAt) : "—"}
+          interpretation={loading ? undefined : recencyInterp(stats.lastWorkoutAt, "workout", 3, 7)}
         />
-
-        <StatTile
-          icon={<Scale className="h-4 w-4" aria-hidden="true" />}
+        <MetricCard
           label="Last Weigh-in"
-          railColor={weightRail(stats.lastWeighInAt)}
-          loading={loading}
-          empty={!stats.lastWeighInKg}
-          emptyLabel="No weigh-ins yet"
-          primary={
-            stats.lastWeighInKg != null ? `${stats.lastWeighInKg.toFixed(1)} kg` : "--"
-          }
-          secondary={stats.lastWeighInAt ? relative(stats.lastWeighInAt) : undefined}
+          icon={Scale}
+          value={loading ? "…" : stats.lastWeighInKg != null ? `${stats.lastWeighInKg.toFixed(1)} kg` : "—"}
+          interpretation={loading ? undefined : recencyInterp(stats.lastWeighInAt, "weigh-in", 7, 14)}
         />
       </div>
 
@@ -234,77 +219,31 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
   );
 }
 
-interface StatTileProps {
-  icon: React.ReactNode;
-  label: string;
-  railColor: string;
-  primary: string;
-  secondary?: string;
-  tag?: React.ReactNode;
-  loading: boolean;
-  empty: boolean;
-  emptyLabel: string;
+const GOAL_LABEL: Record<string, string> = {
+  fat_loss: "Fat Loss",
+  muscle_gain: "Muscle Gain",
+  maintenance: "Maintenance",
+};
+
+function phaseInterp(name: string | null, goal: string | null): Interpretation {
+  if (!name) return { tone: "neutral", label: "", sentence: "No active phase." };
+  const goalLabel = goal ? GOAL_LABEL[goal] ?? goal : null;
+  return { tone: "on_track", label: "Active", sentence: goalLabel ? `${name} · ${goalLabel}` : name };
 }
 
-function StatTile({
-  icon,
-  label,
-  railColor,
-  primary,
-  secondary,
-  tag,
-  loading,
-  empty,
-  emptyLabel,
-}: StatTileProps) {
-  return (
-    <Card className="overflow-hidden h-full">
-      <CardContent className="p-0 h-full">
-        <div className="flex h-full">
-          <div aria-hidden="true" className={cn("w-1 shrink-0", railColor)} />
-          <div className="flex-1 p-4 md:p-5 flex flex-col justify-center gap-2">
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide">
-                {icon}
-                <span>{label}</span>
-              </div>
-              {tag}
-            </div>
-            {loading ? (
-              <div className="h-7 w-24 rounded bg-muted animate-pulse" />
-            ) : empty ? (
-              <p className="text-sm text-muted-foreground">{emptyLabel}</p>
-            ) : (
-              <div className="space-y-0.5">
-                <p className="font-mono tabular-nums text-2xl md:text-3xl font-display leading-none">
-                  {primary}
-                </p>
-                {secondary && (
-                  <p className="font-mono text-[11px] text-muted-foreground tabular-nums">
-                    {secondary}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function goalBadge(goalType: string): React.ReactNode {
-  const map: Record<string, string> = {
-    fat_loss: "Fat Loss",
-    muscle_gain: "Muscle Gain",
-    maintenance: "Maintenance",
-  };
-  const label = map[goalType] ?? goalType;
-  return (
-    <Badge variant="secondary" className="text-[10px] uppercase tracking-wide">
-      {label}
-    </Badge>
-  );
+function recencyInterp(
+  iso: string | null,
+  noun: string,
+  okDays: number,
+  warnDays: number,
+): Interpretation {
+  if (!iso) return { tone: "neutral", label: "", sentence: `No ${noun} yet.` };
+  const d = daysSince(iso);
+  if (d == null) return { tone: "neutral", label: "", sentence: "" };
+  const when = d === 0 ? "today" : `${d}d ago`;
+  if (d <= okDays) return { tone: "on_track", label: "Recent", sentence: `Last ${noun} ${when}.` };
+  if (d <= warnDays) return { tone: "attention", label: "Slowing", sentence: `Last ${noun} ${when}.` };
+  return { tone: "risk", label: "Stale", sentence: `Last ${noun} ${when}.` };
 }
 
 function relative(iso: string): string {
@@ -315,36 +254,9 @@ function relative(iso: string): string {
   }
 }
 
-function absolute(iso: string): string {
-  try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    });
-  } catch {
-    return iso;
-  }
-}
-
 function daysSince(iso: string | null): number | null {
   if (!iso) return null;
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return null;
   return Math.floor((Date.now() - t) / (24 * 60 * 60 * 1000));
-}
-
-function workoutRail(iso: string | null): string {
-  const d = daysSince(iso);
-  if (d == null) return "bg-muted";
-  if (d <= 3) return "bg-emerald-500";
-  if (d <= 7) return "bg-amber-500";
-  return "bg-destructive";
-}
-
-function weightRail(iso: string | null): string {
-  const d = daysSince(iso);
-  if (d == null) return "bg-muted";
-  if (d <= 7) return "bg-emerald-500";
-  if (d <= 14) return "bg-amber-500";
-  return "bg-destructive";
 }
