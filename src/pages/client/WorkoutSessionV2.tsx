@@ -897,7 +897,6 @@ function ExerciseCard({
   activeSuggestionForSet,
   onDismissSuggestion,
   unit,
-  onUnitChange,
 }: {
   exercise: Exercise;
   exerciseIndex: number;
@@ -913,7 +912,6 @@ function ExerciseCard({
   activeSuggestionForSet: Map<number, { id: string; type: string; text: string }>;
   onDismissSuggestion: (suggestionId: string) => void;
   unit: WeightUnit;
-  onUnitChange: (u: WeightUnit) => void;
 }) {
   const [guideOpen, setGuideOpen] = useState(false);
 
@@ -1026,7 +1024,7 @@ function ExerciseCard({
                 <button
                   type="button"
                   onClick={(e) => { e.stopPropagation(); setGuideOpen(true); }}
-                  className="mt-1 inline-flex items-center gap-1 text-xs text-status-ontrack touch-manipulation"
+                  className="mt-1 inline-flex items-center gap-1 text-xs text-status-ontrack touch-manipulation whitespace-nowrap"
                 >
                   <Info className="w-3 h-3" aria-hidden="true" /> Form &amp; demo
                 </button>
@@ -1057,13 +1055,10 @@ function ExerciseCard({
                 </div>
               </div>
 
-              {/* Unit toggle (strength only) + Swap + Skip + Expand */}
+              {/* Swap + Expand. Unit toggle moved into the body (declutters the
+                  header on mobile); the explicit skip button is gone -- skipping
+                  is implicit (leave a set empty + unchecked, confirmed on Finish). */}
               <div className="flex items-center gap-1 shrink-0">
-                {!exercise.is_activity && (
-                  <div onClick={(e) => e.stopPropagation()}>
-                    <WeightUnitToggle unit={unit} onChange={onUnitChange} />
-                  </div>
-                )}
                 {!isComplete && (
                   <Button
                     variant="ghost"
@@ -1076,20 +1071,6 @@ function ExerciseCard({
                     title="Swap exercise"
                   >
                     <ArrowRightLeft className="w-4 h-4 text-muted-foreground" />
-                  </Button>
-                )}
-                {!isComplete && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-7 w-7"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      onSkipExercise();
-                    }}
-                    title="Skip exercise"
-                  >
-                    <SkipForward className="w-4 h-4 text-muted-foreground" />
                   </Button>
                 )}
                 {isExpanded ? (
@@ -1559,22 +1540,13 @@ function WorkoutSessionV2Content() {
   // (a machine reads in kg, the dumbbells are in lb — same gym). Overrides are
   // remembered per exercise on the device via localStorage so the choice sticks
   // across sessions. Storage stays canonical kg regardless of display unit.
-  const { unit } = useWeightUnit();
-  const [unitOverrides, setUnitOverrides] = useState<Record<string, WeightUnit>>({});
-  const unitForExercise = (exerciseId: string): WeightUnit => {
-    if (unitOverrides[exerciseId]) return unitOverrides[exerciseId];
-    try {
-      const s = localStorage.getItem(`igu_exercise_unit:${exerciseId}`);
-      if (s === "kg" || s === "lb") return s;
-    } catch { /* localStorage unavailable */ }
-    return unit;
-  };
-  const setUnitForExercise = (exerciseId: string, u: WeightUnit) => {
-    setUnitOverrides((prev) => ({ ...prev, [exerciseId]: u }));
-    try {
-      localStorage.setItem(`igu_exercise_unit:${exerciseId}`, u);
-    } catch { /* localStorage unavailable */ }
-  };
+  // One unit for the WHOLE session (kg/lb). Defaults to the client's saved
+  // preference; a single toggle in the session header overrides it for this
+  // session only. Replaces the old per-exercise override -- the toggle no
+  // longer repeats on every exercise card. Storage stays canonical kg.
+  const { unit: preferredUnit } = useWeightUnit();
+  const [sessionUnitOverride, setSessionUnitOverride] = useState<WeightUnit | null>(null);
+  const activeUnit: WeightUnit = sessionUnitOverride ?? preferredUnit;
   // WK7 §2e — completion summary sheet shown before navigating to the calendar.
   const [summary, setSummary] = useState<WorkoutSummary | null>(null);
   // WA1 — coach WhatsApp number for the "Message coach about this session"
@@ -2693,6 +2665,11 @@ function WorkoutSessionV2Content() {
                   by {module.coach_name}
                 </p>
               </div>
+              {/* One session-wide unit toggle (replaces the per-exercise one). */}
+              <WeightUnitToggle
+                unit={activeUnit}
+                onChange={async (u) => setSessionUnitOverride(u)}
+              />
               <Button
                 variant="outline"
                 size="sm"
@@ -2892,8 +2869,7 @@ function WorkoutSessionV2Content() {
                     onToggle={() => {}}
                     activeSuggestionForSet={suggestionsForExercise}
                     onDismissSuggestion={(id) => logProgressionResponse(id, "dismissed")}
-                    unit={unitForExercise(focusExercise.exercise_id)}
-                    onUnitChange={(u) => setUnitForExercise(focusExercise.exercise_id, u)}
+                    unit={activeUnit}
                   />
                 );
               })()}
@@ -3012,7 +2988,7 @@ function WorkoutSessionV2Content() {
         <WorkoutCompletionSheet
           open={summary !== null}
           summary={summary}
-          unit={unit}
+          unit={activeUnit}
           onDone={() => {
             setSummary(null);
             navigate("/client/workout/calendar");
