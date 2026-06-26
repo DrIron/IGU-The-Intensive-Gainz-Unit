@@ -57,6 +57,7 @@ import {
   MoreVertical,
   List,
   Lock,
+  Info,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
@@ -155,6 +156,12 @@ interface Exercise {
     name: string;
     default_video_url: string | null;
     primary_muscle: string;
+    // Form-guide content (exercise_library) shown in the in-session sheet.
+    description: string | null;
+    setup_instructions: string | null;
+    setup_points: string[] | null;
+    equipment: string | null;
+    secondary_muscles: string[] | null;
   };
   // History from previous sessions
   history?: {
@@ -263,19 +270,35 @@ function legacyToPerSet(
 function VideoThumbnail({
   url,
   name,
+  onOpenGuide,
 }: {
   url: string | null;
   name: string;
+  // When set, tapping the thumbnail opens the full Form & demo sheet instead
+  // of the bare video modal (so video + setup/execution live in one place).
+  onOpenGuide?: () => void;
 }) {
   const [showVideo, setShowVideo] = useState(false);
   const thumbnail = getYouTubeThumbnail(url);
   const videoId = getYouTubeId(url);
 
   if (!url) {
-    return (
+    const placeholder = (
       <div className="w-16 h-12 md:w-20 md:h-14 rounded-lg bg-muted flex items-center justify-center shrink-0">
         <Dumbbell className="w-4 h-4 text-muted-foreground" />
       </div>
+    );
+    return onOpenGuide ? (
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); onOpenGuide(); }}
+        aria-label={`${name} form guide`}
+        className="shrink-0"
+      >
+        {placeholder}
+      </button>
+    ) : (
+      placeholder
     );
   }
 
@@ -284,8 +307,10 @@ function VideoThumbnail({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          setShowVideo(true);
+          if (onOpenGuide) onOpenGuide();
+          else setShowVideo(true);
         }}
+        aria-label={`${name} form guide`}
         className="relative w-16 h-12 md:w-20 md:h-14 rounded-lg overflow-hidden shrink-0 group cursor-pointer"
       >
         {thumbnail ? (
@@ -346,6 +371,103 @@ const TEXT_INPUT_TYPES: ReadonlySet<string> = new Set([
 // Per-Set Row with its own prescription.
 // Strength items render the classic Weight / Reps / RIR-or-RPE grid unchanged.
 // Activity items render inputs DYNAMICALLY from the coach-configured input columns.
+// In-session Form & demo sheet — demo video + setup/execution from
+// exercise_library, opened from the exercise card thumbnail or "Form" button so
+// the client never leaves the workout (Runna/Ladder pattern).
+function ExerciseGuideSheet({
+  exercise,
+  open,
+  onOpenChange,
+}: {
+  exercise: Exercise;
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+}) {
+  const lib = exercise.exercise;
+  const videoId = getYouTubeId(lib.default_video_url);
+  const setupPoints =
+    lib.setup_points && lib.setup_points.length > 0
+      ? lib.setup_points
+      : lib.setup_instructions
+        ? lib.setup_instructions.split(/\n+/).map((s) => s.trim()).filter(Boolean)
+        : [];
+  const hasContent = setupPoints.length > 0 || !!lib.description;
+
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="max-h-[90dvh] flex flex-col">
+        <div className="px-4 pt-3 pb-2">
+          <DrawerTitle>{lib.name}</DrawerTitle>
+          <DrawerDescription asChild>
+            <span className="mt-1 flex flex-wrap items-center gap-1.5">
+              {lib.primary_muscle && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{lib.primary_muscle}</span>
+              )}
+              {lib.equipment && (
+                <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{lib.equipment}</span>
+              )}
+              {(lib.secondary_muscles ?? []).slice(0, 2).map((m) => (
+                <span key={m} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{m}</span>
+              ))}
+            </span>
+          </DrawerDescription>
+        </div>
+        <DrawerScrollArea className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
+          {videoId ? (
+            <div className="aspect-video rounded-lg overflow-hidden bg-black mb-4">
+              <iframe
+                src={`https://www.youtube.com/embed/${videoId}?rel=0`}
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                title={lib.name}
+              />
+            </div>
+          ) : lib.default_video_url ? (
+            <a
+              href={lib.default_video_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mb-4 flex aspect-video items-center justify-center rounded-lg bg-muted text-sm text-primary underline"
+            >
+              Open demo video
+            </a>
+          ) : (
+            <div className="mb-4 flex aspect-video items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
+              No demo video yet
+            </div>
+          )}
+
+          {setupPoints.length > 0 && (
+            <div className="mb-4">
+              <h4 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Setup</h4>
+              <ol className="space-y-1.5">
+                {setupPoints.map((p, i) => (
+                  <li key={i} className="flex gap-2 text-sm text-muted-foreground">
+                    <span className="shrink-0 font-mono text-status-ontrack">{i + 1}</span>
+                    <span>{p}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+
+          {lib.description && (
+            <div className="mb-4">
+              <h4 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Execution</h4>
+              <p className="whitespace-pre-line text-sm text-muted-foreground">{lib.description}</p>
+            </div>
+          )}
+
+          {!hasContent && (
+            <p className="py-6 text-center text-sm text-muted-foreground">No form notes for this exercise yet.</p>
+          )}
+        </DrawerScrollArea>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
 // A set is a PR if it beats any of three records vs the movement's prior
 // history: heaviest load ever, heaviest at this rep count (±1), or same
 // load×reps at a higher RIR than before ("got easier"). All loads canonical kg.
@@ -771,6 +893,8 @@ function ExerciseCard({
   unit: WeightUnit;
   onUnitChange: (u: WeightUnit) => void;
 }) {
+  const [guideOpen, setGuideOpen] = useState(false);
+
   // Get per-set prescriptions: V2 from prescription_snapshot_json.sets_json, or convert from legacy
   const prescriptions: SetPrescription[] =
     exercise.sets_json ||
@@ -864,10 +988,11 @@ function ExerciseCard({
                 {isComplete ? <CheckCircle2 className="w-4 h-4" /> : exerciseIndex + 1}
               </div>
 
-              {/* Video thumbnail */}
+              {/* Video thumbnail — opens the Form & demo sheet */}
               <VideoThumbnail
                 url={exercise.exercise.default_video_url}
                 name={exercise.exercise.name}
+                onOpenGuide={() => setGuideOpen(true)}
               />
 
               {/* Info */}
@@ -876,6 +1001,13 @@ function ExerciseCard({
                 <CardDescription className="text-sm">
                   {exercise.exercise.primary_muscle}
                 </CardDescription>
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setGuideOpen(true); }}
+                  className="mt-1 inline-flex items-center gap-1 text-xs text-status-ontrack touch-manipulation"
+                >
+                  <Info className="w-3 h-3" aria-hidden="true" /> Form &amp; demo
+                </button>
                 {/* Per-set mini progress segments (§2b) */}
                 <div className="flex items-center gap-2 mt-1.5">
                   <div className="flex items-center gap-1">
@@ -1048,6 +1180,7 @@ function ExerciseCard({
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
+      <ExerciseGuideSheet exercise={exercise} open={guideOpen} onOpenChange={setGuideOpen} />
     </Card>
   );
 }
@@ -1498,7 +1631,7 @@ function WorkoutSessionV2Content() {
             .select(
               `
           *,
-          exercise_library(name, primary_muscle, default_video_url)
+          exercise_library(name, primary_muscle, default_video_url, description, setup_instructions, setup_points, equipment, secondary_muscles)
         `,
             )
             .eq("client_day_module_id", moduleId)
@@ -1723,6 +1856,11 @@ function WorkoutSessionV2Content() {
               name: ex.exercise_library?.name || "Unknown Exercise",
               default_video_url: ex.exercise_library?.default_video_url,
               primary_muscle: ex.exercise_library?.primary_muscle || "",
+              description: ex.exercise_library?.description ?? null,
+              setup_instructions: ex.exercise_library?.setup_instructions ?? null,
+              setup_points: ex.exercise_library?.setup_points ?? null,
+              equipment: ex.exercise_library?.equipment ?? null,
+              secondary_muscles: ex.exercise_library?.secondary_muscles ?? null,
             },
             history:
               historyData && historyData.length > 0
@@ -2096,7 +2234,7 @@ function WorkoutSessionV2Content() {
       // than a thrown PostgREST 406 — CLAUDE.md ".maybeSingle() vs .single()" rule.
       const { data: newExLib, error: exError } = await supabase
         .from("exercise_library")
-        .select("name, primary_muscle, default_video_url")
+        .select("name, primary_muscle, default_video_url, description, setup_instructions, setup_points, equipment, secondary_muscles")
         .eq("id", newExerciseId)
         .maybeSingle();
 
@@ -2128,6 +2266,11 @@ function WorkoutSessionV2Content() {
             name: newExLib.name,
             primary_muscle: newExLib.primary_muscle,
             default_video_url: newExLib.default_video_url,
+            description: newExLib.description ?? null,
+            setup_instructions: newExLib.setup_instructions ?? null,
+            setup_points: newExLib.setup_points ?? null,
+            equipment: newExLib.equipment ?? null,
+            secondary_muscles: newExLib.secondary_muscles ?? null,
           },
           history: undefined,
           personal_best: undefined,
