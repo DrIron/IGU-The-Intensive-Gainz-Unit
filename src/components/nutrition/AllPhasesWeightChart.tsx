@@ -32,8 +32,6 @@ interface PhaseMark {
   name: string;
 }
 
-const DAY_MS = 24 * 60 * 60 * 1000;
-
 export function AllPhasesWeightChart({ clientUserId }: { clientUserId: string }) {
   const [points, setPoints] = useState<Point[]>([]);
   const [marks, setMarks] = useState<PhaseMark[]>([]);

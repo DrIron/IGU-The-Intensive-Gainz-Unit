@@ -122,14 +122,14 @@ export function PhaseWeightTrendCard({ phase }: PhaseWeightTrendCardProps) {
         ) : (
           <div className="h-[170px] w-full">
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={points} margin={{ top: 6, right: 8, bottom: 0, left: -16 }}>
+              <LineChart data={points} margin={{ top: 6, right: 8, bottom: 0, left: -4 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 11 }} stroke="hsl(var(--muted-foreground))" minTickGap={24} />
                 <YAxis
                   domain={[yMin, yMax]}
                   tick={{ fontSize: 11 }}
                   stroke="hsl(var(--muted-foreground))"
-                  width={36}
+                  width={44}
                   tickFormatter={(v: number) => v.toFixed(0)}
                 />
                 <Tooltip
