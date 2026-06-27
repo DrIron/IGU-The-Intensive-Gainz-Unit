@@ -242,7 +242,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
                 <StepProgressDisplay userId={clientUserId} />
               </div>
               <NutritionCheckInCard phaseId={selectedPhase.id} />
-              <ScheduledEventsCalendar phaseId={selectedPhase.id} />
+              <ScheduledEventsCalendar phaseId={selectedPhase.id} phase={selectedPhase} />
             </>
           ) : (
             <Card>

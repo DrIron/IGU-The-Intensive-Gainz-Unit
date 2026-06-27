@@ -39,11 +39,18 @@ import type { DietBreak, RefeedDay } from "@/types/nutrition-phase22";
  */
 interface ScheduledEventsCalendarProps {
   phaseId: string;
+  /** Optional: the phase's date range, banded across the calendar (Stage 2). */
+  phase?: {
+    start_date?: string | null;
+    end_date?: string | null;
+    estimated_end_date?: string | null;
+    phase_name?: string | null;
+  };
   /** Optional: show the card without the outer `<Card>` wrapper. */
   unwrapped?: boolean;
 }
 
-export function ScheduledEventsCalendar({ phaseId, unwrapped = false }: ScheduledEventsCalendarProps) {
+export function ScheduledEventsCalendar({ phaseId, phase, unwrapped = false }: ScheduledEventsCalendarProps) {
   const [month, setMonth] = useState(() => startOfMonth(new Date()));
   const [dietBreaks, setDietBreaks] = useState<DietBreak[]>([]);
   const [refeedDays, setRefeedDays] = useState<RefeedDay[]>([]);
@@ -92,6 +99,20 @@ export function ScheduledEventsCalendar({ phaseId, unwrapped = false }: Schedule
     const end = endOfWeek(endOfMonth(month));
     return eachDayOfInterval({ start, end });
   }, [month]);
+
+  // Phase band range (Stage 2). Open-ended when no end is known.
+  const phaseRange = useMemo(() => {
+    if (!phase?.start_date) return null;
+    const endIso = phase.end_date ?? phase.estimated_end_date ?? null;
+    return { start: parseISO(phase.start_date), end: endIso ? parseISO(endIso) : null };
+  }, [phase?.start_date, phase?.end_date, phase?.estimated_end_date]);
+
+  const inPhase = (day: Date): boolean => {
+    if (!phaseRange) return false;
+    if (day < phaseRange.start) return false;
+    if (phaseRange.end && day > phaseRange.end) return false;
+    return true;
+  };
 
   const body = (
     <>
@@ -145,6 +166,8 @@ export function ScheduledEventsCalendar({ phaseId, unwrapped = false }: Schedule
                 "relative h-10 rounded text-[11px] tabular-nums flex items-start justify-start p-1 transition-colors",
                 !inCurrentMonth && "opacity-30",
                 today && "ring-1 ring-primary",
+                // Phase band tint when in-phase and no diet break overlay.
+                breaksForDay.length === 0 && inPhase(day) && "bg-status-ontrack/10",
                 breaksForDay.length > 0 && breakDayColor(breaksForDay[0].status),
                 hasEvent && "cursor-pointer hover:ring-1 hover:ring-ring",
               )}
@@ -177,6 +200,12 @@ export function ScheduledEventsCalendar({ phaseId, unwrapped = false }: Schedule
 
       {/* Legend */}
       <div className="flex items-center gap-4 mt-3 text-[10px] text-muted-foreground font-mono">
+        {phaseRange && (
+          <div className="flex items-center gap-1.5">
+            <span className="h-2 w-2 rounded-sm bg-status-ontrack/30" aria-hidden />
+            <span>Phase{phase?.phase_name ? ` · ${phase.phase_name}` : ""}</span>
+          </div>
+        )}
         <div className="flex items-center gap-1.5">
           <span className="h-2 w-2 rounded-sm bg-amber-400/70" aria-hidden />
           <span>Diet break</span>
@@ -197,9 +226,9 @@ export function ScheduledEventsCalendar({ phaseId, unwrapped = false }: Schedule
       <CardHeader className="pb-3">
         <CardTitle className="flex items-center gap-2 text-base">
           <CalendarCheck className="h-4 w-4" />
-          Scheduled Events
+          Nutrition calendar
         </CardTitle>
-        <CardDescription>Diet breaks and refeed days on one calendar.</CardDescription>
+        <CardDescription>Phase, diet breaks, and refeed days on one calendar.</CardDescription>
       </CardHeader>
       <CardContent>{body}</CardContent>
     </Card>
