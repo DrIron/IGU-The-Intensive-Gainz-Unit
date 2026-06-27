@@ -30,7 +30,20 @@ interface Point {
 interface PhaseMark {
   t: number;
   name: string;
+  dateLabel: string;
+  color: string;
 }
+
+// Distinct marker colors, cycled per phase so each phase boundary is its own
+// hue and can be matched to the named legend below the chart.
+const PHASE_COLORS = [
+  "hsl(var(--status-ontrack))",
+  "#a855f7",
+  "#f59e0b",
+  "#06b6d4",
+  "#ec4899",
+  "#84cc16",
+];
 
 export function AllPhasesWeightChart({ clientUserId }: { clientUserId: string }) {
   const [points, setPoints] = useState<Point[]>([]);
@@ -59,8 +72,17 @@ export function AllPhasesWeightChart({ clientUserId }: { clientUserId: string })
       .map((w) => ({ t: new Date(w.log_date).getTime(), weight: Number(w.weight_kg) }))
       .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.weight));
     const phaseMarks: PhaseMark[] = (phasesRes.data ?? [])
-      .map((p) => ({ t: new Date(p.start_date).getTime(), name: p.phase_name ?? "Phase" }))
-      .filter((m) => Number.isFinite(m.t));
+      .map((p) => ({
+        t: new Date(p.start_date).getTime(),
+        name: p.phase_name ?? "Phase",
+        dateLabel: "",
+      }))
+      .filter((m) => Number.isFinite(m.t))
+      .map((m, i) => ({
+        ...m,
+        color: PHASE_COLORS[i % PHASE_COLORS.length],
+        dateLabel: new Date(m.t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }),
+      }));
 
     setPoints(pts);
     setMarks(phaseMarks);
@@ -122,9 +144,9 @@ export function AllPhasesWeightChart({ clientUserId }: { clientUserId: string })
                 <ReferenceLine
                   key={`${m.t}-${i}`}
                   x={m.t}
-                  stroke="hsl(var(--status-ontrack))"
+                  stroke={m.color}
                   strokeDasharray="3 3"
-                  label={{ value: m.name, position: "insideTopLeft", fontSize: 9, fill: "hsl(var(--muted-foreground))" }}
+                  strokeWidth={1.5}
                 />
               ))}
               <Line
@@ -137,6 +159,23 @@ export function AllPhasesWeightChart({ clientUserId }: { clientUserId: string })
               />
             </LineChart>
           </ResponsiveContainer>
+        )}
+
+        {!loading && points.length >= 2 && marks.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 border-t pt-3">
+            <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Phases</span>
+            {marks.map((m, i) => (
+              <span key={`legend-${m.t}-${i}`} className="flex items-center gap-1.5 text-xs">
+                <span
+                  aria-hidden="true"
+                  className="inline-block h-3 w-0.5 rounded-sm"
+                  style={{ backgroundColor: m.color }}
+                />
+                <span className="font-medium">{m.name}</span>
+                <span className="text-muted-foreground">{m.dateLabel}</span>
+              </span>
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>
