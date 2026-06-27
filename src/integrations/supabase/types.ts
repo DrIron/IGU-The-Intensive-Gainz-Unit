@@ -8440,6 +8440,10 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_plan_to_client: {
+        Args: { p_client_program_id: string; p_timezone?: string }
+        Returns: Json
+      }
       assign_program_to_client: {
         Args: {
           p_client_id: string

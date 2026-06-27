@@ -8,6 +8,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { captureException } from "@/lib/errorLogging";
 import { format } from "date-fns";
 
 export interface AssignProgramParams {
@@ -43,6 +44,28 @@ export async function assignProgramToClient(
     if (error) throw error;
 
     const result = data as { client_program_id: string };
+
+    // P2 (program system unification): dual-write the canonical client_plan_assignment
+    // for the 1:1 path only. Team assignments (teamId set) are out of scope — the Teams
+    // track owns the shared team plan + fan-out. Best-effort/fire-and-forget like P1:
+    // legacy client_programs stays authoritative, so a mirror failure (or a template with
+    // no P1 mirror plan yet) must never fail the assignment. assign_plan_to_client copies
+    // straight from the legacy row and skips gracefully when no mirror plan exists.
+    if (!teamId && result.client_program_id) {
+      try {
+        const { error: mirrorError } = await supabase.rpc("assign_plan_to_client", {
+          p_client_program_id: result.client_program_id,
+        });
+        if (mirrorError) throw mirrorError;
+      } catch (mirrorError: unknown) {
+        captureException(mirrorError, {
+          source: "assign_plan_to_client_mirror",
+          severity: "warning",
+          metadata: { clientProgramId: result.client_program_id },
+        });
+      }
+    }
+
     return { success: true, clientProgramId: result.client_program_id };
   } catch (error: unknown) {
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
