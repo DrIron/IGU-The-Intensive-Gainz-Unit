@@ -303,6 +303,23 @@ function sessionDiffers(s: SessionData, b: BoardSessionBase): boolean {
   return false;
 }
 
+/**
+ * Field-level prescription diff: only the prescription_json keys that differ from the template
+ * (per the build plan, override_json = changed fields only). The resolver shallow-merges this
+ * over the base, so unchanged keys keep flowing from the template — a customized slot stays
+ * attached to the template for every field the coach didn't touch. A field the coach CLEARED
+ * (present in base, absent now) is stored as an explicit null tombstone so the merge unsets it.
+ */
+export function prescriptionDiff(cur: Record<string, unknown>, base: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
+  const keys = new Set([...Object.keys(cur), ...Object.keys(base)]);
+  for (const k of keys) {
+    if (stable(cur[k]) === stable(base[k])) continue;
+    out[k] = cur[k] === undefined ? null : cur[k]; // tombstone keys removed by the coach
+  }
+  return out;
+}
+
 export interface OverriddenIds {
   slots: Set<string>;
   sessions: Set<string>;
@@ -409,12 +426,18 @@ export async function persistAssignmentOverrides(
       continue;
     }
     if (slotDiffers(slot, b, gpc, gci)) {
-      const patch: Record<string, unknown> = { prescription: curPj };
+      const patch: Record<string, unknown> = {};
+      const presDiff = prescriptionDiff(curPj, b.pj);
+      if (Object.keys(presDiff).length > 0) patch.prescription = presDiff; // field-level, not whole block
       if ((slot.exercise?.exerciseId ?? null) !== b.exercise_id) patch.exercise_id = slot.exercise?.exerciseId ?? null;
       if ((slot.sortOrder ?? 0) !== b.sort_order) patch.sort_order = slot.sortOrder ?? 0;
       if ((slot.exercise?.instructions ?? null) !== b.instructions) patch.instructions = slot.exercise?.instructions ?? null;
-      desired.add(`slot:${id}`);
-      ops.push(writeOverride(assignmentId, "slot", id, patch, false));
+      // Defensive: slotDiffers was true, so patch should be non-empty; if not, leave it to the
+      // clear loop (revert to template) rather than writing a meaningless override.
+      if (Object.keys(patch).length > 0) {
+        desired.add(`slot:${id}`);
+        ops.push(writeOverride(assignmentId, "slot", id, patch, false));
+      }
     }
   }
   for (const [id] of base.slots) {
