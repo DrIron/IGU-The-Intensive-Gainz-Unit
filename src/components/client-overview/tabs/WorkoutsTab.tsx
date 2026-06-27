@@ -24,6 +24,7 @@ import { ClientProgramDrilldown } from "../workouts/ClientProgramDrilldown";
 import { SessionLogViewer } from "../workouts/SessionLogViewer";
 import { WorkoutPulse } from "../workouts/WorkoutPulse";
 import { WorkoutTrendCards } from "../workouts/WorkoutTrendCards";
+import { WorkoutHistoryTrends } from "../workouts/WorkoutHistoryTrends";
 import {
   useAdherencePulse,
   useClientPrograms,
@@ -216,6 +217,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
           {hasAnyProgram ? (
             <>
               <WorkoutTrendCards clientUserId={clientUserId} />
+              <WorkoutHistoryTrends clientUserId={clientUserId} />
               <VolumeChart clientUserId={clientUserId} />
             </>
           ) : (
