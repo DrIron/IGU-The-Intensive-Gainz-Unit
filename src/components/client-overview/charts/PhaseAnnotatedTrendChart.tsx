@@ -1,15 +1,17 @@
 // src/components/client-overview/charts/PhaseAnnotatedTrendChart.tsx
 //
 // Reusable long-duration trend chart with phase annotation (redesign HT).
-// A single date-axis line with:
+// A date-axis line (or several) with:
 //   - a soft shaded band per phase (so you can see which phase any point was in)
 //   - a colored boundary line at each phase start
 //   - a named legend (swatch · phase name · date range)
 //   - a duration toggle (M / Q / 6M / Y / All)
 //
-// Presentational + self-contained: callers load their own series + phase
-// boundaries and hand them in. Used by weight / steps / measurements (nutrition
-// History) and tonnage / TUST / measurements (workouts History).
+// Single-series: pass `points`. Multi-series (e.g. waist/chest/hips/thighs):
+// pass `series` instead — each gets its own colored line + a metric legend.
+//
+// Presentational + self-contained: callers load their own data + phase
+// boundaries and hand them in.
 
 import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
@@ -32,6 +34,12 @@ export interface TrendPoint {
   t: number; // ms timestamp
   value: number;
 }
+export interface TrendSeries {
+  key: string;
+  name: string;
+  color: string;
+  points: TrendPoint[];
+}
 export interface TrendPhase {
   t: number; // phase start, ms timestamp
   name: string;
@@ -41,12 +49,15 @@ interface PhaseAnnotatedTrendChartProps {
   title: string;
   description?: string;
   icon?: LucideIcon;
-  points: TrendPoint[];
+  /** Single-series data. Provide this OR `series`. */
+  points?: TrendPoint[];
+  /** Multi-series data (one colored line each). Provide this OR `points`. */
+  series?: TrendSeries[];
   phases: TrendPhase[];
   unit?: string;
-  /** Formats a value for the hero/tooltip (defaults to 1-dp). */
+  /** Formats a value for the hero/tooltip/axis (defaults to 1-dp). */
   formatValue?: (v: number) => string;
-  /** "down" = lower is better (fat loss, body fat); flips trend tone. */
+  /** "down" = lower is better (fat loss, body fat); flips trend tone. Single-series only. */
   betterDirection?: "up" | "down" | "neutral";
   /** Empty-state copy when there are <2 points. */
   emptyLabel?: string;
@@ -70,6 +81,7 @@ export function PhaseAnnotatedTrendChart({
   description,
   icon: Icon,
   points,
+  series,
   phases,
   unit,
   formatValue,
@@ -80,21 +92,37 @@ export function PhaseAnnotatedTrendChart({
   const [rangeKey, setRangeKey] = useState("all");
   const fmt = formatValue ?? ((v: number) => v.toFixed(1));
 
-  const sorted = useMemo(
-    () => [...points].filter((p) => Number.isFinite(p.t) && Number.isFinite(p.value)).sort((a, b) => a.t - b.t),
-    [points],
-  );
+  // Normalise to a list of series so single- and multi-series share one path.
+  const activeSeries: TrendSeries[] = useMemo(() => {
+    if (series && series.length > 0) return series;
+    return [{ key: "value", name: title, color: "hsl(var(--chart-1))", points: points ?? [] }];
+  }, [series, points, title]);
+  const isMulti = activeSeries.length > 1;
 
-  // Apply the duration window. "All" keeps everything; otherwise clamp to the
-  // last N months relative to the most recent point (not "now", so a dormant
-  // client's history still shows).
+  // Merge every series into one row per timestamp: { t, [key]: value, ... }.
+  const rows = useMemo(() => {
+    const byT = new Map<number, Record<string, number>>();
+    for (const s of activeSeries) {
+      for (const p of s.points) {
+        if (!Number.isFinite(p.t) || !Number.isFinite(p.value)) continue;
+        const row = byT.get(p.t) ?? { t: p.t };
+        row[s.key] = p.value;
+        byT.set(p.t, row);
+      }
+    }
+    return [...byT.values()].sort((a, b) => a.t - b.t);
+  }, [activeSeries]);
+
+  // Duration window. "All" keeps everything; otherwise clamp to the last N
+  // months relative to the most recent point (not "now", so a dormant client's
+  // history still shows).
   const windowed = useMemo(() => {
     const months = RANGES.find((r) => r.key === rangeKey)?.months ?? null;
-    if (months == null || sorted.length === 0) return sorted;
-    const last = sorted[sorted.length - 1].t;
+    if (months == null || rows.length === 0) return rows;
+    const last = rows[rows.length - 1].t;
     const cutoff = last - months * MONTH_MS;
-    return sorted.filter((p) => p.t >= cutoff);
-  }, [sorted, rangeKey]);
+    return rows.filter((r) => r.t >= cutoff);
+  }, [rows, rangeKey]);
 
   const sortedPhases = useMemo(
     () =>
@@ -108,15 +136,13 @@ export function PhaseAnnotatedTrendChart({
   const domainMin = windowed.length ? windowed[0].t : 0;
   const domainMax = windowed.length ? windowed[windowed.length - 1].t : 0;
 
-  // Phase bands: from each phase start to the next phase start (or chart end),
-  // clamped to the visible window. Only phases overlapping the window render.
   const bands = useMemo(() => {
     return sortedPhases
       .map((p, i) => {
         const next = sortedPhases[i + 1]?.t ?? domainMax;
         const x1 = Math.max(p.t, domainMin);
         const x2 = Math.min(next, domainMax);
-        return { ...p, x1, x2, nextT: sortedPhases[i + 1]?.t ?? null };
+        return { ...p, x1, x2 };
       })
       .filter((b) => b.x2 > b.x1 || (b.t >= domainMin && b.t <= domainMax));
   }, [sortedPhases, domainMin, domainMax]);
@@ -126,10 +152,13 @@ export function PhaseAnnotatedTrendChart({
     [sortedPhases, domainMin, domainMax],
   );
 
+  // Trend header (single-series only): first vs last value over the window.
   const trend = useMemo(() => {
-    if (windowed.length < 2) return null;
-    const first = windowed[0].value;
-    const last = windowed[windowed.length - 1].value;
+    if (isMulti || windowed.length < 2) return null;
+    const key = activeSeries[0].key;
+    const first = windowed[0][key];
+    const last = windowed[windowed.length - 1][key];
+    if (!Number.isFinite(first) || !Number.isFinite(last)) return null;
     const diff = last - first;
     const rising = diff > 0;
     const flat = Math.abs(diff) < 1e-9;
@@ -139,8 +168,8 @@ export function PhaseAnnotatedTrendChart({
         : (betterDirection === "up") === rising && !flat
           ? "good"
           : "bad";
-    return { first, last, diff, rising, flat, good };
-  }, [windowed, betterDirection]);
+    return { first, last, rising, flat, good };
+  }, [isMulti, windowed, activeSeries, betterDirection]);
 
   const fmtTick = (t: number) =>
     new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric" });
@@ -234,7 +263,7 @@ export function PhaseAnnotatedTrendChart({
                 />
                 <Tooltip
                   labelFormatter={(t) => new Date(Number(t)).toLocaleDateString()}
-                  formatter={(v: number) => [`${fmt(Number(v))}${unit ? ` ${unit}` : ""}`, title]}
+                  formatter={(v: number, name: string) => [`${fmt(Number(v))}${unit ? ` ${unit}` : ""}`, name]}
                   contentStyle={{ fontSize: 12 }}
                 />
                 {bands.map((b, i) => (
@@ -247,16 +276,37 @@ export function PhaseAnnotatedTrendChart({
                     ifOverflow="hidden"
                   />
                 ))}
-                <Line
-                  type="monotone"
-                  dataKey="value"
-                  stroke="hsl(var(--chart-1))"
-                  strokeWidth={2}
-                  dot={false}
-                  isAnimationActive={false}
-                />
+                {activeSeries.map((s) => (
+                  <Line
+                    key={s.key}
+                    type="monotone"
+                    dataKey={s.key}
+                    name={s.name}
+                    stroke={s.color}
+                    strokeWidth={2}
+                    dot={false}
+                    connectNulls
+                    isAnimationActive={false}
+                  />
+                ))}
               </LineChart>
             </ResponsiveContainer>
+
+            {isMulti && (
+              <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5">
+                <span className="text-[10px] uppercase tracking-wide text-muted-foreground">Metrics</span>
+                {activeSeries.map((s) => (
+                  <span key={`mlegend-${s.key}`} className="flex items-center gap-1.5 text-xs">
+                    <span
+                      aria-hidden="true"
+                      className="inline-block h-0.5 w-3 rounded-sm"
+                      style={{ backgroundColor: s.color }}
+                    />
+                    <span className="font-medium">{s.name}</span>
+                  </span>
+                ))}
+              </div>
+            )}
 
             {visiblePhases.length > 0 && (
               <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1.5 border-t pt-3">
