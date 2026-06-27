@@ -1250,6 +1250,10 @@ function buildSlotConfig(state: MusclePlanState): Record<string, unknown> {
 // during the soak — this runs fire-and-forget AFTER the slot_config write, so a mirror
 // failure is a stale mirror, not data loss. See docs/PROGRAM_SYSTEM_UNIFICATION_BUILD_PLAN.md §P1.
 function buildPlanPayload(state: MusclePlanState) {
+  // `weeks` carries each SessionData.id and MuscleSlotData.id verbatim — these are the
+  // builder's stable ids that save_plan_from_builder upserts on (plan_sessions.builder_session_id
+  // / plan_slots.builder_slot_id) so plan_slots.id stays linked to exercise_set_logs across
+  // re-saves. Do NOT strip slot/session ids from the payload.
   return {
     name: state.name,
     description: state.description || null,

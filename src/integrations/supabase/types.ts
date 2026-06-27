@@ -5832,6 +5832,7 @@ export type Database = {
       plan_sessions: {
         Row: {
           activity_type: string
+          builder_session_id: string | null
           created_at: string
           day_index: number
           id: string
@@ -5843,6 +5844,7 @@ export type Database = {
         }
         Insert: {
           activity_type?: string
+          builder_session_id?: string | null
           created_at?: string
           day_index: number
           id?: string
@@ -5854,6 +5856,7 @@ export type Database = {
         }
         Update: {
           activity_type?: string
+          builder_session_id?: string | null
           created_at?: string
           day_index?: number
           id?: string
@@ -5884,6 +5887,7 @@ export type Database = {
         Row: {
           activity_id: string | null
           activity_name: string | null
+          builder_slot_id: string | null
           created_at: string
           exercise_id: string | null
           group_id: string | null
@@ -5903,6 +5907,7 @@ export type Database = {
         Insert: {
           activity_id?: string | null
           activity_name?: string | null
+          builder_slot_id?: string | null
           created_at?: string
           exercise_id?: string | null
           group_id?: string | null
@@ -5922,6 +5927,7 @@ export type Database = {
         Update: {
           activity_id?: string | null
           activity_name?: string | null
+          builder_slot_id?: string | null
           created_at?: string
           exercise_id?: string | null
           group_id?: string | null
