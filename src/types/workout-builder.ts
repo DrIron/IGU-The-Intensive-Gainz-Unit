@@ -443,6 +443,16 @@ export function setColumnValue(
 // V2 Per-Set Types
 // ============================================================
 
+// Per-set instruction "branch" — an ordered sub-instruction that hangs off a set
+// (drop set or rest-pause). Part of the P1 prescription-model schema addendum;
+// resolver math lands in P3 (WorkoutSessionV2), builder UI in P4. See
+// docs/PROGRAM_SYSTEM_UNIFICATION_BUILD_PLAN.md "Planning Board v2 + prescription model".
+export type SetBranch =
+  // Drop set: same weight engine as back-off, off the parent set, optional new tempo.
+  | { type: 'drop'; basis: 'percent' | 'drop'; value: number; tempo?: string }
+  // Rest & Repeat (rest-pause): rest a prescribed time, repeat the same set to failure.
+  | { type: 'rest_repeat'; rest_seconds: number; to_failure: true; max_rounds?: number };
+
 export interface SetPrescription {
   set_number: number; // 1-indexed
   reps?: number;
@@ -466,6 +476,22 @@ export interface SetPrescription {
   band_resistance?: string;
   notes?: string;
   custom_fields?: Record<string, string | number>;
+  // ── Per-set instruction family (P1 prescription-model schema addendum).
+  // Data-shape only: round-tripped verbatim through prescription_json.setsDetail by
+  // save_plan_from_builder; the resolver (back-off/drop weight math from the reference
+  // or client-logged weight, AMRAP, rest-pause) is P3, the typed "+ Coach instruction"
+  // menu is P4. Does NOT belong to the client-inputs system (separate + complete).
+  amrap?: boolean;                          // true removes the rep-range target; client logs reps
+  weight_mode?: 'absolute' | 'backoff';     // default 'absolute'
+  // When weight_mode === 'backoff': this set's weight derives from a reference set.
+  backoff?: {
+    ref_set_index: number;
+    basis: 'percent' | 'drop';
+    value: number;
+    rounding?: number;                      // kg increment to round to (default 2.5)
+  };
+  branches?: SetBranch[];                   // ordered drop-set / rest-pause sub-instructions
+  note?: string;                            // per-set note (formalized; coexists with `notes`)
 }
 
 export interface EnhancedExerciseDisplayV2 extends Omit<EnhancedExerciseDisplay, 'prescription'> {

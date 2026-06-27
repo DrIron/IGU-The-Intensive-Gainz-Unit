@@ -186,6 +186,13 @@ export interface MuscleSlotData {
   restSeconds?: number;              // HIIT
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
   activityNotes?: string;            // general notes for non-strength slot
+  // Superset / circuit grouping (P1 schema addendum — data-shape only; builder UI = P4).
+  // Slots sharing a groupId render as one bracket. Materialized verbatim by
+  // save_plan_from_builder into plan_slots.group_id / group_type / rounds. See
+  // docs/PROGRAM_SYSTEM_UNIFICATION_BUILD_PLAN.md "Planning Board v2 + prescription model".
+  groupId?: string;                  // uuid shared across the bracketed slots
+  groupType?: 'superset' | 'circuit';
+  groupRounds?: number;              // rounds for the whole bracket (distinct from HIIT `rounds`)
 }
 
 // Session = a coach-defined grouping of activities within a day.

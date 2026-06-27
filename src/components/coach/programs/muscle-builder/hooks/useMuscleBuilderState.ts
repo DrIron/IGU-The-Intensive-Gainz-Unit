@@ -2,7 +2,9 @@ import { useReducer, useCallback, useRef, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { captureException } from "@/lib/errorLogging";
 import { withTimeout } from "@/lib/withTimeout";
+import type { Json } from "@/integrations/supabase/types";
 import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType, WeekData, SessionData } from "@/types/muscle-builder";
 import { ACTIVITY_MAP, migrateSlotsToSessions } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
@@ -1243,6 +1245,36 @@ function buildSlotConfig(state: MusclePlanState): Record<string, unknown> {
   } as unknown as Record<string, unknown>;
 }
 
+// P1 (program system unification): mirror the serialized builder state into the
+// canonical plan* model via save_plan_from_builder. slot_config remains authoritative
+// during the soak — this runs fire-and-forget AFTER the slot_config write, so a mirror
+// failure is a stale mirror, not data loss. See docs/PROGRAM_SYSTEM_UNIFICATION_BUILD_PLAN.md §P1.
+function buildPlanPayload(state: MusclePlanState) {
+  return {
+    name: state.name,
+    description: state.description || null,
+    weeks: state.weeks,
+    globalClientInputs: state.globalClientInputs,
+    globalPrescriptionColumns: state.globalPrescriptionColumns,
+  };
+}
+
+async function mirrorPlanToCanonical(templateId: string, state: MusclePlanState): Promise<void> {
+  try {
+    const { error } = await supabase.rpc('save_plan_from_builder', {
+      p_template_id: templateId,
+      p_payload: buildPlanPayload(state) as unknown as Json,
+    });
+    if (error) throw error;
+  } catch (err) {
+    captureException(err, {
+      source: 'save_plan_from_builder_mirror',
+      severity: 'warning',
+      metadata: { templateId },
+    });
+  }
+}
+
 export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: string) {
   const [{ current: state, past, future }, dispatch] = useReducer(undoableReducer, {
     current: initialState,
@@ -1343,6 +1375,8 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
         );
         if (error) throw error;
         dispatch({ type: 'MARK_SAVED', templateId: s.templateId! });
+        // Mirror into canonical plan* AFTER the authoritative slot_config write.
+        void mirrorPlanToCanonical(s.templateId!, s);
       } catch {
         dispatch({ type: 'SAVE_ERROR' });
       }
@@ -1374,6 +1408,8 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
 
         if (error) throw error;
         dispatch({ type: 'MARK_SAVED', templateId: state.templateId });
+        // Mirror into canonical plan* AFTER the authoritative slot_config write.
+        void mirrorPlanToCanonical(state.templateId, state);
       } else {
         const { data, error } = await withTimeout(
           supabase
@@ -1392,6 +1428,8 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
 
         if (error) throw error;
         dispatch({ type: 'MARK_SAVED', templateId: data.id });
+        // Mirror into canonical plan* AFTER the authoritative slot_config insert.
+        void mirrorPlanToCanonical(data.id, state);
       }
 
       toast({ title: 'Muscle plan saved' });
