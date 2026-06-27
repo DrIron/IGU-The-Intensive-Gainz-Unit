@@ -1,13 +1,11 @@
-// src/components/nutrition/AllPhasesWeightChart.tsx
+// src/components/nutrition/AllPhasesBodyFatChart.tsx
 //
-// Long-duration weight timeline across ALL of a client's nutrition phases
-// (redesign nutrition Stage 4 / HT). Thin loader over the reusable
-// PhaseAnnotatedTrendChart: pulls weight_logs + nutrition_phases by user_id and
-// hands them in. Phase bands + boundary lines + named legend + duration toggle
-// all live in the shared component.
+// Long-duration body-fat % timeline across all of a client's phases (HT).
+// Thin loader over PhaseAnnotatedTrendChart. body_fat_logs has no phase_id, so
+// phases come from nutrition_phases by user_id (same as the weight chart).
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Scale } from "lucide-react";
+import { Percent } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   PhaseAnnotatedTrendChart,
@@ -15,16 +13,16 @@ import {
   type TrendPhase,
 } from "@/components/client-overview/charts/PhaseAnnotatedTrendChart";
 
-export function AllPhasesWeightChart({ clientUserId }: { clientUserId: string }) {
+export function AllPhasesBodyFatChart({ clientUserId }: { clientUserId: string }) {
   const [points, setPoints] = useState<TrendPoint[]>([]);
   const [phases, setPhases] = useState<TrendPhase[]>([]);
   const hasFetched = useRef<string | null>(null);
 
   const load = useCallback(async (userId: string) => {
-    const [weightsRes, phasesRes] = await Promise.all([
+    const [bfRes, phasesRes] = await Promise.all([
       supabase
-        .from("weight_logs")
-        .select("log_date, weight_kg")
+        .from("body_fat_logs")
+        .select("log_date, body_fat_percentage")
         .eq("user_id", userId)
         .order("log_date", { ascending: true }),
       supabase
@@ -33,12 +31,12 @@ export function AllPhasesWeightChart({ clientUserId }: { clientUserId: string })
         .eq("user_id", userId)
         .order("start_date", { ascending: true }),
     ]);
-    if (weightsRes.error) console.warn("[AllPhasesWeightChart] weights:", weightsRes.error.message);
-    if (phasesRes.error) console.warn("[AllPhasesWeightChart] phases:", phasesRes.error.message);
+    if (bfRes.error) console.warn("[AllPhasesBodyFatChart] body_fat:", bfRes.error.message);
+    if (phasesRes.error) console.warn("[AllPhasesBodyFatChart] phases:", phasesRes.error.message);
 
     setPoints(
-      (weightsRes.data ?? [])
-        .map((w) => ({ t: new Date(w.log_date).getTime(), value: Number(w.weight_kg) }))
+      (bfRes.data ?? [])
+        .map((b) => ({ t: new Date(b.log_date).getTime(), value: Number(b.body_fat_percentage) }))
         .filter((p) => Number.isFinite(p.t) && Number.isFinite(p.value)),
     );
     setPhases(
@@ -51,18 +49,19 @@ export function AllPhasesWeightChart({ clientUserId }: { clientUserId: string })
   useEffect(() => {
     if (hasFetched.current === clientUserId) return;
     hasFetched.current = clientUserId;
-    load(clientUserId).catch((err) => console.error("[AllPhasesWeightChart]", err));
+    load(clientUserId).catch((err) => console.error("[AllPhasesBodyFatChart]", err));
   }, [clientUserId, load]);
 
   return (
     <PhaseAnnotatedTrendChart
-      title="Weight across phases"
-      description="the whole journey"
-      icon={Scale}
+      title="Body fat across phases"
+      description="body fat %"
+      icon={Percent}
       points={points}
       phases={phases}
-      unit="kg"
-      emptyLabel="Not enough weigh-ins yet to chart a trend."
+      unit="%"
+      betterDirection="down"
+      emptyLabel="No body-fat readings logged yet."
     />
   );
 }

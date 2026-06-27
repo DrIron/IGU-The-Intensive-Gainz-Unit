@@ -21,6 +21,8 @@ import { CoachNutritionGraphs } from "@/components/nutrition/CoachNutritionGraph
 import { CoachNutritionNotes } from "@/components/nutrition/CoachNutritionNotes";
 import { ScheduledEventsCalendar } from "@/components/nutrition/ScheduledEventsCalendar";
 import { AllPhasesWeightChart } from "@/components/nutrition/AllPhasesWeightChart";
+import { AllPhasesStepsChart } from "@/components/nutrition/AllPhasesStepsChart";
+import { AllPhasesBodyFatChart } from "@/components/nutrition/AllPhasesBodyFatChart";
 import { DietBreakManager } from "@/components/nutrition/DietBreakManager";
 import { RefeedDayScheduler } from "@/components/nutrition/RefeedDayScheduler";
 import { StepProgressDisplay } from "@/components/nutrition/StepProgressDisplay";
@@ -259,6 +261,8 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
           {selectedPhase ? (
             <>
               <AllPhasesWeightChart clientUserId={clientUserId} />
+              <AllPhasesStepsChart clientUserId={clientUserId} />
+              <AllPhasesBodyFatChart clientUserId={clientUserId} />
               <CoachNutritionGraphs phase={selectedPhase} />
               <CoachNutritionProgress
                 phase={selectedPhase}
