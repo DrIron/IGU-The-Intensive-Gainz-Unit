@@ -1,10 +1,17 @@
-import { useReducer, useCallback, useRef, useEffect } from "react";
+import { useReducer, useCallback, useRef, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
 import { withTimeout } from "@/lib/withTimeout";
 import type { Json } from "@/integrations/supabase/types";
+import {
+  loadPlanForAssignment,
+  persistAssignmentOverrides,
+  computeOverriddenIds,
+  resetElementToTemplate,
+  type BoardPlanBase,
+} from "@/lib/clientPlanBoardAdapter";
 import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType, WeekData, SessionData } from "@/types/muscle-builder";
 import { ACTIVITY_MAP, migrateSlotsToSessions } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
@@ -1279,7 +1286,15 @@ async function mirrorPlanToCanonical(templateId: string, state: MusclePlanState)
   }
 }
 
-export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: string) {
+export function useMuscleBuilderState(
+  coachUserId: string,
+  existingTemplateId?: string,
+  opts?: { assignmentId?: string },
+) {
+  // P4 Editor v1: when assignmentId is set, the board is scoped to a 1:1 client's plan —
+  // load merges plan_* + client_plan_overrides, and saves persist as overrides (not slot_config).
+  // When undefined (the default), every path below is the existing template-editing behavior.
+  const assignmentId = opts?.assignmentId;
   const [{ current: state, past, future }, dispatch] = useReducer(undoableReducer, {
     current: initialState,
     past: [],
@@ -1287,13 +1302,44 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
   });
   const { toast } = useToast();
   const hasFetched = useRef(false);
+  // Template (base, pre-override) snapshot for client mode — drives the override diff + badges.
+  const baseRef = useRef<BoardPlanBase | null>(null);
 
   const canUndo = past.length > 0;
   const canRedo = future.length > 0;
 
-  // Load existing template
+  // Load — client mode (assignment + overrides) takes precedence over template mode.
   useEffect(() => {
-    if (!existingTemplateId || hasFetched.current) return;
+    if (hasFetched.current) return;
+    // Client mode: load the assignment's plan merged with its overrides.
+    if (assignmentId) {
+      hasFetched.current = true;
+      (async () => {
+        try {
+          const loaded = await loadPlanForAssignment(assignmentId);
+          if (!loaded) {
+            toast({ title: 'Program not found', description: 'No canonical plan for this assignment.', variant: 'destructive' });
+            return;
+          }
+          baseRef.current = loaded.base;
+          dispatch({
+            type: 'LOAD_TEMPLATE',
+            payload: {
+              templateId: assignmentId, // sentinel: enables dirty/autosave; persistence routes via assignmentId
+              name: loaded.name,
+              description: loaded.description,
+              weeks: loaded.weeks,
+              globalClientInputs: loaded.base.globalClientInputs,
+              globalPrescriptionColumns: loaded.base.globalPrescriptionColumns,
+            },
+          });
+        } catch (error) {
+          toast({ title: 'Error loading program', description: sanitizeErrorForUser(error), variant: 'destructive' });
+        }
+      })();
+      return;
+    }
+    if (!existingTemplateId) return;
     hasFetched.current = true;
 
     (async () => {
@@ -1348,7 +1394,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
         },
       });
     })();
-  }, [existingTemplateId, toast]);
+  }, [existingTemplateId, assignmentId, toast]);
 
   // Auto-save: debounce 2s after changes when template already exists
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -1364,30 +1410,35 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
 
       dispatch({ type: 'SAVING' });
       try {
-        const { error } = await withTimeout(
-          supabase
-            .from('muscle_program_templates')
-            .update({
-              name: s.name,
-              description: s.description || null,
-              slot_config: buildSlotConfig(s),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', s.templateId),
-          15000,
-          'Auto-save muscle plan',
-        );
-        if (error) throw error;
+        if (assignmentId) {
+          // Client mode: persist edits as client_plan_overrides (diff vs the template base).
+          if (baseRef.current) await persistAssignmentOverrides(assignmentId, s, baseRef.current);
+        } else {
+          const { error } = await withTimeout(
+            supabase
+              .from('muscle_program_templates')
+              .update({
+                name: s.name,
+                description: s.description || null,
+                slot_config: buildSlotConfig(s),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', s.templateId),
+            15000,
+            'Auto-save muscle plan',
+          );
+          if (error) throw error;
+          // Mirror into canonical plan* AFTER the authoritative slot_config write.
+          void mirrorPlanToCanonical(s.templateId!, s);
+        }
         dispatch({ type: 'MARK_SAVED', templateId: s.templateId! });
-        // Mirror into canonical plan* AFTER the authoritative slot_config write.
-        void mirrorPlanToCanonical(s.templateId!, s);
       } catch {
         dispatch({ type: 'SAVE_ERROR' });
       }
     }, 2000);
 
     return () => clearTimeout(autoSaveTimerRef.current);
-  }, [state.isDirty, state.templateId, state.isSaving, state.weeks, state.name, state.description]);
+  }, [state.isDirty, state.templateId, state.isSaving, state.weeks, state.name, state.description, assignmentId]);
 
   // Save
   const save = useCallback(async () => {
@@ -1395,6 +1446,13 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
     dispatch({ type: 'SAVING' });
 
     try {
+      if (assignmentId) {
+        // Client mode: persist edits as client_plan_overrides (diff vs the template base).
+        if (baseRef.current) await persistAssignmentOverrides(assignmentId, state, baseRef.current);
+        dispatch({ type: 'MARK_SAVED', templateId: assignmentId });
+        toast({ title: 'Client program saved' });
+        return;
+      }
       if (state.templateId) {
         const { error } = await withTimeout(
           supabase
@@ -1441,7 +1499,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
       dispatch({ type: 'SAVE_ERROR' });
       toast({ title: 'Error saving', description: sanitizeErrorForUser(error), variant: 'destructive' });
     }
-  }, [state.templateId, state.name, state.description, state.weeks, coachUserId, toast]);
+  }, [state, state.templateId, state.name, state.description, state.weeks, coachUserId, assignmentId, toast]);
 
   // Save as preset
   const saveAsPreset = useCallback(async () => {
@@ -1474,7 +1532,59 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
     }
   }, [coachUserId, state.name, state.description, state.weeks, toast]);
 
-  return { state, dispatch, save, saveAsPreset, canUndo, canRedo };
+  // Client mode (P4 Editor v1): which elements diverge from the template + a per-element reset.
+  const overriddenIds = useMemo(
+    () =>
+      assignmentId && baseRef.current
+        ? computeOverriddenIds(state, baseRef.current)
+        : { slots: new Set<string>(), sessions: new Set<string>() },
+    [state, assignmentId],
+  );
+
+  const reloadClientPlan = useCallback(async () => {
+    if (!assignmentId) return;
+    const loaded = await loadPlanForAssignment(assignmentId);
+    if (!loaded) return;
+    baseRef.current = loaded.base;
+    dispatch({
+      type: 'LOAD_TEMPLATE',
+      payload: {
+        templateId: assignmentId,
+        name: loaded.name,
+        description: loaded.description,
+        weeks: loaded.weeks,
+        globalClientInputs: loaded.base.globalClientInputs,
+        globalPrescriptionColumns: loaded.base.globalPrescriptionColumns,
+      },
+    });
+  }, [assignmentId]);
+
+  const resetElement = useCallback(
+    async (targetType: 'slot' | 'session', targetId: string) => {
+      if (!assignmentId) return;
+      try {
+        await resetElementToTemplate(assignmentId, targetType, targetId);
+        await reloadClientPlan();
+        toast({ title: 'Reset to template' });
+      } catch (error) {
+        toast({ title: 'Reset failed', description: sanitizeErrorForUser(error), variant: 'destructive' });
+      }
+    },
+    [assignmentId, reloadClientPlan, toast],
+  );
+
+  return {
+    state,
+    dispatch,
+    save,
+    saveAsPreset,
+    canUndo,
+    canRedo,
+    // Client-mode (assignment) extras — empty/no-op in template mode.
+    isClientMode: !!assignmentId,
+    overriddenIds,
+    resetElement,
+  };
 }
 
 export { getCurrentSlots, getCurrentSessions };

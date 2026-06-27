@@ -21,6 +21,8 @@ import type { ClientOverviewTabProps } from "../types";
 import { WorkoutAdherencePulse } from "../workouts/WorkoutAdherencePulse";
 import { ClientProgramList } from "../workouts/ClientProgramList";
 import { ClientProgramDrilldown } from "../workouts/ClientProgramDrilldown";
+import { MuscleBuilderPage } from "@/components/coach/programs/muscle-builder/MuscleBuilderPage";
+import { isClientProgramEditorEnabled } from "@/lib/featureFlags";
 import { SessionLogViewer } from "../workouts/SessionLogViewer";
 import { WorkoutPulse } from "../workouts/WorkoutPulse";
 import { WorkoutTrendCards } from "../workouts/WorkoutTrendCards";
@@ -84,6 +86,26 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   // B3 inner tabs: Pulse · Programs · Calendar · History.
   const [innerTab, setInnerTab] = useState("pulse");
 
+  // P4 Editor v1 (flagged): the client's active canonical assignment + an in-board editor.
+  // Edits persist as client_plan_overrides; legacy client_programs (above) is unaffected.
+  const editorEnabled = isClientProgramEditorEnabled();
+  const [canonicalAssignmentId, setCanonicalAssignmentId] = useState<string | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState(false);
+  const assignmentFetchedRef = useRef(false);
+  useEffect(() => {
+    if (!editorEnabled || assignmentFetchedRef.current) return;
+    assignmentFetchedRef.current = true;
+    supabase
+      .from("client_plan_assignment")
+      .select("id")
+      .eq("client_id", clientUserId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => setCanonicalAssignmentId(data?.id ?? null));
+  }, [editorEnabled, clientUserId]);
+
   const handleOpenProgram = useCallback((program: ClientProgramSummary) => {
     setSelected(program);
   }, []);
@@ -138,6 +160,16 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
 
         {/* Programs — assign + the program list / drill-down. */}
         <TabsContent value="programs" className="mt-5 space-y-5">
+          {/* P4 Editor v1 (flagged): in-board editor scoped to the client's assignment. */}
+          {editorEnabled && editingAssignment && canonicalAssignmentId && coachUserId ? (
+            <MuscleBuilderPage
+              coachUserId={coachUserId}
+              assignmentId={canonicalAssignmentId}
+              clientName={profile.firstName ?? profile.displayName ?? undefined}
+              onBack={() => setEditingAssignment(false)}
+            />
+          ) : (
+          <>
           <WorkoutAdherencePulse pulse={pulse} loading={pulseLoading || programsLoading} />
 
           <div className="flex flex-wrap items-center gap-2">
@@ -149,6 +181,12 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
               <Plus className="h-4 w-4 mr-1.5" />
               Assign program
             </Button>
+            {editorEnabled && canonicalAssignmentId && (
+              <Button size="sm" variant="outline" onClick={() => setEditingAssignment(true)}>
+                <Dumbbell className="h-4 w-4 mr-1.5" />
+                Edit in planning board (beta)
+              </Button>
+            )}
           </div>
 
           {selected ? (
@@ -182,6 +220,8 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
                 Re-assign this program template
               </Button>
             </div>
+          )}
+          </>
           )}
         </TabsContent>
 

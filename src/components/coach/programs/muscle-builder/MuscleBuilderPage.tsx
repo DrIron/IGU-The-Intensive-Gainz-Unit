@@ -47,6 +47,7 @@ import { ProgressionOverview } from "./ProgressionOverview";
 import { PresetSelector } from "./PresetSelector";
 import { ConvertToProgram } from "./ConvertToProgram";
 import { SaveStatusBadge, type SaveState } from "./SaveStatusBadge";
+import { ClientEditorProvider } from "./ClientEditorContext";
 import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import { DeloadDialog, type ApplyDeloadParams } from "./DeloadDialog";
 import { ProgressionRulesBar } from "./ProgressionRulesBar";
@@ -56,6 +57,10 @@ interface MuscleBuilderPageProps {
   existingTemplateId?: string;
   onBack: () => void;
   onOpenProgram?: (programId: string) => void;
+  // P4 Editor v1: when set, the board edits this 1:1 client's plan via client_plan_overrides
+  // (instead of a template's slot_config). clientName drives the amber context banner.
+  assignmentId?: string;
+  clientName?: string;
 }
 
 export function MuscleBuilderPage({
@@ -63,8 +68,11 @@ export function MuscleBuilderPage({
   existingTemplateId,
   onBack,
   onOpenProgram,
+  assignmentId,
+  clientName,
 }: MuscleBuilderPageProps) {
-  const { state, dispatch, save, saveAsPreset, canUndo, canRedo } = useMuscleBuilderState(coachUserId, existingTemplateId);
+  const { state, dispatch, save, saveAsPreset, canUndo, canRedo, isClientMode, overriddenIds, resetElement } =
+    useMuscleBuilderState(coachUserId, existingTemplateId, assignmentId ? { assignmentId } : undefined);
   const currentWeekSlots = getCurrentSlots(state);
   const currentWeekSessions = getCurrentSessions(state);
   const { volumeEntries, summary, frequencyMatrix, placementCounts, consecutiveDayWarnings } =
@@ -627,8 +635,32 @@ export function MuscleBuilderPage({
   );
 
   return (
+    <ClientEditorProvider
+      value={{
+        clientMode: isClientMode,
+        overriddenSlotIds: overriddenIds.slots,
+        overriddenSessionIds: overriddenIds.sessions,
+        onResetSlot: (slotId) => resetElement("slot", slotId),
+        onResetSession: (sessionId) => resetElement("session", sessionId),
+      }}
+    >
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="space-y-4">
+        {/* P4 Editor v1 — client (override) mode banner. Edits save as per-client overrides;
+            the shared template is untouched. */}
+        {isClientMode && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+            <span className="text-amber-700 dark:text-amber-400">
+              Editing <strong>{clientName ?? "this client"}</strong>'s program — changes save as
+              personal customizations (the template isn't affected).
+            </span>
+            <span className="shrink-0 text-xs font-medium text-amber-700 dark:text-amber-400">
+              {overriddenIds.slots.size + overriddenIds.sessions.size > 0
+                ? `${overriddenIds.slots.size + overriddenIds.sessions.size} customized`
+                : "Following template"}
+            </span>
+          </div>
+        )}
         {/* ── Header ──────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
           <div className="flex items-center gap-3">
@@ -676,7 +708,7 @@ export function MuscleBuilderPage({
               </Button>
             </div>
 
-            {!isEmpty && (
+            {!isEmpty && !isClientMode && (
               <>
                 <Button variant="ghost" size="sm" onClick={() => setShowClearDialog(true)}>
                   <Trash2 className="h-4 w-4 mr-1" />
@@ -734,7 +766,7 @@ export function MuscleBuilderPage({
               errorMessage={saveError}
               onSave={save}
             />
-            {!isEmpty && (
+            {!isEmpty && !isClientMode && (
               <Button size="sm" onClick={() => setShowConvertDialog(true)}>
                 <Zap className="h-4 w-4 mr-1" />
                 Create Program
@@ -1011,5 +1043,6 @@ export function MuscleBuilderPage({
         </DialogContent>
       </Dialog>
     </DragDropContext>
+    </ClientEditorProvider>
   );
 }

@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { X, AlertTriangle, Dumbbell, Plus, RefreshCw, Settings2, FileText } from "lucide-react";
+import { X, AlertTriangle, Dumbbell, Plus, RefreshCw, Settings2, FileText, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getMuscleDisplay,
@@ -19,6 +19,7 @@ import type { SetPrescription } from "@/types/workout-builder";
 import { AVAILABLE_PRESCRIPTION_COLUMNS, AVAILABLE_CLIENT_COLUMNS } from "@/types/workout-builder";
 import { SlotDeltaRulesPanel } from "./SlotDeltaRulesPanel";
 import { SlotInheritanceBar } from "./SlotInheritanceBar";
+import { useClientEditor } from "./ClientEditorContext";
 import type { WeeklyDeltaRule, DeltaTarget } from "./weeklyDeltaEngine";
 
 interface MuscleSlotCardProps {
@@ -123,6 +124,9 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   onClearOverride,
 }: MuscleSlotCardProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
+  // P4 Editor v1: client (override) mode — flag a customized slot + offer reset-to-template.
+  const { clientMode, overriddenSlotIds, onResetSlot } = useClientEditor();
+  const isOverridden = clientMode && overriddenSlotIds.has(slotId);
 
   const handleRemove = useCallback((e: React.MouseEvent) => {
     e.stopPropagation();
@@ -167,6 +171,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
               ? 'shadow-lg ring-2 ring-primary/50 bg-card'
               : 'bg-card/50 border-border/50 hover:border-border transition-colors',
             isHighlighted && 'ring-2 ring-primary animate-pulse bg-primary/10',
+            isOverridden && !isHighlighted && 'ring-1 ring-amber-500/60',
           )}
           style={{
             ...provided.draggableProps.style,
@@ -291,6 +296,19 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                 </div>
             </PopoverContent>
           </Popover>
+
+          {/* P4 client mode: reset this slot's customization back to the template. */}
+          {isOverridden && (
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400"
+              title="Reset to template"
+              onClick={(e) => { e.stopPropagation(); onResetSlot(slotId); }}
+            >
+              <RotateCcw className="h-3 w-3" />
+            </Button>
+          )}
 
           {/* Delete */}
           <Button

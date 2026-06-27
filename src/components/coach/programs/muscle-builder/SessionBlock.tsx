@@ -13,8 +13,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy } from "lucide-react";
+import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useClientEditor } from "./ClientEditorContext";
 import { MuscleSlotCard } from "./MuscleSlotCard";
 import { ActivitySlotCard } from "./ActivitySlotCard";
 import { UnifiedSessionPicker } from "./UnifiedSessionPicker";
@@ -128,6 +129,9 @@ export const SessionBlock = memo(function SessionBlock({
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(session.name ?? '');
   const [addOpen, setAddOpen] = useState(false);
+  // P4 Editor v1: client (override) mode — flag a customized session + offer reset-to-template.
+  const { clientMode, overriddenSessionIds, onResetSession } = useClientEditor();
+  const isOverridden = clientMode && overriddenSessionIds.has(session.id);
 
   const typeColors = ACTIVITY_TYPE_COLORS[session.type];
   const displayName = session.name?.trim() || defaultSessionName(session.type);
@@ -169,8 +173,8 @@ export const SessionBlock = memo(function SessionBlock({
       // stays faintly visible at all times (opacity-50) so coaches can still
       // discover session actions, while the name keeps every available pixel
       // when not hovering.
-      className="group/session border-l-2 pl-2 space-y-1"
-      style={{ borderLeftColor: typeColors.colorHex }}
+      className={cn("group/session border-l-2 pl-2 space-y-1", isOverridden && "border-l-amber-500")}
+      style={{ borderLeftColor: isOverridden ? undefined : typeColors.colorHex }}
     >
       {/* Header: name + inline + + kebab. Colored dot dropped — left bar
           already carries the type signal, gives the name another ~10px. */}
@@ -202,6 +206,18 @@ export const SessionBlock = memo(function SessionBlock({
           >
             {displayName}
           </button>
+        )}
+        {/* P4 client mode: reset this session's customization back to the template. */}
+        {isOverridden && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400"
+            title="Reset session to template"
+            onClick={e => { e.stopPropagation(); onResetSession(session.id); }}
+          >
+            <RotateCcw className="h-3 w-3" />
+          </Button>
         )}
         {/* Inline + opens the same picker the bottom-row button used to.
             Hidden until session-row hover so the session name keeps every

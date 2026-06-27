@@ -19,6 +19,12 @@ const FLAGS = {
     storageKey: "igu_ff_canonical_session_read",
     env: import.meta.env.VITE_FF_CANONICAL_SESSION_READ as string | undefined,
   },
+  // P4 Editor v1: mount the planning board scoped to a client_plan_assignment in the
+  // Workouts → Programs subtab (edits persist as client_plan_overrides). OFF until verified.
+  client_program_editor: {
+    storageKey: "igu_ff_client_program_editor",
+    env: import.meta.env.VITE_FF_CLIENT_PROGRAM_EDITOR as string | undefined,
+  },
 } as const;
 
 export type FeatureFlag = keyof typeof FLAGS;
@@ -40,4 +46,9 @@ export function isFeatureEnabled(flag: FeatureFlag): boolean {
 /** P3 convenience: is the canonical WorkoutSessionV2 read path enabled? */
 export function isCanonicalSessionReadEnabled(): boolean {
   return isFeatureEnabled("canonical_session_read");
+}
+
+/** P4 Editor v1: is the canonical client program editor (board scoped to an assignment) enabled? */
+export function isClientProgramEditorEnabled(): boolean {
+  return isFeatureEnabled("client_program_editor");
 }
