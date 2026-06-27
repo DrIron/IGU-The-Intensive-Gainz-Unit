@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
@@ -72,6 +72,9 @@ import {
   PERFORMED_JSON_COLUMN_TYPES,
 } from "@/types/workout-builder";
 import { fromCanonicalKg, toCanonicalKg, type WeightUnit } from "@/utils/weightUnits";
+import { isCanonicalSessionReadEnabled } from "@/lib/featureFlags";
+import { resolveCanonicalSession } from "@/lib/canonicalSessionResolver";
+import type { Json } from "@/integrations/supabase/types";
 import { epley1RM } from "@/lib/oneRepMax";
 import { useWeightUnit } from "@/hooks/useWeightUnit";
 import { ClickableCard } from "@/components/ui/clickable-card";
@@ -1548,6 +1551,40 @@ function WorkoutSessionV2Content() {
   const setLogsRef = useRef(setLogs);
   setLogsRef.current = setLogs;
 
+  // P3 (program system unification): canonical read path, behind a feature flag (OFF by
+  // default). Entry via query params on the same route: ?assignment=<id>&session=<plan_session_id>
+  // (or &date=yyyy-mm-dd). Legacy client_* (moduleId) stays the default + authoritative path.
+  const [searchParams] = useSearchParams();
+  const canonicalAssignmentParam = searchParams.get("assignment");
+  const canonicalSessionParam = searchParams.get("session");
+  const canonicalDateParam = searchParams.get("date");
+  const useCanonical =
+    isCanonicalSessionReadEnabled() &&
+    !!canonicalAssignmentParam &&
+    (!!canonicalSessionParam || !!canonicalDateParam);
+  // Non-null while a canonical session is loaded → logging writes assignment_id + plan_slot_id.
+  const [canonicalAssignmentId, setCanonicalAssignmentId] = useState<string | null>(null);
+  const canonicalAssignmentIdRef = useRef<string | null>(null);
+  canonicalAssignmentIdRef.current = canonicalAssignmentId;
+
+  // P3 log-row keying: canonical (assignment_id + plan_slot_id) when a canonical session is
+  // active, else legacy (client_module_exercise_id). In canonical mode Exercise.id IS the
+  // plan_slot id (set by loadCanonicalSession), so `exerciseId` doubles as plan_slot_id.
+  const buildLogKey = (
+    exerciseId: string,
+  ): { client_module_exercise_id: string | null; assignment_id?: string; plan_slot_id?: string } =>
+    canonicalAssignmentIdRef.current
+      ? {
+          client_module_exercise_id: null,
+          assignment_id: canonicalAssignmentIdRef.current,
+          plan_slot_id: exerciseId,
+        }
+      : { client_module_exercise_id: exerciseId };
+  const logConflictTarget = (): string =>
+    canonicalAssignmentIdRef.current
+      ? "assignment_id,plan_slot_id,set_index"
+      : "client_module_exercise_id,set_index";
+
   // Progression suggestions
   const {
     evaluate: evaluateProgression,
@@ -1902,21 +1939,162 @@ function WorkoutSessionV2Content() {
     }
   }, [moduleId, navigate, toast]);
 
+  // P3 canonical read path (behind the flag). Resolves ONE session from
+  // client_plan_assignment + plan_* + client_plan_overrides into the SAME Module/Exercise/
+  // SetLog state loadSession builds — so the rendering + logging UI below is unchanged.
+  // SCOPE: base prescription parity (no cross-instance history/PB, no progression eval,
+  // no set-instruction math — see canonicalSessionResolver TODOs).
+  const loadCanonicalSession = useCallback(async () => {
+    if (!canonicalAssignmentParam) return;
+    try {
+      setLoadError(false);
+      const {
+        data: { user: currentUser },
+      } = await withTimeout(supabase.auth.getUser(), 8000);
+      if (!currentUser) {
+        navigate("/auth");
+        return;
+      }
+      setUser(currentUser);
+
+      const resolved = await resolveCanonicalSession({
+        assignmentId: canonicalAssignmentParam,
+        planSessionId: canonicalSessionParam ?? undefined,
+        date: canonicalDateParam ?? undefined,
+      });
+      if (!resolved) {
+        toast({
+          title: "Workout not found",
+          description: "This canonical session could not be resolved.",
+          variant: "destructive",
+        });
+        navigate("/client/workout/calendar");
+        return;
+      }
+
+      const { data: coachJson } = await supabase.rpc("get_coach_for_client", {
+        p_coach_user_id: resolved.ownerCoachId,
+      });
+      const coachData = coachJson as { first_name?: string } | null;
+
+      const initialLogs: Record<string, SetLog[]> = {};
+      const formattedExercises: Exercise[] = resolved.exercises.map((rex) => {
+        const prescription = rex.prescriptionSnapshot;
+        const setsJson = prescription.sets_json ?? undefined;
+        const setCount = setsJson?.length || prescription.set_count || 3;
+
+        const allColumns: ColumnConfig[] = Array.isArray(prescription.column_config)
+          ? prescription.column_config
+          : [];
+        const { inputColumns } = splitColumnsByCategory(allColumns);
+        const isActivity = inputColumns.some((c) =>
+          PERFORMED_JSON_COLUMN_TYPES.has(c.type as ClientInputColumnType),
+        );
+
+        const existingLogs = resolved.existingLogs.filter(
+          (l) => l.plan_slot_id === rex.planSlotId,
+        );
+        initialLogs[rex.planSlotId] = Array.from({ length: setCount }, (_, i) => {
+          const existing = existingLogs.find((l) => l.set_index === i + 1);
+          const existingExtra = existing?.performed_json ?? {};
+          return {
+            set_index: i + 1,
+            performed_reps: existing?.performed_reps ?? null,
+            performed_load: existing?.performed_load ?? null,
+            performed_rir: existing?.performed_rir ?? null,
+            performed_rpe: existing?.performed_rpe ?? null,
+            performed_extra: existingExtra,
+            notes: existing?.notes || "",
+            skipped: existing?.skipped ?? false,
+            completed:
+              existing && !existing.skipped
+                ? existing.performed_reps !== null ||
+                  existing.performed_load !== null ||
+                  Object.keys(existingExtra).length > 0
+                : false,
+          };
+        });
+
+        return {
+          id: rex.planSlotId,
+          exercise_id: rex.exerciseId,
+          section: rex.section,
+          sort_order: rex.sortOrder,
+          instructions: rex.instructions,
+          prescription_snapshot_json: prescription as unknown as Exercise["prescription_snapshot_json"],
+          sets_json: setsJson as unknown as Exercise["sets_json"],
+          input_columns: inputColumns,
+          is_activity: isActivity,
+          skipped: false,
+          exercise: {
+            name: rex.library?.name || "Unknown Exercise",
+            default_video_url: rex.library?.default_video_url ?? null,
+            primary_muscle: rex.library?.primary_muscle || "",
+            description: rex.library?.description ?? null,
+            setup_instructions: rex.library?.setup_instructions ?? null,
+            setup_points: rex.library?.setup_points ?? null,
+            equipment: rex.library?.equipment ?? null,
+            secondary_muscles: rex.library?.secondary_muscles ?? null,
+          },
+          // history / personal_best / pr_refs — cross-instance, deferred (P3 TODO).
+        };
+      });
+
+      // Elapsed-time source: earliest canonical log created_at (parity with legacy).
+      const logCreatedAts = resolved.existingLogs
+        .map((l) => (l.created_at ? new Date(l.created_at).getTime() : NaN))
+        .filter((t) => Number.isFinite(t));
+      setEarliestLoggedAtMs(logCreatedAts.length ? Math.min(...logCreatedAts) : null);
+
+      setCanonicalAssignmentId(resolved.assignmentId);
+      setSetLogs(initialLogs);
+      setModule({
+        id: resolved.planSessionId,
+        title: resolved.title,
+        module_type: resolved.activityType,
+        status: "scheduled",
+        completed_at: null,
+        module_owner_coach_id: resolved.ownerCoachId,
+        coach_name: coachData?.first_name || "Coach",
+        exercises: formattedExercises,
+      });
+
+      const firstIncomplete = formattedExercises.findIndex((ex) => {
+        const logs = initialLogs[ex.id];
+        return !ex.skipped && logs && logs.some((l) => !l.completed && !l.skipped);
+      });
+      if (firstIncomplete >= 0) setFocusIndex(firstIncomplete);
+    } catch (error: any) {
+      console.error("Error loading canonical session:", error);
+      setLoadError(true);
+      toast({
+        title: "Error loading workout",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [canonicalAssignmentParam, canonicalSessionParam, canonicalDateParam, navigate, toast]);
+
   // Manual retry after a failed load — the hasFetched guard otherwise blocks
   // re-runs, so a transient failure would strand the user with no recovery.
   const handleRetryLoad = useCallback(() => {
     hasFetched.current = true;
     setLoadError(false);
     setLoading(true);
-    loadSession();
-  }, [loadSession]);
+    if (useCanonical) loadCanonicalSession();
+    else loadSession();
+  }, [useCanonical, loadCanonicalSession, loadSession]);
 
   // hasFetched ref guard pattern to prevent infinite loops
   useEffect(() => {
     if (hasFetched.current) return;
     hasFetched.current = true;
-    loadSession();
-  }, [loadSession]);
+    // P3: canonical read path behind the flag (legacy is the default + authoritative path).
+    if (useCanonical) loadCanonicalSession();
+    else loadSession();
+  }, [useCanonical, loadCanonicalSession, loadSession]);
 
   // WA1 — resolve the coach's WhatsApp number for the completion-sheet button.
   // Deliberately NOT part of loadSession's Promise.all burst (BUG3 / WK7 §1.5
@@ -2022,9 +2200,9 @@ function WorkoutSessionV2Content() {
           .from("exercise_set_logs")
           .upsert(
             {
-              client_module_exercise_id: exerciseId,
+              ...buildLogKey(exerciseId),
               set_index: logForSave.set_index,
-              prescribed: exerciseForSave.prescription_snapshot_json,
+              prescribed: exerciseForSave.prescription_snapshot_json as unknown as Json,
               performed_reps: logForSave.performed_reps,
               performed_load: logForSave.performed_load,
               performed_rir: logForSave.performed_rir,
@@ -2033,7 +2211,7 @@ function WorkoutSessionV2Content() {
               notes: logForSave.notes || null,
               created_by_user_id: user.id,
             },
-            { onConflict: "client_module_exercise_id,set_index" },
+            { onConflict: logConflictTarget() },
           ),
       );
       if (error) {
@@ -2072,8 +2250,11 @@ function WorkoutSessionV2Content() {
       }));
     }
 
-    // Evaluate progression suggestion if enabled
-    if (exercise && user) {
+    // Evaluate progression suggestion if enabled. Skipped in canonical mode:
+    // progression_suggestions is keyed on client_module_exercise_id (NOT NULL FK), which
+    // canonical sessions don't have. Re-pairs with the P3/P4 resolver work. (Also no-ops
+    // naturally — canonical snapshots don't carry linear_progression_enabled.)
+    if (!canonicalAssignmentIdRef.current && exercise && user) {
       const snapshot = exercise.prescription_snapshot_json;
       if (snapshot.linear_progression_enabled) {
         const config: ProgressionConfig =
@@ -2125,7 +2306,7 @@ function WorkoutSessionV2Content() {
     if (!user || !current) return;
     const { error } = await supabase.from("exercise_set_logs").upsert(
       {
-        client_module_exercise_id: exerciseId,
+        ...buildLogKey(exerciseId),
         set_index: current.set_index,
         skipped: nextSkipped,
         performed_reps: null,
@@ -2135,7 +2316,7 @@ function WorkoutSessionV2Content() {
         performed_json: {},
         created_by_user_id: user.id,
       },
-      { onConflict: "client_module_exercise_id,set_index" },
+      { onConflict: logConflictTarget() },
     );
     if (error) {
       // Revert local flag so the UI doesn't lie about a skip that didn't persist.
@@ -2208,6 +2389,17 @@ function WorkoutSessionV2Content() {
   // Swap exercise
   const swapExercise = async (newExerciseId: string) => {
     if (!swapExerciseId || !module) return;
+
+    // Canonical mode: swapping is an edit (a client_plan_override) — deferred to P4.
+    // Guard so we don't silently no-op against client_module_exercises by plan_slot id.
+    if (canonicalAssignmentIdRef.current) {
+      toast({
+        title: "Not available yet",
+        description: "Swapping exercises isn't supported in the canonical preview.",
+      });
+      setShowSwapPicker(false);
+      return;
+    }
 
     try {
       // Get new exercise info. .maybeSingle() so a row that's been deleted
@@ -2307,7 +2499,7 @@ function WorkoutSessionV2Content() {
           const hasExtra = Object.keys(log.performed_extra || {}).length > 0;
           if (log.performed_reps !== null || log.performed_load !== null || hasExtra) {
             allLogs.push({
-              client_module_exercise_id: exerciseId,
+              ...buildLogKey(exerciseId),
               set_index: log.set_index,
               prescribed: exercise.prescription_snapshot_json,
               performed_reps: log.performed_reps,
@@ -2336,7 +2528,7 @@ function WorkoutSessionV2Content() {
           // bulk save doesn't permanently drop sets (matches completeSet).
           selectWithRetry(() =>
             supabase.from("exercise_set_logs").upsert(log, {
-              onConflict: "client_module_exercise_id,set_index",
+              onConflict: logConflictTarget(),
             }),
           ),
         ),
@@ -2411,7 +2603,7 @@ function WorkoutSessionV2Content() {
       unlogged.map((u) =>
         supabase.from("exercise_set_logs").upsert(
           {
-            client_module_exercise_id: u.exerciseId,
+            ...buildLogKey(u.exerciseId),
             set_index: u.set_index,
             skipped: true,
             performed_reps: null,
@@ -2421,7 +2613,7 @@ function WorkoutSessionV2Content() {
             performed_json: {},
             created_by_user_id: user.id,
           },
-          { onConflict: "client_module_exercise_id,set_index" },
+          { onConflict: logConflictTarget() },
         ),
       ),
     );
@@ -2451,6 +2643,13 @@ function WorkoutSessionV2Content() {
     try {
       await saveProgress();
 
+      // Canonical mode (P3): there is no client_day_module to complete — module.id is a
+      // plan_session id. The set logs were persisted by saveProgress() above; module-level
+      // completion on the assignment is deferred (P4+). Skip the legacy completion RPC and
+      // fall through to the summary so canonical Finish doesn't 42704.
+      // TODO(P4): record per-assignment session completion in the canonical model.
+      const skipLegacyCompletion = !!canonicalAssignmentIdRef.current;
+
       // PR #131: clients have NO RLS UPDATE path on client_day_modules. The
       // "client_day_modules_update" policy only grants
       // ( is_admin(auth.uid()) OR module_owner_coach_id = auth.uid() ), so a
@@ -2462,10 +2661,9 @@ function WorkoutSessionV2Content() {
       // gap; this RPC is the structural fix. The RPC is idempotent on
       // re-completion and raises 42501 (not authorised) / 42704 (not found),
       // so its return payload isn't needed here.
-      const { error: completeErr } = await supabase.rpc(
-        "complete_client_day_module",
-        { p_module_id: module.id }
-      );
+      const { error: completeErr } = skipLegacyCompletion
+        ? { error: null }
+        : await supabase.rpc("complete_client_day_module", { p_module_id: module.id });
 
       if (completeErr) {
         // 42501 = not authorised -> keep PR #117's "expired" UX (still

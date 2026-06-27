@@ -151,4 +151,33 @@ Board UX deltas vs today: a **context banner**; a **Calendar ⇄ Program-weeks**
 Back-off + drop weights compute from the parent/reference set's weight — its prescribed weight if fixed, else the client's **logged** weight on that set — rounded (default 2.5kg). AMRAP suppresses the rep-range target and captures client reps. Rest & Repeat drives the rest timer + to-failure repeat rounds.
 
 ### Where this lands in the phases
-`plan_slots` grouping columns + the `prescription_json` per-set shape (back-off / drop / rest_repeat / amrap / note) are a **P1 schema addendum** — bake them in while P1 is shaping the materializer so we never re-migrate. The typed menu UI + Calendar/Weeks mode + context skins are **P4** (the editor). The resolver math is **P3**. Client-inputs work = none.
+`plan_slots` grouping columns + the `prescription_json` per-set shape (back-off / drop / rest_repeat / amrap / note) are a **P1 schema addendum** — bake them in while P1 is shaping the materializer so we never re-migrate. The typed menu UI + Calendar/Weeks mode + context skins are **P4** (the editor). The resolver math is **P3** (base parity) with the set-instruction resolution (back-off/drop/AMRAP/rest-pause) pairing with **P4** since no data carries those until the builder UI emits them. Client-inputs work = none.
+
+---
+
+## Teams track (design agreed + mocked 2026-06-27; runs parallel to the backbone)
+
+Three top-level objects: **Programs (templates) · Clients (1:1) · Teams**. A team is its *own* object, not a kind of client. Independent of P2/P3, but the team **program** view depends on the P4 board.
+
+### IA split
+- **My Clients = 1:1 only.** Today team-plan members show up here (e.g. "Team Plan" rows) — that's the bug to fix.
+- **My Teams** = list of teams → open one → a **team detail shell** mirroring the client shell's nav, but aggregated. Team members live *only* under My Teams → team → roster.
+
+### Team detail — sections (default Pulse metric set, mocked)
+- **Pulse**: on-track count (N/total), team workout-completion %, avg weight trend, a **nutrition deficit/maintenance/surplus split** bar, and a **needs-attention** list of lagging members.
+- **Nutrition**: self-service, **view-only** aggregate (who's drifting). Coach does not edit team-member nutrition.
+- **Program**: **Open program** launches the shared team plan in the P4 board (team skin — edits hit all members, **zero per-member overrides**).
+- **Roster**: member list, each row like a 1:1 client card but **view-only** — coach can open a member to *view* program/nutrition (e.g. they asked on Instagram), never edit.
+- Optional later: "Message team" → a WhatsApp/group hook.
+
+### Team data model (no override layer)
+A team plan = a `plan` bound to the team (coach edits it directly, like a template). Each member gets a `client_plan_assignment` with `team_id` set, `plan_id` = the team plan; **no `client_plan_overrides` ever**. Editing the team program edits the team `plan` → all members inherit (TrainHeroic single-calendar model). Dropping a member in/out = one assignment row. (`coach_teams.current_program_template_id` already exists as the binding hook.)
+
+### Team assignment (a Teams-track ticket, NOT 1:1 P2)
+From the library, **Assign → Team** seeds/links a team plan and **fans out one `client_plan_assignment` per member** (`team_id` set, zero overrides). No Sync toggle (the shared plan *is* the source). Distinct from the 1:1 assign path P2 built.
+
+### Library + assign flow (mocked)
+Each template card gets **Assign** (primary) + **Edit** (opens board) and shows reach (*N clients · M teams*). The assign dialog targets **Client / Team / Several**, with **start date**, **start-on-day** (TrueCoach), and a **Sync** toggle for 1:1 only.
+
+### Sequencing
+Teams track = (a) IA split + My Teams shell + aggregate Pulse/Nutrition dashboards (independent — can start anytime), (b) team assignment fan-out (needs P2's assignment plumbing as a pattern), (c) team program view (needs the P4 board). Build (a) in parallel; (b)/(c) after their deps.

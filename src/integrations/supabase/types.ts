@@ -3651,7 +3651,8 @@ export type Database = {
       }
       exercise_set_logs: {
         Row: {
-          client_module_exercise_id: string
+          assignment_id: string | null
+          client_module_exercise_id: string | null
           created_at: string
           created_by_user_id: string
           id: string
@@ -3661,12 +3662,14 @@ export type Database = {
           performed_reps: number | null
           performed_rir: number | null
           performed_rpe: number | null
+          plan_slot_id: string | null
           prescribed: Json
           set_index: number
           skipped: boolean
         }
         Insert: {
-          client_module_exercise_id: string
+          assignment_id?: string | null
+          client_module_exercise_id?: string | null
           created_at?: string
           created_by_user_id: string
           id?: string
@@ -3676,12 +3679,14 @@ export type Database = {
           performed_reps?: number | null
           performed_rir?: number | null
           performed_rpe?: number | null
+          plan_slot_id?: string | null
           prescribed?: Json
           set_index: number
           skipped?: boolean
         }
         Update: {
-          client_module_exercise_id?: string
+          assignment_id?: string | null
+          client_module_exercise_id?: string | null
           created_at?: string
           created_by_user_id?: string
           id?: string
@@ -3691,11 +3696,19 @@ export type Database = {
           performed_reps?: number | null
           performed_rir?: number | null
           performed_rpe?: number | null
+          plan_slot_id?: string | null
           prescribed?: Json
           set_index?: number
           skipped?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "exercise_set_logs_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "client_plan_assignment"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "exercise_set_logs_client_module_exercise_id_fkey"
             columns: ["client_module_exercise_id"]
@@ -3715,6 +3728,13 @@ export type Database = {
             columns: ["created_by_user_id"]
             isOneToOne: false
             referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_set_logs_plan_slot_id_fkey"
+            columns: ["plan_slot_id"]
+            isOneToOne: false
+            referencedRelation: "plan_slots"
             referencedColumns: ["id"]
           },
         ]
