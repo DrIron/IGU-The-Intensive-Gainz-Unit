@@ -9212,6 +9212,16 @@ export type Database = {
         Args: { p_macrocycle_id: string; p_program_template_ids: string[] }
         Returns: Json
       }
+      save_client_plan_override: {
+        Args: {
+          p_assignment_id: string
+          p_override_json?: Json
+          p_removed?: boolean
+          p_target_id: string
+          p_target_type: string
+        }
+        Returns: Json
+      }
       save_plan_from_builder: {
         Args: { p_payload: Json; p_template_id: string }
         Returns: Json

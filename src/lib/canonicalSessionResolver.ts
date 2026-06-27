@@ -182,21 +182,39 @@ export async function resolveCanonicalSession(
     .order("sort_order");
   if (slErr) throw slErr;
 
-  // 5) Overrides for this assignment (LEFT JOIN in-memory; empty until P4 -> no-op).
-  // TODO(P4): full week/session-level override semantics + element add/remove.
+  // 5) Overrides for this assignment, merged over the resolved plan_* (the P4 override layer:
+  // a 1:1 client diverges from the followed plan without touching the template / other clients).
+  // override_json contract (mirrors save_client_plan_override):
+  //   slot    { exercise_id?, section?, sort_order?, instructions?, prescription?: <partial pj>,
+  //             added?: true, plan_session_id? }   — field-level patch; added = a new slot
+  //   session { name?, activity_type? }             — removed=true drops the whole session
+  //   week    { is_deload?, deload_preset_id? }     — accepted; per-client deload apply deferred
   const { data: overrides } = await supabase
     .from("client_plan_overrides")
     .select("target_type, target_id, override_json, removed")
     .eq("assignment_id", assignmentId);
-  const slotOverride = new Map<string, { override_json: Record<string, unknown>; removed: boolean }>();
+
+  const slotPatch = new Map<string, { json: Record<string, unknown>; removed: boolean }>();
+  const addedSlots: { targetId: string; json: Record<string, unknown> }[] = [];
+  let sessionPatch: Record<string, unknown> | null = null;
+  let sessionRemoved = false;
+  const existingSlotIds = new Set((slots ?? []).map((s) => s.id));
   for (const o of overrides ?? []) {
-    if (o.target_type === "slot") {
-      slotOverride.set(o.target_id, {
-        override_json: (o.override_json as Record<string, unknown>) ?? {},
-        removed: !!o.removed,
-      });
+    const oj = (o.override_json as Record<string, unknown>) ?? {};
+    if (o.target_type === "session" && o.target_id === session.id) {
+      if (o.removed) sessionRemoved = true;
+      else sessionPatch = oj;
+    } else if (o.target_type === "slot") {
+      if (existingSlotIds.has(o.target_id)) {
+        slotPatch.set(o.target_id, { json: oj, removed: !!o.removed });
+      } else if (!o.removed && (oj.plan_session_id == null || oj.plan_session_id === session.id)) {
+        addedSlots.push({ targetId: o.target_id, json: oj }); // a new slot for this session
+      }
     }
+    // TODO(P4): week overrides (is_deload / preset) drive per-client deload — deferred.
   }
+  // A session removed for this client drops the whole session.
+  if (sessionRemoved) return null;
 
   // 6) Coach default column preset (same source ConvertToProgram uses for column_config).
   const { data: presetRow } = await supabase
@@ -207,18 +225,19 @@ export async function resolveCanonicalSession(
     .maybeSingle();
   const presetColumnConfig = (presetRow?.column_config as unknown as ColumnConfig[] | null) ?? null;
 
-  // 7) exercise_library for the slots' exercises (separate query).
-  const exerciseIds = [
-    ...new Set((slots ?? []).map((s) => s.exercise_id).filter((id): id is string => !!id)),
-  ];
+  // 7) exercise_library for every exercise we may render — base slots + patched/added overrides.
+  const exerciseIds = new Set<string>();
+  for (const s of slots ?? []) if (s.exercise_id) exerciseIds.add(s.exercise_id);
+  for (const [, p] of slotPatch) if (typeof p.json.exercise_id === "string") exerciseIds.add(p.json.exercise_id);
+  for (const a of addedSlots) if (typeof a.json.exercise_id === "string") exerciseIds.add(a.json.exercise_id as string);
   const libraryById = new Map<string, CanonicalExerciseLibraryInfo>();
-  if (exerciseIds.length > 0) {
+  if (exerciseIds.size > 0) {
     const { data: libRows } = await supabase
       .from("exercise_library")
       .select(
         "id, name, default_video_url, primary_muscle, description, setup_instructions, setup_points, equipment, secondary_muscles",
       )
-      .in("id", exerciseIds);
+      .in("id", [...exerciseIds]);
     for (const r of libRows ?? []) {
       libraryById.set(r.id, {
         name: r.name,
@@ -233,34 +252,68 @@ export async function resolveCanonicalSession(
     }
   }
 
-  // 8) Build the exercises. Skip slots with no exercise (canonical doesn't auto-fill —
-  // a seeded/clean plan always has exercise_id) and overrides marked removed.
-  // TODO(P4): expand prescription_json.replacements as separate accessory entries.
-  const exercises: CanonicalResolvedExercise[] = [];
-  for (const slot of slots ?? []) {
-    const ov = slotOverride.get(slot.id);
-    if (ov?.removed) continue;
-    if (!slot.exercise_id) continue;
-
+  // Build one resolved exercise from base slot fields + an optional override patch.
+  // Returns null when there's no exercise to log (no auto-fill in canonical).
+  const buildExercise = (
+    planSlotId: string,
+    base: {
+      exercise_id: string | null;
+      section: string | null;
+      sort_order: number | null;
+      instructions: string | null;
+      prescription_json: Record<string, unknown>;
+    },
+    patch: Record<string, unknown> | undefined,
+  ): CanonicalResolvedExercise | null => {
+    const exerciseId = (patch?.exercise_id as string | undefined) ?? base.exercise_id;
+    if (!exerciseId) return null;
     const pj = {
-      ...((slot.prescription_json as Record<string, unknown>) ?? {}),
-      ...(ov?.override_json ?? {}),
+      ...(base.prescription_json ?? {}),
+      ...((patch?.prescription as Record<string, unknown> | undefined) ?? {}),
     };
     const prescribable = slotFromPrescriptionJson(pj);
     const snapshot = isStrengthSlot(prescribable)
       ? buildStrengthPrescriptionSnapshot(prescribable, presetColumnConfig)
       : buildActivityPrescriptionSnapshot(prescribable);
-
-    exercises.push({
-      planSlotId: slot.id,
-      exerciseId: slot.exercise_id,
-      section: (slot.section as CanonicalResolvedExercise["section"]) ?? "main",
-      sortOrder: slot.sort_order ?? 0,
-      instructions: slot.instructions ?? null,
+    return {
+      planSlotId,
+      exerciseId,
+      section: ((patch?.section as string | undefined) ?? base.section ?? "main") as CanonicalResolvedExercise["section"],
+      sortOrder: (patch?.sort_order as number | undefined) ?? base.sort_order ?? 0,
+      instructions: (patch?.instructions as string | undefined) ?? base.instructions ?? null,
       prescriptionSnapshot: snapshot,
-      library: libraryById.get(slot.exercise_id) ?? null,
-    });
+      library: libraryById.get(exerciseId) ?? null,
+    };
+  };
+
+  // 8) Build exercises: base slots (patched, removed dropped) + override-added slots, then order.
+  // TODO(P4): expand prescription_json.replacements as separate accessory entries.
+  const exercises: CanonicalResolvedExercise[] = [];
+  for (const slot of slots ?? []) {
+    const ov = slotPatch.get(slot.id);
+    if (ov?.removed) continue;
+    const built = buildExercise(
+      slot.id,
+      {
+        exercise_id: slot.exercise_id,
+        section: slot.section,
+        sort_order: slot.sort_order,
+        instructions: slot.instructions ?? null,
+        prescription_json: (slot.prescription_json as Record<string, unknown>) ?? {},
+      },
+      ov?.json,
+    );
+    if (built) exercises.push(built);
   }
+  for (const added of addedSlots) {
+    const built = buildExercise(
+      added.targetId,
+      { exercise_id: null, section: null, sort_order: null, instructions: null, prescription_json: {} },
+      added.json,
+    );
+    if (built) exercises.push(built);
+  }
+  exercises.sort((a, b) => a.sortOrder - b.sortOrder);
 
   // 9) Existing canonical logs for this session's slots (resume support).
   const slotIds = exercises.map((e) => e.planSlotId);
@@ -287,14 +340,20 @@ export async function resolveCanonicalSession(
     }));
   }
 
+  // Session-level override patches name / activity_type for this client.
+  const effectiveName =
+    (sessionPatch?.name as string | undefined) ?? session.name ?? null;
+  const effectiveActivityType =
+    (sessionPatch?.activity_type as string | undefined) ?? session.activity_type;
+
   return {
     assignmentId,
     planId: plan.id,
     ownerCoachId: plan.owner_coach_id,
     weekIndex,
     planSessionId: session.id,
-    title: session.name?.trim() || DEFAULT_SESSION_NAMES[session.activity_type] || "Session",
-    activityType: session.activity_type,
+    title: effectiveName?.trim() || DEFAULT_SESSION_NAMES[effectiveActivityType] || "Session",
+    activityType: effectiveActivityType,
     exercises,
     existingLogs,
   };
