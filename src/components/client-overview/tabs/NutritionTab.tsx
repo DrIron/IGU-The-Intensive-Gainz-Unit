@@ -170,15 +170,18 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
           <TabsTrigger value="edit">Edit phase</TabsTrigger>
         </TabsList>
 
-        {/* This week -- the current-week context around the decision above. */}
-        <TabsContent value="this-week" className="space-y-6">
+        {/* This week -- the current-week context around the decision above.
+            Redesign Stage 1: weight + steps as a two-up trend row, then the
+            check-in, then diet break / refeed two-up, then the calendar. */}
+        <TabsContent value="this-week" className="space-y-5">
           {selectedPhase ? (
             <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                <PhaseWeightTrendCard phase={selectedPhase} />
+                <StepProgressDisplay userId={clientUserId} />
+              </div>
               <NutritionCheckInCard phaseId={selectedPhase.id} />
-              <PhaseWeightTrendCard phase={selectedPhase} />
-              <StepProgressDisplay userId={clientUserId} />
-              <ScheduledEventsCalendar phaseId={selectedPhase.id} />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <NutritionPermissionGate clientUserId={clientUserId}>
                   <DietBreakManager
                     phase={selectedPhase}
@@ -198,6 +201,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
                   />
                 </NutritionPermissionGate>
               </div>
+              <ScheduledEventsCalendar phaseId={selectedPhase.id} />
             </>
           ) : (
             <Card>

@@ -115,6 +115,20 @@ export function NutritionPhaseCard({
   const expectedLabel = phase.weekly_rate_percentage?.toFixed(2) ?? "0.00";
   const actualLabel = latestActualChangePercent != null ? latestActualChangePercent.toFixed(2) : null;
 
+  // Projected weeks to target at the prescribed weekly rate (planned pace, not
+  // actual). Active non-maintenance phases with a target + a known weight only.
+  const projectedWeeks = useMemo(() => {
+    if (phase.is_active === false || goalType === "maintenance") return null;
+    const target = phase.target_weight_kg;
+    const current = latestAverageWeight ?? phase.starting_weight_kg ?? null;
+    if (target == null || current == null) return null;
+    const remaining = Math.abs(current - target);
+    if (remaining < 0.3) return null;
+    const weeklyKg = (current * (phase.weekly_rate_percentage ?? 0)) / 100;
+    if (weeklyKg <= 0) return null;
+    return Math.ceil(remaining / weeklyKg);
+  }, [phase.is_active, goalType, phase.target_weight_kg, phase.starting_weight_kg, phase.weekly_rate_percentage, latestAverageWeight]);
+
   return (
     <Card className={cn("overflow-hidden", className)}>
       <CardContent className="p-0">
@@ -144,6 +158,7 @@ export function NutritionPhaseCard({
                   Week {weeks}
                   {phase.target_weight_kg != null && ` | target ${phase.target_weight_kg.toFixed(1)} kg`}
                   {latestAverageWeight != null && ` | avg ${latestAverageWeight.toFixed(1)} kg`}
+                  {projectedWeeks != null && ` | ~${projectedWeeks} wk${projectedWeeks === 1 ? "" : "s"} to target`}
                 </p>
               </div>
               <StatusBadge status={status} />
