@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { Coffee, Flame, Footprints, Link2, Pencil, type LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { NutritionPhaseCard } from "@/components/nutrition/NutritionPhaseCard";
 import { PhaseSwitcher } from "@/components/nutrition/PhaseSwitcher";
@@ -176,31 +185,63 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
         <TabsContent value="this-week" className="space-y-5">
           {selectedPhase ? (
             <>
+              {/* Action row (Stage 3) -- feature visibility. The diet break /
+                  refeed / steps / link managers open in dialogs instead of each
+                  taking a full inline card. */}
+              <div className="flex flex-wrap gap-2">
+                <ActionDialog icon={Coffee} label="Diet break">
+                  <NutritionPermissionGate clientUserId={clientUserId}>
+                    <DietBreakManager
+                      phase={selectedPhase}
+                      clientUserId={clientUserId}
+                      canEdit
+                      isReadOnly={isReadOnly}
+                      onBreakUpdated={loadClientPhases}
+                    />
+                  </NutritionPermissionGate>
+                </ActionDialog>
+                <ActionDialog icon={Flame} label="Refeed">
+                  <NutritionPermissionGate clientUserId={clientUserId}>
+                    <RefeedDayScheduler
+                      phase={selectedPhase}
+                      clientUserId={clientUserId}
+                      canEdit
+                      isReadOnly={isReadOnly}
+                      onRefeedUpdated={loadClientPhases}
+                    />
+                  </NutritionPermissionGate>
+                </ActionDialog>
+                <ActionDialog icon={Footprints} label="Steps">
+                  <NutritionPermissionGate clientUserId={clientUserId}>
+                    <StepRecommendationCard
+                      clientUserId={clientUserId}
+                      canEdit
+                      onRecommendationUpdated={loadClientPhases}
+                    />
+                  </NutritionPermissionGate>
+                </ActionDialog>
+                <ActionDialog icon={Link2} label="Link content">
+                  <LinkedContentList
+                    target={{
+                      kind: "nutrition-phase",
+                      id: selectedPhase.id,
+                      title: selectedPhase.phase_name ?? "this phase",
+                    }}
+                    readOnly={isReadOnly}
+                    emptyMessage="No content linked to this phase yet. Add recommended videos or learning paths."
+                  />
+                </ActionDialog>
+                <Button variant="outline" size="sm" onClick={() => setInnerTab("edit")}>
+                  <Pencil className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+                  Edit phase
+                </Button>
+              </div>
+
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <PhaseWeightTrendCard phase={selectedPhase} />
                 <StepProgressDisplay userId={clientUserId} />
               </div>
               <NutritionCheckInCard phaseId={selectedPhase.id} />
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                <NutritionPermissionGate clientUserId={clientUserId}>
-                  <DietBreakManager
-                    phase={selectedPhase}
-                    clientUserId={clientUserId}
-                    canEdit
-                    isReadOnly={isReadOnly}
-                    onBreakUpdated={loadClientPhases}
-                  />
-                </NutritionPermissionGate>
-                <NutritionPermissionGate clientUserId={clientUserId}>
-                  <RefeedDayScheduler
-                    phase={selectedPhase}
-                    clientUserId={clientUserId}
-                    canEdit
-                    isReadOnly={isReadOnly}
-                    onRefeedUpdated={loadClientPhases}
-                  />
-                </NutritionPermissionGate>
-              </div>
               <ScheduledEventsCalendar phaseId={selectedPhase.id} />
             </>
           ) : (
@@ -233,7 +274,8 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
           )}
         </TabsContent>
 
-        {/* Edit phase -- the goal form + config, out of the daily path. */}
+        {/* Edit phase -- just the goal form now. Steps + linked content moved
+            to the This-week action row (dialogs). */}
         <TabsContent value="edit" className="space-y-6">
           <NutritionPermissionGate clientUserId={clientUserId}>
             <CoachNutritionGoal
@@ -243,30 +285,36 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
               onPhaseUpdated={loadClientPhases}
             />
           </NutritionPermissionGate>
-          <NutritionPermissionGate clientUserId={clientUserId}>
-            <StepRecommendationCard
-              clientUserId={clientUserId}
-              canEdit
-              onRecommendationUpdated={loadClientPhases}
-            />
-          </NutritionPermissionGate>
-          {/* PR L-fix: recommended content linked to the selected phase.
-              Not wrapped in NutritionPermissionGate -- a coach-with-dietitian
-              should still see what's linked; RLS rejects unauthorized writes
-              with a toast. readOnly mirrors the page-level past-phase guard. */}
-          {selectedPhase && (
-            <LinkedContentList
-              target={{
-                kind: "nutrition-phase",
-                id: selectedPhase.id,
-                title: selectedPhase.phase_name ?? "this phase",
-              }}
-              readOnly={isReadOnly}
-              emptyMessage="No content linked to this phase yet. Add recommended videos or learning paths."
-            />
-          )}
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+/** A compact action-row pill that opens its manager in a dialog (Stage 3). */
+function ActionDialog({
+  icon: Icon,
+  label,
+  children,
+}: {
+  icon: LucideIcon;
+  label: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline" size="sm">
+          <Icon className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+          {label}
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>{label}</DialogTitle>
+        </DialogHeader>
+        {children}
+      </DialogContent>
+    </Dialog>
   );
 }
