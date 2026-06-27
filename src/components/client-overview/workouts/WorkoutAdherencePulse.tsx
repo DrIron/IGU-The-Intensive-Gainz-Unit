@@ -1,12 +1,11 @@
 // src/components/client-overview/workouts/WorkoutAdherencePulse.tsx
-// At-a-glance hero for the coach's Workouts tab. Four stat tiles echoing the
-// OverviewTab StatTile vocabulary (monospace primary, color rail, muted label)
-// so the two tabs feel continuous.
+// At-a-glance hero for the coach's Workouts tab. Four MetricCards (the CC1
+// Direction-3 standard shared with Pulse + Overview) so the Programs subsection
+// reads continuously with the rest of the client shell.
 
-import { cn } from "@/lib/utils";
-import { Card, CardContent } from "@/components/ui/card";
+import { MetricCard } from "@/components/ui/metric-card";
+import type { Interpretation } from "@/lib/interpret";
 import { Dumbbell, CalendarRange, TrendingUp, Timer } from "lucide-react";
-import { formatDistanceToNowStrict } from "date-fns";
 import {
   type AdherencePulse,
   type ClientProgramSummary,
@@ -19,117 +18,46 @@ interface WorkoutAdherencePulseProps {
 }
 
 export function WorkoutAdherencePulse({ pulse, loading }: WorkoutAdherencePulseProps) {
+  const pct = pulse.weeklyCompletionPct;
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-3 md:gap-4">
-      <StatTile
-        icon={<Dumbbell className="h-4 w-4" aria-hidden="true" />}
+      <MetricCard
         label="Active Program"
-        railColor={pulse.activeProgram ? "bg-emerald-500" : "bg-muted"}
-        loading={loading}
-        empty={!pulse.activeProgram}
-        emptyLabel="None assigned"
-        primary={
-          pulse.activeProgram
-            ? weeksLabel(pulse.activeProgram)
-            : "--"
+        icon={Dumbbell}
+        value={loading ? "…" : pulse.activeProgram ? weeksLabel(pulse.activeProgram) : "—"}
+        interpretation={
+          loading
+            ? undefined
+            : pulse.activeProgram
+              ? { tone: "on_track", label: "Active", sentence: pulse.activeProgram.title }
+              : { tone: "neutral", label: "", sentence: "None assigned." }
         }
-        secondary={pulse.activeProgram?.title ?? undefined}
       />
-      <StatTile
-        icon={<Timer className="h-4 w-4" aria-hidden="true" />}
+      <MetricCard
         label="Last Workout"
-        railColor={workoutRail(pulse.lastWorkoutAt)}
-        loading={loading}
-        empty={!pulse.lastWorkoutAt}
-        emptyLabel="No completions yet"
-        primary={pulse.lastWorkoutAt ? relative(pulse.lastWorkoutAt) : "--"}
-        secondary={pulse.lastWorkoutAt ? absolute(pulse.lastWorkoutAt) : undefined}
+        icon={Timer}
+        value={loading ? "…" : pulse.lastWorkoutAt ? compactRelative(pulse.lastWorkoutAt) : "—"}
+        interpretation={loading ? undefined : recencyInterp(pulse.lastWorkoutAt)}
       />
-      <StatTile
-        icon={<TrendingUp className="h-4 w-4" aria-hidden="true" />}
+      <MetricCard
         label="This Week"
-        railColor={weeklyRail(pulse.weeklyCompletionPct)}
-        loading={loading}
-        empty={pulse.weeklyCompletionPct == null}
-        emptyLabel="Nothing scheduled"
-        primary={
-          pulse.weeklyCompletionPct != null
-            ? `${pulse.weeklyCompletionPct}%`
-            : "--"
-        }
-        secondary={
-          pulse.weeklyCompletionPct != null
-            ? `${pulse.weeklyCompleted} / ${pulse.weeklyScheduled} done`
-            : undefined
-        }
+        icon={TrendingUp}
+        value={loading ? "…" : pct != null ? `${pct}%` : "—"}
+        interpretation={loading ? undefined : weeklyInterp(pct, pulse.weeklyCompleted, pulse.weeklyScheduled)}
       />
-      <StatTile
-        icon={<CalendarRange className="h-4 w-4" aria-hidden="true" />}
+      <MetricCard
         label="Macrocycle"
-        railColor={pulse.activeProgram?.macrocycleName ? "bg-primary" : "bg-muted"}
-        loading={loading}
-        empty={!pulse.activeProgram?.macrocycleName}
-        emptyLabel="Standalone"
-        primary={pulse.activeProgram?.macrocycleName ?? "--"}
-        secondary={undefined}
+        icon={CalendarRange}
+        value={loading ? "…" : pulse.activeProgram?.macrocycleName ?? "Standalone"}
+        interpretation={
+          loading
+            ? undefined
+            : pulse.activeProgram?.macrocycleName
+              ? { tone: "neutral", label: "Block", sentence: "Part of a training block." }
+              : { tone: "neutral", label: "", sentence: "No block linked." }
+        }
       />
     </div>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-
-interface StatTileProps {
-  icon: React.ReactNode;
-  label: string;
-  railColor: string;
-  primary: string;
-  secondary?: string;
-  loading: boolean;
-  empty: boolean;
-  emptyLabel: string;
-}
-
-function StatTile({
-  icon,
-  label,
-  railColor,
-  primary,
-  secondary,
-  loading,
-  empty,
-  emptyLabel,
-}: StatTileProps) {
-  return (
-    <Card className="overflow-hidden">
-      <CardContent className="p-0">
-        <div className="flex h-full">
-          <div aria-hidden="true" className={cn("w-1 shrink-0", railColor)} />
-          <div className="flex-1 p-3 md:p-4 space-y-2">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground uppercase tracking-wide">
-              {icon}
-              <span>{label}</span>
-            </div>
-            {loading ? (
-              <div className="h-7 w-20 rounded bg-muted animate-pulse" />
-            ) : empty ? (
-              <p className="text-sm text-muted-foreground">{emptyLabel}</p>
-            ) : (
-              <div className="space-y-0.5">
-                <p className="font-mono tabular-nums text-xl md:text-2xl font-display leading-none truncate">
-                  {primary}
-                </p>
-                {secondary && (
-                  <p className="font-mono text-[11px] text-muted-foreground tabular-nums truncate">
-                    {secondary}
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -141,20 +69,40 @@ function weeksLabel(p: ClientProgramSummary): string {
   return `Week ${w}`;
 }
 
-function relative(iso: string): string {
-  try {
-    return formatDistanceToNowStrict(new Date(iso), { addSuffix: true });
-  } catch {
-    return iso;
+function compactRelative(iso: string): string {
+  const d = daysSince(iso);
+  if (d == null) return "—";
+  if (d === 0) {
+    const hrs = Math.floor((Date.now() - new Date(iso).getTime()) / (60 * 60 * 1000));
+    return hrs <= 0 ? "Just now" : `${hrs}h ago`;
   }
+  if (d === 1) return "Yesterday";
+  if (d < 7) return `${d}d ago`;
+  const wks = Math.floor(d / 7);
+  return `${wks}w ago`;
+}
+
+function recencyInterp(iso: string | null): Interpretation {
+  if (!iso) return { tone: "neutral", label: "", sentence: "No completions yet." };
+  const d = daysSince(iso);
+  if (d == null) return { tone: "neutral", label: "", sentence: "" };
+  const when = absolute(iso);
+  if (d <= 3) return { tone: "on_track", label: "Recent", sentence: `Logged ${when}.` };
+  if (d <= 7) return { tone: "attention", label: "Slowing", sentence: `Logged ${when}.` };
+  return { tone: "risk", label: "Stale", sentence: `Last logged ${when}.` };
+}
+
+function weeklyInterp(pct: number | null, done: number, scheduled: number): Interpretation {
+  if (pct == null) return { tone: "neutral", label: "", sentence: "Nothing scheduled." };
+  const sentence = `${done} / ${scheduled} done.`;
+  if (pct >= 80) return { tone: "on_track", label: "On pace", sentence };
+  if (pct >= 50) return { tone: "attention", label: "Behind", sentence };
+  return { tone: "risk", label: "Off pace", sentence };
 }
 
 function absolute(iso: string): string {
   try {
-    return new Date(iso).toLocaleDateString(undefined, {
-      month: "short",
-      day: "numeric",
-    });
+    return new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
   } catch {
     return iso;
   }
@@ -165,19 +113,4 @@ function daysSince(iso: string | null): number | null {
   const t = new Date(iso).getTime();
   if (Number.isNaN(t)) return null;
   return Math.floor((Date.now() - t) / (24 * 60 * 60 * 1000));
-}
-
-function workoutRail(iso: string | null): string {
-  const d = daysSince(iso);
-  if (d == null) return "bg-muted";
-  if (d <= 3) return "bg-emerald-500";
-  if (d <= 7) return "bg-amber-500";
-  return "bg-destructive";
-}
-
-function weeklyRail(pct: number | null): string {
-  if (pct == null) return "bg-muted";
-  if (pct >= 80) return "bg-emerald-500";
-  if (pct >= 50) return "bg-amber-500";
-  return "bg-destructive";
 }
