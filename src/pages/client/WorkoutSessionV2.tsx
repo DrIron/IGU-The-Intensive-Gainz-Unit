@@ -2162,7 +2162,7 @@ function WorkoutSessionV2Content() {
       setSetLogs(initialLogs);
       setModule({
         id: resolved.planSessionId,
-        title: resolved.title,
+        title: resolved.isDeload ? `${resolved.title} · Deload` : resolved.title,
         module_type: resolved.activityType,
         status: "scheduled",
         completed_at: null,

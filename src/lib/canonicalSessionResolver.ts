@@ -15,6 +15,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { selectWithRetry } from "@/lib/selectWithRetry";
+import { applyDeloadPreset } from "@/components/coach/programs/muscle-builder/deloadPresets";
 import type { ColumnConfig } from "@/types/workout-builder";
 import {
   buildStrengthPrescriptionSnapshot,
@@ -67,6 +68,10 @@ export interface CanonicalResolvedSession {
   planSessionId: string;
   title: string;
   activityType: string;
+  /** This week is a deload for the client (template flag OR a per-client week override). */
+  isDeload: boolean;
+  /** Preset applied when the deload came from a per-client override (else null). */
+  deloadPresetId: string | null;
   exercises: CanonicalResolvedExercise[];
   existingLogs: CanonicalSetLogRow[];
 }
@@ -143,6 +148,7 @@ export async function resolveCanonicalSession(
   // 3) Resolve the plan_session: direct by id, else by date -> week -> day's first session.
   let session: { id: string; plan_week_id: string; day_index: number; name: string | null; activity_type: string } | null = null;
   let weekIndex = 1;
+  let planWeekIsDeload: boolean | null = null; // the template week's own deload flag (display)
 
   if (planSessionId) {
     const { data: s, error: sErr } = await retryRead(
@@ -158,19 +164,21 @@ export async function resolveCanonicalSession(
     if (!s || s.plan_id !== plan.id) return null;
     session = s;
     const { data: wk } = await retryRead(
-      () => supabase.from("plan_weeks").select("week_index").eq("id", s.plan_week_id).maybeSingle(),
+      () => supabase.from("plan_weeks").select("week_index, is_deload").eq("id", s.plan_week_id).maybeSingle(),
       "plan_week",
     );
     weekIndex = wk?.week_index ?? 1;
+    planWeekIsDeload = wk?.is_deload ?? null;
   } else if (date) {
     const { data: weeks, error: wErr } = await retryRead(
-      () => supabase.from("plan_weeks").select("id, week_index").eq("plan_id", plan.id).order("week_index"),
+      () => supabase.from("plan_weeks").select("id, week_index, is_deload").eq("plan_id", plan.id).order("week_index"),
       "plan_weeks",
     );
     if (wErr) throw wErr;
     if (!weeks || weeks.length === 0) return null;
     weekIndex = resolveWeekIndexForDate(assignment.start_date, date, weeks.length);
     const week = weeks.find((w) => w.week_index === weekIndex) ?? weeks[0];
+    planWeekIsDeload = week.is_deload ?? null;
     const jsDow = new Date(date + "T00:00:00Z").getUTCDay(); // 0=Sun..6=Sat
     const dayIndex = jsDow === 0 ? 7 : jsDow; // plan day_index: 1=Mon..7=Sun
     const { data: sessions, error: sErr } = await retryRead(
@@ -223,10 +231,13 @@ export async function resolveCanonicalSession(
   const addedSlots: { targetId: string; json: Record<string, unknown> }[] = [];
   let sessionPatch: Record<string, unknown> | null = null;
   let sessionRemoved = false;
+  let weekOverride: Record<string, unknown> | null = null; // for this session's plan_week
   const existingSlotIds = new Set((slots ?? []).map((s) => s.id));
   for (const o of overrides ?? []) {
     const oj = (o.override_json as Record<string, unknown>) ?? {};
-    if (o.target_type === "session" && o.target_id === session.id) {
+    if (o.target_type === "week" && o.target_id === session.plan_week_id) {
+      if (!o.removed) weekOverride = oj;
+    } else if (o.target_type === "session" && o.target_id === session.id) {
       if (o.removed) sessionRemoved = true;
       else sessionPatch = oj;
     } else if (o.target_type === "slot") {
@@ -236,10 +247,20 @@ export async function resolveCanonicalSession(
         addedSlots.push({ targetId: o.target_id, json: oj }); // a new slot for this session
       }
     }
-    // TODO(P4): week overrides (is_deload / preset) drive per-client deload — deferred.
   }
   // A session removed for this client drops the whole session.
   if (sessionRemoved) return null;
+
+  // Per-client deload (week-level override). When an APPROVED deload set is_deload + a preset on
+  // this week, apply the preset's reduction to each resolved slot's prescription at read time
+  // (template slots carry NORMAL prescriptions; the reduction is the client's diff). A template's
+  // own is_deload is already baked into plan_slots, so we only RE-apply for override-driven deload.
+  const overrideDeload = weekOverride?.is_deload === true;
+  const deloadPresetId = overrideDeload
+    ? ((weekOverride?.deload_preset_id as string | undefined) ?? null)
+    : null;
+  // Effective deload for display = override is_deload (if set) else the template week's flag.
+  const effectiveIsDeload = overrideDeload || (planWeekIsDeload ?? false);
 
   // 6) Coach default column preset (same source ConvertToProgram uses for column_config).
   const { data: presetRow } = await retryRead(
@@ -304,7 +325,13 @@ export async function resolveCanonicalSession(
       ...(base.prescription_json ?? {}),
       ...((patch?.prescription as Record<string, unknown> | undefined) ?? {}),
     };
-    const prescribable = slotFromPrescriptionJson(pj);
+    // Per-client deload (week override): reduce the prescription via the shared preset math
+    // (same helper the board uses) before building the snapshot. Strength slots only.
+    const prescribableRaw = slotFromPrescriptionJson(pj);
+    const prescribable =
+      deloadPresetId && isStrengthSlot(prescribableRaw)
+        ? applyDeloadPreset(prescribableRaw, deloadPresetId)
+        : prescribableRaw;
     const snapshot = isStrengthSlot(prescribable)
       ? buildStrengthPrescriptionSnapshot(prescribable, presetColumnConfig)
       : buildActivityPrescriptionSnapshot(prescribable);
@@ -391,6 +418,8 @@ export async function resolveCanonicalSession(
     planSessionId: session.id,
     title: effectiveName?.trim() || DEFAULT_SESSION_NAMES[effectiveActivityType] || "Session",
     activityType: effectiveActivityType,
+    isDeload: effectiveIsDeload,
+    deloadPresetId,
     exercises,
     existingLogs,
   };

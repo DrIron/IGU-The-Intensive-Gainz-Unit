@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { applyApprovedDeload } from "@/lib/deloadAutoApply";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Per-client pending request
@@ -118,6 +119,19 @@ export function useCoachDeloadRequestForClient(
         .eq("id", params.requestId);
       if (error) throw error;
 
+      // Auto-apply the approved deload to the client's canonical program (week-level override).
+      // Best-effort + additive: a missing canonical assignment just logs — approval stands.
+      if (params.decision === "approved" && clientUserId) {
+        const res = await applyApprovedDeload(
+          clientUserId,
+          params.approvedWeekOffset,
+          params.appliedPresetId,
+        );
+        if (!res.applied) {
+          console.warn("[useCoachDeloadRequestForClient] deload auto-apply skipped:", res.reason);
+        }
+      }
+
       // Fire-and-forget client notification.
       supabase.functions
         .invoke("send-deload-response-email", { body: { request_id: params.requestId } })
@@ -127,7 +141,7 @@ export function useCoachDeloadRequestForClient(
 
       setPending(null);
     },
-    [],
+    [clientUserId],
   );
 
   return { pending, loading, refresh: fetchPending, respond };
