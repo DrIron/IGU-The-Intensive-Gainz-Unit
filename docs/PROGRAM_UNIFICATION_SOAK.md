@@ -80,13 +80,13 @@ SELECT
 
 The true soak signal is the **post-merge delta** — assignments created after the merge that failed to mirror:
 ```sql
--- Replace the timestamp with the merge time. Should stay 0.
+-- Bounded to the #185 merge time (2026-06-28 18:56:51+00). Should stay 0.
 SELECT count(*)
 FROM client_programs cp
 JOIN muscle_program_templates m ON m.converted_program_id = cp.source_template_id
 JOIN plan p ON p.source_muscle_template_id = m.id
 WHERE cp.team_id IS NULL AND cp.status='active'
-  AND cp.created_at > TIMESTAMPTZ '2026-06-28 00:00:00+00'
+  AND cp.created_at > TIMESTAMPTZ '2026-06-28 18:56:51+00'
   AND NOT EXISTS (
     SELECT 1 FROM client_plan_assignment cpa
     WHERE cpa.client_id = cp.user_id AND cpa.plan_id = p.id);
