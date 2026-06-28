@@ -48,6 +48,7 @@ interface DayColumnProps {
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   onTogglePerSet?: (slotId: string) => void;
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onSetSetInstruction?: (slotId: string, setIndex: number, patch: import("@/types/workout-builder").SetInstructionPatch) => void;
   onDeleteSetAtIndex?: (slotId: string, setIndex: number) => void;
   onApplySetToRemaining?: (slotId: string, fromIndex: number) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
@@ -98,6 +99,7 @@ export const DayColumn = memo(function DayColumn({
   onOpenExercisePicker,
   onTogglePerSet,
   onUpdateSetDetail,
+  onSetSetInstruction,
   onDeleteSetAtIndex: _onDeleteSetAtIndex,
   onApplySetToRemaining: _onApplySetToRemaining,
   onSetExerciseInstructions,
@@ -350,6 +352,7 @@ export const DayColumn = memo(function DayColumn({
                   onOpenExercisePicker={onOpenExercisePicker}
                   onTogglePerSet={onTogglePerSet}
                   onUpdateSetDetail={onUpdateSetDetail}
+                  onSetSetInstruction={onSetSetInstruction}
                   onSetExerciseInstructions={onSetExerciseInstructions}
                   onSetSlotClientInputs={onSetSlotClientInputs}
                   onSetSlotColumns={onSetSlotColumns}

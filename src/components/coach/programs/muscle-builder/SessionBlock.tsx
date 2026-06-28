@@ -51,6 +51,7 @@ interface SessionBlockProps {
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   onTogglePerSet?: (slotId: string) => void;
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onSetSetInstruction?: (slotId: string, setIndex: number, patch: import("@/types/workout-builder").SetInstructionPatch) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
   onSetSlotColumns?: (slotId: string, columns: string[]) => void;
@@ -105,6 +106,7 @@ export const SessionBlock = memo(function SessionBlock({
   onOpenExercisePicker,
   onTogglePerSet,
   onUpdateSetDetail,
+  onSetSetInstruction,
   onSetExerciseInstructions,
   onSetSlotClientInputs,
   onSetSlotColumns,
@@ -384,6 +386,7 @@ export const SessionBlock = memo(function SessionBlock({
                     onOpenExercisePicker={onOpenExercisePicker}
                     onTogglePerSet={onTogglePerSet}
                     onUpdateSetDetail={onUpdateSetDetail}
+                    onSetSetInstruction={onSetSetInstruction}
                     onSetExerciseInstructions={onSetExerciseInstructions}
                     onSetSlotClientInputs={onSetSlotClientInputs}
                     onSetSlotColumns={onSetSlotColumns}

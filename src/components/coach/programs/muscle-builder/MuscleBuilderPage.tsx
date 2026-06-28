@@ -31,7 +31,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId } from "@/types/muscle-builder";
 import type { ActivityType, MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
-import type { SetPrescription } from "@/types/workout-builder";
+import type { SetPrescription, SetInstructionPatch } from "@/types/workout-builder";
 import { AVAILABLE_CLIENT_COLUMNS } from "@/types/workout-builder";
 import { ExercisePickerDialog } from "../ExercisePickerDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -464,6 +464,12 @@ export function MuscleBuilderPage({
     [dispatch]
   );
 
+  const handleSetSetInstruction = useCallback(
+    (slotId: string, setIndex: number, patch: SetInstructionPatch) =>
+      dispatch({ type: 'SET_SET_INSTRUCTION', slotId, setIndex, patch }),
+    [dispatch]
+  );
+
   const handleDeleteSetAtIndex = useCallback(
     (slotId: string, setIndex: number) => dispatch({ type: 'DELETE_SET_AT_INDEX', slotId, setIndex }),
     [dispatch]
@@ -868,6 +874,7 @@ export function MuscleBuilderPage({
               onOpenExercisePicker={handleOpenExercisePicker}
               onTogglePerSet={handleTogglePerSet}
               onUpdateSetDetail={handleUpdateSetDetail}
+              onSetSetInstruction={handleSetSetInstruction}
               onDeleteSetAtIndex={handleDeleteSetAtIndex}
               onApplySetToRemaining={handleApplySetToRemaining}
               onSetExerciseInstructions={handleSetExerciseInstructions}

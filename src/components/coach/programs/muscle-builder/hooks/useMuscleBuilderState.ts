@@ -73,6 +73,7 @@ type Action =
   | { type: 'REMOVE_REPLACEMENT'; slotId: string; replacementIndex: number }
   | { type: 'TOGGLE_PER_SET'; slotId: string }
   | { type: 'UPDATE_SET_DETAIL'; slotId: string; setIndex: number; field: keyof SetPrescription; value: number | string | undefined }
+  | { type: 'SET_SET_INSTRUCTION'; slotId: string; setIndex: number; patch: Partial<Pick<SetPrescription, 'amrap' | 'weight_mode' | 'backoff' | 'branches' | 'note'>> }
   | { type: 'DELETE_SET_AT_INDEX'; slotId: string; setIndex: number }
   | { type: 'APPLY_SET_TO_REMAINING'; slotId: string; fromIndex: number }
   | { type: 'SET_SLOT_COLUMNS'; slotId: string; columns: string[] }
@@ -1059,6 +1060,21 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       const target = fieldToTarget[action.field as string] ?? null;
       return target ? tagSlotOverrides(next, action.slotId, [target]) : next;
     }
+
+    case 'SET_SET_INSTRUCTION':
+      // Per-set coach instruction (AMRAP / back-off / drop branch). Seeds setsDetail from the
+      // flat prescription if the slot isn't in per-set mode yet, so instructions are addable
+      // directly. Fields round-trip verbatim through prescription_json.setsDetail.
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => {
+          if (sl.id !== action.slotId) return sl;
+          const detail = sl.setsDetail ?? createSetsDetailFromFlat(sl);
+          const updated = detail.map((set, i) =>
+            i === action.setIndex ? { ...set, ...action.patch } : set
+          );
+          return { ...sl, setsDetail: updated };
+        })
+      );
 
     case 'DELETE_SET_AT_INDEX':
       return withUpdatedCurrentWeek(state, s =>

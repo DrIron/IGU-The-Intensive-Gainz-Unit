@@ -494,6 +494,11 @@ export interface SetPrescription {
   note?: string;                            // per-set note (formalized; coexists with `notes`)
 }
 
+/** Patch shape for authoring per-set coach instructions (SET_SET_INSTRUCTION reducer action). */
+export type SetInstructionPatch = Partial<
+  Pick<SetPrescription, "amrap" | "weight_mode" | "backoff" | "branches" | "note">
+>;
+
 export interface EnhancedExerciseDisplayV2 extends Omit<EnhancedExerciseDisplay, 'prescription'> {
   prescription: ExercisePrescription; // legacy (backward compat)
   sets: SetPrescription[]; // per-set array

@@ -27,6 +27,7 @@ interface WeeklyCalendarProps {
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   onTogglePerSet?: (slotId: string) => void;
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onSetSetInstruction?: (slotId: string, setIndex: number, patch: import("@/types/workout-builder").SetInstructionPatch) => void;
   onDeleteSetAtIndex?: (slotId: string, setIndex: number) => void;
   onApplySetToRemaining?: (slotId: string, fromIndex: number) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
@@ -76,6 +77,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onOpenExercisePicker,
   onTogglePerSet,
   onUpdateSetDetail,
+  onSetSetInstruction,
   onDeleteSetAtIndex,
   onApplySetToRemaining,
   onSetExerciseInstructions,
@@ -177,6 +179,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onOpenExercisePicker={onOpenExercisePicker}
             onTogglePerSet={onTogglePerSet}
             onUpdateSetDetail={onUpdateSetDetail}
+          onSetSetInstruction={onSetSetInstruction}
             onDeleteSetAtIndex={onDeleteSetAtIndex}
             onApplySetToRemaining={onApplySetToRemaining}
             onSetExerciseInstructions={onSetExerciseInstructions}

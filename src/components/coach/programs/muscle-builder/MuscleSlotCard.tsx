@@ -17,6 +17,8 @@ import {
 } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
 import { AVAILABLE_PRESCRIPTION_COLUMNS, AVAILABLE_CLIENT_COLUMNS } from "@/types/workout-builder";
+import type { SetInstructionPatch } from "@/types/workout-builder";
+import { SetInstructionMenu } from "./SetInstructionMenu";
 import { SlotDeltaRulesPanel } from "./SlotDeltaRulesPanel";
 import { SlotInheritanceBar } from "./SlotInheritanceBar";
 import { useClientEditor } from "./ClientEditorContext";
@@ -47,6 +49,7 @@ interface MuscleSlotCardProps {
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   onTogglePerSet?: (slotId: string) => void;
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof SetPrescription, value: number | string | undefined) => void;
+  onSetSetInstruction?: (slotId: string, setIndex: number, patch: SetInstructionPatch) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
   onSetSlotColumns?: (slotId: string, columns: string[]) => void;
@@ -107,6 +110,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
   onOpenExercisePicker,
   onTogglePerSet,
   onUpdateSetDetail,
+  onSetSetInstruction,
   onSetExerciseInstructions,
   onSetSlotClientInputs,
   onSetSlotColumns,
@@ -269,6 +273,7 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
                     onOpenPicker={onOpenExercisePicker ? handleOpenPicker : undefined}
                     onTogglePerSet={onTogglePerSet ? () => onTogglePerSet(slotId) : undefined}
                     onUpdateSetDetail={onUpdateSetDetail ? (si, f, v) => onUpdateSetDetail(slotId, si, f, v) : undefined}
+                    onSetSetInstruction={onSetSetInstruction ? (si, patch) => onSetSetInstruction(slotId, si, patch) : undefined}
                     onSetExerciseInstructions={onSetExerciseInstructions ? (v) => onSetExerciseInstructions(slotId, v) : undefined}
                     onSetSlotClientInputs={onSetSlotClientInputs ? (v) => onSetSlotClientInputs(slotId, v) : undefined}
                     prescriptionColumns={prescriptionColumns}
@@ -353,6 +358,7 @@ interface SlotEditorPopoverProps {
   onOpenPicker?: (mode: 'primary' | 'replacement') => void;
   onTogglePerSet?: () => void;
   onUpdateSetDetail?: (setIndex: number, field: keyof SetPrescription, value: number | string | undefined) => void;
+  onSetSetInstruction?: (setIndex: number, patch: SetInstructionPatch) => void;
   onSetExerciseInstructions?: (instructions: string) => void;
   onSetSlotClientInputs?: (columns: string[] | undefined) => void;
   onSetSlotColumns?: (columns: string[]) => void;
@@ -392,6 +398,7 @@ function SlotEditorPopover({
   onOpenPicker,
   onTogglePerSet,
   onUpdateSetDetail,
+  onSetSetInstruction,
   onSetExerciseInstructions,
   onSetSlotClientInputs,
   prescriptionColumns,
@@ -469,6 +476,18 @@ function SlotEditorPopover({
             Customize each set
           </Label>
           <Switch checked={hasPerSet} onCheckedChange={onTogglePerSet} />
+        </div>
+      )}
+
+      {/* ── Coach instructions (back-off / drop / AMRAP) ──────────── */}
+      {onSetSetInstruction && (
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] text-muted-foreground">Coach instructions</span>
+          <SetInstructionMenu
+            setCount={setsDetail?.length ?? sets}
+            setsDetail={setsDetail}
+            onSetInstruction={onSetSetInstruction}
+          />
         </div>
       )}
 

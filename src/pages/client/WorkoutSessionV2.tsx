@@ -75,6 +75,15 @@ import { fromCanonicalKg, toCanonicalKg, type WeightUnit } from "@/utils/weightU
 import { isCanonicalSessionReadEnabled } from "@/lib/featureFlags";
 import { resolveCanonicalSession } from "@/lib/canonicalSessionResolver";
 import type { Json } from "@/integrations/supabase/types";
+import type { SetBranch as SetBranchT } from "@/types/workout-builder";
+import {
+  isBackoffSet,
+  computeBackoffWeight,
+  dropBranches,
+  computeDropWeight,
+  backoffBadgeLabel,
+  dropBadgeLabel,
+} from "@/lib/setInstructions";
 import { epley1RM } from "@/lib/oneRepMax";
 import { useWeightUnit } from "@/hooks/useWeightUnit";
 import { ClickableCard } from "@/components/ui/clickable-card";
@@ -116,7 +125,13 @@ interface SetPrescription {
   rest_seconds_max?: number;
   tempo?: string;
   weight_suggestion?: string;
+  weight?: number; // fixed prescribed weight (kg), if the coach pinned one
   notes?: string;
+  // Per-set instruction family (resolved by the canonical logger — see setInstructions.ts).
+  amrap?: boolean;
+  weight_mode?: "absolute" | "backoff";
+  backoff?: { ref_set_index: number; basis: "percent" | "drop"; value: number; rounding?: number };
+  branches?: SetBranchT[];
 }
 
 interface HistorySet {
@@ -538,6 +553,9 @@ function SetRow({
   isActivity,
   unit,
   isPr,
+  amrap,
+  prefillWeightKg,
+  instructionBadges,
 }: {
   prescription: SetPrescription;
   historySet?: HistorySet;
@@ -551,6 +569,10 @@ function SetRow({
   isActivity: boolean;
   unit: WeightUnit;
   isPr?: boolean;
+  // Set-instruction resolution (canonical authored data only; absent => inert for legacy).
+  amrap?: boolean;
+  prefillWeightKg?: number | null;
+  instructionBadges?: string[];
 }) {
   // A completed set collapses to one line; tapping expands the editable inputs
   // again (persisted values stay until re-saved). Weights display in `unit`;
@@ -732,8 +754,9 @@ function SetRow({
             )
           ) : (
             <>
+              {/* AMRAP suppresses the rep-range target — the client logs reps freely. */}
               <Badge variant="default" className="text-xs">
-                {repsDisplay} reps
+                {amrap ? "AMRAP" : `${repsDisplay} reps`}
               </Badge>
               {hasRir && (
                 <Badge variant="outline" className="text-xs">
@@ -750,6 +773,16 @@ function SetRow({
                   {prescription.tempo}
                 </Badge>
               )}
+              {/* Set instructions (back-off / drop), amber. */}
+              {(instructionBadges ?? []).map((b, i) => (
+                <Badge
+                  key={`instr-${i}`}
+                  variant="outline"
+                  className="text-xs border-amber-500/50 text-amber-700 dark:text-amber-400"
+                >
+                  {b}
+                </Badge>
+              ))}
             </>
           )}
           {prescription.rest_seconds && prescription.rest_seconds > 0 && (
@@ -815,7 +848,11 @@ function SetRow({
                 type="number"
                 inputMode="decimal"
                 step={unit === "kg" ? "0.5" : "1"}
-                placeholder={(fromCanonicalKg(historySet?.weight ?? null, unit, unit === "kg" ? 1 : 0) ?? "—").toString()}
+                // Back-off prefill (computed from the reference set) takes the placeholder when
+                // present; otherwise the client's last-time weight. Storage stays canonical kg.
+                placeholder={(
+                  fromCanonicalKg(prefillWeightKg ?? historySet?.weight ?? null, unit, unit === "kg" ? 1 : 0) ?? "—"
+                ).toString()}
                 value={fromCanonicalKg(log.performed_load, unit, unit === "kg" ? 1 : 0) ?? ""}
                 onChange={(e) =>
                   onUpdate("performed_load", e.target.value ? toCanonicalKg(parseFloat(e.target.value), unit) : null)
@@ -1128,6 +1165,28 @@ function ExerciseCard({
                   !exercise.is_activity && setLog?.completed
                     ? detectSetPr(exercise.pr_refs, setLog.performed_load, setLog.performed_reps, setLog.performed_rir)
                     : false;
+                // Set-instruction resolution (back-off / drop / AMRAP). Inert when the fields
+                // are absent (legacy / non-instruction), so this is a no-op outside canonical
+                // authored data. Recomputes live as the reference set is logged (re-render).
+                const amrap = prescription.amrap === true;
+                let prefillWeightKg: number | null = null;
+                const instructionBadges: string[] = [];
+                if (isBackoffSet(prescription) && prescription.backoff) {
+                  const ref = prescription.backoff.ref_set_index;
+                  prefillWeightKg = computeBackoffWeight(
+                    prescription.backoff,
+                    logs[ref]?.performed_load ?? null,
+                    prescriptions[ref]?.weight ?? null,
+                  );
+                  instructionBadges.push(
+                    backoffBadgeLabel(prescription.backoff) +
+                      (prefillWeightKg != null ? ` → ${fmtW(prefillWeightKg)}${unit}` : ""),
+                  );
+                }
+                for (const branch of dropBranches(prescription)) {
+                  const dw = computeDropWeight(branch, logs[i]?.performed_load ?? null, prescription.weight ?? null);
+                  instructionBadges.push(dropBadgeLabel(branch) + (dw != null ? ` → ${fmtW(dw)}${unit}` : ""));
+                }
                 return (
                   <div key={i} className="space-y-1">
                     <SetRow
@@ -1155,6 +1214,9 @@ function ExerciseCard({
                       isActivity={exercise.is_activity}
                       unit={unit}
                       isPr={isPr}
+                      amrap={amrap}
+                      prefillWeightKg={prefillWeightKg}
+                      instructionBadges={instructionBadges}
                     />
                     {suggestion && (
                       <ProgressionSuggestionBanner
