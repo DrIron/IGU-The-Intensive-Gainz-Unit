@@ -4,12 +4,13 @@ import { useAuthSession } from "@/hooks/useAuthSession";
 import { supabase } from "@/integrations/supabase/client";
 import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { TakeDeloadCard } from "@/components/workouts/TakeDeloadCard";
+import { loadCanonicalSchedule, canonicalSessionTitle, type CanonicalSchedule } from "@/lib/canonicalScheduleAdapter";
 import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { ChevronLeft, ChevronRight, CheckCircle2, MessageCircle, Dumbbell } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, MessageCircle, Dumbbell, Snowflake } from "lucide-react";
 import {
   addMonths,
   addWeeks,
@@ -39,6 +40,10 @@ interface SessionModule {
   status: string;
   exerciseCount: number;
   muscles: string[];
+  /** Deload v2 — this session belongs to a recovery/deload running week (canonical grid only). */
+  isDeload?: boolean;
+  /** Deload v2 — canonical session: open via assignment+session params instead of a legacy module id. */
+  canonical?: { assignmentId: string; date: string };
 }
 
 function formatType(t: string) {
@@ -72,21 +77,25 @@ function briefText(m: SessionModule) {
 }
 
 /** One enriched session row (used in the "This week" list). */
-function SessionBrief({ m, date, onOpen }: { m: SessionModule; date: Date; onOpen: (id: string) => void }) {
+function SessionBrief({ m, date, onOpen }: { m: SessionModule; date: Date; onOpen: (m: SessionModule) => void }) {
   const s = statusFor(m.status, date);
   return (
     <button
       type="button"
-      onClick={() => onOpen(m.id)}
+      onClick={() => onOpen(m)}
       className="flex w-full items-center gap-0 overflow-hidden rounded-lg border bg-card text-left transition-colors hover:bg-muted/40"
       aria-label={`Open ${m.title || formatType(m.module_type)}`}
     >
       <span className={cn("w-1 self-stretch shrink-0", RAIL[s.key])} aria-hidden />
       <span className="flex-1 px-4 py-3">
         <span className="flex items-baseline justify-between gap-2">
-          <span className="text-sm font-medium">{m.title || formatType(m.module_type)}</span>
+          <span className="flex items-center gap-1.5 text-sm font-medium">
+            {m.isDeload && <Snowflake className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />}
+            {m.title || formatType(m.module_type)}
+          </span>
           <span className="font-mono text-[11px] text-muted-foreground">{format(date, "EEE d")}</span>
         </span>
+        {m.isDeload && <span className="block text-[11px] font-medium text-amber-600 dark:text-amber-400">Recovery week</span>}
         <span className="text-xs text-muted-foreground">{briefText(m)}</span>
       </span>
       <span className={cn("mr-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", PILL[s.key])}>{s.label}</span>
@@ -95,12 +104,12 @@ function SessionBrief({ m, date, onOpen }: { m: SessionModule; date: Date; onOpe
 }
 
 /** Compact enriched chip used in the 7-day week grid. */
-function WeekChip({ m, date, onOpen }: { m: SessionModule; date: Date; onOpen: (id: string) => void }) {
+function WeekChip({ m, date, onOpen }: { m: SessionModule; date: Date; onOpen: (m: SessionModule) => void }) {
   const s = statusFor(m.status, date);
   return (
     <button
       type="button"
-      onClick={() => onOpen(m.id)}
+      onClick={() => onOpen(m)}
       className="w-full overflow-hidden rounded-md border text-left transition-opacity hover:opacity-90"
       aria-label={`Open ${m.title || formatType(m.module_type)}`}
     >
@@ -108,8 +117,9 @@ function WeekChip({ m, date, onOpen }: { m: SessionModule; date: Date; onOpen: (
         <span className={cn("w-1 shrink-0", RAIL[s.key])} aria-hidden />
         <span className="flex-1 px-1.5 py-1">
           <span className="flex items-center gap-1 text-xs font-medium">
+            {m.isDeload && <Snowflake className="h-3 w-3 shrink-0 text-amber-500" aria-hidden />}
             {m.status === "completed" && <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" aria-hidden />}
-            <span className="truncate">{m.title || formatType(m.module_type)}</span>
+            <span className="truncate">{m.isDeload ? "Recovery" : m.title || formatType(m.module_type)}</span>
           </span>
           <span className="block font-mono text-[10px] text-muted-foreground">{m.exerciseCount} ex</span>
           {m.muscles.length > 0 && <span className="block truncate text-[10px] text-muted-foreground">{m.muscles.map(cap).join(", ")}</span>}
@@ -141,7 +151,8 @@ function WorkoutsContent() {
   const { data: weekRows, isLoading: weekLoading } = useClientWorkoutsWeek(user?.id, anchor);
   const { data: thisWeekRows } = useClientWorkoutsWeek(user?.id, new Date());
 
-  // Deload v2 (board_v2): the client's active canonical assignment powers "take a deload this week".
+  // Deload v2 (board_v2): the client's active canonical assignment powers "take a deload this week"
+  // AND (below) the schedule grid, so an on-demand deload's insert+shift actually shows.
   const boardV2 = isBoardV2Enabled();
   const [canonical, setCanonical] = useState<{ id: string; planId: string | null; startDate: string | null } | null>(null);
   const canonicalFetchedRef = useRef(false);
@@ -161,10 +172,63 @@ function WorkoutsContent() {
       });
   }, [boardV2, user?.id]);
 
-  const onOpen = (id: string) => navigate(`/client/workout/session/${id}`);
+  // Load the canonical schedule (running sequence + inserts) when board_v2 + an assignment exist.
+  // deloadNonce bumps after a take/remove so the grid reflects the shift live.
+  const [schedule, setSchedule] = useState<CanonicalSchedule | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [deloadNonce, setDeloadNonce] = useState(0);
+  useEffect(() => {
+    if (!boardV2 || !canonical?.id) {
+      setSchedule(null);
+      return;
+    }
+    let cancelled = false;
+    setScheduleLoading(true);
+    loadCanonicalSchedule(canonical.id)
+      .then((s) => {
+        if (!cancelled) setSchedule(s);
+      })
+      .finally(() => {
+        if (!cancelled) setScheduleLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [boardV2, canonical?.id, deloadNonce]);
 
-  // Month grid: map yyyy-MM-dd -> modules (with brief).
-  const monthByDate = useMemo(() => {
+  const useCanonical = boardV2 && !!schedule;
+
+  // Canonical date→sessions map (drives all grids when active; legacy maps fall through otherwise).
+  const canonicalByDate = useMemo<Record<string, SessionModule[]> | null>(() => {
+    if (!useCanonical || !schedule || !canonical) return null;
+    const map: Record<string, SessionModule[]> = {};
+    for (const [iso, day] of schedule.byDate) {
+      map[iso] = day.modules.map((m) => ({
+        id: m.id,
+        title: canonicalSessionTitle(m),
+        module_type: m.module_type,
+        status: m.status,
+        exerciseCount: m.exerciseCount,
+        muscles: m.muscles,
+        isDeload: m.isDeload,
+        canonical: { assignmentId: canonical.id, date: iso },
+      }));
+    }
+    return map;
+  }, [useCanonical, schedule, canonical]);
+
+  const onOpen = (m: SessionModule) => {
+    if (m.canonical) {
+      navigate(
+        `/client/workout/session/canonical?assignment=${m.canonical.assignmentId}&session=${m.id}&date=${m.canonical.date}`,
+      );
+    } else {
+      navigate(`/client/workout/session/${m.id}`);
+    }
+  };
+
+  // Month grid: map yyyy-MM-dd -> modules (with brief). Canonical map wins under board_v2.
+  const legacyMonthByDate = useMemo(() => {
     const map: Record<string, SessionModule[]> = {};
     for (const day of monthRows ?? []) {
       const mods = (day.client_day_modules ?? []).map((m: any) => {
@@ -175,6 +239,7 @@ function WorkoutsContent() {
     }
     return map;
   }, [monthRows]);
+  const monthByDate = canonicalByDate ?? legacyMonthByDate;
 
   const weekByDate = (rows: typeof weekRows) => {
     const map: Record<string, SessionModule[]> = {};
@@ -187,8 +252,10 @@ function WorkoutsContent() {
     return map;
   };
 
-  const displayedWeekByDate = useMemo(() => weekByDate(weekRows), [weekRows]);
-  const thisWeekByDate = useMemo(() => weekByDate(thisWeekRows), [thisWeekRows]);
+  const legacyDisplayedWeekByDate = useMemo(() => weekByDate(weekRows), [weekRows]);
+  const legacyThisWeekByDate = useMemo(() => weekByDate(thisWeekRows), [thisWeekRows]);
+  const displayedWeekByDate = canonicalByDate ?? legacyDisplayedWeekByDate;
+  const thisWeekByDate = canonicalByDate ?? legacyThisWeekByDate;
 
   const monthStart = startOfMonth(anchor);
   const weekStart = startOfWeek(anchor, WEEK_OPTS);
@@ -260,6 +327,7 @@ function WorkoutsContent() {
               planId={canonical.planId}
               startDate={canonical.startDate}
               clientId={user?.id ?? null}
+              onChange={() => setDeloadNonce((n) => n + 1)}
             />
           )}
           {/* Week/Month toggle + period nav */}
@@ -294,7 +362,7 @@ function WorkoutsContent() {
 
           {view === "month" ? (
             <>
-              {monthLoading ? (
+              {(useCanonical ? scheduleLoading : monthLoading) ? (
                 <Skeleton className="h-72 w-full" />
               ) : (
                 <div>
@@ -359,7 +427,7 @@ function WorkoutsContent() {
                 )}
               </div>
             </>
-          ) : weekLoading ? (
+          ) : (useCanonical ? scheduleLoading : weekLoading) ? (
             <div className={cn("grid gap-2", isMobile ? "grid-cols-1" : "grid-cols-7")}>
               {Array(isMobile ? 4 : 7)
                 .fill(0)

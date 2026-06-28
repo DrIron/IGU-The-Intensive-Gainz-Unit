@@ -30,6 +30,8 @@ interface TakeDeloadCardProps {
   clientId: string | null;
   variant: "client" | "coach";
   className?: string;
+  /** Fired after a successful insert/remove so a host (e.g. the schedule grid) can refresh. */
+  onChange?: () => void;
 }
 
 export function TakeDeloadCard({
@@ -39,6 +41,7 @@ export function TakeDeloadCard({
   clientId,
   variant,
   className,
+  onChange,
 }: TakeDeloadCardProps) {
   const isClient = variant === "client";
   const { available, inserts, takeDeload, removeDeload } = useDeloadActions({
@@ -63,6 +66,7 @@ export function TakeDeloadCard({
       toast.success(
         isClient ? "Deload added — your plan shifted out by a week." : "Deload week inserted for this client.",
       );
+      onChange?.();
     } else {
       toast.error("Couldn't add the deload. Please try again.");
     }
@@ -70,8 +74,12 @@ export function TakeDeloadCard({
 
   const handleRemove = async (id: string) => {
     const ok = await removeDeload(id);
-    if (ok) toast.success("Deload removed — plan shifted back.");
-    else toast.error("Couldn't remove the deload.");
+    if (ok) {
+      toast.success("Deload removed — plan shifted back.");
+      onChange?.();
+    } else {
+      toast.error("Couldn't remove the deload.");
+    }
   };
 
   return (

@@ -7,6 +7,7 @@ import {
   type SequenceInsert,
 } from "./deloadSequence";
 import { resolveWeekIndexForDate } from "./canonicalSessionResolver";
+import { boardDayDate } from "./boardDates";
 
 const wk = (
   week_index: number,
@@ -83,6 +84,25 @@ describe("buildRunningSequence — splice inserts into the running sequence", ()
     const withInsert = buildRunningSequence(weeks, [ins(2, "w4", "standard")]); // splice the on_demand template
     expect(ids(withInsert)).toEqual(["w1", "w4", "w2", "w3"]);
     expect(withInsert[1]).toMatchObject({ kind: "inserted", contentPlanWeekId: "w4", isDeload: true });
+  });
+});
+
+describe("schedule grid: running sequence → calendar dates (insert shifts training out a week)", () => {
+  // The canonical schedule grid maps each running week's content to date = start + (runningIndex-1)*7
+  // + (day-1) (boardDayDate, no extra inserts arg — the running index already encodes the shift).
+  const start = "2026-06-01"; // Mon
+  it("with no deload, base week 2 day 1 renders on Jun 8", () => {
+    const seq = buildRunningSequence(FOUR, []);
+    const wk2 = seq.find((s) => s.baseWeekIndex === 2)!;
+    expect(boardDayDate(start, wk2.runningIndex, 1).getUTCDate()).toBe(8);
+  });
+  it("inserting a deload at position 2 makes Jun 8 the Recovery week and pushes base week 2 to Jun 15", () => {
+    const seq = buildRunningSequence(FOUR, [ins(2, "dl")]);
+    const inserted = seq.find((s) => s.kind === "inserted")!;
+    const wk2 = seq.find((s) => s.baseWeekIndex === 2)!;
+    expect(inserted.runningIndex).toBe(2);
+    expect(boardDayDate(start, inserted.runningIndex, 1).getUTCDate()).toBe(8); // recovery week now here
+    expect(boardDayDate(start, wk2.runningIndex, 1).getUTCDate()).toBe(15); // training shifted +7
   });
 });
 
