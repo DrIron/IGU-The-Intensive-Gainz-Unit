@@ -173,7 +173,8 @@ export const DeloadRequestPanel = memo(function DeloadRequestPanel({
               />
             </div>
             <div className="text-[10px] text-muted-foreground italic">
-              Approving records the response. Apply the actual deload to the client's program from your normal program editor.
+              Approving notifies the client and applies the deload to the chosen week of their
+              program automatically (defaults to the current week if left blank).
             </div>
             <div className="flex gap-2">
               <Button size="sm" onClick={handleApprove} disabled={submitting}>

@@ -333,12 +333,12 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
         )}
       </div>
 
-      {/* Coach Instructions */}
+      {/* Exercise notes */}
       <div className="px-3 py-2 border-b">
         <Textarea
           value={exercise.instructions || ""}
           onChange={handleInstructionsChange}
-          placeholder="Add coaching notes..."
+          placeholder="Add exercise notes..."
           rows={1}
           className="text-sm resize-none min-h-[32px]"
           disabled={isReadOnly}

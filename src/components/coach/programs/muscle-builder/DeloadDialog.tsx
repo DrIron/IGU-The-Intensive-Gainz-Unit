@@ -31,15 +31,18 @@ import {
 } from "@/components/ui/select";
 import { Snowflake } from "lucide-react";
 import { BUILTIN_DELOAD_PRESETS, findDeloadPreset } from "./deloadPresets";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
 import type { WeekData, MuscleSlotData } from "@/types/muscle-builder";
 
 export type DeloadBaseContent = "clone" | "fresh" | "keep";
+export type DeloadPlacement = "pinned" | "on_demand";
 
 export interface ApplyDeloadParams {
   weekIndex: number;
   baseContent: DeloadBaseContent;
   sourceWeekIndex?: number;
   presetId: string | null;
+  placement: DeloadPlacement;
 }
 
 interface DeloadDialogProps {
@@ -67,13 +70,17 @@ export const DeloadDialog = memo(function DeloadDialog({
   const [baseContent, setBaseContent] = useState<DeloadBaseContent>("keep");
   const [sourceWeekIndex, setSourceWeekIndex] = useState<number>(0);
   const [presetId, setPresetId] = useState<string>(BUILTIN_DELOAD_PRESETS[0]?.id ?? NONE_PRESET_ID);
+  const [placement, setPlacement] = useState<DeloadPlacement>("pinned");
+  const boardV2 = isBoardV2Enabled();
 
   useEffect(() => {
     if (open) {
       setBaseContent("keep");
       setSourceWeekIndex(0);
       setPresetId(BUILTIN_DELOAD_PRESETS[0]?.id ?? NONE_PRESET_ID);
+      setPlacement(targetWeek?.deloadPlacement ?? "pinned");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, weekIndex]);
 
   // ---- Preview ----
@@ -119,6 +126,7 @@ export const DeloadDialog = memo(function DeloadDialog({
       baseContent,
       sourceWeekIndex: baseContent === "clone" ? sourceWeekIndex : undefined,
       presetId: presetId === NONE_PRESET_ID ? null : presetId,
+      placement: boardV2 ? placement : "pinned",
     });
     onClose();
   };
@@ -212,6 +220,33 @@ export const DeloadDialog = memo(function DeloadDialog({
               </div>
             </RadioGroup>
           </div>
+
+          {/* Placement (Deload v2) */}
+          {boardV2 && (
+            <div className="space-y-2">
+              <Label className="text-xs font-medium">Placement</Label>
+              <RadioGroup
+                value={placement}
+                onValueChange={(v) => setPlacement(v as DeloadPlacement)}
+                className="space-y-1"
+              >
+                <div className="flex items-start gap-2">
+                  <RadioGroupItem value="pinned" id="dl-place-pinned" className="mt-0.5" />
+                  <Label htmlFor="dl-place-pinned" className="cursor-pointer">
+                    <div className="text-xs font-medium">Pinned at this week</div>
+                    <div className="text-[10px] text-muted-foreground">Runs automatically when the client reaches {targetWeekLabel}.</div>
+                  </Label>
+                </div>
+                <div className="flex items-start gap-2">
+                  <RadioGroupItem value="on_demand" id="dl-place-ondemand" className="mt-0.5" />
+                  <Label htmlFor="dl-place-ondemand" className="cursor-pointer">
+                    <div className="text-xs font-medium">Available on-demand</div>
+                    <div className="text-[10px] text-muted-foreground">Skipped in the normal sequence; the client or coach inserts it when needed (adds a week).</div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+          )}
 
           {/* Preview */}
           {previewRows.length > 0 && presetId !== NONE_PRESET_ID && (

@@ -144,7 +144,7 @@ export function getActivityDisplay(activityId: string): { label: string; colorCl
 export interface SlotExercise {
   exerciseId: string;   // FK to exercise_library.id
   name: string;         // Denormalized for display (captured at selection time)
-  instructions?: string; // Coach notes for this exercise
+  instructions?: string; // Exercise notes (free-text) for this exercise
 }
 
 export interface MuscleSlotData {
@@ -186,6 +186,13 @@ export interface MuscleSlotData {
   restSeconds?: number;              // HIIT
   difficulty?: 'beginner' | 'intermediate' | 'advanced';
   activityNotes?: string;            // general notes for non-strength slot
+  // Superset / circuit grouping (P1 schema addendum — data-shape only; builder UI = P4).
+  // Slots sharing a groupId render as one bracket. Materialized verbatim by
+  // save_plan_from_builder into plan_slots.group_id / group_type / rounds. See
+  // docs/PROGRAM_SYSTEM_UNIFICATION_BUILD_PLAN.md "Planning Board v2 + prescription model".
+  groupId?: string;                  // uuid shared across the bracketed slots
+  groupType?: 'superset' | 'circuit';
+  groupRounds?: number;              // rounds for the whole bracket (distinct from HIIT `rounds`)
 }
 
 // Session = a coach-defined grouping of activities within a day.
@@ -204,6 +211,10 @@ export interface WeekData {
   sessions?: SessionData[];  // Optional for backward compat; normalized on load via migrateSlotsToSessions
   label?: string;
   isDeload?: boolean;
+  deloadPresetId?: string;   // preset applied to this deload week (carried to plan_weeks.deload_preset_id)
+  // Deload v2 (docs/DELOAD_V2.md). Only meaningful when isDeload. 'pinned' runs in place at this week
+  // (default); 'on_demand' excludes the week from the running sequence and makes it insertable.
+  deloadPlacement?: 'pinned' | 'on_demand';
 }
 
 // Default names shown as the session header inside DayColumn (140px at

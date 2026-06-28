@@ -2,12 +2,17 @@ import { memo } from "react";
 import { DayColumn } from "./DayColumn";
 import { MobileWeekStrip } from "./MobileWeekStrip";
 import { MobileDayDetail } from "./MobileDayDetail";
+import { boardDayLabel } from "@/lib/boardDates";
 import type { ActivityType, MuscleSlotData, SessionData, SlotExercise } from "@/types/muscle-builder";
 
 interface WeeklyCalendarProps {
   slots: MuscleSlotData[];
   sessions: SessionData[];
   selectedDayIndex: number;
+  /** Board v2 Calendar mode: when set, day columns show real dates from this start_date. */
+  calendarStartDate?: string;
+  /** 1-based plan week index for the rendered week (Calendar mode date math). */
+  calendarWeekIndex?: number;
   onSelectDay: (dayIndex: number) => void;
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
@@ -27,6 +32,7 @@ interface WeeklyCalendarProps {
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   onTogglePerSet?: (slotId: string) => void;
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onSetSetInstruction?: (slotId: string, setIndex: number, patch: import("@/types/workout-builder").SetInstructionPatch) => void;
   onDeleteSetAtIndex?: (slotId: string, setIndex: number) => void;
   onApplySetToRemaining?: (slotId: string, fromIndex: number) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
@@ -54,6 +60,8 @@ interface WeeklyCalendarProps {
 }
 
 export const WeeklyCalendar = memo(function WeeklyCalendar({
+  calendarStartDate,
+  calendarWeekIndex,
   slots,
   sessions,
   selectedDayIndex,
@@ -76,6 +84,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onOpenExercisePicker,
   onTogglePerSet,
   onUpdateSetDetail,
+  onSetSetInstruction,
   onDeleteSetAtIndex,
   onApplySetToRemaining,
   onSetExerciseInstructions,
@@ -155,6 +164,9 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           <DayColumn
             key={dayIndex}
             dayIndex={dayIndex}
+            dayDateLabel={
+              calendarStartDate ? boardDayLabel(calendarStartDate, calendarWeekIndex ?? 1, dayIndex) : undefined
+            }
             slots={slots}
             sessions={sessions}
             isSelected={selectedDayIndex === dayIndex}
@@ -177,6 +189,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onOpenExercisePicker={onOpenExercisePicker}
             onTogglePerSet={onTogglePerSet}
             onUpdateSetDetail={onUpdateSetDetail}
+          onSetSetInstruction={onSetSetInstruction}
             onDeleteSetAtIndex={onDeleteSetAtIndex}
             onApplySetToRemaining={onApplySetToRemaining}
             onSetExerciseInstructions={onSetExerciseInstructions}

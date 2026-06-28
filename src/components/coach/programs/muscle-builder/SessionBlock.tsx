@@ -13,8 +13,10 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy } from "lucide-react";
+import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
+import { useClientEditor } from "./ClientEditorContext";
 import { MuscleSlotCard } from "./MuscleSlotCard";
 import { ActivitySlotCard } from "./ActivitySlotCard";
 import { UnifiedSessionPicker } from "./UnifiedSessionPicker";
@@ -50,6 +52,7 @@ interface SessionBlockProps {
   onOpenExercisePicker?: (slotId: string, muscleId: string, mode: 'primary' | 'replacement') => void;
   onTogglePerSet?: (slotId: string) => void;
   onUpdateSetDetail?: (slotId: string, setIndex: number, field: keyof import("@/types/workout-builder").SetPrescription, value: number | string | undefined) => void;
+  onSetSetInstruction?: (slotId: string, setIndex: number, patch: import("@/types/workout-builder").SetInstructionPatch) => void;
   onSetExerciseInstructions?: (slotId: string, instructions: string) => void;
   onSetSlotClientInputs?: (slotId: string, columns: string[] | undefined) => void;
   onSetSlotColumns?: (slotId: string, columns: string[]) => void;
@@ -104,6 +107,7 @@ export const SessionBlock = memo(function SessionBlock({
   onOpenExercisePicker,
   onTogglePerSet,
   onUpdateSetDetail,
+  onSetSetInstruction,
   onSetExerciseInstructions,
   onSetSlotClientInputs,
   onSetSlotColumns,
@@ -128,6 +132,14 @@ export const SessionBlock = memo(function SessionBlock({
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(session.name ?? '');
   const [addOpen, setAddOpen] = useState(false);
+  // P4 Editor v1: client (override) mode — flag a customized session + offer reset-to-template.
+  const { clientMode, overriddenSessionIds, onResetSession } = useClientEditor();
+  const isOverridden = clientMode && overriddenSessionIds.has(session.id);
+  // Board v2: inline session expansion — default collapsed (header + summary), expand to the
+  // slot cards (read view; tapping a card still opens its editor). Off → always expanded.
+  const boardV2 = isBoardV2Enabled();
+  const [expanded, setExpanded] = useState(!boardV2);
+  const showSlots = !boardV2 || expanded;
 
   const typeColors = ACTIVITY_TYPE_COLORS[session.type];
   const displayName = session.name?.trim() || defaultSessionName(session.type);
@@ -169,12 +181,22 @@ export const SessionBlock = memo(function SessionBlock({
       // stays faintly visible at all times (opacity-50) so coaches can still
       // discover session actions, while the name keeps every available pixel
       // when not hovering.
-      className="group/session border-l-2 pl-2 space-y-1"
-      style={{ borderLeftColor: typeColors.colorHex }}
+      className={cn("group/session border-l-2 pl-2 space-y-1", isOverridden && "border-l-amber-500")}
+      style={{ borderLeftColor: isOverridden ? undefined : typeColors.colorHex }}
     >
       {/* Header: name + inline + + kebab. Colored dot dropped — left bar
           already carries the type signal, gives the name another ~10px. */}
       <div className="flex items-center gap-1 min-w-0">
+        {boardV2 && (
+          <button
+            type="button"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={expanded ? "Collapse session" : "Expand session"}
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+          >
+            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
+        )}
         {isEditingName ? (
           <Input
             autoFocus
@@ -202,6 +224,18 @@ export const SessionBlock = memo(function SessionBlock({
           >
             {displayName}
           </button>
+        )}
+        {/* P4 client mode: reset this session's customization back to the template. */}
+        {isOverridden && (
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400"
+            title="Reset session to template"
+            onClick={e => { e.stopPropagation(); onResetSession(session.id); }}
+          >
+            <RotateCcw className="h-3 w-3" />
+          </Button>
         )}
         {/* Inline + opens the same picker the bottom-row button used to.
             Hidden until session-row hover so the session name keeps every
@@ -312,8 +346,22 @@ export const SessionBlock = memo(function SessionBlock({
         </DropdownMenu>
       </div>
 
+      {/* Board v2 collapsed summary — tap to expand to the slot cards. */}
+      {!showSlots && (
+        <button
+          type="button"
+          className="w-full text-left text-[10px] text-muted-foreground hover:text-foreground py-1"
+          onClick={() => setExpanded(true)}
+        >
+          {sessionSlots.length === 0
+            ? "Empty session"
+            : `${sessionSlots.length} exercise${sessionSlots.length === 1 ? "" : "s"} — tap to expand`}
+        </button>
+      )}
+
       {/* Slot list — own Droppable so drag-reorder within + moves across
           sessions are distinguishable to hello-pangea/dnd. */}
+      {showSlots && (
       <Droppable droppableId={`session-${session.id}`} type="MUSCLE_SLOT">
         {(provided, snapshot) => (
           <div
@@ -368,6 +416,7 @@ export const SessionBlock = memo(function SessionBlock({
                     onOpenExercisePicker={onOpenExercisePicker}
                     onTogglePerSet={onTogglePerSet}
                     onUpdateSetDetail={onUpdateSetDetail}
+                    onSetSetInstruction={onSetSetInstruction}
                     onSetExerciseInstructions={onSetExerciseInstructions}
                     onSetSlotClientInputs={onSetSlotClientInputs}
                     onSetSlotColumns={onSetSlotColumns}
@@ -399,6 +448,7 @@ export const SessionBlock = memo(function SessionBlock({
           </div>
         )}
       </Droppable>
+      )}
     </div>
   );
 });

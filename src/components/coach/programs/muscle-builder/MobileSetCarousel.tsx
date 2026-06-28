@@ -98,7 +98,7 @@ export const MobileSetCarousel = memo(function MobileSetCarousel({
           type="button"
         >
           <Settings2 className="h-3 w-3" />
-          {showColumnPicker ? "Hide columns" : "Choose columns"}
+          {showColumnPicker ? "Hide instructions" : "Exercise instructions"}
         </button>
         {showColumnPicker && onSetColumns && (
           <div className="flex flex-wrap gap-1.5">

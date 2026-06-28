@@ -21,6 +21,10 @@ import type { ClientOverviewTabProps } from "../types";
 import { WorkoutAdherencePulse } from "../workouts/WorkoutAdherencePulse";
 import { ClientProgramList } from "../workouts/ClientProgramList";
 import { ClientProgramDrilldown } from "../workouts/ClientProgramDrilldown";
+import { MuscleBuilderPage } from "@/components/coach/programs/muscle-builder/MuscleBuilderPage";
+import { isClientProgramEditorEnabled, isBoardV2Enabled } from "@/lib/featureFlags";
+import { TakeDeloadCard } from "@/components/workouts/TakeDeloadCard";
+import { loadCanonicalSchedule, canonicalDrilldownDays, type CanonicalSchedule } from "@/lib/canonicalScheduleAdapter";
 import { SessionLogViewer } from "../workouts/SessionLogViewer";
 import { WorkoutPulse } from "../workouts/WorkoutPulse";
 import { WorkoutTrendCards } from "../workouts/WorkoutTrendCards";
@@ -84,6 +88,81 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   // B3 inner tabs: Pulse · Programs · Calendar · History.
   const [innerTab, setInnerTab] = useState("pulse");
 
+  // P4 Editor v1 (flagged): the client's active canonical assignment + an in-board editor.
+  // Edits persist as client_plan_overrides; legacy client_programs (above) is unaffected.
+  const editorEnabled = isClientProgramEditorEnabled();
+  const boardV2 = isBoardV2Enabled();
+  const [canonicalAssignmentId, setCanonicalAssignmentId] = useState<string | null>(null);
+  const [canonicalStartDate, setCanonicalStartDate] = useState<string | null>(null);
+  const [canonicalPlanId, setCanonicalPlanId] = useState<string | null>(null);
+  const [editingAssignment, setEditingAssignment] = useState(false);
+  const assignmentFetchedRef = useRef(false);
+  useEffect(() => {
+    // The canonical assignment powers the P4 editor (editorEnabled) and the Deload v2 trigger (board_v2).
+    if ((!editorEnabled && !boardV2) || assignmentFetchedRef.current) return;
+    assignmentFetchedRef.current = true;
+    supabase
+      .from("client_plan_assignment")
+      .select("id, start_date, plan_id")
+      .eq("client_id", clientUserId)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        setCanonicalAssignmentId(data?.id ?? null);
+        setCanonicalStartDate(data?.start_date ?? null);
+        setCanonicalPlanId(data?.plan_id ?? null);
+      });
+  }, [editorEnabled, boardV2, clientUserId]);
+
+  // Deload v2: under board_v2, render the drilldown from the canonical running sequence (insert+shift
+  // aware) instead of the legacy client_program_days snapshot. deloadNonce reloads after take/remove.
+  const [schedule, setSchedule] = useState<CanonicalSchedule | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [deloadNonce, setDeloadNonce] = useState(0);
+  useEffect(() => {
+    if (!boardV2 || !canonicalAssignmentId) {
+      setSchedule(null);
+      return;
+    }
+    let cancelled = false;
+    setScheduleLoading(true);
+    loadCanonicalSchedule(canonicalAssignmentId)
+      .then((s) => {
+        if (!cancelled) setSchedule(s);
+      })
+      .finally(() => {
+        if (!cancelled) setScheduleLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [boardV2, canonicalAssignmentId, deloadNonce]);
+
+  const useCanonicalDrilldown = boardV2 && !!schedule;
+  const canonicalDays = useMemo<DrilldownDay[] | null>(() => {
+    if (!useCanonicalDrilldown || !schedule || !canonicalAssignmentId) return null;
+    return canonicalDrilldownDays(schedule).map((d) => ({
+      id: d.id,
+      dayIndex: d.dayIndex,
+      date: d.date,
+      title: d.title,
+      isDeload: d.isDeload,
+      modules: d.modules.map((m) => ({
+        id: m.id,
+        title: m.title,
+        moduleType: m.moduleType,
+        sessionType: m.sessionType,
+        status: m.status,
+        completedAt: m.completedAt,
+        sortOrder: m.sortOrder,
+        isDeload: m.isDeload,
+        canonical: { assignmentId: canonicalAssignmentId, date: m.date },
+      })),
+    }));
+  }, [useCanonicalDrilldown, schedule, canonicalAssignmentId]);
+
   const handleOpenProgram = useCallback((program: ClientProgramSummary) => {
     setSelected(program);
   }, []);
@@ -93,9 +172,17 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   }, []);
   const handleOpenModule = useCallback(
     (module: DrilldownModule, day: DrilldownDay) => {
+      // Canonical sessions don't exist in the legacy SessionLogViewer — open WorkoutSessionV2
+      // (canonical read mode) via assignment+session+date params, like the client calendar.
+      if (module.canonical) {
+        navigate(
+          `/client/workout/session/canonical?assignment=${module.canonical.assignmentId}&session=${module.id}&date=${module.canonical.date}`,
+        );
+        return;
+      }
       setLogTarget({ module, day });
     },
-    [],
+    [navigate],
   );
 
   // Reassign flow — we reuse AssignFromLibraryDialog but it wants a
@@ -138,6 +225,18 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
 
         {/* Programs — assign + the program list / drill-down. */}
         <TabsContent value="programs" className="mt-5 space-y-5">
+          {/* P4 Editor v1 (flagged): in-board editor scoped to the client's assignment. */}
+          {editorEnabled && editingAssignment && canonicalAssignmentId && coachUserId ? (
+            <MuscleBuilderPage
+              coachUserId={coachUserId}
+              assignmentId={canonicalAssignmentId}
+              clientName={profile.firstName ?? profile.displayName ?? undefined}
+              boardContext="client"
+              startDate={canonicalStartDate ?? undefined}
+              onBack={() => setEditingAssignment(false)}
+            />
+          ) : (
+          <>
           <WorkoutAdherencePulse pulse={pulse} loading={pulseLoading || programsLoading} />
 
           <div className="flex flex-wrap items-center gap-2">
@@ -149,13 +248,32 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
               <Plus className="h-4 w-4 mr-1.5" />
               Assign program
             </Button>
+            {editorEnabled && canonicalAssignmentId && (
+              <Button size="sm" variant="outline" onClick={() => setEditingAssignment(true)}>
+                <Dumbbell className="h-4 w-4 mr-1.5" />
+                Edit in planning board (beta)
+              </Button>
+            )}
           </div>
+
+          {/* Deload v2 (board_v2): coach can insert the plan's on-demand deload at the client's
+              current week, or remove an inserted one. */}
+          {boardV2 && canonicalAssignmentId && (
+            <TakeDeloadCard
+              variant="coach"
+              assignmentId={canonicalAssignmentId}
+              planId={canonicalPlanId}
+              startDate={canonicalStartDate}
+              clientId={clientUserId}
+              onChange={() => setDeloadNonce((n) => n + 1)}
+            />
+          )}
 
           {selected ? (
             <ClientProgramDrilldown
               program={selected}
-              days={drilldown.days}
-              loading={drilldown.loading}
+              days={canonicalDays ?? drilldown.days}
+              loading={useCanonicalDrilldown ? scheduleLoading : drilldown.loading}
               error={drilldown.error}
               onBack={handleBackToList}
               onOpenModule={handleOpenModule}
@@ -182,6 +300,8 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
                 Re-assign this program template
               </Button>
             </div>
+          )}
+          </>
           )}
         </TabsContent>
 

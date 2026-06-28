@@ -738,6 +738,13 @@ export type Database = {
             foreignKeyName: "care_team_assignments_subscription_id_fkey"
             columns: ["subscription_id"]
             isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "care_team_assignments_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
             referencedRelation: "subscriptions"
             referencedColumns: ["id"]
           },
@@ -899,6 +906,13 @@ export type Database = {
             columns: ["staff_user_id"]
             isOneToOne: false
             referencedRelation: "profiles_legacy"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_care_team_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "paying_subscriptions"
             referencedColumns: ["id"]
           },
           {
@@ -1102,6 +1116,173 @@ export type Database = {
           },
         ]
       }
+      client_plan_assignment: {
+        Row: {
+          client_id: string
+          created_at: string
+          id: string
+          macrocycle_id: string | null
+          plan_id: string
+          primary_coach_id: string
+          start_date: string
+          status: Database["public"]["Enums"]["client_program_status"]
+          subscription_id: string | null
+          team_id: string | null
+          timezone: string
+          updated_at: string
+        }
+        Insert: {
+          client_id: string
+          created_at?: string
+          id?: string
+          macrocycle_id?: string | null
+          plan_id: string
+          primary_coach_id: string
+          start_date: string
+          status?: Database["public"]["Enums"]["client_program_status"]
+          subscription_id?: string | null
+          team_id?: string | null
+          timezone?: string
+          updated_at?: string
+        }
+        Update: {
+          client_id?: string
+          created_at?: string
+          id?: string
+          macrocycle_id?: string | null
+          plan_id?: string
+          primary_coach_id?: string
+          start_date?: string
+          status?: Database["public"]["Enums"]["client_program_status"]
+          subscription_id?: string | null
+          team_id?: string | null
+          timezone?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_plan_assignment_macrocycle_id_fkey"
+            columns: ["macrocycle_id"]
+            isOneToOne: false
+            referencedRelation: "macrocycles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_plan_assignment_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plan"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_plan_assignment_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_plan_assignment_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_plan_assignment_team_id_fkey"
+            columns: ["team_id"]
+            isOneToOne: false
+            referencedRelation: "coach_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_plan_inserted_deloads: {
+        Row: {
+          assignment_id: string
+          created_at: string
+          id: string
+          inserted_by: string
+          position_week_index: number
+          preset_id: string | null
+          source_plan_week_id: string
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string
+          id?: string
+          inserted_by?: string
+          position_week_index: number
+          preset_id?: string | null
+          source_plan_week_id: string
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string
+          id?: string
+          inserted_by?: string
+          position_week_index?: number
+          preset_id?: string | null
+          source_plan_week_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_plan_inserted_deloads_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "client_plan_assignment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_plan_inserted_deloads_source_plan_week_id_fkey"
+            columns: ["source_plan_week_id"]
+            isOneToOne: false
+            referencedRelation: "plan_weeks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      client_plan_overrides: {
+        Row: {
+          assignment_id: string
+          created_at: string
+          id: string
+          override_json: Json
+          removed: boolean
+          target_id: string
+          target_type: string
+          updated_at: string
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string
+          id?: string
+          override_json?: Json
+          removed?: boolean
+          target_id: string
+          target_type: string
+          updated_at?: string
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string
+          id?: string
+          override_json?: Json
+          removed?: boolean
+          target_id?: string
+          target_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_plan_overrides_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "client_plan_assignment"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_preferences: {
         Row: {
           created_at: string
@@ -1237,6 +1418,13 @@ export type Database = {
             columns: ["source_template_id"]
             isOneToOne: false
             referencedRelation: "program_templates"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_programs_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "paying_subscriptions"
             referencedColumns: ["id"]
           },
           {
@@ -1578,6 +1766,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "coaches_client_safe"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "coach_client_relationships_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "coach_client_relationships_subscription_id_fkey"
@@ -2499,6 +2694,13 @@ export type Database = {
             foreignKeyName: "deload_requests_subscription_id_fkey"
             columns: ["subscription_id"]
             isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "deload_requests_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
             referencedRelation: "subscriptions"
             referencedColumns: ["id"]
           },
@@ -2698,6 +2900,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "coaches_client_safe"
             referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "direct_calendar_sessions_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
           },
           {
             foreignKeyName: "direct_calendar_sessions_subscription_id_fkey"
@@ -2951,6 +3160,13 @@ export type Database = {
             columns: ["discount_code_id"]
             isOneToOne: false
             referencedRelation: "discount_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "discount_redemptions_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "paying_subscriptions"
             referencedColumns: ["id"]
           },
           {
@@ -3480,7 +3696,8 @@ export type Database = {
       }
       exercise_set_logs: {
         Row: {
-          client_module_exercise_id: string
+          assignment_id: string | null
+          client_module_exercise_id: string | null
           created_at: string
           created_by_user_id: string
           id: string
@@ -3490,12 +3707,14 @@ export type Database = {
           performed_reps: number | null
           performed_rir: number | null
           performed_rpe: number | null
+          plan_slot_id: string | null
           prescribed: Json
           set_index: number
           skipped: boolean
         }
         Insert: {
-          client_module_exercise_id: string
+          assignment_id?: string | null
+          client_module_exercise_id?: string | null
           created_at?: string
           created_by_user_id: string
           id?: string
@@ -3505,12 +3724,14 @@ export type Database = {
           performed_reps?: number | null
           performed_rir?: number | null
           performed_rpe?: number | null
+          plan_slot_id?: string | null
           prescribed?: Json
           set_index: number
           skipped?: boolean
         }
         Update: {
-          client_module_exercise_id?: string
+          assignment_id?: string | null
+          client_module_exercise_id?: string | null
           created_at?: string
           created_by_user_id?: string
           id?: string
@@ -3520,11 +3741,19 @@ export type Database = {
           performed_reps?: number | null
           performed_rir?: number | null
           performed_rpe?: number | null
+          plan_slot_id?: string | null
           prescribed?: Json
           set_index?: number
           skipped?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "exercise_set_logs_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "client_plan_assignment"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "exercise_set_logs_client_module_exercise_id_fkey"
             columns: ["client_module_exercise_id"]
@@ -3544,6 +3773,13 @@ export type Database = {
             columns: ["created_by_user_id"]
             isOneToOne: false
             referencedRelation: "profiles_public"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "exercise_set_logs_plan_slot_id_fkey"
+            columns: ["plan_slot_id"]
+            isOneToOne: false
+            referencedRelation: "plan_slots"
             referencedColumns: ["id"]
           },
         ]
@@ -5240,6 +5476,13 @@ export type Database = {
             foreignKeyName: "payment_events_subscription_id_fkey"
             columns: ["subscription_id"]
             isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payment_events_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
             referencedRelation: "subscriptions"
             referencedColumns: ["id"]
           },
@@ -5307,6 +5550,13 @@ export type Database = {
           verified_with_tap?: boolean
         }
         Relationships: [
+          {
+            foreignKeyName: "payment_webhook_events_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "payment_webhook_events_subscription_id_fkey"
             columns: ["subscription_id"]
@@ -5578,6 +5828,241 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      plan: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          kind: string
+          level: string | null
+          name: string
+          owner_coach_id: string
+          source_muscle_template_id: string | null
+          tags: string[]
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          level?: string | null
+          name: string
+          owner_coach_id: string
+          source_muscle_template_id?: string | null
+          tags?: string[]
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          kind?: string
+          level?: string | null
+          name?: string
+          owner_coach_id?: string
+          source_muscle_template_id?: string | null
+          tags?: string[]
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: []
+      }
+      plan_sessions: {
+        Row: {
+          activity_type: string
+          builder_session_id: string | null
+          created_at: string
+          day_index: number
+          id: string
+          name: string | null
+          plan_id: string
+          plan_week_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          activity_type?: string
+          builder_session_id?: string | null
+          created_at?: string
+          day_index: number
+          id?: string
+          name?: string | null
+          plan_id: string
+          plan_week_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          activity_type?: string
+          builder_session_id?: string | null
+          created_at?: string
+          day_index?: number
+          id?: string
+          name?: string | null
+          plan_id?: string
+          plan_week_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_sessions_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plan"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_sessions_plan_week_id_fkey"
+            columns: ["plan_week_id"]
+            isOneToOne: false
+            referencedRelation: "plan_weeks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_slots: {
+        Row: {
+          activity_id: string | null
+          activity_name: string | null
+          builder_slot_id: string | null
+          created_at: string
+          exercise_id: string | null
+          group_id: string | null
+          group_type: string | null
+          id: string
+          instructions: string | null
+          manual_override: boolean
+          plan_id: string
+          plan_session_id: string
+          prescription_json: Json
+          progression_rule_id: string | null
+          rounds: number | null
+          section: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          activity_id?: string | null
+          activity_name?: string | null
+          builder_slot_id?: string | null
+          created_at?: string
+          exercise_id?: string | null
+          group_id?: string | null
+          group_type?: string | null
+          id?: string
+          instructions?: string | null
+          manual_override?: boolean
+          plan_id: string
+          plan_session_id: string
+          prescription_json?: Json
+          progression_rule_id?: string | null
+          rounds?: number | null
+          section?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          activity_id?: string | null
+          activity_name?: string | null
+          builder_slot_id?: string | null
+          created_at?: string
+          exercise_id?: string | null
+          group_id?: string | null
+          group_type?: string | null
+          id?: string
+          instructions?: string | null
+          manual_override?: boolean
+          plan_id?: string
+          plan_session_id?: string
+          prescription_json?: Json
+          progression_rule_id?: string | null
+          rounds?: number | null
+          section?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_slots_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercise_library"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_slots_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plan"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_slots_plan_session_id_fkey"
+            columns: ["plan_session_id"]
+            isOneToOne: false
+            referencedRelation: "plan_sessions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "plan_slots_progression_rule_id_fkey"
+            columns: ["progression_rule_id"]
+            isOneToOne: false
+            referencedRelation: "progression_rules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      plan_weeks: {
+        Row: {
+          created_at: string
+          deload_placement: string | null
+          deload_preset_id: string | null
+          id: string
+          is_deload: boolean
+          label: string | null
+          plan_id: string
+          updated_at: string
+          week_index: number
+        }
+        Insert: {
+          created_at?: string
+          deload_placement?: string | null
+          deload_preset_id?: string | null
+          id?: string
+          is_deload?: boolean
+          label?: string | null
+          plan_id: string
+          updated_at?: string
+          week_index: number
+        }
+        Update: {
+          created_at?: string
+          deload_placement?: string | null
+          deload_preset_id?: string | null
+          id?: string
+          is_deload?: boolean
+          label?: string | null
+          plan_id?: string
+          updated_at?: string
+          week_index?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_weeks_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "plan"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       playlist_videos: {
         Row: {
@@ -5956,6 +6441,36 @@ export type Database = {
             referencedColumns: ["user_id"]
           },
         ]
+      }
+      progression_rules: {
+        Row: {
+          created_at: string
+          id: string
+          name: string | null
+          owner_coach_id: string
+          rule_json: Json
+          scope: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          owner_coach_id: string
+          rule_json?: Json
+          scope?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string | null
+          owner_coach_id?: string
+          rule_json?: Json
+          scope?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       progression_suggestions: {
         Row: {
@@ -6435,6 +6950,13 @@ export type Database = {
             foreignKeyName: "session_bookings_subscription_id_fkey"
             columns: ["subscription_id"]
             isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "session_bookings_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
             referencedRelation: "subscriptions"
             referencedColumns: ["id"]
           },
@@ -6767,6 +7289,13 @@ export type Database = {
             foreignKeyName: "subscription_addons_subscription_id_fkey"
             columns: ["subscription_id"]
             isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_addons_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
             referencedRelation: "subscriptions"
             referencedColumns: ["id"]
           },
@@ -6822,6 +7351,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "subscription_payments_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "subscription_payments_subscription_id_fkey"
             columns: ["subscription_id"]
@@ -7978,6 +8514,10 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_plan_to_client: {
+        Args: { p_client_program_id: string; p_timezone?: string }
+        Returns: Json
+      }
       assign_program_to_client: {
         Args: {
           p_client_id: string
@@ -8205,6 +8745,11 @@ export type Database = {
       }
       get_coach_for_client: { Args: { p_coach_user_id: string }; Returns: Json }
       get_coach_roster_attention: { Args: never; Returns: Json }
+      get_coach_roster_stats: { Args: never; Returns: Json }
+      get_coach_whatsapp_for_client: {
+        Args: { p_coach_user_id: string }
+        Returns: string
+      }
       get_coaches_for_subscription_addons: {
         Args: { p_subscription_id: string }
         Returns: Json
@@ -8575,6 +9120,15 @@ export type Database = {
         Args: { p_code_id: string; p_user_id: string }
         Returns: undefined
       }
+      insert_client_deload: {
+        Args: {
+          p_assignment_id: string
+          p_position_week_index: number
+          p_preset_id?: string
+          p_source_plan_week_id: string
+        }
+        Returns: Json
+      }
       is_active_coach_for_client: {
         Args: { p_client_id: string }
         Returns: boolean
@@ -8711,8 +9265,23 @@ export type Database = {
         Args: { p_mode?: string; p_purchase_id: string; p_reason: string }
         Returns: Json
       }
+      remove_client_deload: { Args: { p_id: string }; Returns: Json }
       reorder_macrocycle_blocks: {
         Args: { p_macrocycle_id: string; p_program_template_ids: string[] }
+        Returns: Json
+      }
+      save_client_plan_override: {
+        Args: {
+          p_assignment_id: string
+          p_override_json?: Json
+          p_removed?: boolean
+          p_target_id: string
+          p_target_type: string
+        }
+        Returns: Json
+      }
+      save_plan_from_builder: {
+        Args: { p_payload: Json; p_template_id: string }
         Returns: Json
       }
       scan_phi_plaintext_violations: {
@@ -9177,4 +9746,3 @@ export const Constants = {
     },
   },
 } as const
-

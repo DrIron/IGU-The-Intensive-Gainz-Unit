@@ -1,8 +1,17 @@
-import { useReducer, useCallback, useRef, useEffect } from "react";
+import { useReducer, useCallback, useRef, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { captureException } from "@/lib/errorLogging";
 import { withTimeout } from "@/lib/withTimeout";
+import type { Json } from "@/integrations/supabase/types";
+import {
+  loadPlanForAssignment,
+  persistAssignmentOverrides,
+  computeOverriddenIds,
+  resetElementToTemplate,
+  type BoardPlanBase,
+} from "@/lib/clientPlanBoardAdapter";
 import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType, WeekData, SessionData } from "@/types/muscle-builder";
 import { ACTIVITY_MAP, migrateSlotsToSessions } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
@@ -33,7 +42,8 @@ type Action =
   | { type: 'CLEAR_FIELD_MANUAL_OVERRIDE'; slotId: string; field: DeltaTarget }
   | { type: 'SET_WEEK_LABEL'; weekIndex: number; label: string }
   | { type: 'TOGGLE_DELOAD'; weekIndex: number }
-  | { type: 'APPLY_DELOAD'; weekIndex: number; baseContent: 'clone' | 'fresh' | 'keep'; sourceWeekIndex?: number; presetId: string | null }
+  | { type: 'APPLY_DELOAD'; weekIndex: number; baseContent: 'clone' | 'fresh' | 'keep'; sourceWeekIndex?: number; presetId: string | null; placement?: 'pinned' | 'on_demand' }
+  | { type: 'SET_DELOAD_PLACEMENT'; weekIndex: number; placement: 'pinned' | 'on_demand' }
   | { type: 'APPLY_SLOT_TO_REMAINING'; slotId: string; fields: Partial<MuscleSlotData> }
   | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string; sets?: number; sessionId?: string }
   | { type: 'REMOVE_MUSCLE'; slotId: string }
@@ -64,6 +74,7 @@ type Action =
   | { type: 'REMOVE_REPLACEMENT'; slotId: string; replacementIndex: number }
   | { type: 'TOGGLE_PER_SET'; slotId: string }
   | { type: 'UPDATE_SET_DETAIL'; slotId: string; setIndex: number; field: keyof SetPrescription; value: number | string | undefined }
+  | { type: 'SET_SET_INSTRUCTION'; slotId: string; setIndex: number; patch: Partial<Pick<SetPrescription, 'amrap' | 'weight_mode' | 'backoff' | 'branches' | 'note'>> }
   | { type: 'DELETE_SET_AT_INDEX'; slotId: string; setIndex: number }
   | { type: 'APPLY_SET_TO_REMAINING'; slotId: string; fromIndex: number }
   | { type: 'SET_SLOT_COLUMNS'; slotId: string; columns: string[] }
@@ -565,8 +576,25 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       const wasDeload = week.isDeload;
       const weeks = state.weeks.map((w, i) =>
         i === action.weekIndex
-          ? { ...w, isDeload: !wasDeload, label: !wasDeload ? (w.label || 'Deload') : w.label }
+          ? {
+              ...w,
+              isDeload: !wasDeload,
+              label: !wasDeload ? (w.label || 'Deload') : w.label,
+              // Mark → default to pinned placement; unmark → clear Deload v2 metadata.
+              deloadPlacement: !wasDeload ? (w.deloadPlacement ?? 'pinned') : undefined,
+              deloadPresetId: !wasDeload ? w.deloadPresetId : undefined,
+            }
           : w
+      );
+      return { ...state, weeks, isDirty: true };
+    }
+
+    case 'SET_DELOAD_PLACEMENT': {
+      // Flip an existing deload week between pinned (runs in place) and on-demand (insertable).
+      const week = state.weeks[action.weekIndex];
+      if (!week || !week.isDeload) return state;
+      const weeks = state.weeks.map((w, i) =>
+        i === action.weekIndex ? { ...w, deloadPlacement: action.placement } : w,
       );
       return { ...state, weeks, isDirty: true };
     }
@@ -620,6 +648,8 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
               sessions: baseSessions,
               isDeload: true,
               label: w.label || 'Deload',
+              deloadPresetId: action.presetId ?? undefined,
+              deloadPlacement: action.placement ?? w.deloadPlacement ?? 'pinned',
             }
           : w,
       );
@@ -1051,6 +1081,21 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       return target ? tagSlotOverrides(next, action.slotId, [target]) : next;
     }
 
+    case 'SET_SET_INSTRUCTION':
+      // Per-set coach instruction (AMRAP / back-off / drop branch). Seeds setsDetail from the
+      // flat prescription if the slot isn't in per-set mode yet, so instructions are addable
+      // directly. Fields round-trip verbatim through prescription_json.setsDetail.
+      return withUpdatedCurrentWeek(state, s =>
+        s.map(sl => {
+          if (sl.id !== action.slotId) return sl;
+          const detail = sl.setsDetail ?? createSetsDetailFromFlat(sl);
+          const updated = detail.map((set, i) =>
+            i === action.setIndex ? { ...set, ...action.patch } : set
+          );
+          return { ...sl, setsDetail: updated };
+        })
+      );
+
     case 'DELETE_SET_AT_INDEX':
       return withUpdatedCurrentWeek(state, s =>
         s.map(sl => {
@@ -1243,7 +1288,49 @@ function buildSlotConfig(state: MusclePlanState): Record<string, unknown> {
   } as unknown as Record<string, unknown>;
 }
 
-export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: string) {
+// P1 (program system unification): mirror the serialized builder state into the
+// canonical plan* model via save_plan_from_builder. slot_config remains authoritative
+// during the soak — this runs fire-and-forget AFTER the slot_config write, so a mirror
+// failure is a stale mirror, not data loss. See docs/PROGRAM_SYSTEM_UNIFICATION_BUILD_PLAN.md §P1.
+function buildPlanPayload(state: MusclePlanState) {
+  // `weeks` carries each SessionData.id and MuscleSlotData.id verbatim — these are the
+  // builder's stable ids that save_plan_from_builder upserts on (plan_sessions.builder_session_id
+  // / plan_slots.builder_slot_id) so plan_slots.id stays linked to exercise_set_logs across
+  // re-saves. Do NOT strip slot/session ids from the payload.
+  return {
+    name: state.name,
+    description: state.description || null,
+    weeks: state.weeks,
+    globalClientInputs: state.globalClientInputs,
+    globalPrescriptionColumns: state.globalPrescriptionColumns,
+  };
+}
+
+async function mirrorPlanToCanonical(templateId: string, state: MusclePlanState): Promise<void> {
+  try {
+    const { error } = await supabase.rpc('save_plan_from_builder', {
+      p_template_id: templateId,
+      p_payload: buildPlanPayload(state) as unknown as Json,
+    });
+    if (error) throw error;
+  } catch (err) {
+    captureException(err, {
+      source: 'save_plan_from_builder_mirror',
+      severity: 'warning',
+      metadata: { templateId },
+    });
+  }
+}
+
+export function useMuscleBuilderState(
+  coachUserId: string,
+  existingTemplateId?: string,
+  opts?: { assignmentId?: string },
+) {
+  // P4 Editor v1: when assignmentId is set, the board is scoped to a 1:1 client's plan —
+  // load merges plan_* + client_plan_overrides, and saves persist as overrides (not slot_config).
+  // When undefined (the default), every path below is the existing template-editing behavior.
+  const assignmentId = opts?.assignmentId;
   const [{ current: state, past, future }, dispatch] = useReducer(undoableReducer, {
     current: initialState,
     past: [],
@@ -1251,13 +1338,44 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
   });
   const { toast } = useToast();
   const hasFetched = useRef(false);
+  // Template (base, pre-override) snapshot for client mode — drives the override diff + badges.
+  const baseRef = useRef<BoardPlanBase | null>(null);
 
   const canUndo = past.length > 0;
   const canRedo = future.length > 0;
 
-  // Load existing template
+  // Load — client mode (assignment + overrides) takes precedence over template mode.
   useEffect(() => {
-    if (!existingTemplateId || hasFetched.current) return;
+    if (hasFetched.current) return;
+    // Client mode: load the assignment's plan merged with its overrides.
+    if (assignmentId) {
+      hasFetched.current = true;
+      (async () => {
+        try {
+          const loaded = await loadPlanForAssignment(assignmentId);
+          if (!loaded) {
+            toast({ title: 'Program not found', description: 'No canonical plan for this assignment.', variant: 'destructive' });
+            return;
+          }
+          baseRef.current = loaded.base;
+          dispatch({
+            type: 'LOAD_TEMPLATE',
+            payload: {
+              templateId: assignmentId, // sentinel: enables dirty/autosave; persistence routes via assignmentId
+              name: loaded.name,
+              description: loaded.description,
+              weeks: loaded.weeks,
+              globalClientInputs: loaded.base.globalClientInputs,
+              globalPrescriptionColumns: loaded.base.globalPrescriptionColumns,
+            },
+          });
+        } catch (error) {
+          toast({ title: 'Error loading program', description: sanitizeErrorForUser(error), variant: 'destructive' });
+        }
+      })();
+      return;
+    }
+    if (!existingTemplateId) return;
     hasFetched.current = true;
 
     (async () => {
@@ -1291,6 +1409,8 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
             sessions: w.sessions,
             label: w.label,
             isDeload: w.isDeload,
+            deloadPresetId: w.deloadPresetId,
+            deloadPlacement: w.deloadPlacement,
           }));
         } else if ('slots' in obj) {
           // v2: single-week object format
@@ -1312,7 +1432,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
         },
       });
     })();
-  }, [existingTemplateId, toast]);
+  }, [existingTemplateId, assignmentId, toast]);
 
   // Auto-save: debounce 2s after changes when template already exists
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -1328,20 +1448,27 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
 
       dispatch({ type: 'SAVING' });
       try {
-        const { error } = await withTimeout(
-          supabase
-            .from('muscle_program_templates')
-            .update({
-              name: s.name,
-              description: s.description || null,
-              slot_config: buildSlotConfig(s),
-              updated_at: new Date().toISOString(),
-            })
-            .eq('id', s.templateId),
-          15000,
-          'Auto-save muscle plan',
-        );
-        if (error) throw error;
+        if (assignmentId) {
+          // Client mode: persist edits as client_plan_overrides (diff vs the template base).
+          if (baseRef.current) await persistAssignmentOverrides(assignmentId, s, baseRef.current);
+        } else {
+          const { error } = await withTimeout(
+            supabase
+              .from('muscle_program_templates')
+              .update({
+                name: s.name,
+                description: s.description || null,
+                slot_config: buildSlotConfig(s),
+                updated_at: new Date().toISOString(),
+              })
+              .eq('id', s.templateId),
+            15000,
+            'Auto-save muscle plan',
+          );
+          if (error) throw error;
+          // Mirror into canonical plan* AFTER the authoritative slot_config write.
+          void mirrorPlanToCanonical(s.templateId!, s);
+        }
         dispatch({ type: 'MARK_SAVED', templateId: s.templateId! });
       } catch {
         dispatch({ type: 'SAVE_ERROR' });
@@ -1349,7 +1476,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
     }, 2000);
 
     return () => clearTimeout(autoSaveTimerRef.current);
-  }, [state.isDirty, state.templateId, state.isSaving, state.weeks, state.name, state.description]);
+  }, [state.isDirty, state.templateId, state.isSaving, state.weeks, state.name, state.description, assignmentId]);
 
   // Save
   const save = useCallback(async () => {
@@ -1357,6 +1484,13 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
     dispatch({ type: 'SAVING' });
 
     try {
+      if (assignmentId) {
+        // Client mode: persist edits as client_plan_overrides (diff vs the template base).
+        if (baseRef.current) await persistAssignmentOverrides(assignmentId, state, baseRef.current);
+        dispatch({ type: 'MARK_SAVED', templateId: assignmentId });
+        toast({ title: 'Client program saved' });
+        return;
+      }
       if (state.templateId) {
         const { error } = await withTimeout(
           supabase
@@ -1374,6 +1508,8 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
 
         if (error) throw error;
         dispatch({ type: 'MARK_SAVED', templateId: state.templateId });
+        // Mirror into canonical plan* AFTER the authoritative slot_config write.
+        void mirrorPlanToCanonical(state.templateId, state);
       } else {
         const { data, error } = await withTimeout(
           supabase
@@ -1392,6 +1528,8 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
 
         if (error) throw error;
         dispatch({ type: 'MARK_SAVED', templateId: data.id });
+        // Mirror into canonical plan* AFTER the authoritative slot_config insert.
+        void mirrorPlanToCanonical(data.id, state);
       }
 
       toast({ title: 'Muscle plan saved' });
@@ -1399,7 +1537,7 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
       dispatch({ type: 'SAVE_ERROR' });
       toast({ title: 'Error saving', description: sanitizeErrorForUser(error), variant: 'destructive' });
     }
-  }, [state.templateId, state.name, state.description, state.weeks, coachUserId, toast]);
+  }, [state, state.templateId, state.name, state.description, state.weeks, coachUserId, assignmentId, toast]);
 
   // Save as preset
   const saveAsPreset = useCallback(async () => {
@@ -1432,7 +1570,59 @@ export function useMuscleBuilderState(coachUserId: string, existingTemplateId?: 
     }
   }, [coachUserId, state.name, state.description, state.weeks, toast]);
 
-  return { state, dispatch, save, saveAsPreset, canUndo, canRedo };
+  // Client mode (P4 Editor v1): which elements diverge from the template + a per-element reset.
+  const overriddenIds = useMemo(
+    () =>
+      assignmentId && baseRef.current
+        ? computeOverriddenIds(state, baseRef.current)
+        : { slots: new Set<string>(), sessions: new Set<string>() },
+    [state, assignmentId],
+  );
+
+  const reloadClientPlan = useCallback(async () => {
+    if (!assignmentId) return;
+    const loaded = await loadPlanForAssignment(assignmentId);
+    if (!loaded) return;
+    baseRef.current = loaded.base;
+    dispatch({
+      type: 'LOAD_TEMPLATE',
+      payload: {
+        templateId: assignmentId,
+        name: loaded.name,
+        description: loaded.description,
+        weeks: loaded.weeks,
+        globalClientInputs: loaded.base.globalClientInputs,
+        globalPrescriptionColumns: loaded.base.globalPrescriptionColumns,
+      },
+    });
+  }, [assignmentId]);
+
+  const resetElement = useCallback(
+    async (targetType: 'slot' | 'session', targetId: string) => {
+      if (!assignmentId) return;
+      try {
+        await resetElementToTemplate(assignmentId, targetType, targetId);
+        await reloadClientPlan();
+        toast({ title: 'Reset to template' });
+      } catch (error) {
+        toast({ title: 'Reset failed', description: sanitizeErrorForUser(error), variant: 'destructive' });
+      }
+    },
+    [assignmentId, reloadClientPlan, toast],
+  );
+
+  return {
+    state,
+    dispatch,
+    save,
+    saveAsPreset,
+    canUndo,
+    canRedo,
+    // Client-mode (assignment) extras — empty/no-op in template mode.
+    isClientMode: !!assignmentId,
+    overriddenIds,
+    resetElement,
+  };
 }
 
 export { getCurrentSlots, getCurrentSessions };

@@ -31,7 +31,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId } from "@/types/muscle-builder";
 import type { ActivityType, MuscleSlotData, SlotExercise } from "@/types/muscle-builder";
-import type { SetPrescription } from "@/types/workout-builder";
+import type { SetPrescription, SetInstructionPatch } from "@/types/workout-builder";
 import { AVAILABLE_CLIENT_COLUMNS } from "@/types/workout-builder";
 import { ExercisePickerDialog } from "../ExercisePickerDialog";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -47,6 +47,10 @@ import { ProgressionOverview } from "./ProgressionOverview";
 import { PresetSelector } from "./PresetSelector";
 import { ConvertToProgram } from "./ConvertToProgram";
 import { SaveStatusBadge, type SaveState } from "./SaveStatusBadge";
+import { ClientEditorProvider } from "./ClientEditorContext";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
+import { canUseCalendarMode, defaultBoardViewMode } from "@/lib/boardDates";
+import { CalendarDays, Rows3, Users, Snowflake } from "lucide-react";
 import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import { DeloadDialog, type ApplyDeloadParams } from "./DeloadDialog";
 import { ProgressionRulesBar } from "./ProgressionRulesBar";
@@ -56,6 +60,15 @@ interface MuscleBuilderPageProps {
   existingTemplateId?: string;
   onBack: () => void;
   onOpenProgram?: (programId: string) => void;
+  // P4 Editor v1: when set, the board edits this 1:1 client's plan via client_plan_overrides
+  // (instead of a template's slot_config). clientName drives the amber context banner.
+  assignmentId?: string;
+  clientName?: string;
+  // Board v2: explicit context skin (defaults to client when an assignment is present, else
+  // template). teamName + startDate feed the team banner / Calendar-mode dated labels.
+  boardContext?: "template" | "client" | "team";
+  teamName?: string;
+  startDate?: string; // assignment start_date (YYYY-MM-DD) — required for Calendar mode dates
 }
 
 export function MuscleBuilderPage({
@@ -63,8 +76,22 @@ export function MuscleBuilderPage({
   existingTemplateId,
   onBack,
   onOpenProgram,
+  assignmentId,
+  clientName,
+  boardContext,
+  teamName,
+  startDate,
 }: MuscleBuilderPageProps) {
-  const { state, dispatch, save, saveAsPreset, canUndo, canRedo } = useMuscleBuilderState(coachUserId, existingTemplateId);
+  const { state, dispatch, save, saveAsPreset, canUndo, canRedo, isClientMode, overriddenIds, resetElement } =
+    useMuscleBuilderState(coachUserId, existingTemplateId, assignmentId ? { assignmentId } : undefined);
+  // Board v2 (flag-gated): context skin + Calendar/Weeks toggle + inline session expansion.
+  const boardV2 = isBoardV2Enabled();
+  const ctx: "template" | "client" | "team" = boardContext ?? (assignmentId ? "client" : "template");
+  // Instances default to a dated Calendar view (board v2); templates are always Program-weeks.
+  const canCalendar = canUseCalendarMode(boardV2, ctx, !!startDate);
+  const [viewMode, setViewMode] = useState<"weeks" | "calendar">(
+    defaultBoardViewMode(boardV2, ctx, !!startDate),
+  );
   const currentWeekSlots = getCurrentSlots(state);
   const currentWeekSessions = getCurrentSessions(state);
   const { volumeEntries, summary, frequencyMatrix, placementCounts, consecutiveDayWarnings } =
@@ -456,6 +483,12 @@ export function MuscleBuilderPage({
     [dispatch]
   );
 
+  const handleSetSetInstruction = useCallback(
+    (slotId: string, setIndex: number, patch: SetInstructionPatch) =>
+      dispatch({ type: 'SET_SET_INSTRUCTION', slotId, setIndex, patch }),
+    [dispatch]
+  );
+
   const handleDeleteSetAtIndex = useCallback(
     (slotId: string, setIndex: number) => dispatch({ type: 'DELETE_SET_AT_INDEX', slotId, setIndex }),
     [dispatch]
@@ -576,8 +609,12 @@ export function MuscleBuilderPage({
         baseContent: params.baseContent,
         sourceWeekIndex: params.sourceWeekIndex,
         presetId: params.presetId,
+        placement: params.placement,
       });
-      toast({ title: 'Deload applied' });
+      toast({
+        title: 'Deload applied',
+        description: params.placement === 'on_demand' ? 'Available on-demand (insertable)' : undefined,
+      });
     },
     [dispatch, toast],
   );
@@ -617,6 +654,13 @@ export function MuscleBuilderPage({
     (weekIndex: number) => dispatch({ type: 'TOGGLE_DELOAD', weekIndex }),
     [dispatch]
   );
+  const handleSetDeloadPlacement = useCallback(
+    (weekIndex: number, placement: 'pinned' | 'on_demand') => {
+      dispatch({ type: 'SET_DELOAD_PLACEMENT', weekIndex, placement });
+      toast({ title: placement === 'on_demand' ? 'Deload set to on-demand' : 'Deload pinned to this week' });
+    },
+    [dispatch, toast],
+  );
 
   const handleApplyToRemaining = useCallback(
     (slotId: string, fields: Record<string, unknown>) => {
@@ -627,8 +671,77 @@ export function MuscleBuilderPage({
   );
 
   return (
+    <ClientEditorProvider
+      value={{
+        clientMode: isClientMode,
+        overriddenSlotIds: overriddenIds.slots,
+        overriddenSessionIds: overriddenIds.sessions,
+        onResetSlot: (slotId) => resetElement("slot", slotId),
+        onResetSession: (sessionId) => resetElement("session", sessionId),
+      }}
+    >
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="space-y-4">
+        {/* P4 Editor v1 — client (override) mode banner. Edits save as per-client overrides;
+            the shared template is untouched. */}
+        {ctx === "client" && (
+          <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
+            <span className="text-amber-700 dark:text-amber-400">
+              Editing <strong>{clientName ?? "this client"}</strong>'s program — changes save as
+              personal customizations (the template isn't affected).
+            </span>
+            <span className="shrink-0 text-xs font-medium text-amber-700 dark:text-amber-400">
+              {overriddenIds.slots.size + overriddenIds.sessions.size > 0
+                ? `${overriddenIds.slots.size + overriddenIds.sessions.size} customized`
+                : "Following template"}
+            </span>
+          </div>
+        )}
+        {/* Board v2 — team skin. Visual/prop only; team plans + assignments come with the Teams
+            track, so this banner isn't exercised yet. TODO(teams): wire team plan editing. */}
+        {ctx === "team" && (
+          <div className="flex items-center gap-2 rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm text-blue-700 dark:text-blue-400">
+            <Users className="h-4 w-4 shrink-0" />
+            <span>
+              Team <strong>{teamName ?? "plan"}</strong> · edits apply to all members (no per-member
+              customizations).
+            </span>
+          </div>
+        )}
+        {/* Board v2 — Calendar ⇄ Program-weeks toggle (instances only; templates are date-less). */}
+        {canCalendar && (
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground mr-1">View</span>
+            <Button
+              variant={viewMode === "calendar" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7"
+              onClick={() => setViewMode("calendar")}
+            >
+              <CalendarDays className="h-3.5 w-3.5 mr-1" /> Calendar
+            </Button>
+            <Button
+              variant={viewMode === "weeks" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7"
+              onClick={() => setViewMode("weeks")}
+            >
+              <Rows3 className="h-3.5 w-3.5 mr-1" /> Program weeks
+            </Button>
+          </div>
+        )}
+        {/* Deload badge for the active week's column header (pinned vs on-demand). */}
+        {state.weeks[state.currentWeekIndex]?.isDeload && (
+          <div className="flex items-center gap-1.5 w-fit rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+            <Snowflake className="h-3.5 w-3.5" />
+            Deload week
+            {boardV2 && state.weeks[state.currentWeekIndex]?.deloadPlacement === "on_demand" && (
+              <span className="text-[10px] font-normal text-amber-600/80 dark:text-amber-400/80">
+                · on-demand (insertable)
+              </span>
+            )}
+          </div>
+        )}
         {/* ── Header ──────────────────────────────────────────── */}
         <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
           <div className="flex items-center gap-3">
@@ -676,7 +789,7 @@ export function MuscleBuilderPage({
               </Button>
             </div>
 
-            {!isEmpty && (
+            {!isEmpty && !isClientMode && (
               <>
                 <Button variant="ghost" size="sm" onClick={() => setShowClearDialog(true)}>
                   <Trash2 className="h-4 w-4 mr-1" />
@@ -734,7 +847,7 @@ export function MuscleBuilderPage({
               errorMessage={saveError}
               onSave={save}
             />
-            {!isEmpty && (
+            {!isEmpty && !isClientMode && (
               <Button size="sm" onClick={() => setShowConvertDialog(true)}>
                 <Zap className="h-4 w-4 mr-1" />
                 Create Program
@@ -794,6 +907,7 @@ export function MuscleBuilderPage({
               onSetWeekLabel={handleSetWeekLabel}
               onToggleDeload={handleToggleDeload}
               onOpenDeloadDialog={handleOpenDeloadDialog}
+              onSetDeloadPlacement={boardV2 ? handleSetDeloadPlacement : undefined}
             />
 
             {/* Progression rules bar — aggregated authoring/review of the W1
@@ -816,6 +930,8 @@ export function MuscleBuilderPage({
 
             {/* Weekly Calendar */}
             <WeeklyCalendar
+              calendarStartDate={viewMode === "calendar" && canCalendar ? startDate : undefined}
+              calendarWeekIndex={state.currentWeekIndex + 1}
               slots={currentWeekSlots}
               sessions={currentWeekSessions}
               selectedDayIndex={state.selectedDayIndex}
@@ -836,6 +952,7 @@ export function MuscleBuilderPage({
               onOpenExercisePicker={handleOpenExercisePicker}
               onTogglePerSet={handleTogglePerSet}
               onUpdateSetDetail={handleUpdateSetDetail}
+              onSetSetInstruction={handleSetSetInstruction}
               onDeleteSetAtIndex={handleDeleteSetAtIndex}
               onApplySetToRemaining={handleApplySetToRemaining}
               onSetExerciseInstructions={handleSetExerciseInstructions}
@@ -1011,5 +1128,6 @@ export function MuscleBuilderPage({
         </DialogContent>
       </Dialog>
     </DragDropContext>
+    </ClientEditorProvider>
   );
 }

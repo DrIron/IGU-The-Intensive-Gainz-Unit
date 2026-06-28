@@ -13,10 +13,11 @@
  */
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
+import { selectWithRetry } from "@/lib/selectWithRetry";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,23 @@ import {
   PERFORMED_JSON_COLUMN_TYPES,
 } from "@/types/workout-builder";
 import { fromCanonicalKg, toCanonicalKg, type WeightUnit } from "@/utils/weightUnits";
+import { isCanonicalSessionReadEnabled } from "@/lib/featureFlags";
+import { resolveCanonicalSession } from "@/lib/canonicalSessionResolver";
+import type { Json } from "@/integrations/supabase/types";
+import type { SetBranch as SetBranchT } from "@/types/workout-builder";
+import {
+  isBackoffSet,
+  computeBackoffWeight,
+  dropBranches,
+  computeDropWeight,
+  backoffBadgeLabel,
+  dropBadgeLabel,
+  restRepeatBranch,
+  restPauseMaxRounds,
+  restPauseRoundKey,
+  restPauseRoundNumbers,
+  restPauseBadgeLabel,
+} from "@/lib/setInstructions";
 import { epley1RM } from "@/lib/oneRepMax";
 import { useWeightUnit } from "@/hooks/useWeightUnit";
 import { ClickableCard } from "@/components/ui/clickable-card";
@@ -113,7 +131,13 @@ interface SetPrescription {
   rest_seconds_max?: number;
   tempo?: string;
   weight_suggestion?: string;
+  weight?: number; // fixed prescribed weight (kg), if the coach pinned one
   notes?: string;
+  // Per-set instruction family (resolved by the canonical logger — see setInstructions.ts).
+  amrap?: boolean;
+  weight_mode?: "absolute" | "backoff";
+  backoff?: { ref_set_index: number; basis: "percent" | "drop"; value: number; rounding?: number };
+  branches?: SetBranchT[];
 }
 
 interface HistorySet {
@@ -535,6 +559,10 @@ function SetRow({
   isActivity,
   unit,
   isPr,
+  amrap,
+  prefillWeightKg,
+  instructionBadges,
+  restPause,
 }: {
   prescription: SetPrescription;
   historySet?: HistorySet;
@@ -548,6 +576,11 @@ function SetRow({
   isActivity: boolean;
   unit: WeightUnit;
   isPr?: boolean;
+  // Set-instruction resolution (canonical authored data only; absent => inert for legacy).
+  amrap?: boolean;
+  prefillWeightKg?: number | null;
+  instructionBadges?: string[];
+  restPause?: { restSeconds: number; maxRounds: number | null } | null;
 }) {
   // A completed set collapses to one line; tapping expands the editable inputs
   // again (persisted values stay until re-saved). Weights display in `unit`;
@@ -562,6 +595,40 @@ function SetRow({
       : "8-12");
 
   const visibleInputs = inputColumns.filter((c) => c.visible !== false);
+
+  // Rest-pause repeat rounds (round 1 = the main set). Generated LAZILY — only once the main set
+  // is logged — and always bounded (restPauseRoundNumbers clamps). Reps live in performed_json
+  // under restPauseRoundKey(n); no extra log rows (keying stays set_index-based).
+  const mainSetLogged = log.performed_reps != null || log.completed;
+  const restPauseRounds: number[] =
+    restPause && mainSetLogged ? restPauseRoundNumbers(restPause.maxRounds, log.performed_extra) : [];
+
+  // Rest-pause round footer — rendered in BOTH the completed (collapsed) and active branches, so
+  // logging the main set surfaces the to-failure rounds (the completed-set early return otherwise
+  // skips it). Reps persist in performed_json under restPauseRoundKey(n) (no extra log rows).
+  const restPauseFooter =
+    restPauseRounds.length > 0 ? (
+      <div className="px-3 py-2 border-t bg-amber-500/5 rounded-b-xl">
+        <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 mb-1.5">
+          Rest-pause · {restPause?.restSeconds ?? 0}s rest · same weight, reps to failure
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {restPauseRounds.map((n) => (
+            <div key={n} className="flex flex-col">
+              <label className="text-[9px] text-muted-foreground mb-0.5">Round {n}</label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={(log.performed_extra[restPauseRoundKey(n)] as number | string | undefined) ?? ""}
+                onChange={(e) => onUpdateExtra(restPauseRoundKey(n), e.target.value ? parseInt(e.target.value) : null)}
+                className="h-9 w-16 text-center text-sm"
+                placeholder="reps"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : null;
 
   // Current logged value for an input column.
   const inputValue = (col: ColumnConfig): string | number => {
@@ -655,11 +722,12 @@ function SetRow({
           ? ` @ RIR ${log.performed_rir}`
           : "";
     return (
+      <div className="rounded-xl border border-status-ontrack/30 bg-status-ontrack/5">
       <button
         type="button"
         onClick={() => setReopened(true)}
         aria-label={`Set ${prescription.set_number} logged — tap to edit`}
-        className="w-full rounded-xl border border-status-ontrack/30 bg-status-ontrack/5 px-3 py-2.5 min-h-[44px] flex items-center justify-between gap-2 text-left touch-manipulation"
+        className="w-full px-3 py-2.5 min-h-[44px] flex items-center justify-between gap-2 text-left touch-manipulation"
       >
         <span className="text-sm flex items-center gap-2 min-w-0">
           <span className="w-7 h-7 rounded-full bg-status-ontrack text-white flex items-center justify-center shrink-0">
@@ -682,6 +750,8 @@ function SetRow({
         {/* Lock signals "done" — still tappable to fix a mis-log. */}
         <Lock className="w-3.5 h-3.5 text-status-ontrack shrink-0" aria-hidden="true" />
       </button>
+      {restPauseFooter}
+      </div>
     );
   }
 
@@ -729,8 +799,9 @@ function SetRow({
             )
           ) : (
             <>
+              {/* AMRAP suppresses the rep-range target — the client logs reps freely. */}
               <Badge variant="default" className="text-xs">
-                {repsDisplay} reps
+                {amrap ? "AMRAP" : `${repsDisplay} reps`}
               </Badge>
               {hasRir && (
                 <Badge variant="outline" className="text-xs">
@@ -747,6 +818,16 @@ function SetRow({
                   {prescription.tempo}
                 </Badge>
               )}
+              {/* Set instructions (back-off / drop), amber. */}
+              {(instructionBadges ?? []).map((b, i) => (
+                <Badge
+                  key={`instr-${i}`}
+                  variant="outline"
+                  className="text-xs border-amber-500/50 text-amber-700 dark:text-amber-400"
+                >
+                  {b}
+                </Badge>
+              ))}
             </>
           )}
           {prescription.rest_seconds && prescription.rest_seconds > 0 && (
@@ -812,7 +893,11 @@ function SetRow({
                 type="number"
                 inputMode="decimal"
                 step={unit === "kg" ? "0.5" : "1"}
-                placeholder={(fromCanonicalKg(historySet?.weight ?? null, unit, unit === "kg" ? 1 : 0) ?? "—").toString()}
+                // Back-off prefill (computed from the reference set) takes the placeholder when
+                // present; otherwise the client's last-time weight. Storage stays canonical kg.
+                placeholder={(
+                  fromCanonicalKg(prefillWeightKg ?? historySet?.weight ?? null, unit, unit === "kg" ? 1 : 0) ?? "—"
+                ).toString()}
                 value={fromCanonicalKg(log.performed_load, unit, unit === "kg" ? 1 : 0) ?? ""}
                 onChange={(e) =>
                   onUpdate("performed_load", e.target.value ? toCanonicalKg(parseFloat(e.target.value), unit) : null)
@@ -877,6 +962,10 @@ function SetRow({
           </div>
         </div>
       )}
+
+      {/* Rest & Repeat rounds (active / re-opened state). Same block renders under the
+          completed-collapsed summary too via restPauseFooter. */}
+      {restPauseFooter}
     </div>
   );
 }
@@ -903,7 +992,7 @@ function ExerciseCard({
   logs: SetLog[];
   onUpdateLog: (setIndex: number, field: keyof SetLog, value: any) => void;
   onUpdateLogExtra: (setIndex: number, key: string, value: string | number | null) => void;
-  onCompleteSet: (setIndex: number, restSeconds?: number) => void;
+  onCompleteSet: (setIndex: number, restSeconds?: number, forceRest?: boolean) => void;
   onSwapExercise: () => void;
   onSkipExercise: () => void;
   onSkipSet: (setIndex: number) => void;
@@ -1125,6 +1214,34 @@ function ExerciseCard({
                   !exercise.is_activity && setLog?.completed
                     ? detectSetPr(exercise.pr_refs, setLog.performed_load, setLog.performed_reps, setLog.performed_rir)
                     : false;
+                // Set-instruction resolution (back-off / drop / AMRAP). Inert when the fields
+                // are absent (legacy / non-instruction), so this is a no-op outside canonical
+                // authored data. Recomputes live as the reference set is logged (re-render).
+                const amrap = prescription.amrap === true;
+                let prefillWeightKg: number | null = null;
+                const instructionBadges: string[] = [];
+                if (isBackoffSet(prescription) && prescription.backoff) {
+                  const ref = prescription.backoff.ref_set_index;
+                  prefillWeightKg = computeBackoffWeight(
+                    prescription.backoff,
+                    logs[ref]?.performed_load ?? null,
+                    prescriptions[ref]?.weight ?? null,
+                  );
+                  instructionBadges.push(
+                    backoffBadgeLabel(prescription.backoff) +
+                      (prefillWeightKg != null ? ` → ${fmtW(prefillWeightKg)}${unit}` : ""),
+                  );
+                }
+                for (const branch of dropBranches(prescription)) {
+                  const dw = computeDropWeight(branch, logs[i]?.performed_load ?? null, prescription.weight ?? null);
+                  instructionBadges.push(dropBadgeLabel(branch) + (dw != null ? ` → ${fmtW(dw)}${unit}` : ""));
+                }
+                // Rest & Repeat (rest-pause): badge + the per-round inputs (rounds in performed_json).
+                const restRepeat = restRepeatBranch(prescription);
+                const restPause = restRepeat
+                  ? { restSeconds: restRepeat.rest_seconds, maxRounds: restPauseMaxRounds(restRepeat) }
+                  : null;
+                if (restRepeat) instructionBadges.push(restPauseBadgeLabel(restRepeat));
                 return (
                   <div key={i} className="space-y-1">
                     <SetRow
@@ -1145,13 +1262,17 @@ function ExerciseCard({
                       }
                       onUpdate={(field, value) => onUpdateLog(i, field, value)}
                       onUpdateExtra={(key, value) => onUpdateLogExtra(i, key, value)}
-                      onComplete={() => onCompleteSet(i, prescription.rest_seconds)}
+                      onComplete={() => onCompleteSet(i, restRepeat ? restRepeat.rest_seconds : prescription.rest_seconds, !!restRepeat)}
                       onSkip={() => onSkipSet(i)}
                       isActive={activeSetIndex === i}
                       inputColumns={exercise.input_columns}
                       isActivity={exercise.is_activity}
                       unit={unit}
                       isPr={isPr}
+                      amrap={amrap}
+                      prefillWeightKg={prefillWeightKg}
+                      instructionBadges={instructionBadges}
+                      restPause={restPause}
                     />
                     {suggestion && (
                       <ProgressionSuggestionBanner
@@ -1465,25 +1586,6 @@ function SwapExercisePicker({
 // MAIN COMPONENT
 // =============================================================================
 
-// Transient 5xx / network failures on cold or concurrent page loads occasionally
-// make Supabase reads fail (observed in prod: the client_module_exercises +
-// exercise_library(...) embed 500s at load, then succeeds on a warm retry).
-// These reads are idempotent selects, so retry a few times with linear backoff
-// before surfacing an error — without this a single transient blip strands the
-// client on the loading skeleton with no recovery.
-async function selectWithRetry<R extends { error: unknown }>(
-  run: () => PromiseLike<R>,
-  attempts = 3,
-  baseDelayMs = 400,
-): Promise<R> {
-  let result = await run();
-  for (let i = 1; i < attempts && result.error; i++) {
-    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * i));
-    result = await run();
-  }
-  return result;
-}
-
 function WorkoutSessionV2Content() {
   const { moduleId } = useParams<{ moduleId: string }>();
   const navigate = useNavigate();
@@ -1547,6 +1649,40 @@ function WorkoutSessionV2Content() {
   const hasFetched = useRef(false);
   const setLogsRef = useRef(setLogs);
   setLogsRef.current = setLogs;
+
+  // P3 (program system unification): canonical read path, behind a feature flag (OFF by
+  // default). Entry via query params on the same route: ?assignment=<id>&session=<plan_session_id>
+  // (or &date=yyyy-mm-dd). Legacy client_* (moduleId) stays the default + authoritative path.
+  const [searchParams] = useSearchParams();
+  const canonicalAssignmentParam = searchParams.get("assignment");
+  const canonicalSessionParam = searchParams.get("session");
+  const canonicalDateParam = searchParams.get("date");
+  const useCanonical =
+    isCanonicalSessionReadEnabled() &&
+    !!canonicalAssignmentParam &&
+    (!!canonicalSessionParam || !!canonicalDateParam);
+  // Non-null while a canonical session is loaded → logging writes assignment_id + plan_slot_id.
+  const [canonicalAssignmentId, setCanonicalAssignmentId] = useState<string | null>(null);
+  const canonicalAssignmentIdRef = useRef<string | null>(null);
+  canonicalAssignmentIdRef.current = canonicalAssignmentId;
+
+  // P3 log-row keying: canonical (assignment_id + plan_slot_id) when a canonical session is
+  // active, else legacy (client_module_exercise_id). In canonical mode Exercise.id IS the
+  // plan_slot id (set by loadCanonicalSession), so `exerciseId` doubles as plan_slot_id.
+  const buildLogKey = (
+    exerciseId: string,
+  ): { client_module_exercise_id: string | null; assignment_id?: string; plan_slot_id?: string } =>
+    canonicalAssignmentIdRef.current
+      ? {
+          client_module_exercise_id: null,
+          assignment_id: canonicalAssignmentIdRef.current,
+          plan_slot_id: exerciseId,
+        }
+      : { client_module_exercise_id: exerciseId };
+  const logConflictTarget = (): string =>
+    canonicalAssignmentIdRef.current
+      ? "assignment_id,plan_slot_id,set_index"
+      : "client_module_exercise_id,set_index";
 
   // Progression suggestions
   const {
@@ -1902,21 +2038,175 @@ function WorkoutSessionV2Content() {
     }
   }, [moduleId, navigate, toast]);
 
+  // P3 canonical read path (behind the flag). Resolves ONE session from
+  // client_plan_assignment + plan_* + client_plan_overrides into the SAME Module/Exercise/
+  // SetLog state loadSession builds — so the rendering + logging UI below is unchanged.
+  // SCOPE: base prescription parity (no cross-instance history/PB, no progression eval,
+  // no set-instruction math — see canonicalSessionResolver TODOs).
+  const loadCanonicalSession = useCallback(async () => {
+    if (!canonicalAssignmentParam) return;
+    try {
+      setLoadError(false);
+      // Retry getUser with a per-attempt timeout — a transient pooler/auth blip here was
+      // stranding the load (the recurring "Request timed out after 8000ms").
+      const { data: userData } = await selectWithRetry(
+        () => supabase.auth.getUser(),
+        3,
+        400,
+        { timeoutMs: 8000, label: "Get user" },
+      );
+      const currentUser = userData?.user;
+      if (!currentUser) {
+        navigate("/auth");
+        return;
+      }
+      setUser(currentUser);
+
+      // Labeled timeout so a genuine resolver hang surfaces as a clear error rather than the
+      // misleading getUser/8000ms one. The resolver's own queries already retry on blips
+      // (selectWithRetry inside), so this is the last-resort ceiling.
+      const resolved = await withTimeout(
+        resolveCanonicalSession({
+          assignmentId: canonicalAssignmentParam,
+          planSessionId: canonicalSessionParam ?? undefined,
+          date: canonicalDateParam ?? undefined,
+        }),
+        25000,
+        "Resolve canonical session",
+      );
+      if (!resolved) {
+        toast({
+          title: "Workout not found",
+          description: "This canonical session could not be resolved.",
+          variant: "destructive",
+        });
+        navigate("/client/workout/calendar");
+        return;
+      }
+
+      const { data: coachJson } = await supabase.rpc("get_coach_for_client", {
+        p_coach_user_id: resolved.ownerCoachId,
+      });
+      const coachData = coachJson as { first_name?: string } | null;
+
+      const initialLogs: Record<string, SetLog[]> = {};
+      const formattedExercises: Exercise[] = resolved.exercises.map((rex) => {
+        const prescription = rex.prescriptionSnapshot;
+        const setsJson = prescription.sets_json ?? undefined;
+        const setCount = setsJson?.length || prescription.set_count || 3;
+
+        const allColumns: ColumnConfig[] = Array.isArray(prescription.column_config)
+          ? prescription.column_config
+          : [];
+        const { inputColumns } = splitColumnsByCategory(allColumns);
+        const isActivity = inputColumns.some((c) =>
+          PERFORMED_JSON_COLUMN_TYPES.has(c.type as ClientInputColumnType),
+        );
+
+        const existingLogs = resolved.existingLogs.filter(
+          (l) => l.plan_slot_id === rex.planSlotId,
+        );
+        initialLogs[rex.planSlotId] = Array.from({ length: setCount }, (_, i) => {
+          const existing = existingLogs.find((l) => l.set_index === i + 1);
+          const existingExtra = existing?.performed_json ?? {};
+          return {
+            set_index: i + 1,
+            performed_reps: existing?.performed_reps ?? null,
+            performed_load: existing?.performed_load ?? null,
+            performed_rir: existing?.performed_rir ?? null,
+            performed_rpe: existing?.performed_rpe ?? null,
+            performed_extra: existingExtra,
+            notes: existing?.notes || "",
+            skipped: existing?.skipped ?? false,
+            completed:
+              existing && !existing.skipped
+                ? existing.performed_reps !== null ||
+                  existing.performed_load !== null ||
+                  Object.keys(existingExtra).length > 0
+                : false,
+          };
+        });
+
+        return {
+          id: rex.planSlotId,
+          exercise_id: rex.exerciseId,
+          section: rex.section,
+          sort_order: rex.sortOrder,
+          instructions: rex.instructions,
+          prescription_snapshot_json: prescription as unknown as Exercise["prescription_snapshot_json"],
+          sets_json: setsJson as unknown as Exercise["sets_json"],
+          input_columns: inputColumns,
+          is_activity: isActivity,
+          skipped: false,
+          exercise: {
+            name: rex.library?.name || "Unknown Exercise",
+            default_video_url: rex.library?.default_video_url ?? null,
+            primary_muscle: rex.library?.primary_muscle || "",
+            description: rex.library?.description ?? null,
+            setup_instructions: rex.library?.setup_instructions ?? null,
+            setup_points: rex.library?.setup_points ?? null,
+            equipment: rex.library?.equipment ?? null,
+            secondary_muscles: rex.library?.secondary_muscles ?? null,
+          },
+          // history / personal_best / pr_refs — cross-instance, deferred (P3 TODO).
+        };
+      });
+
+      // Elapsed-time source: earliest canonical log created_at (parity with legacy).
+      const logCreatedAts = resolved.existingLogs
+        .map((l) => (l.created_at ? new Date(l.created_at).getTime() : NaN))
+        .filter((t) => Number.isFinite(t));
+      setEarliestLoggedAtMs(logCreatedAts.length ? Math.min(...logCreatedAts) : null);
+
+      setCanonicalAssignmentId(resolved.assignmentId);
+      setSetLogs(initialLogs);
+      setModule({
+        id: resolved.planSessionId,
+        title: resolved.isDeload ? `${resolved.title} · Deload` : resolved.title,
+        module_type: resolved.activityType,
+        status: "scheduled",
+        completed_at: null,
+        module_owner_coach_id: resolved.ownerCoachId,
+        coach_name: coachData?.first_name || "Coach",
+        exercises: formattedExercises,
+      });
+
+      const firstIncomplete = formattedExercises.findIndex((ex) => {
+        const logs = initialLogs[ex.id];
+        return !ex.skipped && logs && logs.some((l) => !l.completed && !l.skipped);
+      });
+      if (firstIncomplete >= 0) setFocusIndex(firstIncomplete);
+    } catch (error: any) {
+      console.error("Error loading canonical session:", error);
+      setLoadError(true);
+      toast({
+        title: "Error loading workout",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [canonicalAssignmentParam, canonicalSessionParam, canonicalDateParam, navigate, toast]);
+
   // Manual retry after a failed load — the hasFetched guard otherwise blocks
   // re-runs, so a transient failure would strand the user with no recovery.
   const handleRetryLoad = useCallback(() => {
     hasFetched.current = true;
     setLoadError(false);
     setLoading(true);
-    loadSession();
-  }, [loadSession]);
+    if (useCanonical) loadCanonicalSession();
+    else loadSession();
+  }, [useCanonical, loadCanonicalSession, loadSession]);
 
   // hasFetched ref guard pattern to prevent infinite loops
   useEffect(() => {
     if (hasFetched.current) return;
     hasFetched.current = true;
-    loadSession();
-  }, [loadSession]);
+    // P3: canonical read path behind the flag (legacy is the default + authoritative path).
+    if (useCanonical) loadCanonicalSession();
+    else loadSession();
+  }, [useCanonical, loadCanonicalSession, loadSession]);
 
   // WA1 — resolve the coach's WhatsApp number for the completion-sheet button.
   // Deliberately NOT part of loadSession's Promise.all burst (BUG3 / WK7 §1.5
@@ -2000,7 +2290,8 @@ function WorkoutSessionV2Content() {
   const completeSet = async (
     exerciseId: string,
     setIndex: number,
-    restSeconds?: number
+    restSeconds?: number,
+    forceRest?: boolean, // rest-pause: rest before the repeat round even on the last set
   ) => {
     setSetLogs((prev) => ({
       ...prev,
@@ -2022,9 +2313,9 @@ function WorkoutSessionV2Content() {
           .from("exercise_set_logs")
           .upsert(
             {
-              client_module_exercise_id: exerciseId,
+              ...buildLogKey(exerciseId),
               set_index: logForSave.set_index,
-              prescribed: exerciseForSave.prescription_snapshot_json,
+              prescribed: exerciseForSave.prescription_snapshot_json as unknown as Json,
               performed_reps: logForSave.performed_reps,
               performed_load: logForSave.performed_load,
               performed_rir: logForSave.performed_rir,
@@ -2033,7 +2324,7 @@ function WorkoutSessionV2Content() {
               notes: logForSave.notes || null,
               created_by_user_id: user.id,
             },
-            { onConflict: "client_module_exercise_id,set_index" },
+            { onConflict: logConflictTarget() },
           ),
       );
       if (error) {
@@ -2063,7 +2354,7 @@ function WorkoutSessionV2Content() {
     if (
       restSeconds &&
       restSeconds > 0 &&
-      setIndex < prescriptions.length - 1
+      (setIndex < prescriptions.length - 1 || forceRest)
     ) {
       setRestTimer((prev) => ({
         active: true,
@@ -2072,8 +2363,11 @@ function WorkoutSessionV2Content() {
       }));
     }
 
-    // Evaluate progression suggestion if enabled
-    if (exercise && user) {
+    // Evaluate progression suggestion if enabled. Skipped in canonical mode:
+    // progression_suggestions is keyed on client_module_exercise_id (NOT NULL FK), which
+    // canonical sessions don't have. Re-pairs with the P3/P4 resolver work. (Also no-ops
+    // naturally — canonical snapshots don't carry linear_progression_enabled.)
+    if (!canonicalAssignmentIdRef.current && exercise && user) {
       const snapshot = exercise.prescription_snapshot_json;
       if (snapshot.linear_progression_enabled) {
         const config: ProgressionConfig =
@@ -2125,7 +2419,7 @@ function WorkoutSessionV2Content() {
     if (!user || !current) return;
     const { error } = await supabase.from("exercise_set_logs").upsert(
       {
-        client_module_exercise_id: exerciseId,
+        ...buildLogKey(exerciseId),
         set_index: current.set_index,
         skipped: nextSkipped,
         performed_reps: null,
@@ -2135,7 +2429,7 @@ function WorkoutSessionV2Content() {
         performed_json: {},
         created_by_user_id: user.id,
       },
-      { onConflict: "client_module_exercise_id,set_index" },
+      { onConflict: logConflictTarget() },
     );
     if (error) {
       // Revert local flag so the UI doesn't lie about a skip that didn't persist.
@@ -2208,6 +2502,17 @@ function WorkoutSessionV2Content() {
   // Swap exercise
   const swapExercise = async (newExerciseId: string) => {
     if (!swapExerciseId || !module) return;
+
+    // Canonical mode: swapping is an edit (a client_plan_override) — deferred to P4.
+    // Guard so we don't silently no-op against client_module_exercises by plan_slot id.
+    if (canonicalAssignmentIdRef.current) {
+      toast({
+        title: "Not available yet",
+        description: "Swapping exercises isn't supported in the canonical preview.",
+      });
+      setShowSwapPicker(false);
+      return;
+    }
 
     try {
       // Get new exercise info. .maybeSingle() so a row that's been deleted
@@ -2307,7 +2612,7 @@ function WorkoutSessionV2Content() {
           const hasExtra = Object.keys(log.performed_extra || {}).length > 0;
           if (log.performed_reps !== null || log.performed_load !== null || hasExtra) {
             allLogs.push({
-              client_module_exercise_id: exerciseId,
+              ...buildLogKey(exerciseId),
               set_index: log.set_index,
               prescribed: exercise.prescription_snapshot_json,
               performed_reps: log.performed_reps,
@@ -2336,7 +2641,7 @@ function WorkoutSessionV2Content() {
           // bulk save doesn't permanently drop sets (matches completeSet).
           selectWithRetry(() =>
             supabase.from("exercise_set_logs").upsert(log, {
-              onConflict: "client_module_exercise_id,set_index",
+              onConflict: logConflictTarget(),
             }),
           ),
         ),
@@ -2411,7 +2716,7 @@ function WorkoutSessionV2Content() {
       unlogged.map((u) =>
         supabase.from("exercise_set_logs").upsert(
           {
-            client_module_exercise_id: u.exerciseId,
+            ...buildLogKey(u.exerciseId),
             set_index: u.set_index,
             skipped: true,
             performed_reps: null,
@@ -2421,7 +2726,7 @@ function WorkoutSessionV2Content() {
             performed_json: {},
             created_by_user_id: user.id,
           },
-          { onConflict: "client_module_exercise_id,set_index" },
+          { onConflict: logConflictTarget() },
         ),
       ),
     );
@@ -2451,6 +2756,13 @@ function WorkoutSessionV2Content() {
     try {
       await saveProgress();
 
+      // Canonical mode (P3): there is no client_day_module to complete — module.id is a
+      // plan_session id. The set logs were persisted by saveProgress() above; module-level
+      // completion on the assignment is deferred (P4+). Skip the legacy completion RPC and
+      // fall through to the summary so canonical Finish doesn't 42704.
+      // TODO(P4): record per-assignment session completion in the canonical model.
+      const skipLegacyCompletion = !!canonicalAssignmentIdRef.current;
+
       // PR #131: clients have NO RLS UPDATE path on client_day_modules. The
       // "client_day_modules_update" policy only grants
       // ( is_admin(auth.uid()) OR module_owner_coach_id = auth.uid() ), so a
@@ -2462,10 +2774,9 @@ function WorkoutSessionV2Content() {
       // gap; this RPC is the structural fix. The RPC is idempotent on
       // re-completion and raises 42501 (not authorised) / 42704 (not found),
       // so its return payload isn't needed here.
-      const { error: completeErr } = await supabase.rpc(
-        "complete_client_day_module",
-        { p_module_id: module.id }
-      );
+      const { error: completeErr } = skipLegacyCompletion
+        ? { error: null }
+        : await supabase.rpc("complete_client_day_module", { p_module_id: module.id });
 
       if (completeErr) {
         // 42501 = not authorised -> keep PR #117's "expired" UX (still
@@ -2840,8 +3151,8 @@ function WorkoutSessionV2Content() {
                     onUpdateLogExtra={(setIndex, key, value) =>
                       updateSetExtra(focusExercise.id, setIndex, key, value)
                     }
-                    onCompleteSet={(setIndex, restSeconds) =>
-                      completeSet(focusExercise.id, setIndex, restSeconds)
+                    onCompleteSet={(setIndex, restSeconds, forceRest) =>
+                      completeSet(focusExercise.id, setIndex, restSeconds, forceRest)
                     }
                     onSwapExercise={() => {
                       setSwapExerciseId(focusExercise.id);

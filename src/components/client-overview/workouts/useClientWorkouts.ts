@@ -322,6 +322,8 @@ export interface DrilldownDay {
   date: string;
   title: string | null;
   modules: DrilldownModule[];
+  /** Deload v2 — this running week is a recovery/deload week (canonical drilldown only). */
+  isDeload?: boolean;
 }
 
 export interface DrilldownModule {
@@ -332,6 +334,10 @@ export interface DrilldownModule {
   status: string | null;
   completedAt: string | null;
   sortOrder: number;
+  /** Deload v2 — belongs to a recovery/deload week (canonical drilldown only). */
+  isDeload?: boolean;
+  /** Deload v2 — canonical session: open via WorkoutSessionV2 ?assignment=&session=&date= params. */
+  canonical?: { assignmentId: string; date: string };
 }
 
 /** Fetch day + module layout for a single client_program. */
