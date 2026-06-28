@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   baseRunningWeeks,
   buildRunningSequence,
+  insertPositionForDate,
   type SequencePlanWeek,
   type SequenceInsert,
 } from "./deloadSequence";
@@ -82,6 +83,22 @@ describe("buildRunningSequence — splice inserts into the running sequence", ()
     const withInsert = buildRunningSequence(weeks, [ins(2, "w4", "standard")]); // splice the on_demand template
     expect(ids(withInsert)).toEqual(["w1", "w4", "w2", "w3"]);
     expect(withInsert[1]).toMatchObject({ kind: "inserted", contentPlanWeekId: "w4", isDeload: true });
+  });
+});
+
+describe("insertPositionForDate — where 'take a deload this week' splices", () => {
+  const start = "2026-06-01";
+  it("inserts before the client's current base week (deload runs now)", () => {
+    expect(insertPositionForDate(start, "2026-06-01", FOUR, [])).toBe(1); // week 1
+    expect(insertPositionForDate(start, "2026-06-08", FOUR, [])).toBe(2); // week 2
+    expect(insertPositionForDate(start, "2026-06-15", FOUR, [])).toBe(3); // week 3
+  });
+  it("before start clamps to position 1", () => {
+    expect(insertPositionForDate(start, "2026-05-20", FOUR, [])).toBe(1);
+  });
+  it("when already inside an inserted deload, stacks before the next base week", () => {
+    // 1 insert at pos 2 → running seq [w1, D, w2, w3, w4]; today lands on the inserted D (week 2).
+    expect(insertPositionForDate(start, "2026-06-08", FOUR, [ins(2, "dl")])).toBe(2);
   });
 });
 

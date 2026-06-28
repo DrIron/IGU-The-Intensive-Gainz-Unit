@@ -104,3 +104,33 @@ export function buildRunningSequence(
 
   return result;
 }
+
+/**
+ * The base-ordinal position to insert an on-demand deload at so it runs effective `dateIso`
+ * ("take a deload this week"): splice before the client's current base week, pushing it (and
+ * everything after) out by a week. If the client is already in an inserted deload, this stacks
+ * before the next base week. Clamped to [1, baseCount + 1].
+ */
+export function insertPositionForDate(
+  startDateIso: string,
+  dateIso: string,
+  weeks: SequencePlanWeek[],
+  inserts: SequenceInsert[],
+): number {
+  const sequence = buildRunningSequence(weeks, inserts);
+  const baseCount = sequence.filter((s) => s.kind === "base").length;
+  if (baseCount === 0 || sequence.length === 0) return 1;
+
+  const start = new Date(startDateIso + "T00:00:00Z").getTime();
+  const day = new Date(dateIso + "T00:00:00Z").getTime();
+  const diffDays = Math.floor((day - start) / 86400000);
+  let running = Math.floor(diffDays / 7) + 1;
+  if (running < 1) running = 1;
+  if (running > sequence.length) running = sequence.length;
+
+  let baseSeen = 0;
+  for (let i = 0; i < running; i++) if (sequence[i].kind === "base") baseSeen++;
+  const active = sequence[running - 1];
+  const position = active.kind === "base" ? baseSeen : baseSeen + 1;
+  return Math.min(Math.max(1, position), baseCount + 1);
+}

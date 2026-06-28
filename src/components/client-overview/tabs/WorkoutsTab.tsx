@@ -22,7 +22,8 @@ import { WorkoutAdherencePulse } from "../workouts/WorkoutAdherencePulse";
 import { ClientProgramList } from "../workouts/ClientProgramList";
 import { ClientProgramDrilldown } from "../workouts/ClientProgramDrilldown";
 import { MuscleBuilderPage } from "@/components/coach/programs/muscle-builder/MuscleBuilderPage";
-import { isClientProgramEditorEnabled } from "@/lib/featureFlags";
+import { isClientProgramEditorEnabled, isBoardV2Enabled } from "@/lib/featureFlags";
+import { TakeDeloadCard } from "@/components/workouts/TakeDeloadCard";
 import { SessionLogViewer } from "../workouts/SessionLogViewer";
 import { WorkoutPulse } from "../workouts/WorkoutPulse";
 import { WorkoutTrendCards } from "../workouts/WorkoutTrendCards";
@@ -89,16 +90,19 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   // P4 Editor v1 (flagged): the client's active canonical assignment + an in-board editor.
   // Edits persist as client_plan_overrides; legacy client_programs (above) is unaffected.
   const editorEnabled = isClientProgramEditorEnabled();
+  const boardV2 = isBoardV2Enabled();
   const [canonicalAssignmentId, setCanonicalAssignmentId] = useState<string | null>(null);
   const [canonicalStartDate, setCanonicalStartDate] = useState<string | null>(null);
+  const [canonicalPlanId, setCanonicalPlanId] = useState<string | null>(null);
   const [editingAssignment, setEditingAssignment] = useState(false);
   const assignmentFetchedRef = useRef(false);
   useEffect(() => {
-    if (!editorEnabled || assignmentFetchedRef.current) return;
+    // The canonical assignment powers the P4 editor (editorEnabled) and the Deload v2 trigger (board_v2).
+    if ((!editorEnabled && !boardV2) || assignmentFetchedRef.current) return;
     assignmentFetchedRef.current = true;
     supabase
       .from("client_plan_assignment")
-      .select("id, start_date")
+      .select("id, start_date, plan_id")
       .eq("client_id", clientUserId)
       .eq("status", "active")
       .order("created_at", { ascending: false })
@@ -107,8 +111,9 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
       .then(({ data }) => {
         setCanonicalAssignmentId(data?.id ?? null);
         setCanonicalStartDate(data?.start_date ?? null);
+        setCanonicalPlanId(data?.plan_id ?? null);
       });
-  }, [editorEnabled, clientUserId]);
+  }, [editorEnabled, boardV2, clientUserId]);
 
   const handleOpenProgram = useCallback((program: ClientProgramSummary) => {
     setSelected(program);
@@ -194,6 +199,18 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
               </Button>
             )}
           </div>
+
+          {/* Deload v2 (board_v2): coach can insert the plan's on-demand deload at the client's
+              current week, or remove an inserted one. */}
+          {boardV2 && canonicalAssignmentId && (
+            <TakeDeloadCard
+              variant="coach"
+              assignmentId={canonicalAssignmentId}
+              planId={canonicalPlanId}
+              startDate={canonicalStartDate}
+              clientId={clientUserId}
+            />
+          )}
 
           {selected ? (
             <ClientProgramDrilldown

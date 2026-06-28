@@ -654,6 +654,13 @@ export function MuscleBuilderPage({
     (weekIndex: number) => dispatch({ type: 'TOGGLE_DELOAD', weekIndex }),
     [dispatch]
   );
+  const handleSetDeloadPlacement = useCallback(
+    (weekIndex: number, placement: 'pinned' | 'on_demand') => {
+      dispatch({ type: 'SET_DELOAD_PLACEMENT', weekIndex, placement });
+      toast({ title: placement === 'on_demand' ? 'Deload set to on-demand' : 'Deload pinned to this week' });
+    },
+    [dispatch, toast],
+  );
 
   const handleApplyToRemaining = useCallback(
     (slotId: string, fields: Record<string, unknown>) => {
@@ -900,6 +907,7 @@ export function MuscleBuilderPage({
               onSetWeekLabel={handleSetWeekLabel}
               onToggleDeload={handleToggleDeload}
               onOpenDeloadDialog={handleOpenDeloadDialog}
+              onSetDeloadPlacement={boardV2 ? handleSetDeloadPlacement : undefined}
             />
 
             {/* Progression rules bar — aggregated authoring/review of the W1

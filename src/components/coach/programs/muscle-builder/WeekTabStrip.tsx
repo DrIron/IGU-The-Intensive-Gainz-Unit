@@ -8,7 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Plus, MoreVertical, Copy, Trash2, Tag, Zap, ChevronDown, Wand2, FileX } from "lucide-react";
+import { Plus, MoreVertical, Copy, Trash2, Tag, Zap, ChevronDown, Wand2, FileX, Snowflake } from "lucide-react";
 import type { WeekData } from "@/types/muscle-builder";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +27,8 @@ interface WeekTabStripProps {
   onToggleDeload: (weekIndex: number) => void;
   /** Phase 5 — opens the deload customisation dialog (clone/fresh + preset). */
   onOpenDeloadDialog?: (weekIndex: number) => void;
+  /** Deload v2 (board_v2) — flip a deload week between pinned (in place) and on-demand (insertable). */
+  onSetDeloadPlacement?: (weekIndex: number, placement: "pinned" | "on_demand") => void;
 }
 
 export const WeekTabStrip = memo(function WeekTabStrip({
@@ -42,6 +44,7 @@ export const WeekTabStrip = memo(function WeekTabStrip({
   onSetWeekLabel,
   onToggleDeload,
   onOpenDeloadDialog,
+  onSetDeloadPlacement,
 }: WeekTabStripProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
@@ -188,6 +191,19 @@ export const WeekTabStrip = memo(function WeekTabStrip({
                     <Zap className="h-3.5 w-3.5 mr-2" />
                     {week.isDeload ? "Unmark Deload" : "Mark as Deload..."}
                   </DropdownMenuItem>
+                  {week.isDeload && onSetDeloadPlacement && (
+                    <DropdownMenuItem
+                      onClick={() =>
+                        onSetDeloadPlacement(
+                          i,
+                          week.deloadPlacement === "on_demand" ? "pinned" : "on_demand",
+                        )
+                      }
+                    >
+                      <Snowflake className="h-3.5 w-3.5 mr-2" />
+                      {week.deloadPlacement === "on_demand" ? "Pin to this week" : "Make on-demand"}
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     onClick={() => onRemoveWeek(i)}

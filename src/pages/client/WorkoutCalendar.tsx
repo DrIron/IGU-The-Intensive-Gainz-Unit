@@ -1,6 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthSession } from "@/hooks/useAuthSession";
+import { supabase } from "@/integrations/supabase/client";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
+import { TakeDeloadCard } from "@/components/workouts/TakeDeloadCard";
 import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -138,6 +141,26 @@ function WorkoutsContent() {
   const { data: weekRows, isLoading: weekLoading } = useClientWorkoutsWeek(user?.id, anchor);
   const { data: thisWeekRows } = useClientWorkoutsWeek(user?.id, new Date());
 
+  // Deload v2 (board_v2): the client's active canonical assignment powers "take a deload this week".
+  const boardV2 = isBoardV2Enabled();
+  const [canonical, setCanonical] = useState<{ id: string; planId: string | null; startDate: string | null } | null>(null);
+  const canonicalFetchedRef = useRef(false);
+  useEffect(() => {
+    if (!boardV2 || !user?.id || canonicalFetchedRef.current) return;
+    canonicalFetchedRef.current = true;
+    supabase
+      .from("client_plan_assignment")
+      .select("id, plan_id, start_date")
+      .eq("client_id", user.id)
+      .eq("status", "active")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        setCanonical(data ? { id: data.id, planId: data.plan_id ?? null, startDate: data.start_date ?? null } : null);
+      });
+  }, [boardV2, user?.id]);
+
   const onOpen = (id: string) => navigate(`/client/workout/session/${id}`);
 
   // Month grid: map yyyy-MM-dd -> modules (with brief).
@@ -230,6 +253,15 @@ function WorkoutsContent() {
         <ExerciseHistoryPanel />
       ) : (
         <div className="space-y-5">
+          {boardV2 && canonical && (
+            <TakeDeloadCard
+              variant="client"
+              assignmentId={canonical.id}
+              planId={canonical.planId}
+              startDate={canonical.startDate}
+              clientId={user?.id ?? null}
+            />
+          )}
           {/* Week/Month toggle + period nav */}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="inline-flex rounded-lg border bg-card p-1">
