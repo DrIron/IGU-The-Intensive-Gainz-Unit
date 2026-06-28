@@ -1197,6 +1197,51 @@ export type Database = {
           },
         ]
       }
+      client_plan_inserted_deloads: {
+        Row: {
+          assignment_id: string
+          created_at: string
+          id: string
+          inserted_by: string
+          position_week_index: number
+          preset_id: string | null
+          source_plan_week_id: string
+        }
+        Insert: {
+          assignment_id: string
+          created_at?: string
+          id?: string
+          inserted_by?: string
+          position_week_index: number
+          preset_id?: string | null
+          source_plan_week_id: string
+        }
+        Update: {
+          assignment_id?: string
+          created_at?: string
+          id?: string
+          inserted_by?: string
+          position_week_index?: number
+          preset_id?: string | null
+          source_plan_week_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "client_plan_inserted_deloads_assignment_id_fkey"
+            columns: ["assignment_id"]
+            isOneToOne: false
+            referencedRelation: "client_plan_assignment"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "client_plan_inserted_deloads_source_plan_week_id_fkey"
+            columns: ["source_plan_week_id"]
+            isOneToOne: false
+            referencedRelation: "plan_weeks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       client_plan_overrides: {
         Row: {
           assignment_id: string
@@ -5978,6 +6023,7 @@ export type Database = {
       plan_weeks: {
         Row: {
           created_at: string
+          deload_placement: string | null
           deload_preset_id: string | null
           id: string
           is_deload: boolean
@@ -5988,6 +6034,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          deload_placement?: string | null
           deload_preset_id?: string | null
           id?: string
           is_deload?: boolean
@@ -5998,6 +6045,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          deload_placement?: string | null
           deload_preset_id?: string | null
           id?: string
           is_deload?: boolean
@@ -9072,6 +9120,15 @@ export type Database = {
         Args: { p_code_id: string; p_user_id: string }
         Returns: undefined
       }
+      insert_client_deload: {
+        Args: {
+          p_assignment_id: string
+          p_position_week_index: number
+          p_preset_id?: string
+          p_source_plan_week_id: string
+        }
+        Returns: Json
+      }
       is_active_coach_for_client: {
         Args: { p_client_id: string }
         Returns: boolean
@@ -9208,6 +9265,7 @@ export type Database = {
         Args: { p_mode?: string; p_purchase_id: string; p_reason: string }
         Returns: Json
       }
+      remove_client_deload: { Args: { p_id: string }; Returns: Json }
       reorder_macrocycle_blocks: {
         Args: { p_macrocycle_id: string; p_program_template_ids: string[] }
         Returns: Json
