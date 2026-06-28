@@ -25,6 +25,12 @@ const FLAGS = {
     storageKey: "igu_ff_client_program_editor",
     env: import.meta.env.VITE_FF_CLIENT_PROGRAM_EDITOR as string | undefined,
   },
+  // Planning Board v2 visual layer: Calendar/Weeks toggle, inline session expansion, context
+  // skins. OFF leaves the live prod template board byte-identical.
+  board_v2: {
+    storageKey: "igu_ff_board_v2",
+    env: import.meta.env.VITE_FF_BOARD_V2 as string | undefined,
+  },
 } as const;
 
 export type FeatureFlag = keyof typeof FLAGS;
@@ -51,4 +57,9 @@ export function isCanonicalSessionReadEnabled(): boolean {
 /** P4 Editor v1: is the canonical client program editor (board scoped to an assignment) enabled? */
 export function isClientProgramEditorEnabled(): boolean {
   return isFeatureEnabled("client_program_editor");
+}
+
+/** Planning Board v2: Calendar/Weeks toggle, inline session expansion, context skins. */
+export function isBoardV2Enabled(): boolean {
+  return isFeatureEnabled("board_v2");
 }

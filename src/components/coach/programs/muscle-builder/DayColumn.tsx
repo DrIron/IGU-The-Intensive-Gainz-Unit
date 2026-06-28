@@ -26,6 +26,8 @@ const ADDABLE_SESSION_TYPES: ActivityType[] = ['strength', 'cardio', 'hiit', 'yo
 
 interface DayColumnProps {
   dayIndex: number;
+  /** Board v2 Calendar mode: real-date label (e.g. "Mon 30 Jun") replacing the weekday name. */
+  dayDateLabel?: string;
   slots: MuscleSlotData[];
   sessions: SessionData[];
   isSelected: boolean;
@@ -77,6 +79,7 @@ interface DayColumnProps {
 
 export const DayColumn = memo(function DayColumn({
   dayIndex,
+  dayDateLabel,
   slots,
   sessions,
   isSelected,
@@ -219,7 +222,7 @@ export const DayColumn = memo(function DayColumn({
       <CardHeader className="p-2 pb-1">
         <div className="flex items-center justify-between gap-1 min-w-0">
           <span className="text-sm font-semibold text-muted-foreground truncate">
-            {DAYS_OF_WEEK[dayIndex - 1]}
+            {dayDateLabel ?? DAYS_OF_WEEK[dayIndex - 1]}
           </span>
           <div className="flex items-center gap-1 shrink-0">
             {/* + Session — opens a quick type picker */}

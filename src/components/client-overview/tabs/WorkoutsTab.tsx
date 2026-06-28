@@ -90,6 +90,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   // Edits persist as client_plan_overrides; legacy client_programs (above) is unaffected.
   const editorEnabled = isClientProgramEditorEnabled();
   const [canonicalAssignmentId, setCanonicalAssignmentId] = useState<string | null>(null);
+  const [canonicalStartDate, setCanonicalStartDate] = useState<string | null>(null);
   const [editingAssignment, setEditingAssignment] = useState(false);
   const assignmentFetchedRef = useRef(false);
   useEffect(() => {
@@ -97,13 +98,16 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
     assignmentFetchedRef.current = true;
     supabase
       .from("client_plan_assignment")
-      .select("id")
+      .select("id, start_date")
       .eq("client_id", clientUserId)
       .eq("status", "active")
       .order("created_at", { ascending: false })
       .limit(1)
       .maybeSingle()
-      .then(({ data }) => setCanonicalAssignmentId(data?.id ?? null));
+      .then(({ data }) => {
+        setCanonicalAssignmentId(data?.id ?? null);
+        setCanonicalStartDate(data?.start_date ?? null);
+      });
   }, [editorEnabled, clientUserId]);
 
   const handleOpenProgram = useCallback((program: ClientProgramSummary) => {
@@ -166,6 +170,8 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
               coachUserId={coachUserId}
               assignmentId={canonicalAssignmentId}
               clientName={profile.firstName ?? profile.displayName ?? undefined}
+              boardContext="client"
+              startDate={canonicalStartDate ?? undefined}
               onBack={() => setEditingAssignment(false)}
             />
           ) : (

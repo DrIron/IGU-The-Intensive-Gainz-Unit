@@ -48,6 +48,9 @@ import { PresetSelector } from "./PresetSelector";
 import { ConvertToProgram } from "./ConvertToProgram";
 import { SaveStatusBadge, type SaveState } from "./SaveStatusBadge";
 import { ClientEditorProvider } from "./ClientEditorContext";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
+import { canUseCalendarMode, defaultBoardViewMode } from "@/lib/boardDates";
+import { CalendarDays, Rows3, Users } from "lucide-react";
 import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import { DeloadDialog, type ApplyDeloadParams } from "./DeloadDialog";
 import { ProgressionRulesBar } from "./ProgressionRulesBar";
@@ -61,6 +64,11 @@ interface MuscleBuilderPageProps {
   // (instead of a template's slot_config). clientName drives the amber context banner.
   assignmentId?: string;
   clientName?: string;
+  // Board v2: explicit context skin (defaults to client when an assignment is present, else
+  // template). teamName + startDate feed the team banner / Calendar-mode dated labels.
+  boardContext?: "template" | "client" | "team";
+  teamName?: string;
+  startDate?: string; // assignment start_date (YYYY-MM-DD) — required for Calendar mode dates
 }
 
 export function MuscleBuilderPage({
@@ -70,9 +78,20 @@ export function MuscleBuilderPage({
   onOpenProgram,
   assignmentId,
   clientName,
+  boardContext,
+  teamName,
+  startDate,
 }: MuscleBuilderPageProps) {
   const { state, dispatch, save, saveAsPreset, canUndo, canRedo, isClientMode, overriddenIds, resetElement } =
     useMuscleBuilderState(coachUserId, existingTemplateId, assignmentId ? { assignmentId } : undefined);
+  // Board v2 (flag-gated): context skin + Calendar/Weeks toggle + inline session expansion.
+  const boardV2 = isBoardV2Enabled();
+  const ctx: "template" | "client" | "team" = boardContext ?? (assignmentId ? "client" : "template");
+  // Instances default to a dated Calendar view (board v2); templates are always Program-weeks.
+  const canCalendar = canUseCalendarMode(boardV2, ctx, !!startDate);
+  const [viewMode, setViewMode] = useState<"weeks" | "calendar">(
+    defaultBoardViewMode(boardV2, ctx, !!startDate),
+  );
   const currentWeekSlots = getCurrentSlots(state);
   const currentWeekSessions = getCurrentSessions(state);
   const { volumeEntries, summary, frequencyMatrix, placementCounts, consecutiveDayWarnings } =
@@ -654,7 +673,7 @@ export function MuscleBuilderPage({
       <div className="space-y-4">
         {/* P4 Editor v1 — client (override) mode banner. Edits save as per-client overrides;
             the shared template is untouched. */}
-        {isClientMode && (
+        {ctx === "client" && (
           <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
             <span className="text-amber-700 dark:text-amber-400">
               Editing <strong>{clientName ?? "this client"}</strong>'s program — changes save as
@@ -665,6 +684,39 @@ export function MuscleBuilderPage({
                 ? `${overriddenIds.slots.size + overriddenIds.sessions.size} customized`
                 : "Following template"}
             </span>
+          </div>
+        )}
+        {/* Board v2 — team skin. Visual/prop only; team plans + assignments come with the Teams
+            track, so this banner isn't exercised yet. TODO(teams): wire team plan editing. */}
+        {ctx === "team" && (
+          <div className="flex items-center gap-2 rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm text-blue-700 dark:text-blue-400">
+            <Users className="h-4 w-4 shrink-0" />
+            <span>
+              Team <strong>{teamName ?? "plan"}</strong> · edits apply to all members (no per-member
+              customizations).
+            </span>
+          </div>
+        )}
+        {/* Board v2 — Calendar ⇄ Program-weeks toggle (instances only; templates are date-less). */}
+        {canCalendar && (
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-muted-foreground mr-1">View</span>
+            <Button
+              variant={viewMode === "calendar" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7"
+              onClick={() => setViewMode("calendar")}
+            >
+              <CalendarDays className="h-3.5 w-3.5 mr-1" /> Calendar
+            </Button>
+            <Button
+              variant={viewMode === "weeks" ? "secondary" : "ghost"}
+              size="sm"
+              className="h-7"
+              onClick={() => setViewMode("weeks")}
+            >
+              <Rows3 className="h-3.5 w-3.5 mr-1" /> Program weeks
+            </Button>
           </div>
         )}
         {/* ── Header ──────────────────────────────────────────── */}
@@ -854,6 +906,8 @@ export function MuscleBuilderPage({
 
             {/* Weekly Calendar */}
             <WeeklyCalendar
+              calendarStartDate={viewMode === "calendar" && canCalendar ? startDate : undefined}
+              calendarWeekIndex={state.currentWeekIndex + 1}
               slots={currentWeekSlots}
               sessions={currentWeekSessions}
               selectedDayIndex={state.selectedDayIndex}

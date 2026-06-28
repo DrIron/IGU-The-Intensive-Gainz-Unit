@@ -2,12 +2,17 @@ import { memo } from "react";
 import { DayColumn } from "./DayColumn";
 import { MobileWeekStrip } from "./MobileWeekStrip";
 import { MobileDayDetail } from "./MobileDayDetail";
+import { boardDayLabel } from "@/lib/boardDates";
 import type { ActivityType, MuscleSlotData, SessionData, SlotExercise } from "@/types/muscle-builder";
 
 interface WeeklyCalendarProps {
   slots: MuscleSlotData[];
   sessions: SessionData[];
   selectedDayIndex: number;
+  /** Board v2 Calendar mode: when set, day columns show real dates from this start_date. */
+  calendarStartDate?: string;
+  /** 1-based plan week index for the rendered week (Calendar mode date math). */
+  calendarWeekIndex?: number;
   onSelectDay: (dayIndex: number) => void;
   onSetSlotDetails: (slotId: string, details: { sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }) => void;
   onRemove: (slotId: string) => void;
@@ -55,6 +60,8 @@ interface WeeklyCalendarProps {
 }
 
 export const WeeklyCalendar = memo(function WeeklyCalendar({
+  calendarStartDate,
+  calendarWeekIndex,
   slots,
   sessions,
   selectedDayIndex,
@@ -157,6 +164,9 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           <DayColumn
             key={dayIndex}
             dayIndex={dayIndex}
+            dayDateLabel={
+              calendarStartDate ? boardDayLabel(calendarStartDate, calendarWeekIndex ?? 1, dayIndex) : undefined
+            }
             slots={slots}
             sessions={sessions}
             isSelected={selectedDayIndex === dayIndex}

@@ -13,8 +13,9 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy, RotateCcw } from "lucide-react";
+import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { useClientEditor } from "./ClientEditorContext";
 import { MuscleSlotCard } from "./MuscleSlotCard";
 import { ActivitySlotCard } from "./ActivitySlotCard";
@@ -134,6 +135,11 @@ export const SessionBlock = memo(function SessionBlock({
   // P4 Editor v1: client (override) mode — flag a customized session + offer reset-to-template.
   const { clientMode, overriddenSessionIds, onResetSession } = useClientEditor();
   const isOverridden = clientMode && overriddenSessionIds.has(session.id);
+  // Board v2: inline session expansion — default collapsed (header + summary), expand to the
+  // slot cards (read view; tapping a card still opens its editor). Off → always expanded.
+  const boardV2 = isBoardV2Enabled();
+  const [expanded, setExpanded] = useState(!boardV2);
+  const showSlots = !boardV2 || expanded;
 
   const typeColors = ACTIVITY_TYPE_COLORS[session.type];
   const displayName = session.name?.trim() || defaultSessionName(session.type);
@@ -181,6 +187,16 @@ export const SessionBlock = memo(function SessionBlock({
       {/* Header: name + inline + + kebab. Colored dot dropped — left bar
           already carries the type signal, gives the name another ~10px. */}
       <div className="flex items-center gap-1 min-w-0">
+        {boardV2 && (
+          <button
+            type="button"
+            className="shrink-0 text-muted-foreground hover:text-foreground"
+            aria-label={expanded ? "Collapse session" : "Expand session"}
+            onClick={(e) => { e.stopPropagation(); setExpanded((v) => !v); }}
+          >
+            {expanded ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          </button>
+        )}
         {isEditingName ? (
           <Input
             autoFocus
@@ -330,8 +346,22 @@ export const SessionBlock = memo(function SessionBlock({
         </DropdownMenu>
       </div>
 
+      {/* Board v2 collapsed summary — tap to expand to the slot cards. */}
+      {!showSlots && (
+        <button
+          type="button"
+          className="w-full text-left text-[10px] text-muted-foreground hover:text-foreground py-1"
+          onClick={() => setExpanded(true)}
+        >
+          {sessionSlots.length === 0
+            ? "Empty session"
+            : `${sessionSlots.length} exercise${sessionSlots.length === 1 ? "" : "s"} — tap to expand`}
+        </button>
+      )}
+
       {/* Slot list — own Droppable so drag-reorder within + moves across
           sessions are distinguishable to hello-pangea/dnd. */}
+      {showSlots && (
       <Droppable droppableId={`session-${session.id}`} type="MUSCLE_SLOT">
         {(provided, snapshot) => (
           <div
@@ -418,6 +448,7 @@ export const SessionBlock = memo(function SessionBlock({
           </div>
         )}
       </Droppable>
+      )}
     </div>
   );
 });
