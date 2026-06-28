@@ -10,6 +10,10 @@ import {
   dropBranches,
   backoffBadgeLabel,
   dropBadgeLabel,
+  restRepeatBranch,
+  restPauseMaxRounds,
+  restPauseRoundKey,
+  restPauseBadgeLabel,
 } from "./setInstructions";
 
 describe("roundToIncrement", () => {
@@ -107,6 +111,31 @@ describe("flags + parsing", () => {
     const drops = dropBranches({ branches } as never);
     expect(drops).toHaveLength(1);
     expect(drops[0].value).toBe(80);
+  });
+});
+
+describe("rest & repeat (rest-pause)", () => {
+  const capped = { type: "rest_repeat", rest_seconds: 20, to_failure: true, max_rounds: 3 } as const;
+  const openEnded = { type: "rest_repeat", rest_seconds: 15, to_failure: true } as const;
+
+  it("restRepeatBranch finds the branch (ignores drops)", () => {
+    const set = { branches: [{ type: "drop", basis: "percent", value: 80 }, capped] };
+    expect(restRepeatBranch(set as never)).toEqual(capped);
+    expect(restRepeatBranch({ branches: [] } as never)).toBeNull();
+    expect(restRepeatBranch({} as never)).toBeNull();
+  });
+  it("restPauseMaxRounds: cap vs open-ended", () => {
+    expect(restPauseMaxRounds(capped)).toBe(3);
+    expect(restPauseMaxRounds(openEnded)).toBeNull();
+    expect(restPauseMaxRounds({ type: "rest_repeat", rest_seconds: 20, to_failure: true, max_rounds: 0 })).toBeNull();
+  });
+  it("restPauseRoundKey is per-round (round 1 = main set)", () => {
+    expect(restPauseRoundKey(2)).toBe("rp_round_2");
+    expect(restPauseRoundKey(3)).toBe("rp_round_3");
+  });
+  it("badge label: with and without cap", () => {
+    expect(restPauseBadgeLabel(capped)).toBe("rest-pause 20s · ×3");
+    expect(restPauseBadgeLabel(openEnded)).toBe("rest-pause 15s");
   });
 });
 

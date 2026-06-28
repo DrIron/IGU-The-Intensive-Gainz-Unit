@@ -27,12 +27,15 @@ export function SetInstructionMenu({ setCount, setsDetail, onSetInstruction }: S
   const [boRef, setBoRef] = useState(0);
   const [dropBasis, setDropBasis] = useState<"percent" | "drop">("percent");
   const [dropValue, setDropValue] = useState("80");
+  const [rrRest, setRrRest] = useState("20");
+  const [rrMax, setRrMax] = useState(""); // blank = to failure (open-ended)
 
   const sets = Math.max(1, setCount);
   const cur: SetPrescription | undefined = setsDetail?.[setIdx];
   const curAmrap = cur?.amrap === true;
   const curBranches: SetBranch[] = cur?.branches ?? [];
   const curDrops = curBranches.filter((b) => b.type === "drop");
+  const curRestRepeat = curBranches.find((b) => b.type === "rest_repeat");
 
   const setOpt = (i: number) => `Set ${i + 1}`;
 
@@ -172,6 +175,63 @@ export function SetInstructionMenu({ setCount, setsDetail, onSetInstruction }: S
                 </span>
               ))}
             </div>
+          )}
+        </div>
+
+        {/* Rest & Repeat (rest-pause) — at most one per set. */}
+        <div className="space-y-1.5 border-t pt-2">
+          <p className="text-xs font-medium">Rest &amp; Repeat (rest-pause)</p>
+          <div className="flex items-center gap-1.5">
+            <Input
+              type="number"
+              value={rrRest}
+              onChange={(e) => setRrRest(e.target.value)}
+              className="h-8 text-xs w-16"
+              title="Rest seconds between rounds"
+              placeholder="rest s"
+            />
+            <span className="text-[10px] text-muted-foreground">s rest ·</span>
+            <Input
+              type="number"
+              value={rrMax}
+              onChange={(e) => setRrMax(e.target.value)}
+              className="h-8 text-xs w-16"
+              title="Max rounds (blank = to failure)"
+              placeholder="rounds"
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={() => {
+                const maxRounds = rrMax.trim() === "" ? undefined : Number(rrMax) || undefined;
+                const branch: SetBranch = {
+                  type: "rest_repeat",
+                  rest_seconds: Number(rrRest) || 20,
+                  to_failure: true,
+                  ...(maxRounds != null ? { max_rounds: maxRounds } : {}),
+                };
+                // Keep at most one rest_repeat per set.
+                onSetInstruction(setIdx, {
+                  branches: [...curBranches.filter((b) => b.type !== "rest_repeat"), branch],
+                });
+              }}
+            >
+              Set rest-pause
+            </Button>
+          </div>
+          <p className="text-[10px] text-muted-foreground">Blank rounds = to failure (open-ended)</p>
+          {curRestRepeat && curRestRepeat.type === "rest_repeat" && (
+            <span className="inline-flex items-center gap-1 text-[10px] rounded-full border border-amber-500/40 px-1.5 py-0.5">
+              rest-pause {curRestRepeat.rest_seconds}s{curRestRepeat.max_rounds ? ` · ×${curRestRepeat.max_rounds}` : ""}
+              <button
+                onClick={() =>
+                  onSetInstruction(setIdx, { branches: curBranches.filter((b) => b.type !== "rest_repeat") })
+                }
+              >
+                <X className="h-2.5 w-2.5" />
+              </button>
+            </span>
           )}
         </div>
       </PopoverContent>

@@ -83,6 +83,10 @@ import {
   computeDropWeight,
   backoffBadgeLabel,
   dropBadgeLabel,
+  restRepeatBranch,
+  restPauseMaxRounds,
+  restPauseRoundKey,
+  restPauseBadgeLabel,
 } from "@/lib/setInstructions";
 import { epley1RM } from "@/lib/oneRepMax";
 import { useWeightUnit } from "@/hooks/useWeightUnit";
@@ -556,6 +560,7 @@ function SetRow({
   amrap,
   prefillWeightKg,
   instructionBadges,
+  restPause,
 }: {
   prescription: SetPrescription;
   historySet?: HistorySet;
@@ -573,6 +578,7 @@ function SetRow({
   amrap?: boolean;
   prefillWeightKg?: number | null;
   instructionBadges?: string[];
+  restPause?: { restSeconds: number; maxRounds: number | null } | null;
 }) {
   // A completed set collapses to one line; tapping expands the editable inputs
   // again (persisted values stay until re-saved). Weights display in `unit`;
@@ -587,6 +593,21 @@ function SetRow({
       : "8-12");
 
   const visibleInputs = inputColumns.filter((c) => c.visible !== false);
+
+  // Rest-pause repeat rounds to show (round 1 = the main set). Capped => fixed list; open-ended
+  // => the filled rounds plus one empty so the client keeps adding until they stop. Reps live in
+  // performed_json under restPauseRoundKey(n) — no extra log rows (keying stays set_index-based).
+  const restPauseRounds: number[] = (() => {
+    if (!restPause) return [];
+    if (restPause.maxRounds != null) return Array.from({ length: restPause.maxRounds }, (_, k) => k + 2);
+    let highest = 1;
+    for (const k of Object.keys(log.performed_extra)) {
+      const m = /^rp_round_(\d+)$/.exec(k);
+      const v = log.performed_extra[k];
+      if (m && v != null && v !== "") highest = Math.max(highest, parseInt(m[1], 10));
+    }
+    return Array.from({ length: highest }, (_, k) => k + 2); // rounds 2..(highest+1)
+  })();
 
   // Current logged value for an input column.
   const inputValue = (col: ColumnConfig): string | number => {
@@ -917,6 +938,31 @@ function SetRow({
           </div>
         </div>
       )}
+
+      {/* Rest & Repeat rounds — appear after the main effort is logged. Same weight target,
+          reps to failure; each round's reps persist in performed_json (no extra log rows). */}
+      {restPause && restPauseRounds.length > 0 && (log.performed_reps != null || log.completed) && (
+        <div className="px-3 py-2 border-t bg-amber-500/5">
+          <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 mb-1.5">
+            Rest-pause · {restPause.restSeconds}s rest · same weight, reps to failure
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {restPauseRounds.map((n) => (
+              <div key={n} className="flex flex-col">
+                <label className="text-[9px] text-muted-foreground mb-0.5">Round {n}</label>
+                <Input
+                  type="number"
+                  inputMode="numeric"
+                  value={(log.performed_extra[restPauseRoundKey(n)] as number | string | undefined) ?? ""}
+                  onChange={(e) => onUpdateExtra(restPauseRoundKey(n), e.target.value ? parseInt(e.target.value) : null)}
+                  className="h-9 w-16 text-center text-sm"
+                  placeholder="reps"
+                />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1187,6 +1233,12 @@ function ExerciseCard({
                   const dw = computeDropWeight(branch, logs[i]?.performed_load ?? null, prescription.weight ?? null);
                   instructionBadges.push(dropBadgeLabel(branch) + (dw != null ? ` → ${fmtW(dw)}${unit}` : ""));
                 }
+                // Rest & Repeat (rest-pause): badge + the per-round inputs (rounds in performed_json).
+                const restRepeat = restRepeatBranch(prescription);
+                const restPause = restRepeat
+                  ? { restSeconds: restRepeat.rest_seconds, maxRounds: restPauseMaxRounds(restRepeat) }
+                  : null;
+                if (restRepeat) instructionBadges.push(restPauseBadgeLabel(restRepeat));
                 return (
                   <div key={i} className="space-y-1">
                     <SetRow
@@ -1207,7 +1259,7 @@ function ExerciseCard({
                       }
                       onUpdate={(field, value) => onUpdateLog(i, field, value)}
                       onUpdateExtra={(key, value) => onUpdateLogExtra(i, key, value)}
-                      onComplete={() => onCompleteSet(i, prescription.rest_seconds)}
+                      onComplete={() => onCompleteSet(i, restRepeat ? restRepeat.rest_seconds : prescription.rest_seconds)}
                       onSkip={() => onSkipSet(i)}
                       isActive={activeSetIndex === i}
                       inputColumns={exercise.input_columns}
@@ -1217,6 +1269,7 @@ function ExerciseCard({
                       amrap={amrap}
                       prefillWeightKg={prefillWeightKg}
                       instructionBadges={instructionBadges}
+                      restPause={restPause}
                     />
                     {suggestion && (
                       <ProgressionSuggestionBanner

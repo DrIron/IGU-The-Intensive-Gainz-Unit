@@ -99,3 +99,35 @@ export function backoffBadgeLabel(spec: BackoffSpec): string {
 export function dropBadgeLabel(branch: DropBranch): string {
   return branch.basis === "percent" ? `drop ${branch.value}%` : `drop −${branch.value}kg`;
 }
+
+// ── Rest & Repeat (rest-pause) ────────────────────────────────────────────────
+// A branch off a set: after the main effort, rest `rest_seconds`, then repeat the SAME set to
+// failure, for `max_rounds` rounds (or open-ended when omitted). Repeat rounds do NOT create
+// extra exercise_set_logs rows — they live in the set's performed_json under restPauseRoundKey(n)
+// (round 1 = the set's performed_reps), keeping the (assignment_id, plan_slot_id, set_index)
+// unique key intact.
+export interface RestRepeatBranch {
+  type: "rest_repeat";
+  rest_seconds: number;
+  to_failure: true;
+  max_rounds?: number;
+}
+
+/** The set's rest-pause branch, if any (only one per set is meaningful). */
+export function restRepeatBranch(set: { branches?: Array<{ type: string }> }): RestRepeatBranch | null {
+  return ((set.branches ?? []).find((b) => b.type === "rest_repeat") as RestRepeatBranch | undefined) ?? null;
+}
+
+/** Capped number of repeat rounds (after the main effort), or null = open-ended to failure. */
+export function restPauseMaxRounds(branch: RestRepeatBranch): number | null {
+  return branch.max_rounds != null && branch.max_rounds > 0 ? branch.max_rounds : null;
+}
+
+/** performed_json key for a repeat round's reps. round is 2-based (round 1 = the main set). */
+export function restPauseRoundKey(round: number): string {
+  return `rp_round_${round}`;
+}
+
+export function restPauseBadgeLabel(branch: RestRepeatBranch): string {
+  return `rest-pause ${branch.rest_seconds}s` + (branch.max_rounds ? ` · ×${branch.max_rounds}` : "");
+}
