@@ -602,6 +602,33 @@ function SetRow({
   const restPauseRounds: number[] =
     restPause && mainSetLogged ? restPauseRoundNumbers(restPause.maxRounds, log.performed_extra) : [];
 
+  // Rest-pause round footer — rendered in BOTH the completed (collapsed) and active branches, so
+  // logging the main set surfaces the to-failure rounds (the completed-set early return otherwise
+  // skips it). Reps persist in performed_json under restPauseRoundKey(n) (no extra log rows).
+  const restPauseFooter =
+    restPauseRounds.length > 0 ? (
+      <div className="px-3 py-2 border-t bg-amber-500/5 rounded-b-xl">
+        <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 mb-1.5">
+          Rest-pause · {restPause?.restSeconds ?? 0}s rest · same weight, reps to failure
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {restPauseRounds.map((n) => (
+            <div key={n} className="flex flex-col">
+              <label className="text-[9px] text-muted-foreground mb-0.5">Round {n}</label>
+              <Input
+                type="number"
+                inputMode="numeric"
+                value={(log.performed_extra[restPauseRoundKey(n)] as number | string | undefined) ?? ""}
+                onChange={(e) => onUpdateExtra(restPauseRoundKey(n), e.target.value ? parseInt(e.target.value) : null)}
+                className="h-9 w-16 text-center text-sm"
+                placeholder="reps"
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    ) : null;
+
   // Current logged value for an input column.
   const inputValue = (col: ColumnConfig): string | number => {
     switch (col.type as ClientInputColumnType) {
@@ -694,11 +721,12 @@ function SetRow({
           ? ` @ RIR ${log.performed_rir}`
           : "";
     return (
+      <div className="rounded-xl border border-status-ontrack/30 bg-status-ontrack/5">
       <button
         type="button"
         onClick={() => setReopened(true)}
         aria-label={`Set ${prescription.set_number} logged — tap to edit`}
-        className="w-full rounded-xl border border-status-ontrack/30 bg-status-ontrack/5 px-3 py-2.5 min-h-[44px] flex items-center justify-between gap-2 text-left touch-manipulation"
+        className="w-full px-3 py-2.5 min-h-[44px] flex items-center justify-between gap-2 text-left touch-manipulation"
       >
         <span className="text-sm flex items-center gap-2 min-w-0">
           <span className="w-7 h-7 rounded-full bg-status-ontrack text-white flex items-center justify-center shrink-0">
@@ -721,6 +749,8 @@ function SetRow({
         {/* Lock signals "done" — still tappable to fix a mis-log. */}
         <Lock className="w-3.5 h-3.5 text-status-ontrack shrink-0" aria-hidden="true" />
       </button>
+      {restPauseFooter}
+      </div>
     );
   }
 
@@ -932,30 +962,9 @@ function SetRow({
         </div>
       )}
 
-      {/* Rest & Repeat rounds — appear after the main effort is logged. Same weight target,
-          reps to failure; each round's reps persist in performed_json (no extra log rows). */}
-      {restPauseRounds.length > 0 && (
-        <div className="px-3 py-2 border-t bg-amber-500/5">
-          <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 mb-1.5">
-            Rest-pause · {restPause?.restSeconds ?? 0}s rest · same weight, reps to failure
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {restPauseRounds.map((n) => (
-              <div key={n} className="flex flex-col">
-                <label className="text-[9px] text-muted-foreground mb-0.5">Round {n}</label>
-                <Input
-                  type="number"
-                  inputMode="numeric"
-                  value={(log.performed_extra[restPauseRoundKey(n)] as number | string | undefined) ?? ""}
-                  onChange={(e) => onUpdateExtra(restPauseRoundKey(n), e.target.value ? parseInt(e.target.value) : null)}
-                  className="h-9 w-16 text-center text-sm"
-                  placeholder="reps"
-                />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      {/* Rest & Repeat rounds (active / re-opened state). Same block renders under the
+          completed-collapsed summary too via restPauseFooter. */}
+      {restPauseFooter}
     </div>
   );
 }
@@ -982,7 +991,7 @@ function ExerciseCard({
   logs: SetLog[];
   onUpdateLog: (setIndex: number, field: keyof SetLog, value: any) => void;
   onUpdateLogExtra: (setIndex: number, key: string, value: string | number | null) => void;
-  onCompleteSet: (setIndex: number, restSeconds?: number) => void;
+  onCompleteSet: (setIndex: number, restSeconds?: number, forceRest?: boolean) => void;
   onSwapExercise: () => void;
   onSkipExercise: () => void;
   onSkipSet: (setIndex: number) => void;
@@ -1252,7 +1261,7 @@ function ExerciseCard({
                       }
                       onUpdate={(field, value) => onUpdateLog(i, field, value)}
                       onUpdateExtra={(key, value) => onUpdateLogExtra(i, key, value)}
-                      onComplete={() => onCompleteSet(i, restRepeat ? restRepeat.rest_seconds : prescription.rest_seconds)}
+                      onComplete={() => onCompleteSet(i, restRepeat ? restRepeat.rest_seconds : prescription.rest_seconds, !!restRepeat)}
                       onSkip={() => onSkipSet(i)}
                       isActive={activeSetIndex === i}
                       inputColumns={exercise.input_columns}
@@ -2286,7 +2295,8 @@ function WorkoutSessionV2Content() {
   const completeSet = async (
     exerciseId: string,
     setIndex: number,
-    restSeconds?: number
+    restSeconds?: number,
+    forceRest?: boolean, // rest-pause: rest before the repeat round even on the last set
   ) => {
     setSetLogs((prev) => ({
       ...prev,
@@ -2349,7 +2359,7 @@ function WorkoutSessionV2Content() {
     if (
       restSeconds &&
       restSeconds > 0 &&
-      setIndex < prescriptions.length - 1
+      (setIndex < prescriptions.length - 1 || forceRest)
     ) {
       setRestTimer((prev) => ({
         active: true,
@@ -3146,8 +3156,8 @@ function WorkoutSessionV2Content() {
                     onUpdateLogExtra={(setIndex, key, value) =>
                       updateSetExtra(focusExercise.id, setIndex, key, value)
                     }
-                    onCompleteSet={(setIndex, restSeconds) =>
-                      completeSet(focusExercise.id, setIndex, restSeconds)
+                    onCompleteSet={(setIndex, restSeconds, forceRest) =>
+                      completeSet(focusExercise.id, setIndex, restSeconds, forceRest)
                     }
                     onSwapExercise={() => {
                       setSwapExerciseId(focusExercise.id);
