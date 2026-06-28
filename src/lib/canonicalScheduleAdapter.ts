@@ -36,8 +36,32 @@ export interface CanonicalSchedule {
   startDate: string;
   /** Total running weeks (base + inserted deloads). */
   totalWeeks: number;
+  /** Per running week, in order: its 1-based index + whether it's a deload (inserted or pinned). */
+  weeks: { runningIndex: number; isDeload: boolean }[];
   /** yyyy-mm-dd → that day's resolved canonical sessions. */
   byDate: Map<string, CanonicalScheduleDay>;
+}
+
+// Drilldown-shaped projection (coach Client Overview → Workouts → Programs). Neutral shape the
+// drilldown maps to its DrilldownDay/DrilldownModule (kept lib-side to avoid re-deriving dates).
+export interface CanonicalDrilldownModule {
+  id: string; // plan_session_id (canonical session link target)
+  title: string | null;
+  moduleType: string;
+  sessionType: string;
+  status: string | null; // "completed" or null
+  completedAt: string | null; // sentinel (the date) when completed — drives the check icon
+  sortOrder: number;
+  isDeload: boolean;
+  date: string; // yyyy-mm-dd, for the canonical WorkoutSessionV2 link
+}
+export interface CanonicalDrilldownDay {
+  id: string;
+  dayIndex: number; // absolute: (runningIndex-1)*7 + dayOfWeek
+  date: string;
+  title: string | null; // "Recovery" on a deload week, else null
+  isDeload: boolean;
+  modules: CanonicalDrilldownModule[];
 }
 
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
@@ -223,7 +247,48 @@ export async function loadCanonicalSchedule(assignmentId: string): Promise<Canon
     }
   }
 
-  return { startDate: assignment.start_date, totalWeeks: sequence.length, byDate };
+  return {
+    startDate: assignment.start_date,
+    totalWeeks: sequence.length,
+    weeks: sequence.map((rw) => ({ runningIndex: rw.runningIndex, isDeload: rw.isDeload })),
+    byDate,
+  };
+}
+
+/**
+ * Project a CanonicalSchedule into the coach drilldown's week/day grid: every running week × 7 days
+ * (rest days included), ordered, with a per-week Recovery flag and canonical session links. Reuses
+ * the same date math as the calendar (boardDayDate) — no re-derivation.
+ */
+export function canonicalDrilldownDays(schedule: CanonicalSchedule): CanonicalDrilldownDay[] {
+  const out: CanonicalDrilldownDay[] = [];
+  for (const wk of schedule.weeks) {
+    for (let d = 1; d <= 7; d++) {
+      const iso = isoDate(boardDayDate(schedule.startDate, wk.runningIndex, d));
+      const entry = schedule.byDate.get(iso);
+      const dayIndex = (wk.runningIndex - 1) * 7 + d;
+      const modules: CanonicalDrilldownModule[] = (entry?.modules ?? []).map((m, i) => ({
+        id: m.id,
+        title: m.title,
+        moduleType: m.module_type,
+        sessionType: m.module_type,
+        status: m.status || null,
+        completedAt: m.status === "completed" ? iso : null,
+        sortOrder: i,
+        isDeload: m.isDeload,
+        date: iso,
+      }));
+      out.push({
+        id: `canon-${iso}`,
+        dayIndex,
+        date: iso,
+        title: wk.isDeload ? "Recovery" : null,
+        isDeload: wk.isDeload,
+        modules,
+      });
+    }
+  }
+  return out;
 }
 
 /** Default session title when the coach left it unnamed (mirrors the resolver). */

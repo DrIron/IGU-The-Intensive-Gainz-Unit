@@ -24,6 +24,7 @@ import { ClientProgramDrilldown } from "../workouts/ClientProgramDrilldown";
 import { MuscleBuilderPage } from "@/components/coach/programs/muscle-builder/MuscleBuilderPage";
 import { isClientProgramEditorEnabled, isBoardV2Enabled } from "@/lib/featureFlags";
 import { TakeDeloadCard } from "@/components/workouts/TakeDeloadCard";
+import { loadCanonicalSchedule, canonicalDrilldownDays, type CanonicalSchedule } from "@/lib/canonicalScheduleAdapter";
 import { SessionLogViewer } from "../workouts/SessionLogViewer";
 import { WorkoutPulse } from "../workouts/WorkoutPulse";
 import { WorkoutTrendCards } from "../workouts/WorkoutTrendCards";
@@ -115,6 +116,53 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
       });
   }, [editorEnabled, boardV2, clientUserId]);
 
+  // Deload v2: under board_v2, render the drilldown from the canonical running sequence (insert+shift
+  // aware) instead of the legacy client_program_days snapshot. deloadNonce reloads after take/remove.
+  const [schedule, setSchedule] = useState<CanonicalSchedule | null>(null);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [deloadNonce, setDeloadNonce] = useState(0);
+  useEffect(() => {
+    if (!boardV2 || !canonicalAssignmentId) {
+      setSchedule(null);
+      return;
+    }
+    let cancelled = false;
+    setScheduleLoading(true);
+    loadCanonicalSchedule(canonicalAssignmentId)
+      .then((s) => {
+        if (!cancelled) setSchedule(s);
+      })
+      .finally(() => {
+        if (!cancelled) setScheduleLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [boardV2, canonicalAssignmentId, deloadNonce]);
+
+  const useCanonicalDrilldown = boardV2 && !!schedule;
+  const canonicalDays = useMemo<DrilldownDay[] | null>(() => {
+    if (!useCanonicalDrilldown || !schedule || !canonicalAssignmentId) return null;
+    return canonicalDrilldownDays(schedule).map((d) => ({
+      id: d.id,
+      dayIndex: d.dayIndex,
+      date: d.date,
+      title: d.title,
+      isDeload: d.isDeload,
+      modules: d.modules.map((m) => ({
+        id: m.id,
+        title: m.title,
+        moduleType: m.moduleType,
+        sessionType: m.sessionType,
+        status: m.status,
+        completedAt: m.completedAt,
+        sortOrder: m.sortOrder,
+        isDeload: m.isDeload,
+        canonical: { assignmentId: canonicalAssignmentId, date: m.date },
+      })),
+    }));
+  }, [useCanonicalDrilldown, schedule, canonicalAssignmentId]);
+
   const handleOpenProgram = useCallback((program: ClientProgramSummary) => {
     setSelected(program);
   }, []);
@@ -124,9 +172,17 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   }, []);
   const handleOpenModule = useCallback(
     (module: DrilldownModule, day: DrilldownDay) => {
+      // Canonical sessions don't exist in the legacy SessionLogViewer — open WorkoutSessionV2
+      // (canonical read mode) via assignment+session+date params, like the client calendar.
+      if (module.canonical) {
+        navigate(
+          `/client/workout/session/canonical?assignment=${module.canonical.assignmentId}&session=${module.id}&date=${module.canonical.date}`,
+        );
+        return;
+      }
       setLogTarget({ module, day });
     },
-    [],
+    [navigate],
   );
 
   // Reassign flow — we reuse AssignFromLibraryDialog but it wants a
@@ -209,14 +265,15 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
               planId={canonicalPlanId}
               startDate={canonicalStartDate}
               clientId={clientUserId}
+              onChange={() => setDeloadNonce((n) => n + 1)}
             />
           )}
 
           {selected ? (
             <ClientProgramDrilldown
               program={selected}
-              days={drilldown.days}
-              loading={drilldown.loading}
+              days={canonicalDays ?? drilldown.days}
+              loading={useCanonicalDrilldown ? scheduleLoading : drilldown.loading}
               error={drilldown.error}
               onBack={handleBackToList}
               onOpenModule={handleOpenModule}

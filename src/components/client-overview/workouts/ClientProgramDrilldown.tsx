@@ -7,7 +7,7 @@ import { memo, useMemo } from "react";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, CheckCircle2, Circle, Loader2, XCircle } from "lucide-react";
+import { ArrowLeft, CheckCircle2, Circle, Loader2, Snowflake, XCircle } from "lucide-react";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import type {
@@ -120,14 +120,21 @@ function WeekSection({ weekIndex, days, onOpenModule }: WeekSectionProps) {
     (n, d) => n + d.modules.filter((m) => m.completedAt).length,
     0,
   );
+  const isDeload = days.some((d) => d.isDeload);
   return (
-    <Card>
+    <Card className={cn(isDeload && "border-amber-500/40 bg-amber-500/5")}>
       <CardHeader className="pb-2 flex flex-row items-center justify-between space-y-0">
         <div className="flex items-center gap-2">
           <span className="font-mono text-[10px] uppercase tracking-wider text-muted-foreground">
             Week
           </span>
           <span className="font-semibold">{weekIndex}</span>
+          {isDeload && (
+            <Badge variant="outline" className="gap-1 border-amber-500/40 text-amber-600 dark:text-amber-400 text-[10px]">
+              <Snowflake className="h-3 w-3" aria-hidden />
+              Recovery
+            </Badge>
+          )}
         </div>
         <span className="text-xs text-muted-foreground font-mono tabular-nums">
           {completedMods} / {totalMods}
