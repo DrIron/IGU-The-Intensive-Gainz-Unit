@@ -14,6 +14,7 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { selectWithRetry } from "@/lib/selectWithRetry";
 import type { ColumnConfig } from "@/types/workout-builder";
 import {
   buildStrengthPrescriptionSnapshot,
@@ -113,22 +114,29 @@ export async function resolveCanonicalSession(
   params: ResolveCanonicalSessionParams,
 ): Promise<CanonicalResolvedSession | null> {
   const { assignmentId, planSessionId, date } = params;
+  // Retry each idempotent read with a per-attempt timeout so a transient pooler blip/hang retries
+  // instead of failing the canonical load (matches the legacy logger's selectWithRetry pattern).
+  const retryRead = <R extends { error: unknown }>(run: () => PromiseLike<R>, label: string) =>
+    selectWithRetry(run, 2, 400, { timeoutMs: 6000, label });
 
   // 1) Assignment.
-  const { data: assignment, error: aErr } = await supabase
-    .from("client_plan_assignment")
-    .select("id, plan_id, start_date, status")
-    .eq("id", assignmentId)
-    .maybeSingle();
+  const { data: assignment, error: aErr } = await retryRead(
+    () =>
+      supabase
+        .from("client_plan_assignment")
+        .select("id, plan_id, start_date, status")
+        .eq("id", assignmentId)
+        .maybeSingle(),
+    "assignment",
+  );
   if (aErr) throw aErr;
   if (!assignment) return null;
 
   // 2) Plan (owner coach drives the column preset + the module owner).
-  const { data: plan, error: pErr } = await supabase
-    .from("plan")
-    .select("id, owner_coach_id, name")
-    .eq("id", assignment.plan_id)
-    .maybeSingle();
+  const { data: plan, error: pErr } = await retryRead(
+    () => supabase.from("plan").select("id, owner_coach_id, name").eq("id", assignment.plan_id).maybeSingle(),
+    "plan",
+  );
   if (pErr) throw pErr;
   if (!plan) return null;
 
@@ -137,36 +145,45 @@ export async function resolveCanonicalSession(
   let weekIndex = 1;
 
   if (planSessionId) {
-    const { data: s, error: sErr } = await supabase
-      .from("plan_sessions")
-      .select("id, plan_week_id, day_index, name, activity_type, plan_id")
-      .eq("id", planSessionId)
-      .maybeSingle();
+    const { data: s, error: sErr } = await retryRead(
+      () =>
+        supabase
+          .from("plan_sessions")
+          .select("id, plan_week_id, day_index, name, activity_type, plan_id")
+          .eq("id", planSessionId)
+          .maybeSingle(),
+      "plan_session",
+    );
     if (sErr) throw sErr;
     if (!s || s.plan_id !== plan.id) return null;
     session = s;
-    const { data: wk } = await supabase
-      .from("plan_weeks").select("week_index").eq("id", s.plan_week_id).maybeSingle();
+    const { data: wk } = await retryRead(
+      () => supabase.from("plan_weeks").select("week_index").eq("id", s.plan_week_id).maybeSingle(),
+      "plan_week",
+    );
     weekIndex = wk?.week_index ?? 1;
   } else if (date) {
-    const { data: weeks, error: wErr } = await supabase
-      .from("plan_weeks")
-      .select("id, week_index")
-      .eq("plan_id", plan.id)
-      .order("week_index");
+    const { data: weeks, error: wErr } = await retryRead(
+      () => supabase.from("plan_weeks").select("id, week_index").eq("plan_id", plan.id).order("week_index"),
+      "plan_weeks",
+    );
     if (wErr) throw wErr;
     if (!weeks || weeks.length === 0) return null;
     weekIndex = resolveWeekIndexForDate(assignment.start_date, date, weeks.length);
     const week = weeks.find((w) => w.week_index === weekIndex) ?? weeks[0];
     const jsDow = new Date(date + "T00:00:00Z").getUTCDay(); // 0=Sun..6=Sat
     const dayIndex = jsDow === 0 ? 7 : jsDow; // plan day_index: 1=Mon..7=Sun
-    const { data: sessions, error: sErr } = await supabase
-      .from("plan_sessions")
-      .select("id, plan_week_id, day_index, name, activity_type")
-      .eq("plan_week_id", week.id)
-      .eq("day_index", dayIndex)
-      .order("sort_order")
-      .limit(1);
+    const { data: sessions, error: sErr } = await retryRead(
+      () =>
+        supabase
+          .from("plan_sessions")
+          .select("id, plan_week_id, day_index, name, activity_type")
+          .eq("plan_week_id", week.id)
+          .eq("day_index", dayIndex)
+          .order("sort_order")
+          .limit(1),
+      "plan_sessions_for_day",
+    );
     if (sErr) throw sErr;
     if (!sessions || sessions.length === 0) return null;
     session = sessions[0];
@@ -175,11 +192,15 @@ export async function resolveCanonicalSession(
   }
 
   // 4) Slots for the session (separate query — no nested FK joins on plan_*).
-  const { data: slots, error: slErr } = await supabase
-    .from("plan_slots")
-    .select("id, exercise_id, section, sort_order, prescription_json, instructions")
-    .eq("plan_session_id", session.id)
-    .order("sort_order");
+  const { data: slots, error: slErr } = await retryRead(
+    () =>
+      supabase
+        .from("plan_slots")
+        .select("id, exercise_id, section, sort_order, prescription_json, instructions")
+        .eq("plan_session_id", session!.id)
+        .order("sort_order"),
+    "plan_slots",
+  );
   if (slErr) throw slErr;
 
   // 5) Overrides for this assignment, merged over the resolved plan_* (the P4 override layer:
@@ -189,10 +210,14 @@ export async function resolveCanonicalSession(
   //             added?: true, plan_session_id? }   — field-level patch; added = a new slot
   //   session { name?, activity_type? }             — removed=true drops the whole session
   //   week    { is_deload?, deload_preset_id? }     — accepted; per-client deload apply deferred
-  const { data: overrides } = await supabase
-    .from("client_plan_overrides")
-    .select("target_type, target_id, override_json, removed")
-    .eq("assignment_id", assignmentId);
+  const { data: overrides } = await retryRead(
+    () =>
+      supabase
+        .from("client_plan_overrides")
+        .select("target_type, target_id, override_json, removed")
+        .eq("assignment_id", assignmentId),
+    "overrides",
+  );
 
   const slotPatch = new Map<string, { json: Record<string, unknown>; removed: boolean }>();
   const addedSlots: { targetId: string; json: Record<string, unknown> }[] = [];
@@ -217,12 +242,16 @@ export async function resolveCanonicalSession(
   if (sessionRemoved) return null;
 
   // 6) Coach default column preset (same source ConvertToProgram uses for column_config).
-  const { data: presetRow } = await supabase
-    .from("coach_column_presets")
-    .select("column_config")
-    .eq("coach_id", plan.owner_coach_id)
-    .eq("is_default", true)
-    .maybeSingle();
+  const { data: presetRow } = await retryRead(
+    () =>
+      supabase
+        .from("coach_column_presets")
+        .select("column_config")
+        .eq("coach_id", plan.owner_coach_id)
+        .eq("is_default", true)
+        .maybeSingle(),
+    "column_preset",
+  );
   const presetColumnConfig = (presetRow?.column_config as unknown as ColumnConfig[] | null) ?? null;
 
   // 7) exercise_library for every exercise we may render — base slots + patched/added overrides.
@@ -232,12 +261,16 @@ export async function resolveCanonicalSession(
   for (const a of addedSlots) if (typeof a.json.exercise_id === "string") exerciseIds.add(a.json.exercise_id as string);
   const libraryById = new Map<string, CanonicalExerciseLibraryInfo>();
   if (exerciseIds.size > 0) {
-    const { data: libRows } = await supabase
-      .from("exercise_library")
-      .select(
-        "id, name, default_video_url, primary_muscle, description, setup_instructions, setup_points, equipment, secondary_muscles",
-      )
-      .in("id", [...exerciseIds]);
+    const { data: libRows } = await retryRead(
+      () =>
+        supabase
+          .from("exercise_library")
+          .select(
+            "id, name, default_video_url, primary_muscle, description, setup_instructions, setup_points, equipment, secondary_muscles",
+          )
+          .in("id", [...exerciseIds]),
+      "exercise_library",
+    );
     for (const r of libRows ?? []) {
       libraryById.set(r.id, {
         name: r.name,
@@ -319,13 +352,17 @@ export async function resolveCanonicalSession(
   const slotIds = exercises.map((e) => e.planSlotId);
   let existingLogs: CanonicalSetLogRow[] = [];
   if (slotIds.length > 0) {
-    const { data: logs } = await supabase
-      .from("exercise_set_logs")
-      .select(
-        "plan_slot_id, set_index, performed_reps, performed_load, performed_rir, performed_rpe, performed_json, notes, skipped, created_at",
-      )
-      .eq("assignment_id", assignmentId)
-      .in("plan_slot_id", slotIds);
+    const { data: logs } = await retryRead(
+      () =>
+        supabase
+          .from("exercise_set_logs")
+          .select(
+            "plan_slot_id, set_index, performed_reps, performed_load, performed_rir, performed_rpe, performed_json, notes, skipped, created_at",
+          )
+          .eq("assignment_id", assignmentId)
+          .in("plan_slot_id", slotIds),
+      "existing_logs",
+    );
     existingLogs = (logs ?? []).map((l) => ({
       plan_slot_id: l.plan_slot_id as string,
       set_index: l.set_index,

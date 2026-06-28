@@ -2,6 +2,7 @@ import { useEffect, useState, ReactNode } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
+import { selectWithRetry } from "@/lib/selectWithRetry";
 import { useAuthGuardSession } from "@/components/AuthGuard";
 import {
   isOnboardingIncomplete,
@@ -74,13 +75,19 @@ export function OnboardingGuard({
           ]);
 
         const [profileResult, subscriptionResult] = await Promise.all([
-          queryTimeout(
-            supabase
-              .from("profiles_public")
-              .select("status")
-              .eq("id", user.id)
-              .maybeSingle(),
-            'profile'
+          // Profile drives routing — retry on a transient pooler/auth blip (per-attempt timeout)
+          // instead of stranding the load with "profile query timed out". Resolves with
+          // { data, error }; a persistent failure falls through to the pending fallback below.
+          selectWithRetry(
+            () =>
+              supabase
+                .from("profiles_public")
+                .select("status")
+                .eq("id", user.id)
+                .maybeSingle(),
+            3,
+            400,
+            { timeoutMs: 8000, label: "profile" },
           ),
           queryTimeout(
             supabase

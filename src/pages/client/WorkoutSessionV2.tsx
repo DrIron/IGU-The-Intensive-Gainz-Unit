@@ -17,6 +17,7 @@ import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
+import { selectWithRetry } from "@/lib/selectWithRetry";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -1585,25 +1586,6 @@ function SwapExercisePicker({
 // MAIN COMPONENT
 // =============================================================================
 
-// Transient 5xx / network failures on cold or concurrent page loads occasionally
-// make Supabase reads fail (observed in prod: the client_module_exercises +
-// exercise_library(...) embed 500s at load, then succeeds on a warm retry).
-// These reads are idempotent selects, so retry a few times with linear backoff
-// before surfacing an error — without this a single transient blip strands the
-// client on the loading skeleton with no recovery.
-async function selectWithRetry<R extends { error: unknown }>(
-  run: () => PromiseLike<R>,
-  attempts = 3,
-  baseDelayMs = 400,
-): Promise<R> {
-  let result = await run();
-  for (let i = 1; i < attempts && result.error; i++) {
-    await new Promise((resolve) => setTimeout(resolve, baseDelayMs * i));
-    result = await run();
-  }
-  return result;
-}
-
 function WorkoutSessionV2Content() {
   const { moduleId } = useParams<{ moduleId: string }>();
   const navigate = useNavigate();
@@ -2065,20 +2047,33 @@ function WorkoutSessionV2Content() {
     if (!canonicalAssignmentParam) return;
     try {
       setLoadError(false);
-      const {
-        data: { user: currentUser },
-      } = await withTimeout(supabase.auth.getUser(), 8000);
+      // Retry getUser with a per-attempt timeout — a transient pooler/auth blip here was
+      // stranding the load (the recurring "Request timed out after 8000ms").
+      const { data: userData } = await selectWithRetry(
+        () => supabase.auth.getUser(),
+        3,
+        400,
+        { timeoutMs: 8000, label: "Get user" },
+      );
+      const currentUser = userData?.user;
       if (!currentUser) {
         navigate("/auth");
         return;
       }
       setUser(currentUser);
 
-      const resolved = await resolveCanonicalSession({
-        assignmentId: canonicalAssignmentParam,
-        planSessionId: canonicalSessionParam ?? undefined,
-        date: canonicalDateParam ?? undefined,
-      });
+      // Labeled timeout so a genuine resolver hang surfaces as a clear error rather than the
+      // misleading getUser/8000ms one. The resolver's own queries already retry on blips
+      // (selectWithRetry inside), so this is the last-resort ceiling.
+      const resolved = await withTimeout(
+        resolveCanonicalSession({
+          assignmentId: canonicalAssignmentParam,
+          planSessionId: canonicalSessionParam ?? undefined,
+          date: canonicalDateParam ?? undefined,
+        }),
+        25000,
+        "Resolve canonical session",
+      );
       if (!resolved) {
         toast({
           title: "Workout not found",
