@@ -85,3 +85,29 @@ Backfill order resolves the dedupe via `muscle_program_templates.converted_progr
 ## Relationship to the coach-client redesign
 
 This track **precedes B4** of `COACH_CLIENT_REDESIGN.md`. B1–B3 (vitals rail, nutrition decision-first, workouts pulse) are independent and can ship in parallel. B4 (Programs editor) = P4 here. B5 (calendar) reads the canonical assignment.
+
+## P5 legacy `client_program*` reader burn-down (inventory 2026-06-28)
+
+Every surface below reads the legacy deep-copy tables (`client_programs` / `client_program_days` / `client_day_modules` / `client_module_exercises`). Legacy can only be dropped once the flag-on (`isBoardV2Enabled()`) read path no longer touches them. `types.ts` is generated — ignore.
+
+**Migrated (canonical behind board_v2):**
+- `src/lib/canonicalScheduleAdapter.ts` — canonical schedule/drilldown builder (no legacy).
+- `src/pages/client/WorkoutCalendar.tsx` — client month/week grid (canonical when flag on; legacy path still present for flag-off). [b80c932]
+- `src/components/client-overview/tabs/WorkoutsTab.tsx` + `workouts/ClientProgramDrilldown.tsx` — coach program drilldown (canonical when flag on). [b478e58]
+
+**A — user-facing READ surfaces still on legacy (migrate before P5 drop):**
+- `src/components/client/TodaysWorkoutHero.tsx` — client "today's workout" card (goes stale post-deload). Highest priority.
+- `src/components/client-overview/tabs/OverviewTab.tsx` — coach overview "last workout" stat.
+- `src/components/client/NewClientOverview.tsx` — client dashboard program count/hero.
+- (WorkoutCalendar's flag-OFF legacy branch — removed when board_v2 defaults on.)
+
+**D — hooks/util feeding the A surfaces (migrate or retire alongside):**
+- `src/hooks/useClientWorkouts.ts` (client month/week/today), `src/components/client-overview/workouts/useClientWorkouts.ts` (coach programs/drilldown/pulse/session-log), `workouts/useWorkoutPulse.ts`, `client-overview/useClientVitals.ts`, `workouts/ExerciseHistoryPanel.tsx`, `hooks/useExerciseHistory.ts`, `hooks/useVolumeTracking.ts`, `pages/client/ExerciseHistory.tsx`.
+
+**C — write/assign paths (already dual-write canonical; retire legacy half when dropped):**
+- `src/lib/assignProgram.ts` (assign_program_to_client + assign_plan_to_client), `src/lib/assignMacrocycle.ts`.
+
+**E — admin/QA/non-schedule (lower priority; some don't actually touch program tables):**
+- `pages/admin/WorkoutBuilderQA.tsx`, `coach/CoachDashboardOverview.tsx`, `coach/ClientActivityFeed.tsx`, `coach/programs/macrocycles/{MacrocycleLibrary,AssignMacrocycleDialog}.tsx`, `client-overview/workouts/{SessionLogViewer,ClientProgramList}.tsx`, `client/WeeklyProgressCard.tsx`, `pages/client/WorkoutSessionV2.tsx`. (`coach/CoachSessions.tsx` reads only booking tables — no legacy program reads.)
+
+Order: migrate D hooks to canonical (board_v2-gated, reuse `canonicalScheduleAdapter`), which lets A surfaces flip on; then default board_v2 on + soak; then P5 backfills legacy snapshots → `plan_*`/`client_plan_assignment` and drops the legacy tables + the C write paths' legacy half.
