@@ -481,8 +481,7 @@ function SlotEditorPopover({
 
       {/* ── Special Sets (back-off / drop / AMRAP / rest & repeat) ──── */}
       {onSetSetInstruction && (
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] text-muted-foreground">Special Sets</span>
+        <div className="flex items-center gap-2">
           <SetInstructionMenu
             setCount={setsDetail?.length ?? sets}
             setsDetail={setsDetail}
@@ -501,7 +500,7 @@ function SlotEditorPopover({
               onClick={() => setShowColumnPicker(!showColumnPicker)}
             >
               <Settings2 className="h-2.5 w-2.5" />
-              {showColumnPicker ? 'Hide columns' : 'Choose columns'}
+              {showColumnPicker ? 'Hide instructions' : 'Exercise instructions'}
             </button>
             {showColumnPicker && onSetSlotColumns && (
               <div className="flex flex-wrap gap-1">

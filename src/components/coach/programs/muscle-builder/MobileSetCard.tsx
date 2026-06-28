@@ -31,7 +31,7 @@ export interface MobileSetCardProps {
 }
 
 /**
- * One-set card. Renders only the fields the coach enabled via Choose columns.
+ * One-set card. Renders only the fields the coach enabled via Exercise instructions.
  * Full-width inputs with numeric inputmode so iOS/Android pop the 10-key keypad.
  */
 export const MobileSetCard = memo(function MobileSetCard({
@@ -60,7 +60,7 @@ export const MobileSetCard = memo(function MobileSetCard({
         ))}
         {fields.length === 0 && (
           <p className="text-xs text-muted-foreground text-center py-4">
-            No columns selected. Tap &ldquo;Choose columns&rdquo; above.
+            No instructions selected. Tap &ldquo;Exercise instructions&rdquo; above.
           </p>
         )}
       </div>
