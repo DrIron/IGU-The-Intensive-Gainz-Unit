@@ -479,10 +479,10 @@ function SlotEditorPopover({
         </div>
       )}
 
-      {/* ── Coach instructions (back-off / drop / AMRAP) ──────────── */}
+      {/* ── Special Sets (back-off / drop / AMRAP / rest & repeat) ──── */}
       {onSetSetInstruction && (
         <div className="flex items-center justify-between gap-2">
-          <span className="text-[10px] text-muted-foreground">Coach instructions</span>
+          <span className="text-[10px] text-muted-foreground">Special Sets</span>
           <SetInstructionMenu
             setCount={setsDetail?.length ?? sets}
             setsDetail={setsDetail}
@@ -770,12 +770,12 @@ function SlotEditorPopover({
                 </div>
               </div>
 
-              {/* Coach Instructions */}
+              {/* Exercise notes */}
               {onSetExerciseInstructions && (
                 <div className="space-y-1">
                   <Label className="text-[10px] text-muted-foreground flex items-center gap-1">
                     <FileText className="h-2.5 w-2.5" />
-                    Coach Instructions
+                    Exercise notes
                   </Label>
                   <Textarea
                     placeholder="Focus on controlled eccentric, full ROM..."

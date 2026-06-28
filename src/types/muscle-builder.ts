@@ -144,7 +144,7 @@ export function getActivityDisplay(activityId: string): { label: string; colorCl
 export interface SlotExercise {
   exerciseId: string;   // FK to exercise_library.id
   name: string;         // Denormalized for display (captured at selection time)
-  instructions?: string; // Coach notes for this exercise
+  instructions?: string; // Exercise notes (free-text) for this exercise
 }
 
 export interface MuscleSlotData {

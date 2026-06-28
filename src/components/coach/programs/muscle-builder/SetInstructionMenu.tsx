@@ -1,5 +1,5 @@
 /**
- * P4 — typed "+ Coach instruction" authoring menu for a slot's per-set instructions
+ * P4 — typed "+ Special Sets" authoring menu for a slot's per-set techniques
  * (Weight back-off / Drop set / AMRAP). Writes via SET_SET_INSTRUCTION (onSetInstruction),
  * which seeds setsDetail if needed; fields round-trip through prescription_json.setsDetail and
  * resolve in the canonical logger (see setInstructions.ts). Rest & Repeat is a later slice.
@@ -44,7 +44,7 @@ export function SetInstructionMenu({ setCount, setsDetail, onSetInstruction }: S
       <PopoverTrigger asChild>
         <Button variant="outline" size="sm" className="h-7 text-xs">
           <Sparkles className="h-3 w-3 mr-1" />
-          Coach instruction
+          Special Sets
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-72 p-3 space-y-3" align="start">

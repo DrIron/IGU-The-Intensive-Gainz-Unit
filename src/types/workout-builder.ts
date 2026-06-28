@@ -104,7 +104,7 @@ export const AVAILABLE_PRESCRIPTION_COLUMNS: { type: PrescriptionColumnType; lab
   { type: 'side', label: 'Side (L/R)' },
   { type: 'rounds', label: 'Rounds' },
   { type: 'band_resistance', label: 'Band Color/Resistance' },
-  { type: 'notes', label: 'Coach Notes' },
+  { type: 'notes', label: 'Set note' },
   { type: 'custom', label: 'Custom Field' },
 ];
 
@@ -479,7 +479,7 @@ export interface SetPrescription {
   // ── Per-set instruction family (P1 prescription-model schema addendum).
   // Data-shape only: round-tripped verbatim through prescription_json.setsDetail by
   // save_plan_from_builder; the resolver (back-off/drop weight math from the reference
-  // or client-logged weight, AMRAP, rest-pause) is P3, the typed "+ Coach instruction"
+  // or client-logged weight, AMRAP, rest-pause) is P3, the typed "+ Special Sets"
   // menu is P4. Does NOT belong to the client-inputs system (separate + complete).
   amrap?: boolean;                          // true removes the rep-range target; client logs reps
   weight_mode?: 'absolute' | 'backoff';     // default 'absolute'
