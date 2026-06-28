@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from "date-fns";
 import type { ClientOverviewTabProps } from "../types";
 import { DeloadRequestPanel } from "@/components/coach/clients/DeloadRequestPanel";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
 
 interface OverviewStats {
   phaseName: string | null;
@@ -148,11 +149,15 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
 
   return (
     <div className="space-y-6">
-      {/* Phase 6 — client-initiated deload request panel. Self-hides when no pending. */}
-      <DeloadRequestPanel
-        clientUserId={clientUserId}
-        clientFirstName={context.profile.firstName}
-      />
+      {/* Phase 6 — client-initiated deload request panel. Self-hides when no pending.
+          Deload v2 (docs/DELOAD_V2.md): retired under board_v2 — the request→approve gate is replaced
+          by the on-demand insert flow (TakeDeloadCard in Workouts; coach notified via the thread). */}
+      {!isBoardV2Enabled() && (
+        <DeloadRequestPanel
+          clientUserId={clientUserId}
+          clientFirstName={context.profile.firstName}
+        />
+      )}
 
       {stats.pendingAdjustments > 0 && (
         <Card className="border-amber-500/30 bg-amber-500/5">

@@ -1,7 +1,15 @@
 /**
- * Deload auto-apply — when a coach APPROVES a deload request, write a week-level
- * client_plan_override so the client's canonical program actually deloads (previously the
- * approval recorded approved_week_offset / applied_preset_id but did nothing).
+ * Deload auto-apply (LEGACY — request→approve, substitute-in-place).
+ *
+ * Deload v2 (docs/DELOAD_V2.md) RETIRES this path: an on-demand deload is now INSERTED into the
+ * client's running sequence (insert + shift, applied immediately, no approval) via
+ * insert_client_deload — see useDeloadActions / TakeDeloadCard. This module is only used when
+ * board_v2 is OFF; useCoachDeloadRequestForClient skips it under board_v2. The week-level is_deload
+ * override it writes remains a valid resolver input, but nothing writes it under board_v2.
+ *
+ * When a coach APPROVES a deload request, write a week-level client_plan_override so the client's
+ * canonical program actually deloads (previously the approval recorded approved_week_offset /
+ * applied_preset_id but did nothing).
  *
  * Offset semantics (DOCUMENTED): despite the column name `approved_week_offset`, the coach UI
  * (DeloadRequestPanel "Week" input, 1–52, "W4" copy) and this code treat it as the ABSOLUTE

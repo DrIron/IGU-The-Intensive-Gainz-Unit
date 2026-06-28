@@ -10,6 +10,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { applyApprovedDeload } from "@/lib/deloadAutoApply";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
 
 // ──────────────────────────────────────────────────────────────────────────────
 // Per-client pending request
@@ -121,7 +122,10 @@ export function useCoachDeloadRequestForClient(
 
       // Auto-apply the approved deload to the client's canonical program (week-level override).
       // Best-effort + additive: a missing canonical assignment just logs — approval stands.
-      if (params.decision === "approved" && clientUserId) {
+      // Deload v2 (docs/DELOAD_V2.md): RETIRED under board_v2 — the substitute-in-place override is
+      // superseded by the on-demand insert+shift path (insert_client_deload / TakeDeloadCard). Legacy
+      // request→approve still applies it when board_v2 is off.
+      if (params.decision === "approved" && clientUserId && !isBoardV2Enabled()) {
         const res = await applyApprovedDeload(
           clientUserId,
           params.approvedWeekOffset,
