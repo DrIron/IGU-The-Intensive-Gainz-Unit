@@ -177,7 +177,7 @@ export async function loadPlanForAssignment(assignmentId: string): Promise<Board
 
   const [{ data: weekRows, error: wErr }, { data: sessionRows, error: sErr }, { data: slotRows, error: slErr }, { data: overrides }] =
     await Promise.all([
-      supabase.from("plan_weeks").select("id, week_index, label, is_deload").eq("plan_id", plan.id).order("week_index"),
+      supabase.from("plan_weeks").select("id, week_index, label, is_deload, deload_preset_id, deload_placement").eq("plan_id", plan.id).order("week_index"),
       supabase.from("plan_sessions").select("id, plan_week_id, day_index, name, activity_type, sort_order").eq("plan_id", plan.id),
       supabase.from("plan_slots").select("id, plan_session_id, exercise_id, sort_order, prescription_json, instructions").eq("plan_id", plan.id),
       supabase.from("client_plan_overrides").select("target_type, target_id, override_json, removed").eq("assignment_id", assignmentId),
@@ -265,7 +265,14 @@ export async function loadPlanForAssignment(assignmentId: string): Promise<Board
       );
       slots.push(merged);
     }
-    return { slots, sessions, label: w.label ?? undefined, isDeload: w.is_deload ?? false };
+    return {
+      slots,
+      sessions,
+      label: w.label ?? undefined,
+      isDeload: w.is_deload ?? false,
+      deloadPresetId: w.deload_preset_id ?? undefined,
+      deloadPlacement: (w.deload_placement as "pinned" | "on_demand" | null) ?? undefined,
+    };
   });
 
   return {

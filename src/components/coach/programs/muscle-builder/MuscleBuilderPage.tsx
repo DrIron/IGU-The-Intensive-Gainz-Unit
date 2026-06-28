@@ -50,7 +50,7 @@ import { SaveStatusBadge, type SaveState } from "./SaveStatusBadge";
 import { ClientEditorProvider } from "./ClientEditorContext";
 import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { canUseCalendarMode, defaultBoardViewMode } from "@/lib/boardDates";
-import { CalendarDays, Rows3, Users } from "lucide-react";
+import { CalendarDays, Rows3, Users, Snowflake } from "lucide-react";
 import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import { DeloadDialog, type ApplyDeloadParams } from "./DeloadDialog";
 import { ProgressionRulesBar } from "./ProgressionRulesBar";
@@ -609,8 +609,12 @@ export function MuscleBuilderPage({
         baseContent: params.baseContent,
         sourceWeekIndex: params.sourceWeekIndex,
         presetId: params.presetId,
+        placement: params.placement,
       });
-      toast({ title: 'Deload applied' });
+      toast({
+        title: 'Deload applied',
+        description: params.placement === 'on_demand' ? 'Available on-demand (insertable)' : undefined,
+      });
     },
     [dispatch, toast],
   );
@@ -717,6 +721,18 @@ export function MuscleBuilderPage({
             >
               <Rows3 className="h-3.5 w-3.5 mr-1" /> Program weeks
             </Button>
+          </div>
+        )}
+        {/* Deload badge for the active week's column header (pinned vs on-demand). */}
+        {state.weeks[state.currentWeekIndex]?.isDeload && (
+          <div className="flex items-center gap-1.5 w-fit rounded-md border border-amber-500/40 bg-amber-500/10 px-2 py-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+            <Snowflake className="h-3.5 w-3.5" />
+            Deload week
+            {boardV2 && state.weeks[state.currentWeekIndex]?.deloadPlacement === "on_demand" && (
+              <span className="text-[10px] font-normal text-amber-600/80 dark:text-amber-400/80">
+                · on-demand (insertable)
+              </span>
+            )}
           </div>
         )}
         {/* ── Header ──────────────────────────────────────────── */}

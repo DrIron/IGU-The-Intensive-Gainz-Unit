@@ -149,7 +149,12 @@ export const WeekTabStrip = memo(function WeekTabStrip({
                 <span>{label}</span>
               )}
               {week.isDeload && (
-                <span className="text-[10px] text-amber-500 font-medium">DL</span>
+                <span
+                  className="text-[10px] text-amber-500 font-medium"
+                  title={week.deloadPlacement === "on_demand" ? "On-demand deload" : "Deload week"}
+                >
+                  {week.deloadPlacement === "on_demand" ? "DL·OD" : "DL"}
+                </span>
               )}
             </button>
 

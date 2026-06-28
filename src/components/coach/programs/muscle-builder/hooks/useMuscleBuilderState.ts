@@ -42,7 +42,8 @@ type Action =
   | { type: 'CLEAR_FIELD_MANUAL_OVERRIDE'; slotId: string; field: DeltaTarget }
   | { type: 'SET_WEEK_LABEL'; weekIndex: number; label: string }
   | { type: 'TOGGLE_DELOAD'; weekIndex: number }
-  | { type: 'APPLY_DELOAD'; weekIndex: number; baseContent: 'clone' | 'fresh' | 'keep'; sourceWeekIndex?: number; presetId: string | null }
+  | { type: 'APPLY_DELOAD'; weekIndex: number; baseContent: 'clone' | 'fresh' | 'keep'; sourceWeekIndex?: number; presetId: string | null; placement?: 'pinned' | 'on_demand' }
+  | { type: 'SET_DELOAD_PLACEMENT'; weekIndex: number; placement: 'pinned' | 'on_demand' }
   | { type: 'APPLY_SLOT_TO_REMAINING'; slotId: string; fields: Partial<MuscleSlotData> }
   | { type: 'ADD_MUSCLE'; dayIndex: number; muscleId: string; sets?: number; sessionId?: string }
   | { type: 'REMOVE_MUSCLE'; slotId: string }
@@ -575,8 +576,25 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       const wasDeload = week.isDeload;
       const weeks = state.weeks.map((w, i) =>
         i === action.weekIndex
-          ? { ...w, isDeload: !wasDeload, label: !wasDeload ? (w.label || 'Deload') : w.label }
+          ? {
+              ...w,
+              isDeload: !wasDeload,
+              label: !wasDeload ? (w.label || 'Deload') : w.label,
+              // Mark → default to pinned placement; unmark → clear Deload v2 metadata.
+              deloadPlacement: !wasDeload ? (w.deloadPlacement ?? 'pinned') : undefined,
+              deloadPresetId: !wasDeload ? w.deloadPresetId : undefined,
+            }
           : w
+      );
+      return { ...state, weeks, isDirty: true };
+    }
+
+    case 'SET_DELOAD_PLACEMENT': {
+      // Flip an existing deload week between pinned (runs in place) and on-demand (insertable).
+      const week = state.weeks[action.weekIndex];
+      if (!week || !week.isDeload) return state;
+      const weeks = state.weeks.map((w, i) =>
+        i === action.weekIndex ? { ...w, deloadPlacement: action.placement } : w,
       );
       return { ...state, weeks, isDirty: true };
     }
@@ -630,6 +648,8 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
               sessions: baseSessions,
               isDeload: true,
               label: w.label || 'Deload',
+              deloadPresetId: action.presetId ?? undefined,
+              deloadPlacement: action.placement ?? w.deloadPlacement ?? 'pinned',
             }
           : w,
       );
@@ -1389,6 +1409,8 @@ export function useMuscleBuilderState(
             sessions: w.sessions,
             label: w.label,
             isDeload: w.isDeload,
+            deloadPresetId: w.deloadPresetId,
+            deloadPlacement: w.deloadPlacement,
           }));
         } else if ('slots' in obj) {
           // v2: single-week object format

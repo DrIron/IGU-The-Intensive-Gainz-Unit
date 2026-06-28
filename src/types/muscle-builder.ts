@@ -211,6 +211,10 @@ export interface WeekData {
   sessions?: SessionData[];  // Optional for backward compat; normalized on load via migrateSlotsToSessions
   label?: string;
   isDeload?: boolean;
+  deloadPresetId?: string;   // preset applied to this deload week (carried to plan_weeks.deload_preset_id)
+  // Deload v2 (docs/DELOAD_V2.md). Only meaningful when isDeload. 'pinned' runs in place at this week
+  // (default); 'on_demand' excludes the week from the running sequence and makes it insertable.
+  deloadPlacement?: 'pinned' | 'on_demand';
 }
 
 // Default names shown as the session header inside DayColumn (140px at
