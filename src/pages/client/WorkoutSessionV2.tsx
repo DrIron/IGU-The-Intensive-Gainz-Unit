@@ -86,6 +86,7 @@ import {
   restRepeatBranch,
   restPauseMaxRounds,
   restPauseRoundKey,
+  restPauseRoundNumbers,
   restPauseBadgeLabel,
 } from "@/lib/setInstructions";
 import { epley1RM } from "@/lib/oneRepMax";
@@ -594,20 +595,12 @@ function SetRow({
 
   const visibleInputs = inputColumns.filter((c) => c.visible !== false);
 
-  // Rest-pause repeat rounds to show (round 1 = the main set). Capped => fixed list; open-ended
-  // => the filled rounds plus one empty so the client keeps adding until they stop. Reps live in
-  // performed_json under restPauseRoundKey(n) — no extra log rows (keying stays set_index-based).
-  const restPauseRounds: number[] = (() => {
-    if (!restPause) return [];
-    if (restPause.maxRounds != null) return Array.from({ length: restPause.maxRounds }, (_, k) => k + 2);
-    let highest = 1;
-    for (const k of Object.keys(log.performed_extra)) {
-      const m = /^rp_round_(\d+)$/.exec(k);
-      const v = log.performed_extra[k];
-      if (m && v != null && v !== "") highest = Math.max(highest, parseInt(m[1], 10));
-    }
-    return Array.from({ length: highest }, (_, k) => k + 2); // rounds 2..(highest+1)
-  })();
+  // Rest-pause repeat rounds (round 1 = the main set). Generated LAZILY — only once the main set
+  // is logged — and always bounded (restPauseRoundNumbers clamps). Reps live in performed_json
+  // under restPauseRoundKey(n); no extra log rows (keying stays set_index-based).
+  const mainSetLogged = log.performed_reps != null || log.completed;
+  const restPauseRounds: number[] =
+    restPause && mainSetLogged ? restPauseRoundNumbers(restPause.maxRounds, log.performed_extra) : [];
 
   // Current logged value for an input column.
   const inputValue = (col: ColumnConfig): string | number => {
@@ -941,10 +934,10 @@ function SetRow({
 
       {/* Rest & Repeat rounds — appear after the main effort is logged. Same weight target,
           reps to failure; each round's reps persist in performed_json (no extra log rows). */}
-      {restPause && restPauseRounds.length > 0 && (log.performed_reps != null || log.completed) && (
+      {restPauseRounds.length > 0 && (
         <div className="px-3 py-2 border-t bg-amber-500/5">
           <p className="text-[10px] font-medium text-amber-700 dark:text-amber-400 mb-1.5">
-            Rest-pause · {restPause.restSeconds}s rest · same weight, reps to failure
+            Rest-pause · {restPause?.restSeconds ?? 0}s rest · same weight, reps to failure
           </p>
           <div className="flex flex-wrap gap-2">
             {restPauseRounds.map((n) => (

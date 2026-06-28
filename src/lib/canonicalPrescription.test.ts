@@ -96,3 +96,30 @@ describe("buildActivityPrescriptionSnapshot", () => {
     expect(snap.sets_json[0]).toMatchObject({ time_seconds: 1200, distance_meters: 5000, pace: "5:30/km" });
   });
 });
+
+describe("session build with a rest_repeat set — synchronous + bounded (load-hang regression)", () => {
+  // Mirrors the resolver's per-set build: slotFromPrescriptionJson(pj) -> buildStrengthPrescriptionSnapshot.
+  // Rest & Repeat must NOT generate rounds at build time, and the build must return bounded + sync.
+  const pjWith = (branch: Record<string, unknown>) => ({
+    sets: 1,
+    repMin: 6,
+    repMax: 8,
+    rir: 1,
+    setsDetail: [{ set_number: 1, rep_range_min: 6, rep_range_max: 8, rir: 1, branches: [branch] }],
+  });
+
+  it("capped rest_repeat builds a 1-set snapshot, branch preserved verbatim, no round expansion", () => {
+    const pj = pjWith({ type: "rest_repeat", rest_seconds: 20, to_failure: true, max_rounds: 2 });
+    const snap = buildStrengthPrescriptionSnapshot(slotFromPrescriptionJson(pj), null);
+    expect(snap.set_count).toBe(1); // the build does NOT inflate sets with repeat rounds
+    expect(snap.sets_json).toHaveLength(1);
+    expect((snap.sets_json[0] as { branches?: unknown[] }).branches).toHaveLength(1);
+  });
+
+  it("open-ended (to_failure, no cap) builds a 1-set snapshot — no unbounded array", () => {
+    const pj = pjWith({ type: "rest_repeat", rest_seconds: 15, to_failure: true });
+    const snap = buildStrengthPrescriptionSnapshot(slotFromPrescriptionJson(pj), null);
+    expect(snap.set_count).toBe(1);
+    expect(snap.sets_json).toHaveLength(1);
+  });
+});

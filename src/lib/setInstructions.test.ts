@@ -13,7 +13,9 @@ import {
   restRepeatBranch,
   restPauseMaxRounds,
   restPauseRoundKey,
+  restPauseRoundNumbers,
   restPauseBadgeLabel,
+  REST_PAUSE_MAX_ROUNDS,
 } from "./setInstructions";
 
 describe("roundToIncrement", () => {
@@ -136,6 +138,27 @@ describe("rest & repeat (rest-pause)", () => {
   it("badge label: with and without cap", () => {
     expect(restPauseBadgeLabel(capped)).toBe("rest-pause 20s · ×3");
     expect(restPauseBadgeLabel(openEnded)).toBe("rest-pause 15s");
+  });
+});
+
+describe("restPauseRoundNumbers — bounded + terminating (the load-hang fix)", () => {
+  it("capped: rounds 2..max_rounds (max_rounds = highest round incl. main)", () => {
+    expect(restPauseRoundNumbers(2, {})).toEqual([2]);
+    expect(restPauseRoundNumbers(3, {})).toEqual([2, 3]);
+    expect(restPauseRoundNumbers(1, {})).toEqual([]); // no repeats
+  });
+  it("open-ended: filled rounds + ONE empty", () => {
+    expect(restPauseRoundNumbers(null, {})).toEqual([2]);
+    expect(restPauseRoundNumbers(null, { rp_round_2: 8 })).toEqual([2, 3]);
+    expect(restPauseRoundNumbers(null, { rp_round_2: 8, rp_round_3: 6 })).toEqual([2, 3, 4]);
+    expect(restPauseRoundNumbers(null, { rp_round_2: "" })).toEqual([2]); // blank doesn't count
+  });
+  it("returns synchronously and is hard-clamped for garbage caps", () => {
+    const big = restPauseRoundNumbers(999999, {});
+    expect(big.length).toBeLessThanOrEqual(REST_PAUSE_MAX_ROUNDS + 1);
+    const hugeKey = restPauseRoundNumbers(null, { rp_round_999999999: 5 });
+    expect(hugeKey.length).toBeLessThanOrEqual(REST_PAUSE_MAX_ROUNDS + 1);
+    expect(restPauseRoundNumbers(NaN as unknown as number, {})).toEqual([]); // NaN cap -> nothing
   });
 });
 

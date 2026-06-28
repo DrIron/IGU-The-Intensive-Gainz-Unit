@@ -95,7 +95,8 @@ export function buildActivityPrescriptionSnapshot(slot: PrescribableSlot): Presc
   const at = slot.activityType;
   const isHiit = at === "hiit";
   const durationSec = slot.duration != null ? slot.duration * 60 : undefined;
-  const setCount = isHiit && slot.rounds && slot.rounds > 0 ? slot.rounds : 1;
+  // Clamp the round-derived count so malformed/huge `rounds` data can't build an unbounded array.
+  const setCount = isHiit && slot.rounds && slot.rounds > 0 ? Math.min(Math.floor(slot.rounds), 100) : 1;
   const baseSet: Record<string, unknown> = isHiit
     ? {
         ...(slot.workSeconds != null ? { time_seconds: slot.workSeconds } : {}),

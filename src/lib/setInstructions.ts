@@ -131,3 +131,38 @@ export function restPauseRoundKey(round: number): string {
 export function restPauseBadgeLabel(branch: RestRepeatBranch): string {
   return `rest-pause ${branch.rest_seconds}s` + (branch.max_rounds ? ` · ×${branch.max_rounds}` : "");
 }
+
+/** Hard ceiling on rest-pause repeat rounds — guards against bad/huge data driving generation. */
+export const REST_PAUSE_MAX_ROUNDS = 30;
+
+/**
+ * Repeat-round numbers to surface for a rest-pause set (round 1 = the main set). PURE, synchronous,
+ * and ALWAYS bounded — never generates rounds eagerly at session-build time; call it lazily, only
+ * once the main set is logged.
+ *   - capped (maxRounds = the highest round number incl. the main): rounds 2..maxRounds.
+ *   - open-ended (maxRounds null = to failure): the already-filled repeat rounds + ONE empty next
+ *     round, so the client keeps adding until they stop.
+ * Clamped to REST_PAUSE_MAX_ROUNDS so a malformed max_rounds or stray rp_round_<huge> key can't
+ * produce an unbounded array.
+ */
+export function restPauseRoundNumbers(
+  maxRounds: number | null,
+  performedExtra: Record<string, unknown> | null | undefined,
+): number[] {
+  const out: number[] = [];
+  if (maxRounds != null) {
+    const cap = Math.min(Math.floor(maxRounds), REST_PAUSE_MAX_ROUNDS + 1);
+    for (let n = 2; n <= cap; n++) out.push(n);
+    return out;
+  }
+  // Open-ended: highest filled repeat round + one empty.
+  let highest = 1;
+  for (const k of Object.keys(performedExtra ?? {})) {
+    const m = /^rp_round_(\d+)$/.exec(k);
+    const v = (performedExtra as Record<string, unknown>)[k];
+    if (m && v != null && v !== "") highest = Math.max(highest, parseInt(m[1], 10));
+  }
+  highest = Math.min(highest, REST_PAUSE_MAX_ROUNDS);
+  for (let n = 2; n <= highest + 1; n++) out.push(n);
+  return out;
+}
