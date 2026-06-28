@@ -269,7 +269,7 @@ export function canonicalDrilldownDays(schedule: CanonicalSchedule): CanonicalDr
       const dayIndex = (wk.runningIndex - 1) * 7 + d;
       const modules: CanonicalDrilldownModule[] = (entry?.modules ?? []).map((m, i) => ({
         id: m.id,
-        title: m.title,
+        title: canonicalSessionTitle(m),
         moduleType: m.module_type,
         sessionType: m.module_type,
         status: m.status || null,
