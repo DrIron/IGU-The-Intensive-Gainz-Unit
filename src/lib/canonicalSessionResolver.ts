@@ -16,6 +16,9 @@
 import { supabase } from "@/integrations/supabase/client";
 import { selectWithRetry } from "@/lib/selectWithRetry";
 import { applyDeloadPreset } from "@/components/coach/programs/muscle-builder/deloadPresets";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
+import type { BoardDeloadInsert } from "@/lib/boardDates";
+import { buildRunningSequence, type SequenceInsert } from "@/lib/deloadSequence";
 import type { ColumnConfig } from "@/types/workout-builder";
 import {
   buildStrengthPrescriptionSnapshot,
@@ -85,20 +88,25 @@ export interface ResolveCanonicalSessionParams {
 }
 
 /**
- * Active week for a date given the assignment start: week 1 = the start_date week.
- * Clamped to [1, weekCount]; dates before start_date clamp to week 1.
+ * Active RUNNING week for a date given the assignment start: week 1 = the start_date week.
+ * `weekCount` is the base running-week count (on-demand deload templates already excluded);
+ * each on-demand deload spliced into this client's sequence (Deload v2) adds one running week,
+ * so the clamp ceiling is weekCount + inserts.length. Clamped to [1, total]; dates before
+ * start_date clamp to week 1. With no inserts this is identical to the pre-Deload-v2 behavior.
  */
 export function resolveWeekIndexForDate(
   startDateIso: string,
   dateIso: string,
   weekCount: number,
+  inserts: BoardDeloadInsert[] = [],
 ): number {
   const start = new Date(startDateIso + "T00:00:00Z").getTime();
   const day = new Date(dateIso + "T00:00:00Z").getTime();
   const diffDays = Math.floor((day - start) / 86400000);
+  const total = weekCount + inserts.length;
   const wk = Math.floor(diffDays / 7) + 1;
   if (wk < 1) return 1;
-  if (weekCount > 0 && wk > weekCount) return weekCount;
+  if (total > 0 && wk > total) return total;
   return wk;
 }
 
@@ -148,7 +156,9 @@ export async function resolveCanonicalSession(
   // 3) Resolve the plan_session: direct by id, else by date -> week -> day's first session.
   let session: { id: string; plan_week_id: string; day_index: number; name: string | null; activity_type: string } | null = null;
   let weekIndex = 1;
-  let planWeekIsDeload: boolean | null = null; // the template week's own deload flag (display)
+  let planWeekIsDeload: boolean | null = null; // the active week's deload flag (template pinned, or inserted)
+  let insertedDeload = false; // Deload v2: the active week is an on-demand deload spliced for this client
+  let insertedPresetId: string | null = null; // the inserted deload's preset id (display only — content is authored)
 
   if (planSessionId) {
     const { data: s, error: sErr } = await retryRead(
@@ -171,14 +181,51 @@ export async function resolveCanonicalSession(
     planWeekIsDeload = wk?.is_deload ?? null;
   } else if (date) {
     const { data: weeks, error: wErr } = await retryRead(
-      () => supabase.from("plan_weeks").select("id, week_index, is_deload").eq("plan_id", plan.id).order("week_index"),
+      () =>
+        supabase
+          .from("plan_weeks")
+          .select("id, week_index, is_deload, deload_placement")
+          .eq("plan_id", plan.id)
+          .order("week_index"),
       "plan_weeks",
     );
     if (wErr) throw wErr;
     if (!weeks || weeks.length === 0) return null;
-    weekIndex = resolveWeekIndexForDate(assignment.start_date, date, weeks.length);
-    const week = weeks.find((w) => w.week_index === weekIndex) ?? weeks[0];
-    planWeekIsDeload = week.is_deload ?? null;
+
+    // Deload v2: splice this client's on-demand deload inserts into the running sequence and
+    // resolve the active week against the shifted timeline. Gated behind board_v2 — with the flag
+    // off (and no on-demand weeks authored) the sequence == base weeks in order → unchanged.
+    let inserts: SequenceInsert[] = [];
+    if (isBoardV2Enabled()) {
+      const { data: insRows } = await retryRead(
+        () =>
+          supabase
+            .from("client_plan_inserted_deloads")
+            .select("id, position_week_index, source_plan_week_id, preset_id")
+            .eq("assignment_id", assignmentId)
+            .order("position_week_index"),
+        "inserted_deloads",
+      );
+      inserts = (insRows ?? []).map((r) => ({
+        id: r.id,
+        position_week_index: r.position_week_index,
+        source_plan_week_id: r.source_plan_week_id,
+        preset_id: r.preset_id ?? null,
+      }));
+    }
+    const sequence = buildRunningSequence(weeks, inserts);
+    const baseCount = sequence.filter((s) => s.kind === "base").length;
+    weekIndex = resolveWeekIndexForDate(
+      assignment.start_date,
+      date,
+      baseCount,
+      inserts.map<BoardDeloadInsert>((i) => ({ position: i.position_week_index })),
+    );
+    const active = sequence[weekIndex - 1] ?? sequence[0];
+    planWeekIsDeload = active.isDeload;
+    insertedDeload = active.kind === "inserted";
+    insertedPresetId = active.presetId;
+
     const jsDow = new Date(date + "T00:00:00Z").getUTCDay(); // 0=Sun..6=Sat
     const dayIndex = jsDow === 0 ? 7 : jsDow; // plan day_index: 1=Mon..7=Sun
     const { data: sessions, error: sErr } = await retryRead(
@@ -186,7 +233,7 @@ export async function resolveCanonicalSession(
         supabase
           .from("plan_sessions")
           .select("id, plan_week_id, day_index, name, activity_type")
-          .eq("plan_week_id", week.id)
+          .eq("plan_week_id", active.contentPlanWeekId) // inserted deload → the source week's sessions
           .eq("day_index", dayIndex)
           .order("sort_order")
           .limit(1),
@@ -259,8 +306,10 @@ export async function resolveCanonicalSession(
   const deloadPresetId = overrideDeload
     ? ((weekOverride?.deload_preset_id as string | undefined) ?? null)
     : null;
-  // Effective deload for display = override is_deload (if set) else the template week's flag.
-  const effectiveIsDeload = overrideDeload || (planWeekIsDeload ?? false);
+  // Effective deload for display = override is_deload, OR an inserted on-demand deload (Deload v2),
+  // OR the active template week's own flag (pinned). Inserted/pinned content is authored-reduced so
+  // it is NOT re-reduced; only the override path re-applies the preset at read time (deloadPresetId).
+  const effectiveIsDeload = overrideDeload || insertedDeload || (planWeekIsDeload ?? false);
 
   // 6) Coach default column preset (same source ConvertToProgram uses for column_config).
   const { data: presetRow } = await retryRead(
@@ -419,7 +468,8 @@ export async function resolveCanonicalSession(
     title: effectiveName?.trim() || DEFAULT_SESSION_NAMES[effectiveActivityType] || "Session",
     activityType: effectiveActivityType,
     isDeload: effectiveIsDeload,
-    deloadPresetId,
+    // Display preset: override re-apply preset, else the inserted on-demand deload's snapshot.
+    deloadPresetId: deloadPresetId ?? insertedPresetId,
     exercises,
     existingLogs,
   };

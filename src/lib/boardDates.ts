@@ -10,10 +10,32 @@
 const WEEKDAY = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"] as const;
 const MONTH = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] as const;
 
+/**
+ * An on-demand deload (Deload v2) spliced into a client's running sequence, by its 1-based
+ * running-week position. A cell at week W is pushed out by 7 days for every insert at or before
+ * W. See docs/DELOAD_V2.md + deloadSequence.ts. Templates have no inserts (default []) → no shift.
+ */
+export interface BoardDeloadInsert {
+  position: number;
+}
+
+/** Weeks a board cell at `weekIndex` is shifted out by on-demand deloads at/before it. */
+function insertedWeekShift(weekIndex: number, inserts: BoardDeloadInsert[]): number {
+  let n = 0;
+  for (const i of inserts) if (i.position <= weekIndex) n++;
+  return n;
+}
+
 /** Real Date for a board cell (UTC). startDateIso = "YYYY-MM-DD". */
-export function boardDayDate(startDateIso: string, weekIndex: number, dayIndex: number): Date {
+export function boardDayDate(
+  startDateIso: string,
+  weekIndex: number,
+  dayIndex: number,
+  inserts: BoardDeloadInsert[] = [],
+): Date {
   const start = new Date(startDateIso + "T00:00:00Z");
-  const offsetDays = (Math.max(1, weekIndex) - 1) * 7 + (Math.max(1, dayIndex) - 1);
+  const week = Math.max(1, weekIndex);
+  const offsetDays = (week - 1 + insertedWeekShift(week, inserts)) * 7 + (Math.max(1, dayIndex) - 1);
   return new Date(start.getTime() + offsetDays * 86400000);
 }
 
@@ -23,8 +45,13 @@ export function formatBoardDay(date: Date): string {
 }
 
 /** Convenience: the compact dated label for a board cell. */
-export function boardDayLabel(startDateIso: string, weekIndex: number, dayIndex: number): string {
-  return formatBoardDay(boardDayDate(startDateIso, weekIndex, dayIndex));
+export function boardDayLabel(
+  startDateIso: string,
+  weekIndex: number,
+  dayIndex: number,
+  inserts: BoardDeloadInsert[] = [],
+): string {
+  return formatBoardDay(boardDayDate(startDateIso, weekIndex, dayIndex, inserts));
 }
 
 export type BoardContext = "template" | "client" | "team";

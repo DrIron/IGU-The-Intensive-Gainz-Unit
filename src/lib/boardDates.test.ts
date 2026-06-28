@@ -41,6 +41,25 @@ describe("formatBoardDay / boardDayLabel", () => {
   });
 });
 
+describe("boardDayDate — on-demand deload inserts shift the cell (Deload v2)", () => {
+  const start = "2026-06-01";
+  it("an insert at/before the week pushes the cell out by 7 days", () => {
+    // Week 2 day 1 = 2026-06-08 normally; an insert at position 2 (<= 2) shifts it +7 → 2026-06-15.
+    expect(boardDayDate(start, 2, 1, [{ position: 2 }]).getUTCDate()).toBe(15);
+  });
+  it("an insert after the week does not shift it", () => {
+    expect(boardDayDate(start, 1, 1, [{ position: 2 }]).getUTCDate()).toBe(1); // week 1 unaffected
+  });
+  it("stacks: two inserts at/before the week add 14 days", () => {
+    // Week 3 day 1 = 2026-06-15 normally; two inserts (pos 1 and 2, both <= 3) → +14 → 2026-06-29.
+    expect(boardDayDate(start, 3, 1, [{ position: 1 }, { position: 2 }]).getUTCDate()).toBe(29);
+  });
+  it("default (no inserts) is unchanged", () => {
+    expect(boardDayDate(start, 2, 1).getUTCDate()).toBe(8);
+    expect(boardDayLabel(start, 2, 1, [{ position: 2 }])).toMatch(/ 15 Jun$/);
+  });
+});
+
 describe("canUseCalendarMode / defaultBoardViewMode — default by context", () => {
   it("board v2 off → never calendar (template board unchanged)", () => {
     expect(canUseCalendarMode(false, "client", true)).toBe(false);
