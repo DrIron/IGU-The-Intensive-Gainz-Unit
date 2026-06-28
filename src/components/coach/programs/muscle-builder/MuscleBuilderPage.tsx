@@ -572,6 +572,19 @@ export function MuscleBuilderPage({
       dispatch({ type: 'SET_SLOT_DELTA_RULES', slotId, rules }),
     [dispatch],
   );
+  // Copy-progression paste: merge the copied W1 rules onto the chosen strength
+  // slots, clear their downstream overrides, and recompute — all in one dispatch.
+  const handlePasteDeltaRules = useCallback(
+    (sourceRules: import("./weeklyDeltaEngine").WeeklyDeltaRule[], targetSlotIds: string[]) => {
+      if (sourceRules.length === 0 || targetSlotIds.length === 0) return;
+      dispatch({ type: 'PASTE_DELTA_RULES_TO_SLOTS', sourceRules, targetSlotIds });
+      toast({
+        title: `Progression pasted to ${targetSlotIds.length} slot${targetSlotIds.length === 1 ? '' : 's'}`,
+        description: 'Downstream weeks recomputed. Manual edits on those slots were cleared.',
+      });
+    },
+    [dispatch, toast],
+  );
 
   // Phase 4 — for each slot in the current week, look up the W1 sibling's rule
   // targets so MuscleSlotCard can render the inheritance bar with the right
@@ -917,6 +930,7 @@ export function MuscleBuilderPage({
               weeks={state.weeks}
               planHasRules={planHasRules}
               onSetSlotDeltaRules={handleSetSlotDeltaRules}
+              onPasteDeltaRules={handlePasteDeltaRules}
             />
 
             {/* Phase 5 — Deload customisation dialog */}

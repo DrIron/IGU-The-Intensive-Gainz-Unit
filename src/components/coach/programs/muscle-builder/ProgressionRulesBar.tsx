@@ -25,12 +25,15 @@ interface ProgressionRulesBarProps {
   planHasRules: boolean;
   /** Persist a slot's rules (same callback the per-slot popover uses). */
   onSetSlotDeltaRules: (slotId: string, rules: WeeklyDeltaRule[]) => void;
+  /** Copy-progression paste: merge source rules onto targets, clear + recompute. */
+  onPasteDeltaRules: (sourceRules: WeeklyDeltaRule[], targetSlotIds: string[]) => void;
 }
 
 export const ProgressionRulesBar = memo(function ProgressionRulesBar({
   weeks,
   planHasRules,
   onSetSlotDeltaRules,
+  onPasteDeltaRules,
 }: ProgressionRulesBarProps) {
   const [open, setOpen] = useState(false);
 
@@ -95,6 +98,7 @@ export const ProgressionRulesBar = memo(function ProgressionRulesBar({
         onOpenChange={setOpen}
         weeks={weeks}
         onSetSlotDeltaRules={onSetSlotDeltaRules}
+        onPasteDeltaRules={onPasteDeltaRules}
       />
     </>
   );

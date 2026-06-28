@@ -15,7 +15,7 @@ import {
 import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType, WeekData, SessionData } from "@/types/muscle-builder";
 import { ACTIVITY_MAP, migrateSlotsToSessions } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
-import { resolveSlotForWeek, type WeeklyDeltaRule, type DeltaTarget } from "@/components/coach/programs/muscle-builder/weeklyDeltaEngine";
+import { resolveSlotForWeek, mergeDeltaRules, type WeeklyDeltaRule, type DeltaTarget } from "@/components/coach/programs/muscle-builder/weeklyDeltaEngine";
 import { findDeloadPreset } from "@/components/coach/programs/muscle-builder/deloadPresets";
 
 const DEFAULT_GLOBAL_CLIENT_INPUTS = ['performed_weight', 'performed_reps', 'performed_rpe'];
@@ -38,6 +38,7 @@ type Action =
   | { type: 'DUPLICATE_WEEK'; weekIndex: number }
   | { type: 'SET_SLOT_DELTA_RULES'; slotId: string; rules: WeeklyDeltaRule[] }
   | { type: 'RECOMPUTE_DOWNSTREAM_FROM_DELTAS'; slotId?: string }
+  | { type: 'PASTE_DELTA_RULES_TO_SLOTS'; sourceRules: WeeklyDeltaRule[]; targetSlotIds: string[] }
   | { type: 'MARK_FIELD_MANUAL_OVERRIDE'; slotId: string; field: DeltaTarget }
   | { type: 'CLEAR_FIELD_MANUAL_OVERRIDE'; slotId: string; field: DeltaTarget }
   | { type: 'SET_WEEK_LABEL'; weekIndex: number; label: string }
@@ -338,6 +339,73 @@ export function recomputeDownstreamWeeks(
   return { ...state, weeks: updatedWeeks, isDirty: true };
 }
 
+/**
+ * "Copy progression" paste: stamp `sourceRules` onto the W1 slots named by
+ * `targetSlotIds`, then fully re-derive their downstream weeks.
+ *
+ * Steps (one logical operation):
+ *  1. MERGE — on each W1 target slot, mergeDeltaRules(existing, sourceRules):
+ *     replace the target's rule(s) for every target the source touches; keep the
+ *     target's other rules. Preserves D12 (single-rule-per-target, no overlapping
+ *     windows) because the merge swaps a whole target rather than mixing windows.
+ *  2. CLEAR — wipe manualOverrides on every W2+ sibling of each pasted-to
+ *     lineage (matched by dayIndex/sortOrder). This is what makes the recompute
+ *     "full": even a downstream cell the coach hand-edited for a metric the paste
+ *     didn't touch recomputes. Intended per the feature spec.
+ *  3. RECOMPUTE — recomputeDownstreamWeeks re-derives W2..WN from the merged W1
+ *     rules. Non-target lineages keep their overrides (still respected).
+ *
+ * Pure function. Mirrors recomputeDownstreamWeeks so it can be unit-tested
+ * without the hook. `targetSlotIds` are expected to be W1 strength slot ids
+ * (the UI resolves/filters via progressionClipboard); the engine merge is inert
+ * on an empty source.
+ */
+export function pasteDeltaRulesToSlots(
+  state: MusclePlanState,
+  sourceRules: WeeklyDeltaRule[],
+  targetSlotIds: string[],
+): MusclePlanState {
+  if (sourceRules.length === 0 || targetSlotIds.length === 0) return state;
+  const w1 = state.weeks[0];
+  if (!w1) return state;
+
+  const targetIdSet = new Set(targetSlotIds);
+  // Lineage keys (dayIndex:sortOrder) of the W1 paste targets, so we can find
+  // their W2+ siblings to clear overrides on.
+  const lineageSet = new Set(
+    w1.slots
+      .filter((s) => targetIdSet.has(s.id))
+      .map((s) => `${s.dayIndex}:${s.sortOrder}`),
+  );
+  if (lineageSet.size === 0) return state;
+
+  const weeks = state.weeks.map((w, wi) => {
+    if (wi === 0) {
+      // W1 — merge the copied rules onto each pasted-to slot.
+      return {
+        ...w,
+        slots: w.slots.map((s) => {
+          if (!targetIdSet.has(s.id)) return s;
+          const merged = mergeDeltaRules(s.deltaRules ?? [], sourceRules);
+          return { ...s, deltaRules: merged.length > 0 ? merged : undefined };
+        }),
+      };
+    }
+    // W2+ — clear overrides on siblings of the pasted-to lineages so the
+    // recompute below re-derives every metric from the merged W1 rules.
+    return {
+      ...w,
+      slots: w.slots.map((s) =>
+        lineageSet.has(`${s.dayIndex}:${s.sortOrder}`)
+          ? { ...s, manualOverrides: undefined }
+          : s,
+      ),
+    };
+  });
+
+  return recomputeDownstreamWeeks({ ...state, weeks, isDirty: true });
+}
+
 function deepCloneWeek(week: WeekData): WeekData {
   // Regenerate session ids AND remap slot.sessionId to the new session ids
   // so cloned weeks don't share session identity with their source.
@@ -542,6 +610,13 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
       // Logic lives in recomputeDownstreamWeeks() because SET_SLOT_DELTA_RULES
       // also calls it on first-rule transition (B4 fix).
       return recomputeDownstreamWeeks(state, action.slotId);
+    }
+
+    case 'PASTE_DELTA_RULES_TO_SLOTS': {
+      // Copy-progression paste: merge source rules onto each target W1 slot,
+      // clear downstream overrides on those lineages, recompute. See
+      // pasteDeltaRulesToSlots for the full semantics.
+      return pasteDeltaRulesToSlots(state, action.sourceRules, action.targetSlotIds);
     }
 
     case 'REMOVE_WEEK': {
