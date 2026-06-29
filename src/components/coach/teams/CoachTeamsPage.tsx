@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -37,6 +38,7 @@ export const CoachTeamsPage = memo(function CoachTeamsPage({ coachUserId }: Coac
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const hasFetched = useRef(false);
   const { toast } = useToast();
+  const navigate = useNavigate();
 
   const loadTeams = useCallback(async () => {
     try {
@@ -125,10 +127,12 @@ export const CoachTeamsPage = memo(function CoachTeamsPage({ coachUserId }: Coac
     hasFetched.current = true;
   }, [loadTeams]);
 
-  const handleTeamClick = useCallback((teamId: string) => {
-    setSelectedTeamId(teamId);
-    setView("detail");
-  }, []);
+  // Teams T3: row click deep-links to the standalone team detail route (mirrors
+  // /coach/clients/:id) instead of the in-page master/detail swap.
+  const handleTeamClick = useCallback(
+    (teamId: string) => navigate(`/coach/teams/${teamId}`),
+    [navigate],
+  );
 
   const handleBackToList = useCallback(() => {
     setSelectedTeamId(null);
