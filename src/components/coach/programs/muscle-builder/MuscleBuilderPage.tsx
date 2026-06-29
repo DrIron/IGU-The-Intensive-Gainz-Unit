@@ -49,8 +49,10 @@ import { ConvertToProgram } from "./ConvertToProgram";
 import { SaveStatusBadge, type SaveState } from "./SaveStatusBadge";
 import { ClientEditorProvider } from "./ClientEditorContext";
 import { isBoardV2Enabled } from "@/lib/featureFlags";
+import { PushTemplateDialog } from "@/components/coach/programs/PushTemplateDialog";
+import { fetchTemplateAssignees, type TemplateAssignees } from "@/lib/templatePush";
 import { canUseCalendarMode, defaultBoardViewMode } from "@/lib/boardDates";
-import { CalendarDays, Rows3, Users, Snowflake } from "lucide-react";
+import { CalendarDays, Rows3, Users, Snowflake, Share2 } from "lucide-react";
 import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import { DeloadDialog, type ApplyDeloadParams } from "./DeloadDialog";
 import { ProgressionRulesBar } from "./ProgressionRulesBar";
@@ -90,11 +92,26 @@ export function MuscleBuilderPage({
   teamId,
   startDate,
 }: MuscleBuilderPageProps) {
+  // S4 selective sync-push: after a manual template save (board_v2), prompt to push
+  // to the clients/teams following this template. Defined before the hook so it can
+  // be the hook's onTemplateSaved callback.
+  const [pushDialog, setPushDialog] = useState<{ templatePlanId: string; assignees: TemplateAssignees } | null>(null);
+  const handleTemplateSaved = useCallback(async (templatePlanId: string) => {
+    try {
+      const assignees = await fetchTemplateAssignees(templatePlanId);
+      if (assignees.clients.length + assignees.teams.length > 0) {
+        setPushDialog({ templatePlanId, assignees });
+      }
+    } catch {
+      // Push is optional — never let it block/disrupt the save.
+    }
+  }, []);
+
   const { state, dispatch, save, saveAsPreset, canUndo, canRedo, isClientMode, overriddenIds, resetElement } =
     useMuscleBuilderState(
       coachUserId,
       existingTemplateId,
-      assignmentId ? { assignmentId } : teamId ? { teamId } : undefined,
+      assignmentId ? { assignmentId } : teamId ? { teamId } : { onTemplateSaved: handleTemplateSaved },
     );
   // Board v2 (flag-gated): context skin + Calendar/Weeks toggle + inline session expansion.
   const boardV2 = isBoardV2Enabled();
@@ -112,6 +129,31 @@ export function MuscleBuilderPage({
   const { volumeEntries, summary, frequencyMatrix, placementCounts, consecutiveDayWarnings } =
     useMusclePlanVolume(currentWeekSlots);
   const { toast } = useToast();
+
+  // S4: manual "Push to assignees" entry point — resolve the canonical template
+  // plan id from the muscle template, then open the push dialog (even with zero
+  // assignees, so the coach gets a clear empty state). Reachable any time, not
+  // just right after a save.
+  const handleOpenPush = useCallback(async () => {
+    if (!state.templateId) return;
+    const { data: planRow } = await supabase
+      .from("plan")
+      .select("id")
+      .eq("source_muscle_template_id", state.templateId)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (!planRow?.id) {
+      toast({ title: "Save first", description: "Save this program once, then push to assignees." });
+      return;
+    }
+    try {
+      const assignees = await fetchTemplateAssignees(planRow.id);
+      setPushDialog({ templatePlanId: planRow.id, assignees });
+    } catch {
+      toast({ title: "Couldn't load assignees", variant: "destructive" });
+    }
+  }, [state.templateId, toast]);
 
   // Recently-used muscles in the current week, most-recent first, deduped.
   // Drives the "Recently used" row at the top of every session picker so a
@@ -838,6 +880,13 @@ export function MuscleBuilderPage({
                   <Bookmark className="h-4 w-4 mr-1" />
                   Save Preset
                 </Button>
+                {/* S4: push the template's latest version to its assignees (board_v2). */}
+                {boardV2 && ctx === "template" && state.templateId && (
+                  <Button variant="outline" size="sm" onClick={handleOpenPush} disabled={state.isSaving}>
+                    <Share2 className="h-4 w-4 mr-1" />
+                    Push to assignees
+                  </Button>
+                )}
               </>
             )}
             {/* Global Client Inputs Config */}
@@ -1167,6 +1216,16 @@ export function MuscleBuilderPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* S4: push-to-assignees prompt (post-save auto-open + manual entry). */}
+      {pushDialog && (
+        <PushTemplateDialog
+          open={!!pushDialog}
+          onOpenChange={(o) => { if (!o) setPushDialog(null); }}
+          templatePlanId={pushDialog.templatePlanId}
+          assignees={pushDialog.assignees}
+        />
+      )}
     </DragDropContext>
     </ClientEditorProvider>
   );

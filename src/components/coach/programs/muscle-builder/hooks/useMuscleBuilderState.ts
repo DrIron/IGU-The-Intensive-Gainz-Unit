@@ -1403,7 +1403,16 @@ async function mirrorPlanToCanonical(templateId: string, state: MusclePlanState)
 export function useMuscleBuilderState(
   coachUserId: string,
   existingTemplateId?: string,
-  opts?: { assignmentId?: string; teamId?: string },
+  opts?: {
+    assignmentId?: string;
+    teamId?: string;
+    /**
+     * S4: called after a successful manual TEMPLATE save (board_v2 only) with the
+     * resolved canonical template plan.id, so the page can offer "push to
+     * assignees". The canonical mirror is awaited first so the push reads fresh.
+     */
+    onTemplateSaved?: (templatePlanId: string) => void;
+  },
 ) {
   // P4 Editor v1: when assignmentId is set, the board is scoped to a 1:1 client's plan.
   //   - board_v2 OFF: load merges plan_* + client_plan_overrides, saves persist overrides.
@@ -1413,6 +1422,7 @@ export function useMuscleBuilderState(
   // When both undefined (default), every path below is the existing template-editing behavior.
   const assignmentId = opts?.assignmentId;
   const teamId = opts?.teamId;
+  const onTemplateSaved = opts?.onTemplateSaved;
   const boardV2 = isBoardV2Enabled();
   const [{ current: state, past, future }, dispatch] = useReducer(undoableReducer, {
     current: initialState,
@@ -1640,7 +1650,21 @@ export function useMuscleBuilderState(
         if (error) throw error;
         dispatch({ type: 'MARK_SAVED', templateId: state.templateId });
         // Mirror into canonical plan* AFTER the authoritative slot_config write.
-        void mirrorPlanToCanonical(state.templateId, state);
+        if (boardV2 && onTemplateSaved) {
+          // S4: await the mirror so push_template_to_assignees reads the fresh
+          // template, then resolve its canonical plan id and prompt the coach.
+          await mirrorPlanToCanonical(state.templateId, state);
+          const { data: planRow } = await supabase
+            .from('plan')
+            .select('id')
+            .eq('source_muscle_template_id', state.templateId)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+          if (planRow?.id) onTemplateSaved(planRow.id);
+        } else {
+          void mirrorPlanToCanonical(state.templateId, state);
+        }
       } else {
         const { data, error } = await withTimeout(
           supabase
@@ -1668,7 +1692,7 @@ export function useMuscleBuilderState(
       dispatch({ type: 'SAVE_ERROR' });
       toast({ title: 'Error saving', description: sanitizeErrorForUser(error), variant: 'destructive' });
     }
-  }, [state, state.templateId, state.name, state.description, state.weeks, coachUserId, assignmentId, teamId, boardV2, toast]);
+  }, [state, state.templateId, state.name, state.description, state.weeks, coachUserId, assignmentId, teamId, boardV2, onTemplateSaved, toast]);
 
   // Save as preset
   const saveAsPreset = useCallback(async () => {
