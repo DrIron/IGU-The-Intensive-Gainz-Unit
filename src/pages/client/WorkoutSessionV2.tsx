@@ -18,6 +18,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
 import { selectWithRetry } from "@/lib/selectWithRetry";
+import { captureException } from "@/lib/errorLogging";
 import { Navigation } from "@/components/Navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -2774,15 +2775,34 @@ function WorkoutSessionV2Content() {
       // gap; this RPC is the structural fix. The RPC is idempotent on
       // re-completion and raises 42501 (not authorised) / 42704 (not found),
       // so its return payload isn't needed here.
+      // Resilience: the completion write is what was stranding finishes under
+      // prod pooler/auth slowness (set logs persist incrementally via
+      // saveProgress() above, but completed_at stayed NULL when this RPC timed
+      // out). Wrap it in the same labeled retry pattern as the loads so a
+      // transient blip retries instead of dropping the completion. Idempotent on
+      // re-completion, so retries are safe.
       const { error: completeErr } = skipLegacyCompletion
         ? { error: null }
-        : await supabase.rpc("complete_client_day_module", { p_module_id: module.id });
+        : await selectWithRetry(
+            () => supabase.rpc("complete_client_day_module", { p_module_id: module.id }),
+            3,
+            400,
+            { timeoutMs: 8000, label: "complete_client_day_module" },
+          );
 
       if (completeErr) {
         // 42501 = not authorised -> keep PR #117's "expired" UX (still
         // accurate: the set logs were already persisted by saveProgress()
         // above). Any other code (e.g. 42704 module not found) is a real error.
         if ((completeErr as { code?: string }).code === "42501") {
+          // Keep the "expired" UX, but capture it so we can measure how often a
+          // stale session (vs a transient blip the retry already absorbed) is the
+          // real cause of finishes not completing.
+          captureException(completeErr, {
+            source: "completeWorkout",
+            severity: "warning",
+            metadata: { moduleId: module.id, reason: "not_authorised_42501" },
+          });
           toast({
             title: "Couldn't mark complete",
             description:
@@ -2852,6 +2872,10 @@ function WorkoutSessionV2Content() {
       ).length;
       setSummary({ volumeKg, setsCompleted, setsSkipped, exerciseCount, prs, elapsedSeconds });
     } catch (error: any) {
+      // Surface finish failures in Sentry — this catch was swallowing the
+      // completion write failing (completed_at NULL despite logged sets) with no
+      // capture, so the prod bug was invisible.
+      captureException(error, { source: "completeWorkout", metadata: { moduleId: module.id } });
       toast({
         title: "Error completing workout",
         description: sanitizeErrorForUser(error),
