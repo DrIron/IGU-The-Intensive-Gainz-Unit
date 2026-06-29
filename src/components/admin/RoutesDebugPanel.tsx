@@ -59,15 +59,22 @@ export function RoutesDebugPanel({ defaultOpen = false, show = true }: RoutesDeb
 
     loadUserData();
 
-    // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    // Subscribe to auth changes. Never await a client call inside the callback:
+    // GoTrueClient awaits every listener before resolving initializePromise, so an
+    // in-callback query deadlocks cold-load init. Defer the query to a fresh task.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
-        setUserId(session.user.id);
-        const { data: rolesData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", session.user.id);
-        setRoles(rolesData?.map(r => r.role) || []);
+        const uid = session.user.id;
+        setUserId(uid);
+        setTimeout(() => {
+          void (async () => {
+            const { data: rolesData } = await supabase
+              .from("user_roles")
+              .select("role")
+              .eq("user_id", uid);
+            setRoles(rolesData?.map(r => r.role) || []);
+          })();
+        }, 0);
       } else {
         setUserId(null);
         setRoles([]);
