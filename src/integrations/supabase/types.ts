@@ -9091,6 +9091,10 @@ export type Database = {
           table_name: string
         }[]
       }
+      get_team_pulse: {
+        Args: { p_team_id: string }
+        Returns: Json
+      }
       get_unread_message_count: {
         Args: { p_client_id: string }
         Returns: number
@@ -9210,6 +9214,10 @@ export type Database = {
       }
       is_primary_coach_for_user: {
         Args: { p_client_uid: string; p_coach_uid: string }
+        Returns: boolean
+      }
+      is_team_coach_for_client: {
+        Args: { p_client: string; p_coach: string }
         Returns: boolean
       }
       join_team: {
