@@ -71,26 +71,18 @@ export function CoachClientsWorkspace({ coachUserId }: { coachUserId: string }) 
   const fetchClients = useCallback(async () => {
     try {
       setLoadingClients(true);
-      const { data: ownedTeams } = await supabase
-        .from("coach_teams").select("id").eq("coach_id", coachUserId);
-      const teamIds = (ownedTeams || []).map((t) => t.id);
-
-      const coachSubsQ = supabase
+      // My Clients = 1:1 clients only. Team-plan members (subscriptions with a
+      // `team_id`) live ONLY under My Teams -> team -> roster (IA fix). Keep this
+      // coach's direct 1:1 subscriptions; `team_id IS NULL` excludes team members.
+      const { data: coachSubs } = await supabase
         .from("subscriptions")
         .select("id, user_id, status, service_id, payment_failed_at")
-        .eq("coach_id", coachUserId);
-      const teamSubsQ = teamIds.length > 0
-        ? supabase
-            .from("subscriptions")
-            .select("id, user_id, status, service_id, payment_failed_at")
-            .in("team_id", teamIds)
-        : Promise.resolve({ data: [], error: null });
-
-      const [{ data: coachSubs }, { data: teamSubs }] = await Promise.all([coachSubsQ, teamSubsQ]);
+        .eq("coach_id", coachUserId)
+        .is("team_id", null);
 
       // Active subs only, one per user (the master is the active selector).
       const byUser = new Map<string, NonNullable<typeof coachSubs>[number]>();
-      for (const s of [...(coachSubs || []), ...(teamSubs || [])]) {
+      for (const s of coachSubs || []) {
         if (s.status === "active" && !byUser.has(s.user_id)) byUser.set(s.user_id, s);
       }
       const uniqueSubs = [...byUser.values()];

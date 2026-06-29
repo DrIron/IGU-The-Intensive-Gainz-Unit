@@ -133,18 +133,12 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
     try {
       setLoading(true);
 
-      // Get team IDs owned by this coach so we can include team-plan subscribers
-      // (team-plan subs set `team_id` and leave `coach_id` NULL).
-      const { data: ownedTeams } = await supabase
-        .from("coach_teams")
-        .select("id")
-        .eq("coach_id", coachUserId);
-      const teamIds = (ownedTeams || []).map(t => t.id);
-
-      // Subscriptions where this coach is the primary OR the client is in one of their teams.
-      // PostgREST doesn't support OR across two different columns cleanly with .or() and .in(),
-      // so we run both queries in parallel and merge.
-      const coachSubsQuery = supabase
+      // My Clients = 1:1 clients only. Team-plan members (subscriptions with a
+      // `team_id`) live ONLY under My Teams -> team -> roster, never here (IA
+      // fix). We keep this coach's direct 1:1 subscriptions and exclude anything
+      // tied to a team -- `team_id IS NULL` guards even the rare case of a direct
+      // sub that also carries a team_id.
+      const { data: coachSubs, error: coachSubsError } = await supabase
         .from("subscriptions")
         .select(`
           id,
@@ -155,38 +149,12 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           service_id,
           payment_failed_at
         `)
-        .eq("coach_id", coachUserId);
-
-      const teamSubsQuery = teamIds.length > 0
-        ? supabase
-            .from("subscriptions")
-            .select(`
-              id,
-              user_id,
-              status,
-              start_date,
-              next_billing_date,
-              service_id,
-              payment_failed_at
-            `)
-            .in("team_id", teamIds)
-        : Promise.resolve({ data: [], error: null });
-
-      const [{ data: coachSubs, error: coachSubsError }, { data: teamSubs, error: teamSubsError }] =
-        await Promise.all([coachSubsQuery, teamSubsQuery]);
+        .eq("coach_id", coachUserId)
+        .is("team_id", null);
 
       if (coachSubsError) throw coachSubsError;
-      if (teamSubsError) throw teamSubsError;
 
-      // Merge + dedupe by subscription id (in case a sub matches both paths).
-      const seen = new Set<string>();
-      const subscriptions: NonNullable<typeof coachSubs> = [];
-      for (const sub of [...(coachSubs || []), ...(teamSubs || [])]) {
-        if (!seen.has(sub.id)) {
-          seen.add(sub.id);
-          subscriptions.push(sub);
-        }
-      }
+      const subscriptions = coachSubs || [];
 
       if (subscriptions.length === 0) {
         setClients([]);
