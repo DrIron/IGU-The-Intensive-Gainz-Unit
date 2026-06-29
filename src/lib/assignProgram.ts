@@ -100,6 +100,35 @@ export interface AssignTeamProgramResult {
 }
 
 /**
+ * Resolve a program_templates.id to its canonical plan.id (the P1 mirror plan),
+ * mirroring how assign_plan_to_client resolves template -> plan internally:
+ *   program_templates.id  (= muscle_program_templates.converted_program_id)
+ *     -> muscle_program_templates.id
+ *     -> plan.source_muscle_template_id
+ * Two direct queries (CLAUDE.md bans nested PostgREST FK joins here). Returns the
+ * newest matching plan, or null when the program was never opened/saved in the
+ * Planning Board (no mirror plan yet).
+ */
+async function resolveCanonicalPlanIdForProgram(programTemplateId: string): Promise<string | null> {
+  const { data: mtps, error: mErr } = await supabase
+    .from("muscle_program_templates")
+    .select("id")
+    .eq("converted_program_id", programTemplateId);
+  if (mErr) throw mErr;
+  const mtpIds = (mtps ?? []).map((m) => m.id);
+  if (mtpIds.length === 0) return null;
+
+  const { data: plans, error: pErr } = await supabase
+    .from("plan")
+    .select("id")
+    .in("source_muscle_template_id", mtpIds)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (pErr) throw pErr;
+  return plans?.[0]?.id ?? null;
+}
+
+/**
  * Team fan-out via the atomic RPC (B7-N7). One locked server round-trip:
  * assigns the program to every active member, sets coach_teams.current_program_template_id,
  * and returns per-member status. Idempotent re-runs report skipped_existing.
@@ -117,6 +146,38 @@ export async function assignTeamProgram(params: {
     });
 
     if (error) throw error;
+
+    // S2 wiring (board_v2): also bind the team to ONE canonical shared CLONE so the
+    // team board ("Edit in Planning Board") becomes reachable and members follow the
+    // same editable plan. Dual-write alongside the legacy deep-copy during the soak;
+    // when board_v2 is off this is skipped entirely and behavior is unchanged.
+    // Best-effort: never fail the (authoritative) legacy assign if the program has
+    // no canonical plan yet, or the canonical bind errors.
+    if (isBoardV2Enabled()) {
+      try {
+        const planId = await resolveCanonicalPlanIdForProgram(params.programTemplateId);
+        if (!planId) {
+          console.warn(
+            "[assignTeamProgram] no canonical plan for program; skipping team clone-assign",
+            { teamId: params.teamId, programTemplateId: params.programTemplateId },
+          );
+        } else {
+          const { error: cloneErr } = await supabase.rpc("assign_team_plan", {
+            p_team_id: params.teamId,
+            p_plan_id: planId,
+            p_start_date: format(params.startDate, "yyyy-MM-dd"),
+            p_clone: true,
+          });
+          if (cloneErr) throw cloneErr;
+        }
+      } catch (cloneError: unknown) {
+        captureException(cloneError, {
+          source: "assign_team_plan_clone",
+          severity: "warning",
+          metadata: { teamId: params.teamId, programTemplateId: params.programTemplateId },
+        });
+      }
+    }
 
     return { success: true, data: data as AssignTeamProgramResult["data"] };
   } catch (error: unknown) {
