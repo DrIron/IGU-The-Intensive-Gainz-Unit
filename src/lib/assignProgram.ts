@@ -9,6 +9,7 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { captureException } from "@/lib/errorLogging";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { format } from "date-fns";
 
 export interface AssignProgramParams {
@@ -53,8 +54,13 @@ export async function assignProgramToClient(
     // straight from the legacy row and skips gracefully when no mirror plan exists.
     if (!teamId && result.client_program_id) {
       try {
+        // S1 own-your-copy: under board_v2, the canonical assignment follows a
+        // CLONE of the template plan (assignee owns their copy). Off (prod
+        // default) keeps the legacy shared-reference path — assignment.plan_id =
+        // the template's mirror plan. See docs/PROGRAM_ASSIGNMENT_SYNC.md §S1.
         const { error: mirrorError } = await supabase.rpc("assign_plan_to_client", {
           p_client_program_id: result.client_program_id,
+          p_clone: isBoardV2Enabled(),
         });
         if (mirrorError) throw mirrorError;
       } catch (mirrorError: unknown) {

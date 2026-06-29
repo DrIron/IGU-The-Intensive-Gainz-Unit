@@ -5850,6 +5850,7 @@ export type Database = {
           name: string
           owner_coach_id: string
           source_muscle_template_id: string | null
+          source_template_plan_id: string | null
           tags: string[]
           updated_at: string
           visibility: string
@@ -5864,6 +5865,7 @@ export type Database = {
           name: string
           owner_coach_id: string
           source_muscle_template_id?: string | null
+          source_template_plan_id?: string | null
           tags?: string[]
           updated_at?: string
           visibility?: string
@@ -5878,11 +5880,20 @@ export type Database = {
           name?: string
           owner_coach_id?: string
           source_muscle_template_id?: string | null
+          source_template_plan_id?: string | null
           tags?: string[]
           updated_at?: string
           visibility?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "plan_source_template_plan_id_fkey"
+            columns: ["source_template_plan_id"]
+            isOneToOne: false
+            referencedRelation: "plan"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       plan_sessions: {
         Row: {
@@ -8525,7 +8536,11 @@ export type Database = {
         Returns: Json
       }
       assign_plan_to_client: {
-        Args: { p_client_program_id: string; p_timezone?: string }
+        Args: {
+          p_client_program_id: string
+          p_clone?: boolean
+          p_timezone?: string
+        }
         Returns: Json
       }
       assign_program_to_client: {
@@ -8542,6 +8557,7 @@ export type Database = {
       }
       assign_team_plan: {
         Args: {
+          p_clone?: boolean
           p_plan_id: string
           p_start_date?: string
           p_team_id: string
@@ -8604,6 +8620,7 @@ export type Database = {
       }
       cleanup_expired_discount_applications: { Args: never; Returns: number }
       client_has_dietitian: { Args: { p_client_uid: string }; Returns: boolean }
+      clone_plan: { Args: { p_source_plan_id: string }; Returns: string }
       coach_assignment_would_block: {
         Args: { p_coach_user_id: string; p_service_id: string }
         Returns: boolean
