@@ -1168,3 +1168,33 @@ During the cascade of merging the Messages stack, I resolved conflicts on the #9
 2. **Email throttling rides on `email_notifications.context_id`.** Per-(recipient, thread) dedup, not per-(recipient) — otherwise a coach with 5 messaging clients cross-throttles. Fail open on dedup errors; prefer delivering.
 3. **Add a new section → update `SECTION_SLUGS` in `sections.ts` too.** The nav renders from that array; the switch in `ClientOverviewTabs.tsx` relies on exhaustive checks against the slug type.
 4. **`git status --short` before committing a merge.** Any `AA` / `UU` means conflict markers still live in the staged index. See #98 incident.
+
+---
+
+## 2026-06-29 — Mobile prod incident: auth cold-load deadlock + workout-finish silent-fail
+
+One mobile-webapp session surfaced two independent prod bugs. Reported symptoms: started a workout, logged sets (PRs recognised, rest timer survived backgrounding), but **couldn't finish/save the workout** — it never registered as complete; then on leaving and reopening the app, an **infinite loader → "failed to load dashboard."** Two separate root causes, both now fixed and live on prod.
+
+### Bug 1 — GoTrue cold-load auth deadlock (dashboard infinite loader)
+
+**Symptom:** cold-opening any authed route (worst on mobile Safari after a force-quit) hung for multiple seconds, often ending in "failed to load dashboard." Sentry showed `Roles query timeout` / `Subscription query timeout` / `Profile query timeout` from `Dashboard.tsx`.
+
+**Root cause:** `AuthGuard`'s `onAuthStateChange` callback was declared `async` and `await`ed `supabase.auth.getSession()` **inside** the callback. `GoTrueClient` awaits every `onAuthStateChange` listener before it resolves `initializePromise`, so an in-callback client call is a circular init deadlock (the same failure family documented under "Auth Session Persistence" + `client.ts` `INIT_TIMEOUT_MS`). The existing 8s `Promise.race` timeout was a band-aid — it bounded the hang at 8s rather than removing it, and the dashboard's downstream queries (which depend on the resolved session) then raced their own timeouts.
+
+**Fix** (`f184cbc`, merged to main as `a231f9c`): make every `onAuthStateChange` listener **synchronous** and defer the awaited work to a fresh task — `setTimeout(() => { void (async () => { … })(); }, 0)` — so the listener returns immediately and GoTrue init settles naturally. Applied to `AuthGuard.tsx` (INITIAL_SESSION-null re-check), `Auth.tsx` (SIGNED_IN redirect — keeps the 200ms persist delay before `handleRedirectAfterAuth`), `CoachPasswordSetup.tsx` (PASSWORD_RECOVERY), and `RoutesDebugPanel.tsx`. The 8s timeout stays inside the deferred path as defense-in-depth. The client `Dashboard.tsx` `loadUserData` separately got parallel `Promise.all` + `selectWithRetry` hardening (`b2a99ec`) so a single transient pooler stall no longer strands the load.
+
+**Verification:** byte-identical to the proven `wip/local-changes` (21363be) fix; 4 live authed cold-load cycles on the prod coach session all resolved <150ms with no spinner-hang; Sentry zero production errors in the 2h after deploy (the last `Roles query timeout` was 12:59 UTC on the **old** release `236f266`, pre-merge); Hasan force-quit the mobile webapp repeatedly and the dashboard loaded every time.
+
+**Rule carried forward (now in CLAUDE.md):** never `await` a Supabase/client call inside an `onAuthStateChange` listener — defer it. Any new auth guard that does so will reintroduce the cold-load deadlock.
+
+### Bug 2 — Client workout finish failing silently
+
+**Symptom:** client logs all sets (they save), but tapping Finish doesn't mark the session complete — `client_day_modules.completed_at` stays NULL with the sets intact. No error surfaced to Sentry, so the bug was invisible.
+
+**Root cause:** clients have **no RLS UPDATE path** on `client_day_modules` (the `client_day_modules_update` policy grants only admin OR owning coach), so completion is routed through the `complete_client_day_module` SECURITY DEFINER RPC (PR #131's structural fix; PR #117's rows-affected check first detected the gap). Under prod connection-pooler / auth slowness the RPC call **timed out**, and `completeWorkout`'s `catch` swallowed the error with **no `captureException`** — the completion write silently dropped while the set logs (persisted incrementally by `saveProgress()`) survived. That's why logs were intact but `completed_at` was NULL.
+
+**Fix** (`c4b6df7`, committed 2026-06-29 18:37 local, now live): wrap the RPC in `selectWithRetry` (3 attempts / 400ms backoff / 8s timeout, labeled) so a transient blip retries instead of dropping the completion (idempotent on re-completion, so retries are safe); add `captureException` to the catch so future finish failures are visible; add an explicit `42501` branch that keeps the accurate "your session may have expired -- please refresh and try again. Your set logs are saved." UX and captures a `warning` so we can measure how often a genuinely stale session (vs a transient blip the retry now absorbs) is the cause. The RPC itself was verified correct: auth gate passes the module's own client (`v_caller = v_client_id`), owning coach, admin, or service_role; idempotent on re-completion; raises `42704` (not found) / `42501` (not authorised); grants are `authenticated` / `service_role` / `postgres` only (no anon). So a legitimate client finish succeeds — the 42501 path only fires on a truly stale/expired session.
+
+**Note:** the incident ran on release `236f266` (built 14:31 local), which **predates** this fix — the one stranded session (`client_day_modules` id `fb0e578d…`, 11 logged sets) was manually rescued via the RPC. The fix shipped later the same day and is in the current prod build.
+
+**Rule carried forward:** any `catch` around a workout/nutrition write must `captureException` — a swallowed catch on a write-through-RPC path hides exactly this class of silent prod failure.

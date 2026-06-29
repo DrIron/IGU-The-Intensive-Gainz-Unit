@@ -528,6 +528,7 @@ Supabase `getSession()` can hang on page refresh due to a circular deadlock in G
 - Navigator lock bypass + `initializePromise` timeout + `setSession()` recovery in `client.ts`
 - Cache-first role checks (`useRoleCache.ts`)
 - **Any new auth guard calling `getSession()` MUST have a safety timeout** (see `AuthGuard.tsx` — 8s pattern)
+- **NEVER `await` a Supabase/client call inside an `onAuthStateChange` listener.** GoTrueClient awaits every listener before resolving `initializePromise`, so an in-callback `getSession()`/query is a circular cold-load deadlock (multi-second hang → "failed to load dashboard", worst on mobile cold-start). Make the callback synchronous and defer the work: `setTimeout(() => { void (async () => { … })(); }, 0)`. Fixed across `AuthGuard`/`Auth`/`CoachPasswordSetup`/`RoutesDebugPanel` 2026-06-29 (`f184cbc`); see `docs/history.md` § "2026-06-29 — Mobile prod incident".
 - `RoleProtectedRoute` uses raw `fetch()` to bypass the Supabase client entirely for role checks
 
 ### OnboardingGuard — dashboard paths pass through
