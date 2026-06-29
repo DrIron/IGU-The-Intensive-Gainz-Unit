@@ -2226,6 +2226,7 @@ export type Database = {
           coach_id: string
           cover_image_url: string | null
           created_at: string | null
+          current_program_plan_id: string | null
           current_program_template_id: string | null
           cycle_start_date: string | null
           cycle_weeks: number | null
@@ -2246,6 +2247,7 @@ export type Database = {
           coach_id: string
           cover_image_url?: string | null
           created_at?: string | null
+          current_program_plan_id?: string | null
           current_program_template_id?: string | null
           cycle_start_date?: string | null
           cycle_weeks?: number | null
@@ -2266,6 +2268,7 @@ export type Database = {
           coach_id?: string
           cover_image_url?: string | null
           created_at?: string | null
+          current_program_plan_id?: string | null
           current_program_template_id?: string | null
           cycle_start_date?: string | null
           cycle_weeks?: number | null
@@ -2283,6 +2286,13 @@ export type Database = {
           waitlist_enabled?: boolean | null
         }
         Relationships: [
+          {
+            foreignKeyName: "coach_teams_current_program_plan_id_fkey"
+            columns: ["current_program_plan_id"]
+            isOneToOne: false
+            referencedRelation: "plan"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "coach_teams_current_program_template_id_fkey"
             columns: ["current_program_template_id"]
@@ -8527,6 +8537,14 @@ export type Database = {
           p_subscription_id: string
           p_team_id?: string
           p_template_id: string
+        }
+        Returns: Json
+      }
+      assign_team_plan: {
+        Args: {
+          p_plan_id: string
+          p_start_date?: string
+          p_team_id: string
         }
         Returns: Json
       }
