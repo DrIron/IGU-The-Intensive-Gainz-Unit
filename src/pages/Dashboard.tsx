@@ -11,6 +11,7 @@ import { useAuthSession } from "@/hooks/useAuthSession";
 import { TIMEOUTS } from "@/lib/constants";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
+import { selectWithRetry } from "@/lib/selectWithRetry";
 import { Button } from "@/components/ui/button";
 import { AlertCircle } from "lucide-react";
 
@@ -125,81 +126,90 @@ function DashboardContent() {
       // After two failures we surface an error state with a Reload button
       // instead of leaving the layout stuck on its !profile skeleton forever
       // (Mubarak repro, Apr 26).
-      const fetchProfileOnce = async () => {
-        const profilePromise = supabase
-          .from("profiles_public")
-          .select("*")
-          .eq("id", userId)
-          .maybeSingle();
+      // Mitigation for the documented getSession/GoTrue stall (CLAUDE.md "Auth
+      // session persistence"): the profile / roles / subscription reads are
+      // INDEPENDENT, so run them in PARALLEL (one exposure window, not three
+      // sequential ones) and replace the old race-to-reject timeouts with
+      // selectWithRetry — a transient pooler/connection blip now RETRIES per
+      // attempt (each wrapped in withTimeout) instead of rejecting all three at
+      // once and failing the dashboard. Reads are idempotent, so retry is safe.
+      const ATTEMPTS = 3;
+      const BACKOFF_MS = 400;
 
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Profile query timeout')), TIMEOUTS.ROLES_QUERY)
-        );
-
-        return Promise.race([profilePromise, timeoutPromise]) as Promise<{
-          data: Profile | null;
-          error: { message: string } | null;
-        }>;
+      // Profile: selectWithRetry handles stalls; the zero-row case (JWT not yet
+      // attached -> RLS-self policy returns 0 rows, error null) still gets one
+      // extra delayed retry, preserving the Mubarak (Apr 26) fix.
+      const loadProfile = async (): Promise<{ data: Profile | null; error: { message: string } | null }> => {
+        const runProfile = () =>
+          supabase.from("profiles_public").select("*").eq("id", userId).maybeSingle();
+        let res = await selectWithRetry(runProfile, ATTEMPTS, BACKOFF_MS, {
+          timeoutMs: TIMEOUTS.ROLES_QUERY,
+          label: "Profile query",
+        });
+        if (!res.data && !res.error) {
+          await new Promise((r) => setTimeout(r, 1500));
+          res = await selectWithRetry(runProfile, ATTEMPTS, BACKOFF_MS, {
+            timeoutMs: TIMEOUTS.ROLES_QUERY,
+            label: "Profile query (retry)",
+          });
+        }
+        return res as { data: Profile | null; error: { message: string } | null };
       };
 
-      let profileData: Profile | null = null;
-      let profileError: { message: string } | null = null;
-      try {
-        const first = await fetchProfileOnce();
-        profileData = first.data;
-        profileError = first.error;
-        if (!profileData && !profileError) {
-          // Successful query but zero rows -- usually the JWT-not-yet-attached
-          // race against an RLS-self policy. Wait briefly then retry.
-          await new Promise(r => setTimeout(r, 1500));
-          const second = await fetchProfileOnce();
-          profileData = second.data;
-          profileError = second.error;
-        }
-      } catch (e) {
-        profileError = { message: e instanceof Error ? e.message : 'Profile query failed' };
-      }
+      const loadRoles = () =>
+        selectWithRetry(
+          () => supabase.from("user_roles").select("role").eq("user_id", userId),
+          ATTEMPTS,
+          BACKOFF_MS,
+          { timeoutMs: TIMEOUTS.ROLES_QUERY, label: "Roles query" },
+        ) as Promise<{ data: { role: string }[] | null; error: unknown }>;
 
-      if (profileData) {
-        setProfile(profileData);
+      const loadSubscription = () =>
+        selectWithRetry(
+          () =>
+            supabase
+              .from("subscriptions")
+              .select(`*, services (name, price_kwd, type)`)
+              .eq("user_id", userId)
+              .order("created_at", { ascending: false })
+              .limit(1)
+              .maybeSingle(),
+          ATTEMPTS,
+          BACKOFF_MS,
+          { timeoutMs: TIMEOUTS.ROLES_QUERY, label: "Subscription query" },
+        ) as Promise<{ data: Subscription | null; error: Error | null }>;
+
+      const [profileRes, rolesRes, subRes] = await Promise.all([
+        loadProfile(),
+        loadRoles(),
+        loadSubscription(),
+      ]);
+
+      // ---- Profile ----
+      if (profileRes.data) {
+        setProfile(profileRes.data);
         setProfileLoadFailed(false);
       } else {
         setProfileLoadFailed(true);
-        captureException(profileError ?? new Error('Profile load returned null after retry'), {
+        captureException(profileRes.error ?? new Error('Profile load returned null after retry'), {
           source: 'Dashboard.loadUserData.profile',
           severity: 'error',
-          metadata: { userId, hadError: !!profileError },
+          metadata: { userId, hadError: !!profileRes.error },
         });
       }
 
-      // Check roles with timeout. Falls back to cachedRoles on miss/timeout
-      // so a transient JWT race doesn't mis-route a coach/admin to /dashboard.
+      // ---- Roles ---- Falls back to cachedRoles on miss/timeout so a transient
+      // JWT race doesn't mis-route a coach/admin to /dashboard.
       let roles: string[] = cachedRoles || [];
-      try {
-        const rolesPromise = supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", userId);
-
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Roles query timeout')), TIMEOUTS.ROLES_QUERY)
-        );
-
-        const { data: rolesData } = await Promise.race([
-          rolesPromise,
-          timeoutPromise
-        ]) as { data: { role: string }[] | null };
-
-        if (rolesData && rolesData.length > 0) {
-          roles = rolesData.map(r => r.role);
-          setCachedRoles(roles, userId);
-        }
-      } catch (e) {
-        captureException(e, {
+      if (rolesRes.error) {
+        captureException(rolesRes.error, {
           source: 'Dashboard.loadUserData.roles',
           severity: 'warning',
           metadata: { userId, fellBackToCache: roles.length > 0 },
         });
+      } else if (rolesRes.data && rolesRes.data.length > 0) {
+        roles = rolesRes.data.map((r) => r.role);
+        setCachedRoles(roles, userId);
       }
 
       // Role-based redirects
@@ -232,32 +242,16 @@ function DashboardContent() {
         setUserRole(roles[0]);
       }
 
-      // Load subscription with timeout
-      try {
-        const subPromise = supabase
-          .from("subscriptions")
-          .select(`*, services (name, price_kwd, type)`)
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        const timeoutPromise = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error('Subscription query timeout')), TIMEOUTS.ROLES_QUERY)
-        );
-
-        const { data, error } = await Promise.race([
-          subPromise,
-          timeoutPromise
-        ]) as { data: Subscription | null; error: Error | null };
-
-        if (!error) setSubscription(data);
-      } catch (e) {
-        captureException(e, {
+      // ---- Subscription ---- (loaded in the parallel batch above). Member-role
+      // clients fall through to here; coach/admin already returned via redirect.
+      if (subRes.error) {
+        captureException(subRes.error, {
           source: 'Dashboard.loadUserData.subscription',
           severity: 'warning',
           metadata: { userId },
         });
+      } else {
+        setSubscription(subRes.data);
       }
     } catch (error: unknown) {
       if (import.meta.env.DEV) console.error("[Dashboard] Error loading data:", error);
