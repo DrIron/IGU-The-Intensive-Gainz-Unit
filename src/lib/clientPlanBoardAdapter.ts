@@ -474,3 +474,113 @@ export async function resetElementToTemplate(
 ): Promise<void> {
   await writeOverride(assignmentId, targetType, targetId, {}, false);
 }
+
+// ---------------------------------------------------------------------------
+// S2 (own-your-copy) — clone-direct save + team-clone load.
+// See docs/PROGRAM_ASSIGNMENT_SYNC.md §S2.
+// ---------------------------------------------------------------------------
+
+/**
+ * Save the board straight into an assignee-owned clone via save_plan_direct —
+ * NO client_plan_overrides. Used (board_v2) by both the client board (the
+ * client's own clone) and the team board (the team's shared clone). The payload
+ * is buildPlanPayload(state): board SessionData.id / MuscleSlotData.id carry the
+ * canonical plan_*.id, so the RPC upserts on the PK and preserves identity
+ * (exercise_set_logs stay linked).
+ */
+export async function savePlanDirect(planId: string, payload: unknown): Promise<void> {
+  const { error } = await supabase.rpc("save_plan_direct", {
+    p_plan_id: planId,
+    p_payload: payload as never,
+  });
+  if (error) throw error;
+}
+
+export interface TeamPlanLoad {
+  planId: string;
+  teamId: string;
+  name: string;
+  description: string;
+  weeks: WeekData[];
+}
+
+/**
+ * Load a team's shared canonical plan (coach_teams.current_program_plan_id) into
+ * board state. Mirrors loadPlanForAssignment MINUS the override merge — team
+ * clones carry no per-member overrides by construction (the clone IS the
+ * divergence). Returns null when the team has no canonical plan yet.
+ */
+export async function loadPlanForTeam(teamId: string): Promise<TeamPlanLoad | null> {
+  const { data: team, error: tErr } = await supabase
+    .from("coach_teams")
+    .select("id, current_program_plan_id")
+    .eq("id", teamId)
+    .maybeSingle();
+  if (tErr) throw tErr;
+  if (!team?.current_program_plan_id) return null;
+
+  const { data: plan, error: pErr } = await supabase
+    .from("plan")
+    .select("id, name, description")
+    .eq("id", team.current_program_plan_id)
+    .maybeSingle();
+  if (pErr) throw pErr;
+  if (!plan) return null;
+
+  const [{ data: weekRows, error: wErr }, { data: sessionRows, error: sErr }, { data: slotRows, error: slErr }] =
+    await Promise.all([
+      supabase.from("plan_weeks").select("id, week_index, label, is_deload, deload_preset_id, deload_placement").eq("plan_id", plan.id).order("week_index"),
+      supabase.from("plan_sessions").select("id, plan_week_id, day_index, name, activity_type, sort_order").eq("plan_id", plan.id),
+      supabase.from("plan_slots").select("id, plan_session_id, exercise_id, sort_order, prescription_json, instructions").eq("plan_id", plan.id),
+    ]);
+  if (wErr) throw wErr;
+  if (sErr) throw sErr;
+  if (slErr) throw slErr;
+
+  const sessionDay = new Map<string, number>();
+  for (const s of sessionRows ?? []) sessionDay.set(s.id, s.day_index);
+
+  const weeks: WeekData[] = (weekRows ?? []).map((w) => {
+    const sessions: SessionData[] = (sessionRows ?? [])
+      .filter((s) => s.plan_week_id === w.id)
+      .map((s) => ({
+        id: s.id,
+        dayIndex: s.day_index,
+        name: s.name ?? undefined,
+        type: s.activity_type as ActivityType,
+        sortOrder: s.sort_order ?? 0,
+      }));
+    const keptSessionIds = new Set(sessions.map((s) => s.id));
+    const slots: MuscleSlotData[] = (slotRows ?? [])
+      .filter((sl) => keptSessionIds.has(sl.plan_session_id))
+      .map((sl) =>
+        slotRowToMuscleSlot(
+          {
+            id: sl.id,
+            exercise_id: sl.exercise_id ?? null,
+            sort_order: sl.sort_order ?? 0,
+            instructions: sl.instructions ?? null,
+            plan_session_id: sl.plan_session_id,
+          },
+          (sl.prescription_json as Record<string, unknown>) ?? {},
+          sessionDay.get(sl.plan_session_id) ?? 1,
+        ),
+      );
+    return {
+      slots,
+      sessions,
+      label: w.label ?? undefined,
+      isDeload: w.is_deload ?? false,
+      deloadPresetId: w.deload_preset_id ?? undefined,
+      deloadPlacement: (w.deload_placement as "pinned" | "on_demand" | null) ?? undefined,
+    };
+  });
+
+  return {
+    planId: plan.id,
+    teamId,
+    name: plan.name,
+    description: plan.description ?? "",
+    weeks: weeks.length > 0 ? weeks : [{ slots: [], sessions: [] }],
+  };
+}

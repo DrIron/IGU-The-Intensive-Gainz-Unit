@@ -5,11 +5,13 @@ import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users, BookOpen, Calendar, Loader2, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Users, BookOpen, Calendar, Loader2, Pencil, Trash2, SlidersHorizontal } from "lucide-react";
 import { format } from "date-fns";
 import { AssignTeamProgramDialog } from "./AssignTeamProgramDialog";
 import { CreateTeamDialog } from "./CreateTeamDialog";
 import { ProgramCalendarBuilder } from "../programs/ProgramCalendarBuilder";
+import { MuscleBuilderPage } from "../programs/muscle-builder/MuscleBuilderPage";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
 
 interface TeamDetailViewProps {
   team: {
@@ -48,9 +50,29 @@ export const TeamDetailView = memo(function TeamDetailView({
   const [showAssignDialog, setShowAssignDialog] = useState(false);
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
+  const [showBoard, setShowBoard] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  // S2/T2: canonical shared team plan id (board_v2). Gates "Edit in Planning Board".
+  const [teamPlanId, setTeamPlanId] = useState<string | null>(null);
   const hasFetched = useRef(false);
   const { toast } = useToast();
+  const boardV2 = isBoardV2Enabled();
+
+  // Resolve the team's canonical plan id (board_v2 only) so we know whether the
+  // team has a shared clone to edit in the Planning Board.
+  useEffect(() => {
+    if (!boardV2) return;
+    let cancelled = false;
+    supabase
+      .from("coach_teams")
+      .select("current_program_plan_id")
+      .eq("id", team.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setTeamPlanId(data?.current_program_plan_id ?? null);
+      });
+    return () => { cancelled = true; };
+  }, [boardV2, team.id]);
 
   const loadMembers = useCallback(async () => {
     try {
@@ -151,6 +173,20 @@ export const TeamDetailView = memo(function TeamDetailView({
     setShowCalendar(false);
   }, []);
 
+  // S2/T2 — edit the team's shared clone in the Planning Board (board_v2). Edits write the
+  // team plan directly via save_plan_direct; every member inherits (no per-member overrides).
+  if (showBoard && boardV2 && teamPlanId) {
+    return (
+      <MuscleBuilderPage
+        coachUserId={coachUserId}
+        boardContext="team"
+        teamId={team.id}
+        teamName={team.name}
+        onBack={() => setShowBoard(false)}
+      />
+    );
+  }
+
   // Show calendar view for current program
   if (showCalendar && team.current_program_template_id) {
     return (
@@ -229,6 +265,14 @@ export const TeamDetailView = memo(function TeamDetailView({
             <div className="flex items-center justify-between">
               <span className="font-medium">{team.programName}</span>
               <div className="flex items-center gap-2">
+                {/* S2/T2: edit the shared team clone in the Planning Board (board_v2, once the
+                    team has a canonical plan). Edits apply to all members. */}
+                {boardV2 && teamPlanId && (
+                  <Button variant="outline" size="sm" onClick={() => setShowBoard(true)}>
+                    <SlidersHorizontal className="h-4 w-4 mr-2" />
+                    Edit in Planning Board
+                  </Button>
+                )}
                 <Button
                   variant="outline"
                   size="sm"

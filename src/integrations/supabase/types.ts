@@ -9315,6 +9315,10 @@ export type Database = {
         }
         Returns: Json
       }
+      save_plan_direct: {
+        Args: { p_payload: Json; p_plan_id: string }
+        Returns: Json
+      }
       save_plan_from_builder: {
         Args: { p_payload: Json; p_template_id: string }
         Returns: Json

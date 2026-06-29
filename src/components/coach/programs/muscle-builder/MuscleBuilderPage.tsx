@@ -55,6 +55,10 @@ import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import { DeloadDialog, type ApplyDeloadParams } from "./DeloadDialog";
 import { ProgressionRulesBar } from "./ProgressionRulesBar";
 
+// Stable empty set so the ClientEditorProvider value doesn't churn when override
+// badges are disabled (board_v2 client/team direct-edit mode).
+const EMPTY_ID_SET: Set<string> = new Set<string>();
+
 interface MuscleBuilderPageProps {
   coachUserId: string;
   existingTemplateId?: string;
@@ -68,6 +72,9 @@ interface MuscleBuilderPageProps {
   // template). teamName + startDate feed the team banner / Calendar-mode dated labels.
   boardContext?: "template" | "client" | "team";
   teamName?: string;
+  // S2/T2: team board — edits the team's shared clone directly (board_v2). Set with
+  // boardContext="team". Mutually exclusive with assignmentId.
+  teamId?: string;
   startDate?: string; // assignment start_date (YYYY-MM-DD) — required for Calendar mode dates
 }
 
@@ -80,13 +87,21 @@ export function MuscleBuilderPage({
   clientName,
   boardContext,
   teamName,
+  teamId,
   startDate,
 }: MuscleBuilderPageProps) {
   const { state, dispatch, save, saveAsPreset, canUndo, canRedo, isClientMode, overriddenIds, resetElement } =
-    useMuscleBuilderState(coachUserId, existingTemplateId, assignmentId ? { assignmentId } : undefined);
+    useMuscleBuilderState(
+      coachUserId,
+      existingTemplateId,
+      assignmentId ? { assignmentId } : teamId ? { teamId } : undefined,
+    );
   // Board v2 (flag-gated): context skin + Calendar/Weeks toggle + inline session expansion.
   const boardV2 = isBoardV2Enabled();
   const ctx: "template" | "client" | "team" = boardContext ?? (assignmentId ? "client" : "template");
+  // S2: under board_v2 the client board edits the client's own clone directly (no overrides), so
+  // the override "Customized vs template" badges/reset are no longer meaningful — disable them.
+  const overrideBadgesActive = isClientMode && !boardV2;
   // Instances default to a dated Calendar view (board v2); templates are always Program-weeks.
   const canCalendar = canUseCalendarMode(boardV2, ctx, !!startDate);
   const [viewMode, setViewMode] = useState<"weeks" | "calendar">(
@@ -686,18 +701,19 @@ export function MuscleBuilderPage({
   return (
     <ClientEditorProvider
       value={{
-        clientMode: isClientMode,
-        overriddenSlotIds: overriddenIds.slots,
-        overriddenSessionIds: overriddenIds.sessions,
+        // S2: override badges/reset only under the legacy override path (board_v2 off).
+        clientMode: overrideBadgesActive,
+        overriddenSlotIds: overrideBadgesActive ? overriddenIds.slots : EMPTY_ID_SET,
+        overriddenSessionIds: overrideBadgesActive ? overriddenIds.sessions : EMPTY_ID_SET,
         onResetSlot: (slotId) => resetElement("slot", slotId),
         onResetSession: (sessionId) => resetElement("session", sessionId),
       }}
     >
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="space-y-4">
-        {/* P4 Editor v1 — client (override) mode banner. Edits save as per-client overrides;
-            the shared template is untouched. */}
-        {ctx === "client" && (
+        {/* P4 Editor v1 — client (override) mode banner. Only the legacy override path
+            (board_v2 OFF): edits save as per-client overrides, the shared template is untouched. */}
+        {ctx === "client" && !boardV2 && (
           <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
             <span className="text-amber-700 dark:text-amber-400">
               Editing <strong>{clientName ?? "this client"}</strong>'s program — changes save as
@@ -710,8 +726,18 @@ export function MuscleBuilderPage({
             </span>
           </div>
         )}
-        {/* Board v2 — team skin. Visual/prop only; team plans + assignments come with the Teams
-            track, so this banner isn't exercised yet. TODO(teams): wire team plan editing. */}
+        {/* S2 own-your-copy (board_v2) — the client edits their OWN clone directly (no overrides),
+            so the amber "customizations vs template" framing is gone; a neutral note remains. */}
+        {ctx === "client" && boardV2 && (
+          <div className="flex items-center gap-2 rounded-md border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm text-sky-700 dark:text-sky-400">
+            <span>
+              Editing <strong>{clientName ?? "this client"}</strong>'s program — changes apply to this
+              client's own copy only.
+            </span>
+          </div>
+        )}
+        {/* Board v2 — team skin (S2/T2). The team board edits the team's SHARED clone directly;
+            every member inherits. No per-member customizations. */}
         {ctx === "team" && (
           <div className="flex items-center gap-2 rounded-md border border-blue-500/40 bg-blue-500/10 px-3 py-2 text-sm text-blue-700 dark:text-blue-400">
             <Users className="h-4 w-4 shrink-0" />

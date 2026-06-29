@@ -10,8 +10,11 @@ import {
   persistAssignmentOverrides,
   computeOverriddenIds,
   resetElementToTemplate,
+  savePlanDirect,
+  loadPlanForTeam,
   type BoardPlanBase,
 } from "@/lib/clientPlanBoardAdapter";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
 import type { MusclePlanState, MuscleSlotData, SlotExercise, ActivityType, WeekData, SessionData } from "@/types/muscle-builder";
 import { ACTIVITY_MAP, migrateSlotsToSessions } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
@@ -1400,12 +1403,17 @@ async function mirrorPlanToCanonical(templateId: string, state: MusclePlanState)
 export function useMuscleBuilderState(
   coachUserId: string,
   existingTemplateId?: string,
-  opts?: { assignmentId?: string },
+  opts?: { assignmentId?: string; teamId?: string },
 ) {
-  // P4 Editor v1: when assignmentId is set, the board is scoped to a 1:1 client's plan —
-  // load merges plan_* + client_plan_overrides, and saves persist as overrides (not slot_config).
-  // When undefined (the default), every path below is the existing template-editing behavior.
+  // P4 Editor v1: when assignmentId is set, the board is scoped to a 1:1 client's plan.
+  //   - board_v2 OFF: load merges plan_* + client_plan_overrides, saves persist overrides.
+  //   - board_v2 ON (S2 own-your-copy): the assignment points at the client's CLONE, and saves
+  //     write the clone directly via save_plan_direct — no overrides.
+  // When teamId is set (board_v2 team board, S2/T2): edit the team's shared clone directly.
+  // When both undefined (default), every path below is the existing template-editing behavior.
   const assignmentId = opts?.assignmentId;
+  const teamId = opts?.teamId;
+  const boardV2 = isBoardV2Enabled();
   const [{ current: state, past, future }, dispatch] = useReducer(undoableReducer, {
     current: initialState,
     past: [],
@@ -1415,6 +1423,8 @@ export function useMuscleBuilderState(
   const hasFetched = useRef(false);
   // Template (base, pre-override) snapshot for client mode — drives the override diff + badges.
   const baseRef = useRef<BoardPlanBase | null>(null);
+  // The clone's plan.id (client or team mode) — target of save_plan_direct under board_v2.
+  const planIdRef = useRef<string | null>(null);
 
   const canUndo = past.length > 0;
   const canRedo = future.length > 0;
@@ -1433,6 +1443,7 @@ export function useMuscleBuilderState(
             return;
           }
           baseRef.current = loaded.base;
+          planIdRef.current = loaded.planId; // S2: target for save_plan_direct under board_v2
           dispatch({
             type: 'LOAD_TEMPLATE',
             payload: {
@@ -1446,6 +1457,32 @@ export function useMuscleBuilderState(
           });
         } catch (error) {
           toast({ title: 'Error loading program', description: sanitizeErrorForUser(error), variant: 'destructive' });
+        }
+      })();
+      return;
+    }
+    // Team mode (S2/T2): load the team's shared clone and edit it directly (no overrides).
+    if (teamId) {
+      hasFetched.current = true;
+      (async () => {
+        try {
+          const loaded = await loadPlanForTeam(teamId);
+          if (!loaded) {
+            toast({ title: 'No team program', description: 'Assign a program to this team first.', variant: 'destructive' });
+            return;
+          }
+          planIdRef.current = loaded.planId;
+          dispatch({
+            type: 'LOAD_TEMPLATE',
+            payload: {
+              templateId: teamId, // sentinel: enables dirty/autosave; persistence routes via teamId -> planIdRef
+              name: loaded.name,
+              description: loaded.description,
+              weeks: loaded.weeks,
+            },
+          });
+        } catch (error) {
+          toast({ title: 'Error loading team program', description: sanitizeErrorForUser(error), variant: 'destructive' });
         }
       })();
       return;
@@ -1507,7 +1544,7 @@ export function useMuscleBuilderState(
         },
       });
     })();
-  }, [existingTemplateId, assignmentId, toast]);
+  }, [existingTemplateId, assignmentId, teamId, toast]);
 
   // Auto-save: debounce 2s after changes when template already exists
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -1524,8 +1561,16 @@ export function useMuscleBuilderState(
       dispatch({ type: 'SAVING' });
       try {
         if (assignmentId) {
-          // Client mode: persist edits as client_plan_overrides (diff vs the template base).
-          if (baseRef.current) await persistAssignmentOverrides(assignmentId, s, baseRef.current);
+          // Client mode. S2: under board_v2 the assignment follows the client's own CLONE —
+          // save it directly (no overrides). Off: persist edits as client_plan_overrides.
+          if (boardV2 && planIdRef.current) {
+            await savePlanDirect(planIdRef.current, buildPlanPayload(s));
+          } else if (baseRef.current) {
+            await persistAssignmentOverrides(assignmentId, s, baseRef.current);
+          }
+        } else if (teamId) {
+          // Team mode: edit the team's shared clone directly (board_v2).
+          if (planIdRef.current) await savePlanDirect(planIdRef.current, buildPlanPayload(s));
         } else {
           const { error } = await withTimeout(
             supabase
@@ -1551,7 +1596,7 @@ export function useMuscleBuilderState(
     }, 2000);
 
     return () => clearTimeout(autoSaveTimerRef.current);
-  }, [state.isDirty, state.templateId, state.isSaving, state.weeks, state.name, state.description, assignmentId]);
+  }, [state.isDirty, state.templateId, state.isSaving, state.weeks, state.name, state.description, assignmentId, teamId, boardV2]);
 
   // Save
   const save = useCallback(async () => {
@@ -1560,10 +1605,21 @@ export function useMuscleBuilderState(
 
     try {
       if (assignmentId) {
-        // Client mode: persist edits as client_plan_overrides (diff vs the template base).
-        if (baseRef.current) await persistAssignmentOverrides(assignmentId, state, baseRef.current);
+        // Client mode. S2: board_v2 → save the client's own clone directly (no overrides).
+        if (boardV2 && planIdRef.current) {
+          await savePlanDirect(planIdRef.current, buildPlanPayload(state));
+        } else if (baseRef.current) {
+          await persistAssignmentOverrides(assignmentId, state, baseRef.current);
+        }
         dispatch({ type: 'MARK_SAVED', templateId: assignmentId });
         toast({ title: 'Client program saved' });
+        return;
+      }
+      if (teamId) {
+        // Team mode: edit the team's shared clone directly — all members inherit.
+        if (planIdRef.current) await savePlanDirect(planIdRef.current, buildPlanPayload(state));
+        dispatch({ type: 'MARK_SAVED', templateId: teamId });
+        toast({ title: 'Team program saved' });
         return;
       }
       if (state.templateId) {
@@ -1612,7 +1668,7 @@ export function useMuscleBuilderState(
       dispatch({ type: 'SAVE_ERROR' });
       toast({ title: 'Error saving', description: sanitizeErrorForUser(error), variant: 'destructive' });
     }
-  }, [state, state.templateId, state.name, state.description, state.weeks, coachUserId, assignmentId, toast]);
+  }, [state, state.templateId, state.name, state.description, state.weeks, coachUserId, assignmentId, teamId, boardV2, toast]);
 
   // Save as preset
   const saveAsPreset = useCallback(async () => {
@@ -1659,6 +1715,7 @@ export function useMuscleBuilderState(
     const loaded = await loadPlanForAssignment(assignmentId);
     if (!loaded) return;
     baseRef.current = loaded.base;
+    planIdRef.current = loaded.planId;
     dispatch({
       type: 'LOAD_TEMPLATE',
       payload: {
