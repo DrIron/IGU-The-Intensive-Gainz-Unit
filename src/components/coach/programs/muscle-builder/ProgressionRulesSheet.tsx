@@ -12,8 +12,9 @@
 //
 // Plan: docs/PLANNING_BOARD_UX_REVISIONS_PLAN.md §3
 
-import { memo, useCallback, useMemo } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -30,11 +31,16 @@ import {
   DrawerScrollArea,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { Plus, Wand2 } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, Wand2, X } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { DAYS_OF_WEEK, getMuscleDisplay } from "@/types/muscle-builder";
 import type { MuscleSlotData, WeekData } from "@/types/muscle-builder";
 import { SlotDeltaRulesPanel } from "./SlotDeltaRulesPanel";
+import {
+  resolvePlanScopeTargetIds,
+  resolveSessionScopeTargetIds,
+  resolvePickedScopeTargetIds,
+} from "./progressionClipboard";
 import {
   createDefaultRule,
   type DeltaTarget,
@@ -85,6 +91,11 @@ interface ProgressionRulesSheetProps {
   weeks: WeekData[];
   /** Persist a slot's rules (same callback the per-slot popover uses). */
   onSetSlotDeltaRules: (slotId: string, rules: WeeklyDeltaRule[]) => void;
+  /**
+   * Copy-progression paste: merge the copied rules onto `targetSlotIds`, clear
+   * their downstream overrides, and recompute — all in one reducer dispatch.
+   */
+  onPasteDeltaRules: (sourceRules: WeeklyDeltaRule[], targetSlotIds: string[]) => void;
 }
 
 function prescriptionSummary(slot: MuscleSlotData): string {
@@ -92,16 +103,83 @@ function prescriptionSummary(slot: MuscleSlotData): string {
   return `${slot.sets}×${reps}`;
 }
 
+/** Short display label for a slot — exercise name when assigned, else muscle. */
+function slotLabel(slot: MuscleSlotData): string {
+  if (slot.exercise) return slot.exercise.name;
+  return getMuscleDisplay(slot.muscleId)?.label ?? slot.muscleId;
+}
+
+/** Board-only progression clipboard — copied W1 rules + their source slot. */
+interface ProgressionClipboard {
+  sourceSlotId: string;
+  sourceLabel: string;
+  rules: WeeklyDeltaRule[];
+}
+
 export const ProgressionRulesSheet = memo(function ProgressionRulesSheet({
   open,
   onOpenChange,
   weeks,
   onSetSlotDeltaRules,
+  onPasteDeltaRules,
 }: ProgressionRulesSheetProps) {
   const isMobile = useIsMobile();
 
   const totalWeeks = weeks.length;
   const isDeloadByWeek = useMemo(() => weeks.map((w) => !!w.isDeload), [weeks]);
+
+  // Board-only progression clipboard (NOT the OS clipboard). Copying a slot's
+  // rules stashes them here; paste stamps them onto other strength slots.
+  const [clipboard, setClipboard] = useState<ProgressionClipboard | null>(null);
+  // Checkbox selection for the "specific slots the coach picks" paste scope.
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const w1 = weeks[0];
+
+  const handleCopy = useCallback((slot: MuscleSlotData) => {
+    const rules = slot.deltaRules ?? [];
+    if (rules.length === 0) return;
+    setClipboard({ sourceSlotId: slot.id, sourceLabel: slotLabel(slot), rules });
+    setSelectedIds(new Set());
+  }, []);
+
+  const clearClipboard = useCallback(() => {
+    setClipboard(null);
+    setSelectedIds(new Set());
+  }, []);
+
+  const toggleSelected = useCallback((slotId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(slotId)) next.delete(slotId);
+      else next.add(slotId);
+      return next;
+    });
+  }, []);
+
+  // Paste to a resolved set of target ids, then reset the clipboard + selection.
+  const doPaste = useCallback(
+    (targetSlotIds: string[]) => {
+      if (!clipboard || targetSlotIds.length === 0) return;
+      onPasteDeltaRules(clipboard.rules, targetSlotIds);
+      clearClipboard();
+    },
+    [clipboard, onPasteDeltaRules, clearClipboard],
+  );
+
+  // Target id counts per scope for the copied source (excludes the source).
+  const planTargetIds = useMemo(
+    () => (clipboard ? resolvePlanScopeTargetIds(w1, clipboard.sourceSlotId) : []),
+    [clipboard, w1],
+  );
+  const sessionTargetIds = useMemo(
+    () => (clipboard ? resolveSessionScopeTargetIds(w1, clipboard.sourceSlotId) : []),
+    [clipboard, w1],
+  );
+  const pickedTargetIds = useMemo(
+    () => (clipboard ? resolvePickedScopeTargetIds(w1, selectedIds) : []),
+    [clipboard, w1, selectedIds],
+  );
 
   // W1 strength slots, ordered by day then position — the only slots the engine
   // progresses and the only place deltaRules are authored.
@@ -183,6 +261,76 @@ export const ProgressionRulesSheet = memo(function ProgressionRulesSheet({
     </div>
   );
 
+  const pasteBanner = clipboard ? (
+    <div className="rounded-md border border-sky-500/30 bg-sky-500/5 p-3 space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          <ClipboardPaste className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+          <span className="text-xs font-semibold truncate">
+            Copied {clipboard.sourceLabel}'s progression
+          </span>
+          <span className="text-[10px] text-muted-foreground shrink-0">
+            ({clipboard.rules.length} rule{clipboard.rules.length === 1 ? "" : "s"})
+          </span>
+        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          className="h-7 px-2 text-xs shrink-0"
+          onClick={clearClipboard}
+        >
+          <X className="h-3 w-3 mr-1" />
+          Clear
+        </Button>
+      </div>
+      <p className="text-[11px] text-muted-foreground">
+        Paste onto other strength slots. Existing rules for the same metric are
+        overwritten; untouched metrics are kept. Downstream weeks recompute and
+        manual edits on pasted-to slots are cleared.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs"
+          disabled={sessionTargetIds.length === 0}
+          onClick={() => doPaste(sessionTargetIds)}
+        >
+          <ClipboardPaste className="h-3 w-3 mr-1" />
+          Same session
+          <span className="ml-1.5 text-[10px] text-muted-foreground">
+            {sessionTargetIds.length === 0 ? "none" : sessionTargetIds.length}
+          </span>
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          className="text-xs"
+          disabled={planTargetIds.length === 0}
+          onClick={() => doPaste(planTargetIds)}
+        >
+          <ClipboardPaste className="h-3 w-3 mr-1" />
+          All strength slots
+          <span className="ml-1.5 text-[10px] text-muted-foreground">
+            {planTargetIds.length === 0 ? "none" : planTargetIds.length}
+          </span>
+        </Button>
+        <Button
+          variant="default"
+          size="sm"
+          className="text-xs"
+          disabled={pickedTargetIds.length === 0}
+          onClick={() => doPaste(pickedTargetIds)}
+        >
+          Paste into {pickedTargetIds.length} selected
+        </Button>
+      </div>
+      <p className="text-[10px] text-muted-foreground italic">
+        Tick slots below to paste into a custom set.
+      </p>
+    </div>
+  ) : null;
+
   const list =
     strengthSlots.length === 0 ? (
       <div className="flex items-center justify-center py-10 text-sm text-muted-foreground text-center px-4">
@@ -202,19 +350,47 @@ export const ProgressionRulesSheet = memo(function ProgressionRulesSheet({
                   key={slot.id}
                   className="rounded-md border border-border/50 bg-card p-3 space-y-1"
                 >
-                  <div className="flex items-baseline justify-between gap-2">
-                    <div className="min-w-0">
-                      <span className="text-sm font-medium">{muscleLabel}</span>
-                      {slot.exercise && (
-                        <span className="text-xs text-muted-foreground truncate">
-                          {" "}
-                          · {slot.exercise.name}
-                        </span>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      {clipboard && (
+                        <Checkbox
+                          checked={selectedIds.has(slot.id)}
+                          onCheckedChange={() => toggleSelected(slot.id)}
+                          disabled={slot.id === clipboard.sourceSlotId}
+                          aria-label={`Select ${muscleLabel} as paste target`}
+                          className="shrink-0"
+                        />
                       )}
+                      <div className="min-w-0">
+                        <span className="text-sm font-medium">{muscleLabel}</span>
+                        {slot.exercise && (
+                          <span className="text-xs text-muted-foreground truncate">
+                            {" "}
+                            · {slot.exercise.name}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                    <span className="text-xs font-mono text-muted-foreground shrink-0">
-                      {prescriptionSummary(slot)}
-                    </span>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <span className="text-xs font-mono text-muted-foreground">
+                        {prescriptionSummary(slot)}
+                      </span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        disabled={(slot.deltaRules ?? []).length === 0}
+                        onClick={() => handleCopy(slot)}
+                        title={
+                          (slot.deltaRules ?? []).length === 0
+                            ? "No rules to copy"
+                            : "Copy this slot's progression"
+                        }
+                      >
+                        <Copy className="h-3 w-3 mr-1" />
+                        Copy
+                      </Button>
+                    </div>
                   </div>
                   <SlotDeltaRulesPanel
                     rules={slot.deltaRules ?? []}
@@ -254,6 +430,7 @@ export const ProgressionRulesSheet = memo(function ProgressionRulesSheet({
           </DrawerHeader>
           <div className="flex flex-col flex-1 min-h-0 px-4 pb-[calc(env(safe-area-inset-bottom,0)+1rem)] gap-3 overflow-hidden">
             {blanketHeader}
+            {pasteBanner}
             <DrawerScrollArea className="flex-1 min-h-0 -mx-1 px-1">{list}</DrawerScrollArea>
           </div>
         </DrawerContent>
@@ -273,6 +450,7 @@ export const ProgressionRulesSheet = memo(function ProgressionRulesSheet({
         </DialogHeader>
         <div className="flex flex-col flex-1 min-h-0 gap-3">
           {blanketHeader}
+          {pasteBanner}
           <DialogScrollArea className="flex-1 min-h-0 -mx-1 px-1">{list}</DialogScrollArea>
         </div>
       </DialogContent>

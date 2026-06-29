@@ -869,6 +869,46 @@ function newRuleId(): string {
 }
 
 /**
+ * Deep-clone a rule and stamp it with a fresh id. Rules are pure JSON (no
+ * functions / Dates), so a JSON round-trip is a safe, dependency-free deep copy
+ * of nested `scope` / `texts` / `setNumbers` / `addedSetSpec`. A fresh id keeps
+ * pasted rules from sharing identity with the source slot's rules (ids are React
+ * keys and the overlap-map key within a slot).
+ */
+export function cloneRuleWithNewId(rule: WeeklyDeltaRule): WeeklyDeltaRule {
+  const cloned = JSON.parse(JSON.stringify(rule)) as WeeklyDeltaRule;
+  cloned.id = newRuleId();
+  return cloned;
+}
+
+/**
+ * Merge `sourceRules` onto `targetRules` for the "copy progression" paste.
+ *
+ * Conflict policy = MERGE per target: for every DeltaTarget the source carries
+ * a rule for, the target's existing rule(s) for that target are REPLACED by
+ * fresh-id clones of the source's rules. Targets the source doesn't touch keep
+ * the target's own rules untouched.
+ *
+ * Invariants preserved:
+ *  - Single-rule-per-target / no overlapping windows (D12): we never mix source
+ *    and target rules for the same target — the whole target is swapped — so the
+ *    source's already-valid (non-overlapping) windows carry over intact and the
+ *    target's surviving rules are for disjoint targets.
+ *  - Pasted rules get fresh ids (no cross-slot id collisions).
+ *
+ * Pure function — does not mutate either input.
+ */
+export function mergeDeltaRules(
+  targetRules: WeeklyDeltaRule[],
+  sourceRules: WeeklyDeltaRule[],
+): WeeklyDeltaRule[] {
+  const sourceTargets = new Set(sourceRules.map((r) => r.target));
+  const kept = targetRules.filter((r) => !sourceTargets.has(r.target));
+  const stamped = sourceRules.map(cloneRuleWithNewId);
+  return [...kept, ...stamped];
+}
+
+/**
  * Build a rule pre-filled with the sensible default per D11. Coach can tweak
  * before saving. Tempo defaults to position 0 (eccentric, the most common
  * target).
