@@ -7,7 +7,6 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ShieldAlert, Plus, Loader2 } from "lucide-react";
 import { TeamCard } from "./TeamCard";
-import { TeamDetailView } from "./TeamDetailView";
 import { CreateTeamDialog } from "./CreateTeamDialog";
 
 interface CoachTeamsPageProps {
@@ -30,8 +29,6 @@ interface Team {
 const MAX_TEAMS = 3;
 
 export const CoachTeamsPage = memo(function CoachTeamsPage({ coachUserId }: CoachTeamsPageProps) {
-  const [view, setView] = useState<"list" | "detail">("list");
-  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [isHeadCoach, setIsHeadCoach] = useState<boolean | null>(null);
@@ -134,12 +131,6 @@ export const CoachTeamsPage = memo(function CoachTeamsPage({ coachUserId }: Coac
     [navigate],
   );
 
-  const handleBackToList = useCallback(() => {
-    setSelectedTeamId(null);
-    setView("list");
-    handleRefresh();
-  }, [handleRefresh]);
-
   const handleTeamCreated = useCallback(() => {
     setShowCreateDialog(false);
     handleRefresh();
@@ -165,24 +156,7 @@ export const CoachTeamsPage = memo(function CoachTeamsPage({ coachUserId }: Coac
     );
   }
 
-  // Detail view
-  if (view === "detail" && selectedTeamId) {
-    const team = teams.find((t) => t.id === selectedTeamId);
-    if (!team) {
-      setView("list");
-      return null;
-    }
-    return (
-      <TeamDetailView
-        team={team}
-        coachUserId={coachUserId}
-        onBack={handleBackToList}
-        onRefresh={handleRefresh}
-      />
-    );
-  }
-
-  // List view
+  // List view (detail is now a deep-linkable route: /coach/teams/:teamId).
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
