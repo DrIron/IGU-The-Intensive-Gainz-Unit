@@ -9304,6 +9304,10 @@ export type Database = {
         }
         Returns: Json
       }
+      push_template_to_assignees: {
+        Args: { p_target_plan_ids: string[]; p_template_plan_id: string }
+        Returns: Json
+      }
       refund_addon_purchase: {
         Args: { p_mode?: string; p_purchase_id: string; p_reason: string }
         Returns: Json
