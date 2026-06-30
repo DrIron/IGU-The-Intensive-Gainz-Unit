@@ -13,7 +13,8 @@ import {
   ChevronRight,
   Sunrise,
   Moon,
-  Coffee
+  Coffee,
+  Snowflake
 } from "lucide-react";
 import { format, isToday, isTomorrow, isPast } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -23,18 +24,27 @@ interface TodaysWorkoutHeroProps {
   userId: string;
 }
 
+// board_v2 canonical nav marker — present only on canonical-synthesized modules
+// (from useClientWorkoutsToday's canonical branch). Drives the canonical session URL.
+interface CanonicalNav {
+  assignmentId: string;
+  date: string;
+}
+
 interface TodayWorkout {
   dayId: string;
   dayTitle: string;
   dayIndex: number;
   programName: string;
   date: Date;
+  isDeload: boolean;
   modules: {
     id: string;
     title: string;
     module_type: string;
     status: string;
     exercise_count: number;
+    canonical?: CanonicalNav;
   }[];
 }
 
@@ -82,6 +92,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
         module_type: m.module_type,
         status: m.status,
         exercise_count: m.client_module_exercises?.[0]?.count || 0,
+        canonical: m.canonical as CanonicalNav | undefined,
       }));
 
       if (isToday(dayDate)) {
@@ -91,6 +102,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
           dayIndex: day.day_index ?? 0,
           programName,
           date: dayDate,
+          isDeload: !!day.isDeload,
           modules,
         };
       }
@@ -109,12 +121,25 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
     return { workout: todayWorkout, upcomingWorkout: nextWorkout };
   }, [data]);
 
+  // Canonical (board_v2) modules carry an assignment+date marker → open the
+  // canonical session route; legacy modules keep the plain id route. Mirrors
+  // WorkoutCalendar's onOpen branch.
+  const openModule = (module: { id: string; canonical?: CanonicalNav }) => {
+    if (module.canonical) {
+      navigate(
+        `/client/workout/session/canonical?assignment=${module.canonical.assignmentId}&session=${module.id}&date=${module.canonical.date}`,
+      );
+    } else {
+      navigate(`/client/workout/session/${module.id}`);
+    }
+  };
+
   const handleStartWorkout = () => {
     if (workout && workout.modules.length > 0) {
       // Find first incomplete module, or first module if all complete
       const incompleteModule = workout.modules.find(m => m.status !== 'completed');
       const targetModule = incompleteModule || workout.modules[0];
-      navigate(`/client/workout/session/${targetModule.id}`);
+      openModule(targetModule);
     }
   };
 
@@ -211,7 +236,16 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
             <GreetingIcon className="h-4 w-4" />
             <span className="text-sm">{greeting.text}</span>
           </div>
-          <h2 className="text-2xl font-bold">Today's Workout</h2>
+          <div className="flex items-center gap-2">
+            <h2 className="text-2xl font-bold">Today's Workout</h2>
+            {/* board_v2: today falls in a deload/recovery week (mirror WorkoutCalendar styling) */}
+            {workout.isDeload && (
+              <Badge variant="secondary" className="text-amber-600 border-amber-500/30">
+                <Snowflake className="h-3 w-3 mr-1 text-amber-500" />
+                Recovery
+              </Badge>
+            )}
+          </div>
         </div>
 
         {/* Workout Card */}
@@ -296,7 +330,7 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
                       ? 'bg-green-500/10 border-green-500/30'
                       : 'bg-background border-border'
                   }`}
-                  onClick={() => navigate(`/client/workout/session/${module.id}`)}
+                  onClick={() => openModule(module)}
                 >
                   {module.status === 'completed' ? (
                     <CheckCircle2 className="h-4 w-4 text-green-500" />

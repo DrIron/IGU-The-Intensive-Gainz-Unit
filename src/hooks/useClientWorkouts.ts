@@ -14,6 +14,12 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
+import {
+  loadCanonicalSchedule,
+  canonicalSessionTitle,
+  resolveActiveAssignment,
+} from "@/lib/canonicalScheduleAdapter";
 
 /** Short enough that completed workouts surface promptly via poll/focus,
  *  long enough to dedupe back-to-back remounts during navigation. */
@@ -26,6 +32,10 @@ export interface ClientWorkoutModule {
   status: string;
   sort_order?: number;
   client_module_exercises?: { count: number }[];
+  /** Deload v2 (canonical, board_v2): this module's running week is a recovery/deload week. */
+  isDeload?: boolean;
+  /** board_v2 canonical nav marker — present only on canonical-synthesized modules. */
+  canonical?: { assignmentId: string; date: string };
 }
 
 export interface ClientProgramDayRow {
@@ -34,6 +44,8 @@ export interface ClientProgramDayRow {
   title: string;
   day_index?: number;
   client_day_modules: ClientWorkoutModule[];
+  /** Deload v2 (canonical, board_v2): this day belongs to a recovery/deload running week. */
+  isDeload?: boolean;
 }
 
 export interface TodayProgramResult {
@@ -108,12 +120,70 @@ export function useClientWorkoutsMonth(
  */
 export function useClientWorkoutsToday(userId: string | undefined) {
   const todayKey = format(new Date(), "yyyy-MM-dd");
+  // board_v2 discriminator in the key so toggling the flag never serves a stale
+  // legacy (or canonical) cache for the same user/day.
+  const boardV2 = isBoardV2Enabled();
   return useQuery<TodayProgramResult>({
-    queryKey: ["client-workouts", userId, "today", todayKey],
+    queryKey: ["client-workouts", userId, "today", todayKey, boardV2 ? "v2" : "legacy"],
     enabled: !!userId,
     staleTime: THIRTY_SECONDS,
     refetchOnWindowFocus: true,
     queryFn: async () => {
+      // P5 Slice 1 — board_v2 canonical branch: read the client's clone schedule
+      // (deload-aware via loadCanonicalSchedule) and synthesize the SAME
+      // TodayProgramResult shape the card consumes, so an on-demand deload's
+      // insert+shift reflects in "today" (the legacy snapshot below never does).
+      // Mirrors WorkoutCalendar. Flag off / no assignment / null schedule → fall
+      // straight through to the unchanged legacy query.
+      if (boardV2) {
+        const assignment = await resolveActiveAssignment(userId!);
+        if (assignment) {
+          const schedule = await loadCanonicalSchedule(assignment.id);
+          if (schedule) {
+            const { data: planRow } = await supabase
+              .from("plan")
+              .select("name")
+              .eq("id", assignment.plan_id)
+              .maybeSingle();
+            const programName = planRow?.name ?? "Your Program";
+            const days: ClientProgramDayRow[] = [];
+            for (const [iso, day] of schedule.byDate) {
+              days.push({
+                id: `canon-${iso}`,
+                date: iso,
+                title: day.isDeload
+                  ? "Recovery"
+                  : day.modules[0]
+                    ? canonicalSessionTitle(day.modules[0])
+                    : "Workout",
+                day_index: day.runningIndex,
+                isDeload: day.isDeload,
+                client_day_modules: day.modules.map((m, i) => ({
+                  id: m.id, // plan_session_id — the canonical session link target
+                  title: canonicalSessionTitle(m),
+                  module_type: m.module_type,
+                  status: m.status, // "completed" (all slots logged) or ""
+                  sort_order: i,
+                  client_module_exercises: [{ count: m.exerciseCount }],
+                  isDeload: m.isDeload,
+                  canonical: { assignmentId: assignment.id, date: iso },
+                })),
+              });
+            }
+            return {
+              program: {
+                id: assignment.id,
+                status: "active",
+                source_template_id: null,
+                client_program_days: days,
+              },
+              programName,
+            };
+          }
+        }
+        // No assignment / null schedule → fall through to the legacy query below.
+      }
+
       // Nested join through client_programs → client_program_days →
       // client_day_modules → client_module_exercises (count). The CLAUDE.md
       // "unreliable nested FK" rule applies to template-side joins
