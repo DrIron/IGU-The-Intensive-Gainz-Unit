@@ -127,6 +127,27 @@ export async function resolveActiveAssignment(clientId: string): Promise<ActiveA
 }
 
 /**
+ * Newest set-log timestamp for an assignment = the canonical "last workout at"
+ * (the analog of legacy client_day_modules.completed_at max). Returns null when
+ * the client has never logged a set under this assignment. board_v2-gated by callers.
+ *
+ * NOTE: coach-context reads require the exercise_set_logs_canonical_coach_select
+ * RLS policy (migration 20260630061546) — canonical logs have
+ * client_module_exercise_id NULL, so the legacy coach SELECT branches can't
+ * resolve them.
+ */
+export async function canonicalLastWorkoutAt(assignmentId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("exercise_set_logs")
+    .select("created_at")
+    .eq("assignment_id", assignmentId)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return data?.created_at ?? null;
+}
+
+/**
  * Build the canonical schedule for an assignment. Returns null when there's no canonical plan to
  * read (caller falls back to the legacy grid).
  */

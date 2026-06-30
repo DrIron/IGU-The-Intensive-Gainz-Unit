@@ -19,6 +19,7 @@ import { formatDistanceToNowStrict } from "date-fns";
 import type { ClientOverviewTabProps } from "../types";
 import { DeloadRequestPanel } from "@/components/coach/clients/DeloadRequestPanel";
 import { isBoardV2Enabled } from "@/lib/featureFlags";
+import { resolveActiveAssignment, canonicalLastWorkoutAt } from "@/lib/canonicalScheduleAdapter";
 
 interface OverviewStats {
   phaseName: string | null;
@@ -65,35 +66,42 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
       .maybeSingle();
     if (phaseErr) console.warn("[OverviewTab] phase:", phaseErr.message);
 
-    // Last workout requires program -> day -> module chain (no nested FK joins
-    // per CLAUDE.md). Fetch active program ids first, then modules.
-    const { data: programRows, error: programsErr } = await supabase
-      .from("client_programs")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("status", "active");
-    if (programsErr) console.warn("[OverviewTab] client_programs:", programsErr.message);
-
+    // Last workout. board_v2: read the canonical "last logged set" for the
+    // client's active assignment (deload-aware; the legacy chain below reads the
+    // frozen pre-deload snapshot and goes stale). Flag off / no assignment ->
+    // legacy program -> day -> module chain (no nested FK joins per CLAUDE.md).
     let lastWorkoutAt: string | null = null;
-    const programIds = (programRows ?? []).map((p) => p.id);
-    if (programIds.length > 0) {
-      const { data: dayRows, error: daysErr } = await supabase
-        .from("client_program_days")
+    if (isBoardV2Enabled()) {
+      const assignment = await resolveActiveAssignment(userId);
+      lastWorkoutAt = assignment ? await canonicalLastWorkoutAt(assignment.id) : null;
+    } else {
+      const { data: programRows, error: programsErr } = await supabase
+        .from("client_programs")
         .select("id")
-        .in("client_program_id", programIds);
-      if (daysErr) console.warn("[OverviewTab] client_program_days:", daysErr.message);
+        .eq("user_id", userId)
+        .eq("status", "active");
+      if (programsErr) console.warn("[OverviewTab] client_programs:", programsErr.message);
 
-      const dayIds = (dayRows ?? []).map((d) => d.id);
-      if (dayIds.length > 0) {
-        const { data: modRows, error: modsErr } = await supabase
-          .from("client_day_modules")
-          .select("completed_at")
-          .in("client_program_day_id", dayIds)
-          .not("completed_at", "is", null)
-          .order("completed_at", { ascending: false })
-          .limit(1);
-        if (modsErr) console.warn("[OverviewTab] client_day_modules:", modsErr.message);
-        lastWorkoutAt = modRows?.[0]?.completed_at ?? null;
+      const programIds = (programRows ?? []).map((p) => p.id);
+      if (programIds.length > 0) {
+        const { data: dayRows, error: daysErr } = await supabase
+          .from("client_program_days")
+          .select("id")
+          .in("client_program_id", programIds);
+        if (daysErr) console.warn("[OverviewTab] client_program_days:", daysErr.message);
+
+        const dayIds = (dayRows ?? []).map((d) => d.id);
+        if (dayIds.length > 0) {
+          const { data: modRows, error: modsErr } = await supabase
+            .from("client_day_modules")
+            .select("completed_at")
+            .in("client_program_day_id", dayIds)
+            .not("completed_at", "is", null)
+            .order("completed_at", { ascending: false })
+            .limit(1);
+          if (modsErr) console.warn("[OverviewTab] client_day_modules:", modsErr.message);
+          lastWorkoutAt = modRows?.[0]?.completed_at ?? null;
+        }
       }
     }
 
