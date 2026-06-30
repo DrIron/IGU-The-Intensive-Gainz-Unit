@@ -12,7 +12,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dumbbell, Plus, CalendarPlus, Loader2, CalendarClock } from "lucide-react";
+import { Dumbbell, Plus, CalendarPlus, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { DirectClientCalendar } from "@/components/coach/programs/DirectClientCalendar";
 import { AssignFromLibraryDialog } from "@/components/coach/programs/AssignFromLibraryDialog";
@@ -26,6 +26,7 @@ import { isClientProgramEditorEnabled, isBoardV2Enabled } from "@/lib/featureFla
 import { TakeDeloadCard } from "@/components/workouts/TakeDeloadCard";
 import { loadCanonicalSchedule, canonicalDrilldownDays, type CanonicalSchedule } from "@/lib/canonicalScheduleAdapter";
 import { SessionLogViewer } from "../workouts/SessionLogViewer";
+import { ClientScheduleCalendar } from "../workouts/ClientScheduleCalendar";
 import { WorkoutPulse } from "../workouts/WorkoutPulse";
 import { WorkoutTrendCards } from "../workouts/WorkoutTrendCards";
 import { WorkoutHistoryTrends } from "../workouts/WorkoutHistoryTrends";
@@ -319,13 +320,8 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
               Inject session
             </Button>
           </div>
-          <Card className="border-dashed">
-            <CardContent className="py-12 text-center text-sm text-muted-foreground">
-              <CalendarClock className="h-6 w-6 mx-auto mb-2 opacity-50" aria-hidden="true" />
-              The week / month schedule view lands in B5. For now, inject one-off
-              sessions above; scheduled sessions appear under Programs.
-            </CardContent>
-          </Card>
+          {/* B5: read-only week/month schedule for this client. */}
+          <ClientScheduleCalendar clientUserId={clientUserId} />
         </TabsContent>
 
         {/* History — tonnage/TUST trends + training volume. */}
