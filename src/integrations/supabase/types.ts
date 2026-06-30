@@ -8564,6 +8564,19 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_template_to_client_canonical: {
+        Args: {
+          p_client_id: string
+          p_coach_id: string
+          p_macrocycle_id?: string
+          p_start_date: string
+          p_subscription_id: string
+          p_team_id?: string
+          p_template_id: string
+          p_timezone?: string
+        }
+        Returns: Json
+      }
       assign_team_program_atomic: {
         Args: {
           p_start_date?: string

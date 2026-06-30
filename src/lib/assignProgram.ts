@@ -23,9 +23,16 @@ export interface AssignProgramParams {
 
 export interface AssignProgramResult {
   success: boolean;
+  /** Legacy client_programs.id — only set on the legacy write path (flag off / fallback). */
   clientProgramId?: string;
+  /** Canonical client_plan_assignment.id — set on the canonical-primary path (board_v2). */
+  assignmentId?: string;
   error?: string;
 }
+
+// Legacy client_programs default. New canonical assignments mirror it so board-day
+// boundaries ("today") resolve in the client's wall-clock, same as before.
+const LEGACY_PROGRAM_TIMEZONE = "Asia/Kuwait";
 
 export async function assignProgramToClient(
   params: AssignProgramParams
@@ -33,6 +40,36 @@ export async function assignProgramToClient(
   const { coachUserId, clientUserId, subscriptionId, programTemplateId, startDate, teamId } = params;
 
   try {
+    // P5 write cutover (board_v2): create the canonical assignment as PRIMARY and
+    // write NO legacy client_programs row. Falls back to the legacy write only when
+    // the template has no canonical plan yet (never opened/saved in the Planning
+    // Board) so an assignment is never blocked. Flag off → legacy write, byte-identical.
+    if (isBoardV2Enabled()) {
+      const { data, error } = await supabase.rpc("assign_template_to_client_canonical", {
+        p_coach_id: coachUserId,
+        p_client_id: clientUserId,
+        p_subscription_id: subscriptionId,
+        p_template_id: programTemplateId,
+        p_start_date: format(startDate, "yyyy-MM-dd"),
+        p_team_id: teamId || null,
+        p_timezone: LEGACY_PROGRAM_TIMEZONE,
+      });
+      if (error) throw error;
+      const res = data as { skipped: boolean; reason?: string; assignment_id?: string };
+      if (!res.skipped) {
+        return { success: true, assignmentId: res.assignment_id };
+      }
+      // no_mirror_plan: the template was never materialised to a canonical plan.
+      // Fall through to the legacy write so the assignment still happens, and flag
+      // it (every active template must have a canonical plan before the legacy drop).
+      captureException(new Error("assign canonical skipped: " + (res.reason ?? "unknown")), {
+        source: "assign_template_to_client_canonical_fallback",
+        severity: "warning",
+        metadata: { programTemplateId, clientUserId },
+      });
+    }
+
+    // Legacy write path (flag off, OR canonical fallback above).
     const { data, error } = await supabase.rpc("assign_program_to_client", {
       p_coach_id: coachUserId,
       p_client_id: clientUserId,
@@ -45,33 +82,6 @@ export async function assignProgramToClient(
     if (error) throw error;
 
     const result = data as { client_program_id: string };
-
-    // P2 (program system unification): dual-write the canonical client_plan_assignment
-    // for the 1:1 path only. Team assignments (teamId set) are out of scope — the Teams
-    // track owns the shared team plan + fan-out. Best-effort/fire-and-forget like P1:
-    // legacy client_programs stays authoritative, so a mirror failure (or a template with
-    // no P1 mirror plan yet) must never fail the assignment. assign_plan_to_client copies
-    // straight from the legacy row and skips gracefully when no mirror plan exists.
-    if (!teamId && result.client_program_id) {
-      try {
-        // S1 own-your-copy: under board_v2, the canonical assignment follows a
-        // CLONE of the template plan (assignee owns their copy). Off (prod
-        // default) keeps the legacy shared-reference path — assignment.plan_id =
-        // the template's mirror plan. See docs/PROGRAM_ASSIGNMENT_SYNC.md §S1.
-        const { error: mirrorError } = await supabase.rpc("assign_plan_to_client", {
-          p_client_program_id: result.client_program_id,
-          p_clone: isBoardV2Enabled(),
-        });
-        if (mirrorError) throw mirrorError;
-      } catch (mirrorError: unknown) {
-        captureException(mirrorError, {
-          source: "assign_plan_to_client_mirror",
-          severity: "warning",
-          metadata: { clientProgramId: result.client_program_id },
-        });
-      }
-    }
-
     return { success: true, clientProgramId: result.client_program_id };
   } catch (error: unknown) {
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
@@ -138,48 +148,64 @@ export async function assignTeamProgram(params: {
   programTemplateId: string;
   startDate: Date;
 }): Promise<AssignTeamProgramResult> {
+  const startIso = format(params.startDate, "yyyy-MM-dd");
   try {
+    // P5 write cutover (board_v2): bind the team to ONE canonical shared CLONE as
+    // PRIMARY via assign_team_plan (members get canonical assignments, no legacy
+    // client_programs fan-out). Falls back to the legacy atomic assign only when the
+    // program has no canonical plan yet. Flag off → legacy fan-out, byte-identical.
+    if (isBoardV2Enabled()) {
+      const planId = await resolveCanonicalPlanIdForProgram(params.programTemplateId);
+      if (planId) {
+        const { data, error } = await supabase.rpc("assign_team_plan", {
+          p_team_id: params.teamId,
+          p_plan_id: planId,
+          p_start_date: startIso,
+          p_clone: true,
+        });
+        if (error) throw error;
+        // Map assign_team_plan's shape → the dialog's legacy-shaped result.
+        // It's atomic (any member failure rolls back the whole txn), so members_failed = 0.
+        const tp = data as {
+          members_total: number;
+          members_assigned: number;
+          members_skipped: number;
+          members: { user_id: string; subscription_id: string; assignment_id: string; status: string }[];
+        };
+        return {
+          success: true,
+          data: {
+            team_id: params.teamId,
+            members_total: tp.members_total,
+            members_inserted: tp.members_assigned,
+            members_skipped_existing: tp.members_skipped,
+            members_failed: 0,
+            members: tp.members.map((m) => ({
+              user_id: m.user_id,
+              subscription_id: m.subscription_id,
+              client_program_id: null,
+              status: m.status === "skipped_existing" ? "skipped_existing" : "created",
+              error: null,
+            })),
+          },
+        };
+      }
+      // no canonical plan — fall through to legacy, and flag it.
+      captureException(new Error("assign_team canonical skipped: no_mirror_plan"), {
+        source: "assign_team_plan_fallback",
+        severity: "warning",
+        metadata: { teamId: params.teamId, programTemplateId: params.programTemplateId },
+      });
+    }
+
+    // Legacy fan-out (flag off, OR canonical fallback above).
     const { data, error } = await supabase.rpc("assign_team_program_atomic", {
       p_team_id: params.teamId,
       p_template_id: params.programTemplateId,
-      p_start_date: format(params.startDate, "yyyy-MM-dd"),
+      p_start_date: startIso,
     });
-
     if (error) throw error;
-
-    // S2 wiring (board_v2): also bind the team to ONE canonical shared CLONE so the
-    // team board ("Edit in Planning Board") becomes reachable and members follow the
-    // same editable plan. Dual-write alongside the legacy deep-copy during the soak;
-    // when board_v2 is off this is skipped entirely and behavior is unchanged.
-    // Best-effort: never fail the (authoritative) legacy assign if the program has
-    // no canonical plan yet, or the canonical bind errors.
-    if (isBoardV2Enabled()) {
-      try {
-        const planId = await resolveCanonicalPlanIdForProgram(params.programTemplateId);
-        if (!planId) {
-          console.warn(
-            "[assignTeamProgram] no canonical plan for program; skipping team clone-assign",
-            { teamId: params.teamId, programTemplateId: params.programTemplateId },
-          );
-        } else {
-          const { error: cloneErr } = await supabase.rpc("assign_team_plan", {
-            p_team_id: params.teamId,
-            p_plan_id: planId,
-            p_start_date: format(params.startDate, "yyyy-MM-dd"),
-            p_clone: true,
-          });
-          if (cloneErr) throw cloneErr;
-        }
-      } catch (cloneError: unknown) {
-        captureException(cloneError, {
-          source: "assign_team_plan_clone",
-          severity: "warning",
-          metadata: { teamId: params.teamId, programTemplateId: params.programTemplateId },
-        });
-      }
-    }
-
-    return { success: true, data: data as AssignTeamProgramResult["data"] };
+    return { success: true, data: data as unknown as AssignTeamProgramResult["data"] };
   } catch (error: unknown) {
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
