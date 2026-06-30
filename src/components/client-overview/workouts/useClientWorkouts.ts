@@ -13,6 +13,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfIguWeek, endOfIguWeek } from "@/lib/weekUtils";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
+import {
+  resolveActiveAssignment,
+  loadCanonicalSchedule,
+  canonicalLastWorkoutAt,
+} from "@/lib/canonicalScheduleAdapter";
 
 export interface ClientProgramSummary {
   /** client_programs.id */
@@ -55,6 +61,48 @@ export function useClientPrograms(clientUserId: string) {
       setLoading(true);
       setError(null);
       try {
+        // board_v2: the canonical assignment is the program of record. Synthesize a
+        // single summary from the (deload-aware) schedule + last logged set. Flag
+        // off / no assignment -> legacy client_programs list below, unchanged.
+        if (isBoardV2Enabled()) {
+          const assignment = await resolveActiveAssignment(userId);
+          if (assignment) {
+            const schedule = await loadCanonicalSchedule(assignment.id);
+            if (schedule) {
+              const [{ data: planRow }, lastActivityAt] = await Promise.all([
+                supabase.from("plan").select("name").eq("id", assignment.plan_id).maybeSingle(),
+                canonicalLastWorkoutAt(assignment.id),
+              ]);
+              let totalModules = 0;
+              let completedModules = 0;
+              for (const day of schedule.byDate.values()) {
+                for (const m of day.modules) {
+                  totalModules += 1;
+                  if (m.status === "completed") completedModules += 1;
+                }
+              }
+              setPrograms([
+                {
+                  id: assignment.id,
+                  title: planRow?.name ?? "Training program",
+                  status: "active",
+                  startDate: assignment.start_date,
+                  macrocycleId: null,
+                  macrocycleName: null,
+                  sourceTemplateId: null,
+                  totalDays: schedule.byDate.size,
+                  completedModules,
+                  totalModules,
+                  lastActivityAt,
+                },
+              ]);
+              setLoading(false);
+              return;
+            }
+          }
+          // no assignment / null schedule -> fall through to the legacy list.
+        }
+
         // 1. Base client_programs rows (no nested FKs — fetch ids + scalar fields).
         const { data: cp, error: cpErr } = await supabase
           .from("client_programs")
@@ -237,41 +285,56 @@ export function useAdherencePulse(
       return acc;
     }, null);
 
-    // Weekly completion — client_program_days.date falls in the current ISO
-    // week (Mon-Sun local). Gather active programs' days, then bucket modules.
-    const activeProgramIds = programs
-      .filter((p) => p.status === "active")
-      .map((p) => p.id);
+    // Weekly completion for the current IGU week (Mon-Sun).
+    const monday = startOfIguWeek();
+    const sunday = endOfIguWeek();
+    const mondayIso = monday.toISOString().slice(0, 10);
+    const sundayIso = sunday.toISOString().slice(0, 10);
+
     let weeklyScheduled = 0;
     let weeklyCompleted = 0;
-    if (activeProgramIds.length > 0) {
-      // IGU adherence week — see weekUtils.ts
-      const monday = startOfIguWeek();
-      const sunday = endOfIguWeek();
-      const mondayIso = monday.toISOString().slice(0, 10);
-      const sundayIso = sunday.toISOString().slice(0, 10);
 
-      const { data: weekDays, error: dayErr } = await supabase
-        .from("client_program_days")
-        .select("id, client_program_id")
-        .in("client_program_id", activeProgramIds)
-        .gte("date", mondayIso)
-        .lte("date", sundayIso);
-      if (dayErr) {
-        console.warn("[useAdherencePulse] day fetch:", dayErr.message);
-      }
-      const weekDayIds = (weekDays ?? []).map((d) => d.id);
-      if (weekDayIds.length > 0) {
-        const { data: mods, error: modErr } = await supabase
-          .from("client_day_modules")
-          .select("completed_at")
-          .in("client_program_day_id", weekDayIds);
-        if (modErr) {
-          console.warn("[useAdherencePulse] modules:", modErr.message);
+    if (isBoardV2Enabled()) {
+      // Canonical: count this week's modules from the (deload-aware) schedule.
+      const assignment = await resolveActiveAssignment(clientUserId);
+      const schedule = assignment ? await loadCanonicalSchedule(assignment.id) : null;
+      if (schedule) {
+        for (const [iso, day] of schedule.byDate) {
+          if (iso < mondayIso || iso > sundayIso) continue;
+          for (const m of day.modules) {
+            weeklyScheduled += 1;
+            if (m.status === "completed") weeklyCompleted += 1;
+          }
         }
-        const rows = mods ?? [];
-        weeklyScheduled = rows.length;
-        weeklyCompleted = rows.filter((m) => m.completed_at).length;
+      }
+    } else {
+      // Legacy: client_program_days.date in the current week, then bucket modules.
+      const activeProgramIds = programs
+        .filter((p) => p.status === "active")
+        .map((p) => p.id);
+      if (activeProgramIds.length > 0) {
+        const { data: weekDays, error: dayErr } = await supabase
+          .from("client_program_days")
+          .select("id, client_program_id")
+          .in("client_program_id", activeProgramIds)
+          .gte("date", mondayIso)
+          .lte("date", sundayIso);
+        if (dayErr) {
+          console.warn("[useAdherencePulse] day fetch:", dayErr.message);
+        }
+        const weekDayIds = (weekDays ?? []).map((d) => d.id);
+        if (weekDayIds.length > 0) {
+          const { data: mods, error: modErr } = await supabase
+            .from("client_day_modules")
+            .select("completed_at")
+            .in("client_program_day_id", weekDayIds);
+          if (modErr) {
+            console.warn("[useAdherencePulse] modules:", modErr.message);
+          }
+          const rows = mods ?? [];
+          weeklyScheduled = rows.length;
+          weeklyCompleted = rows.filter((m) => m.completed_at).length;
+        }
       }
     }
 
@@ -447,12 +510,113 @@ export interface SetLogRow {
   createdAt: string | null;
 }
 
-/** Fetch the exercises + logs for a specific client_day_module. */
-export function useSessionLog(clientDayModuleId: string | null) {
+/** A canonical session target (board_v2): the assignment + the plan_session to view. */
+export interface CanonicalSessionTarget {
+  assignmentId: string;
+  planSessionId: string;
+}
+
+/** Read all slots (incl. unlogged) + their set logs for a canonical plan_session. */
+async function loadCanonicalSessionEntries(
+  target: CanonicalSessionTarget,
+): Promise<SessionLogEntry[]> {
+  // Slots for the session (slot-driven so prescribed-but-unlogged exercises still show).
+  const { data: slotRows, error: slotErr } = await supabase
+    .from("plan_slots")
+    .select("id, exercise_id, section, sort_order, instructions, prescription_json")
+    .eq("plan_session_id", target.planSessionId)
+    .order("sort_order", { ascending: true });
+  if (slotErr) throw slotErr;
+  const slots = slotRows ?? [];
+  if (slots.length === 0) return [];
+
+  const exerciseIds = Array.from(
+    new Set(slots.map((s) => s.exercise_id).filter((v): v is string => !!v)),
+  );
+  const nameById = new Map<string, string>();
+  if (exerciseIds.length > 0) {
+    const { data: lib, error: libErr } = await supabase
+      .from("exercise_library")
+      .select("id, name")
+      .in("id", exerciseIds);
+    if (libErr) throw libErr;
+    for (const x of lib ?? []) nameById.set(x.id, x.name);
+  }
+
+  // Set logs keyed by (assignment_id, plan_slot_id) — canonical logs have
+  // client_module_exercise_id NULL (coach reads via the canonical RLS policy).
+  const slotIds = slots.map((s) => s.id);
+  const { data: logs, error: logsErr } = await supabase
+    .from("exercise_set_logs")
+    .select("plan_slot_id, set_index, performed_load, performed_reps, performed_rir, performed_rpe, notes, created_at")
+    .eq("assignment_id", target.assignmentId)
+    .in("plan_slot_id", slotIds)
+    .order("set_index", { ascending: true });
+  if (logsErr) throw logsErr;
+  const setsBySlot = new Map<string, SetLogRow[]>();
+  for (const l of logs ?? []) {
+    const arr = setsBySlot.get(l.plan_slot_id as string) ?? [];
+    arr.push({
+      setIndex: l.set_index,
+      performedLoad: l.performed_load,
+      performedReps: l.performed_reps,
+      performedRir: l.performed_rir,
+      performedRpe: l.performed_rpe,
+      notes: l.notes,
+      createdAt: l.created_at,
+    });
+    setsBySlot.set(l.plan_slot_id as string, arr);
+  }
+
+  return slots.map((s) => {
+    // Normalise the builder-shape prescription_json so the viewer's set-count
+    // reader (set_count / sets_json) works: surface a numeric set_count.
+    const pj = (s.prescription_json as Record<string, unknown> | null) ?? null;
+    const setCount =
+      pj && typeof pj.sets === "number"
+        ? pj.sets
+        : pj && Array.isArray(pj.setsDetail)
+          ? (pj.setsDetail as unknown[]).length
+          : null;
+    const snapshot = pj ? { ...pj, set_count: setCount } : null;
+    return {
+      id: s.id, // plan_slot_id (React key)
+      exerciseName: s.exercise_id ? nameById.get(s.exercise_id) ?? "Unknown exercise" : "Unknown exercise",
+      section: (s.section as string | null) ?? null,
+      sortOrder: (s.sort_order as number | null) ?? 0,
+      sets: setsBySlot.get(s.id) ?? [],
+      prescriptionSnapshotJson: snapshot,
+      instructions: (s.instructions as string | null) ?? null,
+    };
+  });
+}
+
+/**
+ * Fetch the exercises + logs for a session. Legacy: a client_day_module id.
+ * board_v2 canonical: pass `canonical` ({ assignmentId, planSessionId }) and a
+ * null `clientDayModuleId`.
+ */
+export function useSessionLog(
+  clientDayModuleId: string | null,
+  canonical?: CanonicalSessionTarget | null,
+) {
   const [entries, setEntries] = useState<SessionLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const hasFetched = useRef<string | null>(null);
+
+  const loadCanonical = useCallback(async (target: CanonicalSessionTarget) => {
+    setLoading(true);
+    setError(null);
+    try {
+      setEntries(await loadCanonicalSessionEntries(target));
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load session");
+      setEntries([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   const load = useCallback(async (moduleId: string) => {
     setLoading(true);
@@ -534,7 +698,17 @@ export function useSessionLog(clientDayModuleId: string | null) {
     }
   }, []);
 
+  const canonicalKey = canonical
+    ? `${canonical.assignmentId}:${canonical.planSessionId}`
+    : null;
   useEffect(() => {
+    // Canonical target wins when provided (board_v2); else the legacy module id.
+    if (canonical && canonicalKey) {
+      if (hasFetched.current === canonicalKey) return;
+      hasFetched.current = canonicalKey;
+      loadCanonical(canonical);
+      return;
+    }
     if (!clientDayModuleId) {
       setEntries([]);
       hasFetched.current = null;
@@ -543,7 +717,8 @@ export function useSessionLog(clientDayModuleId: string | null) {
     if (hasFetched.current === clientDayModuleId) return;
     hasFetched.current = clientDayModuleId;
     load(clientDayModuleId);
-  }, [clientDayModuleId, load]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clientDayModuleId, canonicalKey, load, loadCanonical]);
 
   return { entries, loading, error };
 }
