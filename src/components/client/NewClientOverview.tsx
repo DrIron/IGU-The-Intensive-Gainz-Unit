@@ -18,6 +18,8 @@ import { CardContent } from "@/components/ui/card";
 import { Dumbbell, MessageSquare } from "lucide-react";
 import { startOfIguWeek } from "@/lib/weekUtils";
 import { captureException } from "@/lib/errorLogging";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
+import { resolveActiveAssignment } from "@/lib/canonicalScheduleAdapter";
 
 interface NewClientOverviewProps {
   user: any;
@@ -123,22 +125,37 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         setWeeklyLogsCount(count || 0);
       }
 
-      // Count client_programs to detect the "onboarded but no program yet"
-      // empty state. head:true avoids pulling rows we don't need. On error
-      // we leave programCount null so noProgramYet stays false — better to
-      // hide the empty state than show it spuriously on a transient failure.
-      const { count: pCount, error: pErr } = await supabase
-        .from("client_programs")
-        .select("id", { count: "exact", head: true })
-        .eq("user_id", user.id);
-      if (pErr) {
-        captureException(pErr, {
-          source: "NewClientOverview.loadDashboardData.programCount",
-          severity: "warning",
-          metadata: { userId: user.id },
-        });
+      // Detect the "onboarded but no program yet" empty state. board_v2: a
+      // canonical assignment is the program of record (a client may have an
+      // assignment but no legacy client_programs row), so derive presence from
+      // the active assignment. Flag off: count client_programs (head:true avoids
+      // pulling rows). On error leave programCount null so noProgramYet stays
+      // false — better to hide the empty state than show it spuriously.
+      if (isBoardV2Enabled()) {
+        try {
+          const assignment = await resolveActiveAssignment(user.id);
+          setProgramCount(assignment ? 1 : 0);
+        } catch (aErr) {
+          captureException(aErr, {
+            source: "NewClientOverview.loadDashboardData.assignmentCount",
+            severity: "warning",
+            metadata: { userId: user.id },
+          });
+        }
       } else {
-        setProgramCount(pCount ?? 0);
+        const { count: pCount, error: pErr } = await supabase
+          .from("client_programs")
+          .select("id", { count: "exact", head: true })
+          .eq("user_id", user.id);
+        if (pErr) {
+          captureException(pErr, {
+            source: "NewClientOverview.loadDashboardData.programCount",
+            severity: "warning",
+            metadata: { userId: user.id },
+          });
+        } else {
+          setProgramCount(pCount ?? 0);
+        }
       }
     } catch (error) {
       console.error("Error loading dashboard data:", error);

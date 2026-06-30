@@ -26,6 +26,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoachRosterStats } from "@/hooks/useCoachRosterStats";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
+import { resolveActiveAssignment, canonicalLastWorkoutAt } from "@/lib/canonicalScheduleAdapter";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
 const SPARKLINE_POINTS = 12;
@@ -114,12 +116,18 @@ export function useClientVitals(clientUserId: string): ClientVitals {
       .maybeSingle();
     if (phaseErr) console.warn("[useClientVitals] phase:", phaseErr.message);
 
+    // board_v2: the last-workout time comes from the canonical assignment's set
+    // logs (deload-aware), so the legacy client_programs lookup is skipped.
+    const boardV2 = isBoardV2Enabled();
+
     // The remaining reads are independent -- fan out in parallel.
-    const programIdsPromise = supabase
-      .from("client_programs")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("status", "active");
+    const programIdsPromise = boardV2
+      ? Promise.resolve({ data: [] as { id: string }[], error: null })
+      : supabase
+          .from("client_programs")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("status", "active");
 
     const weightPromise = supabase
       .from("weight_logs")
@@ -149,28 +157,36 @@ export function useClientVitals(clientUserId: string): ClientVitals {
     if (adjRes.error)
       console.warn("[useClientVitals] nutrition_adjustments:", adjRes.error.message);
 
-    // Last workout: program -> day -> module chain (no nested FK joins per
-    // CLAUDE.md). Resolve day ids, then the most recent completed module.
+    // Last workout. board_v2: newest logged set on the active canonical
+    // assignment (deload-aware; the legacy snapshot goes stale post-deload).
+    // Flag off: legacy program -> day -> module chain (no nested FK joins per
+    // CLAUDE.md). Coach-context canonical read relies on the
+    // exercise_set_logs_canonical_coach_select RLS policy (20260630061546).
     let lastWorkoutAt: string | null = null;
-    const programIds = (programRes.data ?? []).map((p) => p.id);
-    if (programIds.length > 0) {
-      const { data: dayRows, error: daysErr } = await supabase
-        .from("client_program_days")
-        .select("id")
-        .in("client_program_id", programIds);
-      if (daysErr) console.warn("[useClientVitals] client_program_days:", daysErr.message);
+    if (boardV2) {
+      const assignment = await resolveActiveAssignment(userId);
+      lastWorkoutAt = assignment ? await canonicalLastWorkoutAt(assignment.id) : null;
+    } else {
+      const programIds = (programRes.data ?? []).map((p) => p.id);
+      if (programIds.length > 0) {
+        const { data: dayRows, error: daysErr } = await supabase
+          .from("client_program_days")
+          .select("id")
+          .in("client_program_id", programIds);
+        if (daysErr) console.warn("[useClientVitals] client_program_days:", daysErr.message);
 
-      const dayIds = (dayRows ?? []).map((d) => d.id);
-      if (dayIds.length > 0) {
-        const { data: modRows, error: modsErr } = await supabase
-          .from("client_day_modules")
-          .select("completed_at")
-          .in("client_program_day_id", dayIds)
-          .not("completed_at", "is", null)
-          .order("completed_at", { ascending: false })
-          .limit(1);
-        if (modsErr) console.warn("[useClientVitals] client_day_modules:", modsErr.message);
-        lastWorkoutAt = modRows?.[0]?.completed_at ?? null;
+        const dayIds = (dayRows ?? []).map((d) => d.id);
+        if (dayIds.length > 0) {
+          const { data: modRows, error: modsErr } = await supabase
+            .from("client_day_modules")
+            .select("completed_at")
+            .in("client_program_day_id", dayIds)
+            .not("completed_at", "is", null)
+            .order("completed_at", { ascending: false })
+            .limit(1);
+          if (modsErr) console.warn("[useClientVitals] client_day_modules:", modsErr.message);
+          lastWorkoutAt = modRows?.[0]?.completed_at ?? null;
+        }
       }
     }
 
