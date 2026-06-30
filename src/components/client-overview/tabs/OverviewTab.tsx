@@ -66,15 +66,22 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
       .maybeSingle();
     if (phaseErr) console.warn("[OverviewTab] phase:", phaseErr.message);
 
-    // Last workout. board_v2: read the canonical "last logged set" for the
-    // client's active assignment (deload-aware; the legacy chain below reads the
-    // frozen pre-deload snapshot and goes stale). Flag off / no assignment ->
-    // legacy program -> day -> module chain (no nested FK joins per CLAUDE.md).
+    // Last workout. board_v2 + an active canonical assignment: read the canonical
+    // "last logged set" (deload-aware; the legacy chain reads the frozen pre-deload
+    // snapshot and goes stale). Otherwise — flag off, OR flag on but no assignment
+    // yet (not-backfilled client) — fall through to the legacy program -> day ->
+    // module chain (no nested FK joins per CLAUDE.md). A null canonical result when
+    // an assignment DOES exist is a real "no workouts yet", not a miss → keep it.
     let lastWorkoutAt: string | null = null;
+    let canonicalHandled = false;
     if (isBoardV2Enabled()) {
       const assignment = await resolveActiveAssignment(userId);
-      lastWorkoutAt = assignment ? await canonicalLastWorkoutAt(assignment.id) : null;
-    } else {
+      if (assignment) {
+        lastWorkoutAt = await canonicalLastWorkoutAt(assignment.id);
+        canonicalHandled = true;
+      }
+    }
+    if (!canonicalHandled) {
       const { data: programRows, error: programsErr } = await supabase
         .from("client_programs")
         .select("id")

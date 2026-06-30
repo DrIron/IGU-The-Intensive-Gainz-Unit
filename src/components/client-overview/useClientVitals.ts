@@ -116,12 +116,17 @@ export function useClientVitals(clientUserId: string): ClientVitals {
       .maybeSingle();
     if (phaseErr) console.warn("[useClientVitals] phase:", phaseErr.message);
 
-    // board_v2: the last-workout time comes from the canonical assignment's set
-    // logs (deload-aware), so the legacy client_programs lookup is skipped.
+    // Resolve the canonical assignment first (board_v2 only) — it decides whether
+    // the last-workout time is canonical or legacy. Canonical wins ONLY when an
+    // active assignment exists; flag off OR flag on + no assignment (not-backfilled
+    // client) → legacy. So the legacy client_programs lookup is skipped only when
+    // canonical will actually handle it.
     const boardV2 = isBoardV2Enabled();
+    const assignment = boardV2 ? await resolveActiveAssignment(userId) : null;
+    const useCanonicalWorkout = !!assignment;
 
     // The remaining reads are independent -- fan out in parallel.
-    const programIdsPromise = boardV2
+    const programIdsPromise = useCanonicalWorkout
       ? Promise.resolve({ data: [] as { id: string }[], error: null })
       : supabase
           .from("client_programs")
@@ -157,15 +162,15 @@ export function useClientVitals(clientUserId: string): ClientVitals {
     if (adjRes.error)
       console.warn("[useClientVitals] nutrition_adjustments:", adjRes.error.message);
 
-    // Last workout. board_v2: newest logged set on the active canonical
-    // assignment (deload-aware; the legacy snapshot goes stale post-deload).
-    // Flag off: legacy program -> day -> module chain (no nested FK joins per
-    // CLAUDE.md). Coach-context canonical read relies on the
+    // Last workout. Canonical (assignment present): newest logged set (deload-aware;
+    // the legacy snapshot goes stale post-deload) — a null result here is a real
+    // "no workouts yet", kept as-is. Else (flag off, or flag on + no assignment):
+    // legacy program -> day -> module chain (no nested FK joins per CLAUDE.md).
+    // Coach-context canonical read relies on the
     // exercise_set_logs_canonical_coach_select RLS policy (20260630061546).
     let lastWorkoutAt: string | null = null;
-    if (boardV2) {
-      const assignment = await resolveActiveAssignment(userId);
-      lastWorkoutAt = assignment ? await canonicalLastWorkoutAt(assignment.id) : null;
+    if (useCanonicalWorkout && assignment) {
+      lastWorkoutAt = await canonicalLastWorkoutAt(assignment.id);
     } else {
       const programIds = (programRes.data ?? []).map((p) => p.id);
       if (programIds.length > 0) {
