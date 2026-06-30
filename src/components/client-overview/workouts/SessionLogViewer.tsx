@@ -46,8 +46,14 @@ export const SessionLogViewer = memo(function SessionLogViewer({
   onOpenChange,
 }: SessionLogViewerProps) {
   const isMobile = useIsMobile();
+  // Canonical module (board_v2) → read via assignment + plan_session; else legacy id.
+  const canonicalTarget =
+    open && module?.canonical
+      ? { assignmentId: module.canonical.assignmentId, planSessionId: module.id }
+      : null;
   const { entries, loading, error } = useSessionLog(
-    open && module ? module.id : null,
+    open && module && !module.canonical ? module.id : null,
+    canonicalTarget,
   );
 
   const header = module ? (

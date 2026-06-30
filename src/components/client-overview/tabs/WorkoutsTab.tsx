@@ -172,17 +172,13 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   }, []);
   const handleOpenModule = useCallback(
     (module: DrilldownModule, day: DrilldownDay) => {
-      // Canonical sessions don't exist in the legacy SessionLogViewer — open WorkoutSessionV2
-      // (canonical read mode) via assignment+session+date params, like the client calendar.
-      if (module.canonical) {
-        navigate(
-          `/client/workout/session/canonical?assignment=${module.canonical.assignmentId}&session=${module.id}&date=${module.canonical.date}`,
-        );
-        return;
-      }
+      // Slice 3b: the read-only SessionLogViewer now handles canonical sessions
+      // (via module.canonical → assignment+plan_session), so coaches stay in the
+      // overview drawer for both worlds instead of navigating into the client's
+      // WorkoutSessionV2 player.
       setLogTarget({ module, day });
     },
-    [navigate],
+    [],
   );
 
   // Reassign flow — we reuse AssignFromLibraryDialog but it wants a

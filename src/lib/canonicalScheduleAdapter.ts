@@ -148,6 +148,125 @@ export async function canonicalLastWorkoutAt(assignmentId: string): Promise<stri
 }
 
 /**
+ * One enriched canonical set log: the raw exercise_set_logs row (same field names
+ * the legacy analytics RawLog uses) joined to its plan_slot's exercise + the
+ * library category + the plan_session it belongs to.
+ *
+ * `planSessionId` is the session-instance grouping key (canonical analog of the
+ * legacy client_day_module_id): the (assignment_id, plan_slot_id, set_index)
+ * UNIQUE constraint means each slot is logged at most once per assignment, so a
+ * plan_session_id maps to a single logged session instance; chronology comes from
+ * `created_at`. `category` drives prEngine/workoutFlags routing.
+ */
+export interface CanonicalLoggedSet {
+  planSlotId: string;
+  planSessionId: string;
+  exerciseId: string | null;
+  exerciseName: string | null;
+  category: string | null;
+  section: string;
+  sortOrder: number;
+  set_index: number;
+  prescribed: Record<string, unknown> | null;
+  performed_load: number | null;
+  performed_reps: number | null;
+  performed_rir: number | null;
+  performed_rpe: number | null;
+  performed_json: Record<string, unknown> | null;
+  skipped: boolean;
+  created_at: string;
+}
+
+/**
+ * All canonical set logs for an assignment, enriched with each slot's exercise +
+ * library category + owning plan_session, ordered by created_at asc. Empty array
+ * when there are no canonical logs. Feeds the coach workout analytics (Slice 3).
+ *
+ * Scope: active-assignment-only (the plan_* RLS policies require status='active',
+ * so logs from a prior assignment can't be slot-joined anyway). Legacy pulse read
+ * all-time history by created_by_user_id; pre-launch no client has assignment
+ * history, so this is acceptable — flagged so the 6-week-trend edge (mid-window
+ * plan switch) isn't a silent gap later.
+ *
+ * Coach-context reads rely on the exercise_set_logs canonical coach policy
+ * (20260630061546) + plan_* read policies (20260630075501).
+ */
+export async function loadCanonicalWorkoutLogs(assignmentId: string): Promise<CanonicalLoggedSet[]> {
+  const { data: logRows, error: logErr } = await supabase
+    .from("exercise_set_logs")
+    .select(
+      "plan_slot_id, set_index, skipped, performed_load, performed_reps, performed_rir, performed_rpe, performed_json, prescribed, created_at",
+    )
+    .eq("assignment_id", assignmentId)
+    .not("plan_slot_id", "is", null)
+    .order("created_at", { ascending: true });
+  if (logErr) throw logErr;
+  const logs = logRows ?? [];
+  if (logs.length === 0) return [];
+
+  // Slot -> plan_session_id / exercise_id / section / sort_order.
+  const slotIds = [...new Set(logs.map((l) => l.plan_slot_id as string))];
+  const slotMeta = new Map<
+    string,
+    { planSessionId: string; exerciseId: string | null; section: string; sortOrder: number }
+  >();
+  const { data: slotRows, error: slotErr } = await supabase
+    .from("plan_slots")
+    .select("id, plan_session_id, exercise_id, section, sort_order")
+    .in("id", slotIds);
+  if (slotErr) throw slotErr;
+  for (const s of slotRows ?? []) {
+    slotMeta.set(s.id, {
+      planSessionId: s.plan_session_id,
+      exerciseId: (s.exercise_id as string | null) ?? null,
+      section: (s.section as string | null) ?? "main",
+      sortOrder: (s.sort_order as number | null) ?? 0,
+    });
+  }
+
+  // Exercise name + category (category drives the analytics rule group).
+  const exerciseIds = [
+    ...new Set([...slotMeta.values()].map((m) => m.exerciseId).filter((x): x is string => !!x)),
+  ];
+  const exMeta = new Map<string, { name: string | null; category: string | null }>();
+  if (exerciseIds.length > 0) {
+    const { data: lib, error: libErr } = await supabase
+      .from("exercise_library")
+      .select("id, name, category")
+      .in("id", exerciseIds);
+    if (libErr) throw libErr;
+    for (const e of lib ?? [])
+      exMeta.set(e.id, { name: e.name ?? null, category: (e.category as string | null) ?? null });
+  }
+
+  const out: CanonicalLoggedSet[] = [];
+  for (const l of logs) {
+    const sm = slotMeta.get(l.plan_slot_id as string);
+    if (!sm) continue; // slot not readable (RLS) or missing — drop rather than mis-group
+    const em = sm.exerciseId ? exMeta.get(sm.exerciseId) : undefined;
+    out.push({
+      planSlotId: l.plan_slot_id as string,
+      planSessionId: sm.planSessionId,
+      exerciseId: sm.exerciseId,
+      exerciseName: em?.name ?? null,
+      category: em?.category ?? null,
+      section: sm.section,
+      sortOrder: sm.sortOrder,
+      set_index: l.set_index,
+      prescribed: (l.prescribed as Record<string, unknown> | null) ?? null,
+      performed_load: l.performed_load,
+      performed_reps: l.performed_reps,
+      performed_rir: l.performed_rir,
+      performed_rpe: l.performed_rpe,
+      performed_json: (l.performed_json as Record<string, unknown> | null) ?? null,
+      skipped: !!l.skipped,
+      created_at: l.created_at,
+    });
+  }
+  return out;
+}
+
+/**
  * Build the canonical schedule for an assignment. Returns null when there's no canonical plan to
  * read (caller falls back to the legacy grid).
  */
