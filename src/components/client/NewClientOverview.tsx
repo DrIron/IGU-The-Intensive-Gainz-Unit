@@ -125,24 +125,31 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         setWeeklyLogsCount(count || 0);
       }
 
-      // Detect the "onboarded but no program yet" empty state. board_v2: a
-      // canonical assignment is the program of record (a client may have an
-      // assignment but no legacy client_programs row), so derive presence from
-      // the active assignment. Flag off: count client_programs (head:true avoids
-      // pulling rows). On error leave programCount null so noProgramYet stays
-      // false — better to hide the empty state than show it spuriously.
+      // Detect the "onboarded but no program yet" empty state. board_v2 + an
+      // active canonical assignment is the program of record (a client may have an
+      // assignment but no legacy client_programs row). Otherwise — flag off, OR
+      // flag on but no assignment yet (not-backfilled client) — count
+      // client_programs (head:true avoids pulling rows). On error leave
+      // programCount null so noProgramYet stays false — better to hide the empty
+      // state than show it spuriously.
+      let canonicalHandled = false;
       if (isBoardV2Enabled()) {
         try {
           const assignment = await resolveActiveAssignment(user.id);
-          setProgramCount(assignment ? 1 : 0);
+          if (assignment) {
+            setProgramCount(1);
+            canonicalHandled = true;
+          }
         } catch (aErr) {
           captureException(aErr, {
             source: "NewClientOverview.loadDashboardData.assignmentCount",
             severity: "warning",
             metadata: { userId: user.id },
           });
+          // fall through to the legacy count below.
         }
-      } else {
+      }
+      if (!canonicalHandled) {
         const { count: pCount, error: pErr } = await supabase
           .from("client_programs")
           .select("id", { count: "exact", head: true })

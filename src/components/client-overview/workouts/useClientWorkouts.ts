@@ -294,20 +294,29 @@ export function useAdherencePulse(
     let weeklyScheduled = 0;
     let weeklyCompleted = 0;
 
+    // Canonical (active assignment + schedule): count this week's modules from the
+    // (deload-aware) schedule — zero modules this week is a real "nothing scheduled",
+    // kept as-is. Otherwise — flag off, flag on + no assignment (not-backfilled),
+    // or a null schedule (malformed canonical) — fall through to legacy, matching
+    // the useWorkoutPulse pattern.
+    let canonicalHandled = false;
     if (isBoardV2Enabled()) {
-      // Canonical: count this week's modules from the (deload-aware) schedule.
       const assignment = await resolveActiveAssignment(clientUserId);
-      const schedule = assignment ? await loadCanonicalSchedule(assignment.id) : null;
-      if (schedule) {
-        for (const [iso, day] of schedule.byDate) {
-          if (iso < mondayIso || iso > sundayIso) continue;
-          for (const m of day.modules) {
-            weeklyScheduled += 1;
-            if (m.status === "completed") weeklyCompleted += 1;
+      if (assignment) {
+        const schedule = await loadCanonicalSchedule(assignment.id);
+        if (schedule) {
+          canonicalHandled = true;
+          for (const [iso, day] of schedule.byDate) {
+            if (iso < mondayIso || iso > sundayIso) continue;
+            for (const m of day.modules) {
+              weeklyScheduled += 1;
+              if (m.status === "completed") weeklyCompleted += 1;
+            }
           }
         }
       }
-    } else {
+    }
+    if (!canonicalHandled) {
       // Legacy: client_program_days.date in the current week, then bucket modules.
       const activeProgramIds = programs
         .filter((p) => p.status === "active")
