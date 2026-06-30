@@ -100,6 +100,32 @@ interface SlotRow {
   prescription_json: Record<string, unknown> | null;
 }
 
+export interface ActiveAssignment {
+  id: string;
+  plan_id: string;
+  start_date: string;
+}
+
+/**
+ * Resolve a client's active canonical assignment (the newest active
+ * client_plan_assignment). Shared by the board_v2 canonical surfaces
+ * (WorkoutCalendar, useClientWorkoutsToday, …) so the lookup isn't re-duplicated.
+ * Returns null when the client has no active canonical assignment (caller falls
+ * back to the legacy path).
+ */
+export async function resolveActiveAssignment(clientId: string): Promise<ActiveAssignment | null> {
+  const { data } = await supabase
+    .from("client_plan_assignment")
+    .select("id, plan_id, start_date")
+    .eq("client_id", clientId)
+    .eq("status", "active")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (!data?.id || !data.plan_id || !data.start_date) return null;
+  return { id: data.id, plan_id: data.plan_id, start_date: data.start_date };
+}
+
 /**
  * Build the canonical schedule for an assignment. Returns null when there's no canonical plan to
  * read (caller falls back to the legacy grid).
