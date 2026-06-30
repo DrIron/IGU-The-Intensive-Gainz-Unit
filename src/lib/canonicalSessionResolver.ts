@@ -1,12 +1,18 @@
 /**
- * Program system unification P3 — resolve ONE workout session from the canonical model
- * (client_plan_assignment + plan_* + client_plan_overrides) into the shape WorkoutSessionV2
- * renders. Behind the `canonical_session_read` feature flag (OFF by default). Legacy
- * client_* remains the authoritative read/log path; this is a parity read only.
+ * Program system unification P3 / own-your-copy S3 — resolve ONE workout session from the
+ * canonical model (client_plan_assignment + plan_*) into the shape WorkoutSessionV2 renders.
+ * Behind the `canonical_session_read` feature flag (OFF by default). Legacy client_* remains
+ * the authoritative read/log path; this is a parity read only.
  *
- * Flow (build plan §P3): assignment + date -> active plan_week (start_date + week math)
- * -> plan_sessions for that day_index -> plan_slots LEFT JOIN client_plan_overrides
- * (overrides empty until P4 -> no-ops) -> session shape (exercise, prescription, columns).
+ * S3 (own-your-copy): the assignee's plan IS the divergence — under board_v2 the board writes
+ * the client's own CLONE directly (S2 save_plan_direct), so client_plan_overrides is never
+ * written for these assignments. The retired override fetch + merge has been REMOVED; the
+ * resolver reads purely from plan_* on assignment.plan_id (the clone). The override TABLE
+ * stays through the soak (S5 drops it); we just stop reading it here.
+ *
+ * Flow: assignment + date -> active plan_week (start_date + week math, incl. on-demand
+ * inserted deloads from client_plan_inserted_deloads) -> plan_sessions for that day_index
+ * -> plan_slots -> session shape (exercise, prescription, columns).
  *
  * SCOPE: base prescription parity only. Replacements expansion, auto-fill, cross-instance
  * history/PB, and per-set instruction resolution (back-off/drop/AMRAP/rest-pause) are
@@ -15,7 +21,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { selectWithRetry } from "@/lib/selectWithRetry";
-import { applyDeloadPreset } from "@/components/coach/programs/muscle-builder/deloadPresets";
 import { isBoardV2Enabled } from "@/lib/featureFlags";
 import type { BoardDeloadInsert } from "@/lib/boardDates";
 import { buildRunningSequence, type SequenceInsert } from "@/lib/deloadSequence";
@@ -71,9 +76,9 @@ export interface CanonicalResolvedSession {
   planSessionId: string;
   title: string;
   activityType: string;
-  /** This week is a deload for the client (template flag OR a per-client week override). */
+  /** This week is a deload for the client (template pinned flag OR an inserted on-demand deload). */
   isDeload: boolean;
-  /** Preset applied when the deload came from a per-client override (else null). */
+  /** The inserted on-demand deload's preset (display only — content is authored), else null. */
   deloadPresetId: string | null;
   exercises: CanonicalResolvedExercise[];
   existingLogs: CanonicalSetLogRow[];
@@ -258,58 +263,16 @@ export async function resolveCanonicalSession(
   );
   if (slErr) throw slErr;
 
-  // 5) Overrides for this assignment, merged over the resolved plan_* (the P4 override layer:
-  // a 1:1 client diverges from the followed plan without touching the template / other clients).
-  // override_json contract (mirrors save_client_plan_override):
-  //   slot    { exercise_id?, section?, sort_order?, instructions?, prescription?: <partial pj>,
-  //             added?: true, plan_session_id? }   — field-level patch; added = a new slot
-  //   session { name?, activity_type? }             — removed=true drops the whole session
-  //   week    { is_deload?, deload_preset_id? }     — accepted; per-client deload apply deferred
-  const { data: overrides } = await retryRead(
-    () =>
-      supabase
-        .from("client_plan_overrides")
-        .select("target_type, target_id, override_json, removed")
-        .eq("assignment_id", assignmentId),
-    "overrides",
-  );
-
-  const slotPatch = new Map<string, { json: Record<string, unknown>; removed: boolean }>();
-  const addedSlots: { targetId: string; json: Record<string, unknown> }[] = [];
-  let sessionPatch: Record<string, unknown> | null = null;
-  let sessionRemoved = false;
-  let weekOverride: Record<string, unknown> | null = null; // for this session's plan_week
-  const existingSlotIds = new Set((slots ?? []).map((s) => s.id));
-  for (const o of overrides ?? []) {
-    const oj = (o.override_json as Record<string, unknown>) ?? {};
-    if (o.target_type === "week" && o.target_id === session.plan_week_id) {
-      if (!o.removed) weekOverride = oj;
-    } else if (o.target_type === "session" && o.target_id === session.id) {
-      if (o.removed) sessionRemoved = true;
-      else sessionPatch = oj;
-    } else if (o.target_type === "slot") {
-      if (existingSlotIds.has(o.target_id)) {
-        slotPatch.set(o.target_id, { json: oj, removed: !!o.removed });
-      } else if (!o.removed && (oj.plan_session_id == null || oj.plan_session_id === session.id)) {
-        addedSlots.push({ targetId: o.target_id, json: oj }); // a new slot for this session
-      }
-    }
-  }
-  // A session removed for this client drops the whole session.
-  if (sessionRemoved) return null;
-
-  // Per-client deload (week-level override). When an APPROVED deload set is_deload + a preset on
-  // this week, apply the preset's reduction to each resolved slot's prescription at read time
-  // (template slots carry NORMAL prescriptions; the reduction is the client's diff). A template's
-  // own is_deload is already baked into plan_slots, so we only RE-apply for override-driven deload.
-  const overrideDeload = weekOverride?.is_deload === true;
-  const deloadPresetId = overrideDeload
-    ? ((weekOverride?.deload_preset_id as string | undefined) ?? null)
-    : null;
-  // Effective deload for display = override is_deload, OR an inserted on-demand deload (Deload v2),
-  // OR the active template week's own flag (pinned). Inserted/pinned content is authored-reduced so
-  // it is NOT re-reduced; only the override path re-applies the preset at read time (deloadPresetId).
-  const effectiveIsDeload = overrideDeload || insertedDeload || (planWeekIsDeload ?? false);
+  // 5) S3 (own-your-copy): resolve purely from plan_* on the clone — the retired
+  // client_plan_overrides fetch + slot/session/week merge has been removed. Under the
+  // canonical-read flags the clone IS the divergence (S2 writes it directly), so the override
+  // set was always empty for these assignments; reading the clone directly is behavior-preserving
+  // now and correct after the board_v2 flip. (The override table/RPC stay until S5.)
+  //
+  // Effective deload for display = an inserted on-demand deload (Deload v2) OR the active
+  // template week's own pinned flag. Both carry authored-reduced content, so prescriptions are
+  // used as-is — no read-time re-reduction.
+  const effectiveIsDeload = insertedDeload || (planWeekIsDeload ?? false);
 
   // 6) Coach default column preset (same source ConvertToProgram uses for column_config).
   const { data: presetRow } = await retryRead(
@@ -324,11 +287,9 @@ export async function resolveCanonicalSession(
   );
   const presetColumnConfig = (presetRow?.column_config as unknown as ColumnConfig[] | null) ?? null;
 
-  // 7) exercise_library for every exercise we may render — base slots + patched/added overrides.
+  // 7) exercise_library for every exercise we render (the clone's slots).
   const exerciseIds = new Set<string>();
   for (const s of slots ?? []) if (s.exercise_id) exerciseIds.add(s.exercise_id);
-  for (const [, p] of slotPatch) if (typeof p.json.exercise_id === "string") exerciseIds.add(p.json.exercise_id);
-  for (const a of addedSlots) if (typeof a.json.exercise_id === "string") exerciseIds.add(a.json.exercise_id as string);
   const libraryById = new Map<string, CanonicalExerciseLibraryInfo>();
   if (exerciseIds.size > 0) {
     const { data: libRows } = await retryRead(
@@ -355,8 +316,9 @@ export async function resolveCanonicalSession(
     }
   }
 
-  // Build one resolved exercise from base slot fields + an optional override patch.
-  // Returns null when there's no exercise to log (no auto-fill in canonical).
+  // Build one resolved exercise from a clone slot. Returns null when there's no exercise to
+  // log (no auto-fill in canonical). Inserted/pinned deload content is authored-reduced, so the
+  // prescription is used as-is (no read-time preset re-application).
   const buildExercise = (
     planSlotId: string,
     base: {
@@ -366,60 +328,35 @@ export async function resolveCanonicalSession(
       instructions: string | null;
       prescription_json: Record<string, unknown>;
     },
-    patch: Record<string, unknown> | undefined,
   ): CanonicalResolvedExercise | null => {
-    const exerciseId = (patch?.exercise_id as string | undefined) ?? base.exercise_id;
+    const exerciseId = base.exercise_id;
     if (!exerciseId) return null;
-    const pj = {
-      ...(base.prescription_json ?? {}),
-      ...((patch?.prescription as Record<string, unknown> | undefined) ?? {}),
-    };
-    // Per-client deload (week override): reduce the prescription via the shared preset math
-    // (same helper the board uses) before building the snapshot. Strength slots only.
-    const prescribableRaw = slotFromPrescriptionJson(pj);
-    const prescribable =
-      deloadPresetId && isStrengthSlot(prescribableRaw)
-        ? applyDeloadPreset(prescribableRaw, deloadPresetId)
-        : prescribableRaw;
+    const prescribable = slotFromPrescriptionJson(base.prescription_json ?? {});
     const snapshot = isStrengthSlot(prescribable)
       ? buildStrengthPrescriptionSnapshot(prescribable, presetColumnConfig)
       : buildActivityPrescriptionSnapshot(prescribable);
     return {
       planSlotId,
       exerciseId,
-      section: ((patch?.section as string | undefined) ?? base.section ?? "main") as CanonicalResolvedExercise["section"],
-      sortOrder: (patch?.sort_order as number | undefined) ?? base.sort_order ?? 0,
-      instructions: (patch?.instructions as string | undefined) ?? base.instructions ?? null,
+      section: (base.section ?? "main") as CanonicalResolvedExercise["section"],
+      sortOrder: base.sort_order ?? 0,
+      instructions: base.instructions ?? null,
       prescriptionSnapshot: snapshot,
       library: libraryById.get(exerciseId) ?? null,
     };
   };
 
-  // 8) Build exercises: base slots (patched, removed dropped) + override-added slots, then order.
+  // 8) Build exercises straight from the clone's slots, then order.
   // TODO(P4): expand prescription_json.replacements as separate accessory entries.
   const exercises: CanonicalResolvedExercise[] = [];
   for (const slot of slots ?? []) {
-    const ov = slotPatch.get(slot.id);
-    if (ov?.removed) continue;
-    const built = buildExercise(
-      slot.id,
-      {
-        exercise_id: slot.exercise_id,
-        section: slot.section,
-        sort_order: slot.sort_order,
-        instructions: slot.instructions ?? null,
-        prescription_json: (slot.prescription_json as Record<string, unknown>) ?? {},
-      },
-      ov?.json,
-    );
-    if (built) exercises.push(built);
-  }
-  for (const added of addedSlots) {
-    const built = buildExercise(
-      added.targetId,
-      { exercise_id: null, section: null, sort_order: null, instructions: null, prescription_json: {} },
-      added.json,
-    );
+    const built = buildExercise(slot.id, {
+      exercise_id: slot.exercise_id,
+      section: slot.section,
+      sort_order: slot.sort_order,
+      instructions: slot.instructions ?? null,
+      prescription_json: (slot.prescription_json as Record<string, unknown>) ?? {},
+    });
     if (built) exercises.push(built);
   }
   exercises.sort((a, b) => a.sortOrder - b.sortOrder);
@@ -453,11 +390,9 @@ export async function resolveCanonicalSession(
     }));
   }
 
-  // Session-level override patches name / activity_type for this client.
-  const effectiveName =
-    (sessionPatch?.name as string | undefined) ?? session.name ?? null;
-  const effectiveActivityType =
-    (sessionPatch?.activity_type as string | undefined) ?? session.activity_type;
+  // Session name / activity come straight from the clone's plan_session.
+  const effectiveName = session.name ?? null;
+  const effectiveActivityType = session.activity_type;
 
   return {
     assignmentId,
@@ -468,8 +403,8 @@ export async function resolveCanonicalSession(
     title: effectiveName?.trim() || DEFAULT_SESSION_NAMES[effectiveActivityType] || "Session",
     activityType: effectiveActivityType,
     isDeload: effectiveIsDeload,
-    // Display preset: override re-apply preset, else the inserted on-demand deload's snapshot.
-    deloadPresetId: deloadPresetId ?? insertedPresetId,
+    // Display preset: the inserted on-demand deload's preset id (else null).
+    deloadPresetId: insertedPresetId,
     exercises,
     existingLogs,
   };

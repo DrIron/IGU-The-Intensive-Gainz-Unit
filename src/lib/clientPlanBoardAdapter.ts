@@ -1,22 +1,20 @@
 /**
- * Program system unification P4 — Editor v1 data adapter. Bridges the muscle-builder board
- * (MusclePlanState) to a client_plan_assignment's canonical plan + override layer:
- *   - loadPlanForAssignment: read plan_* merged with client_plan_overrides -> MusclePlanState
- *     (board slot.id = plan_slots.id, session.id = plan_sessions.id) + a base snapshot.
- *   - persistAssignmentOverrides: diff the edited board state against the base and write
- *     client_plan_overrides via save_client_plan_override (field-level slot patch, element-level
- *     session; revert-to-template when a field returns to the template value).
- *   - computeOverriddenIds: which slots/sessions currently diverge (drives the amber badges).
+ * Program system unification P4 / own-your-copy S2-S3 — board data adapter. Bridges the
+ * muscle-builder board (MusclePlanState) to a client_plan_assignment's canonical plan.
+ *   - loadPlanForAssignment: read plan_* -> MusclePlanState (board slot.id = plan_slots.id,
+ *     session.id = plan_sessions.id) + a base snapshot.
+ *     · board_v2 ON (own-your-copy): assignment.plan_id IS the client's CLONE — read it
+ *       directly, NO client_plan_overrides (S3). Edits save via save_plan_direct (S2).
+ *     · board_v2 OFF (legacy P4 editor): still merges client_plan_overrides on load and
+ *       persists edits as overrides (persistAssignmentOverrides). Unchanged.
+ *   - persistAssignmentOverrides / computeOverriddenIds: board_v2-OFF override path only.
  *
- * Reads the same canonical model as canonicalSessionResolver. Writers go through the verified
- * save_client_plan_override RPC (the template plan_* is never touched — cross-client isolation).
- *
- * SCOPE (v1): slot prescription/structural patches (+ add / remove) and session name/type
- * (+ remove). Added whole sessions, per-client deload (week overrides), and progression
- * copy-paste are deferred (see TODOs).
+ * The client_plan_overrides table + save_client_plan_override RPC stay through the soak (S5
+ * drops them); S3 only stops READING overrides under board_v2.
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
 import type { MusclePlanState, MuscleSlotData, SessionData, WeekData, ActivityType } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
 
@@ -175,16 +173,27 @@ export async function loadPlanForAssignment(assignmentId: string): Promise<Board
   if (pErr) throw pErr;
   if (!plan) return null;
 
-  const [{ data: weekRows, error: wErr }, { data: sessionRows, error: sErr }, { data: slotRows, error: slErr }, { data: overrides }] =
+  const [{ data: weekRows, error: wErr }, { data: sessionRows, error: sErr }, { data: slotRows, error: slErr }] =
     await Promise.all([
       supabase.from("plan_weeks").select("id, week_index, label, is_deload, deload_preset_id, deload_placement").eq("plan_id", plan.id).order("week_index"),
       supabase.from("plan_sessions").select("id, plan_week_id, day_index, name, activity_type, sort_order").eq("plan_id", plan.id),
       supabase.from("plan_slots").select("id, plan_session_id, exercise_id, sort_order, prescription_json, instructions").eq("plan_id", plan.id),
-      supabase.from("client_plan_overrides").select("target_type, target_id, override_json, removed").eq("assignment_id", assignmentId),
     ]);
   if (wErr) throw wErr;
   if (sErr) throw sErr;
   if (slErr) throw slErr;
+
+  // S3 (own-your-copy): under board_v2 the assignment plan IS the client's clone — read it
+  // directly, no override layer. Only the legacy board_v2-OFF P4 editor still merges
+  // client_plan_overrides on load. (The maps below stay empty under board_v2 → no-op merge.)
+  let overrides: { target_type: string; target_id: string; override_json: unknown; removed: boolean | null }[] | null = null;
+  if (!isBoardV2Enabled()) {
+    const { data } = await supabase
+      .from("client_plan_overrides")
+      .select("target_type, target_id, override_json, removed")
+      .eq("assignment_id", assignmentId);
+    overrides = data;
+  }
 
   // Override maps.
   const slotOv = new Map<string, { json: Record<string, unknown>; removed: boolean }>();

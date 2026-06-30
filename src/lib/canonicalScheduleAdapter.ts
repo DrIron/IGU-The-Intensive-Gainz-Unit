@@ -5,9 +5,13 @@
  * on-demand deload (insert + shift) never shows. This builds the grid straight from the canonical
  * running sequence instead: buildRunningSequence(plan_weeks, client_plan_inserted_deloads) gives the
  * shifted week order (on-demand templates excluded, inserts spliced); each running week's content
- * comes from contentPlanWeekId's plan_sessions/plan_slots merged with client_plan_overrides — the
- * same model canonicalSessionResolver reads. One batched set of queries (not N per-day resolves):
- * a month grid would otherwise fire 40+ heavy resolver calls.
+ * comes from contentPlanWeekId's plan_sessions/plan_slots on the assignee's CLONE — the same model
+ * canonicalSessionResolver reads. One batched set of queries (not N per-day resolves): a month grid
+ * would otherwise fire 40+ heavy resolver calls.
+ *
+ * S3 (own-your-copy): the retired client_plan_overrides fetch + merge was removed — under the
+ * canonical-read flags the clone IS the divergence (S2 writes it directly). The
+ * client_plan_inserted_deloads + buildRunningSequence path (the deload sequence) is UNCHANGED.
  *
  * Returns a date→day map for the calendar. Dates outside [start, start + N running weeks) have no
  * entry (program not started / ended). board_v2-gated by the caller.
@@ -108,7 +112,8 @@ export async function loadCanonicalSchedule(assignmentId: string): Promise<Canon
     .maybeSingle();
   if (!assignment) return null;
 
-  const [{ data: weekRows }, { data: insRows }, { data: sessionRows }, { data: slotRows }, { data: overrides }] =
+  // S3: read the clone's plan_* directly + the inserted-deload sequence. No override fetch.
+  const [{ data: weekRows }, { data: insRows }, { data: sessionRows }, { data: slotRows }] =
     await Promise.all([
       supabase
         .from("plan_weeks")
@@ -128,10 +133,6 @@ export async function loadCanonicalSchedule(assignmentId: string): Promise<Canon
         .from("plan_slots")
         .select("id, plan_session_id, exercise_id, prescription_json")
         .eq("plan_id", assignment.plan_id),
-      supabase
-        .from("client_plan_overrides")
-        .select("target_type, target_id, override_json, removed")
-        .eq("assignment_id", assignmentId),
     ]);
 
   if (!weekRows || weekRows.length === 0) return null;
@@ -150,46 +151,15 @@ export async function loadCanonicalSchedule(assignmentId: string): Promise<Canon
   }));
   const sequence = buildRunningSequence(weeks, inserts);
 
-  // Override maps (same contract as canonicalSessionResolver / clientPlanBoardAdapter).
-  const sessionOv = new Map<string, { json: Record<string, unknown>; removed: boolean }>();
-  const slotOv = new Map<string, { json: Record<string, unknown>; removed: boolean }>();
-  const addedSlots: { sessionId: string; exerciseId: string | null; muscleId: string | null }[] = [];
-  for (const o of overrides ?? []) {
-    const j = (o.override_json as Record<string, unknown>) ?? {};
-    if (o.target_type === "session") sessionOv.set(o.target_id, { json: j, removed: !!o.removed });
-    else if (o.target_type === "slot") {
-      slotOv.set(o.target_id, { json: j, removed: !!o.removed });
-      if (!o.removed && j.added === true && typeof j.plan_session_id === "string") {
-        addedSlots.push({
-          sessionId: j.plan_session_id,
-          exerciseId: (j.exercise_id as string | undefined) ?? null,
-          muscleId: typeof (j.prescription as Record<string, unknown> | undefined)?.muscleId === "string"
-            ? ((j.prescription as Record<string, unknown>).muscleId as string)
-            : null,
-        });
-      }
-    }
-  }
-
-  // Slots grouped by (override-aware) session → count + exercise/muscle ids.
+  // Slots grouped by session → count + exercise/muscle ids (clone slots, no override layer).
   const slotsBySession = new Map<string, SlotRow[]>();
   for (const sl of (slotRows ?? []) as SlotRow[]) {
-    if (slotOv.get(sl.id)?.removed) continue;
     pushTo(slotsBySession, sl.plan_session_id, sl);
   }
-  addedSlots.forEach((a, i) =>
-    pushTo(slotsBySession, a.sessionId, {
-      id: `added-${a.sessionId}-${i}`,
-      plan_session_id: a.sessionId,
-      exercise_id: a.exerciseId,
-      prescription_json: a.muscleId ? { muscleId: a.muscleId } : {},
-    }),
-  );
 
-  // Sessions grouped by plan_week_id (override-aware: removed dropped, name/type patched).
+  // Sessions grouped by plan_week_id.
   const sessionsByWeek = new Map<string, SessionRow[]>();
   for (const s of (sessionRows ?? []) as SessionRow[]) {
-    if (sessionOv.get(s.id)?.removed) continue;
     pushTo(sessionsByWeek, s.plan_week_id, s);
   }
 
@@ -229,14 +199,13 @@ export async function loadCanonicalSchedule(assignmentId: string): Promise<Canon
       const date = isoDate(boardDayDate(assignment.start_date, rw.runningIndex, dayIndex));
       const ordered = daySessions.slice().sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
       const modules: CanonicalScheduleModule[] = ordered.map((s) => {
-        const ov = sessionOv.get(s.id)?.json ?? {};
         const slots = slotsBySession.get(s.id) ?? [];
         const muscles = [...new Set(slots.map(muscleLabel).filter((x): x is string => !!x))].slice(0, 4);
         const completed = slots.length > 0 && slots.every((sl) => loggedSlotIds.has(sl.id));
         return {
           id: s.id,
-          title: (ov.name as string | undefined) ?? s.name ?? null,
-          module_type: (ov.activity_type as string | undefined) ?? s.activity_type,
+          title: s.name ?? null,
+          module_type: s.activity_type,
           status: completed ? "completed" : "",
           exerciseCount: slots.length,
           muscles,
