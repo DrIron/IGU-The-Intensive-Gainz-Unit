@@ -5849,6 +5849,7 @@ export type Database = {
           level: string | null
           name: string
           owner_coach_id: string
+          source_client_program_id: string | null
           source_muscle_template_id: string | null
           source_template_plan_id: string | null
           tags: string[]
@@ -5864,6 +5865,7 @@ export type Database = {
           level?: string | null
           name: string
           owner_coach_id: string
+          source_client_program_id?: string | null
           source_muscle_template_id?: string | null
           source_template_plan_id?: string | null
           tags?: string[]
@@ -5879,6 +5881,7 @@ export type Database = {
           level?: string | null
           name?: string
           owner_coach_id?: string
+          source_client_program_id?: string | null
           source_muscle_template_id?: string | null
           source_template_plan_id?: string | null
           tags?: string[]
@@ -5886,6 +5889,13 @@ export type Database = {
           visibility?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "plan_source_client_program_id_fkey"
+            columns: ["source_client_program_id"]
+            isOneToOne: false
+            referencedRelation: "client_programs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "plan_source_template_plan_id_fkey"
             columns: ["source_template_plan_id"]
