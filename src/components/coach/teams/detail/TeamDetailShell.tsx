@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/useAuthSession";
-import { Navigation } from "@/components/Navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Loader2, ChevronLeft, Users } from "lucide-react";
@@ -30,7 +29,6 @@ type LoadState =
  */
 export function TeamDetailShell() {
   const { teamId } = useParams<{ teamId: string }>();
-  const navigate = useNavigate();
   const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const fetchedKey = useRef<string | null>(null);
@@ -88,29 +86,19 @@ export function TeamDetailShell() {
     });
   }, [teamId, sessionUser, sessionLoading]);
 
-  const handleSectionChange = useCallback(
-    (section: string) => navigate(`/coach/${section}`),
-    [navigate],
-  );
-
+  // Rendered inside the coach shell (CoachDashboard → CoachDashboardLayout →
+  // CoachTeamsPage when :teamId is present), which supplies the coach Navigation +
+  // sidebar + page padding — so no standalone <Navigation/> or outer <main> here.
   return (
-    <>
-      <Navigation
-        user={sessionUser}
-        userRole="coach"
-        onSectionChange={handleSectionChange}
-        activeSection="teams"
-      />
-      <main className="container mx-auto px-4 py-6 pb-24 md:pb-8 max-w-5xl">
-        <Button asChild variant="ghost" size="sm" className="mb-3 -ml-2">
-          <Link to="/coach/teams">
-            <ChevronLeft className="h-4 w-4 mr-1" />
-            Teams
-          </Link>
-        </Button>
-        <TeamDetailBody state={state} />
-      </main>
-    </>
+    <div className="max-w-5xl">
+      <Button asChild variant="ghost" size="sm" className="mb-3 -ml-2">
+        <Link to="/coach/teams">
+          <ChevronLeft className="h-4 w-4 mr-1" />
+          Teams
+        </Link>
+      </Button>
+      <TeamDetailBody state={state} />
+    </div>
   );
 }
 
