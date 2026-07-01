@@ -42,12 +42,16 @@ export default function CoachDashboard() {
     description: "Coach management dashboard for IGU.",
   });
 
-  // The /coach/clients and /coach/clients/:clientUserId routes carry a
-  // :clientUserId param (not :section), so derive the section from the path so
-  // the CO6 master-detail workspace renders under the "clients" section.
+  // /coach/clients/:clientUserId and /coach/teams/:teamId carry a detail param
+  // (not :section), so derive the section from the path — otherwise SECTION_MAP
+  // falls through to "overview" and the detail renders the dashboard home. This
+  // makes the teams detail render under the "teams" section (CoachTeamsPage reads
+  // :teamId), mirroring the clients master-detail workspace.
   const activeSection = location.pathname.startsWith("/coach/clients")
     ? "clients"
-    : SECTION_MAP[section || "dashboard"] || "overview";
+    : location.pathname.startsWith("/coach/teams")
+      ? "teams"
+      : SECTION_MAP[section || "dashboard"] || "overview";
 
   useEffect(() => {
     if (cachedRoles && cachedRoles.length > 0) {
