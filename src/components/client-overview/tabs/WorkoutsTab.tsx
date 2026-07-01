@@ -22,7 +22,7 @@ import { WorkoutAdherencePulse } from "../workouts/WorkoutAdherencePulse";
 import { ClientProgramList } from "../workouts/ClientProgramList";
 import { ClientProgramDrilldown } from "../workouts/ClientProgramDrilldown";
 import { MuscleBuilderPage } from "@/components/coach/programs/muscle-builder/MuscleBuilderPage";
-import { isClientProgramEditorEnabled, isBoardV2Enabled } from "@/lib/featureFlags";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { TakeDeloadCard } from "@/components/workouts/TakeDeloadCard";
 import { loadCanonicalSchedule, canonicalDrilldownDays, type CanonicalSchedule } from "@/lib/canonicalScheduleAdapter";
 import { SessionLogViewer } from "../workouts/SessionLogViewer";
@@ -89,9 +89,10 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   // B3 inner tabs: Pulse · Programs · Calendar · History.
   const [innerTab, setInnerTab] = useState("pulse");
 
-  // P4 Editor v1 (flagged): the client's active canonical assignment + an in-board editor.
-  // Edits persist as client_plan_overrides; legacy client_programs (above) is unaffected.
-  const editorEnabled = isClientProgramEditorEnabled();
+  // The client's active canonical assignment powers the in-board editor AND the
+  // Deload v2 trigger — both board_v2-gated. Under board_v2 the editor saves
+  // directly to the client's frozen clone (save_plan_direct); there is no override
+  // layer in client mode.
   const boardV2 = isBoardV2Enabled();
   const [canonicalAssignmentId, setCanonicalAssignmentId] = useState<string | null>(null);
   const [canonicalStartDate, setCanonicalStartDate] = useState<string | null>(null);
@@ -99,8 +100,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   const [editingAssignment, setEditingAssignment] = useState(false);
   const assignmentFetchedRef = useRef(false);
   useEffect(() => {
-    // The canonical assignment powers the P4 editor (editorEnabled) and the Deload v2 trigger (board_v2).
-    if ((!editorEnabled && !boardV2) || assignmentFetchedRef.current) return;
+    if (!boardV2 || assignmentFetchedRef.current) return;
     assignmentFetchedRef.current = true;
     supabase
       .from("client_plan_assignment")
@@ -115,7 +115,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
         setCanonicalStartDate(data?.start_date ?? null);
         setCanonicalPlanId(data?.plan_id ?? null);
       });
-  }, [editorEnabled, boardV2, clientUserId]);
+  }, [boardV2, clientUserId]);
 
   // Deload v2: under board_v2, render the drilldown from the canonical running sequence (insert+shift
   // aware) instead of the legacy client_program_days snapshot. deloadNonce reloads after take/remove.
@@ -223,7 +223,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
         {/* Programs — assign + the program list / drill-down. */}
         <TabsContent value="programs" className="mt-5 space-y-5">
           {/* P4 Editor v1 (flagged): in-board editor scoped to the client's assignment. */}
-          {editorEnabled && editingAssignment && canonicalAssignmentId && coachUserId ? (
+          {boardV2 && editingAssignment && canonicalAssignmentId && coachUserId ? (
             <MuscleBuilderPage
               coachUserId={coachUserId}
               assignmentId={canonicalAssignmentId}
@@ -245,10 +245,10 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
               <Plus className="h-4 w-4 mr-1.5" />
               Assign program
             </Button>
-            {editorEnabled && canonicalAssignmentId && (
+            {boardV2 && canonicalAssignmentId && (
               <Button size="sm" variant="outline" onClick={() => setEditingAssignment(true)}>
                 <Dumbbell className="h-4 w-4 mr-1.5" />
-                Edit in planning board (beta)
+                Edit in planning board
               </Button>
             )}
           </div>

@@ -107,7 +107,7 @@ export function MuscleBuilderPage({
     }
   }, []);
 
-  const { state, dispatch, save, saveAsPreset, canUndo, canRedo, isClientMode, overriddenIds, resetElement } =
+  const { state, dispatch, save, saveAsPreset, canUndo, canRedo, isClientMode } =
     useMuscleBuilderState(
       coachUserId,
       existingTemplateId,
@@ -116,9 +116,8 @@ export function MuscleBuilderPage({
   // Board v2 (flag-gated): context skin + Calendar/Weeks toggle + inline session expansion.
   const boardV2 = isBoardV2Enabled();
   const ctx: "template" | "client" | "team" = boardContext ?? (assignmentId ? "client" : "template");
-  // S2: under board_v2 the client board edits the client's own clone directly (no overrides), so
-  // the override "Customized vs template" badges/reset are no longer meaningful — disable them.
-  const overrideBadgesActive = isClientMode && !boardV2;
+  // Client mode edits the client's own clone directly — no override "Customized vs
+  // template" badges/reset (that layer was retired when board_v2 became the master).
   // Instances default to a dated Calendar view (board v2); templates are always Program-weeks.
   const canCalendar = canUseCalendarMode(boardV2, ctx, !!startDate);
   const [viewMode, setViewMode] = useState<"weeks" | "calendar">(
@@ -743,34 +742,20 @@ export function MuscleBuilderPage({
   return (
     <ClientEditorProvider
       value={{
-        // S2: override badges/reset only under the legacy override path (board_v2 off).
-        clientMode: overrideBadgesActive,
-        overriddenSlotIds: overrideBadgesActive ? overriddenIds.slots : EMPTY_ID_SET,
-        overriddenSessionIds: overrideBadgesActive ? overriddenIds.sessions : EMPTY_ID_SET,
-        onResetSlot: (slotId) => resetElement("slot", slotId),
-        onResetSession: (sessionId) => resetElement("session", sessionId),
+        // Clone-only client editing: no override badges/reset. Provider kept inert so
+        // downstream slot/session components render without the override affordances.
+        clientMode: false,
+        overriddenSlotIds: EMPTY_ID_SET,
+        overriddenSessionIds: EMPTY_ID_SET,
+        onResetSlot: () => {},
+        onResetSession: () => {},
       }}
     >
     <DragDropContext onDragEnd={handleDragEnd}>
       <div className="space-y-4">
-        {/* P4 Editor v1 — client (override) mode banner. Only the legacy override path
-            (board_v2 OFF): edits save as per-client overrides, the shared template is untouched. */}
-        {ctx === "client" && !boardV2 && (
-          <div className="flex items-center justify-between gap-2 rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm">
-            <span className="text-amber-700 dark:text-amber-400">
-              Editing <strong>{clientName ?? "this client"}</strong>'s program — changes save as
-              personal customizations (the template isn't affected).
-            </span>
-            <span className="shrink-0 text-xs font-medium text-amber-700 dark:text-amber-400">
-              {overriddenIds.slots.size + overriddenIds.sessions.size > 0
-                ? `${overriddenIds.slots.size + overriddenIds.sessions.size} customized`
-                : "Following template"}
-            </span>
-          </div>
-        )}
-        {/* S2 own-your-copy (board_v2) — the client edits their OWN clone directly (no overrides),
-            so the amber "customizations vs template" framing is gone; a neutral note remains. */}
-        {ctx === "client" && boardV2 && (
+        {/* Own-your-copy — the client edits their OWN clone directly (no overrides);
+            a neutral note that changes are scoped to this client's copy. */}
+        {ctx === "client" && (
           <div className="flex items-center gap-2 rounded-md border border-sky-500/40 bg-sky-500/10 px-3 py-2 text-sm text-sky-700 dark:text-sky-400">
             <span>
               Editing <strong>{clientName ?? "this client"}</strong>'s program — changes apply to this

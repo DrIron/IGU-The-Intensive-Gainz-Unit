@@ -399,9 +399,8 @@ function ClientSessionsContent() {
   }
 
   return (
-    <>
-      <Navigation />
-      <main className="container mx-auto px-4 py-8 max-w-6xl pt-24 pb-24 md:pb-8">
+    <ClientPageLayout>
+      <main className="container mx-auto px-4 py-8 max-w-6xl pt-6 pb-24 md:pb-8">
         <h1 className="text-3xl font-bold mb-8">Sessions</h1>
 
         {/* Weekly Summary */}
@@ -605,7 +604,7 @@ function ClientSessionsContent() {
           </CardContent>
         </Card>
       </main>
-    </>
+    </ClientPageLayout>
   );
 }
 
