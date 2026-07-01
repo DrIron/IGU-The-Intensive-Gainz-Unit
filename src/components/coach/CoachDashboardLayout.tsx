@@ -207,8 +207,7 @@ export function CoachDashboardLayout({
           {/* The page header is dead space on a client-detail view (you're
               looking at one client, not browsing). The detail's own breadcrumb
               + identity card carry the context, so suppress it there. */}
-          {!/^\/coach\/clients\/[^/]+/.test(location.pathname) &&
-            !/^\/coach\/teams\/[^/]+/.test(location.pathname) && (
+          {!/^\/coach\/clients\/[^/]+/.test(location.pathname) && (
             <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
               <div className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">

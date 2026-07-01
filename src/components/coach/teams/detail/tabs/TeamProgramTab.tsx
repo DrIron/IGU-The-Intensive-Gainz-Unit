@@ -89,29 +89,16 @@ export function TeamProgramTab({ context }: TeamDetailTabProps) {
         </span>
       </div>
 
-      <div className="flex flex-col items-end gap-1">
-        <div className="flex items-center justify-end gap-2">
-          {/* Gate on the CANONICAL plan, not the template: a team assigned the legacy
-              way (assign_team_program_atomic) has current_program_template_id set but
-              current_program_plan_id NULL → loadPlanForTeam returns null and the board
-              would open empty. Reassigning under board_v2 runs assign_team_plan, which
-              populates current_program_plan_id → the button then appears. (T5 backfills
-              legacy team programs → canonical.) */}
-          {boardV2 && !!context.currentProgramPlanId && (
-            <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
-              <Dumbbell className="h-4 w-4 mr-1.5" />
-              Edit in Planning Board
-            </Button>
-          )}
-          <Button size="sm" onClick={() => setShowAssign(true)}>
-            {hasProgram ? "Change program" : "Assign program"}
+      <div className="flex items-center justify-end gap-2">
+        {boardV2 && hasProgram && (
+          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>
+            <Dumbbell className="h-4 w-4 mr-1.5" />
+            Edit in Planning Board
           </Button>
-        </div>
-        {boardV2 && hasProgram && !context.currentProgramPlanId && (
-          <p className="text-xs text-muted-foreground">
-            Reassign this program to edit it in the planning board.
-          </p>
         )}
+        <Button size="sm" onClick={() => setShowAssign(true)}>
+          {hasProgram ? "Change program" : "Assign program"}
+        </Button>
       </div>
 
       {hasProgram ? (

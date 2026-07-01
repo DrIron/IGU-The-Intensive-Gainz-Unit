@@ -50,6 +50,9 @@ const ClientMessages = lazyWithReload(() => import("./pages/ClientMessages"));
 const AddonsCatalog = lazyWithReload(() => import("./pages/client/AddonsCatalog"));
 const AdminDashboard = lazyWithReload(() => import("./pages/admin/AdminDashboard"));
 const CoachDashboard = lazyWithReload(() => import("./pages/coach/CoachDashboard"));
+const TeamDetailShell = lazyWithReload(() =>
+  import("./components/coach/teams/detail/TeamDetailShell").then((m) => ({ default: m.TeamDetailShell })),
+);
 const StudioPreview = lazyWithReload(() => import("./pages/coach/StudioPreview"));
 const LaunchTestChecklist = lazyWithReload(() => import("./pages/admin/LaunchTestChecklist"));
 const WorkoutBuilderQA = lazyWithReload(() => import("./pages/admin/WorkoutBuilderQA"));
@@ -240,10 +243,8 @@ const App = () => {
                   <Route path="/coach/studio-preview" element={<RoleProtectedRoute requiredRole="coach"><StudioPreview /></RoleProtectedRoute>} />
                   {/* CO6: detail mounts inside the coach shell (CoachDashboard -> CoachClientsWorkspace). /coach/clients is covered by /coach/:section. */}
                   <Route path="/coach/clients/:clientUserId" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
-                  {/* Teams T3 detail (Pulse/Nutrition/Program/Roster). Routes through CoachDashboard
-                      (like /coach/clients/:id) so it gets the coach Navigation + sidebar; CoachTeamsPage
-                      renders the detail panel when :teamId is present. Must precede /coach/:section. */}
-                  <Route path="/coach/teams/:teamId" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
+                  {/* Teams T3: deep-linkable team detail shell (Pulse/Nutrition/Program/Roster). Must precede /coach/:section (two path segments). */}
+                  <Route path="/coach/teams/:teamId" element={<RoleProtectedRoute requiredRole="coach"><TeamDetailShell /></RoleProtectedRoute>} />
                   <Route path="/coach/:section" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
 
                   {/* Onboarding routes - allow incomplete onboarding */}
