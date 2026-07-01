@@ -97,9 +97,13 @@ These derive from `exercise_set_logs` with **different keying and different even
 ---
 
 ## 2. The flip action
+Set `VITE_FF_BOARD_V2=true` (the **single master flag** — it drives the canonical reads AND the canonical session player) + redeploy.
+
 1. Vercel → project → Settings → Environment Variables → **Production**: add `VITE_FF_BOARD_V2 = true`.
 2. Redeploy prod (Vite inlines `import.meta.env` at build — env change alone does nothing without a rebuild).
 3. Confirm the deploy is live (new build hash) and the app loads.
+
+> **Pre-fix caveat (resolved `feat/p5-flip-safety`):** before that fix, `board_v2` alone 400'd the workout player — the Today card / calendar routed Start to the canonical URL, but `WorkoutSessionV2` gated its canonical loader on the separate `canonical_session_read` flag, so with `board_v2` on and `canonical_session_read` off it fell to the legacy loader with `moduleId="canonical"` → `client_day_modules?id=eq.canonical` → 400. The fix makes `board_v2` the sole gate for the player too, so this single env var is now sufficient. Ensure `feat/p5-flip-safety` is merged before flipping.
 
 **Why the env var, not a code default:** one env change + redeploy, trivially revertible (unset + redeploy), no default baked into git history. `localStorage["igu_ff_board_v2"]` stays the per-browser dogfood override (independent of the env var).
 
