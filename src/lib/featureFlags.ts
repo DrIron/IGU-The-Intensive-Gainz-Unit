@@ -19,8 +19,9 @@ const FLAGS = {
     storageKey: "igu_ff_canonical_session_read",
     env: import.meta.env.VITE_FF_CANONICAL_SESSION_READ as string | undefined,
   },
-  // P4 Editor v1: mount the planning board scoped to a client_plan_assignment in the
-  // Workouts → Programs subtab (edits persist as client_plan_overrides). OFF until verified.
+  // RETIRED: the client program editor is now gated on board_v2 (the master flag) —
+  // this separate flag is no longer read. Def kept until the P5 legacy-drop removes it
+  // alongside the override machinery.
   client_program_editor: {
     storageKey: "igu_ff_client_program_editor",
     env: import.meta.env.VITE_FF_CLIENT_PROGRAM_EDITOR as string | undefined,

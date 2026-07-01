@@ -14,7 +14,6 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { isBoardV2Enabled } from "@/lib/featureFlags";
 import type { MusclePlanState, MuscleSlotData, SessionData, WeekData, ActivityType } from "@/types/muscle-builder";
 import type { SetPrescription } from "@/types/workout-builder";
 
@@ -183,17 +182,12 @@ export async function loadPlanForAssignment(assignmentId: string): Promise<Board
   if (sErr) throw sErr;
   if (slErr) throw slErr;
 
-  // S3 (own-your-copy): under board_v2 the assignment plan IS the client's clone — read it
-  // directly, no override layer. Only the legacy board_v2-OFF P4 editor still merges
-  // client_plan_overrides on load. (The maps below stay empty under board_v2 → no-op merge.)
-  let overrides: { target_type: string; target_id: string; override_json: unknown; removed: boolean | null }[] | null = null;
-  if (!isBoardV2Enabled()) {
-    const { data } = await supabase
-      .from("client_plan_overrides")
-      .select("target_type, target_id, override_json, removed")
-      .eq("assignment_id", assignmentId);
-    overrides = data;
-  }
+  // Own-your-copy: the assignment plan IS the client's clone — read it directly, no
+  // override layer (client mode is clone-only). The slotOv/sessionOv maps below stay
+  // empty, so the merge is a pass-through of the base (clone) values.
+  // (The override-diff/persist helpers further down are retired — physical deletion
+  // is folded into the P5 legacy-drop with save_client_plan_override + the table.)
+  const overrides: { target_type: string; target_id: string; override_json: unknown; removed: boolean | null }[] = [];
 
   // Override maps.
   const slotOv = new Map<string, { json: Record<string, unknown>; removed: boolean }>();

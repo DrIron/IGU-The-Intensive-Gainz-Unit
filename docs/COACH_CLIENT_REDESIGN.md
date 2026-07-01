@@ -53,7 +53,7 @@ A PR = any form of growth, per the activity:
   - Drag sessions to reorder within a day or move across days.
   - On a day change, prompt **"apply to following weeks?"** so a Tue→Wed shift cascades.
   - Per-exercise progression rules editable inline; **Copy rule → Paste** onto other exercises, or "apply to all in session".
-  - Edits write to the client's program **instance** (`client_program_days` / `client_day_modules` / `client_module_exercises`), never the shared template.
+  - Edits write directly to the client's own **canonical clone** (`plan` / `plan_weeks` / `plan_sessions` / `plan_slots` via `save_plan_direct`), never the shared template. (board_v2 own-your-copy; the earlier per-client `client_plan_overrides` layer is retired.)
 - **Calendar** = the *schedule + did-they-do-it* view. Read-mostly: every scheduled session across programs + ad-hoc sessions on dates with completion status; tap a day → recap. Light scheduling only (drag to another day, inject a one-off).
   - Default view: **week on mobile, month on desktop** (Week/Month toggle).
   - Status colours: emerald done · amber due · red missed · dashed upcoming.
