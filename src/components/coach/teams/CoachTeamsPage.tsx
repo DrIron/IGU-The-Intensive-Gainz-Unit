@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { ShieldAlert, Plus, Loader2 } from "lucide-react";
 import { TeamCard } from "./TeamCard";
 import { CreateTeamDialog } from "./CreateTeamDialog";
+import { TeamDetailShell } from "./detail/TeamDetailShell";
 
 interface CoachTeamsPageProps {
   coachUserId: string;
@@ -29,6 +30,16 @@ interface Team {
 const MAX_TEAMS = 3;
 
 export const CoachTeamsPage = memo(function CoachTeamsPage({ coachUserId }: CoachTeamsPageProps) {
+  // Deep-linked team detail (/coach/teams/:teamId) renders inside this coach-shell
+  // section (like CoachClientsWorkspace does for a client), so it gets the coach
+  // Navigation + sidebar. The list renders when there's no :teamId.
+  const { teamId } = useParams<{ teamId: string }>();
+  if (teamId) return <TeamDetailShell />;
+
+  return <CoachTeamsList coachUserId={coachUserId} />;
+});
+
+function CoachTeamsList({ coachUserId }: CoachTeamsPageProps) {
   const [teams, setTeams] = useState<Team[]>([]);
   const [loading, setLoading] = useState(true);
   const [isHeadCoach, setIsHeadCoach] = useState<boolean | null>(null);
@@ -197,4 +208,4 @@ export const CoachTeamsPage = memo(function CoachTeamsPage({ coachUserId }: Coac
       />
     </div>
   );
-});
+}
