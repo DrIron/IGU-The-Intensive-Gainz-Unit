@@ -74,7 +74,7 @@ import {
   PERFORMED_JSON_COLUMN_TYPES,
 } from "@/types/workout-builder";
 import { fromCanonicalKg, toCanonicalKg, type WeightUnit } from "@/utils/weightUnits";
-import { isCanonicalSessionReadEnabled } from "@/lib/featureFlags";
+import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { resolveCanonicalSession } from "@/lib/canonicalSessionResolver";
 import type { Json } from "@/integrations/supabase/types";
 import type { SetBranch as SetBranchT } from "@/types/workout-builder";
@@ -1651,15 +1651,20 @@ function WorkoutSessionV2Content() {
   const setLogsRef = useRef(setLogs);
   setLogsRef.current = setLogs;
 
-  // P3 (program system unification): canonical read path, behind a feature flag (OFF by
-  // default). Entry via query params on the same route: ?assignment=<id>&session=<plan_session_id>
-  // (or &date=yyyy-mm-dd). Legacy client_* (moduleId) stays the default + authoritative path.
+  // Canonical read path. board_v2 is the SINGLE master switch: when it's on, the
+  // canonical reads (Today card / calendar) route Start to
+  // ?assignment&session&date, and those modules are plan_session_ids with no valid
+  // legacy client_day_modules route — so the player MUST use the canonical loader
+  // whenever board_v2 is on + canonical params are present. (Pre-fix this gated on
+  // canonical_session_read; with board_v2 on but that flag off, the legacy loader
+  // got moduleId="canonical" → 400. See docs/P5_FLIP_RUNBOOK.md §2.) Legacy client_*
+  // (moduleId) stays the default + authoritative path when board_v2 is off.
   const [searchParams] = useSearchParams();
   const canonicalAssignmentParam = searchParams.get("assignment");
   const canonicalSessionParam = searchParams.get("session");
   const canonicalDateParam = searchParams.get("date");
   const useCanonical =
-    isCanonicalSessionReadEnabled() &&
+    isBoardV2Enabled() &&
     !!canonicalAssignmentParam &&
     (!!canonicalSessionParam || !!canonicalDateParam);
   // Non-null while a canonical session is loaded → logging writes assignment_id + plan_slot_id.
