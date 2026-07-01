@@ -119,7 +119,12 @@ export async function resolveActiveAssignment(clientId: string): Promise<ActiveA
     .select("id, plan_id, start_date")
     .eq("client_id", clientId)
     .eq("status", "active")
+    // Deterministic pick: created_at first, then start_date + id as tiebreakers.
+    // Backfilled assignments can share an identical created_at (e.g. +online had two)
+    // → without the tiebreakers the "newest" pick is non-deterministic between loads.
     .order("created_at", { ascending: false })
+    .order("start_date", { ascending: false })
+    .order("id", { ascending: false })
     .limit(1)
     .maybeSingle();
   if (!data?.id || !data.plan_id || !data.start_date) return null;
