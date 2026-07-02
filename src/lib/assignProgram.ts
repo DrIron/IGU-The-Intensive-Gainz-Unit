@@ -152,53 +152,54 @@ export async function assignTeamProgram(params: {
   try {
     // P5 write cutover (board_v2): bind the team to ONE canonical shared CLONE as
     // PRIMARY via assign_team_plan (members get canonical assignments, no legacy
-    // client_programs fan-out). Falls back to the legacy atomic assign only when the
-    // program has no canonical plan yet. Flag off → legacy fan-out, byte-identical.
+    // client_programs fan-out). T5: canonical-ONLY under board_v2 — no legacy
+    // fallback. If the program has no canonical plan yet (never opened in the
+    // Planning Board), return a fixable user-facing error instead of silently
+    // writing legacy. Flag off → legacy fan-out, byte-identical (removed in Drop A).
     if (isBoardV2Enabled()) {
       const planId = await resolveCanonicalPlanIdForProgram(params.programTemplateId);
-      if (planId) {
-        const { data, error } = await supabase.rpc("assign_team_plan", {
-          p_team_id: params.teamId,
-          p_plan_id: planId,
-          p_start_date: startIso,
-          p_clone: true,
-        });
-        if (error) throw error;
-        // Map assign_team_plan's shape → the dialog's legacy-shaped result.
-        // It's atomic (any member failure rolls back the whole txn), so members_failed = 0.
-        const tp = data as {
-          members_total: number;
-          members_assigned: number;
-          members_skipped: number;
-          members: { user_id: string; subscription_id: string; assignment_id: string; status: string }[];
-        };
+      if (!planId) {
         return {
-          success: true,
-          data: {
-            team_id: params.teamId,
-            members_total: tp.members_total,
-            members_inserted: tp.members_assigned,
-            members_skipped_existing: tp.members_skipped,
-            members_failed: 0,
-            members: tp.members.map((m) => ({
-              user_id: m.user_id,
-              subscription_id: m.subscription_id,
-              client_program_id: null,
-              status: m.status === "skipped_existing" ? "skipped_existing" : "created",
-              error: null,
-            })),
-          },
+          success: false,
+          error:
+            "This program isn't ready for team assignment yet. Open it once in the Planning Board, then try again.",
         };
       }
-      // no canonical plan — fall through to legacy, and flag it.
-      captureException(new Error("assign_team canonical skipped: no_mirror_plan"), {
-        source: "assign_team_plan_fallback",
-        severity: "warning",
-        metadata: { teamId: params.teamId, programTemplateId: params.programTemplateId },
+      const { data, error } = await supabase.rpc("assign_team_plan", {
+        p_team_id: params.teamId,
+        p_plan_id: planId,
+        p_start_date: startIso,
+        p_clone: true,
       });
+      if (error) throw error;
+      // Map assign_team_plan's shape → the dialog's legacy-shaped result.
+      // It's atomic (any member failure rolls back the whole txn), so members_failed = 0.
+      const tp = data as {
+        members_total: number;
+        members_assigned: number;
+        members_skipped: number;
+        members: { user_id: string; subscription_id: string; assignment_id: string; status: string }[];
+      };
+      return {
+        success: true,
+        data: {
+          team_id: params.teamId,
+          members_total: tp.members_total,
+          members_inserted: tp.members_assigned,
+          members_skipped_existing: tp.members_skipped,
+          members_failed: 0,
+          members: tp.members.map((m) => ({
+            user_id: m.user_id,
+            subscription_id: m.subscription_id,
+            client_program_id: null,
+            status: m.status === "skipped_existing" ? "skipped_existing" : "created",
+            error: null,
+          })),
+        },
+      };
     }
 
-    // Legacy fan-out (flag off, OR canonical fallback above).
+    // Legacy fan-out — board_v2 OFF only (removed wholesale in Drop Stage A).
     const { data, error } = await supabase.rpc("assign_team_program_atomic", {
       p_team_id: params.teamId,
       p_template_id: params.programTemplateId,
