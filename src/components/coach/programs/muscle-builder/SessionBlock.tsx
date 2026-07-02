@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy, RotateCcw, ChevronDown, ChevronRight } from "lucide-react";
+import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy, RotateCcw, ChevronDown, ChevronRight, CalendarArrowUp } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { useClientEditor } from "./ClientEditorContext";
@@ -74,6 +74,7 @@ interface SessionBlockProps {
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
+  onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   placementCounts?: Map<string, number>;
   recentMuscleIds?: string[];
@@ -125,6 +126,7 @@ export const SessionBlock = memo(function SessionBlock({
   onSetSessionType,
   onRemoveSession,
   onDuplicateSessionToDay,
+  onMoveSessionToDay,
   onReorderSession,
   placementCounts,
   recentMuscleIds,
@@ -316,6 +318,22 @@ export const SessionBlock = memo(function SessionBlock({
                   <DropdownMenuItem
                     key={day}
                     onClick={e => { e.stopPropagation(); onDuplicateSessionToDay(session.id, i + 1); }}
+                  >
+                    {day}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>
+                <CalendarArrowUp className="h-3 w-3 mr-2" /> Move to day
+              </DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {DAYS_OF_WEEK.map((day, i) => (
+                  <DropdownMenuItem
+                    key={day}
+                    disabled={i + 1 === session.dayIndex}
+                    onClick={e => { e.stopPropagation(); onMoveSessionToDay(session.id, i + 1); }}
                   >
                     {day}
                   </DropdownMenuItem>

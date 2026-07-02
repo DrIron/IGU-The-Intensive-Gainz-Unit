@@ -405,6 +405,59 @@ export function MuscleBuilderPage({
     [dispatch, toast]
   );
 
+  // Day-move (B4 tail): move the session in the current week, then — if matching
+  // sessions exist in following weeks — offer to cascade the move.
+  const [cascadePrompt, setCascadePrompt] = useState<{
+    fromWeekIndex: number;
+    oldDayIndex: number;
+    newDayIndex: number;
+    sessionType: ActivityType;
+    name: string | null;
+    weeks: number;
+  } | null>(null);
+
+  const handleMoveSessionToDay = useCallback(
+    (sessionId: string, toDayIndex: number) => {
+      const wk = state.currentWeekIndex;
+      const source = (state.weeks[wk]?.sessions ?? []).find((s) => s.id === sessionId);
+      if (!source || source.dayIndex === toDayIndex) return;
+      const oldDayIndex = source.dayIndex;
+      const sessionType = source.type;
+      const name = source.name ?? null;
+
+      dispatch({ type: 'MOVE_SESSION_TO_DAY', sessionId, toDayIndex });
+      toast({ title: `Session moved to ${DAYS_OF_WEEK[toDayIndex - 1]}` });
+
+      // Count LATER weeks with a corresponding session (matcher = §1). Following
+      // weeks are untouched by the current-week move, so read pre-dispatch state.
+      let weeks = 0;
+      for (let i = wk + 1; i < state.weeks.length; i++) {
+        const has = (state.weeks[i].sessions ?? []).some(
+          (x) => x.dayIndex === oldDayIndex && x.type === sessionType && (name == null || (x.name ?? null) === name),
+        );
+        if (has) weeks += 1;
+      }
+      if (weeks > 0) {
+        setCascadePrompt({ fromWeekIndex: wk, oldDayIndex, newDayIndex: toDayIndex, sessionType, name, weeks });
+      }
+    },
+    [state, dispatch, toast]
+  );
+
+  const confirmCascade = useCallback(() => {
+    if (!cascadePrompt) return;
+    dispatch({
+      type: 'MOVE_SESSION_CASCADE',
+      fromWeekIndex: cascadePrompt.fromWeekIndex,
+      oldDayIndex: cascadePrompt.oldDayIndex,
+      newDayIndex: cascadePrompt.newDayIndex,
+      sessionType: cascadePrompt.sessionType,
+      name: cascadePrompt.name,
+    });
+    toast({ title: `Applied to ${cascadePrompt.weeks} following week${cascadePrompt.weeks !== 1 ? "s" : ""}` });
+    setCascadePrompt(null);
+  }, [cascadePrompt, dispatch, toast]);
+
   const handleReorderSession = useCallback(
     (dayIndex: number, fromIndex: number, toIndex: number) =>
       dispatch({ type: 'REORDER_SESSION', dayIndex, fromIndex, toIndex }),
@@ -1020,6 +1073,7 @@ export function MuscleBuilderPage({
               onSetSessionType={handleSetSessionType}
               onRemoveSession={handleRemoveSession}
               onDuplicateSessionToDay={handleDuplicateSessionToDay}
+              onMoveSessionToDay={handleMoveSessionToDay}
               onReorderSession={handleReorderSession}
               onClearExercise={handleClearExercise}
               onRemoveReplacement={handleRemoveReplacement}
@@ -1198,6 +1252,25 @@ export function MuscleBuilderPage({
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowClearDialog(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleClearAll}>Clear All</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Day-move cascade prompt (B4). The current-week move already applied; this
+          offers to also move the matching session in the following weeks. */}
+      <Dialog open={!!cascadePrompt} onOpenChange={(o) => { if (!o) setCascadePrompt(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apply to following weeks?</DialogTitle>
+            <DialogDescription>
+              {cascadePrompt
+                ? `Also move the matching session to ${DAYS_OF_WEEK[cascadePrompt.newDayIndex - 1]} in ${cascadePrompt.weeks} later week${cascadePrompt.weeks !== 1 ? "s" : ""}?`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCascadePrompt(null)}>This week only</Button>
+            <Button onClick={confirmCascade}>All following weeks</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

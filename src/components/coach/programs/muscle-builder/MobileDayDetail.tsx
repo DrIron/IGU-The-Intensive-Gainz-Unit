@@ -15,7 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Copy, ClipboardPaste, Plus, X, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal, Clock, MoreVertical, Trash2 } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, X, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal, Clock, MoreVertical, Trash2, CalendarArrowUp } from "lucide-react";
 import { MobileSetCarousel } from "./MobileSetCarousel";
 import { UnifiedSessionPicker } from "./UnifiedSessionPicker";
 import { ActivityFieldsEditor } from "./ActivitySlotCard";
@@ -58,6 +58,7 @@ interface MobileDayDetailProps {
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
+  onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
   onClearExercise?: (slotId: string) => void;
   onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
@@ -109,6 +110,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onSetSessionType,
   onRemoveSession,
   onDuplicateSessionToDay,
+  onMoveSessionToDay,
   onClearExercise,
   onRemoveReplacement,
   onOpenExercisePicker,
@@ -323,6 +325,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                         onSetSessionType={onSetSessionType}
                         onRemoveSession={onRemoveSession}
                         onDuplicateSessionToDay={onDuplicateSessionToDay}
+                        onMoveSessionToDay={onMoveSessionToDay}
                       />
                       {sessionSlots.length === 0 ? (
                         <p className="text-[11px] text-muted-foreground/60 italic py-1 text-center">
@@ -443,6 +446,7 @@ interface MobileSessionHeaderProps {
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
+  onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
 }
 
 const MobileSessionHeader = memo(function MobileSessionHeader({
@@ -452,6 +456,7 @@ const MobileSessionHeader = memo(function MobileSessionHeader({
   onSetSessionType,
   onRemoveSession,
   onDuplicateSessionToDay,
+  onMoveSessionToDay,
 }: MobileSessionHeaderProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(session.name ?? '');
@@ -514,6 +519,22 @@ const MobileSessionHeader = memo(function MobileSessionHeader({
             <DropdownMenuSubContent>
               {DAYS_OF_WEEK.map((day, i) => (
                 <DropdownMenuItem key={day} onClick={() => onDuplicateSessionToDay(session.id, i + 1)}>
+                  {day}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuSubContent>
+          </DropdownMenuSub>
+          <DropdownMenuSub>
+            <DropdownMenuSubTrigger>
+              <CalendarArrowUp className="h-3 w-3 mr-2" /> Move to day
+            </DropdownMenuSubTrigger>
+            <DropdownMenuSubContent>
+              {DAYS_OF_WEEK.map((day, i) => (
+                <DropdownMenuItem
+                  key={day}
+                  disabled={i + 1 === session.dayIndex}
+                  onClick={() => onMoveSessionToDay(session.id, i + 1)}
+                >
                   {day}
                 </DropdownMenuItem>
               ))}
