@@ -2423,19 +2423,24 @@ function WorkoutSessionV2Content() {
       ),
     }));
     if (!user || !current) return;
-    const { error } = await supabase.from("exercise_set_logs").upsert(
-      {
-        ...buildLogKey(exerciseId),
-        set_index: current.set_index,
-        skipped: nextSkipped,
-        performed_reps: null,
-        performed_load: null,
-        performed_rir: null,
-        performed_rpe: null,
-        performed_json: {},
-        created_by_user_id: user.id,
-      },
-      { onConflict: logConflictTarget() },
+    // Retry on transient failures (mobile pooler/connectivity blips), like
+    // completeSet — the upsert is idempotent via onConflict, so a brief blip
+    // shouldn't permanently drop the skip.
+    const { error } = await selectWithRetry(() =>
+      supabase.from("exercise_set_logs").upsert(
+        {
+          ...buildLogKey(exerciseId),
+          set_index: current.set_index,
+          skipped: nextSkipped,
+          performed_reps: null,
+          performed_load: null,
+          performed_rir: null,
+          performed_rpe: null,
+          performed_json: {},
+          created_by_user_id: user.id,
+        },
+        { onConflict: logConflictTarget() },
+      ),
     );
     if (error) {
       // Revert local flag so the UI doesn't lie about a skip that didn't persist.
@@ -2616,7 +2621,9 @@ function WorkoutSessionV2Content() {
 
         logs.forEach((log) => {
           const hasExtra = Object.keys(log.performed_extra || {}).length > 0;
-          if (log.performed_reps !== null || log.performed_load !== null || hasExtra) {
+          // Include notes-only sets — a set with just a note (no reps/load/extra)
+          // was silently dropped by the bulk save before, losing the note.
+          if (log.performed_reps !== null || log.performed_load !== null || hasExtra || log.notes) {
             allLogs.push({
               ...buildLogKey(exerciseId),
               set_index: log.set_index,
@@ -2703,10 +2710,15 @@ function WorkoutSessionV2Content() {
     return out;
   };
 
+  // Persist the implicit skips. Returns false if any upsert failed — the caller
+  // must NOT proceed to completeWorkout on false (a Finish that silently drops the
+  // skip writes would leave the session half-persisted). Mirrors saveProgress:
+  // allSettled + per-upsert selectWithRetry + { error } tally (an RLS/constraint
+  // denial resolves with .value.error, it doesn't reject).
   const markUnloggedSkipped = async (
     unlogged: Array<{ exerciseId: string; setIndex: number; set_index: number }>,
-  ) => {
-    if (unlogged.length === 0) return;
+  ): Promise<boolean> => {
+    if (unlogged.length === 0) return true;
     setSetLogs((prev) => {
       const next = { ...prev };
       for (const u of unlogged) {
@@ -2716,26 +2728,55 @@ function WorkoutSessionV2Content() {
       }
       return next;
     });
-    if (!user) return;
+    if (!user) return true;
     // Parallel write-through — a skipped set carries null performed_* values.
-    await Promise.all(
+    const results = await Promise.allSettled(
       unlogged.map((u) =>
-        supabase.from("exercise_set_logs").upsert(
-          {
-            ...buildLogKey(u.exerciseId),
-            set_index: u.set_index,
-            skipped: true,
-            performed_reps: null,
-            performed_load: null,
-            performed_rir: null,
-            performed_rpe: null,
-            performed_json: {},
-            created_by_user_id: user.id,
-          },
-          { onConflict: logConflictTarget() },
+        selectWithRetry(() =>
+          supabase.from("exercise_set_logs").upsert(
+            {
+              ...buildLogKey(u.exerciseId),
+              set_index: u.set_index,
+              skipped: true,
+              performed_reps: null,
+              performed_load: null,
+              performed_rir: null,
+              performed_rpe: null,
+              performed_json: {},
+              created_by_user_id: user.id,
+            },
+            { onConflict: logConflictTarget() },
+          ),
         ),
       ),
     );
+
+    const failures: unknown[] = [];
+    for (const r of results) {
+      if (r.status === "rejected") failures.push(r.reason);
+      else if (r.value.error) failures.push(r.value.error);
+    }
+
+    if (failures.length > 0) {
+      // Revert the optimistic skip flags so the UI doesn't claim skips that
+      // didn't persist (matches completeSet/skipSet).
+      setSetLogs((prev) => {
+        const next = { ...prev };
+        for (const u of unlogged) {
+          next[u.exerciseId] = (next[u.exerciseId] || []).map((log, i) =>
+            i === u.setIndex ? { ...log, skipped: false, completed: false } : log,
+          );
+        }
+        return next;
+      });
+      toast({
+        title: "Couldn't finish — some sets didn't save",
+        description: sanitizeErrorForUser(failures[0]),
+        variant: "destructive",
+      });
+      return false;
+    }
+    return true;
   };
 
   // Finish entry point: if anything is unlogged, confirm (it'll be skipped),
@@ -2751,7 +2792,10 @@ function WorkoutSessionV2Content() {
 
   const confirmFinish = async () => {
     setFinishUnloggedCount(null);
-    await markUnloggedSkipped(computeUnloggedSets());
+    // Don't proceed to completion if the implicit-skip writes failed — otherwise
+    // the workout would "finish" with unpersisted skips.
+    const ok = await markUnloggedSkipped(computeUnloggedSets());
+    if (!ok) return;
     await completeWorkout();
   };
 
