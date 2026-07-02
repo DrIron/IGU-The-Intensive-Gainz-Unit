@@ -24,7 +24,7 @@ tsc/build clean; CI green. Ship Stage A, soak again (the app now runs with NO le
 ## Stage B — drop legacy DB objects (after Stage A soaks clean)
 Migration(s), in FK-safe order:
 1. `exercise_set_logs`: drop the `client_module_exercise_id` column (logs were re-keyed to `assignment_id + plan_slot_id` in the backfill; the column was kept only as the rollback path). Drop its FK + the old partial unique index keyed on it. Confirm 0 rows still rely on it (every active program's logs re-keyed).
-2. Drop legacy RPCs with no remaining caller: `assign_program_to_client`, `convert_muscle_plan_to_program(_v2)`, `complete_client_day_module`, and any `client_*`-only helper (grep each; some RLS helpers may still be referenced — keep those).
+2. Drop legacy RPCs with no remaining caller: `assign_program_to_client`, `assign_macrocycle_to_client`, `assign_team_program_atomic` (unreachable after T5 — the board_v2 team path now hard-errors instead of falling back to it; only the flag-off branch calls it, and that branch is removed in Stage A), `convert_muscle_plan_to_program(_v2)`, `complete_client_day_module`, and any `client_*`-only helper (grep each; some RLS helpers may still be referenced — keep those).
 3. `DROP TABLE` in child→parent order: `client_module_exercises` → `client_day_modules` → `client_program_days` → `client_programs`. Handle FKs (e.g. `client_plan_assignment.subscription_id` is independent; check nothing else references these).
 4. Drop `client_program_status`-only artifacts if now unused (the enum is reused by `client_plan_assignment.status` — KEEP it).
 Each migration: additive-safe where possible, but DROP is irreversible — take a fresh prod backup/snapshot note first, and run the pre-drop gate queries inside the PR.
