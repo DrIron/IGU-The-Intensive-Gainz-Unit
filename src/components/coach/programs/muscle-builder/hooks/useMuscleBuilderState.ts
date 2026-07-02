@@ -53,6 +53,13 @@ type Action =
   | { type: 'SET_SESSION_TYPE'; sessionId: string; sessionType: ActivityType }
   | { type: 'REORDER_SESSION'; dayIndex: number; fromIndex: number; toIndex: number }
   | { type: 'DUPLICATE_SESSION_TO_DAY'; sessionId: string; toDayIndex: number }
+  // Day-move slice: move a session to another day (current week). Changes only the
+  // session's dayIndex/sortOrder (+ its slots' render dayIndex) — slot ids/sessionId
+  // bindings untouched, so exercise_set_logs history is safe by construction.
+  | { type: 'MOVE_SESSION_TO_DAY'; sessionId: string; toDayIndex: number }
+  // Cascade the same day-move into FOLLOWING weeks. Matches sessions in weeks >
+  // fromWeekIndex on (oldDayIndex, type, name-when-set).
+  | { type: 'MOVE_SESSION_CASCADE'; fromWeekIndex: number; oldDayIndex: number; newDayIndex: number; sessionType: ActivityType; name?: string | null }
   | { type: 'SET_SETS'; slotId: string; sets: number }
   | { type: 'SET_REPS'; slotId: string; repMin: number; repMax: number }
   | { type: 'SET_SLOT_DETAILS'; slotId: string; sets?: number; repMin?: number; repMax?: number; tempo?: string | undefined; rir?: number | undefined; rpe?: number | undefined }
@@ -860,6 +867,63 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
         }));
         return { slots: [...s, ...clonedSlots], sessions: [...sessions, newSession] };
       });
+    }
+
+    case 'MOVE_SESSION_TO_DAY': {
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        const source = sessions.find(x => x.id === action.sessionId);
+        if (!source || source.dayIndex === action.toDayIndex) return { slots: s, sessions };
+        // Session keeps its id + slots (bound by sessionId) — only its day changes,
+        // appended to the target day's tail.
+        const targetDayCount = sessions.filter(x => x.dayIndex === action.toDayIndex).length;
+        const nextSessions = sessions.map(x =>
+          x.id === action.sessionId ? { ...x, dayIndex: action.toDayIndex, sortOrder: targetDayCount } : x
+        );
+        // Keep the slots' render dayIndex consistent with their session (ids/sessionId
+        // unchanged → plan_slots / log history untouched). Resequence onto the day tail.
+        const slotMax = getMaxSortOrder(s, action.toDayIndex);
+        let k = 0;
+        const nextSlots = s.map(sl =>
+          sl.sessionId === action.sessionId
+            ? { ...sl, dayIndex: action.toDayIndex, sortOrder: slotMax + 1 + (k++) }
+            : sl
+        );
+        return { slots: nextSlots, sessions: nextSessions };
+      });
+    }
+
+    case 'MOVE_SESSION_CASCADE': {
+      const { fromWeekIndex, oldDayIndex, newDayIndex, sessionType, name } = action;
+      if (oldDayIndex === newDayIndex) return state;
+      const weeks = state.weeks.map((w, i) => {
+        if (i <= fromWeekIndex) return w;
+        const sessions = w.sessions ?? [];
+        // Correspondence: same old day + activity type + name (name only when the
+        // moved session has one; clones have builder_session_id NULL so we can't use it).
+        const matchIds = new Set(
+          sessions
+            .filter(x =>
+              x.dayIndex === oldDayIndex &&
+              x.type === sessionType &&
+              (name == null || (x.name ?? null) === name)
+            )
+            .map(x => x.id)
+        );
+        if (matchIds.size === 0) return w; // no match this week → skip silently
+        let targetCount = sessions.filter(x => x.dayIndex === newDayIndex).length;
+        const nextSessions = sessions.map(x =>
+          matchIds.has(x.id) ? { ...x, dayIndex: newDayIndex, sortOrder: targetCount++ } : x
+        );
+        const slotMax = getMaxSortOrder(w.slots, newDayIndex);
+        let k = 0;
+        const nextSlots = w.slots.map(sl =>
+          matchIds.has(sl.sessionId)
+            ? { ...sl, dayIndex: newDayIndex, sortOrder: slotMax + 1 + (k++) }
+            : sl
+        );
+        return { ...w, slots: nextSlots, sessions: nextSessions };
+      });
+      return { ...state, weeks, isDirty: true };
     }
 
     case 'SET_SETS': {

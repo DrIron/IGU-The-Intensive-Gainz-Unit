@@ -13,7 +13,7 @@
 // the coach passes context.clientUserId; coach RLS already permits these reads).
 // Both shapes normalise into one SessionCell so the render is source-agnostic.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { isBoardV2Enabled } from "@/lib/featureFlags";
 import {
@@ -22,6 +22,7 @@ import {
   canonicalSessionTitle,
   type CanonicalSchedule,
 } from "@/lib/canonicalScheduleAdapter";
+import { boardDayDate } from "@/lib/boardDates";
 import {
   useClientWorkoutsMonth,
   useClientWorkoutsWeek,
@@ -32,8 +33,18 @@ import type { DrilldownDay, DrilldownModule } from "./useClientWorkouts";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { useToast } from "@/hooks/use-toast";
+import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { ChevronLeft, ChevronRight, CheckCircle2, Dumbbell, Snowflake } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, Dumbbell, Snowflake, MoreVertical, CalendarArrowUp } from "lucide-react";
 import {
   addMonths,
   addWeeks,
@@ -62,6 +73,8 @@ interface SessionCell {
   exerciseCount: number;
   muscles: string[];
   isDeload: boolean;
+  /** Raw plan_sessions.name (null when unset) — for the cascade matcher, mirrors the RPC. */
+  rawName?: string | null;
   /** Canonical sessions carry this so the viewer reads via assignment+plan_session. */
   canonical?: { assignmentId: string; date: string };
 }
@@ -106,6 +119,7 @@ interface ClientScheduleCalendarProps {
 
 export function ClientScheduleCalendar({ clientUserId }: ClientScheduleCalendarProps) {
   const isMobile = useIsMobile();
+  const { toast } = useToast();
   const [view, setView] = useState<"month" | "week">("month");
   const [anchor, setAnchor] = useState(new Date());
 
@@ -194,11 +208,142 @@ export function ClientScheduleCalendar({ clientUserId }: ClientScheduleCalendarP
         exerciseCount: m.exerciseCount,
         muscles: m.muscles,
         isDeload: m.isDeload,
+        rawName: m.title, // raw plan_sessions.name (null when unset)
         canonical: { assignmentId, date: iso },
       }));
     }
     return map;
   }, [useCanonical, schedule, assignmentId]);
+
+  // ── B5 calendar move (canonical 1:1 only) — via move_plan_session RPC ────────
+  const [movePrompt, setMovePrompt] = useState<{
+    cell: SessionCell;
+    iso: string;
+    newDayIndex: number;
+    dayLabel: string;
+    weeks: number;
+  } | null>(null);
+
+  const refreshSchedule = useCallback(async () => {
+    if (!assignmentId) return;
+    const s = await loadCanonicalSchedule(assignmentId);
+    setSchedule(s);
+  }, [assignmentId]);
+
+  // day_index (1-7) + runningIndex of a canonical cell, from its date relative to the
+  // schedule start (boardDayDate is the inverse: start + (running-1)*7 + (day-1)).
+  const dayIndexOfIso = useCallback(
+    (iso: string): number => {
+      if (!schedule) return 1;
+      const days = Math.floor((new Date(iso).getTime() - new Date(schedule.startDate).getTime()) / 86400000);
+      return ((days % 7) + 7) % 7 + 1;
+    },
+    [schedule],
+  );
+
+  // Count LATER running-weeks with a corresponding session — same matcher as the RPC
+  // (old day_index, activity_type, raw name when set). Same-day_index = same weekday.
+  const laterWeekMatchCount = useCallback(
+    (cell: SessionCell, iso: string): number => {
+      if (!schedule) return 0;
+      const day = schedule.byDate.get(iso);
+      if (!day) return 0;
+      const wk = day.runningIndex;
+      const targetDayIndex = dayIndexOfIso(iso);
+      const rawName = cell.rawName ?? null;
+      const weeks = new Set<number>();
+      for (const [otherIso, d] of schedule.byDate) {
+        if (d.runningIndex <= wk) continue;
+        if (dayIndexOfIso(otherIso) !== targetDayIndex) continue;
+        const has = d.modules.some(
+          (m) => m.module_type === cell.type && (rawName == null || (m.title ?? null) === rawName),
+        );
+        if (has) weeks.add(d.runningIndex);
+      }
+      return weeks.size;
+    },
+    [schedule, dayIndexOfIso],
+  );
+
+  const runMove = useCallback(
+    async (cell: SessionCell, newDayIndex: number, applyFollowing: boolean) => {
+      const { data, error } = await supabase.rpc("move_plan_session", {
+        p_session_id: cell.id,
+        p_new_day_index: newDayIndex,
+        p_apply_following_weeks: applyFollowing,
+      });
+      if (error) {
+        if (error.message === "team_shared_plan") {
+          toast({
+            title: "Edit from the team board",
+            description: "This is a shared team plan — move sessions from the team's Planning Board.",
+            variant: "destructive",
+          });
+        } else {
+          toast({ title: "Couldn't move session", description: sanitizeErrorForUser(error), variant: "destructive" });
+        }
+        return;
+      }
+      const res = (data ?? { moved: 0 }) as { moved: number; weeks: number[] };
+      toast({ title: `Session moved${res.moved > 1 ? ` (${res.moved} weeks)` : ""}` });
+      await refreshSchedule();
+    },
+    [toast, refreshSchedule],
+  );
+
+  // Kebab entry: pick a target day → prompt cascade if later matches exist, else move.
+  const onPickMoveDay = useCallback(
+    (cell: SessionCell, iso: string, newDayIndex: number) => {
+      const matches = laterWeekMatchCount(cell, iso);
+      if (matches > 0 && schedule) {
+        const targetDate = boardDayDate(schedule.startDate, schedule.byDate.get(iso)!.runningIndex, newDayIndex);
+        setMovePrompt({ cell, iso, newDayIndex, dayLabel: format(targetDate, "EEEE"), weeks: matches });
+      } else {
+        void runMove(cell, newDayIndex, false);
+      }
+    },
+    [laterWeekMatchCount, runMove, schedule],
+  );
+
+  // Build the per-card "Move to another day…" kebab (canonical cells only). The
+  // picker offers this running week's 7 dated slots (day_index 1-7); current disabled.
+  const renderMoveMenu = useCallback(
+    (cell: SessionCell, iso: string): ReactNode => {
+      if (!cell.canonical || !schedule) return null;
+      const day = schedule.byDate.get(iso);
+      if (!day) return null;
+      const running = day.runningIndex;
+      const curDayIndex = dayIndexOfIso(iso);
+      return (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="shrink-0 rounded p-1 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+              aria-label="Session actions"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <MoreVertical className="h-3.5 w-3.5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuLabel className="flex items-center gap-1.5">
+              <CalendarArrowUp className="h-3.5 w-3.5" /> Move to another day
+            </DropdownMenuLabel>
+            {Array.from({ length: 7 }, (_, i) => i + 1).map((d) => {
+              const date = boardDayDate(schedule.startDate, running, d);
+              return (
+                <DropdownMenuItem key={d} disabled={d === curDayIndex} onClick={() => onPickMoveDay(cell, iso, d)}>
+                  {format(date, "EEE MMM d")}
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      );
+    },
+    [schedule, dayIndexOfIso, onPickMoveDay],
+  );
 
   const legacyMonthByDate = useMemo<Record<string, SessionCell[]>>(() => {
     const map: Record<string, SessionCell[]> = {};
@@ -425,7 +570,13 @@ export function ClientScheduleCalendar({ clientUserId }: ClientScheduleCalendarP
                 {cells.length > 0 ? (
                   <div className="flex flex-col gap-2">
                     {cells.map((c) => (
-                      <SessionRow key={c.id} cell={c} date={day} onOpen={openSession} />
+                      <SessionRow
+                        key={c.id}
+                        cell={c}
+                        date={day}
+                        onOpen={openSession}
+                        moveMenu={renderMoveMenu(c, format(day, "yyyy-MM-dd"))}
+                      />
                     ))}
                   </div>
                 ) : (
@@ -448,7 +599,15 @@ export function ClientScheduleCalendar({ clientUserId }: ClientScheduleCalendarP
                 </div>
                 <div className="flex flex-1 flex-col gap-1.5">
                   {cells.length > 0 ? (
-                    cells.map((c) => <WeekChip key={c.id} cell={c} date={day} onOpen={openSession} />)
+                    cells.map((c) => (
+                      <WeekChip
+                        key={c.id}
+                        cell={c}
+                        date={day}
+                        onOpen={openSession}
+                        moveMenu={renderMoveMenu(c, format(day, "yyyy-MM-dd"))}
+                      />
+                    ))
                   ) : (
                     <div className="flex flex-1 items-center justify-center">
                       <span className="text-[11px] text-muted-foreground/50">Rest</span>
@@ -468,68 +627,107 @@ export function ClientScheduleCalendar({ clientUserId }: ClientScheduleCalendarP
         open={Boolean(logTarget)}
         onOpenChange={(open) => !open && setLogTarget(null)}
       />
+
+      {/* B5 move — cascade prompt (only when later-week matches exist). */}
+      <Dialog open={!!movePrompt} onOpenChange={(o) => { if (!o) setMovePrompt(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Apply to following weeks?</DialogTitle>
+            <DialogDescription>
+              {movePrompt
+                ? `Also move the matching session to ${movePrompt.dayLabel} in ${movePrompt.weeks} later week${movePrompt.weeks !== 1 ? "s" : ""}?`
+                : ""}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                if (movePrompt) void runMove(movePrompt.cell, movePrompt.newDayIndex, false);
+                setMovePrompt(null);
+              }}
+            >
+              This week only
+            </Button>
+            <Button
+              onClick={() => {
+                if (movePrompt) void runMove(movePrompt.cell, movePrompt.newDayIndex, true);
+                setMovePrompt(null);
+              }}
+            >
+              All following weeks
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 /** Enriched stacked row (mobile week + reuse). */
-function SessionRow({ cell, date, onOpen }: { cell: SessionCell; date: Date; onOpen: (c: SessionCell, d: Date) => void }) {
+function SessionRow({ cell, date, onOpen, moveMenu }: { cell: SessionCell; date: Date; onOpen: (c: SessionCell, d: Date) => void; moveMenu?: ReactNode }) {
   const status = deriveStatus(cell, date);
   const clickable = status !== "upcoming";
   return (
-    <button
-      type="button"
-      disabled={!clickable}
-      onClick={() => onOpen(cell, date)}
-      className={cn(
-        "flex w-full items-center gap-0 overflow-hidden rounded-lg border bg-card text-left transition-colors",
-        clickable ? "hover:bg-muted/40" : "cursor-default",
-      )}
-      aria-label={clickable ? `View ${cell.title}` : cell.title}
-    >
-      <span className={cn("w-1 self-stretch shrink-0", RAIL[status])} aria-hidden />
-      <span className="flex-1 px-4 py-3">
-        <span className="flex items-baseline justify-between gap-2">
-          <span className="flex items-center gap-1.5 text-sm font-medium">
-            {cell.isDeload && <Snowflake className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />}
-            {cell.isDeload ? "Recovery" : cell.title}
+    <div className="flex items-stretch gap-0.5 overflow-hidden rounded-lg border bg-card">
+      <button
+        type="button"
+        disabled={!clickable}
+        onClick={() => onOpen(cell, date)}
+        className={cn(
+          "flex min-w-0 flex-1 items-center gap-0 text-left transition-colors",
+          clickable ? "hover:bg-muted/40" : "cursor-default",
+        )}
+        aria-label={clickable ? `View ${cell.title}` : cell.title}
+      >
+        <span className={cn("w-1 self-stretch shrink-0", RAIL[status])} aria-hidden />
+        <span className="min-w-0 flex-1 px-4 py-3">
+          <span className="flex items-baseline justify-between gap-2">
+            <span className="flex items-center gap-1.5 text-sm font-medium">
+              {cell.isDeload && <Snowflake className="h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden />}
+              {cell.isDeload ? "Recovery" : cell.title}
+            </span>
+            <span className="font-mono text-[11px] text-muted-foreground">{format(date, "EEE d")}</span>
           </span>
-          <span className="font-mono text-[11px] text-muted-foreground">{format(date, "EEE d")}</span>
+          {cell.isDeload && <span className="block text-[11px] font-medium text-amber-600 dark:text-amber-400">Recovery week</span>}
+          <span className="text-xs text-muted-foreground">{briefText(cell)}</span>
         </span>
-        {cell.isDeload && <span className="block text-[11px] font-medium text-amber-600 dark:text-amber-400">Recovery week</span>}
-        <span className="text-xs text-muted-foreground">{briefText(cell)}</span>
-      </span>
-      <span className={cn("mr-3 shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", PILL[status])}>{STATUS_LABEL[status]}</span>
-    </button>
+        <span className={cn("shrink-0 rounded-full px-2.5 py-1 text-[11px] font-medium", PILL[status])}>{STATUS_LABEL[status]}</span>
+      </button>
+      {moveMenu && <div className="flex items-center pr-1">{moveMenu}</div>}
+    </div>
   );
 }
 
 /** Compact chip for the desktop 7-day week grid. */
-function WeekChip({ cell, date, onOpen }: { cell: SessionCell; date: Date; onOpen: (c: SessionCell, d: Date) => void }) {
+function WeekChip({ cell, date, onOpen, moveMenu }: { cell: SessionCell; date: Date; onOpen: (c: SessionCell, d: Date) => void; moveMenu?: ReactNode }) {
   const status = deriveStatus(cell, date);
   const clickable = status !== "upcoming";
   return (
-    <button
-      type="button"
-      disabled={!clickable}
-      onClick={() => onOpen(cell, date)}
-      className={cn("w-full overflow-hidden rounded-md border text-left transition-opacity", clickable ? "hover:opacity-90" : "cursor-default")}
-      aria-label={clickable ? `View ${cell.title}` : cell.title}
-    >
-      <span className="flex">
-        <span className={cn("w-1 shrink-0", RAIL[status])} aria-hidden />
-        <span className="flex-1 px-1.5 py-1">
-          <span className="flex items-center gap-1 text-xs font-medium">
-            {cell.isDeload && <Snowflake className="h-3 w-3 shrink-0 text-amber-500" aria-hidden />}
-            {cell.done && <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" aria-hidden />}
-            <span className="truncate">{cell.isDeload ? "Recovery" : cell.title}</span>
+    <div className="flex items-start gap-0.5 overflow-hidden rounded-md border">
+      <button
+        type="button"
+        disabled={!clickable}
+        onClick={() => onOpen(cell, date)}
+        className={cn("min-w-0 flex-1 text-left transition-opacity", clickable ? "hover:opacity-90" : "cursor-default")}
+        aria-label={clickable ? `View ${cell.title}` : cell.title}
+      >
+        <span className="flex">
+          <span className={cn("w-1 shrink-0", RAIL[status])} aria-hidden />
+          <span className="min-w-0 flex-1 px-1.5 py-1">
+            <span className="flex items-center gap-1 text-xs font-medium">
+              {cell.isDeload && <Snowflake className="h-3 w-3 shrink-0 text-amber-500" aria-hidden />}
+              {cell.done && <CheckCircle2 className="h-3 w-3 shrink-0 text-emerald-500" aria-hidden />}
+              <span className="truncate">{cell.isDeload ? "Recovery" : cell.title}</span>
+            </span>
+            <span className="block font-mono text-[10px] text-muted-foreground">{cell.exerciseCount} ex</span>
+            {cell.muscles.length > 0 && (
+              <span className="block truncate text-[10px] text-muted-foreground">{cell.muscles.map(cap).join(", ")}</span>
+            )}
           </span>
-          <span className="block font-mono text-[10px] text-muted-foreground">{cell.exerciseCount} ex</span>
-          {cell.muscles.length > 0 && (
-            <span className="block truncate text-[10px] text-muted-foreground">{cell.muscles.map(cap).join(", ")}</span>
-          )}
         </span>
-      </span>
-    </button>
+      </button>
+      {moveMenu && <div className="pr-0.5 pt-0.5">{moveMenu}</div>}
+    </div>
   );
 }

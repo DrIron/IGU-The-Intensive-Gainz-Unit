@@ -9328,6 +9328,14 @@ export type Database = {
         Returns: undefined
       }
       mark_video_complete: { Args: { p_video_id: string }; Returns: boolean }
+      move_plan_session: {
+        Args: {
+          p_session_id: string
+          p_new_day_index: number
+          p_apply_following_weeks?: boolean
+        }
+        Returns: Json
+      }
       process_care_team_discharges: { Args: never; Returns: number }
       purchase_addon_atomic: {
         Args: {
