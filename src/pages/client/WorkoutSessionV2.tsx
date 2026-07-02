@@ -1597,6 +1597,14 @@ function WorkoutSessionV2Content() {
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Finish re-entrancy guard. markUnloggedSkipped applies optimistic skip flags
+  // BEFORE its write settles, so computeUnloggedSets() reports 0 unlogged during
+  // the await window — a second Finish tap would then call completeWorkout()
+  // directly, bypassing the pending skip-writes and navigating away (unmount
+  // aborts them → lost skip rows → corrupted adherence). The ref is the
+  // synchronous guard (set before any await); isFinishing drives button-disable.
+  const isFinishingRef = useRef(false);
+  const [isFinishing, setIsFinishing] = useState(false);
   // Implicit skip: how many sets are unlogged when the client taps Finish.
   // null = no confirm open; a number = show "N sets unlogged" confirmation.
   const [finishUnloggedCount, setFinishUnloggedCount] = useState<number | null>(null);
@@ -2710,11 +2718,16 @@ function WorkoutSessionV2Content() {
     return out;
   };
 
-  // Persist the implicit skips. Returns false if any upsert failed — the caller
+  // Persist the implicit skips. Returns false if the write failed — the caller
   // must NOT proceed to completeWorkout on false (a Finish that silently drops the
-  // skip writes would leave the session half-persisted). Mirrors saveProgress:
-  // allSettled + per-upsert selectWithRetry + { error } tally (an RLS/constraint
-  // denial resolves with .value.error, it doesn't reject).
+  // skip writes would leave the session half-persisted; canonical completion is
+  // purely the set logs, so lost skips corrupt adherence directly).
+  //
+  // ONE batched array upsert, not N parallel single-row upserts: 21 parallel
+  // single-set writes burst the connection pooler → selectWithRetry backoff →
+  // rows land ~30s apart while the optimistic flags are already applied (the
+  // WK7 §1.5 / P0-postmortem pattern). One array upsert is a single fast,
+  // atomic round-trip.
   const markUnloggedSkipped = async (
     unlogged: Array<{ exerciseId: string; setIndex: number; set_index: number }>,
   ): Promise<boolean> => {
@@ -2729,35 +2742,25 @@ function WorkoutSessionV2Content() {
       return next;
     });
     if (!user) return true;
-    // Parallel write-through — a skipped set carries null performed_* values.
-    const results = await Promise.allSettled(
-      unlogged.map((u) =>
-        selectWithRetry(() =>
-          supabase.from("exercise_set_logs").upsert(
-            {
-              ...buildLogKey(u.exerciseId),
-              set_index: u.set_index,
-              skipped: true,
-              performed_reps: null,
-              performed_load: null,
-              performed_rir: null,
-              performed_rpe: null,
-              performed_json: {},
-              created_by_user_id: user.id,
-            },
-            { onConflict: logConflictTarget() },
-          ),
-        ),
-      ),
+
+    // Build the full skip-row array (skipped sets carry null performed_* values).
+    const rows = unlogged.map((u) => ({
+      ...buildLogKey(u.exerciseId),
+      set_index: u.set_index,
+      skipped: true,
+      performed_reps: null,
+      performed_load: null,
+      performed_rir: null,
+      performed_rpe: null,
+      performed_json: {},
+      created_by_user_id: user.id,
+    }));
+
+    const { error } = await selectWithRetry(() =>
+      supabase.from("exercise_set_logs").upsert(rows, { onConflict: logConflictTarget() }),
     );
 
-    const failures: unknown[] = [];
-    for (const r of results) {
-      if (r.status === "rejected") failures.push(r.reason);
-      else if (r.value.error) failures.push(r.value.error);
-    }
-
-    if (failures.length > 0) {
+    if (error) {
       // Revert the optimistic skip flags so the UI doesn't claim skips that
       // didn't persist (matches completeSet/skipSet).
       setSetLogs((prev) => {
@@ -2771,7 +2774,7 @@ function WorkoutSessionV2Content() {
       });
       toast({
         title: "Couldn't finish — some sets didn't save",
-        description: sanitizeErrorForUser(failures[0]),
+        description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
       return false;
@@ -2779,24 +2782,54 @@ function WorkoutSessionV2Content() {
     return true;
   };
 
+  // Belt-and-suspenders: warn before an unload/navigation while the finish writes
+  // are in flight, so a stray refresh/close doesn't abort pending skip-writes.
+  useEffect(() => {
+    if (!isFinishing) return;
+    const warn = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [isFinishing]);
+
+  // The single guarded finish flow: persist skips, then (only if that settled OK)
+  // complete. The isFinishingRef guard is set synchronously before any await, so a
+  // second Finish tap during the write window is a no-op (computeUnloggedSets lies
+  // during that window because the optimistic flags are already applied).
+  const runFinish = async (
+    unlogged: Array<{ exerciseId: string; setIndex: number; set_index: number }>,
+  ) => {
+    if (isFinishingRef.current) return;
+    isFinishingRef.current = true;
+    setIsFinishing(true);
+    try {
+      const ok = await markUnloggedSkipped(unlogged);
+      if (!ok) return; // skip-writes failed → do NOT complete/navigate
+      await completeWorkout();
+    } finally {
+      isFinishingRef.current = false;
+      setIsFinishing(false);
+    }
+  };
+
   // Finish entry point: if anything is unlogged, confirm (it'll be skipped),
-  // otherwise complete straight away.
+  // otherwise complete straight away. Guarded so a burst of taps can't re-enter.
   const handleFinish = () => {
+    if (isFinishingRef.current) return;
     const unlogged = computeUnloggedSets();
     if (unlogged.length > 0) {
       setFinishUnloggedCount(unlogged.length);
     } else {
-      completeWorkout();
+      void runFinish([]);
     }
   };
 
-  const confirmFinish = async () => {
+  const confirmFinish = () => {
     setFinishUnloggedCount(null);
-    // Don't proceed to completion if the implicit-skip writes failed — otherwise
-    // the workout would "finish" with unpersisted skips.
-    const ok = await markUnloggedSkipped(computeUnloggedSets());
-    if (!ok) return;
-    await completeWorkout();
+    // Compute unlogged BEFORE runFinish applies the optimistic flags.
+    void runFinish(computeUnloggedSets());
   };
 
   const completeWorkout = async () => {
@@ -3277,7 +3310,7 @@ function WorkoutSessionV2Content() {
             {mode === "overview" ? (
               <Button
                 className="w-full h-12 text-base"
-                disabled={submitting}
+                disabled={submitting || isFinishing}
                 onClick={() => {
                   if (progressPercent >= 100) {
                     handleFinish();
@@ -3304,9 +3337,9 @@ function WorkoutSessionV2Content() {
               <Button
                 className="w-full h-12 text-base"
                 onClick={handleFinish}
-                disabled={submitting}
+                disabled={submitting || isFinishing}
               >
-                {submitting ? (
+                {submitting || isFinishing ? (
                   <Loader2 className="w-5 h-5 animate-spin mr-2" />
                 ) : (
                   <CheckCircle2 className="w-5 h-5 mr-2" />
@@ -3332,9 +3365,9 @@ function WorkoutSessionV2Content() {
                 className="w-full h-12 text-base"
                 variant="outline"
                 onClick={handleFinish}
-                disabled={submitting}
+                disabled={submitting || isFinishing}
               >
-                {submitting ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
+                {submitting || isFinishing ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : null}
                 Finish workout · {remainingSets} set{remainingSets !== 1 ? "s" : ""} left
               </Button>
             )}
@@ -3344,7 +3377,7 @@ function WorkoutSessionV2Content() {
                 variant="ghost"
                 className="mt-2 w-full text-sm text-muted-foreground"
                 onClick={handleFinish}
-                disabled={submitting}
+                disabled={submitting || isFinishing}
               >
                 Finish &amp; skip remaining
               </Button>
