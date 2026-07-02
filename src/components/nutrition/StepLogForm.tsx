@@ -101,13 +101,16 @@ export function StepLogForm({ userId, onLogAdded }: StepLogFormProps) {
       const targetUserId = userId || user?.id;
       if (!targetUserId) return;
 
-      const { error } = await supabase.from('step_logs').insert({
-        user_id: targetUserId,
-        log_date: format(logDate, 'yyyy-MM-dd'),
-        steps: stepsNum,
-        source,
-        notes: notes || null,
-      });
+      const { error } = await supabase.from('step_logs').upsert(
+        {
+          user_id: targetUserId,
+          log_date: format(logDate, 'yyyy-MM-dd'),
+          steps: stepsNum,
+          source,
+          notes: notes || null,
+        },
+        { onConflict: 'user_id,log_date' },
+      );
 
       if (error) throw error;
 

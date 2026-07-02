@@ -182,13 +182,16 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
       const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
-      const { error } = await supabase.from("weight_logs").insert({
-        phase_id: phase.id,
-        user_id: user.id,
-        log_date: format(newWeightDate, "yyyy-MM-dd"),
-        weight_kg: w,
-        week_number: currentWeek,
-      });
+      const { error } = await supabase.from("weight_logs").upsert(
+        {
+          phase_id: phase.id,
+          user_id: user.id,
+          log_date: format(newWeightDate, "yyyy-MM-dd"),
+          weight_kg: w,
+          week_number: currentWeek,
+        },
+        { onConflict: "phase_id,log_date" },
+      );
 
       if (error) throw error;
 
@@ -229,12 +232,15 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
       setLoading(true);
       const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
-      const { error } = await supabase.from("step_logs").insert({
-        user_id: user.id,
-        log_date: format(newStepDate, "yyyy-MM-dd"),
-        steps: s,
-        source: "manual",
-      });
+      const { error } = await supabase.from("step_logs").upsert(
+        {
+          user_id: user.id,
+          log_date: format(newStepDate, "yyyy-MM-dd"),
+          steps: s,
+          source: "manual",
+        },
+        { onConflict: "user_id,log_date" },
+      );
       if (error) throw error;
       toast({ title: "Success", description: "Step log added" });
       setNewStepDate(undefined);
@@ -277,16 +283,19 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
       const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
       if (!user) return;
 
-      const { error } = await supabase.from("circumference_logs").insert({
-        phase_id: phase.id,
-        user_id: user.id,
-        log_date: format(circumDate, "yyyy-MM-dd"),
-        week_number: currentWeek,
-        waist_cm: waist ? parseFloat(waist) : null,
-        chest_cm: chest ? parseFloat(chest) : null,
-        hips_cm: hips ? parseFloat(hips) : null,
-        thighs_cm: thighs ? parseFloat(thighs) : null,
-      });
+      const { error } = await supabase.from("circumference_logs").upsert(
+        {
+          phase_id: phase.id,
+          user_id: user.id,
+          log_date: format(circumDate, "yyyy-MM-dd"),
+          week_number: currentWeek,
+          waist_cm: waist ? parseFloat(waist) : null,
+          chest_cm: chest ? parseFloat(chest) : null,
+          hips_cm: hips ? parseFloat(hips) : null,
+          thighs_cm: thighs ? parseFloat(thighs) : null,
+        },
+        { onConflict: "phase_id,week_number" },
+      );
 
       if (error) throw error;
 
