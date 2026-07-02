@@ -52,7 +52,13 @@ Sentry.init({
   // review -- replay captures DOM + user input).
   tracesSampleRate: 0.1,
 
-  // Filter out noisy errors
+  // Filter out noisy errors.
+  // NOTE (PR3 stale-chunk triage): do NOT blanket-filter chunk-load errors here.
+  // They auto-recover via reloadOnceForChunkError (preloadError listener +
+  // lazyWithReload + error boundary), but the loop-guarded UNRECOVERABLE case (a
+  // reload that re-hits the same error) must still reach Sentry. A recovered
+  // stale-chunk event is expected post-deploy noise → resolve/ignore it in the
+  // Sentry UI, don't add a matcher that would also swallow the real failure.
   ignoreErrors: [
     /chrome-extension:/,
     /moz-extension:/,

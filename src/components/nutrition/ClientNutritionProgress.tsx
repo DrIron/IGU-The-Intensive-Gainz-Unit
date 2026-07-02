@@ -320,7 +320,7 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
     }
 
     const bfNum = parseFloat(bodyFat);
-    // Same 3-55% clamp as BodyFatLogForm -- catches "1.5" / "5.5" typos.
+    // 3-55% clamp -- catches "1.5" / "5.5" typos.
     if (!Number.isFinite(bfNum) || bfNum < 3 || bfNum > 55) {
       toast({ title: "Invalid body fat", description: "Please enter a valid body fat percentage (3-55%)", variant: "destructive" });
       return;

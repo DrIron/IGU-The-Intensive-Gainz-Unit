@@ -50,13 +50,40 @@ const errorBuffer: LoggedError[] = [];
 const MAX_BUFFER_SIZE = 100;
 
 /**
+ * Coerce any thrown value into a real Error with a meaningful message. Plain
+ * objects (e.g. Supabase PostgrestError { message, code, details, hint }) used to
+ * hit `String(error)` → "[object Object]" → useless Sentry titles. Extract the
+ * message (+ code/details/hint) instead, falling back to JSON.
+ */
+function toError(error: unknown): Error {
+  if (error instanceof Error) return error;
+  if (typeof error === "string") return new Error(error || "Unknown error");
+  if (error && typeof error === "object") {
+    const o = error as Record<string, unknown>;
+    if (typeof o.message === "string" && o.message) {
+      const parts = [o.message];
+      if (typeof o.code === "string" && o.code) parts.push(`[${o.code}]`);
+      if (typeof o.details === "string" && o.details) parts.push(o.details);
+      if (typeof o.hint === "string" && o.hint) parts.push(`(hint: ${o.hint})`);
+      return new Error(parts.join(" "));
+    }
+    try {
+      return new Error(JSON.stringify(o));
+    } catch {
+      return new Error("Unknown non-serializable error object");
+    }
+  }
+  return new Error(error == null ? "Unknown error" : String(error));
+}
+
+/**
  * Capture and log an exception.
  */
 export async function captureException(
   error: Error | unknown,
   context: ErrorContext
 ): Promise<void> {
-  const err = error instanceof Error ? error : new Error(String(error));
+  const err = toError(error);
   const severity = context.severity || "error";
 
   const loggedError: LoggedError = {

@@ -1,9 +1,11 @@
 // useCurrentBodyComp — latest weight + body-fat for a nutrition goal/phase, for
-// the NU7 goal-page journey marker. Mirrors the ClientNutritionProgress source
-// (NU7 §3): current weight = newest weight_logs (phase_id), current body-fat =
-// newest non-null weekly_progress.body_fat_percentage (goal_id) — the goal id IS
-// the phase id used by those logs. Supplementary read: degrades to nulls on
-// error rather than blocking the page.
+// the NU7 goal-page journey marker. Current weight = newest weight_logs (phase_id);
+// current body-fat = newest body_fat_logs entry for the phase owner. (Was newest
+// weekly_progress.body_fat_percentage keyed on goal_id, but goal_id is a
+// nutrition_goals FK — disjoint from a phase id — so that read was always 0 rows,
+// and the unified check-in no longer writes weekly_progress. body_fat_logs is
+// user-keyed, so we resolve the phase owner first.) body_fat_logs RLS allows
+// self + care-team + admin. Supplementary read: degrades to nulls on error.
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -25,6 +27,14 @@ export function useCurrentBodyComp(goalId: string | undefined): CurrentBodyComp 
     if (!goalId || fetchedFor.current === goalId) return;
     fetchedFor.current = goalId;
     (async () => {
+      // body_fat_logs is user-keyed — resolve the phase owner first.
+      const { data: phaseRow } = await supabase
+        .from("nutrition_phases")
+        .select("user_id")
+        .eq("id", goalId)
+        .maybeSingle();
+      const ownerId = phaseRow?.user_id as string | undefined;
+
       const [weight, bf] = await Promise.all([
         supabase
           .from("weight_logs")
@@ -33,14 +43,16 @@ export function useCurrentBodyComp(goalId: string | undefined): CurrentBodyComp 
           .order("log_date", { ascending: false })
           .limit(1)
           .maybeSingle(),
-        supabase
-          .from("weekly_progress")
-          .select("body_fat_percentage, week_number")
-          .eq("goal_id", goalId)
-          .not("body_fat_percentage", "is", null)
-          .order("week_number", { ascending: false })
-          .limit(1)
-          .maybeSingle(),
+        ownerId
+          ? supabase
+              .from("body_fat_logs")
+              .select("body_fat_percentage, log_date")
+              .eq("user_id", ownerId)
+              .not("body_fat_percentage", "is", null)
+              .order("log_date", { ascending: false })
+              .limit(1)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
       ]);
       setState({
         currentWeightKg: (weight.data?.weight_kg as number | null | undefined) ?? null,
