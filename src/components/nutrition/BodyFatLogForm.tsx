@@ -103,14 +103,17 @@ export function BodyFatLogForm({ userId, currentWeight, onLogAdded }: BodyFatLog
 
       const ffm = currentWeight ? calculateFatFreeMass(currentWeight, bodyFatNum) : null;
 
-      const { error } = await supabase.from('body_fat_logs').insert({
-        user_id: targetUserId,
-        log_date: format(logDate, 'yyyy-MM-dd'),
-        body_fat_percentage: bodyFatNum,
-        method,
-        fat_free_mass_kg: ffm,
-        notes: notes || null,
-      });
+      const { error } = await supabase.from('body_fat_logs').upsert(
+        {
+          user_id: targetUserId,
+          log_date: format(logDate, 'yyyy-MM-dd'),
+          body_fat_percentage: bodyFatNum,
+          method,
+          fat_free_mass_kg: ffm,
+          notes: notes || null,
+        },
+        { onConflict: 'user_id,log_date,method' },
+      );
 
       if (error) throw error;
 
