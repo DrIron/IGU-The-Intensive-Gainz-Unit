@@ -31,7 +31,9 @@ Reference patterns: Copilot, Jobber (persistent right info rail), Time2book (pin
 Tabs: **Pulse · Programs · Calendar · History.**
 
 ### Pulse
-- Metric row: **Adherence · Tonnage (volume) · Time under significant tension · PRs**. (e1RM dropped as a headline — not universal; stays as a per-lift detail in History.)
+- Metric row: **Adherence · Tonnage (volume) · Time under significant tension · PRs**.
+
+> **Decision (2026-07-02): NO e1RM anywhere.** Estimated 1RM is not shown on any surface (not the Pulse metric row, not History). The per-lift **History** detail shows **actual logged rep-maxes** — the best load recorded at each rep count (e.g. best 5×, best 3×, best 1×). A true 1RM only exists when the **coach programs a test day** and the client logs it. Rationale: e1RM formulas aren't universal across lifts/populations and mislead; actual logged bests are honest and directly coachable. (Supersedes the earlier "e1RM stays as a per-lift History detail" note.)
   - **TUST** = time under tension summed only for *working* sets, i.e. sets rated **RIR ≤ 4**. Warm-ups / easy back-offs are excluded so it reflects real hard work.
 - **"Needs your eyes" digest** — auto-flags rolled up across this week's sessions.
 - **This week's sessions vs last** — each session lists its exercises with a progression flag:

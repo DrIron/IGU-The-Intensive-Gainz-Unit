@@ -90,21 +90,40 @@ export default function ClientNutrition() {
       setActivePhase(phase);
 
       if (phase) {
-        const [weightsRes, adherenceRes, adjustmentsRes, weeklyProgressRes] = await Promise.all([
+        const [weightsRes, adherenceRes, adjustmentsRes, bodyFatRes] = await Promise.all([
           supabase.from("weight_logs").select("*").eq("phase_id", phase.id).order("log_date", { ascending: true }),
           supabase.from("adherence_logs").select("*").eq("phase_id", phase.id),
           supabase.from("nutrition_adjustments").select("*").eq("phase_id", phase.id),
-          supabase.from("weekly_progress").select("week_number, body_fat_percentage").eq("goal_id", phase.id).order("week_number", { ascending: true }),
+          // Body fat lives in body_fat_logs (user-keyed, per-day) — the unified
+          // check-in stopped writing weekly_progress, and weekly_progress.goal_id
+          // is a nutrition_goals FK (disjoint from a phase id) so the old read was
+          // always 0 rows. Derive week numbers from the phase start below.
+          supabase.from("body_fat_logs").select("body_fat_percentage, log_date").eq("user_id", user.id).gte("log_date", phase.start_date).order("log_date", { ascending: true }),
         ]);
 
         if (weightsRes.error) console.warn("[ClientNutrition] weight_logs:", weightsRes.error.message);
         if (adherenceRes.error) console.warn("[ClientNutrition] adherence_logs:", adherenceRes.error.message);
         if (adjustmentsRes.error) console.warn("[ClientNutrition] nutrition_adjustments:", adjustmentsRes.error.message);
-        if (weeklyProgressRes.error) console.warn("[ClientNutrition] weekly_progress:", weeklyProgressRes.error.message);
+        if (bodyFatRes.error) console.warn("[ClientNutrition] body_fat_logs:", bodyFatRes.error.message);
 
         const weights = weightsRes.data || [];
         setWeightLogs(weights);
-        setWeeklyProgress(weeklyProgressRes.data || []);
+
+        // Map per-day body_fat_logs → the { week_number, body_fat_percentage }
+        // shape BodyFatProgressGraph expects, one point per phase-week (latest log
+        // in the week wins; ascending order → last write per week is kept).
+        const bfStartMs = new Date(phase.start_date).getTime();
+        const bfByWeek = new Map<number, number>();
+        for (const r of bodyFatRes.data || []) {
+          if (r.body_fat_percentage == null) continue;
+          const wk = Math.floor((new Date(r.log_date).getTime() - bfStartMs) / (7 * 86400000)) + 1;
+          bfByWeek.set(wk, r.body_fat_percentage as number);
+        }
+        const bfSeries = [...bfByWeek.entries()]
+          .sort((a, b) => a[0] - b[0])
+          .map(([week_number, body_fat_percentage]) => ({ week_number, body_fat_percentage }));
+        setWeeklyProgress(bfSeries);
+        setInitialBodyFat(bfSeries[0]?.body_fat_percentage ?? null);
 
         // Compute latest week avg weight + actual change % so the hero card
         // can render the same On Track / Ahead / Behind badge the coach sees.
@@ -129,14 +148,6 @@ export default function ClientNutrition() {
             const prevAvg = avg(prevWeek);
             setLatestActualChangePercent(((lastAvg - prevAvg) / prevAvg) * 100);
           }
-
-          const { data: weekOneBf } = await supabase
-            .from("weekly_progress")
-            .select("body_fat_percentage")
-            .eq("goal_id", phase.id)
-            .eq("week_number", 1)
-            .maybeSingle();
-          setInitialBodyFat(weekOneBf?.body_fat_percentage || null);
         }
 
         // Generate phase summary if phase is complete.
