@@ -23,7 +23,6 @@ import { UnifiedSessionPicker } from "./UnifiedSessionPicker";
 import {
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE_COLORS,
-  DAYS_OF_WEEK,
   defaultSessionName,
   resolveParentMuscleId,
   type ActivityType,
@@ -75,6 +74,8 @@ interface SessionBlockProps {
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
+  /** Start-anchored day labels (calendar: "Thu Jul 2"; weeks: "Thu"; template: Mon-first). */
+  dayOptions: { dayIndex: number; label: string }[];
   onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   placementCounts?: Map<string, number>;
   recentMuscleIds?: string[];
@@ -127,6 +128,7 @@ export const SessionBlock = memo(function SessionBlock({
   onRemoveSession,
   onDuplicateSessionToDay,
   onMoveSessionToDay,
+  dayOptions,
   onReorderSession,
   placementCounts,
   recentMuscleIds,
@@ -314,12 +316,12 @@ export const SessionBlock = memo(function SessionBlock({
                 <Copy className="h-3 w-3 mr-2" /> Duplicate to day
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                {DAYS_OF_WEEK.map((day, i) => (
+                {dayOptions.map(opt => (
                   <DropdownMenuItem
-                    key={day}
-                    onClick={e => { e.stopPropagation(); onDuplicateSessionToDay(session.id, i + 1); }}
+                    key={opt.dayIndex}
+                    onClick={e => { e.stopPropagation(); onDuplicateSessionToDay(session.id, opt.dayIndex); }}
                   >
-                    {day}
+                    {opt.label}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuSubContent>
@@ -329,13 +331,13 @@ export const SessionBlock = memo(function SessionBlock({
                 <CalendarArrowUp className="h-3 w-3 mr-2" /> Move to day
               </DropdownMenuSubTrigger>
               <DropdownMenuSubContent>
-                {DAYS_OF_WEEK.map((day, i) => (
+                {dayOptions.map(opt => (
                   <DropdownMenuItem
-                    key={day}
-                    disabled={i + 1 === session.dayIndex}
-                    onClick={e => { e.stopPropagation(); onMoveSessionToDay(session.id, i + 1); }}
+                    key={opt.dayIndex}
+                    disabled={opt.dayIndex === session.dayIndex}
+                    onClick={e => { e.stopPropagation(); onMoveSessionToDay(session.id, opt.dayIndex); }}
                   >
-                    {day}
+                    {opt.label}
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuSubContent>
