@@ -14,6 +14,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { NutritionPhaseCard } from "@/components/nutrition/NutritionPhaseCard";
 import { PhaseSwitcher } from "@/components/nutrition/PhaseSwitcher";
 import { NutritionPermissionGate } from "@/components/nutrition/NutritionPermissionGate";
+import { useNutritionPermissions } from "@/hooks/useNutritionPermissions";
 import { CoachNutritionGoal } from "@/components/nutrition/CoachNutritionGoal";
 import { CoachNutritionProgress } from "@/components/nutrition/CoachNutritionProgress";
 import { NutritionCheckInCard } from "@/components/nutrition/NutritionCheckInCard";
@@ -50,6 +51,9 @@ interface PhaseStats {
  */
 export function NutritionTab({ context }: ClientOverviewTabProps) {
   const { clientUserId } = context;
+  // B6: gate contextual-comment composers on the same edit permission as the
+  // rest of the nutrition surface (React-Query cached — dedupes with the gates).
+  const { canEdit: canComment } = useNutritionPermissions({ clientUserId });
   // All phases for the client. Ordered active-first, then start_date DESC --
   // PhaseSwitcher renders them in receipt order. The shell used to load only
   // the active phase; now it loads the full history and lets the coach pick.
@@ -245,7 +249,11 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
                 <PhaseWeightTrendCard phase={selectedPhase} />
                 <StepProgressDisplay userId={clientUserId} />
               </div>
-              <NutritionCheckInCard phaseId={selectedPhase.id} />
+              <NutritionCheckInCard
+                phaseId={selectedPhase.id}
+                clientUserId={clientUserId}
+                canComment={canComment}
+              />
               <ScheduledEventsCalendar phaseId={selectedPhase.id} phase={selectedPhase} />
             </>
           ) : (
@@ -270,6 +278,8 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
                 phase={selectedPhase}
                 isReadOnly={isReadOnly}
                 onAdjustmentMade={loadClientPhases}
+                clientUserId={clientUserId}
+                canComment={canComment}
               />
               <CoachNutritionNotes phase={selectedPhase} />
             </>
