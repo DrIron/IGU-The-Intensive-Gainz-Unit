@@ -489,7 +489,7 @@ export function MuscleBuilderPage({
       const slot = currentWeekSlots.find(s => s.id === slotId);
       dispatch({ type: 'REMOVE_MUSCLE', slotId });
       const muscle = slot ? getMuscleDisplay(slot.muscleId) : null;
-      const dayName = slot ? DAYS_OF_WEEK[slot.dayIndex - 1] : '';
+      const dayName = slot ? dayLabelFor(slot.dayIndex) : '';
       toast({
         title: `Removed ${muscle?.label || 'muscle'} from ${dayName}`,
         action: (
@@ -504,7 +504,7 @@ export function MuscleBuilderPage({
         ),
       });
     },
-    [currentWeekSlots, dispatch, toast]
+    [currentWeekSlots, dispatch, toast, dayLabelFor]
   );
 
   const handleLoadPreset = useCallback(
@@ -522,15 +522,15 @@ export function MuscleBuilderPage({
   // #9 — Copy / Paste day
   const handleCopyDay = useCallback((dayIndex: number) => {
     setCopiedDayIndex(dayIndex);
-    toast({ title: `${DAYS_OF_WEEK[dayIndex - 1]} copied — click Paste on target day` });
-  }, [toast]);
+    toast({ title: `${dayLabelFor(dayIndex)} copied — click Paste on target day` });
+  }, [toast, dayLabelFor]);
 
   const handlePasteDay = useCallback((toDayIndex: number) => {
     if (copiedDayIndex == null) return;
     dispatch({ type: 'PASTE_DAY', fromDayIndex: copiedDayIndex, toDayIndex });
     setCopiedDayIndex(null);
-    toast({ title: `Pasted to ${DAYS_OF_WEEK[toDayIndex - 1]}` });
-  }, [copiedDayIndex, dispatch, toast]);
+    toast({ title: `Pasted to ${dayLabelFor(toDayIndex)}` });
+  }, [copiedDayIndex, dispatch, toast, dayLabelFor]);
 
   // #8 — Bulk set all for muscle
   const handleSetAllSets = useCallback(
@@ -1016,7 +1016,7 @@ export function MuscleBuilderPage({
         {copiedDayIndex != null && (
           <div className="flex items-center justify-between gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
             <span>
-              <strong>{DAYS_OF_WEEK[copiedDayIndex - 1]}</strong> copied — click Paste on target day
+              <strong>{dayLabelFor(copiedDayIndex)}</strong> copied — click Paste on target day
             </span>
             <Button
               variant="ghost"
