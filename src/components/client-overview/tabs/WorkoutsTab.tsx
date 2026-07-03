@@ -33,7 +33,6 @@ import { WorkoutHistoryTrends } from "../workouts/WorkoutHistoryTrends";
 import {
   useAdherencePulse,
   useClientPrograms,
-  useClientProgramDrilldown,
   type ClientProgramSummary,
   type DrilldownDay,
   type DrilldownModule,
@@ -70,7 +69,6 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
 
   // Drill-down state.
   const [selected, setSelected] = useState<ClientProgramSummary | null>(null);
-  const drilldown = useClientProgramDrilldown(selected?.id ?? null);
 
   // Session log viewer.
   const [logTarget, setLogTarget] = useState<{
@@ -100,7 +98,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   const [editingAssignment, setEditingAssignment] = useState(false);
   const assignmentFetchedRef = useRef(false);
   useEffect(() => {
-    if (!boardV2 || assignmentFetchedRef.current) return;
+    if (assignmentFetchedRef.current) return;
     assignmentFetchedRef.current = true;
     supabase
       .from("client_plan_assignment")
@@ -115,7 +113,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
         setCanonicalStartDate(data?.start_date ?? null);
         setCanonicalPlanId(data?.plan_id ?? null);
       });
-  }, [boardV2, clientUserId]);
+  }, [clientUserId]);
 
   // Deload v2: under board_v2, render the drilldown from the canonical running sequence (insert+shift
   // aware) instead of the legacy client_program_days snapshot. deloadNonce reloads after take/remove.
@@ -123,7 +121,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [deloadNonce, setDeloadNonce] = useState(0);
   useEffect(() => {
-    if (!boardV2 || !canonicalAssignmentId) {
+    if (!canonicalAssignmentId) {
       setSchedule(null);
       return;
     }
@@ -139,11 +137,10 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
     return () => {
       cancelled = true;
     };
-  }, [boardV2, canonicalAssignmentId, deloadNonce]);
+  }, [canonicalAssignmentId, deloadNonce]);
 
-  const useCanonicalDrilldown = boardV2 && !!schedule;
   const canonicalDays = useMemo<DrilldownDay[] | null>(() => {
-    if (!useCanonicalDrilldown || !schedule || !canonicalAssignmentId) return null;
+    if (!schedule || !canonicalAssignmentId) return null;
     return canonicalDrilldownDays(schedule).map((d) => ({
       id: d.id,
       dayIndex: d.dayIndex,
@@ -162,7 +159,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
         canonical: { assignmentId: canonicalAssignmentId, date: m.date },
       })),
     }));
-  }, [useCanonicalDrilldown, schedule, canonicalAssignmentId]);
+  }, [schedule, canonicalAssignmentId]);
 
   const handleOpenProgram = useCallback((program: ClientProgramSummary) => {
     setSelected(program);
@@ -269,9 +266,9 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
           {selected ? (
             <ClientProgramDrilldown
               program={selected}
-              days={canonicalDays ?? drilldown.days}
-              loading={useCanonicalDrilldown ? scheduleLoading : drilldown.loading}
-              error={drilldown.error}
+              days={canonicalDays ?? []}
+              loading={scheduleLoading}
+              error={null}
               onBack={handleBackToList}
               onOpenModule={handleOpenModule}
             />

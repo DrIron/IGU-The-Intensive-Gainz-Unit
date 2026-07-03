@@ -14,7 +14,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
-import { isBoardV2Enabled } from "@/lib/featureFlags";
 import {
   loadCanonicalSchedule,
   canonicalSessionTitle,
@@ -120,124 +119,58 @@ export function useClientWorkoutsMonth(
  */
 export function useClientWorkoutsToday(userId: string | undefined) {
   const todayKey = format(new Date(), "yyyy-MM-dd");
-  // board_v2 discriminator in the key so toggling the flag never serves a stale
-  // legacy (or canonical) cache for the same user/day.
-  const boardV2 = isBoardV2Enabled();
   return useQuery<TodayProgramResult>({
-    queryKey: ["client-workouts", userId, "today", todayKey, boardV2 ? "v2" : "legacy"],
+    queryKey: ["client-workouts", userId, "today", todayKey],
     enabled: !!userId,
     staleTime: THIRTY_SECONDS,
     refetchOnWindowFocus: true,
     queryFn: async () => {
-      // P5 Slice 1 — board_v2 canonical branch: read the client's clone schedule
-      // (deload-aware via loadCanonicalSchedule) and synthesize the SAME
-      // TodayProgramResult shape the card consumes, so an on-demand deload's
-      // insert+shift reflects in "today" (the legacy snapshot below never does).
-      // Mirrors WorkoutCalendar. Flag off / no assignment / null schedule → fall
-      // straight through to the unchanged legacy query.
-      if (boardV2) {
-        const assignment = await resolveActiveAssignment(userId!);
-        if (assignment) {
-          const schedule = await loadCanonicalSchedule(assignment.id);
-          if (schedule) {
-            const { data: planRow } = await supabase
-              .from("plan")
-              .select("name")
-              .eq("id", assignment.plan_id)
-              .maybeSingle();
-            const programName = planRow?.name ?? "Your Program";
-            const days: ClientProgramDayRow[] = [];
-            for (const [iso, day] of schedule.byDate) {
-              days.push({
-                id: `canon-${iso}`,
-                date: iso,
-                title: day.isDeload
-                  ? "Recovery"
-                  : day.modules[0]
-                    ? canonicalSessionTitle(day.modules[0])
-                    : "Workout",
-                day_index: day.runningIndex,
-                isDeload: day.isDeload,
-                client_day_modules: day.modules.map((m, i) => ({
-                  id: m.id, // plan_session_id — the canonical session link target
-                  title: canonicalSessionTitle(m),
-                  module_type: m.module_type,
-                  status: m.status, // "completed" (all slots logged) or ""
-                  sort_order: i,
-                  client_module_exercises: [{ count: m.exerciseCount }],
-                  isDeload: m.isDeload,
-                  canonical: { assignmentId: assignment.id, date: iso },
-                })),
-              });
-            }
-            return {
-              program: {
-                id: assignment.id,
-                status: "active",
-                source_template_id: null,
-                client_program_days: days,
-              },
-              programName,
-            };
-          }
-        }
-        // No assignment / null schedule → fall through to the legacy query below.
-      }
+      // Read the client's canonical clone schedule (deload-aware via
+      // loadCanonicalSchedule) and synthesize the TodayProgramResult shape the card
+      // consumes, so an on-demand deload's insert+shift reflects in "today".
+      // No active assignment / null schedule → no program.
+      const assignment = await resolveActiveAssignment(userId!);
+      if (!assignment) return { program: null, programName: null };
+      const schedule = await loadCanonicalSchedule(assignment.id);
+      if (!schedule) return { program: null, programName: null };
 
-      // Nested join through client_programs → client_program_days →
-      // client_day_modules → client_module_exercises (count). The CLAUDE.md
-      // "unreliable nested FK" rule applies to template-side joins
-      // (client_programs → program_templates); the template name is fetched
-      // separately below for exactly that reason.
-      const { data: program, error: programError } = await supabase
-        .from("client_programs")
-        .select(`
-          id,
-          status,
-          source_template_id,
-          client_program_days (
-            id,
-            title,
-            day_index,
-            date,
-            client_day_modules (
-              id,
-              title,
-              module_type,
-              status,
-              sort_order,
-              client_module_exercises (count)
-            )
-          )
-        `)
-        .eq("user_id", userId!)
-        .eq("status", "active")
-        .order("start_date", { ascending: false })
-        .limit(1)
+      const { data: planRow } = await supabase
+        .from("plan")
+        .select("name")
+        .eq("id", assignment.plan_id)
         .maybeSingle();
-      if (programError) throw programError;
-      if (!program) return { program: null, programName: null };
-
-      let programName = "Your Program";
-      if (program.source_template_id) {
-        // Degrade gracefully: a failed template name lookup shouldn't fail
-        // the whole hero. Log + fall back to "Your Program".
-        const { data: templateData, error: templateError } = await supabase
-          .from("program_templates")
-          .select("title")
-          .eq("id", program.source_template_id)
-          .maybeSingle();
-        if (templateError) {
-          console.warn(
-            "[useClientWorkoutsToday] template lookup failed:",
-            templateError.message,
-          );
-        } else if (templateData?.title) {
-          programName = templateData.title;
-        }
+      const programName = planRow?.name ?? "Your Program";
+      const days: ClientProgramDayRow[] = [];
+      for (const [iso, day] of schedule.byDate) {
+        days.push({
+          id: `canon-${iso}`,
+          date: iso,
+          title: day.isDeload
+            ? "Recovery"
+            : day.modules[0]
+              ? canonicalSessionTitle(day.modules[0])
+              : "Workout",
+          day_index: day.runningIndex,
+          isDeload: day.isDeload,
+          client_day_modules: day.modules.map((m, i) => ({
+            id: m.id, // plan_session_id — the canonical session link target
+            title: canonicalSessionTitle(m),
+            module_type: m.module_type,
+            status: m.status, // "completed" (all slots logged) or ""
+            sort_order: i,
+            client_module_exercises: [{ count: m.exerciseCount }],
+            isDeload: m.isDeload,
+            canonical: { assignmentId: assignment.id, date: iso },
+          })),
+        });
       }
       return {
-        program: program as unknown as TodayProgramResult["program"],
+        program: {
+          id: assignment.id,
+          status: "active",
+          source_template_id: null,
+          client_program_days: days,
+        },
         programName,
       };
     },

@@ -13,9 +13,8 @@
 // the coach passes context.clientUserId; coach RLS already permits these reads).
 // Both shapes normalise into one SessionCell so the render is source-agnostic.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { isBoardV2Enabled } from "@/lib/featureFlags";
 import {
   resolveActiveAssignment,
   loadCanonicalSchedule,
@@ -23,11 +22,6 @@ import {
   type CanonicalSchedule,
 } from "@/lib/canonicalScheduleAdapter";
 import { boardDayDate } from "@/lib/boardDates";
-import {
-  useClientWorkoutsMonth,
-  useClientWorkoutsWeek,
-  deriveModuleBrief,
-} from "@/hooks/useClientWorkouts";
 import { SessionLogViewer } from "./SessionLogViewer";
 import type { DrilldownDay, DrilldownModule } from "./useClientWorkouts";
 import { Button } from "@/components/ui/button";
@@ -128,22 +122,15 @@ export function ClientScheduleCalendar({ clientUserId, canComment }: ClientSched
   // Read-only session-log viewer target (past sessions only).
   const [logTarget, setLogTarget] = useState<{ module: DrilldownModule; day: DrilldownDay } | null>(null);
 
-  // ── canonical path (board_v2 + active assignment) ──────────────────────────
-  const boardV2 = isBoardV2Enabled();
+  // ── canonical schedule (active assignment) ─────────────────────────────────
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
   const [schedule, setSchedule] = useState<CanonicalSchedule | null>(null);
-  const [scheduleLoading, setScheduleLoading] = useState(boardV2);
-  const assignmentFetchedRef = useRef(false);
+  const [scheduleLoading, setScheduleLoading] = useState(true);
 
   useEffect(() => {
     // Re-resolve whenever the client changes.
-    assignmentFetchedRef.current = false;
     setAssignmentId(null);
     setSchedule(null);
-    if (!boardV2) {
-      setScheduleLoading(false);
-      return;
-    }
     let cancelled = false;
     setScheduleLoading(true);
     (async () => {
@@ -162,44 +149,30 @@ export function ClientScheduleCalendar({ clientUserId, canComment }: ClientSched
     return () => {
       cancelled = true;
     };
-  }, [boardV2, clientUserId]);
+  }, [clientUserId]);
 
-  const useCanonical = boardV2 && !!schedule && !!assignmentId;
-
-  // ── legacy path (flag off / no assignment) ─────────────────────────────────
-  const { data: monthRows, isLoading: monthLoading } = useClientWorkoutsMonth(clientUserId, anchor);
-  const { data: weekRows, isLoading: weekLoading } = useClientWorkoutsWeek(clientUserId, anchor);
-
-  // ── "has any active program?" probe — drives the empty state (not a blank grid).
-  // Definitive across both paths (canonical assignment OR legacy program). Read-only.
+  // ── "has any active program?" probe — drives the empty state (not a blank grid). Read-only.
   const [hasProgram, setHasProgram] = useState<boolean | null>(null);
   useEffect(() => {
     let cancelled = false;
     setHasProgram(null);
     (async () => {
-      const [aRes, pRes] = await Promise.all([
-        supabase
-          .from("client_plan_assignment")
-          .select("id", { count: "exact", head: true })
-          .eq("client_id", clientUserId)
-          .eq("status", "active"),
-        supabase
-          .from("client_programs")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", clientUserId)
-          .eq("status", "active"),
-      ]);
+      const { count } = await supabase
+        .from("client_plan_assignment")
+        .select("id", { count: "exact", head: true })
+        .eq("client_id", clientUserId)
+        .eq("status", "active");
       if (cancelled) return;
-      setHasProgram((aRes.count ?? 0) > 0 || (pRes.count ?? 0) > 0);
+      setHasProgram((count ?? 0) > 0);
     })();
     return () => {
       cancelled = true;
     };
   }, [clientUserId]);
 
-  // ── normalise both sources into date → SessionCell[] ───────────────────────
+  // ── normalise the schedule into date → SessionCell[] ───────────────────────
   const canonicalByDate = useMemo<Record<string, SessionCell[]> | null>(() => {
-    if (!useCanonical || !schedule || !assignmentId) return null;
+    if (!schedule || !assignmentId) return null;
     const map: Record<string, SessionCell[]> = {};
     for (const [iso, day] of schedule.byDate) {
       map[iso] = day.modules.map((m) => ({
@@ -215,7 +188,7 @@ export function ClientScheduleCalendar({ clientUserId, canComment }: ClientSched
       }));
     }
     return map;
-  }, [useCanonical, schedule, assignmentId]);
+  }, [schedule, assignmentId]);
 
   // ── B5 calendar move (canonical 1:1 only) — via move_plan_session RPC ────────
   const [movePrompt, setMovePrompt] = useState<{
@@ -347,47 +320,9 @@ export function ClientScheduleCalendar({ clientUserId, canComment }: ClientSched
     [schedule, dayIndexOfIso, onPickMoveDay],
   );
 
-  const legacyMonthByDate = useMemo<Record<string, SessionCell[]>>(() => {
-    const map: Record<string, SessionCell[]> = {};
-    for (const day of monthRows ?? []) {
-      const mods = (day.client_day_modules ?? []).map((m: any): SessionCell => {
-        const brief = deriveModuleBrief(m);
-        return {
-          id: m.id,
-          title: m.title || formatType(m.module_type),
-          type: m.module_type,
-          done: m.status === "completed" || !!m.completed_at,
-          exerciseCount: brief.exerciseCount,
-          muscles: brief.muscles,
-          isDeload: false,
-        };
-      });
-      if (mods.length) map[day.date] = mods;
-    }
-    return map;
-  }, [monthRows]);
-
-  const legacyWeekByDate = useMemo<Record<string, SessionCell[]>>(() => {
-    const map: Record<string, SessionCell[]> = {};
-    for (const row of weekRows ?? []) {
-      const d = row.client_program_days?.date;
-      if (!d) continue;
-      const brief = deriveModuleBrief(row);
-      (map[d] ??= []).push({
-        id: row.id,
-        title: row.title || formatType(row.module_type),
-        type: row.module_type,
-        done: row.status === "completed" || !!row.completed_at,
-        exerciseCount: brief.exerciseCount,
-        muscles: brief.muscles,
-        isDeload: false,
-      });
-    }
-    return map;
-  }, [weekRows]);
-
-  const monthByDate = canonicalByDate ?? legacyMonthByDate;
-  const weekByDate = canonicalByDate ?? legacyWeekByDate;
+  // Empty maps when there's no schedule → graceful empty grid (never a crash).
+  const monthByDate = canonicalByDate ?? {};
+  const weekByDate = canonicalByDate ?? {};
 
   // ── date scaffolding ───────────────────────────────────────────────────────
   const monthStart = startOfMonth(anchor);
@@ -421,11 +356,7 @@ export function ClientScheduleCalendar({ clientUserId, canComment }: ClientSched
     return { done, total };
   }, [view, monthDays, weekDays, monthByDate, weekByDate, anchor]);
 
-  const loading = useCanonical || (boardV2 && scheduleLoading)
-    ? scheduleLoading
-    : view === "month"
-      ? monthLoading
-      : weekLoading;
+  const loading = scheduleLoading;
 
   // Past sessions open the read-only viewer; upcoming are static.
   const openSession = (cell: SessionCell, date: Date) => {

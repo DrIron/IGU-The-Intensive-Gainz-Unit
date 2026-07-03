@@ -21,7 +21,6 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { selectWithRetry } from "@/lib/selectWithRetry";
-import { isBoardV2Enabled } from "@/lib/featureFlags";
 import type { BoardDeloadInsert } from "@/lib/boardDates";
 import { buildRunningSequence, type SequenceInsert } from "@/lib/deloadSequence";
 import type { ColumnConfig } from "@/types/workout-builder";
@@ -198,26 +197,23 @@ export async function resolveCanonicalSession(
     if (!weeks || weeks.length === 0) return null;
 
     // Deload v2: splice this client's on-demand deload inserts into the running sequence and
-    // resolve the active week against the shifted timeline. Gated behind board_v2 — with the flag
-    // off (and no on-demand weeks authored) the sequence == base weeks in order → unchanged.
-    let inserts: SequenceInsert[] = [];
-    if (isBoardV2Enabled()) {
-      const { data: insRows } = await retryRead(
-        () =>
-          supabase
-            .from("client_plan_inserted_deloads")
-            .select("id, position_week_index, source_plan_week_id, preset_id")
-            .eq("assignment_id", assignmentId)
-            .order("position_week_index"),
-        "inserted_deloads",
-      );
-      inserts = (insRows ?? []).map((r) => ({
-        id: r.id,
-        position_week_index: r.position_week_index,
-        source_plan_week_id: r.source_plan_week_id,
-        preset_id: r.preset_id ?? null,
-      }));
-    }
+    // resolve the active week against the shifted timeline. With no on-demand weeks authored the
+    // sequence == base weeks in order → unchanged.
+    const { data: insRows } = await retryRead(
+      () =>
+        supabase
+          .from("client_plan_inserted_deloads")
+          .select("id, position_week_index, source_plan_week_id, preset_id")
+          .eq("assignment_id", assignmentId)
+          .order("position_week_index"),
+      "inserted_deloads",
+    );
+    const inserts: SequenceInsert[] = (insRows ?? []).map((r) => ({
+      id: r.id,
+      position_week_index: r.position_week_index,
+      source_plan_week_id: r.source_plan_week_id,
+      preset_id: r.preset_id ?? null,
+    }));
     const sequence = buildRunningSequence(weeks, inserts);
     const baseCount = sequence.filter((s) => s.kind === "base").length;
     weekIndex = resolveWeekIndexForDate(
