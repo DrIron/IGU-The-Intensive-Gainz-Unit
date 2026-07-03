@@ -1,17 +1,21 @@
 import { memo, useMemo } from "react";
 import { cn } from "@/lib/utils";
-import { DAYS_OF_WEEK, type MuscleSlotData } from "@/types/muscle-builder";
+import { type MuscleSlotData } from "@/types/muscle-builder";
+import { type BoardDayOption } from "@/lib/boardDates";
 
 interface MobileWeekStripProps {
   slots: MuscleSlotData[];
   selectedDayIndex: number;
   onSelectDay: (dayIndex: number) => void;
+  /** Start-anchored day labels; the strip uses the short `weekday` form. */
+  dayOptions: BoardDayOption[];
 }
 
 export const MobileWeekStrip = memo(function MobileWeekStrip({
   slots,
   selectedDayIndex,
   onSelectDay,
+  dayOptions,
 }: MobileWeekStripProps) {
   const slotCountByDay = useMemo(() => {
     const counts = new Map<number, number>();
@@ -39,7 +43,7 @@ export const MobileWeekStrip = memo(function MobileWeekStrip({
             )}
           >
             <span className="text-[10px] uppercase tracking-wider">
-              {DAYS_OF_WEEK[dayIndex - 1]}
+              {dayOptions.find(o => o.dayIndex === dayIndex)?.weekday ?? ""}
             </span>
             <span className={cn(
               "text-sm font-mono",

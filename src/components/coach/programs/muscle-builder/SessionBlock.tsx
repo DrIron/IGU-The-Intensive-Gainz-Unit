@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, useCallback } from "react";
+import { type BoardDayOption } from "@/lib/boardDates";
 import { Droppable } from "@hello-pangea/dnd";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -75,7 +76,7 @@ interface SessionBlockProps {
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
   /** Start-anchored day labels (calendar: "Thu Jul 2"; weeks: "Thu"; template: Mon-first). */
-  dayOptions: { dayIndex: number; label: string }[];
+  dayOptions: BoardDayOption[];
   onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   placementCounts?: Map<string, number>;
   recentMuscleIds?: string[];

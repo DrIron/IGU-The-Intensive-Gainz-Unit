@@ -2,7 +2,7 @@ import { memo } from "react";
 import { DayColumn } from "./DayColumn";
 import { MobileWeekStrip } from "./MobileWeekStrip";
 import { MobileDayDetail } from "./MobileDayDetail";
-import { boardDayLabel } from "@/lib/boardDates";
+import { boardDayLabel, type BoardDayOption } from "@/lib/boardDates";
 import type { ActivityType, MuscleSlotData, SessionData, SlotExercise } from "@/types/muscle-builder";
 
 interface WeeklyCalendarProps {
@@ -25,8 +25,8 @@ interface WeeklyCalendarProps {
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
-  /** Start-anchored day labels for the "move/duplicate to day" pickers + header fallback. */
-  dayOptions: { dayIndex: number; label: string }[];
+  /** Start-anchored day labels for the "move/duplicate to day" pickers + header + day-strip. */
+  dayOptions: BoardDayOption[];
   onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
   onClearExercise?: (slotId: string) => void;
@@ -123,6 +123,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           slots={slots}
           selectedDayIndex={selectedDayIndex}
           onSelectDay={onSelectDay}
+          dayOptions={dayOptions}
         />
         <MobileDayDetail
           slots={slots}

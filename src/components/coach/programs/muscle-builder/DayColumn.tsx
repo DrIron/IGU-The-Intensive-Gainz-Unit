@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, useCallback } from "react";
+import { type BoardDayOption } from "@/lib/boardDates";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -44,7 +45,7 @@ interface DayColumnProps {
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
   /** Start-anchored day labels for the session pickers + header fallback. */
-  dayOptions: { dayIndex: number; label: string }[];
+  dayOptions: BoardDayOption[];
   onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
   onClearExercise?: (slotId: string) => void;
