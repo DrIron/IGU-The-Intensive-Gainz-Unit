@@ -11,8 +11,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ClipboardCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { ContextualCommentThread } from "@/components/comments/ContextualCommentThread";
 
 interface CheckIn {
+  id: string;
   weekNumber: number;
   calorieAdherence: string | null;
   trackingAccuracy: string | null;
@@ -32,7 +34,16 @@ const TRACKING_LABEL: Record<string, string> = {
   guessed: "Guessed",
 };
 
-export function NutritionCheckInCard({ phaseId }: { phaseId: string }) {
+export function NutritionCheckInCard({
+  phaseId,
+  clientUserId,
+  canComment,
+}: {
+  phaseId: string;
+  // B6: anchor a notes thread to this check-in row. Omitted → no thread.
+  clientUserId?: string;
+  canComment?: boolean;
+}) {
   const [checkIn, setCheckIn] = useState<CheckIn | null>(null);
   const [loading, setLoading] = useState(true);
   const hasFetched = useRef<string | null>(null);
@@ -41,7 +52,7 @@ export function NutritionCheckInCard({ phaseId }: { phaseId: string }) {
     setLoading(true);
     const { data, error } = await supabase
       .from("adherence_logs")
-      .select("week_number, calorie_adherence, tracking_accuracy, notes, physical_changes")
+      .select("id, week_number, calorie_adherence, tracking_accuracy, notes, physical_changes")
       .eq("phase_id", id)
       .order("week_number", { ascending: false })
       .limit(1)
@@ -50,6 +61,7 @@ export function NutritionCheckInCard({ phaseId }: { phaseId: string }) {
     setCheckIn(
       data
         ? {
+            id: data.id,
             weekNumber: data.week_number,
             calorieAdherence: data.calorie_adherence,
             trackingAccuracy: data.tracking_accuracy,
@@ -118,6 +130,17 @@ export function NutritionCheckInCard({ phaseId }: { phaseId: string }) {
             {checkIn.notes && (
               <p className="text-muted-foreground italic whitespace-pre-wrap">"{checkIn.notes}"</p>
             )}
+          </div>
+        )}
+
+        {checkIn && clientUserId && (
+          <div className="pt-2 border-t border-border/40">
+            <ContextualCommentThread
+              clientUserId={clientUserId}
+              objectType="checkin"
+              objectId={checkIn.id}
+              canComment={!!canComment}
+            />
           </div>
         )}
       </CardContent>

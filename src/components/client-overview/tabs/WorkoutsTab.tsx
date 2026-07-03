@@ -321,7 +321,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
             </Button>
           </div>
           {/* B5: read-only week/month schedule for this client. */}
-          <ClientScheduleCalendar clientUserId={clientUserId} />
+          <ClientScheduleCalendar clientUserId={clientUserId} canComment />
         </TabsContent>
 
         {/* History — tonnage/TUST trends + training volume. */}
@@ -348,6 +348,8 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
         day={logTarget?.day ?? null}
         open={Boolean(logTarget)}
         onOpenChange={(open) => !open && setLogTarget(null)}
+        clientUserId={clientUserId}
+        canComment
       />
 
       {/* Assign dialog — opens only when we have a target template id */}

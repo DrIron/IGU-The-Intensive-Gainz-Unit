@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
+import { useAuthSession } from "@/hooks/useAuthSession";
+import { ContextualCommentThread } from "@/components/comments/ContextualCommentThread";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -61,6 +63,8 @@ const trackedFromScale = (v: TrackingAccuracy) => v !== "guessed";
 
 export function ClientNutritionProgress({ phase, userGender = "male", initialBodyFat }: ClientNutritionProgressProps) {
   const { toast } = useToast();
+  // B6: viewer is the client themselves — their uid is the comment thread anchor.
+  const { user: sessionUser } = useAuthSession();
   const [loading, setLoading] = useState(false);
   const [weightLogs, setWeightLogs] = useState<any[]>([]);
   const [circumferenceLogs, setCircumferenceLogs] = useState<any[]>([]);
@@ -745,6 +749,17 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
             <Button onClick={saveAdherenceAndNotes} disabled={loading || !canSaveCheckIn} className="w-full">
               {thisWeekAdherence ? "Update check-in" : "Submit check-in"}
             </Button>
+
+            {thisWeekAdherence && sessionUser?.id && (
+              <div className="pt-2 border-t">
+                <ContextualCommentThread
+                  clientUserId={sessionUser.id}
+                  objectType="checkin"
+                  objectId={thisWeekAdherence.id}
+                  canComment
+                />
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>

@@ -25,6 +25,7 @@ import { Loader2, Dumbbell, Clock, Check } from "lucide-react";
 import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { ContextualCommentThread } from "@/components/comments/ContextualCommentThread";
 import {
   useSessionLog,
   type DrilldownDay,
@@ -37,6 +38,11 @@ interface SessionLogViewerProps {
   day: DrilldownDay | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  // B6 contextual comments: when the client + a canonical session are known, show
+  // a notes thread anchored to the clone's plan_session (module.id). Omitted →
+  // no thread (legacy sessions have no stable plan_session id).
+  clientUserId?: string;
+  canComment?: boolean;
 }
 
 export const SessionLogViewer = memo(function SessionLogViewer({
@@ -44,6 +50,8 @@ export const SessionLogViewer = memo(function SessionLogViewer({
   day,
   open,
   onOpenChange,
+  clientUserId,
+  canComment,
 }: SessionLogViewerProps) {
   const isMobile = useIsMobile();
   // Canonical module (board_v2) → read via assignment + plan_session; else legacy id.
@@ -118,6 +126,17 @@ export const SessionLogViewer = memo(function SessionLogViewer({
           {entries.map((e) => (
             <ExerciseBlock key={e.id} entry={e} />
           ))}
+        </div>
+      )}
+
+      {module?.canonical && clientUserId && (
+        <div className="pt-3 border-t border-border/40">
+          <ContextualCommentThread
+            clientUserId={clientUserId}
+            objectType="session"
+            objectId={module.id}
+            canComment={!!canComment}
+          />
         </div>
       )}
     </div>

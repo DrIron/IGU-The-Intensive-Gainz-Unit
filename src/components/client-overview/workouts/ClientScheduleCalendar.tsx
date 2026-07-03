@@ -115,9 +115,11 @@ function briefText(cell: SessionCell) {
 
 interface ClientScheduleCalendarProps {
   clientUserId: string;
+  /** B6: staff viewer may add contextual notes on a past session. */
+  canComment?: boolean;
 }
 
-export function ClientScheduleCalendar({ clientUserId }: ClientScheduleCalendarProps) {
+export function ClientScheduleCalendar({ clientUserId, canComment }: ClientScheduleCalendarProps) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const [view, setView] = useState<"month" | "week">("month");
@@ -626,6 +628,8 @@ export function ClientScheduleCalendar({ clientUserId }: ClientScheduleCalendarP
         day={logTarget?.day ?? null}
         open={Boolean(logTarget)}
         onOpenChange={(open) => !open && setLogTarget(null)}
+        clientUserId={clientUserId}
+        canComment={canComment}
       />
 
       {/* B5 move — cascade prompt (only when later-week matches exist). */}

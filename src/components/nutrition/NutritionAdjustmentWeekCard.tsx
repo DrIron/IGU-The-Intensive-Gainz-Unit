@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ArrowUp, ArrowDown, Pause, Coffee, Check, X, AlertCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ContextualCommentThread } from "@/components/comments/ContextualCommentThread";
 
 /**
  * Single week's snapshot + inline adjustment controls. Replaces the legacy
@@ -44,6 +45,9 @@ interface NutritionAdjustmentWeekCardProps {
   onApproveAdjustment?: (weekNumber: number) => Promise<void> | void;
   onRejectAdjustment?: (weekNumber: number) => Promise<void> | void;
   onDelayWeek?: (weekNumber: number) => Promise<void> | void;
+  // B6: anchor a notes thread to this adjustment. Omitted (or no adjustment) → no thread.
+  clientUserId?: string;
+  canComment?: boolean;
 }
 
 export function NutritionAdjustmentWeekCard({
@@ -54,6 +58,8 @@ export function NutritionAdjustmentWeekCard({
   onApproveAdjustment,
   onRejectAdjustment,
   onDelayWeek,
+  clientUserId,
+  canComment,
 }: NutritionAdjustmentWeekCardProps) {
   const hasEnoughWeighIns = week.weighInCount >= 3;
   const deviation =
@@ -122,6 +128,17 @@ export function NutritionAdjustmentWeekCard({
               <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                 <AlertCircle className="h-3.5 w-3.5" />
                 <span>3+ weigh-ins needed before adjusting.</span>
+              </div>
+            )}
+
+            {week.adjustment && clientUserId && (
+              <div className="pt-2 border-t border-border/40">
+                <ContextualCommentThread
+                  clientUserId={clientUserId}
+                  objectType="adjustment"
+                  objectId={week.adjustment.id}
+                  canComment={!!canComment}
+                />
               </div>
             )}
           </div>

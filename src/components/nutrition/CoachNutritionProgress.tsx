@@ -47,9 +47,13 @@ interface CoachNutritionProgressProps {
    * reload in lockstep (no drift between the hero and the grid).
    */
   variant?: "grid" | "decision";
+  // B6: identity + permission for the per-week adjustment notes thread. The phase
+  // prop carries no client id, so the parent (which has ClientContext) passes it.
+  clientUserId?: string;
+  canComment?: boolean;
 }
 
-export function CoachNutritionProgress({ phase, isReadOnly = false, onAdjustmentMade, variant = "grid" }: CoachNutritionProgressProps) {
+export function CoachNutritionProgress({ phase, isReadOnly = false, onAdjustmentMade, variant = "grid", clientUserId, canComment }: CoachNutritionProgressProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [weeklyData, setWeeklyData] = useState<WeekSnapshot[]>([]);
@@ -462,6 +466,8 @@ export function CoachNutritionProgress({ phase, isReadOnly = false, onAdjustment
             onApproveAdjustment={handleApproveAdjustment}
             onRejectAdjustment={handleRejectAdjustment}
             onDelayWeek={handleDelayWeek}
+            clientUserId={clientUserId}
+            canComment={canComment}
           />
         ))}
       </div>

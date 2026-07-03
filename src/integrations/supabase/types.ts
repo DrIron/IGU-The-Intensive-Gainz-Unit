@@ -1718,6 +1718,42 @@ export type Database = {
         }
         Relationships: []
       }
+      contextual_comments: {
+        Row: {
+          author_id: string
+          client_id: string
+          comment: string
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          id: string
+          object_id: string
+          object_type: string
+        }
+        Insert: {
+          author_id: string
+          client_id: string
+          comment: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          object_id: string
+          object_type: string
+        }
+        Update: {
+          author_id?: string
+          client_id?: string
+          comment?: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          object_id?: string
+          object_type?: string
+        }
+        Relationships: []
+      }
       coach_client_relationships: {
         Row: {
           client_id: string
