@@ -166,6 +166,38 @@ export function ContextualCommentThread({
         .in("id", distinct);
       const map: Record<string, AuthorProfile> = {};
       for (const p of profiles ?? []) map[p.id] = p;
+
+      // A client viewer can't read a coach author's profiles_public row (RLS), so staff
+      // authors would show as "Someone". coaches_client_safe is NOT the fix — that view is
+      // RLS-broken for clients (returns 0 rows; migration 20260517104551). Resolve staff
+      // authors through the get_coach_for_client SECURITY DEFINER RPC, which is gated on
+      // the caller being assigned to that coach — always true for a comment author on this
+      // client's object. One call per unresolved id (threads have few authors). No-op for a
+      // coach viewer — profiles_public already resolved everyone, so `missing` is empty.
+      const missing = distinct.filter((id) => !map[id]);
+      if (missing.length > 0) {
+        const resolved = await Promise.all(
+          missing.map((id) =>
+            supabase
+              .rpc("get_coach_for_client", { p_coach_user_id: id })
+              .then(({ data }) => ({ id, data })),
+          ),
+        );
+        for (const { id, data } of resolved) {
+          const c = data as {
+            first_name?: string | null;
+            last_name?: string | null;
+            profile_picture_url?: string | null;
+          } | null;
+          if (!c) continue;
+          map[id] = {
+            id,
+            first_name: c.first_name ?? null,
+            display_name: [c.first_name, c.last_name].filter(Boolean).join(" ") || null,
+            avatar_url: c.profile_picture_url ?? null,
+          };
+        }
+      }
       setAuthors(map);
     }
 
