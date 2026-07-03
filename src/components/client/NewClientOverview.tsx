@@ -18,7 +18,6 @@ import { CardContent } from "@/components/ui/card";
 import { Dumbbell, MessageSquare } from "lucide-react";
 import { startOfIguWeek } from "@/lib/weekUtils";
 import { captureException } from "@/lib/errorLogging";
-import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { resolveActiveAssignment } from "@/lib/canonicalScheduleAdapter";
 
 interface NewClientOverviewProps {
@@ -48,7 +47,7 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
   const [activePhase, setActivePhase] = useState<any>(null);
   const [weeklyLogsCount, setWeeklyLogsCount] = useState<number>(0);
   // null = unknown / fetch failed (treat as "has program" so we don't show the
-  // empty-state spuriously); number = authoritative count of client_programs rows.
+  // empty-state spuriously); 1 when an active canonical assignment exists, else 0.
   const [programCount, setProgramCount] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const hasFetched = useRef(false);
@@ -125,44 +124,19 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         setWeeklyLogsCount(count || 0);
       }
 
-      // Detect the "onboarded but no program yet" empty state. board_v2 + an
-      // active canonical assignment is the program of record (a client may have an
-      // assignment but no legacy client_programs row). Otherwise — flag off, OR
-      // flag on but no assignment yet (not-backfilled client) — count
-      // client_programs (head:true avoids pulling rows). On error leave
-      // programCount null so noProgramYet stays false — better to hide the empty
-      // state than show it spuriously.
-      let canonicalHandled = false;
-      if (isBoardV2Enabled()) {
-        try {
-          const assignment = await resolveActiveAssignment(user.id);
-          if (assignment) {
-            setProgramCount(1);
-            canonicalHandled = true;
-          }
-        } catch (aErr) {
-          captureException(aErr, {
-            source: "NewClientOverview.loadDashboardData.assignmentCount",
-            severity: "warning",
-            metadata: { userId: user.id },
-          });
-          // fall through to the legacy count below.
-        }
-      }
-      if (!canonicalHandled) {
-        const { count: pCount, error: pErr } = await supabase
-          .from("client_programs")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id);
-        if (pErr) {
-          captureException(pErr, {
-            source: "NewClientOverview.loadDashboardData.programCount",
-            severity: "warning",
-            metadata: { userId: user.id },
-          });
-        } else {
-          setProgramCount(pCount ?? 0);
-        }
+      // Detect the "onboarded but no program yet" empty state. The active canonical
+      // assignment is the program of record (a client may have an assignment but no
+      // legacy client_programs row). On error leave programCount null so
+      // noProgramYet stays false — better to hide the empty state than show it
+      // spuriously.
+      try {
+        setProgramCount((await resolveActiveAssignment(user.id)) ? 1 : 0);
+      } catch (aErr) {
+        captureException(aErr, {
+          source: "NewClientOverview.loadDashboardData.assignmentCount",
+          severity: "warning",
+          metadata: { userId: user.id },
+        });
       }
     } catch (error) {
       console.error("Error loading dashboard data:", error);

@@ -13,7 +13,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfIguWeek, endOfIguWeek } from "@/lib/weekUtils";
-import { isBoardV2Enabled } from "@/lib/featureFlags";
 import {
   resolveActiveAssignment,
   loadCanonicalSchedule,
@@ -61,179 +60,74 @@ export function useClientPrograms(clientUserId: string) {
       setLoading(true);
       setError(null);
       try {
-        // board_v2: the canonical assignment is the program of record. Synthesize a
-        // single summary from the (deload-aware) schedule + last logged set. Flag
-        // off / no assignment -> legacy client_programs list below, unchanged.
-        if (isBoardV2Enabled()) {
-          const assignment = await resolveActiveAssignment(userId);
-          if (assignment) {
-            const schedule = await loadCanonicalSchedule(assignment.id);
+        // Canonical: the client's plan assignments ARE the program list. Query ALL
+        // statuses (active + ended) so history shows, newest first. Each assignment
+        // synthesizes one summary from its (deload-aware) schedule + last logged set.
+        const { data: assignmentRows, error: aErr } = await supabase
+          .from("client_plan_assignment")
+          .select("id, plan_id, start_date, status, created_at")
+          .eq("client_id", userId)
+          .order("start_date", { ascending: false })
+          .order("created_at", { ascending: false });
+        if (aErr) throw aErr;
+        const assignments = assignmentRows ?? [];
+        if (assignments.length === 0) {
+          setPrograms([]);
+          setLoading(false);
+          return;
+        }
+
+        // Plan names — one batched query (no nested FK join).
+        const planIds = Array.from(
+          new Set(assignments.map((a) => a.plan_id).filter((v): v is string => Boolean(v))),
+        );
+        const planNameById = new Map<string, string>();
+        if (planIds.length > 0) {
+          const { data: planRows, error: planErr } = await supabase
+            .from("plan")
+            .select("id, name")
+            .in("id", planIds);
+          if (planErr) throw planErr;
+          for (const p of planRows ?? []) planNameById.set(p.id, p.name);
+        }
+
+        // Per-assignment schedule + last-workout (parallel). The schedule may be
+        // null for an ended assignment (plan_* reads require an active assignment)
+        // → its summary keeps zeroed counts.
+        const summaries = await Promise.all(
+          assignments.map(async (a): Promise<ClientProgramSummary> => {
+            const [schedule, lastActivityAt] = await Promise.all([
+              loadCanonicalSchedule(a.id),
+              canonicalLastWorkoutAt(a.id),
+            ]);
+            let totalModules = 0;
+            let completedModules = 0;
+            let totalDays = 0;
             if (schedule) {
-              const [{ data: planRow }, lastActivityAt] = await Promise.all([
-                supabase.from("plan").select("name").eq("id", assignment.plan_id).maybeSingle(),
-                canonicalLastWorkoutAt(assignment.id),
-              ]);
-              let totalModules = 0;
-              let completedModules = 0;
+              totalDays = schedule.byDate.size;
               for (const day of schedule.byDate.values()) {
                 for (const m of day.modules) {
                   totalModules += 1;
                   if (m.status === "completed") completedModules += 1;
                 }
               }
-              setPrograms([
-                {
-                  id: assignment.id,
-                  title: planRow?.name ?? "Training program",
-                  status: "active",
-                  startDate: assignment.start_date,
-                  macrocycleId: null,
-                  macrocycleName: null,
-                  sourceTemplateId: null,
-                  totalDays: schedule.byDate.size,
-                  completedModules,
-                  totalModules,
-                  lastActivityAt,
-                },
-              ]);
-              setLoading(false);
-              return;
             }
-          }
-          // no assignment / null schedule -> fall through to the legacy list.
-        }
-
-        // 1. Base client_programs rows (no nested FKs — fetch ids + scalar fields).
-        const { data: cp, error: cpErr } = await supabase
-          .from("client_programs")
-          .select("id, status, start_date, source_template_id, macrocycle_id")
-          .eq("user_id", userId)
-          .order("start_date", { ascending: false });
-        if (cpErr) throw cpErr;
-        const rows = cp ?? [];
-        if (rows.length === 0) {
-          setPrograms([]);
-          setLoading(false);
-          return;
-        }
-
-        const programIds = rows.map((r) => r.id);
-        const templateIds = Array.from(
-          new Set(
-            rows
-              .map((r) => r.source_template_id)
-              .filter((v): v is string => Boolean(v)),
-          ),
+            return {
+              id: a.id,
+              title: (a.plan_id ? planNameById.get(a.plan_id) : null) ?? "Training program",
+              status: a.status ?? "active",
+              startDate: a.start_date,
+              macrocycleId: null,
+              macrocycleName: null,
+              sourceTemplateId: null,
+              totalDays,
+              completedModules,
+              totalModules,
+              lastActivityAt,
+            };
+          }),
         );
-        const macrocycleIds = Array.from(
-          new Set(
-            rows
-              .map((r) => r.macrocycle_id)
-              .filter((v): v is string => Boolean(v)),
-          ),
-        );
-
-        // 2. Template titles — separate query instead of PostgREST FK join.
-        const templateMap = new Map<string, string>();
-        if (templateIds.length > 0) {
-          const { data: tpl, error: tplErr } = await supabase
-            .from("program_templates")
-            .select("id, title")
-            .in("id", templateIds);
-          if (tplErr) throw tplErr;
-          for (const t of tpl ?? []) templateMap.set(t.id, t.title);
-        }
-
-        // 3. Macrocycle names.
-        const macrocycleMap = new Map<string, string>();
-        if (macrocycleIds.length > 0) {
-          const { data: macs, error: macErr } = await supabase
-            .from("macrocycles")
-            .select("id, name")
-            .in("id", macrocycleIds);
-          if (macErr) throw macErr;
-          for (const m of macs ?? []) macrocycleMap.set(m.id, m.name);
-        }
-
-        // 4. Day counts per program.
-        const { data: days, error: daysErr } = await supabase
-          .from("client_program_days")
-          .select("id, client_program_id")
-          .in("client_program_id", programIds);
-        if (daysErr) throw daysErr;
-        const dayIdsByProgram = new Map<string, string[]>();
-        const dayCountByProgram = new Map<string, number>();
-        for (const d of days ?? []) {
-          const arr = dayIdsByProgram.get(d.client_program_id) ?? [];
-          arr.push(d.id);
-          dayIdsByProgram.set(d.client_program_id, arr);
-          dayCountByProgram.set(
-            d.client_program_id,
-            (dayCountByProgram.get(d.client_program_id) ?? 0) + 1,
-          );
-        }
-
-        // 5. Module adherence per program. Batch all day ids then bucket.
-        const allDayIds = (days ?? []).map((d) => d.id);
-        const modsByDay = new Map<string, { completed_at: string | null }[]>();
-        const modsByProgramCompleted = new Map<string, number>();
-        const modsByProgramTotal = new Map<string, number>();
-        const lastActivityByProgram = new Map<string, string>();
-
-        if (allDayIds.length > 0) {
-          const { data: mods, error: modsErr } = await supabase
-            .from("client_day_modules")
-            .select("client_program_day_id, completed_at")
-            .in("client_program_day_id", allDayIds);
-          if (modsErr) throw modsErr;
-          // Bucket modules back onto their program via the dayIdsByProgram map.
-          const dayToProgram = new Map<string, string>();
-          for (const [pid, dayIds] of dayIdsByProgram) {
-            for (const did of dayIds) dayToProgram.set(did, pid);
-          }
-          for (const m of mods ?? []) {
-            const pid = dayToProgram.get(m.client_program_day_id);
-            if (!pid) continue;
-            modsByProgramTotal.set(pid, (modsByProgramTotal.get(pid) ?? 0) + 1);
-            if (m.completed_at) {
-              modsByProgramCompleted.set(
-                pid,
-                (modsByProgramCompleted.get(pid) ?? 0) + 1,
-              );
-              const prev = lastActivityByProgram.get(pid);
-              if (!prev || prev < m.completed_at) {
-                lastActivityByProgram.set(pid, m.completed_at);
-              }
-            }
-            const arr = modsByDay.get(m.client_program_day_id) ?? [];
-            arr.push({ completed_at: m.completed_at });
-            modsByDay.set(m.client_program_day_id, arr);
-          }
-        }
-
-        setPrograms(
-          rows.map((r) => ({
-            id: r.id,
-            // No title column on client_programs — derive it: source template
-            // name first, then the macrocycle it belongs to, then a friendly
-            // generic (never the draft-sounding "Untitled program").
-            title:
-              (r.source_template_id ? templateMap.get(r.source_template_id) : null) ??
-              (r.macrocycle_id ? macrocycleMap.get(r.macrocycle_id) : null) ??
-              "Training program",
-            status: r.status,
-            startDate: r.start_date,
-            macrocycleId: r.macrocycle_id,
-            macrocycleName: r.macrocycle_id
-              ? macrocycleMap.get(r.macrocycle_id) ?? null
-              : null,
-            sourceTemplateId: r.source_template_id,
-            totalDays: dayCountByProgram.get(r.id) ?? 0,
-            completedModules: modsByProgramCompleted.get(r.id) ?? 0,
-            totalModules: modsByProgramTotal.get(r.id) ?? 0,
-            lastActivityAt: lastActivityByProgram.get(r.id) ?? null,
-          })),
-        );
+        setPrograms(summaries);
       } catch (e: unknown) {
         setError(e instanceof Error ? e.message : "Failed to load programs");
         setPrograms([]);
@@ -295,54 +189,18 @@ export function useAdherencePulse(
     let weeklyCompleted = 0;
 
     // Canonical (active assignment + schedule): count this week's modules from the
-    // (deload-aware) schedule — zero modules this week is a real "nothing scheduled",
-    // kept as-is. Otherwise — flag off, flag on + no assignment (not-backfilled),
-    // or a null schedule (malformed canonical) — fall through to legacy, matching
-    // the useWorkoutPulse pattern.
-    let canonicalHandled = false;
-    if (isBoardV2Enabled()) {
-      const assignment = await resolveActiveAssignment(clientUserId);
-      if (assignment) {
-        const schedule = await loadCanonicalSchedule(assignment.id);
-        if (schedule) {
-          canonicalHandled = true;
-          for (const [iso, day] of schedule.byDate) {
-            if (iso < mondayIso || iso > sundayIso) continue;
-            for (const m of day.modules) {
-              weeklyScheduled += 1;
-              if (m.status === "completed") weeklyCompleted += 1;
-            }
+    // (deload-aware) schedule — zero modules this week is a real "nothing scheduled".
+    // Stays empty (0/0) when the client has no active assignment / null schedule.
+    const assignment = await resolveActiveAssignment(clientUserId);
+    if (assignment) {
+      const schedule = await loadCanonicalSchedule(assignment.id);
+      if (schedule) {
+        for (const [iso, day] of schedule.byDate) {
+          if (iso < mondayIso || iso > sundayIso) continue;
+          for (const m of day.modules) {
+            weeklyScheduled += 1;
+            if (m.status === "completed") weeklyCompleted += 1;
           }
-        }
-      }
-    }
-    if (!canonicalHandled) {
-      // Legacy: client_program_days.date in the current week, then bucket modules.
-      const activeProgramIds = programs
-        .filter((p) => p.status === "active")
-        .map((p) => p.id);
-      if (activeProgramIds.length > 0) {
-        const { data: weekDays, error: dayErr } = await supabase
-          .from("client_program_days")
-          .select("id, client_program_id")
-          .in("client_program_id", activeProgramIds)
-          .gte("date", mondayIso)
-          .lte("date", sundayIso);
-        if (dayErr) {
-          console.warn("[useAdherencePulse] day fetch:", dayErr.message);
-        }
-        const weekDayIds = (weekDays ?? []).map((d) => d.id);
-        if (weekDayIds.length > 0) {
-          const { data: mods, error: modErr } = await supabase
-            .from("client_day_modules")
-            .select("completed_at")
-            .in("client_program_day_id", weekDayIds);
-          if (modErr) {
-            console.warn("[useAdherencePulse] modules:", modErr.message);
-          }
-          const rows = mods ?? [];
-          weeklyScheduled = rows.length;
-          weeklyCompleted = rows.filter((m) => m.completed_at).length;
         }
       }
     }
@@ -410,90 +268,6 @@ export interface DrilldownModule {
   isDeload?: boolean;
   /** Deload v2 — canonical session: open via WorkoutSessionV2 ?assignment=&session=&date= params. */
   canonical?: { assignmentId: string; date: string };
-}
-
-/** Fetch day + module layout for a single client_program. */
-export function useClientProgramDrilldown(clientProgramId: string | null) {
-  const [days, setDays] = useState<DrilldownDay[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const hasFetched = useRef<string | null>(null);
-
-  const load = useCallback(async (programId: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: dayRows, error: dayErr } = await supabase
-        .from("client_program_days")
-        .select("id, day_index, date, title")
-        .eq("client_program_id", programId)
-        .order("day_index", { ascending: true });
-      if (dayErr) throw dayErr;
-      const dayList = dayRows ?? [];
-      if (dayList.length === 0) {
-        setDays([]);
-        setLoading(false);
-        return;
-      }
-
-      const dayIds = dayList.map((d) => d.id);
-      const { data: modRows, error: modErr } = await supabase
-        .from("client_day_modules")
-        .select(
-          "id, client_program_day_id, title, module_type, session_type, status, completed_at, sort_order",
-        )
-        .in("client_program_day_id", dayIds)
-        .order("sort_order", { ascending: true });
-      if (modErr) throw modErr;
-
-      const modsByDay = new Map<string, DrilldownModule[]>();
-      for (const m of modRows ?? []) {
-        const arr = modsByDay.get(m.client_program_day_id) ?? [];
-        arr.push({
-          id: m.id,
-          title: m.title,
-          moduleType: m.module_type,
-          sessionType: m.session_type,
-          status: m.status,
-          completedAt: m.completed_at,
-          sortOrder: m.sort_order ?? 0,
-        });
-        modsByDay.set(m.client_program_day_id, arr);
-      }
-
-      setDays(
-        dayList.map((d) => ({
-          id: d.id,
-          dayIndex: d.day_index,
-          date: d.date,
-          title: d.title,
-          modules: modsByDay.get(d.id) ?? [],
-        })),
-      );
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load program");
-      setDays([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!clientProgramId) {
-      setDays([]);
-      hasFetched.current = null;
-      return;
-    }
-    if (hasFetched.current === clientProgramId) return;
-    hasFetched.current = clientProgramId;
-    load(clientProgramId);
-  }, [clientProgramId, load]);
-
-  const reload = useCallback(() => {
-    if (clientProgramId) load(clientProgramId);
-  }, [clientProgramId, load]);
-
-  return { days, loading, error, reload };
 }
 
 export interface SessionLogEntry {
@@ -601,14 +375,10 @@ async function loadCanonicalSessionEntries(
 }
 
 /**
- * Fetch the exercises + logs for a session. Legacy: a client_day_module id.
- * board_v2 canonical: pass `canonical` ({ assignmentId, planSessionId }) and a
- * null `clientDayModuleId`.
+ * Fetch the exercises + logs for a canonical session: pass `canonical`
+ * ({ assignmentId, planSessionId }). Returns empty when the target is null.
  */
-export function useSessionLog(
-  clientDayModuleId: string | null,
-  canonical?: CanonicalSessionTarget | null,
-) {
+export function useSessionLog(canonical: CanonicalSessionTarget | null) {
   const [entries, setEntries] = useState<SessionLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -627,107 +397,19 @@ export function useSessionLog(
     }
   }, []);
 
-  const load = useCallback(async (moduleId: string) => {
-    setLoading(true);
-    setError(null);
-    try {
-      const { data: exRows, error: exErr } = await supabase
-        .from("client_module_exercises")
-        .select(
-          "id, exercise_id, section, sort_order, instructions, prescription_snapshot_json",
-        )
-        .eq("client_day_module_id", moduleId)
-        .order("sort_order", { ascending: true });
-      if (exErr) throw exErr;
-      const list = exRows ?? [];
-      if (list.length === 0) {
-        setEntries([]);
-        setLoading(false);
-        return;
-      }
-
-      const exerciseIds = Array.from(
-        new Set(list.map((e) => e.exercise_id).filter((v): v is string => !!v)),
-      );
-      const exerciseNameMap = new Map<string, string>();
-      if (exerciseIds.length > 0) {
-        const { data: lib, error: libErr } = await supabase
-          .from("exercise_library")
-          .select("id, name")
-          .in("id", exerciseIds);
-        if (libErr) throw libErr;
-        for (const x of lib ?? []) exerciseNameMap.set(x.id, x.name);
-      }
-
-      const cmeIds = list.map((e) => e.id);
-      // Set logs table is `exercise_set_logs` per the data-model exploration.
-      const { data: logs, error: logsErr } = await supabase
-        .from("exercise_set_logs")
-        .select(
-          "client_module_exercise_id, set_index, performed_load, performed_reps, performed_rir, performed_rpe, notes, created_at",
-        )
-        .in("client_module_exercise_id", cmeIds)
-        .order("set_index", { ascending: true });
-      if (logsErr) throw logsErr;
-      const setsByExercise = new Map<string, SetLogRow[]>();
-      for (const l of logs ?? []) {
-        const arr = setsByExercise.get(l.client_module_exercise_id) ?? [];
-        arr.push({
-          setIndex: l.set_index,
-          performedLoad: l.performed_load,
-          performedReps: l.performed_reps,
-          performedRir: l.performed_rir,
-          performedRpe: l.performed_rpe,
-          notes: l.notes,
-          createdAt: l.created_at,
-        });
-        setsByExercise.set(l.client_module_exercise_id, arr);
-      }
-
-      setEntries(
-        list.map((e) => ({
-          id: e.id,
-          exerciseName: e.exercise_id
-            ? exerciseNameMap.get(e.exercise_id) ?? "Unknown exercise"
-            : "Unknown exercise",
-          section: e.section,
-          sortOrder: e.sort_order ?? 0,
-          sets: setsByExercise.get(e.id) ?? [],
-          prescriptionSnapshotJson:
-            (e.prescription_snapshot_json as Record<string, unknown> | null) ??
-            null,
-          instructions: e.instructions,
-        })),
-      );
-    } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : "Failed to load session");
-      setEntries([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
   const canonicalKey = canonical
     ? `${canonical.assignmentId}:${canonical.planSessionId}`
     : null;
   useEffect(() => {
-    // Canonical target wins when provided (board_v2); else the legacy module id.
-    if (canonical && canonicalKey) {
-      if (hasFetched.current === canonicalKey) return;
-      hasFetched.current = canonicalKey;
-      loadCanonical(canonical);
-      return;
-    }
-    if (!clientDayModuleId) {
+    if (!canonical || !canonicalKey) {
       setEntries([]);
       hasFetched.current = null;
       return;
     }
-    if (hasFetched.current === clientDayModuleId) return;
-    hasFetched.current = clientDayModuleId;
-    load(clientDayModuleId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clientDayModuleId, canonicalKey, load, loadCanonical]);
+    if (hasFetched.current === canonicalKey) return;
+    hasFetched.current = canonicalKey;
+    loadCanonical(canonical);
+  }, [canonical, canonicalKey, loadCanonical]);
 
   return { entries, loading, error };
 }

@@ -66,51 +66,10 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
       .maybeSingle();
     if (phaseErr) console.warn("[OverviewTab] phase:", phaseErr.message);
 
-    // Last workout. board_v2 + an active canonical assignment: read the canonical
-    // "last logged set" (deload-aware; the legacy chain reads the frozen pre-deload
-    // snapshot and goes stale). Otherwise — flag off, OR flag on but no assignment
-    // yet (not-backfilled client) — fall through to the legacy program -> day ->
-    // module chain (no nested FK joins per CLAUDE.md). A null canonical result when
-    // an assignment DOES exist is a real "no workouts yet", not a miss → keep it.
-    let lastWorkoutAt: string | null = null;
-    let canonicalHandled = false;
-    if (isBoardV2Enabled()) {
-      const assignment = await resolveActiveAssignment(userId);
-      if (assignment) {
-        lastWorkoutAt = await canonicalLastWorkoutAt(assignment.id);
-        canonicalHandled = true;
-      }
-    }
-    if (!canonicalHandled) {
-      const { data: programRows, error: programsErr } = await supabase
-        .from("client_programs")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("status", "active");
-      if (programsErr) console.warn("[OverviewTab] client_programs:", programsErr.message);
-
-      const programIds = (programRows ?? []).map((p) => p.id);
-      if (programIds.length > 0) {
-        const { data: dayRows, error: daysErr } = await supabase
-          .from("client_program_days")
-          .select("id")
-          .in("client_program_id", programIds);
-        if (daysErr) console.warn("[OverviewTab] client_program_days:", daysErr.message);
-
-        const dayIds = (dayRows ?? []).map((d) => d.id);
-        if (dayIds.length > 0) {
-          const { data: modRows, error: modsErr } = await supabase
-            .from("client_day_modules")
-            .select("completed_at")
-            .in("client_program_day_id", dayIds)
-            .not("completed_at", "is", null)
-            .order("completed_at", { ascending: false })
-            .limit(1);
-          if (modsErr) console.warn("[OverviewTab] client_day_modules:", modsErr.message);
-          lastWorkoutAt = modRows?.[0]?.completed_at ?? null;
-        }
-      }
-    }
+    // Last workout: the canonical "last logged set" (deload-aware) for the client's
+    // active assignment. Null when there's no assignment, or a genuine "no workouts yet".
+    const assignment = await resolveActiveAssignment(userId);
+    const lastWorkoutAt = assignment ? await canonicalLastWorkoutAt(assignment.id) : null;
 
     // Latest weigh-in (across all phases; surface even if phase just rolled).
     const { data: weight, error: weightErr } = await supabase

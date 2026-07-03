@@ -2,14 +2,12 @@
  * Shared program assignment logic.
  * Used by both AssignProgramDialog (1:1) and AssignTeamProgramDialog (team fan-out).
  *
- * Calls the assign_program_to_client RPC which deep-copies the entire program
- * template hierarchy (days, modules, exercises, prescriptions, threads) in a
- * single atomic transaction.
+ * Canonical-only: creates a client_plan_assignment against the template's mirror
+ * plan (1:1 via assign_template_to_client_canonical; team via assign_team_plan).
+ * No legacy client_programs is ever written.
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import { captureException } from "@/lib/errorLogging";
-import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { format } from "date-fns";
 
 export interface AssignProgramParams {
@@ -40,49 +38,27 @@ export async function assignProgramToClient(
   const { coachUserId, clientUserId, subscriptionId, programTemplateId, startDate, teamId } = params;
 
   try {
-    // P5 write cutover (board_v2): create the canonical assignment as PRIMARY and
-    // write NO legacy client_programs row. Falls back to the legacy write only when
-    // the template has no canonical plan yet (never opened/saved in the Planning
-    // Board) so an assignment is never blocked. Flag off → legacy write, byte-identical.
-    if (isBoardV2Enabled()) {
-      const { data, error } = await supabase.rpc("assign_template_to_client_canonical", {
-        p_coach_id: coachUserId,
-        p_client_id: clientUserId,
-        p_subscription_id: subscriptionId,
-        p_template_id: programTemplateId,
-        p_start_date: format(startDate, "yyyy-MM-dd"),
-        p_team_id: teamId || null,
-        p_timezone: LEGACY_PROGRAM_TIMEZONE,
-      });
-      if (error) throw error;
-      const res = data as { skipped: boolean; reason?: string; assignment_id?: string };
-      if (!res.skipped) {
-        return { success: true, assignmentId: res.assignment_id };
-      }
-      // no_mirror_plan: the template was never materialised to a canonical plan.
-      // Fall through to the legacy write so the assignment still happens, and flag
-      // it (every active template must have a canonical plan before the legacy drop).
-      captureException(new Error("assign canonical skipped: " + (res.reason ?? "unknown")), {
-        source: "assign_template_to_client_canonical_fallback",
-        severity: "warning",
-        metadata: { programTemplateId, clientUserId },
-      });
-    }
-
-    // Legacy write path (flag off, OR canonical fallback above).
-    const { data, error } = await supabase.rpc("assign_program_to_client", {
+    // Canonical-only: create the client_plan_assignment as PRIMARY (no legacy
+    // client_programs row). If the template was never materialised to a canonical
+    // plan (never opened/saved in the Planning Board), fail with a fixable
+    // user-facing error instead of silently doing nothing.
+    const { data, error } = await supabase.rpc("assign_template_to_client_canonical", {
       p_coach_id: coachUserId,
       p_client_id: clientUserId,
       p_subscription_id: subscriptionId,
       p_template_id: programTemplateId,
       p_start_date: format(startDate, "yyyy-MM-dd"),
       p_team_id: teamId || null,
+      p_timezone: LEGACY_PROGRAM_TIMEZONE,
     });
-
     if (error) throw error;
-
-    const result = data as { client_program_id: string };
-    return { success: true, clientProgramId: result.client_program_id };
+    const res = data as { skipped: boolean; reason?: string; assignment_id?: string };
+    if (res.skipped) {
+      throw new Error(
+        "This program isn't ready for assignment yet. Open it once in the Planning Board, then try again.",
+      );
+    }
+    return { success: true, assignmentId: res.assignment_id };
   } catch (error: unknown) {
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }
@@ -150,63 +126,50 @@ export async function assignTeamProgram(params: {
 }): Promise<AssignTeamProgramResult> {
   const startIso = format(params.startDate, "yyyy-MM-dd");
   try {
-    // P5 write cutover (board_v2): bind the team to ONE canonical shared CLONE as
-    // PRIMARY via assign_team_plan (members get canonical assignments, no legacy
-    // client_programs fan-out). T5: canonical-ONLY under board_v2 — no legacy
-    // fallback. If the program has no canonical plan yet (never opened in the
-    // Planning Board), return a fixable user-facing error instead of silently
-    // writing legacy. Flag off → legacy fan-out, byte-identical (removed in Drop A).
-    if (isBoardV2Enabled()) {
-      const planId = await resolveCanonicalPlanIdForProgram(params.programTemplateId);
-      if (!planId) {
-        return {
-          success: false,
-          error:
-            "This program isn't ready for team assignment yet. Open it once in the Planning Board, then try again.",
-        };
-      }
-      const { data, error } = await supabase.rpc("assign_team_plan", {
-        p_team_id: params.teamId,
-        p_plan_id: planId,
-        p_start_date: startIso,
-        p_clone: true,
-      });
-      if (error) throw error;
-      // Map assign_team_plan's shape → the dialog's legacy-shaped result.
-      // It's atomic (any member failure rolls back the whole txn), so members_failed = 0.
-      const tp = data as {
-        members_total: number;
-        members_assigned: number;
-        members_skipped: number;
-        members: { user_id: string; subscription_id: string; assignment_id: string; status: string }[];
-      };
+    // Canonical-only: bind the team to ONE shared CLONE as PRIMARY via
+    // assign_team_plan (members get canonical assignments, no legacy client_programs
+    // fan-out). If the program has no canonical plan yet (never opened in the
+    // Planning Board), return a fixable user-facing error.
+    const planId = await resolveCanonicalPlanIdForProgram(params.programTemplateId);
+    if (!planId) {
       return {
-        success: true,
-        data: {
-          team_id: params.teamId,
-          members_total: tp.members_total,
-          members_inserted: tp.members_assigned,
-          members_skipped_existing: tp.members_skipped,
-          members_failed: 0,
-          members: tp.members.map((m) => ({
-            user_id: m.user_id,
-            subscription_id: m.subscription_id,
-            client_program_id: null,
-            status: m.status === "skipped_existing" ? "skipped_existing" : "created",
-            error: null,
-          })),
-        },
+        success: false,
+        error:
+          "This program isn't ready for team assignment yet. Open it once in the Planning Board, then try again.",
       };
     }
-
-    // Legacy fan-out — board_v2 OFF only (removed wholesale in Drop Stage A).
-    const { data, error } = await supabase.rpc("assign_team_program_atomic", {
+    const { data, error } = await supabase.rpc("assign_team_plan", {
       p_team_id: params.teamId,
-      p_template_id: params.programTemplateId,
+      p_plan_id: planId,
       p_start_date: startIso,
+      p_clone: true,
     });
     if (error) throw error;
-    return { success: true, data: data as unknown as AssignTeamProgramResult["data"] };
+    // Map assign_team_plan's shape → the dialog's legacy-shaped result.
+    // It's atomic (any member failure rolls back the whole txn), so members_failed = 0.
+    const tp = data as {
+      members_total: number;
+      members_assigned: number;
+      members_skipped: number;
+      members: { user_id: string; subscription_id: string; assignment_id: string; status: string }[];
+    };
+    return {
+      success: true,
+      data: {
+        team_id: params.teamId,
+        members_total: tp.members_total,
+        members_inserted: tp.members_assigned,
+        members_skipped_existing: tp.members_skipped,
+        members_failed: 0,
+        members: tp.members.map((m) => ({
+          user_id: m.user_id,
+          subscription_id: m.subscription_id,
+          client_program_id: null,
+          status: m.status === "skipped_existing" ? "skipped_existing" : "created",
+          error: null,
+        })),
+      },
+    };
   } catch (error: unknown) {
     return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
   }

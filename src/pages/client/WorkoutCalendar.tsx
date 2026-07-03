@@ -28,7 +28,6 @@ import {
   subWeeks,
 } from "date-fns";
 import { cn } from "@/lib/utils";
-import { useClientWorkoutsMonth, useClientWorkoutsWeek, deriveModuleBrief } from "@/hooks/useClientWorkouts";
 import { ExerciseHistoryPanel } from "@/components/workouts/ExerciseHistoryPanel";
 
 const WEEK_OPTS = { weekStartsOn: 1 as const };
@@ -147,17 +146,13 @@ function WorkoutsContent() {
     setSearchParams(params, { replace: true });
   };
 
-  const { data: monthRows, isLoading: monthLoading } = useClientWorkoutsMonth(user?.id, anchor);
-  const { data: weekRows, isLoading: weekLoading } = useClientWorkoutsWeek(user?.id, anchor);
-  const { data: thisWeekRows } = useClientWorkoutsWeek(user?.id, new Date());
-
-  // Deload v2 (board_v2): the client's active canonical assignment powers "take a deload this week"
-  // AND (below) the schedule grid, so an on-demand deload's insert+shift actually shows.
+  // The client's active canonical assignment powers "take a deload this week" (write,
+  // board_v2-gated) AND the schedule grid, so an on-demand deload's insert+shift shows.
   const boardV2 = isBoardV2Enabled();
   const [canonical, setCanonical] = useState<{ id: string; planId: string | null; startDate: string | null } | null>(null);
   const canonicalFetchedRef = useRef(false);
   useEffect(() => {
-    if (!boardV2 || !user?.id || canonicalFetchedRef.current) return;
+    if (!user?.id || canonicalFetchedRef.current) return;
     canonicalFetchedRef.current = true;
     supabase
       .from("client_plan_assignment")
@@ -170,15 +165,15 @@ function WorkoutsContent() {
       .then(({ data }) => {
         setCanonical(data ? { id: data.id, planId: data.plan_id ?? null, startDate: data.start_date ?? null } : null);
       });
-  }, [boardV2, user?.id]);
+  }, [user?.id]);
 
-  // Load the canonical schedule (running sequence + inserts) when board_v2 + an assignment exist.
+  // Load the canonical schedule (running sequence + inserts) once an assignment exists.
   // deloadNonce bumps after a take/remove so the grid reflects the shift live.
   const [schedule, setSchedule] = useState<CanonicalSchedule | null>(null);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [deloadNonce, setDeloadNonce] = useState(0);
   useEffect(() => {
-    if (!boardV2 || !canonical?.id) {
+    if (!canonical?.id) {
       setSchedule(null);
       return;
     }
@@ -194,13 +189,11 @@ function WorkoutsContent() {
     return () => {
       cancelled = true;
     };
-  }, [boardV2, canonical?.id, deloadNonce]);
+  }, [canonical?.id, deloadNonce]);
 
-  const useCanonical = boardV2 && !!schedule;
-
-  // Canonical date→sessions map (drives all grids when active; legacy maps fall through otherwise).
+  // Canonical date→sessions map (drives all grids). Null → graceful empty grid.
   const canonicalByDate = useMemo<Record<string, SessionModule[]> | null>(() => {
-    if (!useCanonical || !schedule || !canonical) return null;
+    if (!schedule || !canonical) return null;
     const map: Record<string, SessionModule[]> = {};
     for (const [iso, day] of schedule.byDate) {
       map[iso] = day.modules.map((m) => ({
@@ -215,7 +208,7 @@ function WorkoutsContent() {
       }));
     }
     return map;
-  }, [useCanonical, schedule, canonical]);
+  }, [schedule, canonical]);
 
   const onOpen = (m: SessionModule) => {
     if (m.canonical) {
@@ -227,35 +220,10 @@ function WorkoutsContent() {
     }
   };
 
-  // Month grid: map yyyy-MM-dd -> modules (with brief). Canonical map wins under board_v2.
-  const legacyMonthByDate = useMemo(() => {
-    const map: Record<string, SessionModule[]> = {};
-    for (const day of monthRows ?? []) {
-      const mods = (day.client_day_modules ?? []).map((m: any) => {
-        const brief = deriveModuleBrief(m);
-        return { id: m.id, title: m.title, module_type: m.module_type, status: m.status, exerciseCount: brief.exerciseCount, muscles: brief.muscles };
-      });
-      if (mods.length) map[day.date] = mods;
-    }
-    return map;
-  }, [monthRows]);
-  const monthByDate = canonicalByDate ?? legacyMonthByDate;
-
-  const weekByDate = (rows: typeof weekRows) => {
-    const map: Record<string, SessionModule[]> = {};
-    for (const row of rows ?? []) {
-      const d = row.client_program_days?.date;
-      if (!d) continue;
-      const brief = deriveModuleBrief(row);
-      (map[d] ??= []).push({ id: row.id, title: row.title, module_type: row.module_type, status: row.status, exerciseCount: brief.exerciseCount, muscles: brief.muscles });
-    }
-    return map;
-  };
-
-  const legacyDisplayedWeekByDate = useMemo(() => weekByDate(weekRows), [weekRows]);
-  const legacyThisWeekByDate = useMemo(() => weekByDate(thisWeekRows), [thisWeekRows]);
-  const displayedWeekByDate = canonicalByDate ?? legacyDisplayedWeekByDate;
-  const thisWeekByDate = canonicalByDate ?? legacyThisWeekByDate;
+  // All grids read the canonical map. Null schedule → empty maps (graceful empty grid).
+  const monthByDate = canonicalByDate ?? {};
+  const displayedWeekByDate = canonicalByDate ?? {};
+  const thisWeekByDate = canonicalByDate ?? {};
 
   const monthStart = startOfMonth(anchor);
   const weekStart = startOfWeek(anchor, WEEK_OPTS);
@@ -362,7 +330,7 @@ function WorkoutsContent() {
 
           {view === "month" ? (
             <>
-              {(useCanonical ? scheduleLoading : monthLoading) ? (
+              {scheduleLoading ? (
                 <Skeleton className="h-72 w-full" />
               ) : (
                 <div>
@@ -427,7 +395,7 @@ function WorkoutsContent() {
                 )}
               </div>
             </>
-          ) : (useCanonical ? scheduleLoading : weekLoading) ? (
+          ) : scheduleLoading ? (
             <div className={cn("grid gap-2", isMobile ? "grid-cols-1" : "grid-cols-7")}>
               {Array(isMobile ? 4 : 7)
                 .fill(0)

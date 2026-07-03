@@ -4,26 +4,20 @@
 // tonnage, estimated TUST, PRs), a "needs your eyes" digest, and this week's
 // sessions with per-exercise progression flags + PRs.
 //
-// Two sources, one engine (computePulse):
-//   - LEGACY (board_v2 off): client_programs (active) -> client_program_days
-//     (date) -> client_day_modules (completed_at) ; exercise_set_logs
-//     (created_by_user_id = client) -> client_module_exercises -> exercise_library.
-//   - CANONICAL (board_v2 on): loadCanonicalWorkoutLogs(assignment) +
-//     loadCanonicalSchedule(assignment) — deload-aware; logs keyed by
-//     assignment_id+plan_slot_id, grouped by plan_session_id. Coach reads rely on
-//     the canonical exercise_set_logs + plan_* RLS policies (Slice 2/3 §0).
+// Canonical source, one engine (computePulse): loadCanonicalWorkoutLogs(assignment)
+// + loadCanonicalSchedule(assignment) — deload-aware; logs keyed by
+// assignment_id+plan_slot_id, grouped by plan_session_id. Coach reads rely on the
+// canonical exercise_set_logs + plan_* RLS policies (Slice 2/3 §0). Returns EMPTY
+// when the client has no active assignment / null schedule.
 //
 // exercise_set_logs rows carry performed_* + performed_json + the per-set
-// `prescribed` snapshot in BOTH worlds (the canonical logger writes the same
-// PrescriptionSnapshot shape), so flags/PRs read the prescription straight off
-// the log and prEngine/workoutFlags need no changes — only the data source +
-// grouping key differ.
+// `prescribed` snapshot (the canonical logger writes the PrescriptionSnapshot
+// shape), so flags/PRs read the prescription straight off the log and
+// prEngine/workoutFlags need no changes.
 //
 // Degrade-safe: any failed read leaves that slice empty rather than throwing.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
-import { isBoardV2Enabled } from "@/lib/featureFlags";
 import {
   resolveActiveAssignment,
   loadCanonicalSchedule,
@@ -119,19 +113,6 @@ function mondayOf(d: Date): Date {
 }
 function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
-}
-
-interface RawLog {
-  client_module_exercise_id: string;
-  set_index: number;
-  skipped: boolean;
-  performed_load: number | null;
-  performed_reps: number | null;
-  performed_rir: number | null;
-  performed_rpe: number | null;
-  performed_json: Record<string, unknown> | null;
-  prescribed: Record<string, unknown> | null;
-  created_at: string;
 }
 
 /**
@@ -388,161 +369,58 @@ export function useWorkoutPulse(clientUserId: string): WorkoutPulse {
     const sunday = new Date(monday);
     sunday.setDate(sunday.getDate() + 6);
 
-    // ── board_v2: canonical assignment logs + schedule (deload-aware) ──────────
-    if (isBoardV2Enabled()) {
-      const assignment = await resolveActiveAssignment(userId);
-      if (assignment) {
-        const schedule = await loadCanonicalSchedule(assignment.id);
-        if (schedule) {
-          const canonicalLogs = await loadCanonicalWorkoutLogs(assignment.id);
-
-          const exMeta: ExMeta = new Map();
-          const pulseLogs: PulseLog[] = [];
-          for (const cl of canonicalLogs) {
-            // Non-library activity slots (cardio/mobility w/o exercise_id) carry no
-            // PR/flag/tonnage semantics — parity with legacy, which only logged
-            // library exercises. They never contributed to the pulse there either.
-            if (!cl.exerciseId) continue;
-            pulseLogs.push({
-              exerciseId: cl.exerciseId,
-              moduleId: cl.planSessionId,
-              set_index: cl.set_index,
-              skipped: cl.skipped,
-              performed_load: cl.performed_load,
-              performed_reps: cl.performed_reps,
-              performed_rir: cl.performed_rir,
-              performed_rpe: cl.performed_rpe,
-              performed_json: cl.performed_json,
-              prescribed: cl.prescribed,
-              created_at: cl.created_at,
-            });
-            if (!exMeta.has(cl.exerciseId))
-              exMeta.set(cl.exerciseId, { name: cl.exerciseName, category: cl.category });
-          }
-
-          // This week's scheduled/completed modules from the (deload-aware) schedule.
-          const weekStart = isoDate(monday);
-          const weekEnd = isoDate(sunday);
-          let weeklyScheduled = 0;
-          let weeklyCompleted = 0;
-          const weekModules: WeekModule[] = [];
-          for (const [iso, day] of schedule.byDate) {
-            if (iso < weekStart || iso > weekEnd) continue;
-            for (const m of day.modules) {
-              weeklyScheduled += 1;
-              if (m.status === "completed") {
-                weeklyCompleted += 1;
-                weekModules.push({ id: m.id, title: canonicalSessionTitle(m), date: iso });
-              }
-            }
-          }
-
-          setData(computePulse(pulseLogs, exMeta, weekModules, weeklyScheduled, weeklyCompleted, monday));
-          return;
-        }
-        // schedule null → fall through to legacy (belt-and-suspenders: never render
-        // empty canonical analytics on a partial/failed canonical read).
-      }
-      // no assignment → fall through to legacy.
-    }
-
-    // ── legacy path (unchanged behaviour) ─────────────────────────────────────
-    // 1. Active programs.
-    const { data: programs } = await supabase
-      .from("client_programs")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("status", "active");
-    const programIds = (programs ?? []).map((p) => p.id);
-    if (programIds.length === 0) {
+    // Canonical assignment logs + schedule (deload-aware). EMPTY when the client
+    // has no active assignment / null schedule.
+    const assignment = await resolveActiveAssignment(userId);
+    if (!assignment) {
       setData({ ...EMPTY, loading: false, adherencePct: null });
       return;
     }
+    const schedule = await loadCanonicalSchedule(assignment.id);
+    if (!schedule) {
+      setData({ ...EMPTY, loading: false, adherencePct: null });
+      return;
+    }
+    const canonicalLogs = await loadCanonicalWorkoutLogs(assignment.id);
 
-    // 2. This week's days + modules (scheduled + completed for adherence).
-    const { data: dayRows } = await supabase
-      .from("client_program_days")
-      .select("id, date")
-      .in("client_program_id", programIds)
-      .gte("date", isoDate(monday))
-      .lte("date", isoDate(sunday));
-    const dayById = new Map((dayRows ?? []).map((d) => [d.id, d.date as string]));
-    const dayIds = [...dayById.keys()];
+    const exMeta: ExMeta = new Map();
+    const pulseLogs: PulseLog[] = [];
+    for (const cl of canonicalLogs) {
+      // Non-library activity slots (cardio/mobility w/o exercise_id) carry no
+      // PR/flag/tonnage semantics — they never contribute to the pulse.
+      if (!cl.exerciseId) continue;
+      pulseLogs.push({
+        exerciseId: cl.exerciseId,
+        moduleId: cl.planSessionId,
+        set_index: cl.set_index,
+        skipped: cl.skipped,
+        performed_load: cl.performed_load,
+        performed_reps: cl.performed_reps,
+        performed_rir: cl.performed_rir,
+        performed_rpe: cl.performed_rpe,
+        performed_json: cl.performed_json,
+        prescribed: cl.prescribed,
+        created_at: cl.created_at,
+      });
+      if (!exMeta.has(cl.exerciseId))
+        exMeta.set(cl.exerciseId, { name: cl.exerciseName, category: cl.category });
+    }
 
+    // This week's scheduled/completed modules from the (deload-aware) schedule.
+    const weekStart = isoDate(monday);
+    const weekEnd = isoDate(sunday);
     let weeklyScheduled = 0;
     let weeklyCompleted = 0;
     const weekModules: WeekModule[] = [];
-    if (dayIds.length > 0) {
-      const { data: mods } = await supabase
-        .from("client_day_modules")
-        .select("id, title, client_program_day_id, completed_at")
-        .in("client_program_day_id", dayIds);
-      for (const m of mods ?? []) {
+    for (const [iso, day] of schedule.byDate) {
+      if (iso < weekStart || iso > weekEnd) continue;
+      for (const m of day.modules) {
         weeklyScheduled += 1;
-        if (m.completed_at) {
+        if (m.status === "completed") {
           weeklyCompleted += 1;
-          weekModules.push({
-            id: m.id,
-            title: m.title ?? "Session",
-            date: dayById.get(m.client_program_day_id) ?? "",
-          });
+          weekModules.push({ id: m.id, title: canonicalSessionTitle(m), date: iso });
         }
       }
-    }
-
-    // 3. All of the client's set logs (PR/flag history needs full prior history).
-    const { data: logRows } = await supabase
-      .from("exercise_set_logs")
-      .select(
-        "client_module_exercise_id, set_index, skipped, performed_load, performed_reps, performed_rir, performed_rpe, performed_json, prescribed, created_at",
-      )
-      .eq("created_by_user_id", userId)
-      .order("created_at", { ascending: true });
-    const rawLogs = (logRows ?? []) as RawLog[];
-
-    // 4. Map client_module_exercise_id -> { exercise_id, module_id }.
-    const cmeIds = [...new Set(rawLogs.map((l) => l.client_module_exercise_id))];
-    const cmeMap = new Map<string, { exerciseId: string; moduleId: string }>();
-    if (cmeIds.length > 0) {
-      const { data: cmes } = await supabase
-        .from("client_module_exercises")
-        .select("id, exercise_id, client_day_module_id")
-        .in("id", cmeIds);
-      for (const c of cmes ?? []) {
-        cmeMap.set(c.id, { exerciseId: c.exercise_id, moduleId: c.client_day_module_id });
-      }
-    }
-
-    // 5. Exercise names + categories.
-    const exerciseIds = [...new Set([...cmeMap.values()].map((v) => v.exerciseId))];
-    const exMeta: ExMeta = new Map();
-    if (exerciseIds.length > 0) {
-      const { data: lib } = await supabase
-        .from("exercise_library")
-        .select("id, name, category")
-        .in("id", exerciseIds);
-      for (const e of lib ?? []) exMeta.set(e.id, { name: e.name, category: e.category });
-    }
-
-    // Normalise to PulseLog (drop logs whose cme is unreadable/missing — in practice
-    // the FK + RLS coupling means a readable log always has a readable cme).
-    const pulseLogs: PulseLog[] = [];
-    for (const l of rawLogs) {
-      const meta = cmeMap.get(l.client_module_exercise_id);
-      if (!meta) continue;
-      pulseLogs.push({
-        exerciseId: meta.exerciseId,
-        moduleId: meta.moduleId,
-        set_index: l.set_index,
-        skipped: l.skipped,
-        performed_load: l.performed_load,
-        performed_reps: l.performed_reps,
-        performed_rir: l.performed_rir,
-        performed_rpe: l.performed_rpe,
-        performed_json: l.performed_json,
-        prescribed: l.prescribed,
-        created_at: l.created_at,
-      });
     }
 
     setData(computePulse(pulseLogs, exMeta, weekModules, weeklyScheduled, weeklyCompleted, monday));

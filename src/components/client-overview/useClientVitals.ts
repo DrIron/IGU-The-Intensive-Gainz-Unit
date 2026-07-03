@@ -26,7 +26,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCoachRosterStats } from "@/hooks/useCoachRosterStats";
-import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { resolveActiveAssignment, canonicalLastWorkoutAt } from "@/lib/canonicalScheduleAdapter";
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000;
@@ -116,24 +115,10 @@ export function useClientVitals(clientUserId: string): ClientVitals {
       .maybeSingle();
     if (phaseErr) console.warn("[useClientVitals] phase:", phaseErr.message);
 
-    // Resolve the canonical assignment first (board_v2 only) — it decides whether
-    // the last-workout time is canonical or legacy. Canonical wins ONLY when an
-    // active assignment exists; flag off OR flag on + no assignment (not-backfilled
-    // client) → legacy. So the legacy client_programs lookup is skipped only when
-    // canonical will actually handle it.
-    const boardV2 = isBoardV2Enabled();
-    const assignment = boardV2 ? await resolveActiveAssignment(userId) : null;
-    const useCanonicalWorkout = !!assignment;
+    // Resolve the canonical assignment — it drives the last-workout time.
+    const assignment = await resolveActiveAssignment(userId);
 
     // The remaining reads are independent -- fan out in parallel.
-    const programIdsPromise = useCanonicalWorkout
-      ? Promise.resolve({ data: [] as { id: string }[], error: null })
-      : supabase
-          .from("client_programs")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("status", "active");
-
     const weightPromise = supabase
       .from("weight_logs")
       .select("weight_kg, log_date")
@@ -149,51 +134,21 @@ export function useClientVitals(clientUserId: string): ClientVitals {
           .eq("status", "pending")
       : Promise.resolve({ data: [], error: null });
 
-    const [programRes, weightRes, adjRes] = await Promise.all([
-      programIdsPromise,
+    const [weightRes, adjRes] = await Promise.all([
       weightPromise,
       adjustmentsPromise,
     ]);
 
-    if (programRes.error)
-      console.warn("[useClientVitals] client_programs:", programRes.error.message);
     if (weightRes.error)
       console.warn("[useClientVitals] weight_logs:", weightRes.error.message);
     if (adjRes.error)
       console.warn("[useClientVitals] nutrition_adjustments:", adjRes.error.message);
 
-    // Last workout. Canonical (assignment present): newest logged set (deload-aware;
-    // the legacy snapshot goes stale post-deload) — a null result here is a real
-    // "no workouts yet", kept as-is. Else (flag off, or flag on + no assignment):
-    // legacy program -> day -> module chain (no nested FK joins per CLAUDE.md).
-    // Coach-context canonical read relies on the
+    // Last workout: newest logged set (deload-aware) for the client's active
+    // assignment — a null result is a genuine "no workouts yet". Null when there's
+    // no assignment. Coach-context canonical read relies on the
     // exercise_set_logs_canonical_coach_select RLS policy (20260630061546).
-    let lastWorkoutAt: string | null = null;
-    if (useCanonicalWorkout && assignment) {
-      lastWorkoutAt = await canonicalLastWorkoutAt(assignment.id);
-    } else {
-      const programIds = (programRes.data ?? []).map((p) => p.id);
-      if (programIds.length > 0) {
-        const { data: dayRows, error: daysErr } = await supabase
-          .from("client_program_days")
-          .select("id")
-          .in("client_program_id", programIds);
-        if (daysErr) console.warn("[useClientVitals] client_program_days:", daysErr.message);
-
-        const dayIds = (dayRows ?? []).map((d) => d.id);
-        if (dayIds.length > 0) {
-          const { data: modRows, error: modsErr } = await supabase
-            .from("client_day_modules")
-            .select("completed_at")
-            .in("client_program_day_id", dayIds)
-            .not("completed_at", "is", null)
-            .order("completed_at", { ascending: false })
-            .limit(1);
-          if (modsErr) console.warn("[useClientVitals] client_day_modules:", modsErr.message);
-          lastWorkoutAt = modRows?.[0]?.completed_at ?? null;
-        }
-      }
-    }
+    const lastWorkoutAt = assignment ? await canonicalLastWorkoutAt(assignment.id) : null;
 
     // weight_logs came back newest-first; the series renders oldest -> newest.
     const weightRows = (weightRes.data ?? []) as Array<{ weight_kg: number; log_date: string }>;

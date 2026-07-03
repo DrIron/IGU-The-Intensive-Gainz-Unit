@@ -59,10 +59,7 @@ export const SessionLogViewer = memo(function SessionLogViewer({
     open && module?.canonical
       ? { assignmentId: module.canonical.assignmentId, planSessionId: module.id }
       : null;
-  const { entries, loading, error } = useSessionLog(
-    open && module && !module.canonical ? module.id : null,
-    canonicalTarget,
-  );
+  const { entries, loading, error } = useSessionLog(canonicalTarget);
 
   const header = module ? (
     <div className="space-y-1">
