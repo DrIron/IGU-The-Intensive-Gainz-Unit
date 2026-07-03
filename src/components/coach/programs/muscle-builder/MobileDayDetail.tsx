@@ -1,4 +1,5 @@
 import { memo, useMemo, useState, useCallback } from "react";
+import { type BoardDayOption } from "@/lib/boardDates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,7 +60,7 @@ interface MobileDayDetailProps {
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
-  dayOptions: { dayIndex: number; label: string }[];
+  dayOptions: BoardDayOption[];
   onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
   onClearExercise?: (slotId: string) => void;
   onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
@@ -450,7 +451,7 @@ interface MobileSessionHeaderProps {
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
-  dayOptions: { dayIndex: number; label: string }[];
+  dayOptions: BoardDayOption[];
 }
 
 const MobileSessionHeader = memo(function MobileSessionHeader({

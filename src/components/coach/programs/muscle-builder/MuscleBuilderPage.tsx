@@ -131,6 +131,17 @@ export function MuscleBuilderPage({
     () => boardDayPickerOptions(startDate, state.currentWeekIndex + 1, viewMode === "calendar" && canCalendar),
     [startDate, state.currentWeekIndex, viewMode, canCalendar],
   );
+  // Anchored day-name lookups for move/duplicate/cascade copy, so the message matches the picker
+  // the coach just clicked (never the fixed Mon-first list). Dated `label` for single-day toasts;
+  // short `weekday` for the cascade prompt, which spans several weeks with different dates.
+  const dayLabelFor = useCallback(
+    (di: number) => dayOptions.find(o => o.dayIndex === di)?.label ?? DAYS_OF_WEEK[di - 1],
+    [dayOptions],
+  );
+  const dayWeekdayFor = useCallback(
+    (di: number) => dayOptions.find(o => o.dayIndex === di)?.weekday ?? DAYS_OF_WEEK[di - 1],
+    [dayOptions],
+  );
   const currentWeekSlots = getCurrentSlots(state);
   const currentWeekSessions = getCurrentSessions(state);
   const { volumeEntries, summary, frequencyMatrix, placementCounts, consecutiveDayWarnings } =
@@ -408,9 +419,9 @@ export function MuscleBuilderPage({
   const handleDuplicateSessionToDay = useCallback(
     (sessionId: string, toDayIndex: number) => {
       dispatch({ type: 'DUPLICATE_SESSION_TO_DAY', sessionId, toDayIndex });
-      toast({ title: `Session duplicated to ${DAYS_OF_WEEK[toDayIndex - 1]}` });
+      toast({ title: `Session duplicated to ${dayLabelFor(toDayIndex)}` });
     },
-    [dispatch, toast]
+    [dispatch, toast, dayLabelFor]
   );
 
   // Day-move (B4 tail): move the session in the current week, then — if matching
@@ -434,7 +445,7 @@ export function MuscleBuilderPage({
       const name = source.name ?? null;
 
       dispatch({ type: 'MOVE_SESSION_TO_DAY', sessionId, toDayIndex });
-      toast({ title: `Session moved to ${DAYS_OF_WEEK[toDayIndex - 1]}` });
+      toast({ title: `Session moved to ${dayLabelFor(toDayIndex)}` });
 
       // Count LATER weeks with a corresponding session (matcher = §1). Following
       // weeks are untouched by the current-week move, so read pre-dispatch state.
@@ -449,7 +460,7 @@ export function MuscleBuilderPage({
         setCascadePrompt({ fromWeekIndex: wk, oldDayIndex, newDayIndex: toDayIndex, sessionType, name, weeks });
       }
     },
-    [state, dispatch, toast]
+    [state, dispatch, toast, dayLabelFor]
   );
 
   const confirmCascade = useCallback(() => {
@@ -1273,7 +1284,7 @@ export function MuscleBuilderPage({
             <DialogTitle>Apply to following weeks?</DialogTitle>
             <DialogDescription>
               {cascadePrompt
-                ? `Also move the matching session to ${DAYS_OF_WEEK[cascadePrompt.newDayIndex - 1]} in ${cascadePrompt.weeks} later week${cascadePrompt.weeks !== 1 ? "s" : ""}?`
+                ? `Also move the matching session to ${dayWeekdayFor(cascadePrompt.newDayIndex)} in ${cascadePrompt.weeks} later week${cascadePrompt.weeks !== 1 ? "s" : ""}?`
                 : ""}
             </DialogDescription>
           </DialogHeader>

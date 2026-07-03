@@ -58,29 +58,40 @@ export function boardDayLabel(
 const WEEKDAY_MON_FIRST = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 
 /**
- * Options for a session move/duplicate "to day" picker, aligned with the board's day columns so
- * the label a coach clicks maps to the dayIndex that is actually sent. This is the single source
- * of truth for those pickers AND (as a fallback) the day-column headers — never build a picker off
- * a fixed Mon-first weekday list, which desyncs from the assignment's start-anchored day columns.
+ * One start-anchored day slot (1..7) for the board's "to day" pickers, headers, day-strip, and
+ * move/cascade copy. `label` is the full picker/header form; `weekday` is the short weekday only
+ * (compact pills + multi-week cascade copy where a single date would be misleading).
+ */
+export interface BoardDayOption {
+  dayIndex: number;
+  /** Calendar view → "Thu Jul 2"; Program-weeks → "Thu"; template → Mon-first "Mon". */
+  label: string;
+  /** Anchored short weekday ("Thu"), or program-relative Mon-first ("Mon") for templates. */
+  weekday: string;
+}
+
+/**
+ * The 7 day options aligned with the board's day columns, so the label a coach clicks maps to the
+ * dayIndex actually sent. Single source of truth for the "move/duplicate to day" pickers, the
+ * day-column header fallback, the mobile day-strip, and the move toast / cascade copy — never build
+ * any of those off a fixed Mon-first weekday list, which desyncs from a start-anchored assignment.
  *
- *  - Instance, Calendar view (dated=true):  "Thu Jul 2"  (matches ClientScheduleCalendar picker)
- *  - Instance, Program-weeks view (dated=false): anchored weekday "Thu"
- *  - Template (no start date): program-relative Mon-first "Mon"
- *
- * weekIndex is 1-based (currentWeekIndex + 1). dayIndex in the result is 1..7.
+ * weekIndex is 1-based (currentWeekIndex + 1). `dated` = Calendar view (instance with a start date).
  */
 export function boardDayPickerOptions(
   startDateIso: string | undefined,
   weekIndex: number,
   dated: boolean,
-): { dayIndex: number; label: string }[] {
+): BoardDayOption[] {
   return [1, 2, 3, 4, 5, 6, 7].map(dayIndex => {
-    if (!startDateIso) return { dayIndex, label: WEEKDAY_MON_FIRST[dayIndex - 1] };
+    if (!startDateIso) {
+      const w = WEEKDAY_MON_FIRST[dayIndex - 1];
+      return { dayIndex, label: w, weekday: w };
+    }
     const date = boardDayDate(startDateIso, weekIndex, dayIndex);
-    const label = dated
-      ? `${WEEKDAY[date.getUTCDay()]} ${MONTH[date.getUTCMonth()]} ${date.getUTCDate()}`
-      : WEEKDAY[date.getUTCDay()];
-    return { dayIndex, label };
+    const weekday = WEEKDAY[date.getUTCDay()];
+    const label = dated ? `${weekday} ${MONTH[date.getUTCMonth()]} ${date.getUTCDate()}` : weekday;
+    return { dayIndex, label, weekday };
   });
 }
 
