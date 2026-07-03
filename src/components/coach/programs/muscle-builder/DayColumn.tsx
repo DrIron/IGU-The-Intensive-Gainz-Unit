@@ -43,6 +43,8 @@ interface DayColumnProps {
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
+  /** Start-anchored day labels for the session pickers + header fallback. */
+  dayOptions: { dayIndex: number; label: string }[];
   onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
   onClearExercise?: (slotId: string) => void;
@@ -81,6 +83,7 @@ interface DayColumnProps {
 export const DayColumn = memo(function DayColumn({
   dayIndex,
   dayDateLabel,
+  dayOptions,
   slots,
   sessions,
   isSelected,
@@ -224,7 +227,7 @@ export const DayColumn = memo(function DayColumn({
       <CardHeader className="p-2 pb-1">
         <div className="flex items-center justify-between gap-1 min-w-0">
           <span className="text-sm font-semibold text-muted-foreground truncate">
-            {dayDateLabel ?? DAYS_OF_WEEK[dayIndex - 1]}
+            {dayDateLabel ?? dayOptions.find(o => o.dayIndex === dayIndex)?.label ?? DAYS_OF_WEEK[dayIndex - 1]}
           </span>
           <div className="flex items-center gap-1 shrink-0">
             {/* + Session — opens a quick type picker */}
@@ -377,6 +380,7 @@ export const DayColumn = memo(function DayColumn({
                   onRemoveSession={onRemoveSession}
                   onDuplicateSessionToDay={onDuplicateSessionToDay}
                   onMoveSessionToDay={onMoveSessionToDay}
+                  dayOptions={dayOptions}
                   onReorderSession={onReorderSession}
                   placementCounts={placementCounts}
                   recentMuscleIds={recentMuscleIds}

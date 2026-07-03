@@ -25,6 +25,8 @@ interface WeeklyCalendarProps {
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
+  /** Start-anchored day labels for the "move/duplicate to day" pickers + header fallback. */
+  dayOptions: { dayIndex: number; label: string }[];
   onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
   onClearExercise?: (slotId: string) => void;
@@ -78,6 +80,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onRemoveSession,
   onDuplicateSessionToDay,
   onMoveSessionToDay,
+  dayOptions,
   onReorderSession,
   onSetExercise,
   onClearExercise,
@@ -136,6 +139,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           onRemoveSession={onRemoveSession}
           onDuplicateSessionToDay={onDuplicateSessionToDay}
           onMoveSessionToDay={onMoveSessionToDay}
+          dayOptions={dayOptions}
           onSetExercise={onSetExercise}
           onClearExercise={onClearExercise}
           onAddReplacement={onAddReplacement}
@@ -185,6 +189,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onRemoveSession={onRemoveSession}
             onDuplicateSessionToDay={onDuplicateSessionToDay}
           onMoveSessionToDay={onMoveSessionToDay}
+            dayOptions={dayOptions}
             onReorderSession={onReorderSession}
             onSetExercise={onSetExercise}
             onClearExercise={onClearExercise}

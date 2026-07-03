@@ -59,6 +59,7 @@ interface MobileDayDetailProps {
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
+  dayOptions: { dayIndex: number; label: string }[];
   onSetExercise?: (slotId: string, exercise: SlotExercise) => void;
   onClearExercise?: (slotId: string) => void;
   onAddReplacement?: (slotId: string, exercise: SlotExercise) => void;
@@ -111,6 +112,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onRemoveSession,
   onDuplicateSessionToDay,
   onMoveSessionToDay,
+  dayOptions,
   onClearExercise,
   onRemoveReplacement,
   onOpenExercisePicker,
@@ -216,7 +218,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
         <div className="flex items-center justify-between gap-2 min-w-0">
           <div className="flex flex-col gap-0.5 min-w-0">
             <span className="text-sm font-semibold truncate">
-              {DAYS_OF_WEEK[selectedDayIndex - 1]}
+              {dayOptions.find(o => o.dayIndex === selectedDayIndex)?.label ?? DAYS_OF_WEEK[selectedDayIndex - 1]}
             </span>
             {(totalSets > 0 || sessionDuration) && (
               <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-mono text-muted-foreground">
@@ -326,6 +328,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                         onRemoveSession={onRemoveSession}
                         onDuplicateSessionToDay={onDuplicateSessionToDay}
                         onMoveSessionToDay={onMoveSessionToDay}
+                        dayOptions={dayOptions}
                       />
                       {sessionSlots.length === 0 ? (
                         <p className="text-[11px] text-muted-foreground/60 italic py-1 text-center">
@@ -447,6 +450,7 @@ interface MobileSessionHeaderProps {
   onRemoveSession: (sessionId: string) => void;
   onDuplicateSessionToDay: (sessionId: string, toDayIndex: number) => void;
   onMoveSessionToDay: (sessionId: string, toDayIndex: number) => void;
+  dayOptions: { dayIndex: number; label: string }[];
 }
 
 const MobileSessionHeader = memo(function MobileSessionHeader({
@@ -457,6 +461,7 @@ const MobileSessionHeader = memo(function MobileSessionHeader({
   onRemoveSession,
   onDuplicateSessionToDay,
   onMoveSessionToDay,
+  dayOptions,
 }: MobileSessionHeaderProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(session.name ?? '');
@@ -517,9 +522,9 @@ const MobileSessionHeader = memo(function MobileSessionHeader({
               <Copy className="h-3 w-3 mr-2" /> Duplicate to day
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              {DAYS_OF_WEEK.map((day, i) => (
-                <DropdownMenuItem key={day} onClick={() => onDuplicateSessionToDay(session.id, i + 1)}>
-                  {day}
+              {dayOptions.map(opt => (
+                <DropdownMenuItem key={opt.dayIndex} onClick={() => onDuplicateSessionToDay(session.id, opt.dayIndex)}>
+                  {opt.label}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuSubContent>
@@ -529,13 +534,13 @@ const MobileSessionHeader = memo(function MobileSessionHeader({
               <CalendarArrowUp className="h-3 w-3 mr-2" /> Move to day
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent>
-              {DAYS_OF_WEEK.map((day, i) => (
+              {dayOptions.map(opt => (
                 <DropdownMenuItem
-                  key={day}
-                  disabled={i + 1 === session.dayIndex}
-                  onClick={() => onMoveSessionToDay(session.id, i + 1)}
+                  key={opt.dayIndex}
+                  disabled={opt.dayIndex === session.dayIndex}
+                  onClick={() => onMoveSessionToDay(session.id, opt.dayIndex)}
                 >
-                  {day}
+                  {opt.label}
                 </DropdownMenuItem>
               ))}
             </DropdownMenuSubContent>

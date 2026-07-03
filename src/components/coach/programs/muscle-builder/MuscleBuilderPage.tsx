@@ -51,7 +51,7 @@ import { ClientEditorProvider } from "./ClientEditorContext";
 import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { PushTemplateDialog } from "@/components/coach/programs/PushTemplateDialog";
 import { fetchTemplateAssignees, type TemplateAssignees } from "@/lib/templatePush";
-import { canUseCalendarMode, defaultBoardViewMode } from "@/lib/boardDates";
+import { boardDayPickerOptions, canUseCalendarMode, defaultBoardViewMode } from "@/lib/boardDates";
 import { CalendarDays, Rows3, Users, Snowflake, Share2 } from "lucide-react";
 import { LinkedContentList } from "@/components/educational/LinkedContentList";
 import { DeloadDialog, type ApplyDeloadParams } from "./DeloadDialog";
@@ -122,6 +122,14 @@ export function MuscleBuilderPage({
   const canCalendar = canUseCalendarMode(boardV2, ctx, !!startDate);
   const [viewMode, setViewMode] = useState<"weeks" | "calendar">(
     defaultBoardViewMode(boardV2, ctx, !!startDate),
+  );
+  // Single source for the session "move/duplicate to day" pickers AND the day-column header
+  // fallback — start-anchored so labels line up with the board's day columns (calendar view =
+  // dated, weeks view = anchored weekday, template = program-relative). Prevents the off-by-one
+  // where a fixed Mon-first list desyncs from an assignment whose day_index 1 isn't Monday.
+  const dayOptions = useMemo(
+    () => boardDayPickerOptions(startDate, state.currentWeekIndex + 1, viewMode === "calendar" && canCalendar),
+    [startDate, state.currentWeekIndex, viewMode, canCalendar],
   );
   const currentWeekSlots = getCurrentSlots(state);
   const currentWeekSessions = getCurrentSessions(state);
@@ -1059,6 +1067,7 @@ export function MuscleBuilderPage({
             <WeeklyCalendar
               calendarStartDate={viewMode === "calendar" && canCalendar ? startDate : undefined}
               calendarWeekIndex={state.currentWeekIndex + 1}
+              dayOptions={dayOptions}
               slots={currentWeekSlots}
               sessions={currentWeekSessions}
               selectedDayIndex={state.selectedDayIndex}

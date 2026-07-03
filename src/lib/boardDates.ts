@@ -54,6 +54,36 @@ export function boardDayLabel(
   return formatBoardDay(boardDayDate(startDateIso, weekIndex, dayIndex, inserts));
 }
 
+/** Mon-first program-relative day names — used for templates (no calendar anchor). */
+const WEEKDAY_MON_FIRST = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
+
+/**
+ * Options for a session move/duplicate "to day" picker, aligned with the board's day columns so
+ * the label a coach clicks maps to the dayIndex that is actually sent. This is the single source
+ * of truth for those pickers AND (as a fallback) the day-column headers — never build a picker off
+ * a fixed Mon-first weekday list, which desyncs from the assignment's start-anchored day columns.
+ *
+ *  - Instance, Calendar view (dated=true):  "Thu Jul 2"  (matches ClientScheduleCalendar picker)
+ *  - Instance, Program-weeks view (dated=false): anchored weekday "Thu"
+ *  - Template (no start date): program-relative Mon-first "Mon"
+ *
+ * weekIndex is 1-based (currentWeekIndex + 1). dayIndex in the result is 1..7.
+ */
+export function boardDayPickerOptions(
+  startDateIso: string | undefined,
+  weekIndex: number,
+  dated: boolean,
+): { dayIndex: number; label: string }[] {
+  return [1, 2, 3, 4, 5, 6, 7].map(dayIndex => {
+    if (!startDateIso) return { dayIndex, label: WEEKDAY_MON_FIRST[dayIndex - 1] };
+    const date = boardDayDate(startDateIso, weekIndex, dayIndex);
+    const label = dated
+      ? `${WEEKDAY[date.getUTCDay()]} ${MONTH[date.getUTCMonth()]} ${date.getUTCDate()}`
+      : WEEKDAY[date.getUTCDay()];
+    return { dayIndex, label };
+  });
+}
+
 export type BoardContext = "template" | "client" | "team";
 export type BoardViewMode = "weeks" | "calendar";
 
