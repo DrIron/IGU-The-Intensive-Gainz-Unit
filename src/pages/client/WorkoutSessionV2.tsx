@@ -2616,8 +2616,25 @@ function WorkoutSessionV2Content() {
   };
 
   // Save progress
-  const saveProgress = async () => {
-    if (!user || !module) return;
+  // Returns true on success (including nothing-to-save), false if the batch write
+  // failed. Callers that gate on the result (completeWorkout) MUST NOT proceed on
+  // false — a completion dialog atop a failed save is the PR2c symptom. Pass
+  // { silentSuccess } to suppress the "Progress saved" toast when saving as a
+  // sub-step of Finish (the completion dialog is the feedback there).
+  //
+  // ONE batched array upsert, not N parallel single-row upserts (PR2b / WK7 §1.5
+  // lesson): 22 parallel single-set writes at Finish burst the connection pooler →
+  // selectWithRetry backoff → a transient "Error saving" toast even though every
+  // row was already write-through-persisted by completeSet. One idempotent array
+  // upsert is a single fast round-trip.
+  //
+  // TODO(dirty-tracking): completeSet already write-through-persists each set as it
+  // completes, so at Finish this re-upserts rows that are usually already saved.
+  // Tracking a per-set dirty flag (set on edit, cleared on persist) would shrink the
+  // Finish payload to only genuinely-unsaved sets. Deferred — batching already
+  // removes the burst; the redundant array upsert is one cheap idempotent round-trip.
+  const saveProgress = async (opts?: { silentSuccess?: boolean }): Promise<boolean> => {
+    if (!user || !module) return true;
 
     setSubmitting(true);
     try {
@@ -2648,52 +2665,37 @@ function WorkoutSessionV2Content() {
         });
       });
 
-      // Per CLAUDE.md: always destructure { error } on supabase mutations.
-      // The prior version silently dropped RLS/constraint failures and let the
-      // session runner render a "Progress saved" toast when nothing persisted.
-      //
-      // Parallel fan-out via Promise.allSettled (CLAUDE.md "Parallelize Supabase
-      // calls in loops" rule). Each upsert resolves rather than rejects on RLS
-      // denial — its error lives on .value.error, not in a rejection — so we
-      // tally both rejected promises AND fulfilled-with-error results.
-      const results = await Promise.allSettled(
-        allLogs.map((log) =>
-          // Retry each idempotent upsert so a transient mobile/pooler blip on the
-          // bulk save doesn't permanently drop sets (matches completeSet).
-          selectWithRetry(() =>
-            supabase.from("exercise_set_logs").upsert(log, {
-              onConflict: logConflictTarget(),
-            }),
-          ),
-        ),
-      );
-
-      const failures: unknown[] = [];
-      for (const r of results) {
-        if (r.status === "rejected") {
-          failures.push(r.reason);
-        } else if (r.value.error) {
-          failures.push(r.value.error);
+      if (allLogs.length === 0) {
+        if (!opts?.silentSuccess) {
+          toast({ title: "Progress saved", description: "Your workout data has been saved" });
         }
+        return true;
       }
 
-      if (failures.length > 0) {
-        // Surface the first failure through the existing catch handler so the
-        // toast + sanitizeErrorForUser flow renders unchanged. Binary UX
-        // (success | error) preserved per the original behavior.
-        throw failures[0];
-      }
+      // Single array upsert (idempotent via onConflict) — one round-trip, retried
+      // as a whole on a transient blip. Per CLAUDE.md: destructure { error }.
+      const { error } = await selectWithRetry(() =>
+        supabase.from("exercise_set_logs").upsert(allLogs, { onConflict: logConflictTarget() }),
+      );
+      if (error) throw error;
 
-      toast({
-        title: "Progress saved",
-        description: "Your workout data has been saved",
-      });
+      if (!opts?.silentSuccess) {
+        toast({ title: "Progress saved", description: "Your workout data has been saved" });
+      }
+      return true;
     } catch (error: unknown) {
+      // Was toast-only — invisible to Sentry. Capture so the finish-path failure
+      // rate is measurable (PR2c), matching completeWorkout's capture.
+      captureException(error, {
+        source: "saveProgress",
+        metadata: { moduleId: module?.id ?? null, logCount: Object.keys(setLogs).length },
+      });
       toast({
         title: "Error saving",
         description: sanitizeErrorForUser(error),
         variant: "destructive",
       });
+      return false;
     } finally {
       setSubmitting(false);
     }
@@ -2837,7 +2839,12 @@ function WorkoutSessionV2Content() {
 
     setSubmitting(true);
     try {
-      await saveProgress();
+      // Gate on the save result — do NOT show the completion dialog when the set-log
+      // save failed (the PR2c symptom: error toast + completion dialog at once).
+      // saveProgress already toasted + captured; stay on the session, like
+      // markUnloggedSkipped's false path. Silent success — the dialog is the feedback.
+      const saved = await saveProgress({ silentSuccess: true });
+      if (!saved) return;
 
       // Canonical mode (P3): there is no client_day_module to complete — module.id is a
       // plan_session id. The set logs were persisted by saveProgress() above; module-level
@@ -3074,7 +3081,7 @@ function WorkoutSessionV2Content() {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={saveProgress}
+                onClick={() => void saveProgress()}
                 disabled={submitting}
               >
                 {submitting ? (
