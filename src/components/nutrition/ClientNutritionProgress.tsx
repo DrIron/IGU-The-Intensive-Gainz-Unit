@@ -423,6 +423,13 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
   };
 
   const thisWeekAdherence = adherenceLogs.find((log) => log.week_number === currentWeek);
+  // B6 anchor: the coach's NutritionCheckInCard binds the thread to the LATEST check-in
+  // (order by week_number desc limit 1). Bind the client's thread to that same row —
+  // not thisWeekAdherence (current week) — so both sides share one thread even when the
+  // current week isn't submitted yet. Phase-scoped, so this is the coach's exact row.
+  const latestAdherence = adherenceLogs.length
+    ? adherenceLogs.reduce((a, b) => (b.week_number > a.week_number ? b : a))
+    : undefined;
   // Weigh-ins logged in the current IGU calendar week (Mon-Sun) -- the canonical
   // "this week" across the client app (ClientWeeklyRibbon + dashboard).
   const iguWeekStartStr = format(startOfIguWeek(), "yyyy-MM-dd");
@@ -750,12 +757,12 @@ export function ClientNutritionProgress({ phase, userGender = "male", initialBod
               {thisWeekAdherence ? "Update check-in" : "Submit check-in"}
             </Button>
 
-            {thisWeekAdherence && sessionUser?.id && (
+            {latestAdherence && sessionUser?.id && (
               <div className="pt-2 border-t">
                 <ContextualCommentThread
                   clientUserId={sessionUser.id}
                   objectType="checkin"
-                  objectId={thisWeekAdherence.id}
+                  objectId={latestAdherence.id}
                   canComment
                 />
               </div>
