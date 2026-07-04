@@ -405,3 +405,72 @@ export async function resolveCanonicalSession(
     existingLogs,
   };
 }
+
+/** One cross-instance movement history log (canonical-keyed), newest-first. */
+export interface CrossInstanceLogRow {
+  plan_slot_id: string;
+  set_index: number;
+  performed_load: number | null;
+  performed_reps: number | null;
+  performed_rir: number | null;
+  performed_rpe: number | null;
+  created_at: string;
+}
+
+/**
+ * D3 — cross-instance movement history for the canonical player's history / personal-best /
+ * PR-ref parity. Returns exercise_id -> the client's logs on that movement (across ALL their
+ * plan_slots), newest-first.
+ *
+ * There is NO FK from exercise_set_logs.plan_slot_id -> plan_slots, so a PostgREST embed can't
+ * join them. Instead: ONE batched read of the client's readable plan_slots for these movements +
+ * ONE batched read of their logs on those slots — resolve exercise_id in memory. Two `in()`
+ * reads, NO per-exercise round-trip (the WK7 §1.5 anti-fan-out rule). RLS scopes plan_slots to
+ * the client's assigned plans and logs to their own rows, so ended-plan history a client can no
+ * longer read is naturally omitted (acceptable — same limitation as the canonical program list).
+ */
+export async function loadCrossInstanceHistory(
+  userId: string,
+  exerciseIds: string[],
+): Promise<Map<string, CrossInstanceLogRow[]>> {
+  const out = new Map<string, CrossInstanceLogRow[]>();
+  const ids = [...new Set(exerciseIds.filter(Boolean))];
+  if (ids.length === 0) return out;
+
+  const { data: slots, error: slotErr } = await selectWithRetry(() =>
+    supabase.from("plan_slots").select("id, exercise_id").in("exercise_id", ids),
+  );
+  if (slotErr || !slots || slots.length === 0) return out;
+  const exerciseBySlot = new Map<string, string>();
+  for (const s of slots) if (s.id && s.exercise_id) exerciseBySlot.set(s.id as string, s.exercise_id as string);
+  const slotIds = [...exerciseBySlot.keys()];
+  if (slotIds.length === 0) return out;
+
+  const { data: logs, error: logErr } = await selectWithRetry(() =>
+    supabase
+      .from("exercise_set_logs")
+      .select("plan_slot_id, set_index, performed_load, performed_reps, performed_rir, performed_rpe, created_at")
+      .eq("created_by_user_id", userId)
+      .in("plan_slot_id", slotIds)
+      .order("created_at", { ascending: false }),
+  );
+  if (logErr || !logs) return out;
+
+  for (const l of logs) {
+    const exId = exerciseBySlot.get(l.plan_slot_id as string);
+    if (!exId) continue;
+    const row: CrossInstanceLogRow = {
+      plan_slot_id: l.plan_slot_id as string,
+      set_index: l.set_index as number,
+      performed_load: (l.performed_load as number | null) ?? null,
+      performed_reps: (l.performed_reps as number | null) ?? null,
+      performed_rir: (l.performed_rir as number | null) ?? null,
+      performed_rpe: (l.performed_rpe as number | null) ?? null,
+      created_at: l.created_at as string,
+    };
+    const arr = out.get(exId);
+    if (arr) arr.push(row);
+    else out.set(exId, [row]);
+  }
+  return out;
+}

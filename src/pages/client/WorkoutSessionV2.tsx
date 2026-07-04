@@ -13,7 +13,7 @@
  */
 
 import { useCallback, useEffect, useState, useRef } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
@@ -74,8 +74,7 @@ import {
   PERFORMED_JSON_COLUMN_TYPES,
 } from "@/types/workout-builder";
 import { fromCanonicalKg, toCanonicalKg, type WeightUnit } from "@/utils/weightUnits";
-import { isBoardV2Enabled } from "@/lib/featureFlags";
-import { resolveCanonicalSession } from "@/lib/canonicalSessionResolver";
+import { resolveCanonicalSession, loadCrossInstanceHistory } from "@/lib/canonicalSessionResolver";
 import type { Json } from "@/integrations/supabase/types";
 import type { SetBranch as SetBranchT } from "@/types/workout-builder";
 import {
@@ -1588,7 +1587,6 @@ function SwapExercisePicker({
 // =============================================================================
 
 function WorkoutSessionV2Content() {
-  const { moduleId } = useParams<{ moduleId: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -1659,44 +1657,29 @@ function WorkoutSessionV2Content() {
   const setLogsRef = useRef(setLogs);
   setLogsRef.current = setLogs;
 
-  // Canonical read path. board_v2 is the SINGLE master switch: when it's on, the
-  // canonical reads (Today card / calendar) route Start to
-  // ?assignment&session&date, and those modules are plan_session_ids with no valid
-  // legacy client_day_modules route — so the player MUST use the canonical loader
-  // whenever board_v2 is on + canonical params are present. (Pre-fix this gated on
-  // canonical_session_read; with board_v2 on but that flag off, the legacy loader
-  // got moduleId="canonical" → 400. See docs/P5_FLIP_RUNBOOK.md §2.) Legacy client_*
-  // (moduleId) stays the default + authoritative path when board_v2 is off.
+  // D3: canonical is the ONLY read/log path (board_v2 is on in prod; the legacy client_*
+  // loader is retired). The canonical Start links carry ?assignment&session&date; an old
+  // /session/:moduleId bookmark with no ?assignment resolves to nothing → redirect to the
+  // calendar (loadCanonicalSession), never a legacy fallback.
   const [searchParams] = useSearchParams();
   const canonicalAssignmentParam = searchParams.get("assignment");
   const canonicalSessionParam = searchParams.get("session");
   const canonicalDateParam = searchParams.get("date");
-  const useCanonical =
-    isBoardV2Enabled() &&
-    !!canonicalAssignmentParam &&
-    (!!canonicalSessionParam || !!canonicalDateParam);
   // Non-null while a canonical session is loaded → logging writes assignment_id + plan_slot_id.
   const [canonicalAssignmentId, setCanonicalAssignmentId] = useState<string | null>(null);
   const canonicalAssignmentIdRef = useRef<string | null>(null);
   canonicalAssignmentIdRef.current = canonicalAssignmentId;
 
-  // P3 log-row keying: canonical (assignment_id + plan_slot_id) when a canonical session is
-  // active, else legacy (client_module_exercise_id). In canonical mode Exercise.id IS the
+  // D3 log-row keying: canonical only — (assignment_id, plan_slot_id). Exercise.id IS the
   // plan_slot id (set by loadCanonicalSession), so `exerciseId` doubles as plan_slot_id.
+  // client_module_exercise_id is no longer written (defaults null; dropped in Stage B).
   const buildLogKey = (
     exerciseId: string,
-  ): { client_module_exercise_id: string | null; assignment_id?: string; plan_slot_id?: string } =>
-    canonicalAssignmentIdRef.current
-      ? {
-          client_module_exercise_id: null,
-          assignment_id: canonicalAssignmentIdRef.current,
-          plan_slot_id: exerciseId,
-        }
-      : { client_module_exercise_id: exerciseId };
-  const logConflictTarget = (): string =>
-    canonicalAssignmentIdRef.current
-      ? "assignment_id,plan_slot_id,set_index"
-      : "client_module_exercise_id,set_index";
+  ): { assignment_id: string; plan_slot_id: string } => ({
+    assignment_id: canonicalAssignmentIdRef.current as string,
+    plan_slot_id: exerciseId,
+  });
+  const logConflictTarget = (): string => "assignment_id,plan_slot_id,set_index";
 
   // Progression suggestions
   const {
@@ -1711,354 +1694,16 @@ function WorkoutSessionV2Content() {
     description: "Complete your workout session",
   });
 
-  // Load session data
-  const loadSession = useCallback(async () => {
-    if (!moduleId) return;
-
-    try {
-      setLoadError(false);
-      // Get current user
-      const {
-        data: { user: currentUser },
-      } = await withTimeout(supabase.auth.getUser(), 8000);
-      if (!currentUser) {
-        navigate("/auth");
-        return;
-      }
-      setUser(currentUser);
-
-      // Get module data
-      const { data: moduleData, error: moduleError } = await selectWithRetry(() =>
-        supabase
-          .from("client_day_modules")
-          .select("*")
-          .eq("id", moduleId)
-          .maybeSingle(),
-      );
-
-      if (moduleError) throw moduleError;
-      if (!moduleData) {
-        toast({ title: "Workout not found", description: "This workout session may have been removed or is no longer available.", variant: "destructive" });
-        navigate("/client/workout/calendar");
-        return;
-      }
-
-      // Use the get_coach_for_client RPC, not the coaches_client_safe view.
-      // The view inherits RLS from `coaches` which denies client SELECT, so
-      // queries against the view return NULL for clients and the title fell
-      // back to "by Coach" (smoke-tested 2026-05-17). The RPC is SECURITY
-      // DEFINER and returns the same 8-column safe subset gated on
-      // is_primary_coach_for_user / is_care_team_member_for_client.
-      const { data: coachJson } = await supabase.rpc("get_coach_for_client", {
-        p_coach_user_id: moduleData.module_owner_coach_id,
-      });
-      const coachData = coachJson as { first_name?: string } | null;
-
-      // Get exercises
-      const { data: exercisesData, error: exercisesError } = await selectWithRetry(
-        () =>
-          supabase
-            .from("client_module_exercises")
-            .select(
-              `
-          *,
-          exercise_library(name, primary_muscle, default_video_url, description, setup_instructions, setup_points, equipment, secondary_muscles)
-        `,
-            )
-            .eq("client_day_module_id", moduleId)
-            .order("section")
-            .order("sort_order"),
-      );
-
-      if (exercisesError) throw exercisesError;
-
-      // Get existing logs (this module). Wrapped in selectWithRetry too — a
-      // transient 5xx here used to strand the load exactly like the embed read.
-      const exerciseIds = exercisesData?.map((e) => e.id) || [];
-      const { data: logsData } = await selectWithRetry(() =>
-        supabase
-          .from("exercise_set_logs")
-          .select("*")
-          .in("client_module_exercise_id", exerciseIds),
-      );
-
-      // Elapsed-time source (§2e): earliest created_at among THIS session's
-      // logs. Persisted, so it survives reload/resume (vs the mount fallback).
-      const logCreatedAts = (logsData ?? [])
-        .map((l) => (l.created_at ? new Date(l.created_at).getTime() : NaN))
-        .filter((t) => Number.isFinite(t));
-      setEarliestLoggedAtMs(logCreatedAts.length ? Math.min(...logCreatedAts) : null);
-
-      // --- Batched cross-instance reads (WK7 §1.5) ---------------------------
-      // The page used to fan out THREE reads PER exercise inside the map below
-      // (same-exercise lookup + history + PB), so a 7-exercise session fired
-      // ~15-20 concurrent requests. Under a cold/concurrent load that exhausts
-      // the connection pooler: some reads 500 (selectWithRetry rescues those)
-      // but the rest hang PENDING indefinitely, so loadSession's Promise.all
-      // never resolves and the client is stranded on the loading skeleton —
-      // retry can't rescue a hung-pending request. Collapse the per-exercise
-      // fan-out into batched in.() reads keyed by every exercise at once so the
-      // burst stays at ~3-4 reads and never starves the pool.
-      const distinctExerciseIds = [
-        ...new Set((exercisesData || []).map((e) => e.exercise_id)),
-      ];
-
-      // 1) Every client_module_exercises instance of these movements (across
-      //    the client's programs, RLS-scoped) in ONE query — replaces the
-      //    per-exercise exercise_id=eq.&id=neq. lookups. Grouped by exercise_id
-      //    so each exercise can find its "other instances" for history/PB.
-      let allInstances: { id: string; exercise_id: string }[] = [];
-      if (distinctExerciseIds.length > 0) {
-        const { data } = await selectWithRetry(() =>
-          supabase
-            .from("client_module_exercises")
-            .select("id, exercise_id")
-            .in("exercise_id", distinctExerciseIds),
-        );
-        allInstances = data || [];
-      }
-      const instancesByExerciseId = new Map<string, string[]>();
-      for (const inst of allInstances) {
-        const arr = instancesByExerciseId.get(inst.exercise_id);
-        if (arr) arr.push(inst.id);
-        else instancesByExerciseId.set(inst.exercise_id, [inst.id]);
-      }
-
-      // 2) Every historical set log for those instances in ONE query (newest
-      //    first). Per-exercise history slicing AND personal-best are both
-      //    derived from this single batch client-side — so the per-exercise
-      //    history and PB round-trips collapse into this one read.
-      const allInstanceIds = allInstances.map((i) => i.id);
-      let allHistoryLogs: Array<{
-        client_module_exercise_id: string;
-        set_index: number;
-        performed_reps: number | null;
-        performed_load: number | null;
-        performed_rir: number | null;
-        performed_rpe: number | null;
-        created_at: string;
-      }> = [];
-      if (allInstanceIds.length > 0) {
-        const { data } = await selectWithRetry(() =>
-          supabase
-            .from("exercise_set_logs")
-            .select(
-              "client_module_exercise_id, set_index, performed_reps, performed_load, performed_rir, performed_rpe, created_at",
-            )
-            .in("client_module_exercise_id", allInstanceIds)
-            .eq("created_by_user_id", currentUser.id)
-            .order("created_at", { ascending: false }),
-        );
-        allHistoryLogs = data || [];
-      }
-
-      // Initialize logs state
-      const initialLogs: Record<string, SetLog[]> = {};
-
-      // Format exercises with history — now a SYNCHRONOUS map: every read was
-      // hoisted into the batched queries above, so there is no per-exercise
-      // fan-out left (this is what removes the pool-starving burst).
-      const formattedExercises: Exercise[] = (exercisesData || []).map((ex: any) => {
-          const prescription = ex.prescription_snapshot_json || {};
-
-          // Fix #3: Read sets_json from inside prescription_snapshot_json, not as a top-level column
-          const setsJson = (prescription as any).sets_json as
-            | SetPrescription[]
-            | null;
-          const setCount = setsJson?.length || prescription.set_count || 3;
-
-          // Client-input columns the coach configured (snapshotted into
-          // prescription_snapshot_json.column_config by assign_program). The
-          // input half drives which fields the client fills; presence of any
-          // non-core input type flags this as an activity (dynamic inputs).
-          const allColumns: ColumnConfig[] = Array.isArray((prescription as any).column_config)
-            ? ((prescription as any).column_config as ColumnConfig[])
-            : [];
-          const { inputColumns } = splitColumnsByCategory(allColumns);
-          const isActivity = inputColumns.some((c) =>
-            PERFORMED_JSON_COLUMN_TYPES.has(c.type as ClientInputColumnType)
-          );
-
-          // Get existing logs for this exercise
-          const existingLogs =
-            logsData?.filter(
-              (l) => l.client_module_exercise_id === ex.id
-            ) || [];
-
-          // Initialize logs
-          initialLogs[ex.id] = Array.from({ length: setCount }, (_, i) => {
-            const existing = existingLogs.find(
-              (l) => l.set_index === i + 1
-            );
-            const existingExtra =
-              (existing?.performed_json as Record<string, string | number> | null) ?? {};
-            return {
-              set_index: i + 1,
-              performed_reps: existing?.performed_reps ?? null,
-              performed_load: existing?.performed_load ?? null,
-              performed_rir: existing?.performed_rir ?? null,
-              performed_rpe: existing?.performed_rpe ?? null,
-              performed_extra: existingExtra,
-              notes: existing?.notes || "",
-              skipped: existing?.skipped ?? false,
-              // A skipped set is addressed but NOT completed (null performed_*).
-              completed: existing && !existing.skipped
-                ? existing.performed_reps !== null ||
-                  existing.performed_load !== null ||
-                  Object.keys(existingExtra).length > 0
-                : false,
-            };
-          });
-
-          // History/PB — derived from the batched reads above, NO per-exercise
-          // round-trip. sameExerciseIds = other instances of this movement
-          // (same exercise_id, excluding this row). Skip for activities:
-          // history/PB are weight×reps-centric and those columns are null for
-          // activity rows (the data lives in performed_json).
-          const sameExerciseIds = (
-            instancesByExerciseId.get(ex.exercise_id) || []
-          ).filter((id) => id !== ex.id);
-
-          let historyData: Array<(typeof allHistoryLogs)[number]> | null = null;
-          let pbData:
-            | Array<{ performed_load: number; performed_reps: number | null; created_at: string }>
-            | null = null;
-          let prRefs: Exercise["pr_refs"] | null = null;
-          if (!isActivity && sameExerciseIds.length > 0) {
-            const sameSet = new Set(sameExerciseIds);
-            // allHistoryLogs is globally newest-first, so filtering preserves
-            // order; take the most recent setCount (matches the old .limit()).
-            const logsForExercise = allHistoryLogs.filter((l) =>
-              sameSet.has(l.client_module_exercise_id),
-            );
-            historyData = logsForExercise.slice(0, setCount);
-
-            // Personal best = heaviest logged load (matches the old
-            // order=performed_load.desc&limit=1; ties resolve to most recent).
-            let best: (typeof allHistoryLogs)[number] | null = null;
-            for (const l of logsForExercise) {
-              if (
-                l.performed_load != null &&
-                (best == null || l.performed_load > best.performed_load!)
-              ) {
-                best = l;
-              }
-            }
-            pbData = best
-              ? [
-                  {
-                    performed_load: best.performed_load!,
-                    performed_reps: best.performed_reps,
-                    created_at: best.created_at,
-                  },
-                ]
-              : null;
-
-            // PR reference data from the full movement history (prior to today).
-            const bestByReps: Record<number, number> = {};
-            const bestRirByLoadReps: Record<string, number> = {};
-            let bestAbsolute = 0;
-            for (const l of logsForExercise) {
-              if (l.performed_load == null) continue;
-              bestAbsolute = Math.max(bestAbsolute, l.performed_load);
-              if (l.performed_reps != null) {
-                bestByReps[l.performed_reps] = Math.max(bestByReps[l.performed_reps] ?? 0, l.performed_load);
-                if (l.performed_rir != null) {
-                  const k = `${l.performed_load}:${l.performed_reps}`;
-                  bestRirByLoadReps[k] = Math.max(bestRirByLoadReps[k] ?? -1, l.performed_rir);
-                }
-              }
-            }
-            prRefs = { bestAbsolute, bestByReps, bestRirByLoadReps };
-          }
-
-          return {
-            id: ex.id,
-            exercise_id: ex.exercise_id,
-            section: ex.section,
-            sort_order: ex.sort_order,
-            instructions: ex.instructions,
-            prescription_snapshot_json: prescription,
-            sets_json: setsJson || undefined,
-            input_columns: inputColumns,
-            is_activity: isActivity,
-            skipped: ex.skipped ?? false,
-            exercise: {
-              name: ex.exercise_library?.name || "Unknown Exercise",
-              default_video_url: ex.exercise_library?.default_video_url,
-              primary_muscle: ex.exercise_library?.primary_muscle || "",
-              description: ex.exercise_library?.description ?? null,
-              setup_instructions: ex.exercise_library?.setup_instructions ?? null,
-              setup_points: ex.exercise_library?.setup_points ?? null,
-              equipment: ex.exercise_library?.equipment ?? null,
-              secondary_muscles: ex.exercise_library?.secondary_muscles ?? null,
-            },
-            history:
-              historyData && historyData.length > 0
-                ? {
-                    date: historyData[0].created_at,
-                    sets: historyData.map((h) => ({
-                      set_number: h.set_index,
-                      weight: h.performed_load || 0,
-                      reps: h.performed_reps || 0,
-                      rir: h.performed_rir ?? undefined,
-                      rpe: h.performed_rpe ?? undefined,
-                    })),
-                  }
-                : undefined,
-            personal_best:
-              pbData && pbData.length > 0
-                ? {
-                    weight: pbData[0].performed_load!,
-                    reps: pbData[0].performed_reps || 0,
-                    date: pbData[0].created_at,
-                  }
-                : undefined,
-            pr_refs: prRefs ?? undefined,
-          };
-      });
-
-      setSetLogs(initialLogs);
-      setModule({
-        id: moduleData.id,
-        title: moduleData.title,
-        module_type: moduleData.module_type,
-        status: moduleData.status,
-        completed_at: moduleData.completed_at,
-        module_owner_coach_id: moduleData.module_owner_coach_id,
-        coach_name: coachData?.first_name || "Coach",
-        exercises: formattedExercises,
-      });
-
-      // §3 — default the focus index to the first incomplete exercise so Resume
-      // and the segment row land in the right place (overview stays the entry).
-      const firstIncomplete = formattedExercises.findIndex((ex) => {
-        const logs = initialLogs[ex.id];
-        return !ex.skipped && logs && logs.some((l) => !l.completed && !l.skipped);
-      });
-      if (firstIncomplete >= 0) {
-        setFocusIndex(firstIncomplete);
-      }
-    } catch (error: any) {
-      console.error("Error loading session:", error);
-      setLoadError(true);
-      toast({
-        title: "Error loading workout",
-        description: sanitizeErrorForUser(error),
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [moduleId, navigate, toast]);
-
-  // P3 canonical read path (behind the flag). Resolves ONE session from
-  // client_plan_assignment + plan_* + client_plan_overrides into the SAME Module/Exercise/
-  // SetLog state loadSession builds — so the rendering + logging UI below is unchanged.
-  // SCOPE: base prescription parity (no cross-instance history/PB, no progression eval,
-  // no set-instruction math — see canonicalSessionResolver TODOs).
+  // D3: the SOLE loader. Resolves ONE session from client_plan_assignment + plan_* into the
+  // Module/Exercise/SetLog state the render + logging UI reads. Also rebuilds cross-instance
+  // history / personal-best / PR-refs (parity with the retired legacy loader).
   const loadCanonicalSession = useCallback(async () => {
-    if (!canonicalAssignmentParam) return;
+    if (!canonicalAssignmentParam) {
+      // Canonical is the only loader now — an old /session/:moduleId bookmark (or any load with
+      // no ?assignment) can't resolve. Redirect to the calendar; never a legacy fallback.
+      navigate("/client/workout/calendar");
+      return;
+    }
     try {
       setLoadError(false);
       // Retry getUser with a per-attempt timeout — a transient pooler/auth blip here was
@@ -2103,6 +1748,13 @@ function WorkoutSessionV2Content() {
       });
       const coachData = coachJson as { first_name?: string } | null;
 
+      // D3 parity: cross-instance movement history / PB / PR-refs. ONE batched read (see
+      // loadCrossInstanceHistory — no per-exercise fan-out), keyed by all rendered exercise_ids.
+      const historyByExerciseId = await loadCrossInstanceHistory(
+        currentUser.id,
+        resolved.exercises.map((rex) => rex.exerciseId),
+      );
+
       const initialLogs: Record<string, SetLog[]> = {};
       const formattedExercises: Exercise[] = resolved.exercises.map((rex) => {
         const prescription = rex.prescriptionSnapshot;
@@ -2141,6 +1793,44 @@ function WorkoutSessionV2Content() {
           };
         });
 
+        // Cross-instance history / PB / PR-refs from the batched read, excluding THIS instance's
+        // slot (mirrors the legacy sameExerciseIds.filter(id => id !== ex.id)). Skip for
+        // activities — history/PB are weight×reps-centric and null for activity rows.
+        let historyData: import("@/lib/canonicalSessionResolver").CrossInstanceLogRow[] | null = null;
+        let pbRow: { performed_load: number; performed_reps: number | null; created_at: string } | null = null;
+        let prRefs: Exercise["pr_refs"] | null = null;
+        if (!isActivity) {
+          const logsForExercise = (historyByExerciseId.get(rex.exerciseId) ?? []).filter(
+            (l) => l.plan_slot_id !== rex.planSlotId,
+          );
+          if (logsForExercise.length > 0) {
+            // newest-first already; take the most recent setCount (matches the old .limit()).
+            historyData = logsForExercise.slice(0, setCount);
+            let best: (typeof logsForExercise)[number] | null = null;
+            for (const l of logsForExercise) {
+              if (l.performed_load != null && (best == null || l.performed_load > best.performed_load!)) best = l;
+            }
+            pbRow = best
+              ? { performed_load: best.performed_load!, performed_reps: best.performed_reps, created_at: best.created_at }
+              : null;
+            const bestByReps: Record<number, number> = {};
+            const bestRirByLoadReps: Record<string, number> = {};
+            let bestAbsolute = 0;
+            for (const l of logsForExercise) {
+              if (l.performed_load == null) continue;
+              bestAbsolute = Math.max(bestAbsolute, l.performed_load);
+              if (l.performed_reps != null) {
+                bestByReps[l.performed_reps] = Math.max(bestByReps[l.performed_reps] ?? 0, l.performed_load);
+                if (l.performed_rir != null) {
+                  const k = `${l.performed_load}:${l.performed_reps}`;
+                  bestRirByLoadReps[k] = Math.max(bestRirByLoadReps[k] ?? -1, l.performed_rir);
+                }
+              }
+            }
+            prRefs = { bestAbsolute, bestByReps, bestRirByLoadReps };
+          }
+        }
+
         return {
           id: rex.planSlotId,
           exercise_id: rex.exerciseId,
@@ -2162,7 +1852,23 @@ function WorkoutSessionV2Content() {
             equipment: rex.library?.equipment ?? null,
             secondary_muscles: rex.library?.secondary_muscles ?? null,
           },
-          // history / personal_best / pr_refs — cross-instance, deferred (P3 TODO).
+          history:
+            historyData && historyData.length > 0
+              ? {
+                  date: historyData[0].created_at,
+                  sets: historyData.map((h) => ({
+                    set_number: h.set_index,
+                    weight: h.performed_load || 0,
+                    reps: h.performed_reps || 0,
+                    rir: h.performed_rir ?? undefined,
+                    rpe: h.performed_rpe ?? undefined,
+                  })),
+                }
+              : undefined,
+          personal_best: pbRow
+            ? { weight: pbRow.performed_load, reps: pbRow.performed_reps || 0, date: pbRow.created_at }
+            : undefined,
+          pr_refs: prRefs ?? undefined,
         };
       });
 
@@ -2209,18 +1915,16 @@ function WorkoutSessionV2Content() {
     hasFetched.current = true;
     setLoadError(false);
     setLoading(true);
-    if (useCanonical) loadCanonicalSession();
-    else loadSession();
-  }, [useCanonical, loadCanonicalSession, loadSession]);
+    loadCanonicalSession();
+  }, [loadCanonicalSession]);
 
   // hasFetched ref guard pattern to prevent infinite loops
   useEffect(() => {
     if (hasFetched.current) return;
     hasFetched.current = true;
-    // P3: canonical read path behind the flag (legacy is the default + authoritative path).
-    if (useCanonical) loadCanonicalSession();
-    else loadSession();
-  }, [useCanonical, loadCanonicalSession, loadSession]);
+    // D3: canonical is the only loader.
+    loadCanonicalSession();
+  }, [loadCanonicalSession]);
 
   // WA1 — resolve the coach's WhatsApp number for the completion-sheet button.
   // Deliberately NOT part of loadSession's Promise.all burst (BUG3 / WK7 §1.5
