@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { supabase } from "@/integrations/supabase/client";
@@ -211,13 +212,16 @@ function WorkoutsContent() {
   }, [schedule, canonical]);
 
   const onOpen = (m: SessionModule) => {
-    if (m.canonical) {
-      navigate(
-        `/client/workout/session/canonical?assignment=${m.canonical.assignmentId}&session=${m.id}&date=${m.canonical.date}`,
-      );
-    } else {
-      navigate(`/client/workout/session/${m.id}`);
+    // D3: canonical is the only session route. A module without canonical nav is a data gap
+    // (board_v2 is live with full coverage), not a legacy fallback — surface it, don't mint a
+    // dead legacy URL.
+    if (!m.canonical) {
+      toast.error("Couldn't open workout — please refresh and try again.");
+      return;
     }
+    navigate(
+      `/client/workout/session/canonical?assignment=${m.canonical.assignmentId}&session=${m.id}&date=${m.canonical.date}`,
+    );
   };
 
   // All grids read the canonical map. Null schedule → empty maps (graceful empty grid).

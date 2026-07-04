@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -122,16 +123,17 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
   }, [data]);
 
   // Canonical (board_v2) modules carry an assignment+date marker → open the
-  // canonical session route; legacy modules keep the plain id route. Mirrors
-  // WorkoutCalendar's onOpen branch.
+  // D3: canonical is the only session route. Mirrors WorkoutCalendar's onOpen branch.
   const openModule = (module: { id: string; canonical?: CanonicalNav }) => {
-    if (module.canonical) {
-      navigate(
-        `/client/workout/session/canonical?assignment=${module.canonical.assignmentId}&session=${module.id}&date=${module.canonical.date}`,
-      );
-    } else {
-      navigate(`/client/workout/session/${module.id}`);
+    if (!module.canonical) {
+      // board_v2 is live with full canonical coverage — a module without canonical nav is a
+      // data gap, not a legacy fallback. Surface it rather than minting a dead legacy URL.
+      toast.error("Couldn't open workout — please refresh and try again.");
+      return;
     }
+    navigate(
+      `/client/workout/session/canonical?assignment=${module.canonical.assignmentId}&session=${module.id}&date=${module.canonical.date}`,
+    );
   };
 
   const handleStartWorkout = () => {

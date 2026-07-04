@@ -40,7 +40,9 @@ export function useVolumeTracking(
       const startDate = new Date();
       startDate.setDate(startDate.getDate() - weeksBack * 7);
 
-      // Get all exercise set logs for this client in the date range
+      // Get all CANONICAL exercise set logs for this client in the date range. D3: key on
+      // plan_slot_id (the legacy client_module_exercise_id path under-counted — it missed the
+      // canonical-only logs, which are the majority post-cutover).
       const { data: logs, error: logsError } = await supabase
         .from("exercise_set_logs")
         .select(`
@@ -48,12 +50,13 @@ export function useVolumeTracking(
           performed_reps,
           performed_load,
           created_at,
-          client_module_exercise_id
+          plan_slot_id
         `)
         .eq("created_by_user_id", clientUserId)
         .gte("created_at", startDate.toISOString())
         .lte("created_at", endDate.toISOString())
-        .not("performed_reps", "is", null);
+        .not("performed_reps", "is", null)
+        .not("plan_slot_id", "is", null);
 
       if (logsError) throw logsError;
       if (!logs || logs.length === 0) {
@@ -61,18 +64,20 @@ export function useVolumeTracking(
         return;
       }
 
-      // Get exercise IDs for all the logged exercises
-      const cmeIds = [...new Set(logs.map((l) => l.client_module_exercise_id))];
+      // Resolve each log's movement via plan_slot_id → plan_slots.exercise_id.
+      const slotIds = [...new Set(logs.map((l) => l.plan_slot_id).filter((v): v is string => Boolean(v)))];
 
-      const { data: cmeData, error: cmeError } = await supabase
-        .from("client_module_exercises")
+      const { data: slotData, error: slotError } = await supabase
+        .from("plan_slots")
         .select("id, exercise_id")
-        .in("id", cmeIds);
+        .in("id", slotIds);
 
-      if (cmeError) throw cmeError;
+      if (slotError) throw slotError;
 
       // Get exercise library data for muscle groups
-      const exerciseIds = [...new Set((cmeData || []).map((c) => c.exercise_id))];
+      const exerciseIds = [
+        ...new Set((slotData || []).map((s) => s.exercise_id).filter((v): v is string => Boolean(v))),
+      ];
 
       const { data: exerciseData, error: exError } = await supabase
         .from("exercise_library")
@@ -82,9 +87,9 @@ export function useVolumeTracking(
       if (exError) throw exError;
 
       // Build lookup maps
-      const cmeToExercise = new Map<string, string>();
-      for (const cme of cmeData || []) {
-        cmeToExercise.set(cme.id, cme.exercise_id);
+      const slotToExercise = new Map<string, string>();
+      for (const s of slotData || []) {
+        if (s.id && s.exercise_id) slotToExercise.set(s.id, s.exercise_id);
       }
 
       const exerciseToMuscle = new Map<string, string>();
@@ -96,7 +101,8 @@ export function useVolumeTracking(
       const weekMap = new Map<string, Map<string, MuscleGroupVolume>>();
 
       for (const log of logs) {
-        const exerciseId = cmeToExercise.get(log.client_module_exercise_id);
+        if (!log.plan_slot_id) continue;
+        const exerciseId = slotToExercise.get(log.plan_slot_id);
         if (!exerciseId) continue;
 
         const muscle = exerciseToMuscle.get(exerciseId);
