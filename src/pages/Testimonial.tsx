@@ -15,48 +15,70 @@ const Testimonial = () => {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const [user, setUser] = useState<any>(null);
-  const [coach, setCoach] = useState<any>(null);
+  const [user, setUser] = useState<{ id: string } | null>(null);
+  // The submitter's OWN coaches (resolved from their subscriptions — any status). The
+  // reviewed coach is picked from THIS list, never from the ?coach= URL param, which kills
+  // the self-endorsement + arbitrary-coach vectors before RLS even runs.
+  const [myCoaches, setMyCoaches] = useState<{ coachId: string; name: string | null }[]>([]);
+  const [selectedCoachId, setSelectedCoachId] = useState<string | null>(null);
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [feedback, setFeedback] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-
-  const coachId = searchParams.get("coach");
 
   const loadData = useCallback(async () => {
     setLoading(true);
     try {
-      // B9-N6: 8s timeout guard against the GoTrueClient deadlock (AuthGuard
-      // pattern). On timeout this throws -> caught below -> user stays null ->
-      // handleSubmit routes to /auth.
+      // AuthGuard already gates this route; resolve the id for the subscription lookup.
       const { data: { user: currentUser } } = await withTimeout(
         supabase.auth.getUser(),
         8000,
         "getUser (testimonial page)"
       );
-      setUser(currentUser);
-
-      // Coach info from the public-safe directory view (no contact info; the
-      // view is filtered to status='active'). B9-N7: .maybeSingle(), not
-      // .single() -- an inactive/unknown coach would 406 and hang the page;
-      // null falls back to a generic header.
-      if (coachId) {
-        const { data: coachData, error: coachError } = await supabase
-          .from("coaches_directory")
-          .select("first_name, last_name, profile_picture_url")
-          .eq("user_id", coachId)
-          .maybeSingle();
-        if (coachError) throw coachError;
-        setCoach(coachData);
+      if (!currentUser) {
+        setLoading(false);
+        return;
       }
+      setUser({ id: currentUser.id });
+
+      // Resolve the submitter's own coaches from their subscriptions (any status = active or
+      // past). coach_id is taken from HERE, never from ?coach=.
+      const { data: subs, error: subsErr } = await supabase
+        .from("subscriptions")
+        .select("coach_id")
+        .eq("user_id", currentUser.id)
+        .not("coach_id", "is", null);
+      if (subsErr) throw subsErr;
+
+      const coachIds = [...new Set((subs ?? []).map((s) => s.coach_id).filter(Boolean))] as string[];
+      if (coachIds.length === 0) {
+        setMyCoaches([]);
+        return;
+      }
+
+      // Best-effort display names from the public-safe directory (status='active'). A past/
+      // inactive coach may not resolve → shown generically but still reviewable.
+      const { data: dir } = await supabase
+        .from("coaches_directory")
+        .select("user_id, first_name, last_name")
+        .in("user_id", coachIds);
+      const nameById = new Map<string, string>();
+      for (const c of dir ?? []) {
+        if (c.user_id) nameById.set(c.user_id, [c.first_name, c.last_name].filter(Boolean).join(" "));
+      }
+      const coaches = coachIds.map((id) => ({ coachId: id, name: nameById.get(id) || null }));
+      setMyCoaches(coaches);
+
+      // Preselect: ?coach= ONLY if it's one of the user's real coaches; otherwise the first.
+      const param = searchParams.get("coach");
+      setSelectedCoachId(param && coachIds.includes(param) ? param : coachIds[0]);
     } catch (error) {
-      captureException(error, { context: "testimonial_load_data" });
+      captureException(error, { source: "testimonial_load_data" });
     } finally {
       setLoading(false);
     }
-  }, [coachId]);
+  }, [searchParams]);
 
   useEffect(() => {
     loadData();
@@ -72,6 +94,15 @@ const Testimonial = () => {
         variant: "destructive",
       });
       navigate("/auth");
+      return;
+    }
+
+    if (!selectedCoachId) {
+      toast({
+        title: "No coach to review",
+        description: "Only IGU clients can leave a testimonial for their coach.",
+        variant: "destructive",
+      });
       return;
     }
 
@@ -120,12 +151,21 @@ const Testimonial = () => {
       );
       if (profileError) throw profileError;
 
-      const authorDisplayName =
-        ownProfile?.display_name || ownProfile?.first_name || "Anonymous";
+      // Require a real display name — no "Anonymous" fallback.
+      const authorDisplayName = ownProfile?.display_name || ownProfile?.first_name || null;
+      if (!authorDisplayName) {
+        toast({
+          title: "Couldn't submit",
+          description: "We couldn't resolve your display name. Please set it in your account, then try again.",
+          variant: "destructive",
+        });
+        setSubmitting(false);
+        return;
+      }
 
       const { error } = await supabase.from("testimonials").insert({
         user_id: user.id,
-        coach_id: coachId || null,
+        coach_id: selectedCoachId,
         rating,
         feedback: feedback.trim(),
         author_display_name: authorDisplayName,
@@ -141,7 +181,7 @@ const Testimonial = () => {
       // Redirect to dashboard
       navigate("/dashboard");
     } catch (error: any) {
-      captureException(error, { context: "testimonial_submit" });
+      captureException(error, { source: "testimonial_submit" });
       // B9-N9: UNIQUE(user_id, coach_id) -> one testimonial per coach.
       const alreadySubmitted = error?.code === "23505";
       toast({
@@ -164,6 +204,35 @@ const Testimonial = () => {
     );
   }
 
+  // Clients-only: no coach relationship → no form (RLS enforces this too).
+  if (myCoaches.length === 0) {
+    return (
+      <div className="min-h-screen bg-background pt-24 pb-12 px-4">
+        <SEOHead
+          title="Client Success Stories | Intensive Gainz Unit"
+          description="Share your experience and read client success stories from IGU coaching."
+        />
+        <div className="max-w-2xl mx-auto">
+          <Card>
+            <CardHeader>
+              <CardTitle>Testimonials are for IGU clients</CardTitle>
+              <CardDescription>
+                Only clients can leave a testimonial for their coach. Once you're working with an
+                IGU coach, you'll be able to share your experience here.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button onClick={() => navigate("/dashboard")}>Back to dashboard</Button>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
+  const selectedCoach = myCoaches.find((c) => c.coachId === selectedCoachId) ?? null;
+  const selectedCoachName = selectedCoach?.name;
+
   return (
     <div className="min-h-screen bg-background pt-24 pb-12 px-4">
       <SEOHead
@@ -175,11 +244,31 @@ const Testimonial = () => {
           <CardHeader>
             <CardTitle>Share Your Experience</CardTitle>
             <CardDescription>
-              {coach ? `How was your experience with ${[coach.first_name, coach.last_name].filter(Boolean).join(" ")}?` : "Tell us about your experience"}
+              {selectedCoachName
+                ? `How was your experience with ${selectedCoachName}?`
+                : "How was your experience with your coach?"}
             </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
+              {/* Coach picker — only when the client has more than one coach; choices are
+                  restricted to THEIR OWN coaches (never an arbitrary ?coach= id). */}
+              {myCoaches.length > 1 && (
+                <div className="space-y-2">
+                  <label htmlFor="coach" className="text-sm font-medium">Which coach?</label>
+                  <select
+                    id="coach"
+                    value={selectedCoachId ?? ""}
+                    onChange={(e) => setSelectedCoachId(e.target.value)}
+                    className="w-full h-10 rounded-md border border-input bg-background px-3 text-sm"
+                  >
+                    {myCoaches.map((c) => (
+                      <option key={c.coachId} value={c.coachId}>{c.name || "Your coach"}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
               {/* Rating Stars */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Your Rating</label>
