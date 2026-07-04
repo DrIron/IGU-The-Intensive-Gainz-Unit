@@ -24,6 +24,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CoachProfile from "@/components/CoachProfile";
+import { useCanLeaveTestimonial } from "@/hooks/useCanLeaveTestimonial";
 
 interface Subscription {
   id: string;
@@ -69,6 +70,7 @@ interface ProfileData {
 
 export default function AccountManagement() {
   const navigate = useNavigate();
+  const { canLeave: canLeaveTestimonial } = useCanLeaveTestimonial();
   const { toast } = useToast();
   const [user, setUser] = useState<any>(null);
   const [subscription, setSubscription] = useState<Subscription | null>(null);
@@ -507,6 +509,19 @@ export default function AccountManagement() {
             </TabsList>
 
             <TabsContent value="account" className="space-y-6">
+              {/* Leave a testimonial — shown only to clients of a coach (same gate as the form). */}
+              {canLeaveTestimonial && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Enjoying your coaching?</CardTitle>
+                    <CardDescription>Share your experience — it helps others find IGU.</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    <Button onClick={() => navigate("/testimonial")}>Leave a testimonial</Button>
+                  </CardContent>
+                </Card>
+              )}
+
               {/* Profile Section */}
               <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Profile</h2>
               
