@@ -5,6 +5,8 @@ import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { ShieldAlert, Plus, Loader2 } from "lucide-react";
 import { TeamCard } from "./TeamCard";
 import { CreateTeamDialog } from "./CreateTeamDialog";
@@ -64,12 +66,12 @@ function CoachTeamsList({ coachUserId }: CoachTeamsPageProps) {
         return;
       }
 
-      // Load teams
+      // Load teams (both active + inactive; inactive teams surface in their own
+      // section with a Reactivate action and don't count toward the team cap).
       const { data: teamsData, error } = await supabase
         .from("coach_teams")
         .select("*")
         .eq("coach_id", coachUserId)
-        .eq("is_active", true)
         .order("created_at");
 
       if (error) throw error;
@@ -147,6 +149,29 @@ function CoachTeamsList({ coachUserId }: CoachTeamsPageProps) {
     handleRefresh();
   }, [handleRefresh]);
 
+  const handleReactivate = useCallback(
+    async (teamId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from("coach_teams")
+          .update({ is_active: true })
+          .eq("id", teamId)
+          .select("id");
+        if (error) throw error;
+        if (!data || data.length === 0) throw new Error("Update not persisted");
+        toast({ title: "Team reactivated" });
+        handleRefresh();
+      } catch (error: any) {
+        toast({
+          title: "Error reactivating team",
+          description: sanitizeErrorForUser(error),
+          variant: "destructive",
+        });
+      }
+    },
+    [handleRefresh, toast],
+  );
+
   // Not a head coach
   if (isHeadCoach === false) {
     return (
@@ -168,24 +193,28 @@ function CoachTeamsList({ coachUserId }: CoachTeamsPageProps) {
   }
 
   // List view (detail is now a deep-linkable route: /coach/teams/:teamId).
+  // Only active teams count toward the cap; inactive teams live in their own section.
+  const active = teams.filter((t) => t.is_active);
+  const inactive = teams.filter((t) => !t.is_active);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <p className="text-sm text-muted-foreground">
-            {teams.length} of {MAX_TEAMS} teams
+            {active.length} of {MAX_TEAMS} teams
           </p>
         </div>
         <Button
           onClick={() => setShowCreateDialog(true)}
-          disabled={teams.length >= MAX_TEAMS}
+          disabled={active.length >= MAX_TEAMS}
         >
           <Plus className="h-4 w-4 mr-2" />
           Create Team
         </Button>
       </div>
 
-      {teams.length === 0 ? (
+      {active.length === 0 ? (
         <div className="text-center py-12">
           <p className="text-muted-foreground">
             No teams created yet. Create your first team to get started.
@@ -193,9 +222,37 @@ function CoachTeamsList({ coachUserId }: CoachTeamsPageProps) {
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {teams.map((team) => (
+          {active.map((team) => (
             <TeamCard key={team.id} team={team} onClick={handleTeamClick} />
           ))}
+        </div>
+      )}
+
+      {inactive.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-sm font-semibold text-muted-foreground">Inactive</h2>
+          <div className="space-y-2">
+            {inactive.map((team) => (
+              <Card key={team.id}>
+                <CardContent className="flex items-center justify-between gap-3 py-3">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="font-medium truncate">{team.name}</span>
+                    <Badge variant="secondary" className="shrink-0">
+                      Inactive
+                    </Badge>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="shrink-0"
+                    onClick={() => handleReactivate(team.id)}
+                  >
+                    Reactivate
+                  </Button>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         </div>
       )}
 
@@ -203,7 +260,7 @@ function CoachTeamsList({ coachUserId }: CoachTeamsPageProps) {
         open={showCreateDialog}
         onOpenChange={setShowCreateDialog}
         coachUserId={coachUserId}
-        existingTeamCount={teams.length}
+        existingTeamCount={active.length}
         onCreated={handleTeamCreated}
       />
     </div>
