@@ -483,7 +483,7 @@ export default function BillingPayment() {
             <Button
               onClick={handlePayment}
               disabled={processingPayment || (requiresConfirmation && !confirmed)}
-              variant="gradient"
+              variant="default"
               size="lg"
               className="w-full"
             >

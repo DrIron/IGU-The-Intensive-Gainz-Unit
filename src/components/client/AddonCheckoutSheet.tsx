@@ -235,7 +235,7 @@ export function AddonCheckoutSheet({
           </Button>
           <Button
             type="button"
-            variant="gradient"
+            variant="default"
             onClick={handleConfirm}
             disabled={!canConfirm}
           >

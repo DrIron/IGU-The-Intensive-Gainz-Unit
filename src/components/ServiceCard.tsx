@@ -20,12 +20,11 @@ export const ServiceCard = ({
 }: ServiceCardProps) => {
   return (
     <Card className={cn(
-      "relative overflow-hidden bg-card/50 backdrop-blur-sm transition-all duration-300 hover:shadow-lg hover:shadow-primary/20",
+      "relative overflow-hidden bg-card transition-all duration-300",
       mostPopular
-        ? "border-primary/60 ring-2 ring-primary/30 shadow-lg shadow-primary/10 md:scale-[1.02]"
+        ? "border-primary"
         : "border-border/50 hover:border-primary/50",
     )}>
-      <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-accent/5" />
       <CardHeader className="relative">
         {mostPopular && (
           <div className="inline-flex items-center gap-1 px-3 py-1 mb-2 w-fit text-xs font-semibold rounded-full bg-primary text-primary-foreground">
@@ -36,7 +35,7 @@ export const ServiceCard = ({
         <div className="inline-block px-3 py-1 mb-2 text-xs font-semibold rounded-full bg-primary/10 text-primary w-fit">
           {type === 'team' ? 'Team Plan' : '1:1 Coaching'}
         </div>
-        <CardTitle className="text-2xl font-bold">{name}</CardTitle>
+        <CardTitle className="text-2xl font-semibold">{name}</CardTitle>
         <CardDescription className="text-base">{description}</CardDescription>
       </CardHeader>
       <CardContent className="relative">
@@ -47,7 +46,7 @@ export const ServiceCard = ({
           {type !== "team" && (
             <span className="text-muted-foreground text-base mr-1.5 align-middle">from</span>
           )}
-          <span className="text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+          <span className="text-4xl font-semibold text-primary">
             {price} KWD
           </span>
           <span className="text-muted-foreground">/month</span>
@@ -63,7 +62,7 @@ export const ServiceCard = ({
       </CardContent>
       <CardFooter className="relative">
         <Button 
-          variant="gradient"
+          variant="default"
           className="w-full"
           onClick={onSelect}
         >

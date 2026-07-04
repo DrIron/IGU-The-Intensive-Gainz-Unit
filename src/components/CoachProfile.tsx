@@ -505,7 +505,7 @@ export default function CoachProfile() {
             </div>
           </div>
           
-          <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
+          <Button type="submit" variant="default" className="w-full" disabled={loading}>
             {loading ? "Saving..." : "Update Profile"}
           </Button>
         </form>

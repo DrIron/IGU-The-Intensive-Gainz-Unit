@@ -170,7 +170,7 @@ export function LogAddonSessionDialog({
           </Button>
           <Button
             type="button"
-            variant="gradient"
+            variant="default"
             onClick={handleConfirm}
             disabled={!canConfirm}
           >

@@ -165,7 +165,7 @@ const Testimonial = () => {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-secondary/20 pt-24 pb-12 px-4">
+    <div className="min-h-screen bg-background pt-24 pb-12 px-4">
       <SEOHead
         title="Client Success Stories | Intensive Gainz Unit"
         description="Share your experience and read client success stories from IGU coaching."
@@ -196,8 +196,8 @@ const Testimonial = () => {
                       <Star
                         className={`w-10 h-10 ${
                           star <= (hoveredRating || rating)
-                            ? "fill-yellow-400 text-yellow-400"
-                            : "text-gray-300"
+                            ? "fill-primary text-primary"
+                            : "text-muted-foreground"
                         }`}
                       />
                     </button>

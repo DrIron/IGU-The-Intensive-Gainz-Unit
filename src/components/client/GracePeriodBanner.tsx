@@ -82,7 +82,7 @@ export function GracePeriodBanner({ subscription, profile }: GracePeriodBannerPr
             Renew now to regain instant access to all your coaching features.
           </p>
           <Button 
-            variant="gradient"
+            variant="default"
             size="sm"
             onClick={() => navigate("/billing/pay")}
             className="w-fit"
@@ -132,7 +132,7 @@ export function GracePeriodBanner({ subscription, profile }: GracePeriodBannerPr
           
           <div className="flex flex-wrap items-center gap-3">
             <Button 
-              variant="gradient"
+              variant="default"
               size="sm"
               onClick={() => navigate("/billing/pay")}
             >

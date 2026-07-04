@@ -204,7 +204,7 @@ export function CoachServiceLimits({ coachId, coachName, open, onOpenChange }: C
                 Cancel
               </Button>
               <Button
-                variant="gradient"
+                variant="default"
                 onClick={handleSave}
                 disabled={saving}
               >

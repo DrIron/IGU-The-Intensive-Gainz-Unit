@@ -189,7 +189,7 @@ export default function ResetPassword() {
                 minLength={6}
               />
             </div>
-            <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
+            <Button type="submit" variant="default" className="w-full" disabled={loading}>
               {loading ? "Updating..." : "Update Password"}
             </Button>
           </form>

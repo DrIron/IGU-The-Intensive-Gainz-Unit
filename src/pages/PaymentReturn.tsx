@@ -325,7 +325,7 @@ export default function PaymentReturn() {
               <p className="text-sm text-muted-foreground">
                 {mode === 'addon' ? 'Redirecting to your add-ons...' : 'Redirecting to your dashboard...'}
               </p>
-              <Button onClick={handleGoToDashboard} variant="gradient" className="w-full">
+              <Button onClick={handleGoToDashboard} variant="default" className="w-full">
                 {mode === 'addon' ? 'Go to Add-ons Now' : 'Go to Dashboard Now'}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
@@ -375,7 +375,7 @@ export default function PaymentReturn() {
               </Alert>
               
               <div className="flex gap-3">
-                <Button onClick={handleRetryPayment} variant="gradient" className="flex-1">
+                <Button onClick={handleRetryPayment} variant="default" className="flex-1">
                   Try Again
                 </Button>
                 <Button onClick={handleGoToDashboard} variant="outline" className="flex-1">

@@ -503,7 +503,7 @@ export function AdjustmentCalculator({ showSteps = true }: { showSteps?: boolean
           </div>
 
           <Button
-            variant="gradient"
+            variant="default"
             className="w-full"
             onClick={calculateAdjustment}
             size="lg"

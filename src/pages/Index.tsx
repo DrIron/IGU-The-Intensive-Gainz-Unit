@@ -322,8 +322,8 @@ export default function Index() {
       case 'logged_out':
         return (
           <>
-            <Button variant="hero" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
-            <p className="text-white/80 text-sm md:text-base mt-3" style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.6)' }}>
+            <Button variant="default" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
+            <p className="text-white/80 text-sm md:text-base mt-3">
               Already a client?{" "}
               <button
                 onClick={() => goToAuthOrDashboard(user)}
@@ -338,8 +338,8 @@ export default function Index() {
       case 'active':
         return (
           <>
-            <Button variant="hero" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
-            <p className="text-white/80 text-sm md:text-base mt-3" style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.6)' }}>
+            <Button variant="default" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
+            <p className="text-white/80 text-sm md:text-base mt-3">
               <Link
                 to="/services"
                 className="text-white font-medium underline underline-offset-2 hover:text-primary transition-colors"
@@ -353,8 +353,8 @@ export default function Index() {
       case 'inactive_cancelled':
         return (
           <>
-            <Button variant="hero" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
-            <p className="text-white/80 text-sm md:text-base mt-3" style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.6)' }}>
+            <Button variant="default" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
+            <p className="text-white/80 text-sm md:text-base mt-3">
               <a
                 href="mailto:support@theigu.com"
                 className="text-white font-medium underline underline-offset-2 hover:text-primary transition-colors"
@@ -370,8 +370,8 @@ export default function Index() {
         // Pending states - send to dashboard which handles detailed messaging
         return (
           <>
-            <Button variant="hero" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
-            <p className="text-white/80 text-sm md:text-base mt-3" style={{ textShadow: '0 2px 8px rgba(0, 0, 0, 0.6)' }}>
+            <Button variant="default" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
+            <p className="text-white/80 text-sm md:text-base mt-3">
               <a
                 href="mailto:support@theigu.com"
                 className="text-white font-medium underline underline-offset-2 hover:text-primary transition-colors"
@@ -401,12 +401,8 @@ export default function Index() {
           decoding="async"
           className="absolute inset-0 w-full h-full object-cover"
         />
-        {/* Dark overlay with gradient */}
-        <div className="absolute inset-0 bg-gradient-to-b from-background/90 via-background/70 to-background" />
-        {/* Grid pattern overlay */}
-        <div className="absolute inset-0 grid-pattern opacity-30" />
-        {/* Red radial glow */}
-        <div className="absolute inset-0 red-glow" />
+        {/* Flat dark scrim for text contrast over the hero image (no gradient). */}
+        <div className="absolute inset-0 bg-background/80" />
 
         <div
           ref={heroFade.ref}
@@ -440,7 +436,6 @@ export default function Index() {
 
       {/* Features Section */}
       <section className="py-24 px-4 bg-background relative overflow-hidden">
-        <div className="absolute inset-0 grid-pattern opacity-10" />
         <div
           ref={featuresFade.ref}
           className={`container mx-auto max-w-7xl relative z-10 fade-up ${featuresFade.isVisible ? 'visible' : ''}`}
@@ -466,7 +461,7 @@ export default function Index() {
               return (
                 <div
                   key={i}
-                  className="group p-6 rounded-2xl bg-card border border-border hover:border-primary/50 transition-all duration-300 hover:shadow-lg hover:shadow-primary/5"
+                  className="group p-6 rounded-2xl bg-card border border-border hover:border-primary/50 transition-colors duration-300"
                 >
                   <div className="w-12 h-12 rounded-xl bg-primary/10 flex items-center justify-center mb-4 group-hover:bg-primary/20 transition-colors">
                     <IconComponent className="h-6 w-6 text-primary" />
@@ -507,7 +502,7 @@ export default function Index() {
               {/* Team Plans */}
               {teamPlansOpen && (
                 <div className="mb-16">
-                  <h3 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-4 text-center">Team Training</h3>
+                  <h3 className="text-2xl sm:text-4xl md:text-5xl font-semibold mb-4 text-center">Team Training</h3>
                   {(teamPlanAnnouncement.text || teamPlanAnnouncement.startDate) && (
                     <div className="max-w-2xl mx-auto mb-8 p-4 bg-primary/10 border border-primary/20 rounded-lg text-center">
                       <p className="text-lg font-medium text-primary">
@@ -568,7 +563,7 @@ export default function Index() {
 
               {/* 1:1 Plans */}
               <div>
-                <h3 className="text-2xl sm:text-4xl md:text-5xl font-bold mb-8 text-center">1:1 Coaching</h3>
+                <h3 className="text-2xl sm:text-4xl md:text-5xl font-semibold mb-8 text-center">1:1 Coaching</h3>
                 {isMobile ? (
                   <Carousel className="w-full max-w-sm mx-auto">
                     <CarouselContent>
@@ -649,7 +644,7 @@ export default function Index() {
                   </p>
                   <div className="flex items-center gap-3">
                     <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                      <span className="text-lg font-bold text-primary">
+                      <span className="text-lg font-semibold text-primary">
                         {testimonial.author_display_name?.charAt(0) || "?"}
                       </span>
                     </div>
@@ -695,8 +690,7 @@ export default function Index() {
       <FAQSection />
 
       {/* CTA Section */}
-      <section className="py-24 px-4 bg-gradient-to-b from-background to-primary/5 relative overflow-hidden">
-        <div className="absolute inset-0 red-glow opacity-50" />
+      <section className="py-24 px-4 bg-background relative overflow-hidden">
         <div
           ref={ctaFade.ref}
           className={`container mx-auto max-w-4xl text-center relative z-10 fade-up ${ctaFade.isVisible ? 'visible' : ''}`}
@@ -728,7 +722,7 @@ export default function Index() {
             showStickyCta ? "translate-y-0" : "translate-y-full pointer-events-none"
           )}
         >
-          <Button variant="hero" size="lg" className="w-full" onClick={primaryCta.onClick}>
+          <Button variant="default" size="lg" className="w-full" onClick={primaryCta.onClick}>
             {primaryCta.label}
           </Button>
         </div>
