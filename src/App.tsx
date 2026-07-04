@@ -31,6 +31,7 @@ const CalorieCalculator = lazyWithReload(() => import("./pages/CalorieCalculator
 const Learn = lazyWithReload(() => import("./pages/Learn"));
 const Services = lazyWithReload(() => import("./pages/Services"));
 const Testimonial = lazyWithReload(() => import("./pages/Testimonial"));
+const Testimonials = lazyWithReload(() => import("./pages/Testimonials"));
 const ClientSubmission = lazyWithReload(() => import("./pages/ClientSubmission"));
 const MeetOurTeam = lazyWithReload(() => import("./pages/MeetOurTeam"));
 const CoachSignup = lazyWithReload(() => import("./pages/CoachSignup"));
@@ -269,6 +270,7 @@ const App = () => {
                   <Route path="/learn" element={<AuthGuard><Learn /></AuthGuard>} />
                   <Route path="/workout-library" element={<Navigate to="/learn?tab=exercises" replace />} />
                   <Route path="/testimonial" element={<WaitlistGuard><AuthGuard><PublicLayout><Testimonial /></PublicLayout></AuthGuard></WaitlistGuard>} />
+                  <Route path="/testimonials" element={<WaitlistGuard><PublicLayout><Testimonials /></PublicLayout></WaitlistGuard>} />
                   <Route path="/client-submission/:userId" element={<AuthGuard><ClientSubmission /></AuthGuard>} />
                   <Route path="/meet-our-team" element={<WaitlistGuard><PublicLayout><MeetOurTeam /></PublicLayout></WaitlistGuard>} />
                   <Route path="/teams" element={<WaitlistGuard><PublicLayout><TeamsPage /></PublicLayout></WaitlistGuard>} />

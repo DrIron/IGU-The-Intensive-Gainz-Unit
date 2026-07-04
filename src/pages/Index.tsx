@@ -8,7 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuthNavigation } from "@/hooks/useAuthNavigation";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { Dumbbell, Star, ChevronLeft, ChevronRight, Target, MessageSquare, Apple, TrendingUp, FlaskConical, Calendar } from "lucide-react";
+import { Dumbbell, ChevronLeft, ChevronRight, Target, MessageSquare, Apple, TrendingUp, FlaskConical, Calendar } from "lucide-react";
 // Hero image served from public/ for preloading (stable URL, no Vite hash)
 const gymHeroBg = "/gym-hero-bg.jpg";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -21,6 +21,7 @@ import { captureException } from "@/lib/errorLogging";
 import { FAQSection } from "@/components/marketing/FAQSection";
 import { HowItWorksSection } from "@/components/marketing/HowItWorksSection";
 import { HeroSocialProof } from "@/components/marketing/HeroSocialProof";
+import { TestimonialsList } from "@/components/marketing/TestimonialsList";
 import { cn } from "@/lib/utils";
 
 interface Service {
@@ -32,21 +33,6 @@ interface Service {
   features: string[];
 }
 
-interface Testimonial {
-  id: string;
-  rating: number;
-  feedback: string;
-  user_id: string;
-  coach_id: string | null;
-  created_at: string;
-  // B9-N1: snapshotted at submission time so anon homepage browsers can read
-  // the author name off the (anon-readable) testimonials row.
-  author_display_name: string | null;
-  coaches?: {
-    first_name: string;
-    last_name: string;
-  };
-}
 
 interface Profile {
   id: string;
@@ -95,7 +81,6 @@ export default function Index() {
     startDate: string | null;
     text: string | null;
   }>({ startDate: null, text: null });
-  const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
   const isMobile = useIsMobile();
 
   // SEOHead rendered in JSX below
@@ -213,45 +198,6 @@ export default function Index() {
     }
   }, [toast]);
 
-  const loadTestimonials = useCallback(async () => {
-    try {
-      const { data, error } = await supabase
-        .from("testimonials")
-        .select("*")
-        .eq("is_approved", true)
-        .eq("is_archived", false)
-        .order("created_at", { ascending: false })
-        .limit(3);
-
-      if (error) throw error;
-
-      // Author name is read directly off the row (B9-N1: snapshotted at submit
-      // time). Only the coach name still needs a lookup, via the public-safe
-      // coaches_directory view.
-      const testimonialsWithDetails = await Promise.all(
-        (data || []).map(async (testimonial) => {
-          let coach = null;
-          if (testimonial.coach_id) {
-            const { data: coachData } = await supabase
-              .from("coaches_directory")
-              .select("first_name, last_name")
-              .eq("user_id", testimonial.coach_id)
-              .maybeSingle();
-            coach = coachData;
-          }
-
-          return {
-            ...testimonial,
-            coaches: coach,
-          };
-        })
-      );
-
-      setTestimonials(testimonialsWithDetails);
-    } catch (error: unknown) {
-      captureException(error, { source: "Index.loadTestimonials" });
-    }
-  }, []);
 
   // Public, session-independent data loads immediately so anonymous visitors
   // don't wait for auth to resolve.
@@ -265,11 +211,10 @@ export default function Index() {
     }, 3000);
 
     loadTeamPlanSettings();
-    loadTestimonials();
     loadServices(); // Load services for all users (pricing is public)
 
     return () => clearTimeout(timeout);
-  }, [loadTeamPlanSettings, loadTestimonials, loadServices]);
+  }, [loadTeamPlanSettings, loadServices]);
 
   // Redirect logic fires once the session resolves (or definitively doesn't).
   // Waiting on `sessionLoading` avoids a mount-time `auth.getUser()` race
@@ -623,65 +568,13 @@ export default function Index() {
             </p>
           </div>
 
-          <div className="grid md:grid-cols-3 gap-8">
-            {testimonials.length > 0 ? (
-              testimonials.map((testimonial) => (
-                <div key={testimonial.id} className="bg-card border border-border rounded-lg p-6">
-                  <div className="flex gap-1 mb-4">
-                    {[...Array(5)].map((_, index) => (
-                      <Star
-                        key={index}
-                        className={`h-5 w-5 ${
-                          index < testimonial.rating
-                            ? "fill-primary text-primary"
-                            : "text-muted-foreground/30"
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-muted-foreground mb-4 italic">
-                    &quot;{testimonial.feedback}&quot;
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
-                      <span className="text-lg font-semibold text-primary">
-                        {testimonial.author_display_name?.charAt(0) || "?"}
-                      </span>
-                    </div>
-                    <div>
-                      <p className="font-semibold">
-                        {testimonial.author_display_name || "Anonymous"}
-                      </p>
-                      {testimonial.coaches && (
-                        <p className="text-sm text-muted-foreground">
-                          Coach: {testimonial.coaches.first_name} {testimonial.coaches.last_name}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))
-            ) : (
-              [...Array(3)].map((_, i) => (
-                <div key={i} className="bg-card border border-border rounded-lg p-6">
-                  <div className="flex gap-1 mb-4">
-                    {[...Array(5)].map((_, index) => (
-                      <Star key={index} className="h-5 w-5 fill-primary text-primary" />
-                    ))}
-                  </div>
-                  <p className="text-muted-foreground mb-4 italic">
-                    &quot;Coming soon - your testimonial could be here! Join our coaching program and transform your fitness journey.&quot;
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-full bg-primary/20" />
-                    <div>
-                      <p className="font-semibold">Client Name</p>
-                      <p className="text-sm text-muted-foreground">Program Type</p>
-                    </div>
-                  </div>
-                </div>
-              ))
-            )}
+          {/* Preview (first 3); full list lives at /testimonials (shared component). */}
+          <TestimonialsList limit={3} />
+
+          <div className="text-center mt-12">
+            <Button asChild variant="outline">
+              <Link to="/testimonials">See all testimonials</Link>
+            </Button>
           </div>
         </div>
       </section>

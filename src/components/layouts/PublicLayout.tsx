@@ -18,7 +18,7 @@ const publicNavItems = [
   { path: "/", label: "Home" },
   { path: "/services", label: "Services" },
   { path: "/meet-our-team", label: "Our Team" },
-  { path: "/testimonial", label: "Testimonials" },
+  { path: "/testimonials", label: "Testimonials" },
   { path: "/calorie-calculator", label: "Calculator" },
 ];
 
