@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, memo } from "react";
+import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { Loader2, X } from "lucide-react";
+import { Loader2, X, ImagePlus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -29,6 +29,7 @@ interface CreateTeamDialogProps {
     description: string;
     tags: string[];
     max_members: number;
+    cover_image_url?: string | null;
   };
 }
 
@@ -48,6 +49,9 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
   const [tagInput, setTagInput] = useState("");
   const [maxMembers, setMaxMembers] = useState(30);
   const [saving, setSaving] = useState(false);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -57,15 +61,64 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
         setDescription(editTeam.description);
         setTags(editTeam.tags);
         setMaxMembers(editTeam.max_members);
+        setCoverUrl(editTeam.cover_image_url ?? null);
       } else {
         setName("");
         setDescription("");
         setTags([]);
         setMaxMembers(30);
+        setCoverUrl(null);
       }
       setTagInput("");
     }
   }, [open, editTeam]);
+
+  const handleCoverUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow re-selecting the same file
+    if (!file || !editTeam) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast({ title: "Invalid file", description: "Please choose an image.", variant: "destructive" });
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      toast({ title: "File too large", description: "Cover images must be 2 MB or smaller.", variant: "destructive" });
+      return;
+    }
+
+    setUploadingCover(true);
+    try {
+      const ext = file.name.split(".").pop();
+      const path = `${editTeam.id}/cover.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("team-covers")
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage.from("team-covers").getPublicUrl(path);
+      // Cache-bust so the preview refreshes when the path is unchanged (same ext).
+      const bustedUrl = `${publicUrl}?t=${Date.now()}`;
+
+      const { error: updateError } = await supabase
+        .from("coach_teams")
+        .update({ cover_image_url: publicUrl })
+        .eq("id", editTeam.id)
+        .select("id");
+      if (updateError) throw updateError;
+
+      setCoverUrl(bustedUrl);
+      toast({ title: "Cover image updated" });
+    } catch (error) {
+      toast({
+        title: "Error uploading cover",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    } finally {
+      setUploadingCover(false);
+    }
+  };
 
   const addTag = useCallback(() => {
     const trimmed = tagInput.trim();
@@ -241,6 +294,51 @@ export const CreateTeamDialog = memo(function CreateTeamDialog({
               onChange={(e) => setMaxMembers(parseInt(e.target.value) || 30)}
             />
           </div>
+
+          {isEdit && (
+            <div className="space-y-2">
+              <Label>Cover image</Label>
+              <div className="flex items-center gap-3">
+                {coverUrl ? (
+                  <img
+                    src={coverUrl}
+                    alt="Team cover"
+                    className="h-16 w-28 rounded object-cover border border-border shrink-0"
+                  />
+                ) : (
+                  <div className="h-16 w-28 rounded bg-muted flex items-center justify-center shrink-0">
+                    <ImagePlus className="h-5 w-5 text-muted-foreground" aria-hidden="true" />
+                  </div>
+                )}
+                <div className="space-y-1">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingCover}
+                    onClick={() => coverInputRef.current?.click()}
+                  >
+                    {uploadingCover ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Uploading...
+                      </>
+                    ) : (
+                      "Change cover"
+                    )}
+                  </Button>
+                  <p className="text-xs text-muted-foreground">JPG or PNG, up to 2 MB.</p>
+                </div>
+                <input
+                  ref={coverInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleCoverUpload}
+                />
+              </div>
+            </div>
+          )}
         </div>
 
         <DialogFooter>

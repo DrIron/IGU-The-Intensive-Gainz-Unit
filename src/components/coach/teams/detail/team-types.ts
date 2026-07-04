@@ -16,6 +16,11 @@ export interface TeamContext {
   currentProgramTemplateId: string | null;
   /** Canonical shared plan (board_v2); may be null. */
   currentProgramPlanId: string | null;
+  description: string | null;
+  tags: string[];
+  maxMembers: number;
+  isActive: boolean;
+  coverImageUrl: string | null;
 }
 
 export interface TeamDetailTabProps {

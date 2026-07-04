@@ -1,5 +1,5 @@
-import { useCallback, type KeyboardEvent } from "react";
-import { Activity, Apple, BookOpen, Users, type LucideIcon } from "lucide-react";
+import { useCallback, useMemo, type KeyboardEvent } from "react";
+import { Activity, Apple, BookOpen, Users, UserPlus, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TEAM_SECTION_SLUGS, type TeamSectionSlug } from "./team-sections";
 
@@ -14,6 +14,7 @@ const SECTION_DEFS: Record<TeamSectionSlug, { label: string; icon: LucideIcon }>
   nutrition: { label: "Nutrition", icon: Apple },
   program: { label: "Program", icon: BookOpen },
   roster: { label: "Roster", icon: Users },
+  waitlist: { label: "Waitlist", icon: UserPlus },
 };
 
 interface TeamDetailNavProps {
@@ -21,9 +22,16 @@ interface TeamDetailNavProps {
   onSelect: (slug: TeamSectionSlug) => void;
   /** Optional per-slug counter badges. Zero/nullish render nothing; >= 100 -> "99+". */
   badgeCounts?: Partial<Record<TeamSectionSlug, number>>;
+  /** Visible slugs (owner gets all incl. waitlist; non-owner gets the filtered set). */
+  slugs?: readonly TeamSectionSlug[];
 }
 
-export function TeamDetailNav({ activeSlug, onSelect, badgeCounts }: TeamDetailNavProps) {
+export function TeamDetailNav({ activeSlug, onSelect, badgeCounts, slugs }: TeamDetailNavProps) {
+  const visibleSlugs = useMemo<readonly TeamSectionSlug[]>(
+    () => slugs ?? TEAM_SECTION_SLUGS,
+    [slugs],
+  );
+
   const handleKeyDown = useCallback(
     (e: KeyboardEvent<HTMLButtonElement>, idx: number) => {
       const horizontal = e.key === "ArrowRight" || e.key === "ArrowLeft";
@@ -31,13 +39,13 @@ export function TeamDetailNav({ activeSlug, onSelect, badgeCounts }: TeamDetailN
       if (!horizontal && !vertical) return;
       e.preventDefault();
       const delta = e.key === "ArrowDown" || e.key === "ArrowRight" ? 1 : -1;
-      const next = (idx + delta + TEAM_SECTION_SLUGS.length) % TEAM_SECTION_SLUGS.length;
-      onSelect(TEAM_SECTION_SLUGS[next]);
+      const next = (idx + delta + visibleSlugs.length) % visibleSlugs.length;
+      onSelect(visibleSlugs[next]);
       const root = e.currentTarget.closest("[data-team-nav]");
       const buttons = root?.querySelectorAll<HTMLButtonElement>("button[data-nav-item]");
       buttons?.[next]?.focus();
     },
-    [onSelect],
+    [onSelect, visibleSlugs],
   );
 
   return (
@@ -47,7 +55,7 @@ export function TeamDetailNav({ activeSlug, onSelect, badgeCounts }: TeamDetailN
       className="border-b border-border -mx-1 sticky top-16 z-10 bg-background/95 backdrop-blur"
     >
       <ul className="flex gap-1 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {TEAM_SECTION_SLUGS.map((slug, idx) => {
+        {visibleSlugs.map((slug, idx) => {
           const isActive = slug === activeSlug;
           const { label, icon: Icon } = SECTION_DEFS[slug];
           const badge = formatBadge(badgeCounts?.[slug]);

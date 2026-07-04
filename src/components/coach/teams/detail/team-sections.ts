@@ -5,7 +5,7 @@
  * Mirrors client-overview/sections.ts, minus per-role filtering — team sections
  * are always coach/admin.
  */
-export const TEAM_SECTION_SLUGS = ["pulse", "nutrition", "program", "roster"] as const;
+export const TEAM_SECTION_SLUGS = ["pulse", "nutrition", "program", "roster", "waitlist"] as const;
 
 export type TeamSectionSlug = (typeof TEAM_SECTION_SLUGS)[number];
 
