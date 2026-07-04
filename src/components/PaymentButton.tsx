@@ -137,7 +137,7 @@ export function PaymentButton({
       <Button
         onClick={openConfirm}
         disabled={loading}
-        variant="gradient"
+        variant="default"
         className={className}
         aria-busy={loading}
       >
@@ -193,7 +193,7 @@ export function PaymentButton({
             <Button
               onClick={handlePayment}
               disabled={loading || quoteLoading || !confirmed}
-              variant="gradient"
+              variant="default"
             >
               {loading ? (
                 <>

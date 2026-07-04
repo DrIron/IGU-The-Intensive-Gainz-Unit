@@ -768,7 +768,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
                 <div className="flex items-center gap-2">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="gradient">
+                      <Button variant="default">
                         <Plus className="h-4 w-4 mr-2" />
                         Add Staff
                         <ChevronDown className="h-4 w-4 ml-2" />

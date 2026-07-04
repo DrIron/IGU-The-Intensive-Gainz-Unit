@@ -66,7 +66,7 @@ export function PaymentAttentionBanner({ subscription, profile }: PaymentAttenti
             Reactivate now to restore access to all features.
           </span>
           <Button 
-            variant="gradient"
+            variant="default"
             size="sm"
             onClick={() => navigate("/billing/pay")}
             className="shrink-0"
@@ -93,7 +93,7 @@ export function PaymentAttentionBanner({ subscription, profile }: PaymentAttenti
             Pay before {graceDeadline ? format(graceDeadline, "MMM dd") : "the deadline"} to avoid service interruption.
           </span>
           <Button 
-            variant="gradient"
+            variant="default"
             size="sm"
             onClick={() => navigate("/billing/pay")}
             className="shrink-0"
@@ -126,7 +126,7 @@ export function PaymentAttentionBanner({ subscription, profile }: PaymentAttenti
             Pay now to avoid any service interruption.
           </span>
           <Button 
-            variant="gradient"
+            variant="default"
             size="sm"
             onClick={() => navigate("/billing/pay")}
             className="shrink-0"

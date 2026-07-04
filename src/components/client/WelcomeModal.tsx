@@ -136,7 +136,7 @@ export function WelcomeModal({ userId, firstName, subscription }: WelcomeModalPr
           </div>
         </div>
 
-        <Button onClick={handleDismiss} className="w-full" variant="gradient">
+        <Button onClick={handleDismiss} className="w-full" variant="default">
           <CheckCircle2 className="h-4 w-4 mr-2" />
           Let's Get Started
         </Button>

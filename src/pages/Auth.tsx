@@ -612,7 +612,7 @@ export default function Auth() {
                       required
                     />
                   </div>
-                  <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
+                  <Button type="submit" variant="default" className="w-full" disabled={loading}>
                     {loading ? "Sending..." : "Send Reset Link"}
                   </Button>
                   <Button 
@@ -648,7 +648,7 @@ export default function Auth() {
                       required
                     />
                   </div>
-                  <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
+                  <Button type="submit" variant="default" className="w-full" disabled={loading}>
                     {loading ? "Signing in..." : "Sign In"}
                   </Button>
                   <Button 
@@ -743,7 +743,7 @@ export default function Auth() {
                     required
                   />
                 </div>
-                <Button type="submit" variant="gradient" className="w-full" disabled={loading}>
+                <Button type="submit" variant="default" className="w-full" disabled={loading}>
                   {loading ? "Creating account..." : "Create Account"}
                 </Button>
               </form>

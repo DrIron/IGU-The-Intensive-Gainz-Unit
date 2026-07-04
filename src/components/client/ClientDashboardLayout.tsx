@@ -390,7 +390,7 @@ export function ClientDashboardLayout({
                       Renew now to regain instant access to all your coaching features.
                     </p>
                     <div className="flex flex-wrap gap-3 mt-4">
-                      <Button onClick={() => navigate('/billing/pay')} variant="gradient">
+                      <Button onClick={() => navigate('/billing/pay')} variant="default">
                         <CreditCard className="h-4 w-4 mr-2" />
                         Renew Now
                       </Button>
@@ -485,7 +485,7 @@ export function ClientDashboardLayout({
                 <AlertTitle>Session Booking Restricted</AlertTitle>
                 <AlertDescription className="space-y-3">
                   <p>New session bookings are temporarily unavailable while your payment is past due.</p>
-                  <Button onClick={() => navigate('/billing/pay')} variant="gradient" size="sm">
+                  <Button onClick={() => navigate('/billing/pay')} variant="default" size="sm">
                     <CreditCard className="h-4 w-4 mr-2" />
                     Pay Now to Resume Booking
                   </Button>

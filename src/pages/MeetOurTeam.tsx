@@ -107,8 +107,8 @@ export default function MeetOurTeam() {
               key={coach.id}
               ariaLabel={`View ${coach.first_name} ${coach.last_name}'s profile`}
               onClick={() => handleCoachClick(coach)}
-              className={`hover:shadow-lg transition-all hover:scale-[1.02] ${
-                isLeadCoach(coach) ? "border-primary/50 ring-1 ring-primary/20" : ""
+              className={`transition-colors hover:border-primary/50 ${
+                isLeadCoach(coach) ? "border-primary" : ""
               }`}
             >
               <CardHeader>

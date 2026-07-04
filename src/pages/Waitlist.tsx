@@ -99,12 +99,7 @@ export default function Waitlist() {
         description="Be the first to know when IGU opens. Join our waitlist for early access to professional fitness coaching."
       />
 
-      <section className="relative min-h-[calc(100vh-56px)] flex items-center justify-center overflow-hidden bg-black">
-        {/* Grid pattern */}
-        <div className="absolute inset-0 grid-pattern opacity-30" />
-        {/* Red glow */}
-        <div className="absolute inset-0 red-glow" />
-
+      <section className="relative min-h-[calc(100vh-56px)] flex items-center justify-center overflow-hidden bg-background">
         <div className="relative z-10 w-full max-w-lg mx-auto px-4 py-12 text-center">
           {/* Branding */}
           <h1 className="font-display text-4xl sm:text-6xl md:text-7xl tracking-tight mb-4 text-foreground">
@@ -121,7 +116,7 @@ export default function Waitlist() {
           </p>
 
           {/* Form Card */}
-          <Card className="border-border/50 shadow-2xl bg-card/90 backdrop-blur-sm">
+          <Card className="bg-card border border-border">
             <CardContent className="pt-6">
               {submitted ? (
                 <div className="py-8 space-y-4">
@@ -169,7 +164,7 @@ export default function Waitlist() {
                   )}
                   <Button
                     type="submit"
-                    variant="gradient"
+                    variant="default"
                     className="w-full"
                     disabled={loading || (!!TURNSTILE_SITE_KEY && !turnstileToken)}
                   >

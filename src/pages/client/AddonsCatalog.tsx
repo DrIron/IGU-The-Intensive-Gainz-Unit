@@ -232,7 +232,7 @@ export default function AddonsCatalog() {
                   <div className="mt-auto pt-2">
                     <Button
                       type="button"
-                      variant="gradient"
+                      variant="default"
                       className="w-full"
                       disabled={tierLocked || hasNoActiveSub}
                       onClick={() => setCheckoutAddon(addon)}

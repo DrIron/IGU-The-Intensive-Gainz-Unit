@@ -152,7 +152,7 @@ export default function EmailConfirmed() {
         <CardContent className="flex flex-col gap-3">
           {status !== "loading" && (
             <>
-              <Button onClick={handleContinue} variant="gradient" className="w-full">
+              <Button onClick={handleContinue} variant="default" className="w-full">
                 {status === "success" ? "Continue to Account" : "Go to Sign In"}
               </Button>
               

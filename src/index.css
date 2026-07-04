@@ -39,11 +39,6 @@ All colors MUST be HSL.
 
     --radius: 0.75rem;
 
-    --gradient-primary: linear-gradient(135deg, hsl(355 78% 56%), hsl(355 78% 66%));
-    --gradient-accent: linear-gradient(135deg, hsl(355 78% 56%), hsl(240 10% 3.9%));
-    --gradient-hero: linear-gradient(180deg, hsl(240 10% 3.9% / 0.95), hsl(355 78% 56% / 0.1));
-    --shadow-glow: 0 0 60px hsl(355 78% 56% / 0.3);
-    --shadow-card: 0 4px 6px -1px hsl(240 10% 3.9% / 0.1), 0 2px 4px -1px hsl(240 10% 3.9% / 0.06);
     --status-success: 142 76% 36%;
     --status-warning: 38 92% 50%;
     --status-error: 0 84% 60%;
@@ -103,13 +98,7 @@ All colors MUST be HSL.
     /* Custom extended properties */
     --border-hover: 240 4% 25%;
     --text-tertiary: 240 4% 32%;
-    --red-glow: 0 0 30px hsl(355 78% 56% / 0.2);
 
-    --gradient-primary: linear-gradient(135deg, hsl(355 78% 56%), hsl(355 78% 66%));
-    --gradient-accent: linear-gradient(135deg, hsl(355 78% 56%), hsl(0 0% 98%));
-    --gradient-hero: linear-gradient(180deg, hsl(240 10% 3.9%), hsl(355 78% 56% / 0.2));
-    --shadow-glow: 0 0 80px hsl(355 78% 56% / 0.4);
-    --shadow-card: 0 4px 6px -1px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.06);
     --status-success: 142 76% 36%;
     --status-warning: 38 92% 50%;
     --status-error: 0 84% 60%;
@@ -208,32 +197,6 @@ All colors MUST be HSL.
 .fade-up.visible {
   opacity: 1;
   transform: translateY(0);
-}
-
-/* Grid background pattern for hero sections */
-.grid-pattern {
-  background-image:
-    linear-gradient(to right, hsl(var(--border) / 0.3) 1px, transparent 1px),
-    linear-gradient(to bottom, hsl(var(--border) / 0.3) 1px, transparent 1px);
-  background-size: 60px 60px;
-}
-
-/* Red radial glow effect */
-.red-glow {
-  position: relative;
-}
-
-.red-glow::before {
-  content: '';
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  width: 600px;
-  height: 600px;
-  background: radial-gradient(circle, hsl(355 78% 56% / 0.15) 0%, transparent 70%);
-  pointer-events: none;
-  z-index: 0;
 }
 
 /* Themed minimal scrollbar (site-wide). Tokenized so it's dark-mode correct;

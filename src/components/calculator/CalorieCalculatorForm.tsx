@@ -461,7 +461,7 @@ export function CalorieCalculatorForm({
 
       {onCalculate && (
         <Button 
-          variant="gradient" 
+          variant="default" 
           className="w-full" 
           onClick={onCalculate}
           size="lg"
