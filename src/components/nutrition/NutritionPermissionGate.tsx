@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { useNutritionPermissions } from "@/hooks/useNutritionPermissions";
 import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { Loader2, Lock } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -35,7 +36,8 @@ export function NutritionPermissionGate({
   // `currentUserRole === 'none'` cases: a dietitian-subrole holder who just
   // isn't on THIS client's care team vs. a viewer with no nutrition standing
   // at all.
-  const { isDietitian } = useSubrolePermissions();
+  const { user: viewerUser } = useAuthSession();
+  const { isDietitian } = useSubrolePermissions(viewerUser?.id);
 
   if (isLoading) {
     return (

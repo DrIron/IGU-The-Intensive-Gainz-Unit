@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/sidebar";
 import { getCoachNavItems } from "@/lib/routeConfig";
 import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCoachRosterAttention } from "@/hooks/useCoachRosterAttention";
 import { Badge } from "@/components/ui/badge";
 import { GraduationCap, Salad, UserCog } from "lucide-react";
@@ -59,7 +60,8 @@ export function CoachSidebar({ activeSection, onSectionChange, trainingMode }: C
   const collapsed = state === "collapsed";
   const navigate = useNavigate();
   const location = useLocation();
-  const { isDietitian } = useSubrolePermissions();
+  const { user: sidebarUser } = useAuthSession();
+  const { isDietitian } = useSubrolePermissions(sidebarUser?.id);
   // Single source for the roster-attention headline (RO1/CO5) — same RPC the
   // dashboard/roster read; the "My Clients" item carries the count.
   const { attention } = useCoachRosterAttention();

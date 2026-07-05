@@ -170,9 +170,13 @@ const MobileBottomNavCoach = lazyWithReload(() =>
     import("@/components/layouts/MobileBottomNav"),
     import("@/components/coach/CoachSidebar"),
     import("@/hooks/useSubrolePermissions"),
-  ]).then(([navMod, sidebarMod, subroleMod]) => ({
+    import("@/hooks/useAuthSession"),
+  ]).then(([navMod, sidebarMod, subroleMod, authMod]) => ({
     default: () => {
-      const { isDietitian, approvedSlugs } = subroleMod.useSubrolePermissions();
+      // Pass the current user id: useUserSubroles is enabled:!!userId, so a no-arg
+      // call silently returns [] and the dock never swaps for a pure dietitian.
+      const { user } = authMod.useAuthSession();
+      const { isDietitian, approvedSlugs } = subroleMod.useSubrolePermissions(user?.id);
       const isCoach = approvedSlugs.includes("coach");
       return (
         <navMod.MobileBottomNav
