@@ -53,7 +53,9 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   // Surfaces the dietitian subrole in the user-menu role label. Other
   // subroles (physio, sports-psych, mobility) are deliberately not handled
   // here yet -- each is its own follow-up.
-  const { isDietitian, isPhysiotherapist, isSportsPhysiologist, isMobilityCoach } = useSubrolePermissions();
+  // Pass the current user id: useUserSubroles is `enabled: !!userId`, so a no-arg call silently
+  // returns [] and every subrole flag would be false.
+  const { isDietitian, isPhysiotherapist, isSportsPhysiologist, isMobilityCoach } = useSubrolePermissions(sessionUser?.id);
   // A pure specialist holds the coach role for route access but has no coaches row. Track that so
   // the role label shows the subrole ("Dietitian") instead of "Coach".
   const [hasCoachProfile, setHasCoachProfile] = useState(false);

@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { withTimeout } from "@/lib/withTimeout";
+import { useAuthSession } from "@/hooks/useAuthSession";
 import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -114,7 +115,8 @@ export default function AccountManagement() {
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [userRoles, setUserRoles] = useState<string[]>([]);
-  const { isDietitian, isPhysiotherapist, isSportsPhysiologist, isMobilityCoach } = useSubrolePermissions();
+  const { user: accountUser } = useAuthSession();
+  const { isDietitian, isPhysiotherapist, isSportsPhysiologist, isMobilityCoach } = useSubrolePermissions(accountUser?.id);
   const isSpecialist = isDietitian || isPhysiotherapist || isSportsPhysiologist || isMobilityCoach;
 
   const getUserRoles = useCallback(async () => {

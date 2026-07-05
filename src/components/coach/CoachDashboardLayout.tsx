@@ -43,7 +43,7 @@ export function CoachDashboardLayout({
   // Pure dietitian = approved dietitian subrole WITHOUT the coach subrole.
   // Dual-credentialed coach+dietitian users stay on the coach overview --
   // its signals are a superset for them.
-  const { isDietitian, approvedSlugs } = useSubrolePermissions();
+  const { isDietitian, approvedSlugs } = useSubrolePermissions(user?.id);
   const isPureDietitian = isDietitian && !approvedSlugs.includes("coach");
 
   // Fetch coach status to determine if in training mode
