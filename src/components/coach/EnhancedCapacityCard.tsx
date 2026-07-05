@@ -36,6 +36,9 @@ export function EnhancedCapacityCard({ coachUserId, onNavigate, onMetricsLoaded 
   const [totalActiveClients, setTotalActiveClients] = useState(0);
   const [totalConfiguredCapacity, setTotalConfiguredCapacity] = useState<number | null>(null);
   const [overallLoadPercent, setOverallLoadPercent] = useState<number | null>(null);
+  // Pure specialists (e.g. a dietitian) hold the coach role for route access but have no coaches
+  // row, so there's no coach capacity to show. Track that and render nothing -- no fetch error/toast.
+  const [noCoachRow, setNoCoachRow] = useState(false);
   const hasFetchedCapacity = useRef(false);
 
   const fetchCapacityData = useCallback(async () => {
@@ -46,10 +49,13 @@ export function EnhancedCapacityCard({ coachUserId, onNavigate, onMetricsLoaded 
         .from('coaches')
         .select('id')
         .eq('user_id', coachUserId)
-        .single();
+        .maybeSingle();
 
       if (coachError) throw coachError;
       if (!coach) {
+        // No coaches row = a pure specialist. Report empty metrics and render nothing.
+        setNoCoachRow(true);
+        onMetricsLoaded?.(0, null, null);
         setLoading(false);
         return;
       }
@@ -195,6 +201,9 @@ export function EnhancedCapacityCard({ coachUserId, onNavigate, onMetricsLoaded 
       </Card>
     );
   }
+
+  // Pure specialist (no coaches row): nothing to show, no error surfaced.
+  if (noCoachRow) return null;
 
   const showCapacityWarning = overallLoadPercent !== null && overallLoadPercent >= 90;
 

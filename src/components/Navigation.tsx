@@ -53,7 +53,10 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   // Surfaces the dietitian subrole in the user-menu role label. Other
   // subroles (physio, sports-psych, mobility) are deliberately not handled
   // here yet -- each is its own follow-up.
-  const { isDietitian } = useSubrolePermissions();
+  const { isDietitian, isPhysiotherapist, isSportsPhysiologist, isMobilityCoach } = useSubrolePermissions();
+  // A pure specialist holds the coach role for route access but has no coaches row. Track that so
+  // the role label shows the subrole ("Dietitian") instead of "Coach".
+  const [hasCoachProfile, setHasCoachProfile] = useState(false);
 
   // User is considered authenticated if we have a session user OR valid cached roles
   // This ensures Navigation stays in sync with RoleProtectedRoute's cache-first approach
@@ -143,6 +146,24 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
       loadMemberStatus();
     }
   }, [effectiveUserId, loadMemberStatus]);
+
+  // Detect a real coach profile (coaches row) vs a pure specialist who only holds the coach role.
+  useEffect(() => {
+    if (detectedRole !== 'coach' || !effectiveUserId) {
+      setHasCoachProfile(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from('coaches')
+        .select('id')
+        .eq('user_id', effectiveUserId)
+        .maybeSingle();
+      if (!cancelled) setHasCoachProfile(!!data);
+    })();
+    return () => { cancelled = true; };
+  }, [detectedRole, effectiveUserId]);
 
   const activeRole = detectedRole;
   const user = currentUser;
@@ -357,10 +378,17 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
   const getRoleLabel = () => {
     if (!detectedRole) return null;
 
+    const isSpecialist = isDietitian || isPhysiotherapist || isSportsPhysiologist || isMobilityCoach;
+
     const labels: string[] = [];
     if (activeRole === 'admin') labels.push(t('admin'));
-    if (activeRole === 'coach') labels.push(t('coach'));
+    // Show "Coach" for a real coach (has a coaches row), or a coach with no specialist subrole. A
+    // pure specialist (coach role for routing only, no coaches row) shows just the subrole label.
+    if (activeRole === 'coach' && (hasCoachProfile || !isSpecialist)) labels.push(t('coach'));
     if (isDietitian) labels.push(t('dietitian', 'Dietitian'));
+    if (isPhysiotherapist) labels.push(t('physiotherapist', 'Physiotherapist'));
+    if (isSportsPhysiologist) labels.push(t('sportsPsychologist', 'Sports Psychologist'));
+    if (isMobilityCoach) labels.push(t('mobilityCoach', 'Mobility Coach'));
     // Fallback for the bare-member case (no core role, no subrole).
     if (labels.length === 0) labels.push(t('member'));
 
