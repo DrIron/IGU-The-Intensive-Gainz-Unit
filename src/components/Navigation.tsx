@@ -13,6 +13,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { IguLogo } from "@/components/IguLogo";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { useToast } from "@/hooks/use-toast";
 import { useAuthNavigation } from "@/hooks/useAuthNavigation";
@@ -428,7 +429,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
           <div className="flex items-center justify-between h-16">
             {/* Logo */}
             <Link to="/" className="flex items-center">
-              <IguLogo height={28} variant="light" />
+              <IguLogo height={28} />
             </Link>
 
             {/* Desktop Navigation */}
@@ -442,6 +443,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                   {link.label}
                 </Link>
               ))}
+              <ThemeToggle />
               <LanguageSwitcher />
               {user ? (
                 <>
@@ -554,6 +556,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
 
             {/* Mobile Menu Button - Only visible on mobile */}
             <div className="flex items-center gap-2 md:hidden">
+              <ThemeToggle />
               <LanguageSwitcher />
               <button
                 className="p-2 rounded-lg hover:bg-muted transition-colors"
@@ -591,7 +594,7 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
             <div className="flex items-center justify-between p-4 border-b border-border bg-background shrink-0">
               <div className="flex items-center">
                 <h2 id="mobile-menu-heading" className="sr-only">{t('openMenu')}</h2>
-                <IguLogo height={22} variant="light" />
+                <IguLogo height={22} />
               </div>
               <button
                 onClick={() => setMobileMenuOpen(false)}

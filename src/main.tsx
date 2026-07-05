@@ -4,6 +4,7 @@ import { HelmetProvider } from "react-helmet-async";
 import './i18n/config';
 import App from "./App.tsx";
 import "./index.css";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import { reloadOnceForChunkError } from "@/lib/lazyWithReload";
 
 // Stale-chunk recovery (P2). Vite fires `vite:preloadError` when a modulepreload
@@ -85,6 +86,8 @@ Sentry.init({
 
 createRoot(document.getElementById("root")!).render(
   <HelmetProvider>
-    <App />
+    <ThemeProvider>
+      <App />
+    </ThemeProvider>
   </HelmetProvider>
 );

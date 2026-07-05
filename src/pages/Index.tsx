@@ -268,11 +268,11 @@ export default function Index() {
         return (
           <>
             <Button variant="default" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
-            <p className="text-white/80 text-sm md:text-base mt-3">
+            <p className="text-foreground/80 text-sm md:text-base mt-3">
               Already a client?{" "}
               <button
                 onClick={() => goToAuthOrDashboard(user)}
-                className="text-white font-medium underline underline-offset-2 hover:text-primary transition-colors"
+                className="text-foreground font-medium underline underline-offset-2 hover:text-primary transition-colors"
               >
                 Log in to your dashboard
               </button>
@@ -284,10 +284,10 @@ export default function Index() {
         return (
           <>
             <Button variant="default" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
-            <p className="text-white/80 text-sm md:text-base mt-3">
+            <p className="text-foreground/80 text-sm md:text-base mt-3">
               <Link
                 to="/services"
-                className="text-white font-medium underline underline-offset-2 hover:text-primary transition-colors"
+                className="text-foreground font-medium underline underline-offset-2 hover:text-primary transition-colors"
               >
                 View Services
               </Link>
@@ -299,10 +299,10 @@ export default function Index() {
         return (
           <>
             <Button variant="default" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
-            <p className="text-white/80 text-sm md:text-base mt-3">
+            <p className="text-foreground/80 text-sm md:text-base mt-3">
               <a
                 href="mailto:support@theigu.com"
-                className="text-white font-medium underline underline-offset-2 hover:text-primary transition-colors"
+                className="text-foreground font-medium underline underline-offset-2 hover:text-primary transition-colors"
               >
                 Contact Support
               </a>
@@ -316,10 +316,10 @@ export default function Index() {
         return (
           <>
             <Button variant="default" size="xl" className="w-full sm:w-auto" onClick={primaryCta.onClick}>{primaryCta.label}</Button>
-            <p className="text-white/80 text-sm md:text-base mt-3">
+            <p className="text-foreground/80 text-sm md:text-base mt-3">
               <a
                 href="mailto:support@theigu.com"
-                className="text-white font-medium underline underline-offset-2 hover:text-primary transition-colors"
+                className="text-foreground font-medium underline underline-offset-2 hover:text-primary transition-colors"
               >
                 Contact Support
               </a>
