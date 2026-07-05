@@ -8231,6 +8231,8 @@ export type Database = {
           bio: string | null
           display_name: string | null
           first_name: string | null
+          head_coach_specialisation: string | null
+          is_head_coach: boolean | null
           last_name: string | null
           location: string | null
           nickname: string | null
@@ -8247,6 +8249,8 @@ export type Database = {
           bio?: string | null
           display_name?: string | null
           first_name?: string | null
+          head_coach_specialisation?: string | null
+          is_head_coach?: boolean | null
           last_name?: string | null
           location?: string | null
           nickname?: string | null
@@ -8263,6 +8267,8 @@ export type Database = {
           bio?: string | null
           display_name?: string | null
           first_name?: string | null
+          head_coach_specialisation?: string | null
+          is_head_coach?: boolean | null
           last_name?: string | null
           location?: string | null
           nickname?: string | null
