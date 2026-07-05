@@ -3776,7 +3776,6 @@ export type Database = {
       exercise_set_logs: {
         Row: {
           assignment_id: string | null
-          client_module_exercise_id: string | null
           created_at: string
           created_by_user_id: string
           id: string
@@ -3793,7 +3792,6 @@ export type Database = {
         }
         Insert: {
           assignment_id?: string | null
-          client_module_exercise_id?: string | null
           created_at?: string
           created_by_user_id: string
           id?: string
@@ -3810,7 +3808,6 @@ export type Database = {
         }
         Update: {
           assignment_id?: string | null
-          client_module_exercise_id?: string | null
           created_at?: string
           created_by_user_id?: string
           id?: string
@@ -3831,13 +3828,6 @@ export type Database = {
             columns: ["assignment_id"]
             isOneToOne: false
             referencedRelation: "client_plan_assignment"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "exercise_set_logs_client_module_exercise_id_fkey"
-            columns: ["client_module_exercise_id"]
-            isOneToOne: false
-            referencedRelation: "client_module_exercises"
             referencedColumns: ["id"]
           },
           {
