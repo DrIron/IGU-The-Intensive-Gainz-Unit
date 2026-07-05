@@ -66,6 +66,7 @@ interface AddSpecialistDialogProps {
 }
 
 const SPECIALTY_OPTIONS: { value: StaffSpecialty; label: string; icon: React.ElementType }[] = [
+  { value: "dietitian", label: "Dietitian", icon: Apple },
   { value: "nutrition", label: "Nutrition", icon: Apple },
   { value: "lifestyle", label: "Lifestyle", icon: Heart },
   { value: "bodybuilding", label: "Bodybuilding", icon: Dumbbell },
@@ -141,13 +142,43 @@ export function AddSpecialistDialog({
         .in("user_id", activeUserIds);
       const profileByUserId = new Map((profiles || []).map(p => [p.user_id, p]));
 
-      const data = (activeRows || []).map(c => ({
-        ...c,
+      const data: AvailableSpecialist[] = (activeRows || []).map(c => ({
+        id: c.id,
+        user_id: c.user_id,
         first_name: profileByUserId.get(c.user_id)?.first_name ?? "",
         last_name: profileByUserId.get(c.user_id)?.last_name ?? "",
-        specialties: profileByUserId.get(c.user_id)?.specialties ?? [],
+        specialties: (profileByUserId.get(c.user_id)?.specialties ?? []) as StaffSpecialty[],
         profile_picture_url: profileByUserId.get(c.user_id)?.profile_picture_url ?? null,
       }));
+
+      // Include credentialed dietitians, who may NOT be coaches (a pure specialist has no coaches
+      // row). Sourced from the client-safe view (readable by coach/admin) and presented with the
+      // 'dietitian' specialty so the assignment writes specialty='dietitian' -- which is exactly
+      // what dietitians_client_safe gates the client read on. Merge by user_id so a coach who is
+      // also a dietitian simply gains the 'dietitian' specialty.
+      const { data: dietRows } = await supabase
+        .from("dietitians_client_safe")
+        .select("user_id, first_name, display_name, profile_picture_url");
+      const byUserId = new Map(data.map(c => [c.user_id, c]));
+      for (const d of dietRows || []) {
+        const existing = byUserId.get(d.user_id);
+        if (existing) {
+          if (!existing.specialties.includes("dietitian")) {
+            existing.specialties = [...existing.specialties, "dietitian"];
+          }
+        } else {
+          const cand: AvailableSpecialist = {
+            id: d.user_id,
+            user_id: d.user_id,
+            first_name: d.display_name || d.first_name || "Dietitian",
+            last_name: null,
+            specialties: ["dietitian"],
+            profile_picture_url: d.profile_picture_url,
+          };
+          data.push(cand);
+          byUserId.set(d.user_id, cand);
+        }
+      }
 
       // Filter out specialists already on the team for the same specialty
       const existingMap = new Set(
@@ -246,6 +277,12 @@ export function AddSpecialistDialog({
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
+      // Billable only when the admin opted in AND the specialty has catalog pricing. Dietitian has
+      // no addon_catalog entry yet, so a dietitian assignment is created non-billable (no orphan
+      // is_billable=true without a matching subscription_addon).
+      const addonPricing = getAddonPricing(assignedSpecialty);
+      const billable = createBillableAddon && !!addonPricing;
+
       // Insert care team assignment with scope
       const { error: careTeamError } = await supabase
         .from("care_team_assignments")
@@ -255,16 +292,15 @@ export function AddSpecialistDialog({
           staff_user_id: selectedSpecialist.user_id,
           specialty: assignedSpecialty,
           scope: assignedScope,
-          is_billable: createBillableAddon,
+          is_billable: billable,
           added_by: user.id,
         });
 
       if (careTeamError) throw careTeamError;
 
       // Create billable addon if requested
-      if (createBillableAddon) {
-        const addonPricing = getAddonPricing(assignedSpecialty);
-        if (addonPricing) {
+      if (billable && addonPricing) {
+        {
           const { error: addonError } = await supabase
             .from("subscription_addons")
             .insert({
