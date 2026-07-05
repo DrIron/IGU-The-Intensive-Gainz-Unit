@@ -19,6 +19,8 @@ interface Coach {
   qualifications: string[] | null;
   specializations: string[] | null;
   nickname: string | null;
+  is_head_coach: boolean | null;
+  head_coach_specialisation: string | null;
 }
 
 interface CoachDetailDialogProps {
@@ -55,6 +57,11 @@ export function CoachDetailDialog({ coach, open, onOpenChange }: CoachDetailDial
                   <MapPin className="h-4 w-4 mr-2" />
                   {coach.location}
                 </div>
+              )}
+              {coach.is_head_coach && coach.head_coach_specialisation && (
+                <p className="text-sm font-medium text-primary mb-2">
+                  Head Coach -- {coach.head_coach_specialisation}
+                </p>
               )}
             </div>
           </div>

@@ -105,36 +105,28 @@ export function CoachServiceLimits({ coachId, coachName, open, onOpenChange }: C
     try {
       setSaving(true);
 
-      // Delete all existing limits for this coach
-      const { error: deleteError } = await supabase
-        .from("coach_service_limits")
-        .delete()
-        .eq("coach_id", coachId);
+      // Capacity v2: UPSERT the admin ceiling (max_clients) on (coach_id, service_id) — NOT
+      // delete-all-then-insert, which would wipe the coach-set fields (coach_max_clients,
+      // is_accepting). Only max_clients is written here; the coach's own fields are preserved.
+      const rows = limits.map((l) => ({
+        coach_id: coachId,
+        service_id: l.service_id,
+        max_clients: l.max_clients,
+      }));
 
-      if (deleteError) throw deleteError;
-
-      // Insert new limits (only non-zero values)
-      const limitsToInsert = limits
-        .filter(l => l.max_clients > 0)
-        .map(l => ({
-          coach_id: coachId,
-          service_id: l.service_id,
-          max_clients: l.max_clients,
-        }));
-
-      if (limitsToInsert.length > 0) {
-        const { error: insertError } = await supabase
+      if (rows.length > 0) {
+        const { error: upsertError } = await supabase
           .from("coach_service_limits")
-          .insert(limitsToInsert);
+          .upsert(rows, { onConflict: "coach_id,service_id" });
 
-        if (insertError) throw insertError;
+        if (upsertError) throw upsertError;
       }
 
       toast({
         title: "Success",
         description: "Client limits updated successfully",
       });
-      
+
       onOpenChange(false);
     } catch (error: any) {
       toast({

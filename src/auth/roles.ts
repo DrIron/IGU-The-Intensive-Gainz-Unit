@@ -288,7 +288,9 @@ export function hasCapability(approvedSlugs: SubroleSlug[], capability: SubroleC
 //   - Levels are admin-set ONLY, never self-assigned, never automatic.
 //   - Default level for all newly approved professionals is Junior.
 //   - Promotion is based on admin performance review.
-//   - Levels affect payout calculations but NOT client-facing pricing.
+//   - Level DOES drive client-facing pricing (service_level_pricing / CLIENT_PRICE_PER_LEVEL),
+//     as well as the flat per-client payout. (This used to say "NOT client-facing pricing" — that
+//     was the old hourly-era model and is no longer true.)
 //
 
 /**
@@ -346,20 +348,6 @@ export const DIETITIAN_PAYOUT_PER_CLIENT: Record<string, Record<ProfessionalLeve
   one_to_one_complete: { junior: 15, senior: 20, lead: 20 },
   hybrid:              { junior: 15, senior: 20, lead: 20 },
   in_person:           { junior: 15, senior: 20, lead: 20 },
-};
-
-/** @deprecated Use COACH_PAYOUT_PER_CLIENT instead. Kept for backward compat. */
-export const COACH_RATES: Record<ProfessionalLevel, { online: number; in_person: number }> = {
-  junior: { online: 4, in_person: 8 },
-  senior: { online: 6, in_person: 12 },
-  lead:   { online: 8, in_person: 15 },
-};
-
-/** @deprecated Use DIETITIAN_PAYOUT_PER_CLIENT instead. Kept for backward compat. */
-export const DIETITIAN_RATES: Record<ProfessionalLevel, number> = {
-  junior: 5,
-  senior: 7,
-  lead:   9,
 };
 
 /**

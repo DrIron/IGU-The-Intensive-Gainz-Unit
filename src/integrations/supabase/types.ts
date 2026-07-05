@@ -2211,24 +2211,30 @@ export type Database = {
       coach_service_limits: {
         Row: {
           coach_id: string
+          coach_max_clients: number | null
           created_at: string | null
           id: string
+          is_accepting: boolean
           max_clients: number
           service_id: string
           updated_at: string | null
         }
         Insert: {
           coach_id: string
+          coach_max_clients?: number | null
           created_at?: string | null
           id?: string
+          is_accepting?: boolean
           max_clients?: number
           service_id: string
           updated_at?: string | null
         }
         Update: {
           coach_id?: string
+          coach_max_clients?: number | null
           created_at?: string | null
           id?: string
+          is_accepting?: boolean
           max_clients?: number
           service_id?: string
           updated_at?: string | null
@@ -9301,6 +9307,14 @@ export type Database = {
       }
       list_active_teams_for_client: { Args: never; Returns: Json }
       list_public_teams_for_browser: { Args: never; Returns: Json }
+      set_coach_service_availability: {
+        Args: {
+          p_service_id: string
+          p_coach_max_clients: number | null
+          p_is_accepting: boolean
+        }
+        Returns: undefined
+      }
       log_addon_session_atomic: {
         Args: {
           p_notes?: string
