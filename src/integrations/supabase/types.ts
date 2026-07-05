@@ -1487,6 +1487,7 @@ export type Database = {
           reviewed_by: string | null
           specializations: string[] | null
           status: string
+          subrole_slug: string
           years_of_experience: number | null
         }
         Insert: {
@@ -1518,6 +1519,7 @@ export type Database = {
           reviewed_by?: string | null
           specializations?: string[] | null
           status?: string
+          subrole_slug?: string
           years_of_experience?: number | null
         }
         Update: {
@@ -1549,6 +1551,7 @@ export type Database = {
           reviewed_by?: string | null
           specializations?: string[] | null
           status?: string
+          subrole_slug?: string
           years_of_experience?: number | null
         }
         Relationships: []

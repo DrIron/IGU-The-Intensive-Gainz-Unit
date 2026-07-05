@@ -46,6 +46,9 @@ serve(async (req) => {
       type,
       notes: rawNotes,
       turnstileToken,
+      // Role parameterization (specialist parity): defaults keep the coach copy verbatim.
+      roleLabel: rawRoleLabel,
+      roleTeam: rawRoleTeam,
       // Interview-specific fields
       interviewDate: rawInterviewDate,
       interviewTime: rawInterviewTime,
@@ -65,6 +68,9 @@ serve(async (req) => {
     // Sanitize user-provided strings before interpolating into HTML
     const applicantName = escapeHtml(String(rawName));
     const notes = rawNotes ? escapeHtml(String(rawNotes)) : null;
+    // Role-aware copy. Defaults reproduce the original coach wording exactly.
+    const roleLabel = rawRoleLabel ? escapeHtml(String(rawRoleLabel)) : "Coach";
+    const roleTeam = rawRoleTeam ? escapeHtml(String(rawRoleTeam)) : "Coaching";
     const interviewDate = rawInterviewDate ? escapeHtml(String(rawInterviewDate)) : null;
     const interviewTime = rawInterviewTime ? escapeHtml(String(rawInterviewTime)) : null;
     const interviewZoomLink = rawInterviewZoomLink ? String(rawInterviewZoomLink) : null;
@@ -112,22 +118,22 @@ serve(async (req) => {
     let preheader = "";
 
     if (type === "received") {
-      subject = "Coach Application Received -- IGU";
+      subject = `${roleLabel} Application Received -- IGU`;
       preheader = "We've received your application and will review it shortly.";
       content = [
         greeting(applicantName),
-        paragraph("Thank you for applying to join the IGU Coaching team!"),
+        paragraph(`Thank you for applying to join the IGU ${roleTeam} team!`),
         alertBox("We have received your application and our team will review it shortly. We will get back to you within 3-5 business days.", "info"),
         paragraph(`If you have any questions in the meantime, please don't hesitate to reach out to us at <a href="mailto:${SUPPORT_EMAIL}" style="color: #d91449;">${SUPPORT_EMAIL}</a>.`),
         signOff(),
       ].join("");
 
     } else if (type === "approved") {
-      subject = "Coach Application Approved -- Welcome to IGU!";
+      subject = `${roleLabel} Application Approved -- Welcome to IGU!`;
       preheader = "Congratulations! Your application has been approved.";
       content = [
         greeting(applicantName),
-        alertBox("<strong>Your application has been approved!</strong><br>Congratulations -- we are excited to have you on the IGU Coaching team!", "success"),
+        alertBox(`<strong>Your application has been approved!</strong><br>Congratulations -- we are excited to have you on the IGU ${roleTeam} team!`, "success"),
         paragraph("You will receive a separate email shortly with instructions to set up your coach account and complete your profile."),
         ...(notes ? [detailCard("Notes from Our Team", [{ label: "Feedback", value: notes }])] : []),
         paragraph("We look forward to having you on our team!"),
@@ -135,11 +141,11 @@ serve(async (req) => {
       ].join("");
 
     } else if (type === "rejected" || type === "rejected_pre_interview") {
-      subject = "Coach Application Update -- IGU";
-      preheader = "An update on your coach application.";
+      subject = `${roleLabel} Application Update -- IGU`;
+      preheader = "An update on your application.";
       content = [
         greeting(applicantName),
-        paragraph("Thank you for your interest in joining the IGU Coaching team and for taking the time to submit your application."),
+        paragraph(`Thank you for your interest in joining the IGU ${roleTeam} team and for taking the time to submit your application.`),
         alertBox("After careful consideration, we are unable to move forward with your application at this time.", "error"),
         ...(notes ? [detailCard("Feedback", [{ label: "Details", value: notes }])] : []),
         paragraph("We appreciate your interest and encourage you to apply again in the future if you continue to develop your skills and qualifications."),

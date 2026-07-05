@@ -106,6 +106,9 @@ export function CoachApplicationsManager() {
       const { data, error } = await supabase
         .from('coach_applications')
         .select('*')
+        // Coach hiring pipeline only; specialist applications (dietitian, ...) have their own
+        // queue (SpecialistApplicationsManager) keyed on subrole_slug.
+        .eq('subrole_slug', 'coach')
         .order('created_at', { ascending: false });
 
       if (error) throw error;

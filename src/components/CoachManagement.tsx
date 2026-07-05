@@ -14,6 +14,7 @@ import { Plus, MoreVertical, Edit, Trash2, Settings, Users, BarChart3, FileText,
 import { CoachCapacityManager } from "@/components/admin/CoachCapacityManager";
 import { CoachLoadOverview } from "@/components/admin/CoachLoadOverview";
 import { CoachApplicationsManager } from "@/components/CoachApplicationsManager";
+import { SpecialistApplicationsManager } from "@/components/SpecialistApplicationsManager";
 import { SpecializationTagManager } from "@/components/admin/SpecializationTagManager";
 import { ProfessionalLevelManager } from "@/components/admin/ProfessionalLevelManager";
 import {
@@ -729,7 +730,7 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
       {/* Main Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <div className="overflow-x-auto -mx-4 px-4 md:mx-0 md:px-0">
-          <TabsList className="inline-flex md:grid md:w-full md:grid-cols-5 w-max">
+          <TabsList className="inline-flex md:grid md:w-full md:grid-cols-6 w-max">
             <TabsTrigger value="load-capacity" className="gap-2 whitespace-nowrap">
               <BarChart3 className="h-4 w-4 hidden sm:block" />
               Load & Capacity
@@ -745,6 +746,10 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
             <TabsTrigger value="applications" className="gap-2 whitespace-nowrap">
               <FileText className="h-4 w-4 hidden sm:block" />
               Applications
+            </TabsTrigger>
+            <TabsTrigger value="specialist-apps" className="gap-2 whitespace-nowrap">
+              <Stethoscope className="h-4 w-4 hidden sm:block" />
+              Specialist Apps
             </TabsTrigger>
             <TabsTrigger value="specializations" className="gap-2 whitespace-nowrap">
               <Tag className="h-4 w-4 hidden sm:block" />
@@ -941,6 +946,10 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
         {/* Applications Tab */}
         <TabsContent value="applications">
           <CoachApplicationsManager />
+        </TabsContent>
+
+        <TabsContent value="specialist-apps">
+          <SpecialistApplicationsManager />
         </TabsContent>
 
         {/* Specializations Tab */}
