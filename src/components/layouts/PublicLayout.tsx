@@ -44,7 +44,7 @@ export function PublicLayout({ children, minimal = false }: PublicLayoutProps) {
         <header className="border-b border-border/50 bg-background/70 backdrop-blur-xl">
           <div className="container flex h-14 items-center justify-center">
             <Link to="/" className="hover:opacity-80 transition-opacity">
-              <IguLogo height={24} variant="light" />
+              <IguLogo height={24} />
             </Link>
           </div>
         </header>
@@ -60,7 +60,7 @@ export function PublicLayout({ children, minimal = false }: PublicLayoutProps) {
         <div className="container flex h-16 items-center justify-between">
           {/* Logo */}
           <Link to="/" className="hover:opacity-80 transition-opacity">
-            <IguLogo height={28} variant="light" />
+            <IguLogo height={28} />
           </Link>
 
           {/* Desktop Nav */}

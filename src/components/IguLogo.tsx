@@ -1,14 +1,23 @@
+import { cn } from "@/lib/utils";
+
 interface IguLogoProps {
   className?: string;
   /** Height in pixels. Width auto-scales to maintain aspect ratio. */
   height?: number;
-  /** "light" for dark backgrounds (white logo), "dark" for light backgrounds (black logo) */
+  /**
+   * Force a fixed logo color for a fixed-color surface. Omit to follow the theme
+   * (text-foreground: near-white in dark mode, near-black in light mode) -- the default,
+   * correct for the header/nav which sit on the tokenized background.
+   */
   variant?: "light" | "dark";
 }
 
-export function IguLogo({ className, height = 28, variant = "light" }: IguLogoProps) {
-  const color = variant === "light" ? "#ffffff" : "#0a0a0a";
+export function IguLogo({ className, height = 28, variant }: IguLogoProps) {
   const width = Math.round(height * (280 / 120));
+  // Theme-following by default (currentColor <- text-foreground); an explicit variant pins a
+  // fixed color for a fixed-color surface.
+  const colorClass =
+    variant === "light" ? "text-white" : variant === "dark" ? "text-[#0a0a0a]" : "text-foreground";
 
   return (
     <svg
@@ -16,14 +25,14 @@ export function IguLogo({ className, height = 28, variant = "light" }: IguLogoPr
       viewBox="-2 -2 284 124"
       width={width}
       height={height}
-      className={className}
+      className={cn(colorClass, className)}
       aria-label="IGU"
       role="img"
     >
-      <line x1="14" y1="14" x2="14" y2="106" stroke={color} strokeWidth="28" strokeLinecap="round" />
+      <line x1="14" y1="14" x2="14" y2="106" stroke="currentColor" strokeWidth="28" strokeLinecap="round" />
       <path
         d="M 130,14 L 58,14 L 58,106 L 130,106 L 130,66 L 104,66"
-        stroke={color}
+        stroke="currentColor"
         strokeWidth="28"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -31,7 +40,7 @@ export function IguLogo({ className, height = 28, variant = "light" }: IguLogoPr
       />
       <path
         d="M 174,14 L 174,76 Q 174,106 204,106 L 236,106 Q 266,106 266,76 L 266,14"
-        stroke={color}
+        stroke="currentColor"
         strokeWidth="28"
         strokeLinecap="round"
         strokeLinejoin="round"
