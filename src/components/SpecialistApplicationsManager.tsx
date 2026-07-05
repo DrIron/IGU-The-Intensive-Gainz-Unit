@@ -115,9 +115,30 @@ export function SpecialistApplicationsManager() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // S2: record the decision + notify the applicant. Account provisioning
-      // (create-specialist-account + subrole grant) is wired in S3 — this handler
-      // is extended there; the status transition + email stay.
+      // S3: provision the specialist end-to-end (auth user + coach role for route access +
+      // approved subrole + dietitians row + staff level) and send the setup/invite email.
+      // Only mark the application approved once provisioning succeeds — so a failure doesn't
+      // leave an "approved" application with no account.
+      const { data: provision, error: provisionError } = await supabase.functions.invoke(
+        "create-specialist-account",
+        {
+          body: {
+            applicationId: selectedApp.id,
+            email: selectedApp.email,
+            first_name: selectedApp.first_name,
+            last_name: selectedApp.last_name,
+            subroleSlug: selectedApp.subrole_slug,
+            date_of_birth: selectedApp.date_of_birth,
+            phoneNumber: selectedApp.phone_number,
+            certifications: selectedApp.certifications ?? undefined,
+            specializations: selectedApp.specializations ?? undefined,
+            bio: selectedApp.coaching_philosophy ?? undefined,
+          },
+        },
+      );
+      if (provisionError) throw provisionError;
+      if (provision && provision.success === false) throw new Error(provision.error || "Provisioning failed");
+
       const { error: updateError } = await supabase
         .from("coach_applications")
         .update({
@@ -129,18 +150,7 @@ export function SpecialistApplicationsManager() {
         .eq("id", selectedApp.id);
       if (updateError) throw updateError;
 
-      await supabase.functions.invoke("send-coach-application-emails", {
-        body: {
-          applicantEmail: selectedApp.email,
-          applicantName: `${selectedApp.first_name} ${selectedApp.last_name}`,
-          type: "approved",
-          roleLabel: config.roleLabel,
-          roleTeam: config.roleTeam,
-          notes: adminNotes,
-        },
-      });
-
-      toast({ title: "Approved", description: `${config.roleLabel} application approved and applicant notified.` });
+      toast({ title: "Approved", description: `${config.roleLabel} account provisioned and setup email sent.` });
       closeDialog();
       loadApplications();
     } catch (error: unknown) {
@@ -336,7 +346,7 @@ export function SpecialistApplicationsManager() {
             <DialogTitle>{actionType === "approve" ? "Approve Application" : "Reject Application"}</DialogTitle>
             <DialogDescription>
               {selectedApp && actionType === "approve" &&
-                `Approving ${selectedApp.first_name} ${selectedApp.last_name} marks the application approved and notifies them. Account provisioning is completed in the role-grant step.`}
+                `Approving ${selectedApp.first_name} ${selectedApp.last_name} provisions their specialist account (login + approved subrole + profile) and emails them a setup link.`}
               {selectedApp && actionType === "reject" &&
                 `Rejecting ${selectedApp.first_name} ${selectedApp.last_name} marks the application rejected and sends a notification.`}
             </DialogDescription>
