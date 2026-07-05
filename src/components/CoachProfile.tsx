@@ -258,15 +258,10 @@ export default function CoachProfile() {
     }
   };
 
-  if (!coachData) {
-    return (
-      <Card>
-        <CardContent className="pt-6">
-          <p className="text-muted-foreground">No coach profile found. Your coach profile will appear here once it's set up.</p>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Self-gate: render nothing when there's no coaches_public row (e.g. a pure specialist who has
+  // the coach role for routing but no coach profile). This lets AccountManagement mount CoachProfile
+  // + SpecialistProfile side by side, each showing only for the row it owns.
+  if (!coachData) return null;
 
   return (
     <div className="space-y-6">
