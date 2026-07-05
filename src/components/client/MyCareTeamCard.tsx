@@ -33,6 +33,8 @@ interface CareTeamMember {
   is_billable: boolean;
   staff_name: string;
   profile_picture_url: string | null;
+  short_bio: string | null;
+  specializations: string[] | null;
 }
 
 interface PrimaryCoach {
@@ -49,6 +51,7 @@ interface MyCareTeamCardProps {
 }
 
 const SPECIALTY_CONFIG: Record<StaffSpecialty, { label: string; icon: React.ElementType; color: string }> = {
+  dietitian: { label: "Dietitian", icon: Apple, color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
   nutrition: { label: "Nutrition Coach", icon: Apple, color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
   lifestyle: { label: "Lifestyle Coach", icon: Heart, color: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400" },
   bodybuilding: { label: "Bodybuilding Coach", icon: Dumbbell, color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
@@ -86,21 +89,41 @@ export function MyCareTeamCard({ subscriptionId, primaryCoach, nextBillingDate }
       if (error) throw error;
 
       if (data && data.length > 0) {
-        // Fetch coach info for each staff member - use coaches_directory (public-safe view)
+        // Enrich each member from the client-safe sources: coaches_directory for coach-specialists,
+        // and dietitians_client_safe for credentialed dietitians (specialty='dietitian') -- which a
+        // pure dietitian only appears in (they have no coaches_directory row). Both are gated so the
+        // client only sees staff on their own care team.
         const staffUserIds = data.map(m => m.staff_user_id);
-        const { data: coachesData } = await supabase
-          .from("coaches_directory")
-          .select("user_id, first_name, last_name, profile_picture_url")
-          .in("user_id", staffUserIds);
+        const [{ data: coachesData }, { data: dietitiansData }] = await Promise.all([
+          supabase
+            .from("coaches_directory")
+            .select("user_id, first_name, last_name, profile_picture_url")
+            .in("user_id", staffUserIds),
+          supabase
+            .from("dietitians_client_safe")
+            .select("user_id, first_name, display_name, profile_picture_url, short_bio, specializations")
+            .in("user_id", staffUserIds),
+        ]);
 
         const coachMap = new Map(coachesData?.map(c => [c.user_id, c]) || []);
-        
+        const dietMap = new Map(dietitiansData?.map(d => [d.user_id, d]) || []);
+
         const enrichedData: CareTeamMember[] = data.map(member => {
           const coach = coachMap.get(member.staff_user_id);
+          const diet = dietMap.get(member.staff_user_id);
+          // Prefer the dietitian profile for a dietitian assignment; otherwise the coach directory.
+          const primary = member.specialty === "dietitian" ? (diet ?? coach) : (coach ?? diet);
+          const name = diet && member.specialty === "dietitian"
+            ? (diet.display_name || diet.first_name || "Specialist")
+            : coach
+              ? `${coach.first_name} ${coach.last_name || ""}`.trim()
+              : (diet?.display_name || diet?.first_name || "Specialist");
           return {
             ...member,
-            staff_name: coach ? `${coach.first_name} ${coach.last_name || ''}`.trim() : 'Specialist',
-            profile_picture_url: coach?.profile_picture_url || null
+            staff_name: name || "Specialist",
+            profile_picture_url: primary?.profile_picture_url || null,
+            short_bio: diet?.short_bio ?? null,
+            specializations: diet?.specializations ?? null,
           };
         });
 
@@ -197,7 +220,7 @@ export function MyCareTeamCard({ subscriptionId, primaryCoach, nextBillingDate }
                         {getInitials(member.staff_name)}
                       </AvatarFallback>
                     </Avatar>
-                    <div className="flex-1">
+                    <div className="flex-1 min-w-0">
                       <p className="font-medium">{member.staff_name}</p>
                       <div className="flex items-center gap-2">
                         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -205,6 +228,16 @@ export function MyCareTeamCard({ subscriptionId, primaryCoach, nextBillingDate }
                           {config?.label || member.specialty}
                         </span>
                       </div>
+                      {member.short_bio && (
+                        <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{member.short_bio}</p>
+                      )}
+                      {member.specializations && member.specializations.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {member.specializations.slice(0, 4).map((s) => (
+                            <Badge key={s} variant="outline" className="text-[10px] px-1.5 py-0">{s}</Badge>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <div className="flex items-center gap-2">
                       {isScheduledEnd && member.active_until ? (
