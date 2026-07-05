@@ -2854,14 +2854,22 @@ export type Database = {
           certifications: string[] | null
           created_at: string
           id: string
+          instagram_url: string | null
           license_expiry: string | null
           license_number: string | null
           license_state: string | null
+          location: string | null
           max_clients: number | null
           nutrition_specialties: string[] | null
+          profile_picture_url: string | null
+          qualifications: string[] | null
+          short_bio: string | null
+          specializations: string[] | null
+          tiktok_url: string | null
           updated_at: string
           user_id: string
           years_experience: number | null
+          youtube_url: string | null
         }
         Insert: {
           accepting_clients?: boolean
@@ -2869,14 +2877,22 @@ export type Database = {
           certifications?: string[] | null
           created_at?: string
           id?: string
+          instagram_url?: string | null
           license_expiry?: string | null
           license_number?: string | null
           license_state?: string | null
+          location?: string | null
           max_clients?: number | null
           nutrition_specialties?: string[] | null
+          profile_picture_url?: string | null
+          qualifications?: string[] | null
+          short_bio?: string | null
+          specializations?: string[] | null
+          tiktok_url?: string | null
           updated_at?: string
           user_id: string
           years_experience?: number | null
+          youtube_url?: string | null
         }
         Update: {
           accepting_clients?: boolean
@@ -2884,14 +2900,22 @@ export type Database = {
           certifications?: string[] | null
           created_at?: string
           id?: string
+          instagram_url?: string | null
           license_expiry?: string | null
           license_number?: string | null
           license_state?: string | null
+          location?: string | null
           max_clients?: number | null
           nutrition_specialties?: string[] | null
+          profile_picture_url?: string | null
+          qualifications?: string[] | null
+          short_bio?: string | null
+          specializations?: string[] | null
+          tiktok_url?: string | null
           updated_at?: string
           user_id?: string
           years_experience?: number | null
+          youtube_url?: string | null
         }
         Relationships: []
       }
@@ -8352,6 +8376,57 @@ export type Database = {
           user_id: string | null
           whatsapp_number: string | null
           youtube_url: string | null
+        }
+        Relationships: []
+      }
+      dietitians_client_safe: {
+        Row: {
+          bio: string | null
+          certifications: string[] | null
+          display_name: string | null
+          first_name: string | null
+          instagram_url: string | null
+          location: string | null
+          nutrition_specialties: string[] | null
+          profile_picture_url: string | null
+          qualifications: string[] | null
+          short_bio: string | null
+          specializations: string[] | null
+          tiktok_url: string | null
+          user_id: string | null
+          youtube_url: string | null
+        }
+        Insert: {
+          bio?: string | null
+          certifications?: string[] | null
+          display_name?: string | null
+          first_name?: string | null
+          instagram_url?: string | null
+          location?: string | null
+          nutrition_specialties?: string[] | null
+          profile_picture_url?: string | null
+          qualifications?: string[] | null
+          short_bio?: string | null
+          specializations?: string[] | null
+          tiktok_url?: string | null
+          user_id?: string | null
+          youtube_url?: string | null
+        }
+        Update: {
+          bio?: string | null
+          certifications?: string[] | null
+          display_name?: string | null
+          first_name?: string | null
+          instagram_url?: string | null
+          location?: string | null
+          nutrition_specialties?: string[] | null
+          profile_picture_url?: string | null
+          qualifications?: string[] | null
+          short_bio?: string | null
+          specializations?: string[] | null
+          tiktok_url?: string | null
+          user_id?: string | null
+          youtube_url?: string | null
         }
         Relationships: []
       }
