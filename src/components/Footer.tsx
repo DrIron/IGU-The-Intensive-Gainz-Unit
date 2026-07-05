@@ -18,8 +18,13 @@ const CoachApplicationForm = lazyWithReload(() =>
   import("@/components/CoachApplicationForm").then(m => ({ default: m.CoachApplicationForm }))
 );
 
+const SpecialistApplicationForm = lazyWithReload(() =>
+  import("@/components/SpecialistApplicationForm").then(m => ({ default: m.SpecialistApplicationForm }))
+);
+
 export function Footer() {
   const [showCoachApplication, setShowCoachApplication] = useState(false);
+  const [showDietitianApplication, setShowDietitianApplication] = useState(false);
   const [newsletterEmail, setNewsletterEmail] = useState("");
   const [newsletterLoading, setNewsletterLoading] = useState(false);
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
@@ -160,6 +165,13 @@ export function Footer() {
               >
                 {t('applyAsCoach')}
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => setShowDietitianApplication(true)}
+                className="w-full"
+              >
+                {t('nav:applyAsDietitian')}
+              </Button>
 
               <div className="pt-4 border-t">
                 <p className="text-sm text-muted-foreground mb-2">
@@ -215,6 +227,16 @@ export function Footer() {
           <CoachApplicationForm
             open={showCoachApplication}
             onOpenChange={setShowCoachApplication}
+          />
+        </Suspense>
+      )}
+
+      {showDietitianApplication && (
+        <Suspense fallback={null}>
+          <SpecialistApplicationForm
+            open={showDietitianApplication}
+            onOpenChange={setShowDietitianApplication}
+            subroleSlug="dietitian"
           />
         </Suspense>
       )}
