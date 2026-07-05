@@ -24,6 +24,8 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import CoachProfile from "@/components/CoachProfile";
+import SpecialistProfile from "@/components/SpecialistProfile";
+import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 import { useCanLeaveTestimonial } from "@/hooks/useCanLeaveTestimonial";
 
 interface Subscription {
@@ -112,6 +114,8 @@ export default function AccountManagement() {
   const [deletingAccount, setDeletingAccount] = useState(false);
 
   const [userRoles, setUserRoles] = useState<string[]>([]);
+  const { isDietitian, isPhysiotherapist, isSportsPhysiologist, isMobilityCoach } = useSubrolePermissions();
+  const isSpecialist = isDietitian || isPhysiotherapist || isSportsPhysiologist || isMobilityCoach;
 
   const getUserRoles = useCallback(async () => {
     const { data: { user } } = await withTimeout(supabase.auth.getUser(), 8000);
@@ -495,15 +499,15 @@ export default function AccountManagement() {
           <h1 className="text-4xl font-bold mb-8">Account Settings</h1>
 
           <Tabs defaultValue="account" className="w-full">
-            <TabsList className={`grid w-full ${userRoles.includes('coach') ? 'grid-cols-2' : 'grid-cols-1'} mb-6`}>
+            <TabsList className={`grid w-full ${(userRoles.includes('coach') || isSpecialist) ? 'grid-cols-2' : 'grid-cols-1'} mb-6`}>
               <TabsTrigger value="account">
                 <User className="h-4 w-4 mr-2" />
                 Account
               </TabsTrigger>
-              {userRoles.includes('coach') && (
+              {(userRoles.includes('coach') || isSpecialist) && (
                 <TabsTrigger value="coach-profile">
                   <Users className="h-4 w-4 mr-2" />
-                  Coach Profile
+                  {isSpecialist ? "Specialist Profile" : "Coach Profile"}
                 </TabsTrigger>
               )}
             </TabsList>
@@ -959,21 +963,12 @@ export default function AccountManagement() {
             </TabsContent>
 
             {userRoles.includes('coach') && (
-              <TabsContent value="coach-profile">
-                <Card>
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Users className="h-5 w-5" />
-                      Coach Profile for Meet Our Team
-                    </CardTitle>
-                    <CardDescription>
-                      Edit your public coach profile displayed on the Meet Our Team page
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent>
-                    <CoachProfile />
-                  </CardContent>
-                </Card>
+              <TabsContent value="coach-profile" className="space-y-6">
+                {/* Both self-gate: SpecialistProfile renders only with a dietitians row, CoachProfile
+                    only with a coaches_public row. A pure specialist sees just their specialist
+                    profile; a coach sees just the coach profile; someone with both sees both. */}
+                <SpecialistProfile />
+                <CoachProfile />
               </TabsContent>
             )}
           </Tabs>
