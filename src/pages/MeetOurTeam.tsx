@@ -49,10 +49,6 @@ export default function MeetOurTeam() {
       const { data, error } = await supabase
         .from("coaches_directory")
         .select("user_id, first_name, last_name, bio, short_bio, location, profile_picture_url, qualifications, specializations, nickname, is_head_coach, head_coach_specialisation")
-        // is_head_coach / head_coach_specialisation exist on the view (added by
-        // migration) but aren't in the generated types for coaches_directory yet,
-        // so override the inferred row type here.
-        .returns<(Omit<Coach, "id"> & { user_id: string })[]>()
         .order("first_name");
       
       if (error) throw error;
