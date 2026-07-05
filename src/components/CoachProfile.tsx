@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Upload } from "lucide-react";
 import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
+import { CoachServiceAvailability } from "@/components/coach/CoachServiceAvailability";
 
 interface CoachData {
   id: string;
@@ -268,6 +269,7 @@ export default function CoachProfile() {
   }
 
   return (
+    <div className="space-y-6">
     <Card>
       <CardHeader>
         <CardTitle>Coach Profile</CardTitle>
@@ -511,5 +513,8 @@ export default function CoachProfile() {
         </form>
       </CardContent>
     </Card>
+
+    <CoachServiceAvailability coachUserId={coachData.user_id} />
+    </div>
   );
 }

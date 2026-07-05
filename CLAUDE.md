@@ -167,7 +167,7 @@ leads         -- Newsletter + lead tracking with UTM params, invited_at for wait
 referrals     -- Referral codes (IGU-NAME-XXXX) + conversion tracking
 
 -- Compensation
-professional_levels        -- Hourly rates: role × level × work_type (9 seeded)
+professional_levels        -- DEAD hourly-era table (flat per-client payout superseded it); drop pending the coach 3-table refactor
 service_hour_estimates     -- Estimated monthly hours per service × role × work_type
 igu_operations_costs       -- Fixed IGU ops costs per service tier
 staff_professional_info    -- Level tracking for non-coach professionals
@@ -186,17 +186,21 @@ waitlist_settings          -- Single-row: is_enabled, heading, subheading (anon 
 
 ### 5b. Service Tiers & Compensation
 
-| Tier | Slug | Price (KWD) | Coach | Dietitian |
+Payout is a **flat per-client** amount (NOT hourly — the hourly model was superseded). Client price
+per tier is fixed below; level scales BOTH the client price and the flat payout.
+
+| Tier | Slug | Price (KWD) | Coach payout | Dietitian payout |
 |------|------|-------------|-------|-----------|
 | Team Plan | `team_plan` | 12 | Head Coach (5 KWD flat) | — |
-| 1:1 Online | `one_to_one_online` | 40 | Hourly | — |
-| 1:1 Complete | `one_to_one_complete` | 75 | Hourly | Hourly |
-| Hybrid | `hybrid` | 150 | Hourly (online + in-person) | Hourly |
-| In-Person | `in_person` | 250 | Hourly + profit split | Hourly + profit split |
+| 1:1 Online | `one_to_one_online` | 40 | Flat per client | — |
+| 1:1 Complete | `one_to_one_complete` | 75 | Flat per client | Flat per client |
+| Hybrid | `hybrid` | 150 | Flat per client | Flat per client |
+| In-Person | `in_person` | 250 | Flat per client + profit split | Flat per client + profit split |
 
-**Professional Levels** (admin-assigned, affects hourly rate only, NOT client pricing):
+**Professional Levels** (admin-assigned) — level DOES drive client-facing pricing (via
+`service_level_pricing` / `CLIENT_PRICE_PER_LEVEL`) AND the flat per-client payout:
 - Junior / Senior / Lead — coaches and dietitians
-- In `src/auth/roles.ts`: `ProfessionalLevel`, `COACH_RATES`, `DIETITIAN_RATES`
+- In `src/auth/roles.ts`: `ProfessionalLevel`, `COACH_PAYOUT_PER_CLIENT`, `DIETITIAN_PAYOUT_PER_CLIENT`, `CLIENT_PRICE_PER_LEVEL`
 - DB: `coaches_public.coach_level`, `staff_professional_info.level`
 
 **Head Coach** — boolean on `coaches_public`, leads a team plan track. Fixed 5 KWD/client/month.

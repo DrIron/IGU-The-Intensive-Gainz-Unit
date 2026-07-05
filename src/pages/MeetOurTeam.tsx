@@ -22,6 +22,8 @@ interface Coach {
   qualifications: string[] | null;
   specializations: string[] | null;
   nickname: string | null;
+  is_head_coach: boolean | null;
+  head_coach_specialisation: string | null;
 }
 
 export default function MeetOurTeam() {
@@ -46,7 +48,11 @@ export default function MeetOurTeam() {
       // Filters by active status and is accessible to authenticated users
       const { data, error } = await supabase
         .from("coaches_directory")
-        .select("user_id, first_name, last_name, bio, short_bio, location, profile_picture_url, qualifications, specializations, nickname")
+        .select("user_id, first_name, last_name, bio, short_bio, location, profile_picture_url, qualifications, specializations, nickname, is_head_coach, head_coach_specialisation")
+        // is_head_coach / head_coach_specialisation exist on the view (added by
+        // migration) but aren't in the generated types for coaches_directory yet,
+        // so override the inferred row type here.
+        .returns<(Omit<Coach, "id"> & { user_id: string })[]>()
         .order("first_name");
       
       if (error) throw error;
@@ -131,6 +137,11 @@ export default function MeetOurTeam() {
                         <MapPin className="h-3 w-3 mr-1" />
                         {coach.location}
                       </div>
+                    )}
+                    {coach.is_head_coach && coach.head_coach_specialisation && (
+                      <p className="text-sm font-medium text-primary">
+                        Head Coach -- {coach.head_coach_specialisation}
+                      </p>
                     )}
                   </div>
                 </div>

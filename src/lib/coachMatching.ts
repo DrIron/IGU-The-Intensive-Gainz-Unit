@@ -30,6 +30,21 @@ export interface CoachCandidate {
 }
 
 /**
+ * Capacity v2 effective cap for a (coach, service): the lower of the admin ceiling and the coach's
+ * own cap, where 0 (admin) or NULL (coach) means "no limit on that side". Returns null = unlimited.
+ * Mirrors the server-side LEAST(NULLIF(max_clients,0), coach_max_clients).
+ */
+export function computeEffectiveCap(
+  adminMax: number | null | undefined,
+  coachMax: number | null | undefined,
+): number | null {
+  const admin = adminMax && adminMax > 0 ? adminMax : null; // 0 = unlimited
+  const coach = coachMax ?? null;                            // NULL = unlimited
+  const caps = [admin, coach].filter((v): v is number => v != null);
+  return caps.length ? Math.min(...caps) : null;            // null = unlimited
+}
+
+/**
  * Maps plan type to service name pattern for querying
  */
 const PLAN_TYPE_TO_SERVICE_NAME: Record<string, string> = {
@@ -119,21 +134,25 @@ export async function autoMatchCoachForClient(
 
     if (import.meta.env.DEV) console.log('[CoachMatching] Found', coaches.length, 'active coaches');
 
-    // Get service limits for all coaches for this specific service
+    // Get service limits for all coaches for this specific service (capacity v2 fields).
     const { data: serviceLimits, error: limitsError } = await supabaseClient
       .from('coach_service_limits')
-      .select('coach_id, max_clients')
+      .select('coach_id, max_clients, coach_max_clients, is_accepting')
       .eq('service_id', targetServiceId);
 
     if (limitsError) {
       if (import.meta.env.DEV) console.error('[CoachMatching] Error fetching service limits:', limitsError);
     }
 
-    // Create a map of coach_id to max_clients
-    const limitsMap = new Map<string, number>();
+    // Per coach.id, keep the admin ceiling + coach cap + open/close flag.
+    const limitsMap = new Map<string, { max_clients: number; coach_max_clients: number | null; is_accepting: boolean }>();
     if (serviceLimits) {
       for (const limit of serviceLimits) {
-        limitsMap.set(limit.coach_id, limit.max_clients);
+        limitsMap.set(limit.coach_id, {
+          max_clients: limit.max_clients,
+          coach_max_clients: limit.coach_max_clients ?? null,
+          is_accepting: limit.is_accepting ?? true,
+        });
       }
     }
 
@@ -164,24 +183,30 @@ export async function autoMatchCoachForClient(
     const candidates: CoachCandidate[] = [];
     
     for (const coach of coaches) {
-      const maxClients = limitsMap.get(coach.id);
-      
-      // Skip coaches without a limit set for this service (they don't offer it)
-      if (maxClients === undefined || maxClients === 0) {
-        if (import.meta.env.DEV) console.log('[CoachMatching] Skipping coach without capacity for service:', coach.first_name);
+      const row = limitsMap.get(coach.id);
+
+      // v2: a coach "offers" a service iff they have a row AND is_accepting. No row → not offered.
+      if (!row) {
+        if (import.meta.env.DEV) console.log('[CoachMatching] Skipping coach without a limit row for service:', coach.first_name);
+        continue;
+      }
+      if (!row.is_accepting) {
+        if (import.meta.env.DEV) console.log('[CoachMatching] Skipping coach not accepting for service:', coach.first_name);
         continue;
       }
 
+      // Effective cap = min of admin ceiling + coach cap; 0/NULL = unlimited on that side.
+      const effectiveCap = computeEffectiveCap(row.max_clients, row.coach_max_clients);
       const activeClientCount = clientCountMap.get(coach.user_id) || 0;
-      
-      // Skip coaches at capacity
-      if (activeClientCount >= maxClients) {
-        if (import.meta.env.DEV) console.log('[CoachMatching] Skipping coach at capacity:', coach.first_name, activeClientCount, '/', maxClients);
+
+      // Skip coaches at their effective cap (unlimited never full).
+      if (effectiveCap !== null && activeClientCount >= effectiveCap) {
+        if (import.meta.env.DEV) console.log('[CoachMatching] Skipping coach at capacity:', coach.first_name, activeClientCount, '/', effectiveCap);
         continue;
       }
 
       const matchScore = calculateSpecializationMatchScore(coach.specializations, goals);
-      
+
       candidates.push({
         id: coach.id,
         user_id: coach.user_id,
@@ -189,7 +214,7 @@ export async function autoMatchCoachForClient(
         last_name: coach.last_name,
         specializations: coach.specializations,
         activeClientCount,
-        maxClients,
+        maxClients: effectiveCap ?? 0,
         matchScore,
       });
     }
@@ -252,17 +277,21 @@ export async function validateCoachSelection(
       return { valid: false, reason: 'Coach is not currently accepting clients' };
     }
 
-    // Check service limit
+    // Check service limit (capacity v2).
     const { data: limit, error: limitError } = await supabaseClient
       .from('coach_service_limits')
-      .select('max_clients')
+      .select('max_clients, coach_max_clients, is_accepting')
       .eq('coach_id', coachId)
       .eq('service_id', serviceId)
       .maybeSingle();
 
-    if (limitError || !limit || limit.max_clients === 0) {
+    if (limitError || !limit) {
       return { valid: false, reason: 'Coach does not offer this service' };
     }
+    if (!limit.is_accepting) {
+      return { valid: false, reason: 'Coach is not accepting clients for this service' };
+    }
+    const effectiveCap = computeEffectiveCap(limit.max_clients, limit.coach_max_clients);
 
     // Count current active + pending clients (matches server-side logic)
     const { count, error: countError } = await supabaseClient
@@ -278,8 +307,8 @@ export async function validateCoachSelection(
     }
 
     const activeCount = count || 0;
-    if (activeCount >= limit.max_clients) {
-      return { valid: false, reason: `Coach is at capacity (${activeCount}/${limit.max_clients} clients)` };
+    if (effectiveCap !== null && activeCount >= effectiveCap) {
+      return { valid: false, reason: `Coach is at capacity (${activeCount}/${effectiveCap} clients)` };
     }
 
     return { valid: true, coachUserId: coach.user_id };
