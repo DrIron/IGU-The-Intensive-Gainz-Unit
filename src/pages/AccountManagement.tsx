@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { CreditCard, FileText, Loader2, User, Lock, Trash2, AlertTriangle, Users } from "lucide-react";
+import { getUsernameError } from "@/lib/username";
+import { CreditCard, FileText, Loader2, User, Lock, Trash2, AlertTriangle, Users, AtSign, Check, X } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -114,6 +115,15 @@ export default function AccountManagement() {
   const [updatingPassword, setUpdatingPassword] = useState(false);
   const [deletingAccount, setDeletingAccount] = useState(false);
 
+  // UN1 — username (cross-role display handle). Separate from the profile form:
+  // saves via the set_username RPC, not the profiles_public UPDATE above.
+  const [currentUsername, setCurrentUsername] = useState<string | null>(null);
+  const [usernameInput, setUsernameInput] = useState("");
+  const [usernameHint, setUsernameHint] = useState<
+    { kind: "checking" | "available" | "unavailable" | "invalid"; message: string } | null
+  >(null);
+  const [savingUsername, setSavingUsername] = useState(false);
+
   const [userRoles, setUserRoles] = useState<string[]>([]);
   const { user: accountUser } = useAuthSession();
   const { isDietitian, isPhysiotherapist, isSportsPhysiologist, isMobilityCoach } = useSubrolePermissions(accountUser?.id);
@@ -151,13 +161,67 @@ export default function AccountManagement() {
     getUserRoles();
   }, [checkUser, getUserRoles]);
 
+  // Debounced live availability hint. Client-side format/reserved check first
+  // (instant), then the authoritative is_username_available RPC.
+  useEffect(() => {
+    const trimmed = usernameInput.trim();
+    if (!trimmed || trimmed === currentUsername) {
+      setUsernameHint(null);
+      return;
+    }
+    const formatError = getUsernameError(trimmed);
+    if (formatError) {
+      setUsernameHint({ kind: "invalid", message: formatError });
+      return;
+    }
+    setUsernameHint({ kind: "checking", message: "Checking availability..." });
+    const timer = setTimeout(async () => {
+      const { data, error } = await supabase.rpc("is_username_available", { p_username: trimmed });
+      if (error) {
+        setUsernameHint(null);
+        return;
+      }
+      setUsernameHint(
+        data
+          ? { kind: "available", message: "Available" }
+          : { kind: "unavailable", message: "That username is taken." },
+      );
+    }, 400);
+    return () => clearTimeout(timer);
+  }, [usernameInput, currentUsername]);
+
+  const handleSaveUsername = async () => {
+    const trimmed = usernameInput.trim();
+    const formatError = getUsernameError(trimmed);
+    if (formatError) {
+      toast({ title: "Invalid username", description: formatError, variant: "destructive" });
+      return;
+    }
+    setSavingUsername(true);
+    try {
+      const { data, error } = await supabase.rpc("set_username", { p_username: trimmed });
+      if (error) throw error;
+      const saved = (data as { username?: string } | null)?.username ?? trimmed;
+      setCurrentUsername(saved);
+      setUsernameInput(saved);
+      setUsernameHint(null);
+      toast({ title: "Username updated", description: `You're now @${saved}.` });
+    } catch (error) {
+      // The RPC raises deliberately user-facing messages (taken / reserved / format).
+      const message = error instanceof Error ? error.message : sanitizeErrorForUser(error);
+      toast({ title: "Couldn't save username", description: message, variant: "destructive" });
+    } finally {
+      setSavingUsername(false);
+    }
+  };
+
   const loadProfileData = async (userId: string) => {
     try {
       // Split query for public/private data (own user has RLS access)
       const [{ data: profilePublic, error: publicError }, { data: profilePrivate, error: privateError }] = await Promise.all([
         supabase
           .from("profiles_public")
-          .select("first_name, activity_level")
+          .select("first_name, activity_level, username")
           .eq("id", userId)
           .single(),
         supabase
@@ -183,7 +247,9 @@ export default function AccountManagement() {
       };
 
       setProfileData(data);
-      
+      setCurrentUsername(profilePublic?.username ?? null);
+      setUsernameInput(profilePublic?.username ?? "");
+
       // Extract country code from phone if present
       const phoneWithCode = data.phone || "";
       let extractedCode = "+965";
@@ -691,6 +757,77 @@ export default function AccountManagement() {
                       {updatingProfile ? "Updating..." : "Update Profile"}
                     </Button>
                   </form>
+                </CardContent>
+              </Card>
+
+              {/* Username — cross-role display identity (UN1) */}
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <AtSign className="h-5 w-5" />
+                    Username
+                  </CardTitle>
+                  <CardDescription>
+                    Your public handle -- shown as your name in messages. Letters, numbers, and underscores; 3-20 characters.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2 max-w-sm">
+                    <Label htmlFor="username">Username</Label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground">@</span>
+                      <Input
+                        id="username"
+                        value={usernameInput}
+                        onChange={(e) => setUsernameInput(e.target.value)}
+                        placeholder="yourhandle"
+                        className="pl-7"
+                        maxLength={20}
+                        autoCapitalize="none"
+                        autoCorrect="off"
+                        spellCheck={false}
+                      />
+                    </div>
+                    {usernameHint && (
+                      <p
+                        className={
+                          usernameHint.kind === "available"
+                            ? "text-xs flex items-center gap-1 text-emerald-600 dark:text-emerald-400"
+                            : usernameHint.kind === "checking"
+                              ? "text-xs flex items-center gap-1 text-muted-foreground"
+                              : "text-xs flex items-center gap-1 text-destructive"
+                        }
+                      >
+                        {usernameHint.kind === "available" ? (
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                        ) : usernameHint.kind === "checking" ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        ) : (
+                          <X className="h-3.5 w-3.5" aria-hidden="true" />
+                        )}
+                        {usernameHint.message}
+                      </p>
+                    )}
+                    {currentUsername && (
+                      <p className="text-xs text-muted-foreground">
+                        Current: <span className="font-medium">@{currentUsername}</span>
+                      </p>
+                    )}
+                    <Button
+                      type="button"
+                      onClick={handleSaveUsername}
+                      disabled={
+                        savingUsername ||
+                        !usernameInput.trim() ||
+                        usernameInput.trim() === currentUsername ||
+                        usernameHint?.kind === "invalid" ||
+                        usernameHint?.kind === "unavailable" ||
+                        usernameHint?.kind === "checking"
+                      }
+                    >
+                      {savingUsername ? "Saving..." : "Save username"}
+                    </Button>
+                  </div>
                 </CardContent>
               </Card>
 

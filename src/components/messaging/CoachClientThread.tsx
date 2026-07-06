@@ -64,7 +64,7 @@ interface Message {
 
 interface SenderProfile {
   id: string;
-  first_name: string | null;
+  username: string | null;
   display_name: string | null;
   avatar_url: string | null;
 }
@@ -135,15 +135,24 @@ export function CoachClientThread({
 
     const distinctIds = Array.from(new Set(rows.map((r) => r.sender_id)));
     if (distinctIds.length > 0) {
-      const { data: profiles, error: profilesErr } = await supabase
-        .from("profiles_public")
-        .select("id, first_name, display_name, avatar_url")
-        .in("id", distinctIds);
-      if (profilesErr) {
-        console.warn("[CoachClientThread] profiles:", profilesErr.message);
+      // UN1: cross-role public-safe resolver. A direct profiles_public query is
+      // RLS-blocked for a coach's row when the client is viewing (rendered "Someone").
+      const { data: identities, error: identitiesErr } = await supabase.rpc(
+        "get_public_identities",
+        { p_user_ids: distinctIds },
+      );
+      if (identitiesErr) {
+        console.warn("[CoachClientThread] identities:", identitiesErr.message);
       }
       const map: Record<string, SenderProfile> = {};
-      for (const p of profiles ?? []) map[p.id] = p;
+      for (const p of identities ?? []) {
+        map[p.user_id] = {
+          id: p.user_id,
+          username: p.username,
+          display_name: p.display_name,
+          avatar_url: p.avatar_url,
+        };
+      }
       setSenders(map);
     }
 
@@ -193,13 +202,19 @@ export function CoachClientThread({
           setSenders((prev) => {
             if (prev[incoming.sender_id]) return prev;
             supabase
-              .from("profiles_public")
-              .select("id, first_name, display_name, avatar_url")
-              .eq("id", incoming.sender_id)
-              .maybeSingle()
+              .rpc("get_public_identities", { p_user_ids: [incoming.sender_id] })
               .then(({ data }) => {
-                if (!data) return;
-                setSenders((s) => ({ ...s, [data.id]: data }));
+                const row = data?.[0];
+                if (!row) return;
+                setSenders((s) => ({
+                  ...s,
+                  [row.user_id]: {
+                    id: row.user_id,
+                    username: row.username,
+                    display_name: row.display_name,
+                    avatar_url: row.avatar_url,
+                  },
+                }));
               });
             return prev;
           });
@@ -589,9 +604,9 @@ function MessageRow({
 }: MessageRowProps) {
   const name = isOwn
     ? "You"
-    : sender?.display_name || sender?.first_name || "Someone";
+    : sender?.username || sender?.display_name || "Someone";
   const initials =
-    (sender?.first_name || sender?.display_name || "?")
+    (sender?.username || sender?.display_name || "?")
       .slice(0, 2)
       .toUpperCase();
   const when = format(new Date(message.created_at), "h:mm a");
@@ -725,7 +740,7 @@ function PinnedSection({
           const name =
             m.sender_id === viewerUserId
               ? "You"
-              : sender?.display_name || sender?.first_name || "Someone";
+              : sender?.username || sender?.display_name || "Someone";
           const when = format(new Date(m.created_at), "MMM d");
           return (
             <li key={m.id} className="flex items-center gap-2 text-sm">

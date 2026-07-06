@@ -6352,6 +6352,7 @@ export type Database = {
           signup_completed_at: string | null
           status: Database["public"]["Enums"]["account_status"] | null
           updated_at: string | null
+          username: string | null
         }
         Insert: {
           activation_completed_at?: string | null
@@ -6367,6 +6368,7 @@ export type Database = {
           signup_completed_at?: string | null
           status?: Database["public"]["Enums"]["account_status"] | null
           updated_at?: string | null
+          username?: string | null
         }
         Update: {
           activation_completed_at?: string | null
@@ -6382,6 +6384,7 @@ export type Database = {
           signup_completed_at?: string | null
           status?: Database["public"]["Enums"]["account_status"] | null
           updated_at?: string | null
+          username?: string | null
         }
         Relationships: []
       }
@@ -9171,6 +9174,17 @@ export type Database = {
         }[]
       }
       get_phi_encryption_key: { Args: never; Returns: string }
+      get_public_identities: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          user_id: string
+          username: string | null
+          display_name: string | null
+          avatar_url: string | null
+        }[]
+      }
+      is_username_available: { Args: { p_username: string }; Returns: boolean }
+      set_username: { Args: { p_username: string }; Returns: Json }
       get_playlist_videos_with_access: {
         Args: { p_playlist_id: string }
         Returns: {
