@@ -9381,6 +9381,10 @@ export type Database = {
       }
       list_active_teams_for_client: { Args: never; Returns: Json }
       list_public_teams_for_browser: { Args: never; Returns: Json }
+      set_coach_client_message_pinned: {
+        Args: { p_message_id: string; p_pinned: boolean }
+        Returns: Json
+      }
       set_coach_service_availability: {
         Args: {
           p_service_id: string

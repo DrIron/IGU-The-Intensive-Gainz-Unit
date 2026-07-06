@@ -20,7 +20,10 @@ import {
   MoreVertical,
   Pencil,
   Trash2,
+  Pin,
+  PinOff,
 } from "lucide-react";
+import { toast } from "sonner";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,6 +58,8 @@ interface Message {
   edited_at: string | null;
   deleted_at: string | null;
   created_at: string;
+  pinned_at: string | null;
+  pinned_by: string | null;
 }
 
 interface SenderProfile {
@@ -89,10 +94,13 @@ export interface CoachClientThreadProps {
 export function CoachClientThread({
   clientUserId,
   viewerUserId,
-  viewerIsClient: _viewerIsClient,
+  viewerIsClient,
   className,
 }: CoachClientThreadProps) {
   const isMobile = useIsMobile();
+  // Pinning is a staff-only action (primary coach / care-team / admin). The
+  // client sees pins read-only; the RPC enforces the same server-side.
+  const isStaff = !viewerIsClient;
   const [messages, setMessages] = useState<Message[]>([]);
   const [senders, setSenders] = useState<Record<string, SenderProfile>>({});
   const [loading, setLoading] = useState(true);
@@ -327,11 +335,60 @@ export function CoachClientThread({
     }
   }, []);
 
+  const handleTogglePin = useCallback(
+    async (id: string, nextPinned: boolean) => {
+      const prev = messages.find((m) => m.id === id);
+      if (!prev) return;
+
+      const nowIso = new Date().toISOString();
+      setMessages((all) =>
+        all.map((m) =>
+          m.id === id
+            ? { ...m, pinned_at: nextPinned ? nowIso : null, pinned_by: nextPinned ? viewerUserId : null }
+            : m,
+        ),
+      );
+
+      const { error: rpcError } = await supabase.rpc("set_coach_client_message_pinned", {
+        p_message_id: id,
+        p_pinned: nextPinned,
+      });
+
+      if (rpcError) {
+        captureException(rpcError, { source: "coach_client_thread_pin" });
+        toast.error(nextPinned ? "Couldn't pin message" : "Couldn't unpin message");
+        // Roll back optimistic pin.
+        setMessages((all) =>
+          all.map((m) => (m.id === id ? { ...m, pinned_at: prev.pinned_at, pinned_by: prev.pinned_by } : m)),
+        );
+      }
+    },
+    [messages, viewerUserId],
+  );
+
   const grouped = useMemo(() => groupByDay(messages), [messages]);
+  // Pinned messages (newest-pinned first) render in their own section above the
+  // scrollable thread. Soft-deleted messages never appear even if pinned.
+  const pinned = useMemo(
+    () =>
+      messages
+        .filter((m) => m.pinned_at && !m.deleted_at)
+        .sort((a, b) => (b.pinned_at ?? "").localeCompare(a.pinned_at ?? "")),
+    [messages],
+  );
 
   return (
     <Card className={cn("overflow-hidden", className)}>
       <CardContent className="p-0 flex flex-col">
+        {pinned.length > 0 && (
+          <PinnedSection
+            pinned={pinned}
+            senders={senders}
+            viewerUserId={viewerUserId}
+            isStaff={isStaff}
+            onUnpin={(id) => handleTogglePin(id, false)}
+          />
+        )}
         <div
           ref={scrollRef}
           className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4 min-h-[320px] max-h-[60vh]"
@@ -355,11 +412,13 @@ export function CoachClientThread({
                     message={m}
                     sender={senders[m.sender_id]}
                     isOwn={m.sender_id === viewerUserId}
+                    isStaff={isStaff}
                     isEditing={editingId === m.id}
                     onEditStart={() => setEditingId(m.id)}
                     onEditCancel={() => setEditingId(null)}
                     onEditSave={(next) => handleSaveEdit(m.id, next)}
                     onDelete={() => handleDelete(m.id)}
+                    onTogglePin={() => handleTogglePin(m.id, !m.pinned_at)}
                   />
                 ))}
               </div>
@@ -507,22 +566,26 @@ interface MessageRowProps {
   message: Message;
   sender: SenderProfile | undefined;
   isOwn: boolean;
+  isStaff: boolean;
   isEditing: boolean;
   onEditStart: () => void;
   onEditCancel: () => void;
   onEditSave: (next: string) => void;
   onDelete: () => void;
+  onTogglePin: () => void;
 }
 
 function MessageRow({
   message,
   sender,
   isOwn,
+  isStaff,
   isEditing,
   onEditStart,
   onEditCancel,
   onEditSave,
   onDelete,
+  onTogglePin,
 }: MessageRowProps) {
   const name = isOwn
     ? "You"
@@ -533,7 +596,9 @@ function MessageRow({
       .toUpperCase();
   const when = format(new Date(message.created_at), "h:mm a");
   const isDeleted = message.deleted_at !== null;
-  const canActOnOwn = isOwn && !isDeleted;
+  const isPinned = message.pinned_at !== null;
+  // Staff can pin any message; owners keep Edit/Delete. Deleted rows get no menu.
+  const canAct = (isOwn || isStaff) && !isDeleted;
 
   return (
     <div
@@ -560,7 +625,7 @@ function MessageRow({
               </>
             )}
           </span>
-          {canActOnOwn && !isEditing && (
+          {canAct && !isEditing && (
             <span className={cn("opacity-0 group-hover:opacity-100 transition-opacity", isOwn && "order-1")}>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
@@ -573,14 +638,33 @@ function MessageRow({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align={isOwn ? "start" : "end"} className="min-w-[140px]">
-                  <DropdownMenuItem onClick={onEditStart}>
-                    <Pencil className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
-                    Edit
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
-                    <Trash2 className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
-                    Delete
-                  </DropdownMenuItem>
+                  {isStaff && (
+                    <DropdownMenuItem onClick={onTogglePin}>
+                      {isPinned ? (
+                        <>
+                          <PinOff className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
+                          Unpin
+                        </>
+                      ) : (
+                        <>
+                          <Pin className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
+                          Pin
+                        </>
+                      )}
+                    </DropdownMenuItem>
+                  )}
+                  {isOwn && (
+                    <DropdownMenuItem onClick={onEditStart}>
+                      <Pencil className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
+                      Edit
+                    </DropdownMenuItem>
+                  )}
+                  {isOwn && (
+                    <DropdownMenuItem onClick={onDelete} className="text-destructive focus:text-destructive">
+                      <Trash2 className="h-3.5 w-3.5 mr-2" aria-hidden="true" />
+                      Delete
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </span>
@@ -607,6 +691,66 @@ function MessageRow({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+/**
+ * Pinned section shown above the scrollable thread. Staff get an Unpin control on
+ * each row; the client sees the same list read-only. Renders nothing when empty
+ * (the caller already gates on pinned.length).
+ */
+function PinnedSection({
+  pinned,
+  senders,
+  viewerUserId,
+  isStaff,
+  onUnpin,
+}: {
+  pinned: Message[];
+  senders: Record<string, SenderProfile>;
+  viewerUserId: string;
+  isStaff: boolean;
+  onUnpin: (id: string) => void;
+}) {
+  return (
+    <div className="border-b bg-muted/30 px-4 py-2.5 md:px-6 space-y-1.5">
+      <p className="flex items-center gap-1.5 text-[11px] font-mono uppercase tracking-wider text-muted-foreground">
+        <Pin className="h-3 w-3" aria-hidden="true" />
+        Pinned
+      </p>
+      <ul className="space-y-1">
+        {pinned.map((m) => {
+          const sender = senders[m.sender_id];
+          const name =
+            m.sender_id === viewerUserId
+              ? "You"
+              : sender?.display_name || sender?.first_name || "Someone";
+          const when = format(new Date(m.created_at), "MMM d");
+          return (
+            <li key={m.id} className="flex items-center gap-2 text-sm">
+              <Pin className="h-3 w-3 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate">
+                <span className="font-medium">{name}:</span>{" "}
+                <span className="text-muted-foreground">{m.message}</span>
+              </span>
+              <span className="shrink-0 font-mono text-[10px] text-muted-foreground tabular-nums">
+                {when}
+              </span>
+              {isStaff && (
+                <button
+                  type="button"
+                  onClick={() => onUnpin(m.id)}
+                  aria-label="Unpin message"
+                  className="inline-flex shrink-0 items-center justify-center h-6 w-6 rounded hover:bg-muted text-muted-foreground touch-manipulation"
+                >
+                  <PinOff className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }
