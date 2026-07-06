@@ -142,7 +142,9 @@ const MobileBottomNavClient = lazyWithReload(() =>
       const items = sidebarMod.getClientMobileNavItems().map((item) =>
         item.path === "/messages" ? { ...item, badge: unreadUtil.formatUnreadBadge(count) } : item,
       );
-      return <navMod.MobileBottomNav items={items} />;
+      // Client dock has exactly 5 destinations (CC4) — show all as fixed tabs, no
+      // "More" overflow, so Messages + its unread badge is a real tab.
+      return <navMod.MobileBottomNav items={items} maxVisible={5} />;
     },
   }))
 );

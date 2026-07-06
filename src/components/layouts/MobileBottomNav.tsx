@@ -46,6 +46,10 @@ export function MobileBottomNav({
   const visibleItems = items.slice(0, maxVisible);
   const overflowItems = items.slice(maxVisible);
   const hasOverflow = overflowItems.length > 0;
+  // 5+ tabs (the client dock, CC4) flex to share width so they fit a 320px screen.
+  // ≤4-item docks (coach/admin) stay on the fixed 64px tab — unchanged.
+  const tight = visibleItems.length >= 5;
+  const tabWidth = tight ? "flex-1 min-w-0" : "min-w-[64px]";
 
   // Check if any overflow item is active
   const isOverflowActive = overflowItems.some(item => isActive(item.path));
@@ -71,22 +75,27 @@ export function MobileBottomNav({
               key={item.path}
               to={item.path}
               className={cn(
-                "relative flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 px-3 rounded-lg",
+                "relative flex flex-col items-center justify-center gap-1 py-2 px-3 rounded-lg",
+                tabWidth,
                 "transition-all touch-manipulation active:scale-95 active:opacity-80",
                 active
                   ? "text-primary bg-primary/10"
                   : "text-muted-foreground hover:text-foreground hover:bg-muted"
               )}
             >
-              <Icon className="h-5 w-5" />
-              {item.badge && (
-                <span
-                  aria-label={`${item.badge} unread`}
-                  className="absolute -top-1 right-3 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none text-destructive-foreground"
-                >
-                  {item.badge}
-                </span>
-              )}
+              {/* Badge anchors to the icon (not the Link) so it sits over the icon
+                  at any tab width — fixed 64px or flexed. */}
+              <span className="relative inline-flex">
+                <Icon className="h-5 w-5" />
+                {item.badge && (
+                  <span
+                    aria-label={`${item.badge} unread`}
+                    className="absolute -top-1 -right-2 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none text-destructive-foreground"
+                  >
+                    {item.badge}
+                  </span>
+                )}
+              </span>
               <span className="text-[10px] font-medium truncate max-w-[64px]">
                 {item.label}
               </span>
@@ -99,7 +108,8 @@ export function MobileBottomNav({
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  "relative flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 px-3 rounded-lg",
+                  "relative flex flex-col items-center justify-center gap-1 py-2 px-3 rounded-lg",
+                  tabWidth,
                   "transition-all touch-manipulation active:scale-95 active:opacity-80",
                   isOverflowActive
                     ? "text-primary bg-primary/10"
