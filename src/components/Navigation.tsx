@@ -460,7 +460,11 @@ export function Navigation({ user: propUser, userRole: propUserRole, onSectionCh
                       {memberStatus.label}
                     </Badge>
                   )}
-                  <DropdownMenu>
+                  {/* modal={false} disables Radix's scroll-lock (react-remove-scroll),
+                      which mutates body/html overflow and breaks the sticky nav
+                      (position:sticky top:0) -- leaving the trigger, and thus the
+                      menu, anchored off-screen when the page is scrolled (BUG12). */}
+                  <DropdownMenu modal={false}>
                     <DropdownMenuTrigger asChild>
                       <Button variant="ghost" className="gap-1">
                         <User className="h-4 w-4" />
