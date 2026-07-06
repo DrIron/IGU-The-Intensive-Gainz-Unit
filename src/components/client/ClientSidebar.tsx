@@ -11,6 +11,7 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { getClientNavItems } from "@/lib/routeConfig";
+import { formatUnreadBadge } from "@/lib/unread";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useUnreadMessageCount } from "@/hooks/useUnreadMessageCount";
 import { CreditCard, User } from "lucide-react";
@@ -194,11 +195,6 @@ export function ClientSidebar({
       </SidebarContent>
     </Sidebar>
   );
-}
-
-function formatUnreadBadge(count: number): string | null {
-  if (!count || count <= 0) return null;
-  return count >= 100 ? "99+" : String(count);
 }
 
 /**

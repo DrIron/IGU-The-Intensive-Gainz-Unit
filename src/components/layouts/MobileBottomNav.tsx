@@ -12,6 +12,8 @@ interface NavItem {
   path: string;
   label: string;
   icon: LucideIcon;
+  /** Pre-formatted unread badge (e.g. "3" / "99+"), or null/undefined for none. */
+  badge?: string | null;
 }
 
 interface MobileBottomNavProps {
@@ -47,6 +49,8 @@ export function MobileBottomNav({
 
   // Check if any overflow item is active
   const isOverflowActive = overflowItems.some(item => isActive(item.path));
+  // Any unread badge hiding inside the overflow menu → dot on the "More" button.
+  const overflowHasBadge = overflowItems.some(item => item.badge);
 
   return (
     <nav 
@@ -67,7 +71,7 @@ export function MobileBottomNav({
               key={item.path}
               to={item.path}
               className={cn(
-                "flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 px-3 rounded-lg",
+                "relative flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 px-3 rounded-lg",
                 "transition-all touch-manipulation active:scale-95 active:opacity-80",
                 active
                   ? "text-primary bg-primary/10"
@@ -75,6 +79,14 @@ export function MobileBottomNav({
               )}
             >
               <Icon className="h-5 w-5" />
+              {item.badge && (
+                <span
+                  aria-label={`${item.badge} unread`}
+                  className="absolute -top-1 right-3 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none text-destructive-foreground"
+                >
+                  {item.badge}
+                </span>
+              )}
               <span className="text-[10px] font-medium truncate max-w-[64px]">
                 {item.label}
               </span>
@@ -87,7 +99,7 @@ export function MobileBottomNav({
             <DropdownMenuTrigger asChild>
               <button
                 className={cn(
-                  "flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 px-3 rounded-lg",
+                  "relative flex flex-col items-center justify-center gap-1 min-w-[64px] py-2 px-3 rounded-lg",
                   "transition-all touch-manipulation active:scale-95 active:opacity-80",
                   isOverflowActive
                     ? "text-primary bg-primary/10"
@@ -95,6 +107,9 @@ export function MobileBottomNav({
                 )}
               >
                 <MoreHorizontal className="h-5 w-5" />
+                {overflowHasBadge && (
+                  <span aria-hidden className="absolute top-1 right-3 h-2 w-2 rounded-full bg-destructive" />
+                )}
                 <span className="text-[10px] font-medium">More</span>
               </button>
             </DropdownMenuTrigger>
@@ -114,6 +129,14 @@ export function MobileBottomNav({
                     >
                       <Icon className="h-4 w-4" />
                       <span>{item.label}</span>
+                      {item.badge && (
+                        <span
+                          aria-label={`${item.badge} unread`}
+                          className="ml-auto flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none text-destructive-foreground"
+                        >
+                          {item.badge}
+                        </span>
+                      )}
                     </Link>
                   </DropdownMenuItem>
                 );

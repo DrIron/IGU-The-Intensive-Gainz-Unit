@@ -123,13 +123,27 @@ const ClientMobileNavGlobal = memo(function ClientMobileNavGlobal() {
   return <MobileBottomNavClient />;
 });
 
-// Lazy-load the actual nav to avoid pulling sidebar code into the initial bundle
+// Lazy-load the actual nav to avoid pulling sidebar code into the initial bundle.
+// Hooks run inside the lazy default (mirrors the coach dock) so the dock
+// re-renders on realtime unread-count changes and badges the Messages item.
 const MobileBottomNavClient = lazyWithReload(() =>
   Promise.all([
     import("@/components/layouts/MobileBottomNav"),
     import("@/components/client/ClientSidebar"),
-  ]).then(([navMod, sidebarMod]) => ({
-    default: () => <navMod.MobileBottomNav items={sidebarMod.getClientMobileNavItems()} />,
+    import("@/hooks/useUnreadMessageCount"),
+    import("@/hooks/useAuthSession"),
+    import("@/lib/unread"),
+  ]).then(([navMod, sidebarMod, unreadMod, authMod, unreadUtil]) => ({
+    default: () => {
+      // A client is the client_id of their own thread, so their own id is correct;
+      // undefined pauses the fetch pre-auth.
+      const { user } = authMod.useAuthSession();
+      const { count } = unreadMod.useUnreadMessageCount(user?.id);
+      const items = sidebarMod.getClientMobileNavItems().map((item) =>
+        item.path === "/messages" ? { ...item, badge: unreadUtil.formatUnreadBadge(count) } : item,
+      );
+      return <navMod.MobileBottomNav items={items} />;
+    },
   }))
 );
 
