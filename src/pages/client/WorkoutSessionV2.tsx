@@ -90,7 +90,6 @@ import {
   restPauseRoundNumbers,
   restPauseBadgeLabel,
 } from "@/lib/setInstructions";
-import { epley1RM } from "@/lib/oneRepMax";
 import { useWeightUnit } from "@/hooks/useWeightUnit";
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { SessionProgressRing } from "@/components/workout/SessionProgressRing";
@@ -2618,8 +2617,8 @@ function WorkoutSessionV2Content() {
 
       // WK7 §2e — build the session summary and show it before leaving; the
       // sheet's "Done" performs the navigate. Volume in canonical kg (the sheet
-      // converts to the display unit). PRs = exercises whose best completed-set
-      // e1RM beats the prior personal_best e1RM (epley1RM helper).
+      // converts to the display unit). PRs = actual logged rep-maxes vs the
+      // exercise's prior history (classifySetPr / prEngine) — no estimation.
       let volumeKg = 0;
       let setsCompleted = 0;
       let setsSkipped = 0;

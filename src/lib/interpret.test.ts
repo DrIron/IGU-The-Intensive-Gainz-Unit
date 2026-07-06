@@ -6,7 +6,7 @@ import {
   interpretCheckIns,
   interpretWeighInRecency,
   interpretMacroTargets,
-  interpretE1rmTrend,
+  interpretRepMaxTrend,
   interpretAdjustment,
 } from "./interpret";
 
@@ -116,21 +116,30 @@ describe("interpretMacroTargets (CL2)", () => {
     expect(interpretMacroTargets({ calories: 0, protein: 0, carbs: 0, fat: 0, goalType: "maintenance" }).sentence).toBe(""));
 });
 
-describe("interpretE1rmTrend (HX1)", () => {
-  it("rising e1RM is on_track and reads stronger", () => {
-    const r = interpretE1rmTrend(5, 6);
+describe("interpretRepMaxTrend (HX1)", () => {
+  it("rising best-load-at-reps is on_track and names the rep count", () => {
+    const r = interpretRepMaxTrend(5, 6, 5);
     expect(r.tone).toBe("on_track");
-    expect(r.sentence).toContain("stronger");
+    expect(r.label).toBe("Getting stronger");
+    expect(r.sentence).toContain("Best load at 5 reps up 5 kg over 6 sessions");
   });
-  it("falling e1RM is attention and mentions a deload", () => {
-    const r = interpretE1rmTrend(-5, 6);
+  it("falling best-load-at-reps is attention and mentions a deload", () => {
+    const r = interpretRepMaxTrend(-5, 6, 3);
     expect(r.tone).toBe("attention");
+    expect(r.sentence).toContain("Best load at 3 reps down 5 kg");
     expect(r.sentence).toContain("deload");
   });
-  it("single session is neutral with no real trend", () => {
-    const r = interpretE1rmTrend(0, 1);
+  it("steady best-load-at-reps is neutral and holding", () => {
+    const r = interpretRepMaxTrend(0, 4, 8);
+    expect(r.tone).toBe("neutral");
+    expect(r.label).toBe("Holding");
+    expect(r.sentence).toContain("Best load at 8 reps steady over 4 sessions");
+  });
+  it("single session is neutral and prompts another logged set at that rep", () => {
+    const r = interpretRepMaxTrend(0, 1, 5);
     expect(r.tone).toBe("neutral");
     expect(r.label).toBe("");
+    expect(r.sentence).toContain("Log another set at 5 reps");
   });
 });
 

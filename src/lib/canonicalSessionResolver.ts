@@ -414,6 +414,7 @@ export interface CrossInstanceLogRow {
   performed_reps: number | null;
   performed_rir: number | null;
   performed_rpe: number | null;
+  notes: string | null;
   created_at: string;
 }
 
@@ -449,7 +450,7 @@ export async function loadCrossInstanceHistory(
   const { data: logs, error: logErr } = await selectWithRetry(() =>
     supabase
       .from("exercise_set_logs")
-      .select("plan_slot_id, set_index, performed_load, performed_reps, performed_rir, performed_rpe, created_at")
+      .select("plan_slot_id, set_index, performed_load, performed_reps, performed_rir, performed_rpe, notes, created_at")
       .eq("created_by_user_id", userId)
       .in("plan_slot_id", slotIds)
       .order("created_at", { ascending: false }),
@@ -466,6 +467,7 @@ export async function loadCrossInstanceHistory(
       performed_reps: (l.performed_reps as number | null) ?? null,
       performed_rir: (l.performed_rir as number | null) ?? null,
       performed_rpe: (l.performed_rpe as number | null) ?? null,
+      notes: (l.notes as string | null) ?? null,
       created_at: l.created_at as string,
     };
     const arr = out.get(exId);

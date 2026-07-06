@@ -208,13 +208,18 @@ export function interpretMacroTargets(args: {
   };
 }
 
-/** Strength trend on the exercise-detail e1RM metric (HX1). Up = good. */
-export function interpretE1rmTrend(deltaKg: number, sessions: number): Interpretation {
-  if (sessions < 2) return { tone: "neutral", label: "", sentence: "Log another session to see your strength trend." };
+/**
+ * Strength trend on the exercise-detail rep-max metric (HX1). Up = good.
+ * `deltaKg` = change in the heaviest load actually logged at `reps` reps across
+ * `sessions` sessions (no estimation — actual logged numbers only). Copy uses
+ * `--` not em-dash per house style.
+ */
+export function interpretRepMaxTrend(deltaKg: number, sessions: number, reps: number): Interpretation {
+  if (sessions < 2) return { tone: "neutral", label: "", sentence: `Log another set at ${reps} reps to see your strength trend.` };
   const mag = f1(Math.abs(deltaKg));
-  if (deltaKg >= 0.5) return { tone: "on_track", label: "Trending up", sentence: `Est. 1RM up ${mag} kg over ${sessions} sessions — getting stronger.` };
-  if (deltaKg <= -0.5) return { tone: "attention", label: "Dipped", sentence: `Est. 1RM down ${mag} kg over ${sessions} sessions — could be fatigue or a deload.` };
-  return { tone: "neutral", label: "Holding", sentence: `Est. 1RM steady over ${sessions} sessions.` };
+  if (deltaKg >= 0.5) return { tone: "on_track", label: "Getting stronger", sentence: `Best load at ${reps} reps up ${mag} kg over ${sessions} sessions.` };
+  if (deltaKg <= -0.5) return { tone: "attention", label: "Dipped", sentence: `Best load at ${reps} reps down ${mag} kg over ${sessions} sessions -- could be fatigue or a deload.` };
+  return { tone: "neutral", label: "Holding", sentence: `Best load at ${reps} reps steady over ${sessions} sessions.` };
 }
 
 /**

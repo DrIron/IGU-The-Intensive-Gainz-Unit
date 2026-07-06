@@ -1,7 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { User as SupabaseUser } from "@supabase/supabase-js";
-import { supabase } from "@/integrations/supabase/client";
-import { useAuthSession } from "@/hooks/useAuthSession";
+import { useEffect, useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { MetricCard } from "@/components/ui/metric-card";
 import { Input } from "@/components/ui/input";
@@ -9,27 +6,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Dumbbell } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
-import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { epley1RM } from "@/lib/oneRepMax";
-import { interpretE1rmTrend } from "@/lib/interpret";
+import { cn } from "@/lib/utils";
+import { interpretRepMaxTrend } from "@/lib/interpret";
+import {
+  useExerciseStrengthHistory,
+  seriesForReps,
+  type RepMaxAnalysis,
+} from "@/hooks/useExerciseStrengthHistory";
 
-interface ExerciseOption {
-  id: string;
-  name: string;
-}
-
-interface LogEntry {
-  id: string;
-  date: string;
-  set_index: number;
-  performed_reps: number | null;
-  performed_load: number | null;
-  performed_rir: number | null;
-  performed_rpe: number | null;
-  notes: string | null;
-}
+const round1 = (n: number) => Math.round(n * 10) / 10;
 
 function PrTile({ label, value, date }: { label: string; value: string; date: string }) {
   return (
@@ -43,154 +29,46 @@ function PrTile({ label, value, date }: { label: string; value: string; date: st
   );
 }
 
+/** All-time actual logged rep-maxes: `1:100 · 3:92.5 · 5:85 kg`. */
+function RepMaxBreakdown({ bestLoadAtReps }: { bestLoadAtReps: RepMaxAnalysis["bestLoadAtReps"] }) {
+  const entries = Array.from(bestLoadAtReps.entries()).sort((a, b) => a[0] - b[0]);
+  if (entries.length === 0) return null;
+  return (
+    <p className="text-xs text-muted-foreground">
+      <span className="text-muted-foreground/70">Rep maxes -- </span>
+      {entries.map(([reps, load]) => `${reps}:${round1(load)}`).join(" · ")} kg
+    </p>
+  );
+}
+
 /**
- * Exercise history (e1RM trend + PRs + per-set table). Extracted from the old
- * ExerciseHistory page so it can mount inside the Workouts > History tab without
- * the page chrome / back button.
+ * Exercise history — actual logged rep-max trend (HX1). Headline = the heaviest
+ * load logged at a chosen rep count, trended across sessions, with a rep-bracket
+ * selector + an all-time rep-max breakdown. Actual logged loads only, no
+ * estimation. Canonical
+ * reads via useExerciseStrengthHistory (plan_slot-keyed). This component is the
+ * single UI source; the /client/workout/history page wraps it in page chrome.
  */
 export function ExerciseHistoryPanel() {
-  const { toast } = useToast();
-  const { user: sessionUser, isLoading: sessionLoading } = useAuthSession();
-  const [loading, setLoading] = useState(true);
-  const [exercisesLoading, setExercisesLoading] = useState(true);
-  const [exercises, setExercises] = useState<ExerciseOption[]>([]);
-  const [selectedExercise, setSelectedExercise] = useState<string>("");
+  const {
+    exercises,
+    exercisesLoading,
+    selectedExercise,
+    setSelectedExercise,
+    logs,
+    logsLoading,
+    analysis,
+  } = useExerciseStrengthHistory();
   const [searchTerm, setSearchTerm] = useState("");
-  const [logs, setLogs] = useState<LogEntry[]>([]);
-  const user = sessionUser;
+  const [headlineReps, setHeadlineReps] = useState<number | null>(null);
 
-  const loadExercises = useCallback(
-    async (currentUser: SupabaseUser | null) => {
-      try {
-        if (!currentUser) return;
-        const { data, error } = await supabase
-          .from("exercise_set_logs")
-          .select(`
-          client_module_exercises!inner (
-            exercise_id,
-            exercise_library (
-              id,
-              name
-            )
-          )
-        `)
-          .eq("created_by_user_id", currentUser.id);
-
-        if (error) throw error;
-
-        const uniqueExercises = new Map<string, string>();
-        (data || []).forEach((log: any) => {
-          const exercise = log.client_module_exercises?.exercise_library;
-          if (exercise) uniqueExercises.set(exercise.id, exercise.name);
-        });
-
-        const exerciseList: ExerciseOption[] = Array.from(uniqueExercises.entries())
-          .map(([id, name]) => ({ id, name }))
-          .sort((a, b) => a.name.localeCompare(b.name));
-
-        setExercises(exerciseList);
-      } catch (error: any) {
-        console.error("Error loading exercises:", error);
-        toast({ title: "Error loading exercises", description: sanitizeErrorForUser(error), variant: "destructive" });
-      } finally {
-        setExercisesLoading(false);
-      }
-    },
-    [toast],
-  );
-
-  const loadExerciseLogs = useCallback(async () => {
-    if (!selectedExercise || !user) return;
-    setLoading(true);
-    try {
-      const { data, error } = await supabase
-        .from("exercise_set_logs")
-        .select(`
-          id,
-          set_index,
-          performed_reps,
-          performed_load,
-          performed_rir,
-          performed_rpe,
-          notes,
-          created_at,
-          client_module_exercises!inner (
-            exercise_id,
-            client_day_modules!inner (
-              client_program_days!inner (
-                date
-              )
-            )
-          )
-        `)
-        .eq("created_by_user_id", user.id)
-        .eq("client_module_exercises.exercise_id", selectedExercise)
-        .order("created_at", { ascending: false });
-
-      if (error) throw error;
-
-      const formattedLogs: LogEntry[] = (data || []).map((log: any) => ({
-        id: log.id,
-        date: log.client_module_exercises?.client_day_modules?.client_program_days?.date || log.created_at,
-        set_index: log.set_index,
-        performed_reps: log.performed_reps,
-        performed_load: log.performed_load,
-        performed_rir: log.performed_rir,
-        performed_rpe: log.performed_rpe,
-        notes: log.notes,
-      }));
-
-      setLogs(formattedLogs);
-    } catch (error: any) {
-      console.error("Error loading logs:", error);
-      toast({ title: "Error loading history", description: sanitizeErrorForUser(error), variant: "destructive" });
-    } finally {
-      setLoading(false);
-    }
-  }, [selectedExercise, user, toast]);
-
-  const hasLoadedExercises = useRef<string | null>(null);
+  // Reset the chosen rep bracket to the densest default whenever the exercise (analysis) changes.
   useEffect(() => {
-    const key = sessionUser?.id ?? (sessionLoading ? "__waiting__" : "__unauth__");
-    if (hasLoadedExercises.current === key) return;
-    hasLoadedExercises.current = key;
-    if (sessionLoading) return;
-    loadExercises(sessionUser ?? null);
-  }, [sessionUser, sessionLoading, loadExercises]);
-
-  useEffect(() => {
-    if (selectedExercise) loadExerciseLogs();
-  }, [selectedExercise, loadExerciseLogs]);
+    setHeadlineReps(analysis?.defaultHeadlineReps ?? null);
+  }, [analysis]);
 
   const filteredExercises = exercises.filter((ex) => ex.name.toLowerCase().includes(searchTerm.toLowerCase()));
-
-  const analysis = useMemo(() => {
-    if (logs.length === 0) return null;
-    const byDate = new Map<string, { date: string; topLoad: number; bestE1rm: number; volume: number }>();
-    for (const l of logs) {
-      if (l.performed_load == null) continue;
-      const cur = byDate.get(l.date) ?? { date: l.date, topLoad: 0, bestE1rm: 0, volume: 0 };
-      const reps = l.performed_reps ?? 0;
-      cur.topLoad = Math.max(cur.topLoad, l.performed_load);
-      cur.bestE1rm = Math.max(cur.bestE1rm, epley1RM(l.performed_load, reps));
-      if (reps > 0) cur.volume += l.performed_load * reps;
-      byDate.set(l.date, cur);
-    }
-    const sessions = Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
-    if (sessions.length === 0) return null;
-    const e1rmSeries = sessions.map((s) => Math.round(s.bestE1rm));
-    const e1rmDelta = Math.round((e1rmSeries[e1rmSeries.length - 1] - e1rmSeries[0]) * 10) / 10;
-    const best = (key: "topLoad" | "bestE1rm" | "volume") => sessions.reduce((m, s) => (s[key] > m[key] ? s : m), sessions[0]);
-    return {
-      sessionCount: sessions.length,
-      e1rmSeries,
-      latestE1rm: e1rmSeries[e1rmSeries.length - 1],
-      e1rmDelta,
-      prTopLoad: best("topLoad"),
-      prE1rm: best("bestE1rm"),
-      prVolume: best("volume"),
-    };
-  }, [logs]);
+  const series = seriesForReps(analysis, headlineReps);
 
   return (
     <div className="space-y-6">
@@ -232,19 +110,49 @@ export function ExerciseHistoryPanel() {
 
       {selectedExercise && analysis && (
         <div className="space-y-4">
-          <MetricCard
-            label="Estimated 1RM"
-            timeframe={`last ${analysis.sessionCount} ${analysis.sessionCount === 1 ? "session" : "sessions"}`}
-            value={analysis.latestE1rm}
-            unit="kg"
-            delta={analysis.sessionCount >= 2 ? { value: analysis.e1rmDelta, suffix: " kg" } : undefined}
-            interpretation={interpretE1rmTrend(analysis.e1rmDelta, analysis.sessionCount)}
-            spark={analysis.sessionCount >= 2 ? analysis.e1rmSeries : undefined}
-          />
-          <div className="grid grid-cols-3 gap-3">
-            <PrTile label="Heaviest set" value={`${Math.round(analysis.prTopLoad.topLoad)} kg`} date={analysis.prTopLoad.date} />
-            <PrTile label="Best est. 1RM" value={`${Math.round(analysis.prE1rm.bestE1rm)} kg`} date={analysis.prE1rm.date} />
-            <PrTile label="Best volume" value={`${Math.round(analysis.prVolume.volume).toLocaleString()} kg`} date={analysis.prVolume.date} />
+          {series && headlineReps != null && (
+            <MetricCard
+              label={`Best load @ ${headlineReps} reps`}
+              timeframe={`last ${series.sessionCount} ${series.sessionCount === 1 ? "session" : "sessions"}`}
+              value={series.latest}
+              unit="kg"
+              delta={series.sessionCount >= 2 ? { value: series.delta, suffix: " kg" } : undefined}
+              interpretation={interpretRepMaxTrend(series.delta, series.sessionCount, headlineReps)}
+              spark={series.sessionCount >= 2 ? series.series : undefined}
+            />
+          )}
+
+          {analysis.availableReps.length > 1 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-xs text-muted-foreground mr-1">Reps:</span>
+              {analysis.availableReps.map((reps) => (
+                <button
+                  key={reps}
+                  type="button"
+                  onClick={() => setHeadlineReps(reps)}
+                  className={cn(
+                    "min-h-[32px] rounded-full border px-3 text-xs font-medium tabular-nums transition-colors touch-manipulation active:scale-[0.98]",
+                    reps === headlineReps
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-background text-muted-foreground hover:bg-muted",
+                  )}
+                  aria-pressed={reps === headlineReps}
+                >
+                  {reps}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <RepMaxBreakdown bestLoadAtReps={analysis.bestLoadAtReps} />
+
+          <div className="grid grid-cols-2 gap-3">
+            {analysis.prTopLoad && (
+              <PrTile label="Heaviest set" value={`${round1(analysis.prTopLoad.value)} kg`} date={analysis.prTopLoad.date} />
+            )}
+            {analysis.prVolume && (
+              <PrTile label="Best volume" value={`${Math.round(analysis.prVolume.value).toLocaleString()} kg`} date={analysis.prVolume.date} />
+            )}
           </div>
         </div>
       )}
@@ -256,7 +164,7 @@ export function ExerciseHistoryPanel() {
             <CardDescription>{exercises.find((e) => e.id === selectedExercise)?.name}</CardDescription>
           </CardHeader>
           <CardContent>
-            {loading ? (
+            {logsLoading ? (
               <div className="space-y-2">
                 <Skeleton className="h-10 w-full" />
                 <Skeleton className="h-10 w-full" />
@@ -281,7 +189,7 @@ export function ExerciseHistoryPanel() {
                   </TableHeader>
                   <TableBody>
                     {logs.map((log) => (
-                      <TableRow key={log.id}>
+                      <TableRow key={log.key}>
                         <TableCell>{format(new Date(log.date), "MMM d, yyyy")}</TableCell>
                         <TableCell className="text-center">{log.set_index}</TableCell>
                         <TableCell className="text-center">{log.performed_reps ?? "-"}</TableCell>
