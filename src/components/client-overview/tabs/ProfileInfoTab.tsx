@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { formatDistanceToNowStrict } from "date-fns";
+import { format, formatDistanceToNowStrict } from "date-fns";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -103,6 +104,11 @@ export function ProfileInfoTab({ context }: ClientOverviewTabProps) {
 
   return (
     <div className="space-y-6">
+      <IdentityHeaderCard
+        profile={context.profile}
+        subscription={subscription}
+        clientSinceIso={submission?.createdAt ?? null}
+      />
       <DemographicsCard demographics={demographics} />
       <SubscriptionCard subscription={subscription} />
       <OnboardingCard
@@ -111,6 +117,59 @@ export function ProfileInfoTab({ context }: ClientOverviewTabProps) {
         clientUserId={clientUserId}
       />
     </div>
+  );
+}
+
+/**
+ * Identity header -- gives the tab a face (avatar + name + plan/tenure + a
+ * subscription status pill) instead of leading into the demographics grid.
+ * Everything derives from the shell's ClientContext plus the already-fetched
+ * submission createdAt (no new query). `profile.lastName` is always null in
+ * context, so the name falls back displayName -> firstName -> "Client".
+ */
+function IdentityHeaderCard({
+  profile,
+  subscription,
+  clientSinceIso,
+}: {
+  profile: ClientOverviewTabProps["context"]["profile"];
+  subscription: ClientOverviewTabProps["context"]["subscription"];
+  clientSinceIso: string | null;
+}) {
+  const name = profile.displayName?.trim() || profile.firstName?.trim() || "Client";
+  const initials =
+    name
+      .split(/\s+/)
+      .map((w) => w[0])
+      .filter(Boolean)
+      .slice(0, 2)
+      .join("")
+      .toUpperCase() || "?";
+
+  const plan = subscription?.serviceName?.trim() || (subscription ? formatServiceType(subscription.serviceType) : null);
+  const clientSince = clientSinceIso ? safeMonthYear(clientSinceIso) : null;
+  const subtitle = [plan, clientSince ? `client since ${clientSince}` : null].filter(Boolean).join(" · ");
+  const rail = subscription ? subscriptionRail(subscription.status) : "bg-emerald-500";
+
+  return (
+    <Card className="overflow-hidden">
+      <CardContent className="p-0">
+        <div className="flex">
+          <div aria-hidden="true" className={cn("w-1 shrink-0", rail)} />
+          <div className="flex flex-1 items-center gap-4 p-4 md:p-6">
+            <Avatar className="h-12 w-12 shrink-0">
+              <AvatarImage src={profile.avatarUrl ?? undefined} alt={name} />
+              <AvatarFallback className="bg-primary/10 text-primary font-semibold">{initials}</AvatarFallback>
+            </Avatar>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-lg font-semibold md:text-xl">{name}</p>
+              {subtitle && <p className="truncate text-sm text-muted-foreground">{subtitle}</p>}
+            </div>
+            {subscription && <StatusPill variant={getSubscriptionStatusVariant(subscription.status)}>{formatSubscriptionStatus(subscription.status)}</StatusPill>}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -129,7 +188,7 @@ function DemographicsCard({
             {demographics.isLoading ? (
               <Loader label="Loading demographics" />
             ) : (
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-4">
                 <Stat
                   icon={<User className="h-3.5 w-3.5" aria-hidden="true" />}
                   label="Age"
@@ -205,9 +264,6 @@ function SubscriptionCard({
   subscription: ClientOverviewTabProps["context"]["subscription"];
 }) {
   const rail = subscription ? subscriptionRail(subscription.status) : "bg-muted";
-  const variant = subscription
-    ? getSubscriptionStatusVariant(subscription.status)
-    : "outline";
 
   return (
     <Card className="overflow-hidden">
@@ -220,9 +276,9 @@ function SubscriptionCard({
               label="Subscription"
               action={
                 subscription && (
-                  <Badge variant={variant}>
+                  <StatusPill variant={getSubscriptionStatusVariant(subscription.status)}>
                     {formatSubscriptionStatus(subscription.status)}
-                  </Badge>
+                  </StatusPill>
                 )
               }
             />
@@ -280,9 +336,9 @@ function OnboardingCard({
               label="Onboarding submission"
               action={
                 submission?.submissionStatus && (
-                  <Badge variant="outline">
+                  <StatusPill variant="outline">
                     {formatSnakeCase(submission.submissionStatus)}
-                  </Badge>
+                  </StatusPill>
                 )
               }
             />
@@ -290,7 +346,7 @@ function OnboardingCard({
               <Loader label="Loading submission" />
             ) : submission ? (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <div className="grid grid-cols-[repeat(auto-fit,minmax(8rem,1fr))] gap-3">
                   <MedicalStat
                     needsReview={submission.needsMedicalReview}
                     cleared={submission.medicalCleared}
@@ -370,6 +426,41 @@ function subscriptionRail(status: string): string {
       return "bg-muted";
     default:
       return "bg-muted";
+  }
+}
+
+/**
+ * Rounded-full status pill matching the redesign (soft-tinted outline pills, as
+ * in NutritionPhaseCard) rather than a solid shadcn Badge. The status->variant
+ * decision reuses getSubscriptionStatusVariant (statusUtils) -- this map is only
+ * variant->tone-classes, NOT a second status->colour map.
+ */
+const PILL_TONES: Record<ReturnType<typeof getSubscriptionStatusVariant>, string> = {
+  default: "border-status-success/40 bg-status-success/10 text-status-success",
+  secondary: "border-status-attention/40 bg-status-attention/10 text-status-attention",
+  destructive: "border-status-risk/40 bg-status-risk/10 text-status-risk",
+  outline: "border-muted-foreground/30 bg-muted/60 text-muted-foreground",
+};
+
+function StatusPill({
+  variant = "outline",
+  children,
+}: {
+  variant?: ReturnType<typeof getSubscriptionStatusVariant>;
+  children: React.ReactNode;
+}) {
+  return (
+    <Badge variant="outline" className={cn("shrink-0 font-medium", PILL_TONES[variant])}>
+      {children}
+    </Badge>
+  );
+}
+
+function safeMonthYear(iso: string): string | null {
+  try {
+    return format(new Date(iso), "MMM yyyy");
+  } catch {
+    return null;
   }
 }
 
