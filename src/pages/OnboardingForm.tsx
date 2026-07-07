@@ -14,6 +14,7 @@ import { LegalStep } from "@/components/onboarding/LegalStep";
 import { PlanStep } from "@/components/onboarding/PlanStep";
 import { AboutYouStep } from "@/components/onboarding/AboutYouStep";
 import { GoalsStep } from "@/components/onboarding/GoalsStep";
+import { TeamStep } from "@/components/onboarding/TeamStep";
 import ServiceSpecificStep from "@/components/onboarding/ServiceSpecificStep";
 import { ChooseCoachStep } from "@/components/onboarding/ChooseCoachStep";
 import { Dumbbell, Loader2, Save, CheckCircle2, LogOut } from "lucide-react";
@@ -160,23 +161,27 @@ export default function OnboardingForm() {
   const agreedMedical = form.watch("agreed_medical_disclaimer");
   const allLegalAccepted = agreedTerms && agreedPrivacy && agreedRefund && agreedIP && agreedMedical;
   
-  // Structural redesign Part A — steps are plan-derived and keyed by a stable id.
-  // The old overloaded "service" step is split into plan / about / goals. 1:1 adds
-  // goals + coach; team stays on details for now (Part B gives team its own step).
+  // Structural redesign Parts A + B — steps are plan-derived and keyed by a stable
+  // id. The old overloaded "service" step is split into plan / about / goals. 1:1
+  // adds goals + details + coach; team gets its own dedicated step (team-pick +
+  // acknowledgments) in place of details/goals/coach.
   //   1:1:  plan → about → goals → details → coach → health → legal
-  //   team: plan → about → details → health → legal
+  //   team: plan → about → team → health → legal
   const isOneToOne = ["1:1 Online", "1:1 Hybrid", "1:1 In-Person"].includes(selectedPlanName);
+  const isTeam = ["Team Plan", "Fe Squad", "Bunz of Steel"].includes(selectedPlanName);
   const steps = useMemo(
     () => [
       { id: "plan", label: "Plan" },
       { id: "about", label: "About you" },
       ...(isOneToOne ? [{ id: "goals", label: "Goals" }] : []),
-      { id: "details", label: "Service Details" },
+      ...(isTeam
+        ? [{ id: "team", label: "Your Team" }]
+        : [{ id: "details", label: "Service Details" }]),
       ...(isOneToOne ? [{ id: "coach", label: "Choose Coach" }] : []),
       { id: "health", label: "Health" },
       { id: "legal", label: "Legal" },
     ],
-    [isOneToOne],
+    [isOneToOne, isTeam],
   );
   const stepId = steps[currentStep]?.id;
 
@@ -538,29 +543,32 @@ export default function OnboardingForm() {
         }
         break;
       }
-      case "details": // Service Details
-        if (serviceName === "Team Plan" || serviceName === "Fe Squad" || serviceName === "Bunz of Steel") {
-          // Manual validation for team plan checkboxes
-          const acceptsTeam = form.getValues("accepts_team_program");
-          const understandsNoNutrition = form.getValues("understands_no_nutrition");
-          
-          if (!acceptsTeam) {
-            form.setError("accepts_team_program", { message: "You must acknowledge this to continue" });
+      case "team": {
+        // Team plans only — the program acknowledgments (moved out of `details`
+        // in Part B). Team-pick (selected_team_id) stays optional, as before.
+        const acceptsTeam = form.getValues("accepts_team_program");
+        const understandsNoNutrition = form.getValues("understands_no_nutrition");
+
+        if (!acceptsTeam) {
+          form.setError("accepts_team_program", { message: "You must acknowledge this to continue" });
+          return false;
+        }
+        if (!understandsNoNutrition) {
+          form.setError("understands_no_nutrition", { message: "You must acknowledge this to continue" });
+          return false;
+        }
+
+        if (serviceName === "Bunz of Steel") {
+          const acceptsLowerBody = form.getValues("accepts_lower_body_only");
+          if (!acceptsLowerBody) {
+            form.setError("accepts_lower_body_only", { message: "You must acknowledge this to continue" });
             return false;
           }
-          if (!understandsNoNutrition) {
-            form.setError("understands_no_nutrition", { message: "You must acknowledge this to continue" });
-            return false;
-          }
-          
-          if (serviceName === "Bunz of Steel") {
-            const acceptsLowerBody = form.getValues("accepts_lower_body_only");
-            if (!acceptsLowerBody) {
-              form.setError("accepts_lower_body_only", { message: "You must acknowledge this to continue" });
-              return false;
-            }
-          }
-        } else if (serviceName === "1:1 Online") {
+        }
+        break;
+      }
+      case "details": // Service Details (1:1 plans only)
+        if (serviceName === "1:1 Online") {
           fieldsToValidate = ["training_experience", "training_goals", "training_days_per_week", "gym_access_type", "nutrition_approach"];
           
           // Manual validation for 1:1 required fields
@@ -854,6 +862,7 @@ export default function OnboardingForm() {
                 {stepId === "plan" && <PlanStep form={form} serviceId={searchParams.get('service') || undefined} />}
                 {stepId === "about" && <AboutYouStep form={form} />}
                 {stepId === "goals" && <GoalsStep form={form} />}
+                {stepId === "team" && <TeamStep form={form} planName={selectedPlanName} />}
                 {stepId === "details" && <ServiceSpecificStep form={form} selectedService={selectedServiceName} />}
                 {stepId === "coach" && <ChooseCoachStep form={form} planName={selectedPlanName} />}
                 {stepId === "health" && <ParqStep form={form} />}

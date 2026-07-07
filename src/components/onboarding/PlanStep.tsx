@@ -6,7 +6,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, CheckCircle2 } from "lucide-react";
-import { TeamSelectionSection } from "@/components/onboarding/TeamSelectionSection";
 import { cn } from "@/lib/utils";
 
 interface PlanStepProps {
@@ -37,15 +36,13 @@ const referralSources = [
 
 /**
  * Onboarding "Plan" step (structural redesign Part A) — the plan ClickableCards +
- * "how did you hear about us". Owns plan_name + heard_about_us. Team plans also pick
- * their team here (TeamSelectionSection) until Part B gives team its own step.
+ * "how did you hear about us". Owns plan_name + heard_about_us. Team plans pick
+ * their team in the dedicated TeamStep (Part B).
  */
 export function PlanStep({ form, serviceId }: PlanStepProps) {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [preSelectedService, setPreSelectedService] = useState<Service | null>(null);
-
-  const selectedPlanName = form.watch("plan_name");
 
   const loadServices = useCallback(async () => {
     try {
@@ -73,8 +70,6 @@ export function PlanStep({ form, serviceId }: PlanStepProps) {
   useEffect(() => {
     loadServices();
   }, [loadServices]);
-
-  const isTeamService = () => services.find((s) => s.name === selectedPlanName)?.type === "team";
 
   if (loading) {
     return (
@@ -142,9 +137,6 @@ export function PlanStep({ form, serviceId }: PlanStepProps) {
           </FormItem>
         )}
       />
-
-      {/* Team plans pick their team here (Part B gives team its own step). */}
-      {isTeamService() && <TeamSelectionSection form={form} />}
 
       <FormField
         control={form.control}
