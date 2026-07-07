@@ -53,12 +53,12 @@ export function MetricCard({
         </div>
         {timeframe && <span className="text-xs text-muted-foreground">{timeframe}</span>}
       </div>
-      <div className="flex items-end justify-between gap-2">
-        <div className="flex items-baseline gap-1">
+      <div className="flex flex-wrap items-end justify-between gap-x-2 gap-y-1">
+        <div className="flex min-w-0 items-baseline gap-1">
           <span className="font-mono text-2xl font-semibold tabular-nums">{value}</span>
           {unit && <span className="text-sm text-muted-foreground">{unit}</span>}
         </div>
-        {delta && <DeltaChip value={delta.value} suffix={delta.suffix} tone={tone} />}
+        {delta && <DeltaChip value={delta.value} suffix={delta.suffix} tone={tone} className="shrink-0" />}
       </div>
       {spark && <Sparkline data={spark} />}
       {interpretation?.sentence && (
