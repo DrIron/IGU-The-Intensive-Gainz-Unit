@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -13,6 +13,7 @@ import { ParqStep } from "@/components/onboarding/ParqStep";
 import { LegalStep } from "@/components/onboarding/LegalStep";
 import { ServiceStep } from "@/components/onboarding/ServiceStep";
 import ServiceSpecificStep from "@/components/onboarding/ServiceSpecificStep";
+import { ChooseCoachStep } from "@/components/onboarding/ChooseCoachStep";
 import { Dumbbell, Loader2, Save, CheckCircle2, LogOut } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ErrorFallback } from "@/components/ui/error-fallback";
@@ -150,7 +151,27 @@ export default function OnboardingForm() {
   const agreedMedical = form.watch("agreed_medical_disclaimer");
   const allLegalAccepted = agreedTerms && agreedPrivacy && agreedRefund && agreedIP && agreedMedical;
   
-  const steps = ["Service", "Service Details", "Health", "Legal"];
+  // ON2 — steps are plan-derived and driven by a stable step `id`, not an index.
+  // 1:1 plans get a "Choose Coach" step between Service Details and Health; team
+  // plans keep the 4-step flow. Everything downstream keys off the id.
+  const isOneToOne = ["1:1 Online", "1:1 Hybrid", "1:1 In-Person"].includes(selectedPlanName);
+  const steps = useMemo(
+    () => [
+      { id: "service", label: "Service" },
+      { id: "details", label: "Service Details" },
+      ...(isOneToOne ? [{ id: "coach", label: "Choose Coach" }] : []),
+      { id: "health", label: "Health" },
+      { id: "legal", label: "Legal" },
+    ],
+    [isOneToOne],
+  );
+  const stepId = steps[currentStep]?.id;
+
+  // If the array shrinks (1:1 → team while on/after the coach step), clamp the
+  // index so it never points past the end.
+  useEffect(() => {
+    setCurrentStep((s) => Math.min(s, steps.length - 1));
+  }, [steps.length]);
 
   const loadServiceName = useCallback(async () => {
     try {
@@ -478,30 +499,33 @@ export default function OnboardingForm() {
     let fieldsToValidate: string[] = [];
     const serviceName = form.getValues("plan_name");
 
-    switch (step) {
-      case 0: {
-        // Service
+    switch (steps[step]?.id) {
+      case "service": {
         fieldsToValidate = ["first_name", "last_name", "email", "phone_number", "plan_name", "heard_about_us"];
-        // Validate focus_areas for 1:1 services
+        // Focus areas are required for 1:1 services — the coach step sorts by them.
+        // (Coach-selection validation lives on the "coach" step now, not here.)
         const currentPlan = form.getValues("plan_name");
-        const isOneToOne = currentPlan === "1:1 Online" || currentPlan === "1:1 In-Person" || currentPlan === "1:1 Hybrid";
-        if (isOneToOne) {
+        const isOneToOnePlan = currentPlan === "1:1 Online" || currentPlan === "1:1 In-Person" || currentPlan === "1:1 Hybrid";
+        if (isOneToOnePlan) {
           const focusAreas = form.getValues("focus_areas") || [];
           if (focusAreas.length === 0) {
             form.setError("focus_areas", { message: "Please select at least one area of focus" });
             return false;
           }
-          // Validate coach selection if "specific" is chosen
-          const coachPreferenceType = form.getValues("coach_preference_type");
-          const requestedCoachId = form.getValues("requested_coach_id");
-          if (coachPreferenceType === "specific" && !requestedCoachId) {
-            form.setError("requested_coach_id", { message: "Please select a coach or choose auto-match" });
-            return false;
-          }
         }
         break;
       }
-      case 1: // Service Details
+      case "coach": {
+        // 1:1 only. "specific" requires a chosen coach; "auto" needs no selection.
+        const coachPreferenceType = form.getValues("coach_preference_type");
+        const requestedCoachId = form.getValues("requested_coach_id");
+        if (coachPreferenceType === "specific" && !requestedCoachId) {
+          form.setError("requested_coach_id", { message: "Please select a coach or choose auto-match" });
+          return false;
+        }
+        break;
+      }
+      case "details": // Service Details
         if (serviceName === "Team Plan" || serviceName === "Fe Squad" || serviceName === "Bunz of Steel") {
           // Manual validation for team plan checkboxes
           const acceptsTeam = form.getValues("accepts_team_program");
@@ -555,7 +579,7 @@ export default function OnboardingForm() {
           }
         }
         break;
-      case 2: // Health (PAR-Q)
+      case "health": // Health (PAR-Q)
         fieldsToValidate = [
           "parq_heart_condition",
           "parq_chest_pain_active",
@@ -566,7 +590,7 @@ export default function OnboardingForm() {
           "parq_other_reason",
         ];
         break;
-      case 3: // Legal
+      case "legal": // Legal
         fieldsToValidate = ["agreed_terms", "agreed_privacy", "agreed_refund_policy", "agreed_intellectual_property", "agreed_medical_disclaimer"];
         break;
     }
@@ -751,7 +775,7 @@ export default function OnboardingForm() {
             <StepIndicator
               currentStep={currentStep}
               totalSteps={steps.length}
-              steps={steps}
+              steps={steps.map((s) => s.label)}
               onStepClick={(stepIndex) => setCurrentStep(stepIndex)}
             />
 
@@ -759,7 +783,7 @@ export default function OnboardingForm() {
               <form onSubmit={form.handleSubmit(onSubmit, (errors) => {
                 if (import.meta.env.DEV) console.error('Form validation errors:', errors);
                 // Don't show toast for legal step - it has inline helper text
-                if (currentStep !== 3) {
+                if (stepId !== "legal") {
                   toast({
                     title: "Validation Error",
                     description: "Please check all required fields are filled correctly.",
@@ -767,10 +791,11 @@ export default function OnboardingForm() {
                   });
                 }
               })} className="space-y-8">
-                {currentStep === 0 && <ServiceStep form={form} serviceId={searchParams.get('service') || undefined} />}
-                {currentStep === 1 && <ServiceSpecificStep form={form} selectedService={selectedServiceName} />}
-                {currentStep === 2 && <ParqStep form={form} />}
-                {currentStep === 3 && <LegalStep form={form} />}
+                {stepId === "service" && <ServiceStep form={form} serviceId={searchParams.get('service') || undefined} />}
+                {stepId === "details" && <ServiceSpecificStep form={form} selectedService={selectedServiceName} />}
+                {stepId === "coach" && <ChooseCoachStep form={form} planName={selectedPlanName} />}
+                {stepId === "health" && <ParqStep form={form} />}
+                {stepId === "legal" && <LegalStep form={form} />}
                 <div className="flex justify-between pt-6">
                   <div className="flex gap-2">
                     <Button

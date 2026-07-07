@@ -4,11 +4,13 @@ import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessa
 
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Sparkles, User, CheckCircle2, AlertCircle, Users } from "lucide-react";
+import { Loader2, Sparkles, CheckCircle2, AlertCircle, Users, Star, Eye } from "lucide-react";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
+import { CoachDetailDialog } from "@/components/CoachDetailDialog";
 
 interface Coach {
   id: string;
@@ -48,6 +50,10 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
   const [noCoachesAvailable, setNoCoachesAvailable] = useState(false);
+  // ON2 — "View profile" dialog target. Populated from the RPC's already-fetched
+  // fields (name / avatar / short bio / specializations) — a lite profile; the
+  // fuller coaches_public profile is RLS-gated until the client is subscribed.
+  const [profileCoach, setProfileCoach] = useState<Coach | null>(null);
   const { getLabel } = useSpecializationTags();
 
   const preferenceType = form.watch("coach_preference_type") || "auto";
@@ -330,11 +336,14 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
                 ) : (
                   <ScrollArea className="h-[360px] pr-4">
                     <div className="grid gap-3">
-                      {coaches.map((coach) => {
+                      {coaches.map((coach, idx) => {
                         const isSelected = selectedCoachId === coach.id;
                         const matchScore = calculateMatchScore(coach.specializations, focusAreas);
                         const specialtiesText = formatSpecialties(coach.specializations);
-                        
+                        // Coaches are sorted best-match-first, so the first card with a
+                        // real match is the recommendation.
+                        const isTopMatch = idx === 0 && matchScore > 0;
+
                         return (
                           <Card
                             key={coach.id}
@@ -372,21 +381,27 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
                                   <h4 className="font-bold text-base">
                                     {coach.first_name} {coach.last_name}
                                   </h4>
-                                  <Badge 
-                                    variant="outline" 
+                                  {isTopMatch && (
+                                    <Badge className="text-xs shrink-0 bg-amber-100 text-amber-700 hover:bg-amber-100">
+                                      <Star className="h-3 w-3 mr-1" />
+                                      Top match
+                                    </Badge>
+                                  )}
+                                  <Badge
+                                    variant="outline"
                                     className="text-xs font-medium shrink-0 bg-secondary/50"
                                   >
                                     {PLAN_TYPE_LABELS[planType] || 'Online'}
                                   </Badge>
                                   {matchScore > 0 && (
-                                    <Badge 
+                                    <Badge
                                       className="text-xs shrink-0 bg-green-100 text-green-700 hover:bg-green-100"
                                     >
                                       {matchScore} goal{matchScore > 1 ? 's' : ''} match
                                     </Badge>
                                   )}
                                 </div>
-                                
+
                                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                                   {specialtiesText && (
                                     <span className="line-clamp-1">{specialtiesText}</span>
@@ -396,6 +411,20 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
                                     {coach.available_spots} spot{coach.available_spots !== 1 ? 's' : ''} left
                                   </Badge>
                                 </div>
+
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  className="mt-2 h-7 px-2 text-xs text-primary hover:text-primary"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setProfileCoach(coach);
+                                  }}
+                                >
+                                  <Eye className="h-3.5 w-3.5 mr-1" />
+                                  View profile
+                                </Button>
                               </div>
                             </div>
                           </Card>
@@ -410,6 +439,31 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
           />
         </div>
       )}
+
+      {/* ON2 — lite coach profile (name / avatar / short bio / specializations)
+          built from the RPC data; the fuller coaches_public fields are RLS-gated
+          pre-subscription, so location/qualifications/head-coach are omitted. */}
+      <CoachDetailDialog
+        open={!!profileCoach}
+        onOpenChange={(open) => !open && setProfileCoach(null)}
+        coach={
+          profileCoach
+            ? {
+                id: profileCoach.id,
+                first_name: profileCoach.first_name,
+                last_name: profileCoach.last_name ?? "",
+                bio: profileCoach.short_bio,
+                location: null,
+                profile_picture_url: profileCoach.profile_picture_url,
+                qualifications: null,
+                specializations: profileCoach.specializations,
+                nickname: null,
+                is_head_coach: null,
+                head_coach_specialisation: null,
+              }
+            : null
+        }
+      />
     </div>
   );
 }
