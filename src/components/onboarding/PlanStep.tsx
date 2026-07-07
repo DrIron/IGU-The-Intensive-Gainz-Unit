@@ -1,17 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
 import { UseFormReturn } from "react-hook-form";
-import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
+import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClickableCard } from "@/components/ui/clickable-card";
-import { SpecializationTagPicker } from "@/components/ui/SpecializationTagPicker";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2, CheckCircle2 } from "lucide-react";
-import { PersonalDetailsFields } from "@/components/forms/PersonalDetailsFields";
 import { TeamSelectionSection } from "@/components/onboarding/TeamSelectionSection";
 import { cn } from "@/lib/utils";
 
-interface ServiceStepProps {
+interface PlanStepProps {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   form: UseFormReturn<any>;
   serviceId?: string;
 }
@@ -36,34 +35,36 @@ const referralSources = [
   { value: "other", label: "Other" },
 ];
 
-export function ServiceStep({ form, serviceId }: ServiceStepProps) {
+/**
+ * Onboarding "Plan" step (structural redesign Part A) — the plan ClickableCards +
+ * "how did you hear about us". Owns plan_name + heard_about_us. Team plans also pick
+ * their team here (TeamSelectionSection) until Part B gives team its own step.
+ */
+export function PlanStep({ form, serviceId }: PlanStepProps) {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [preSelectedService, setPreSelectedService] = useState<Service | null>(null);
 
   const selectedPlanName = form.watch("plan_name");
-  const focusAreas: string[] = form.watch("focus_areas") || [];
 
   const loadServices = useCallback(async () => {
     try {
       const { data: servicesData, error: servicesError } = await supabase
-        .from('services')
-        .select('*')
-        .eq('is_active', true);
-
+        .from("services")
+        .select("*")
+        .eq("is_active", true);
       if (servicesError) throw servicesError;
       setServices(servicesData || []);
 
-      // If serviceId is provided, set it as default
       if (serviceId && servicesData) {
-        const service = servicesData.find(s => s.id === serviceId || s.name === serviceId);
+        const service = servicesData.find((s) => s.id === serviceId || s.name === serviceId);
         if (service) {
-          form.setValue('plan_name', service.name);
+          form.setValue("plan_name", service.name);
           setPreSelectedService(service);
         }
       }
     } catch (error) {
-      console.error('Error loading services:', error);
+      console.error("Error loading services:", error);
     } finally {
       setLoading(false);
     }
@@ -73,24 +74,7 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
     loadServices();
   }, [loadServices]);
 
-  const isOneToOneService = () => {
-    const selectedService = services.find(s => s.name === selectedPlanName);
-    return selectedService?.type === 'one_to_one';
-  };
-
-  const isTeamService = () => {
-    const selectedService = services.find(s => s.name === selectedPlanName);
-    return selectedService?.type === 'team';
-  };
-
-  const toggleFocusArea = (value: string) => {
-    const currentAreas: string[] = form.getValues("focus_areas") || [];
-    form.setValue(
-      "focus_areas",
-      currentAreas.includes(value) ? currentAreas.filter((v) => v !== value) : [...currentAreas, value],
-      { shouldValidate: true },
-    );
-  };
+  const isTeamService = () => services.find((s) => s.name === selectedPlanName)?.type === "team";
 
   if (loading) {
     return (
@@ -103,10 +87,8 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-2xl font-bold mb-2">Service Selection & Personal Information</h2>
-        <p className="text-muted-foreground">
-          Choose your coaching plan and provide your contact information.
-        </p>
+        <h2 className="text-2xl font-bold mb-2">Choose your plan</h2>
+        <p className="text-muted-foreground">Pick the coaching plan that fits you.</p>
       </div>
 
       {preSelectedService && (
@@ -114,34 +96,10 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
           <p className="text-sm font-medium text-primary">
             ✓ You've selected <span className="font-bold">{preSelectedService.name}</span>
           </p>
-          <p className="text-xs text-muted-foreground mt-1">
-            You can change your selection below if needed
-          </p>
+          <p className="text-xs text-muted-foreground mt-1">You can change your selection below if needed</p>
         </div>
       )}
 
-      {/* Personal Information */}
-      <div className="space-y-4">
-        <p className="text-sm font-medium text-muted-foreground">Personal Information</p>
-        <PersonalDetailsFields
-          control={form.control}
-          emailDisabled={true}
-          showEmail={true}
-          emailValue={form.watch('email')}
-          firstNameField="first_name"
-          lastNameField="last_name"
-          emailField="email"
-          phoneField="phone_number"
-          countryCodeField="country_code"
-          dateOfBirthField="date_of_birth"
-          showGender={true}
-          genderField="gender"
-          showHeight={true}
-          heightCmField="height_cm"
-        />
-      </div>
-
-      {/* Service Selection */}
       <FormField
         control={form.control}
         name="plan_name"
@@ -185,36 +143,9 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
         )}
       />
 
-      {/* Areas of Focus - Required for 1:1 services */}
-      {selectedPlanName && (
-        <FormField
-          control={form.control}
-          name="focus_areas"
-          render={() => (
-            <FormItem>
-              <FormLabel>
-                Areas of Focus {isOneToOneService() ? '*' : '(Optional)'}
-              </FormLabel>
-              <FormDescription className="mb-3">
-                Select one or more areas you'd like to focus on. This helps us match you with the best coach for your goals.
-              </FormDescription>
-              <SpecializationTagPicker
-                selectedTags={focusAreas}
-                onToggle={toggleFocusArea}
-                maxTags={15}
-              />
-              <FormMessage />
-            </FormItem>
-          )}
-        />
-      )}
-
-      {/* Coach selection lives on the dedicated "Choose Coach" step (ON2) — not here. */}
-
-      {/* Team Selection - Only for team services */}
+      {/* Team plans pick their team here (Part B gives team its own step). */}
       {isTeamService() && <TeamSelectionSection form={form} />}
 
-      {/* Referral Source */}
       <FormField
         control={form.control}
         name="heard_about_us"

@@ -11,7 +11,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { StepIndicator } from "@/components/onboarding/StepIndicator";
 import { ParqStep } from "@/components/onboarding/ParqStep";
 import { LegalStep } from "@/components/onboarding/LegalStep";
-import { ServiceStep } from "@/components/onboarding/ServiceStep";
+import { PlanStep } from "@/components/onboarding/PlanStep";
+import { AboutYouStep } from "@/components/onboarding/AboutYouStep";
+import { GoalsStep } from "@/components/onboarding/GoalsStep";
 import ServiceSpecificStep from "@/components/onboarding/ServiceSpecificStep";
 import { ChooseCoachStep } from "@/components/onboarding/ChooseCoachStep";
 import { Dumbbell, Loader2, Save, CheckCircle2, LogOut } from "lucide-react";
@@ -158,13 +160,17 @@ export default function OnboardingForm() {
   const agreedMedical = form.watch("agreed_medical_disclaimer");
   const allLegalAccepted = agreedTerms && agreedPrivacy && agreedRefund && agreedIP && agreedMedical;
   
-  // ON2 — steps are plan-derived and driven by a stable step `id`, not an index.
-  // 1:1 plans get a "Choose Coach" step between Service Details and Health; team
-  // plans keep the 4-step flow. Everything downstream keys off the id.
+  // Structural redesign Part A — steps are plan-derived and keyed by a stable id.
+  // The old overloaded "service" step is split into plan / about / goals. 1:1 adds
+  // goals + coach; team stays on details for now (Part B gives team its own step).
+  //   1:1:  plan → about → goals → details → coach → health → legal
+  //   team: plan → about → details → health → legal
   const isOneToOne = ["1:1 Online", "1:1 Hybrid", "1:1 In-Person"].includes(selectedPlanName);
   const steps = useMemo(
     () => [
-      { id: "service", label: "Service" },
+      { id: "plan", label: "Plan" },
+      { id: "about", label: "About you" },
+      ...(isOneToOne ? [{ id: "goals", label: "Goals" }] : []),
       { id: "details", label: "Service Details" },
       ...(isOneToOne ? [{ id: "coach", label: "Choose Coach" }] : []),
       { id: "health", label: "Health" },
@@ -174,11 +180,11 @@ export default function OnboardingForm() {
   );
   const stepId = steps[currentStep]?.id;
 
-  // If the array shrinks (1:1 → team while on/after the coach step), clamp the
-  // index so it never points past the end.
+  // Keep currentStep in range whenever the array changes length (1:1 ↔ team) OR a
+  // restored draft lands a stale index past the end — clamp, never crash/blank.
   useEffect(() => {
-    setCurrentStep((s) => Math.min(s, steps.length - 1));
-  }, [steps.length]);
+    if (currentStep > steps.length - 1) setCurrentStep(steps.length - 1);
+  }, [currentStep, steps.length]);
 
   const loadServiceName = useCallback(async () => {
     try {
@@ -507,18 +513,18 @@ export default function OnboardingForm() {
     const serviceName = form.getValues("plan_name");
 
     switch (steps[step]?.id) {
-      case "service": {
-        fieldsToValidate = ["first_name", "last_name", "email", "phone_number", "plan_name", "heard_about_us"];
-        // Focus areas are required for 1:1 services — the coach step sorts by them.
-        // (Coach-selection validation lives on the "coach" step now, not here.)
-        const currentPlan = form.getValues("plan_name");
-        const isOneToOnePlan = currentPlan === "1:1 Online" || currentPlan === "1:1 In-Person" || currentPlan === "1:1 Hybrid";
-        if (isOneToOnePlan) {
-          const focusAreas = form.getValues("focus_areas") || [];
-          if (focusAreas.length === 0) {
-            form.setError("focus_areas", { message: "Please select at least one area of focus" });
-            return false;
-          }
+      case "plan": // Plan selection + referral source
+        fieldsToValidate = ["plan_name", "heard_about_us"];
+        break;
+      case "about": // Personal info + demographics (date_of_birth required by the submit guard)
+        fieldsToValidate = ["first_name", "last_name", "email", "phone_number", "date_of_birth"];
+        break;
+      case "goals": {
+        // 1:1 only — the coach step sorts by focus areas, so at least one is required.
+        const focusAreas = form.getValues("focus_areas") || [];
+        if (focusAreas.length === 0) {
+          form.setError("focus_areas", { message: "Please select at least one area of focus" });
+          return false;
         }
         break;
       }
@@ -629,7 +635,8 @@ export default function OnboardingForm() {
         description: "Please provide your date of birth to continue.",
         variant: "destructive",
       });
-      setCurrentStep(0); // Go back to first step where DOB is
+      // DOB now lives on the "about" step (index 1); jump there, not the plan step.
+      setCurrentStep(Math.max(0, steps.findIndex((s) => s.id === "about")));
       return;
     }
 
@@ -844,7 +851,9 @@ export default function OnboardingForm() {
                   });
                 }
               })} className="space-y-8">
-                {stepId === "service" && <ServiceStep form={form} serviceId={searchParams.get('service') || undefined} />}
+                {stepId === "plan" && <PlanStep form={form} serviceId={searchParams.get('service') || undefined} />}
+                {stepId === "about" && <AboutYouStep form={form} />}
+                {stepId === "goals" && <GoalsStep form={form} />}
                 {stepId === "details" && <ServiceSpecificStep form={form} selectedService={selectedServiceName} />}
                 {stepId === "coach" && <ChooseCoachStep form={form} planName={selectedPlanName} />}
                 {stepId === "health" && <ParqStep form={form} />}
