@@ -3,8 +3,10 @@ import { UseFormReturn } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 
 import { Card } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
@@ -204,21 +206,13 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
             <FormControl>
               <div className="grid gap-3 sm:grid-cols-2">
                 {/* Auto-match option */}
-                <Card 
-                  className={`p-5 cursor-pointer transition-all relative overflow-hidden ${
-                    preferenceType === 'auto' 
-                      ? 'border-primary ring-2 ring-primary/20 bg-primary/5' 
-                      : 'hover:border-primary/50 hover:shadow-md'
-                  }`}
+                <ClickableCard
+                  ariaLabel="Auto-match me with the best coach"
                   onClick={() => handlePreferenceChange('auto')}
-                  role="button"
-                  tabIndex={0}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ' ') {
-                      e.preventDefault();
-                      handlePreferenceChange('auto');
-                    }
-                  }}
+                  className={cn(
+                    "p-5 relative overflow-hidden",
+                    preferenceType === 'auto' && "border-primary ring-2 ring-primary/20 bg-primary/5",
+                  )}
                 >
                   {preferenceType === 'auto' && (
                     <div className="absolute top-3 right-3">
@@ -245,26 +239,17 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
                       </p>
                     </div>
                   </div>
-                </Card>
+                </ClickableCard>
 
                 {/* Specific coach option */}
-                <Card 
-                  className={`p-5 transition-all relative overflow-hidden ${
-                    noCoachesAvailable 
-                      ? 'opacity-50 cursor-not-allowed' 
-                      : preferenceType === 'specific' 
-                        ? 'border-primary ring-2 ring-primary/20 bg-primary/5 cursor-pointer' 
-                        : 'hover:border-primary/50 hover:shadow-md cursor-pointer'
-                  }`}
-                  onClick={() => !noCoachesAvailable && handlePreferenceChange('specific')}
-                  role="button"
-                  tabIndex={noCoachesAvailable ? -1 : 0}
-                  onKeyDown={(e) => {
-                    if (!noCoachesAvailable && (e.key === 'Enter' || e.key === ' ')) {
-                      e.preventDefault();
-                      handlePreferenceChange('specific');
-                    }
-                  }}
+                <ClickableCard
+                  ariaLabel="Choose my own coach"
+                  disabled={noCoachesAvailable}
+                  onClick={() => handlePreferenceChange('specific')}
+                  className={cn(
+                    "p-5 relative overflow-hidden",
+                    preferenceType === 'specific' && !noCoachesAvailable && "border-primary ring-2 ring-primary/20 bg-primary/5",
+                  )}
                 >
                   {preferenceType === 'specific' && !noCoachesAvailable && (
                     <div className="absolute top-3 right-3">
@@ -294,7 +279,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
                       )}
                     </div>
                   </div>
-                </Card>
+                </ClickableCard>
               </div>
             </FormControl>
             <FormMessage />
@@ -345,22 +330,14 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
                         const isTopMatch = idx === 0 && matchScore > 0;
 
                         return (
-                          <Card
+                          <ClickableCard
                             key={coach.id}
-                            className={`p-4 cursor-pointer transition-all relative ${
-                              isSelected 
-                                ? 'border-primary ring-2 ring-primary/20 bg-primary/5' 
-                                : 'hover:border-primary/50 hover:shadow-md'
-                            }`}
+                            ariaLabel={`Select coach ${coach.first_name} ${coach.last_name ?? ''}`.trim()}
                             onClick={() => handleCoachSelect(coach.id)}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                handleCoachSelect(coach.id);
-                              }
-                            }}
+                            className={cn(
+                              "p-4 relative",
+                              isSelected && "border-primary ring-2 ring-primary/20 bg-primary/5",
+                            )}
                           >
                             {isSelected && (
                               <div className="absolute top-3 right-3">
@@ -427,7 +404,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
                                 </Button>
                               </div>
                             </div>
-                          </Card>
+                          </ClickableCard>
                         );
                       })}
                     </div>

@@ -110,6 +110,13 @@ export default function OnboardingForm() {
   const [autoSaving, setAutoSaving] = useState(false);
   const [lastSaved, setLastSaved] = useState<Date | null>(null);
   const [fatalError, setFatalError] = useState(false);
+  // "You're in" finish screen (recap) shown on submit success, before payment.
+  const [finished, setFinished] = useState<{
+    redirectUrl: string;
+    planName: string;
+    coachLine: string | null;
+    focusCount: number;
+  } | null>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout>();
 
   const form = useForm<z.infer<typeof formSchema>>({
@@ -631,9 +638,13 @@ export default function OnboardingForm() {
       if (import.meta.env.DEV) console.log("Submitting onboarding form via secure edge function...");
       if (import.meta.env.DEV) console.log("Form values:", values);
 
+      // Discord is retired — never send it (the DB column stays for old submissions).
+      const { discord_username: _discordRetired, ...submitPayload } = values;
+      void _discordRetired;
+
       // Submit through edge function for server-side validation
       const { data, error: functionError } = await supabase.functions.invoke('submit-onboarding', {
-        body: values,
+        body: submitPayload,
       });
 
       if (functionError) {
@@ -648,11 +659,6 @@ export default function OnboardingForm() {
       // Use the status from the edge function to redirect directly to the correct page
       const returnedStatus = data.status as ClientStatus;
       const redirectUrl = getOnboardingRedirect(returnedStatus) || "/dashboard";
-
-      toast({
-        title: "Registration submitted successfully!",
-        description: "Redirecting...",
-      });
 
       setHasSubmitted(true);
 
@@ -675,10 +681,18 @@ export default function OnboardingForm() {
       // Clear the draft after successful submission
       await deleteDraft();
 
-      // Direct redirect to the correct onboarding page (no dashboard flash)
-      setTimeout(() => {
-        navigate(redirectUrl, { replace: true });
-      }, 1000);
+      // Show the "You're in" finish screen with a recap; its CTA continues to payment.
+      const submittedOneToOne = ["1:1 Online", "1:1 Hybrid", "1:1 In-Person"].includes(values.plan_name);
+      setFinished({
+        redirectUrl,
+        planName: values.plan_name,
+        coachLine: submittedOneToOne
+          ? values.coach_preference_type === "specific"
+            ? "The coach you chose"
+            : "Auto-matched to your best-fit coach"
+          : null,
+        focusCount: (values.focus_areas ?? []).length,
+      });
 
     } catch (error: any) {
       if (import.meta.env.DEV) console.error('Submission error:', error);
@@ -704,6 +718,45 @@ export default function OnboardingForm() {
     );
   }
 
+  if (finished) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center px-4 py-24">
+        <Card className="w-full max-w-md border-border/50 shadow-2xl">
+          <CardContent className="p-8 text-center space-y-5">
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10">
+              <CheckCircle2 className="h-8 w-8 text-emerald-500" aria-hidden />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold">You're in!</h2>
+              <p className="text-muted-foreground mt-1">Your registration is submitted.</p>
+            </div>
+            <div className="rounded-lg border bg-muted/30 p-4 text-left text-sm space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-muted-foreground">Plan</span>
+                <span className="font-medium">{finished.planName}</span>
+              </div>
+              {finished.coachLine && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">Coach</span>
+                  <span className="font-medium text-right">{finished.coachLine}</span>
+                </div>
+              )}
+              {finished.focusCount > 0 && (
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-muted-foreground">Focus areas</span>
+                  <span className="font-medium">{finished.focusCount} selected</span>
+                </div>
+              )}
+            </div>
+            <Button className="w-full" onClick={() => navigate(finished.redirectUrl, { replace: true })}>
+              Continue to payment
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (loading || hasSubmitted) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -713,7 +766,7 @@ export default function OnboardingForm() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 pt-20 pb-4 px-4">
+    <div className="min-h-screen bg-background pt-20 pb-24 md:pb-8 px-4">
       <div className="container mx-auto max-w-4xl py-8">
         <div className="text-center mb-8">
           <div className="flex justify-center mb-4">
@@ -796,52 +849,69 @@ export default function OnboardingForm() {
                 {stepId === "coach" && <ChooseCoachStep form={form} planName={selectedPlanName} />}
                 {stepId === "health" && <ParqStep form={form} />}
                 {stepId === "legal" && <LegalStep form={form} />}
-                <div className="flex justify-between pt-6">
-                  <div className="flex gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={handleBack}
-                      disabled={currentStep === 0}
-                    >
-                      Back
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={async () => {
-                        await saveDraft();
-                        toast({
-                          title: "Progress Saved",
-                          description: "You can continue your registration anytime by logging back in.",
-                        });
-                        navigate("/");
-                      }}
-                    >
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Save & Exit
-                    </Button>
+                {/* Nav — sticky bottom bar on mobile (Back · progress · Continue),
+                    inline on desktop. Content clears it via the container's pb-24. */}
+                <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur md:static md:z-auto md:border-0 md:bg-transparent md:px-0 md:pt-6 md:pb-0 md:backdrop-blur-none">
+                  {/* Compact progress — mobile only (the top StepIndicator covers desktop). */}
+                  <div className="mb-2 flex items-center gap-2 md:hidden">
+                    <div className="h-1 flex-1 rounded-full bg-muted">
+                      <div
+                        className="h-1 rounded-full bg-primary transition-all"
+                        style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+                      />
+                    </div>
+                    <span className="shrink-0 text-[11px] font-medium text-muted-foreground tabular-nums">
+                      {currentStep + 1}/{steps.length}
+                    </span>
                   </div>
 
-                  {currentStep < steps.length - 1 ? (
-                    <Button type="button" onClick={handleNext}>
-                      Next
-                    </Button>
-                  ) : (
-                    <Button 
-                      type="submit" 
-                      disabled={submitting || !allLegalAccepted}
-                    >
-                      {submitting ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Submitting...
-                        </>
-                      ) : (
-                        "Submit Application"
-                      )}
-                    </Button>
-                  )}
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex gap-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        onClick={handleBack}
+                        disabled={currentStep === 0}
+                      >
+                        Back
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={async () => {
+                          await saveDraft();
+                          toast({
+                            title: "Progress Saved",
+                            description: "You can continue your registration anytime by logging back in.",
+                          });
+                          navigate("/");
+                        }}
+                      >
+                        <LogOut className="h-4 w-4 sm:mr-2" />
+                        <span className="hidden sm:inline">Save & Exit</span>
+                      </Button>
+                    </div>
+
+                    {currentStep < steps.length - 1 ? (
+                      <Button type="button" onClick={handleNext}>
+                        Next
+                      </Button>
+                    ) : (
+                      <Button
+                        type="submit"
+                        disabled={submitting || !allLegalAccepted}
+                      >
+                        {submitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Submitting...
+                          </>
+                        ) : (
+                          "Submit Application"
+                        )}
+                      </Button>
+                    )}
+                  </div>
                 </div>
               </form>
             </Form>

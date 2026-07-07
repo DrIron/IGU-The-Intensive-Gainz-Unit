@@ -1,13 +1,78 @@
-import { UseFormReturn } from "react-hook-form";
+import type { ControllerRenderProps, UseFormReturn } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
+import { cn } from "@/lib/utils";
 
 interface ServiceSpecificStepProps {
   form: UseFormReturn<any>;
   selectedService: string;
+}
+
+const EXPERIENCE_OPTS = [
+  { value: "beginner_0_6", label: "Beginner (0-6 months)" },
+  { value: "intermediate_6_24", label: "Intermediate (6-24 months)" },
+  { value: "advanced_24_plus", label: "Advanced (24+ months)" },
+];
+const DAYS_OPTS = [
+  { value: "2", label: "2 days" },
+  { value: "3", label: "3 days" },
+  { value: "4", label: "4 days" },
+  { value: "5+", label: "5+ days" },
+];
+const GYM_ACCESS_OPTS = [
+  { value: "commercial_gym", label: "Commercial Gym" },
+  { value: "home_gym_full", label: "Home Gym (Fully Equipped)" },
+  { value: "home_gym_minimal", label: "Home Gym (Minimally Equipped)" },
+];
+const NUTRITION_OPTS = [
+  { value: "calorie_counting", label: "Calorie Counting Only" },
+  { value: "macros_calories", label: "Macros + Calorie Counting" },
+  { value: "intuitive_eating", label: "Intuitive Eating" },
+  { value: "not_sure", label: "Not sure" },
+];
+
+/**
+ * Segmented single-select control replacing the small-option dropdowns. Same field
+ * values as the old <Select> — a control swap only. Guards against clicking the
+ * active chip to clear the value (keeps a value once set).
+ */
+function SegmentedField({
+  field,
+  options,
+  ariaLabel,
+}: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  field: ControllerRenderProps<any, string>;
+  options: { value: string; label: string }[];
+  ariaLabel: string;
+}) {
+  return (
+    <ToggleGroup
+      type="single"
+      variant="outline"
+      value={field.value || ""}
+      onValueChange={(v) => v && field.onChange(v)}
+      aria-label={ariaLabel}
+      className="flex flex-wrap justify-start gap-2"
+    >
+      {options.map((o) => (
+        <ToggleGroupItem
+          key={o.value}
+          value={o.value}
+          className={cn(
+            "rounded-md text-sm",
+            "data-[state=on]:bg-primary data-[state=on]:text-primary-foreground data-[state=on]:border-primary",
+          )}
+        >
+          {o.label}
+        </ToggleGroupItem>
+      ))}
+    </ToggleGroup>
+  );
 }
 
 export default function ServiceSpecificStep({ form, selectedService }: ServiceSpecificStepProps) {
@@ -135,18 +200,9 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
           render={({ field }) => (
             <FormItem>
               <FormLabel>Training Experience</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your experience level" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="beginner_0_6">Beginner (0-6 months)</SelectItem>
-                  <SelectItem value="intermediate_6_24">Intermediate (6-24 months)</SelectItem>
-                  <SelectItem value="advanced_24_plus">Advanced (24+ months)</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SegmentedField field={field} options={EXPERIENCE_OPTS} ariaLabel="Training experience" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -176,19 +232,9 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
           render={({ field }) => (
             <FormItem>
               <FormLabel>How many days per week can you commit to training?</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select training days" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="2">2 days</SelectItem>
-                  <SelectItem value="3">3 days</SelectItem>
-                  <SelectItem value="4">4 days</SelectItem>
-                  <SelectItem value="5+">5+ days</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SegmentedField field={field} options={DAYS_OPTS} ariaLabel="Training days per week" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -200,18 +246,9 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
           render={({ field }) => (
             <FormItem>
               <FormLabel>Available exercise facility</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select facility type" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="commercial_gym">Commercial Gym</SelectItem>
-                  <SelectItem value="home_gym_full">Home Gym (Fully Equipped)</SelectItem>
-                  <SelectItem value="home_gym_minimal">Home Gym (Minimally Equipped)</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SegmentedField field={field} options={GYM_ACCESS_OPTS} ariaLabel="Available exercise facility" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -242,19 +279,9 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
           render={({ field }) => (
             <FormItem>
               <FormLabel>Preferred nutritional approach</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select approach" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="calorie_counting">Calorie Counting Only</SelectItem>
-                  <SelectItem value="macros_calories">Macros + Calorie Counting</SelectItem>
-                  <SelectItem value="intuitive_eating">Intuitive Eating</SelectItem>
-                  <SelectItem value="not_sure">Not sure</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SegmentedField field={field} options={NUTRITION_OPTS} ariaLabel="Preferred nutritional approach" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -277,18 +304,9 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
           render={({ field }) => (
             <FormItem>
               <FormLabel>Training Experience</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select your experience level" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="beginner_0_6">Beginner (0-6 months)</SelectItem>
-                  <SelectItem value="intermediate_6_24">Intermediate (6-24 months)</SelectItem>
-                  <SelectItem value="advanced_24_plus">Advanced (24+ months)</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SegmentedField field={field} options={EXPERIENCE_OPTS} ariaLabel="Training experience" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}
@@ -392,19 +410,9 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
           render={({ field }) => (
             <FormItem>
               <FormLabel>Preferred nutritional approach</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select approach" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="calorie_counting">Calorie Counting Only</SelectItem>
-                  <SelectItem value="macros_calories">Macros + Calorie Counting</SelectItem>
-                  <SelectItem value="intuitive_eating">Intuitive Eating</SelectItem>
-                  <SelectItem value="not_sure">Not sure</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SegmentedField field={field} options={NUTRITION_OPTS} ariaLabel="Preferred nutritional approach" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}

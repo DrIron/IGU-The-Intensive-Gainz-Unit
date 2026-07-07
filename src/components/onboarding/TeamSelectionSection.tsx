@@ -1,9 +1,9 @@
 import { memo } from "react";
 import { UseFormReturn } from "react-hook-form";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Card } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Users } from "lucide-react";
+import { Loader2, Users, CheckCircle2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { useTeams } from "@/hooks/useTeams";
 
 interface TeamSelectionSectionProps {
@@ -41,60 +41,62 @@ export const TeamSelectionSection = memo(function TeamSelectionSection({
         </p>
       </div>
 
-      <RadioGroup
-        value={selectedTeamId || ""}
-        onValueChange={(value) => form.setValue("selected_team_id", value)}
-        className="space-y-3"
-      >
+      <div className="space-y-3">
         {teams.map((team) => {
           const isFull = team.statusBadge === "closed";
+          const isSelected = selectedTeamId === team.id;
 
           return (
-            <Card
+            <ClickableCard
               key={team.id}
-              className={`p-4 ${isFull ? "opacity-50" : ""}`}
+              ariaLabel={`Select team ${team.name}`}
+              disabled={isFull}
+              onClick={() => form.setValue("selected_team_id", team.id)}
+              className={cn(
+                "relative p-4",
+                isFull && "opacity-50",
+                isSelected && "border-primary ring-2 ring-primary/20 bg-primary/5",
+              )}
             >
-              <label className="flex items-start space-x-3 cursor-pointer">
-                <RadioGroupItem value={team.id} disabled={isFull} />
-                <div className="flex-1 space-y-1.5">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-semibold">{team.name}</span>
-                    {isFull && (
-                      <Badge variant="destructive" className="text-xs">
-                        Full
-                      </Badge>
-                    )}
-                  </div>
-
-                  {team.description && (
-                    <p className="text-sm text-muted-foreground">
-                      {team.description}
-                    </p>
+              {isSelected && (
+                <CheckCircle2 className="absolute top-3 right-3 h-5 w-5 text-primary" aria-hidden />
+              )}
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-semibold">{team.name}</span>
+                  {isFull && (
+                    <Badge variant="destructive" className="text-xs">
+                      Full
+                    </Badge>
                   )}
-
-                  {team.tags.length > 0 && (
-                    <div className="flex flex-wrap gap-1">
-                      {team.tags.map((tag) => (
-                        <Badge key={tag} variant="outline" className="text-xs">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground pt-1">
-                    <span>Coach: {team.coachName}</span>
-                    <span className="flex items-center gap-1">
-                      <Users className="h-3 w-3" />
-                      {team.memberCount} / {team.max_members} members
-                    </span>
-                  </div>
                 </div>
-              </label>
-            </Card>
+
+                {team.description && (
+                  <p className="text-sm text-muted-foreground">{team.description}</p>
+                )}
+
+                {team.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-1">
+                    {team.tags.map((tag) => (
+                      <Badge key={tag} variant="outline" className="text-xs">
+                        {tag}
+                      </Badge>
+                    ))}
+                  </div>
+                )}
+
+                <div className="flex items-center gap-4 text-xs text-muted-foreground pt-1">
+                  <span>Coach: {team.coachName}</span>
+                  <span className="flex items-center gap-1">
+                    <Users className="h-3 w-3" />
+                    {team.memberCount} / {team.max_members} members
+                  </span>
+                </div>
+              </div>
+            </ClickableCard>
           );
         })}
-      </RadioGroup>
+      </div>
     </div>
   );
 });

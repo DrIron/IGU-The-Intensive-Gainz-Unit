@@ -3,14 +3,13 @@ import { UseFormReturn } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormDescription, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import { ClickableCard } from "@/components/ui/clickable-card";
+import { SpecializationTagPicker } from "@/components/ui/SpecializationTagPicker";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2 } from "lucide-react";
+import { Loader2, CheckCircle2 } from "lucide-react";
 import { PersonalDetailsFields } from "@/components/forms/PersonalDetailsFields";
 import { TeamSelectionSection } from "@/components/onboarding/TeamSelectionSection";
-import { useSpecializationTags } from "@/hooks/useSpecializationTags";
+import { cn } from "@/lib/utils";
 
 interface ServiceStepProps {
   form: UseFormReturn<any>;
@@ -41,10 +40,9 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [preSelectedService, setPreSelectedService] = useState<Service | null>(null);
-  const { tags: focusOptions, loading: tagsLoading } = useSpecializationTags();
 
   const selectedPlanName = form.watch("plan_name");
-  const focusAreas = form.watch("focus_areas") || [];
+  const focusAreas: string[] = form.watch("focus_areas") || [];
 
   const loadServices = useCallback(async () => {
     try {
@@ -85,13 +83,13 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
     return selectedService?.type === 'team';
   };
 
-  const handleFocusAreaChange = (value: string, checked: boolean) => {
-    const currentAreas = form.getValues("focus_areas") || [];
-    if (checked) {
-      form.setValue("focus_areas", [...currentAreas, value]);
-    } else {
-      form.setValue("focus_areas", currentAreas.filter((area: string) => area !== value));
-    }
+  const toggleFocusArea = (value: string) => {
+    const currentAreas: string[] = form.getValues("focus_areas") || [];
+    form.setValue(
+      "focus_areas",
+      currentAreas.includes(value) ? currentAreas.filter((v) => v !== value) : [...currentAreas, value],
+      { shouldValidate: true },
+    );
   };
 
   if (loading) {
@@ -143,25 +141,6 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
         />
       </div>
 
-      <FormField
-        control={form.control}
-        name="discord_username"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>Discord Username (Optional)</FormLabel>
-            <FormControl>
-              <Input placeholder="username#1234" {...field} />
-            </FormControl>
-            <FormDescription>
-              Join our private Discord community for coach check-ins, workout tips, and member support.{" "}
-              <a href="https://discord.com/download" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">
-                Download Discord
-              </a>
-            </FormDescription>
-          </FormItem>
-        )}
-      />
-
       {/* Service Selection */}
       <FormField
         control={form.control}
@@ -170,33 +149,36 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
           <FormItem>
             <FormLabel>Select Your Coaching Plan *</FormLabel>
             <FormControl>
-              <RadioGroup
-                onValueChange={field.onChange}
-                value={field.value}
-                className="space-y-3"
-              >
-                {services.map((service) => (
-                  <Card key={service.id} className="p-4">
-                    <label className="flex items-start space-x-3 cursor-pointer">
-                      <RadioGroupItem value={service.name} />
-                      <div className="flex-1">
-                        <div className="font-semibold">{service.name}</div>
-                        <div className="text-sm text-muted-foreground mb-2">
-                          {service.description}
-                        </div>
-                        <div className="text-lg font-bold text-primary">
-                          {/* 1:1 tiers are level-priced -- the exact price is set once a
-                              coach is assigned and confirmed at checkout. */}
-                          {service.type !== "team" && (
-                            <span className="text-sm font-normal text-muted-foreground mr-1">from</span>
-                          )}
-                          {service.price_kwd} KWD/month
-                        </div>
+              <div className="space-y-3">
+                {services.map((service) => {
+                  const isSelected = field.value === service.name;
+                  return (
+                    <ClickableCard
+                      key={service.id}
+                      ariaLabel={`Select ${service.name} plan`}
+                      onClick={() => field.onChange(service.name)}
+                      className={cn(
+                        "relative p-4",
+                        isSelected && "border-primary ring-2 ring-primary/20 bg-primary/5",
+                      )}
+                    >
+                      {isSelected && (
+                        <CheckCircle2 className="absolute top-3 right-3 h-5 w-5 text-primary" aria-hidden />
+                      )}
+                      <div className="font-semibold">{service.name}</div>
+                      <div className="text-sm text-muted-foreground mb-2">{service.description}</div>
+                      <div className="text-lg font-bold text-primary">
+                        {/* 1:1 tiers are level-priced -- the exact price is set once a
+                            coach is assigned and confirmed at checkout. */}
+                        {service.type !== "team" && (
+                          <span className="text-sm font-normal text-muted-foreground mr-1">from</span>
+                        )}
+                        {service.price_kwd} KWD/month
                       </div>
-                    </label>
-                  </Card>
-                ))}
-              </RadioGroup>
+                    </ClickableCard>
+                  );
+                })}
+              </div>
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -216,30 +198,11 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
               <FormDescription className="mb-3">
                 Select one or more areas you'd like to focus on. This helps us match you with the best coach for your goals.
               </FormDescription>
-              {tagsLoading ? (
-                <div className="flex items-center gap-2 py-4 text-muted-foreground">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>Loading focus areas...</span>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {focusOptions.map((option) => (
-                    <div key={option.value} className="flex items-center space-x-3">
-                      <Checkbox
-                        id={`focus-${option.value}`}
-                        checked={focusAreas.includes(option.value)}
-                        onCheckedChange={(checked) => handleFocusAreaChange(option.value, checked as boolean)}
-                      />
-                      <label
-                        htmlFor={`focus-${option.value}`}
-                        className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                      >
-                        {option.label}
-                      </label>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <SpecializationTagPicker
+                selectedTags={focusAreas}
+                onToggle={toggleFocusArea}
+                maxTags={15}
+              />
               <FormMessage />
             </FormItem>
           )}
