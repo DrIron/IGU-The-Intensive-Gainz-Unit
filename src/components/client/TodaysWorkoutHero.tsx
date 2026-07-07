@@ -74,11 +74,11 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
     workout: TodayWorkout | null;
     upcomingWorkout: UpcomingWorkout | null;
   }>(() => {
-    if (!data?.program?.client_program_days) {
+    if (!data?.program?.days) {
       return { workout: null, upcomingWorkout: null };
     }
     const programName = data.programName ?? "Your Program";
-    const sortedDays = [...data.program.client_program_days].sort(
+    const sortedDays = [...data.program.days].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime(),
     );
 
@@ -87,12 +87,12 @@ export function TodaysWorkoutHero({ userId }: TodaysWorkoutHeroProps) {
 
     for (const day of sortedDays) {
       const dayDate = new Date(day.date);
-      const modules = (day.client_day_modules || []).map((m: any) => ({
+      const modules = (day.modules || []).map((m) => ({
         id: m.id,
         title: m.title,
         module_type: m.module_type,
         status: m.status,
-        exercise_count: m.client_module_exercises?.[0]?.count || 0,
+        exercise_count: m.exerciseCount || 0,
         canonical: m.canonical as CanonicalNav | undefined,
       }));
 

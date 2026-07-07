@@ -63,34 +63,49 @@ export function ClientActivityFeed({ coachId, limit = 10 }: ClientActivityFeedPr
 
       const allActivities: ActivityItem[] = [];
 
-      // Get recent workout completions
-      const { data: workouts } = await supabase
-        .from("client_day_modules")
-        .select(`
-          id,
-          completed_at,
-          title,
-          client_program_days!inner(
-            client_programs!inner(user_id)
-          )
-        `)
-        .not("completed_at", "is", null)
-        .order("completed_at", { ascending: false })
-        .limit(20);
+      // Get recent workout completions — canonical (P5 A.2). A completed workout =
+      // a distinct (assignment_id, calendar date) that has exercise_set_logs; the
+      // client is resolved via the assignment. Coach RLS (cpa_coach +
+      // exercise_set_logs_canonical_coach_select) scopes both reads to this coach's
+      // clients. (There is no per-session title in canonical logs cheaply, so the
+      // row reads generically rather than naming the specific session.)
+      const { data: assignmentRows } = await supabase
+        .from("client_plan_assignment")
+        .select("id, client_id")
+        .in("client_id", clientIds);
+      const assignmentClient = new Map<string, string>();
+      for (const a of assignmentRows || []) assignmentClient.set(a.id, a.client_id);
+      const assignmentIds = [...assignmentClient.keys()];
 
-      workouts?.forEach(w => {
-        const userId = (w.client_program_days as any)?.client_programs?.user_id;
-        if (userId && clientIds.includes(userId)) {
+      if (assignmentIds.length > 0) {
+        const { data: logRows } = await supabase
+          .from("exercise_set_logs")
+          .select("assignment_id, created_at")
+          .in("assignment_id", assignmentIds)
+          .order("created_at", { ascending: false })
+          .limit(200);
+
+        // Distinct sessions = (assignment_id, date). Logs come newest-first, so the
+        // first row per key is the latest log that day → the session's timestamp.
+        const seen = new Set<string>();
+        for (const l of logRows || []) {
+          if (!l.assignment_id) continue;
+          const day = (l.created_at as string).slice(0, 10);
+          const key = `${l.assignment_id}:${day}`;
+          if (seen.has(key)) continue;
+          seen.add(key);
+          const userId = assignmentClient.get(l.assignment_id);
+          if (!userId) continue;
           allActivities.push({
-            id: `workout-${w.id}`,
+            id: `workout-${key}`,
             type: "workout_completed",
             clientName: clientMap.get(userId) || "Client",
             clientId: userId,
-            description: `Completed ${w.title || "workout"}`,
-            timestamp: new Date(w.completed_at!),
+            description: "Completed a workout",
+            timestamp: new Date(l.created_at as string),
           });
         }
-      });
+      }
 
       // Get recent weight logs
       const { data: weights } = await supabase

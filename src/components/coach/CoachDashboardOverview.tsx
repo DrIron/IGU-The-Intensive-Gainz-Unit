@@ -192,10 +192,11 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
         .eq("owner_coach_id", coachUserId);
       if (programsError) throw programsError;
 
-      // Workouts completed this week by my clients.
-      // Avoid nested PostgREST FK joins (unreliable per CLAUDE.md):
-      // 3 separate queries — client_programs → client_program_days → count client_day_modules
-      // IGU adherence week — see weekUtils.ts
+      // Workouts completed this week by my clients — canonical (P5 A.2).
+      // A "workout" = a distinct (assignment_id, calendar date) that has
+      // exercise_set_logs this IGU week. Coach RLS (cpa_coach +
+      // exercise_set_logs_canonical_coach_select) scopes both reads to this coach's
+      // clients. IGU adherence week — see weekUtils.ts.
       const weekStart = startOfIguWeek();
       const clientIds = subscriptionsWithProfiles
         .filter(s => s.status === 'active')
@@ -203,32 +204,28 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
 
       let workoutsThisWeek = 0;
       if (clientIds.length > 0) {
-        const { data: programRows, error: programsErr } = await supabase
-          .from("client_programs")
+        const { data: assignmentRows, error: assignmentsErr } = await supabase
+          .from("client_plan_assignment")
           .select("id")
-          .in("user_id", clientIds)
+          .in("client_id", clientIds)
           .eq("status", "active");
-        if (programsErr) throw programsErr;
+        if (assignmentsErr) throw assignmentsErr;
 
-        const programIds = (programRows || []).map(p => p.id);
-        if (programIds.length > 0) {
-          const { data: dayRows, error: daysErr } = await supabase
-            .from("client_program_days")
-            .select("id")
-            .in("client_program_id", programIds);
-          if (daysErr) throw daysErr;
+        const assignmentIds = (assignmentRows || []).map(a => a.id);
+        if (assignmentIds.length > 0) {
+          const { data: logRows, error: logsErr } = await supabase
+            .from("exercise_set_logs")
+            .select("assignment_id, created_at")
+            .in("assignment_id", assignmentIds)
+            .gte("created_at", weekStart.toISOString());
+          if (logsErr) throw logsErr;
 
-          const dayIds = (dayRows || []).map(d => d.id);
-          if (dayIds.length > 0) {
-            const { count, error: countErr } = await supabase
-              .from("client_day_modules")
-              .select("*", { count: "exact", head: true })
-              .in("client_program_day_id", dayIds)
-              .not("completed_at", "is", null)
-              .gte("completed_at", weekStart.toISOString());
-            if (countErr) throw countErr;
-            workoutsThisWeek = count || 0;
+          const sessions = new Set<string>();
+          for (const l of logRows || []) {
+            if (!l.assignment_id) continue;
+            sessions.add(`${l.assignment_id}:${(l.created_at as string).slice(0, 10)}`);
           }
+          workoutsThisWeek = sessions.size;
         }
       }
 

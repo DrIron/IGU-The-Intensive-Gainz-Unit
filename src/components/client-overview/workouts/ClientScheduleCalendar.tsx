@@ -7,11 +7,9 @@
 // that file. Past sessions open the existing read-only SessionLogViewer; upcoming
 // sessions are static.
 //
-// Data is dual-path, mirroring the client page: board_v2 + an active canonical
-// assignment → loadCanonicalSchedule; else (flag off / no assignment / null
-// schedule) → the legacy useClientWorkoutsWeek/Month hooks (both take a userId, so
-// the coach passes context.clientUserId; coach RLS already permits these reads).
-// Both shapes normalise into one SessionCell so the render is source-agnostic.
+// Canonical-only (P5): an active client_plan_assignment → loadCanonicalSchedule,
+// normalised into SessionCell[] by date. No active assignment / null schedule →
+// a graceful empty grid. Coach RLS permits reading the client's canonical schedule.
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -60,7 +58,7 @@ import { cn } from "@/lib/utils";
 const WEEK_OPTS = { weekStartsOn: 1 as const };
 
 interface SessionCell {
-  id: string; // legacy client_day_modules.id, OR canonical plan_session_id
+  id: string; // canonical plan_session_id
   title: string;
   type: string;
   done: boolean;

@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { CheckCircle2, Circle, TrendingDown, TrendingUp, Minus, ChevronRight } from "lucide-react";
 import { startOfWeek, endOfWeek, format } from "date-fns";
 import { interpretWeeklyHabit, toneClasses } from "@/lib/interpret";
+import { useCanonicalWeeklyAdherence } from "@/hooks/useCanonicalWeeklyAdherence";
 import { cn } from "@/lib/utils";
 
 interface WeeklyProgressCardProps {
@@ -14,8 +15,6 @@ interface WeeklyProgressCardProps {
 }
 
 interface WeeklyStats {
-  workoutsCompleted: number;
-  workoutsTotal: number;
   nutritionDaysLogged: number;
   weightTrend: "up" | "down" | "stable" | null;
   weightChange: number | null;
@@ -23,14 +22,14 @@ interface WeeklyStats {
 
 export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
   const navigate = useNavigate();
+  // Workout completion is canonical (P5 A.2); nutrition + weight load below.
+  const { weeklyCompleted, weeklyScheduled, loading: workoutsLoading } = useCanonicalWeeklyAdherence(userId);
   const [stats, setStats] = useState<WeeklyStats>({
-    workoutsCompleted: 0,
-    workoutsTotal: 0,
     nutritionDaysLogged: 0,
     weightTrend: null,
     weightChange: null,
   });
-  const [loading, setLoading] = useState(true);
+  const [statsLoading, setStatsLoading] = useState(true);
   const hasFetched = useRef(false);
 
   const loadWeeklyStats = useCallback(async () => {
@@ -38,40 +37,6 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
       const now = new Date();
       const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
       const weekEnd = endOfWeek(now, { weekStartsOn: 1 });
-
-      // Get this week's workout modules
-      const { data: program } = await supabase
-        .from("client_programs")
-        .select(`
-          client_program_days (
-            date,
-            client_day_modules (
-              id,
-              status,
-              completed_at
-            )
-          )
-        `)
-        .eq("user_id", userId)
-        .eq("status", "active")
-        .maybeSingle();
-
-      let completed = 0;
-      let total = 0;
-
-      if (program?.client_program_days) {
-        for (const day of program.client_program_days) {
-          const dayDate = new Date(day.date);
-          if (dayDate >= weekStart && dayDate <= weekEnd) {
-            for (const mod of day.client_day_modules || []) {
-              total++;
-              if (mod.status === "completed" || mod.completed_at) {
-                completed++;
-              }
-            }
-          }
-        }
-      }
 
       // Get nutrition check-ins this week
       const { data: nutritionLogs } = await supabase
@@ -109,8 +74,6 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
       }
 
       setStats({
-        workoutsCompleted: completed,
-        workoutsTotal: total,
         nutritionDaysLogged: nutritionDays,
         weightTrend,
         weightChange,
@@ -118,7 +81,7 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
     } catch (error) {
       console.error("Error loading weekly stats:", error);
     } finally {
-      setLoading(false);
+      setStatsLoading(false);
     }
   }, [userId]);
 
@@ -134,6 +97,8 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
     if (stats.weightTrend === "stable") return <Minus className="h-4 w-4 text-blue-500" aria-hidden="true" />;
     return null;
   };
+
+  const loading = statsLoading || workoutsLoading;
 
   if (loading) {
     return (
@@ -169,22 +134,22 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm text-muted-foreground">Workouts</span>
             <span className="text-sm font-medium">
-              {stats.workoutsCompleted}/{stats.workoutsTotal}
+              {weeklyCompleted}/{weeklyScheduled}
             </span>
           </div>
           <div className="flex gap-1.5">
-            {Array.from({ length: Math.max(stats.workoutsTotal, 5) }).map((_, i) => (
+            {Array.from({ length: Math.max(weeklyScheduled, 5) }).map((_, i) => (
               <div key={i} className="flex-1 flex justify-center">
-                {i < stats.workoutsCompleted ? (
+                {i < weeklyCompleted ? (
                   <CheckCircle2 className="h-5 w-5 text-primary" aria-hidden="true" />
-                ) : i < stats.workoutsTotal ? (
+                ) : i < weeklyScheduled ? (
                   <Circle className="h-5 w-5 text-muted-foreground/30" aria-hidden="true" />
                 ) : null}
               </div>
             ))}
           </div>
           {(() => {
-            const habit = interpretWeeklyHabit(stats.workoutsCompleted, stats.workoutsTotal, "sessions");
+            const habit = interpretWeeklyHabit(weeklyCompleted, weeklyScheduled, "sessions");
             return habit.sentence ? (
               <p className="mt-2 flex items-start gap-1.5 text-xs text-muted-foreground">
                 <span

@@ -114,17 +114,45 @@ serve(async (req) => {
     // Resolve recipients.
     const recipients = new Set<string>();
     if (target.kind === "program-template") {
-      const { data: rows, error: recipErr } = await admin
-        .from("client_programs")
-        .select("user_id")
-        .eq("source_template_id", target.id)
-        .eq("status", "active");
-      if (recipErr) {
-        console.error("[send-content-link-email] recipient lookup (program):", recipErr.message);
+      // Canonical (P5 A.2). A content-link target is a program_templates.id.
+      // Recipients = active client_plan_assignment clients whose plan was cloned
+      // from that template, via the verified conversion chain:
+      //   program_templates.id  <-  muscle_program_templates.converted_program_id
+      //   muscle_program_templates.id  ->  plan.source_muscle_template_id
+      //   plan.id  ->  client_plan_assignment.plan_id (status = active)
+      const { data: mptRows, error: mptErr } = await admin
+        .from("muscle_program_templates")
+        .select("id")
+        .eq("converted_program_id", target.id);
+      if (mptErr) {
+        console.error("[send-content-link-email] recipient lookup (muscle templates):", mptErr.message);
         return json({ error: "Recipient lookup failed" }, 500);
       }
-      for (const row of rows ?? []) {
-        if (row.user_id) recipients.add(row.user_id);
+      const muscleTemplateIds = (mptRows ?? []).map((r) => r.id).filter(Boolean);
+      if (muscleTemplateIds.length > 0) {
+        const { data: planRows, error: planErr } = await admin
+          .from("plan")
+          .select("id")
+          .in("source_muscle_template_id", muscleTemplateIds);
+        if (planErr) {
+          console.error("[send-content-link-email] recipient lookup (plans):", planErr.message);
+          return json({ error: "Recipient lookup failed" }, 500);
+        }
+        const planIds = (planRows ?? []).map((r) => r.id).filter(Boolean);
+        if (planIds.length > 0) {
+          const { data: rows, error: recipErr } = await admin
+            .from("client_plan_assignment")
+            .select("client_id")
+            .in("plan_id", planIds)
+            .eq("status", "active");
+          if (recipErr) {
+            console.error("[send-content-link-email] recipient lookup (assignments):", recipErr.message);
+            return json({ error: "Recipient lookup failed" }, 500);
+          }
+          for (const row of rows ?? []) {
+            if (row.client_id) recipients.add(row.client_id);
+          }
+        }
       }
     } else {
       const { data: phaseRow, error: phaseErr } = await admin

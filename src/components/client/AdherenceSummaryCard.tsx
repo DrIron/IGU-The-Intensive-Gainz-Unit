@@ -6,7 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { TrendingUp, Activity, ChevronRight } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useClientWorkoutsWeek } from "@/hooks/useClientWorkouts";
+import { useCanonicalWeeklyAdherence } from "@/hooks/useCanonicalWeeklyAdherence";
 
 interface AdherenceSummaryCardProps {
   userId: string;
@@ -21,32 +21,21 @@ interface ModuleAdherence {
 
 export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
   const navigate = useNavigate();
-  const { data: modulesData, isLoading } = useClientWorkoutsWeek(userId);
+  // Canonical weekly completion (P5 A.2 / D1): this week's sessions from the
+  // client's active plan assignment, completion derived from exercise_set_logs.
+  const { modules, weeklyCompletionPct, loading } = useCanonicalWeeklyAdherence(userId);
 
-  // Derive overall % and per-module-type breakdown from hook data.
-  // Defensive completion check: `status === 'completed' || !!completed_at`
-  // catches a row where the trigger flipped completed_at but status didn't
-  // (or vice versa).
+  // Derive overall % and per-module-type breakdown from the canonical modules.
   const { overallPercent, moduleBreakdown } = useMemo(() => {
-    const rows = modulesData ?? [];
-    if (rows.length === 0) {
+    if (modules.length === 0) {
       return { overallPercent: 0, moduleBreakdown: [] as ModuleAdherence[] };
     }
-    const isCompleted = (m: { status: string; completed_at: string | null }) =>
-      m.status === "completed" || !!m.completed_at;
-
-    const completedTotal = rows.filter(isCompleted).length;
-    const totalModules = rows.length;
-    const overall = totalModules > 0
-      ? Math.round((completedTotal / totalModules) * 100)
-      : 0;
-
     const byType: Record<string, { completed: number; total: number }> = {};
-    for (const m of rows) {
-      const type = m.module_type;
+    for (const m of modules) {
+      const type = m.type;
       if (!byType[type]) byType[type] = { completed: 0, total: 0 };
       byType[type].total++;
-      if (isCompleted(m)) byType[type].completed++;
+      if (m.completed) byType[type].completed++;
     }
 
     const breakdown: ModuleAdherence[] = Object.entries(byType)
@@ -58,10 +47,8 @@ export function AdherenceSummaryCard({ userId }: AdherenceSummaryCardProps) {
       }))
       .sort((a, b) => a.module_type.localeCompare(b.module_type));
 
-    return { overallPercent: overall, moduleBreakdown: breakdown };
-  }, [modulesData]);
-
-  const loading = isLoading;
+    return { overallPercent: weeklyCompletionPct ?? 0, moduleBreakdown: breakdown };
+  }, [modules, weeklyCompletionPct]);
 
   const getModuleTypeLabel = (type: string) => {
     const labels: Record<string, string> = {

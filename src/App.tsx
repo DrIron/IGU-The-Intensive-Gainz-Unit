@@ -53,7 +53,6 @@ const AdminDashboard = lazyWithReload(() => import("./pages/admin/AdminDashboard
 const CoachDashboard = lazyWithReload(() => import("./pages/coach/CoachDashboard"));
 const StudioPreview = lazyWithReload(() => import("./pages/coach/StudioPreview"));
 const LaunchTestChecklist = lazyWithReload(() => import("./pages/admin/LaunchTestChecklist"));
-const WorkoutBuilderQA = lazyWithReload(() => import("./pages/admin/WorkoutBuilderQA"));
 const RolesDebug = lazyWithReload(() => import("./pages/admin/RolesDebug"));
 const SecurityHardeningChecklist = lazyWithReload(() => import("./pages/admin/SecurityHardeningChecklist"));
 const SiteMapDiagnostics = lazyWithReload(() => import("./pages/admin/SiteMapDiagnostics"));
@@ -316,7 +315,6 @@ const App = () => {
                   <Route path="/services/addons" element={<AuthGuard><OnboardingGuard><AddonsCatalog /></OnboardingGuard></AuthGuard>} />
                   <Route path="/admin/client-diagnostics" element={<RoleProtectedRoute requiredRole="admin"><ClientDiagnostics /></RoleProtectedRoute>} />
                   <Route path="/admin/email-log" element={<RoleProtectedRoute requiredRole="admin"><EmailLog /></RoleProtectedRoute>} />
-                  <Route path="/admin/workout-qa" element={<RoleProtectedRoute requiredRole="admin"><WorkoutBuilderQA /></RoleProtectedRoute>} />
                   <Route path="/admin/debug/roles" element={<RoleProtectedRoute requiredRole="admin"><RolesDebug /></RoleProtectedRoute>} />
                   <Route path="/admin/security-checklist" element={<RoleProtectedRoute requiredRole="admin"><SecurityHardeningChecklist /></RoleProtectedRoute>} />
                   <Route path="/admin/diagnostics" element={<RoleProtectedRoute requiredRole="admin"><DiagnosticsIndex /></RoleProtectedRoute>} />

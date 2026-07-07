@@ -169,9 +169,11 @@ Deno.serve(async (req) => {
     await supabaseClient.from('payment_events').delete().eq('user_id', userId);
 
     // --- Delete program data ---
-    // client_programs cascades from profiles_public, but clean up explicitly
-    // to be safe (ON DELETE RESTRICT on primary_coach_id could block coach deletion)
-    await supabaseClient.from('client_programs').delete().eq('user_id', userId);
+    // Canonical (P5 A.2): the client's program is a client_plan_assignment (keyed
+    // by client_id). Delete those. The cloned `plan` rows (own-your-copy) are left
+    // orphaned — acceptable: they carry no PII and are coach-namespaced; a later
+    // GC can sweep plans with no assignment. (Legacy client_programs delete removed.)
+    await supabaseClient.from('client_plan_assignment').delete().eq('client_id', userId);
     await supabaseClient.from('direct_calendar_sessions').delete().eq('client_user_id', userId);
 
     // --- Delete other user data ---

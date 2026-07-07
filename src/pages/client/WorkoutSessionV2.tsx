@@ -2256,13 +2256,10 @@ function WorkoutSessionV2Content() {
         return;
       }
 
-      // Update the client_module_exercises record to point to new exercise
-      const { error: updateError } = await supabase
-        .from("client_module_exercises")
-        .update({ exercise_id: newExerciseId })
-        .eq("id", swapExerciseId);
-
-      if (updateError) throw updateError;
+      // P5 A.2: legacy-only path (canonical sessions return early at the guard
+      // above). The old client_module_exercises write was removed — a canonical
+      // client-initiated swap needs a coach/admin-scoped RPC (plan_slots is
+      // owner-write-only) and is tracked separately. Local state only here.
 
       // Update local state
       const updatedExercises = module.exercises.map((ex) => {

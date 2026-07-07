@@ -103,7 +103,6 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "admin-diagnostics-sitemap", path: "/admin/diagnostics/site-map", label: "Site Map Audit", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false },
   { id: "admin-client-diagnostics", path: "/admin/client-diagnostics", label: "Client Diagnostics", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false },
   { id: "admin-email-manager", path: "/admin/email-manager", label: "Email Manager", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: true, icon: Mail, navOrder: 9.5 },
-  { id: "admin-workout-qa", path: "/admin/workout-qa", label: "Workout Builder QA", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false },
   { id: "admin-security-checklist", path: "/admin/security-checklist", label: "Security Hardening", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false },
   { id: "admin-section", path: "/admin/:section", label: "Admin Section", layout: "AdminLayout", requiredRoles: ["admin"], navGroup: "admin", showInNav: false },
 

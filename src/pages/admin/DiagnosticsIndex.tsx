@@ -9,7 +9,6 @@ import {
   Shield, 
   Bug, 
   Rocket,
-  Dumbbell,
   ArrowRight
 } from "lucide-react";
 
@@ -56,12 +55,6 @@ const diagnosticsLinks: DiagnosticLink[] = [
     description: "Pre-launch verification and testing checklist",
     path: "/admin/launch-checklist",
     icon: <Rocket className="h-5 w-5" />,
-  },
-  {
-    title: "Workout Builder QA",
-    description: "Test and debug the workout builder functionality",
-    path: "/admin/workout-qa",
-    icon: <Dumbbell className="h-5 w-5" />,
   },
 ];
 
