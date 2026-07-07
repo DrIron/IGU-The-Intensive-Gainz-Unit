@@ -19,9 +19,16 @@ interface ChooseCoachStepProps {
  * feeds it the client's focus areas (used to sort coaches best-match-first). All
  * coach fetching / capacity / auto-match logic lives in CoachPreferenceSection.
  */
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export function ChooseCoachStep({ form, planName }: ChooseCoachStepProps) {
   const planType = PLAN_NAME_TO_TYPE[planName] ?? "online";
   const focusAreas = (form.watch("focus_areas") as string[] | undefined) ?? [];
+  // Gym-based ranking is in-person/hybrid only; pass the chosen gym_id (a uuid)
+  // — never "other" or a legacy name string — else null (online → unchanged).
+  const gymValue = form.watch("preferred_gym_location") as string | undefined;
+  const preferredGymId =
+    (planType === "hybrid" || planType === "in_person") && gymValue && UUID_RE.test(gymValue) ? gymValue : null;
 
   return (
     <div className="space-y-4">
@@ -31,7 +38,7 @@ export function ChooseCoachStep({ form, planName }: ChooseCoachStepProps) {
           Pick the coach you'd like to work with, or let us match you.
         </p>
       </div>
-      <CoachPreferenceSection form={form} planType={planType} focusAreas={focusAreas} />
+      <CoachPreferenceSection form={form} planType={planType} focusAreas={focusAreas} preferredGymId={preferredGymId} />
     </div>
   );
 }

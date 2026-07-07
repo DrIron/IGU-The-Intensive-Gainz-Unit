@@ -1,11 +1,11 @@
 import type { ControllerRenderProps, UseFormReturn } from "react-hook-form";
 import { FormField, FormItem, FormLabel, FormControl, FormMessage } from "@/components/ui/form";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { useGyms } from "@/hooks/useGyms";
 
 interface ServiceSpecificStepProps {
   form: UseFormReturn<any>;
@@ -78,6 +78,13 @@ function SegmentedField({
 export default function ServiceSpecificStep({ form, selectedService }: ServiceSpecificStepProps) {
   const gymAccessType = form.watch("gym_access_type");
   const preferredGymLocation = form.watch("preferred_gym_location");
+  // Managed gyms vocabulary (mirrors focus areas). Store the gym_id going forward;
+  // "Other" stays a free-text escape hatch.
+  const { gyms } = useGyms();
+  const gymOptions = [
+    ...gyms.map((g) => ({ value: g.id, label: g.area ? `${g.name} · ${g.area}` : g.name })),
+    { value: "other", label: "Other" },
+  ];
 
   // Team Plan (formerly Fe Squad)
   if (selectedService === "Team Plan" || selectedService === "Fe Squad") {
@@ -370,19 +377,9 @@ export default function ServiceSpecificStep({ form, selectedService }: ServiceSp
           render={({ field }) => (
             <FormItem>
               <FormLabel>Preferred gym</FormLabel>
-              <Select onValueChange={field.onChange} value={field.value}>
-                <FormControl>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select gym" />
-                  </SelectTrigger>
-                </FormControl>
-                <SelectContent>
-                  <SelectItem value="Oxygen Jabriya">Oxygen Jabriya</SelectItem>
-                  <SelectItem value="Oxygen Subah AlSalem">Oxygen Subah AlSalem</SelectItem>
-                  <SelectItem value="Spark Shuwaikh">Spark Shuwaikh</SelectItem>
-                  <SelectItem value="other">Other</SelectItem>
-                </SelectContent>
-              </Select>
+              <FormControl>
+                <SegmentedField field={field} options={gymOptions} ariaLabel="Preferred gym" />
+              </FormControl>
               <FormMessage />
             </FormItem>
           )}

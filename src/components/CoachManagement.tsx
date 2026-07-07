@@ -16,6 +16,7 @@ import { CoachLoadOverview } from "@/components/admin/CoachLoadOverview";
 import { CoachApplicationsManager } from "@/components/CoachApplicationsManager";
 import { SpecialistApplicationsManager } from "@/components/SpecialistApplicationsManager";
 import { SpecializationTagManager } from "@/components/admin/SpecializationTagManager";
+import { GymManager } from "@/components/admin/GymManager";
 import { ProfessionalLevelManager } from "@/components/admin/ProfessionalLevelManager";
 import {
   DropdownMenu,
@@ -954,7 +955,10 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
 
         {/* Specializations Tab */}
         <TabsContent value="specializations">
-          <SpecializationTagManager />
+          <div className="space-y-6">
+            <SpecializationTagManager />
+            <GymManager />
+          </div>
         </TabsContent>
       </Tabs>
 

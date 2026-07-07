@@ -1836,6 +1836,32 @@ export type Database = {
           },
         ]
       }
+      coach_gyms: {
+        Row: {
+          coach_user_id: string
+          created_at: string
+          gym_id: string
+        }
+        Insert: {
+          coach_user_id: string
+          created_at?: string
+          gym_id: string
+        }
+        Update: {
+          coach_user_id?: string
+          created_at?: string
+          gym_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_gyms_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "gyms"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coach_column_presets: {
         Row: {
           coach_id: string
@@ -4481,6 +4507,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      gyms: {
+        Row: {
+          area: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          area?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          area?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
       }
       leads: {
         Row: {
@@ -9390,7 +9446,7 @@ export type Database = {
         Returns: Json
       }
       list_active_coaches_for_service: {
-        Args: { p_service_id: string }
+        Args: { p_service_id: string; p_gym_id?: string | null }
         Returns: Json
       }
       list_active_teams_for_client: { Args: never; Returns: Json }

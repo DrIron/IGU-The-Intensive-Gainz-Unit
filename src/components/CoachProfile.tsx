@@ -15,6 +15,7 @@ import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 import { CoachServiceAvailability } from "@/components/coach/CoachServiceAvailability";
 import { SpecializationTagPicker } from "@/components/ui/SpecializationTagPicker";
+import { GymPicker } from "@/components/ui/GymPicker";
 
 interface CoachData {
   id: string;
@@ -411,6 +412,15 @@ export default function CoachProfile() {
               maxTags={15}
             />
           </div>
+          {sessionUser?.id && (
+            <div className="space-y-2">
+              <Label>Gyms I train at</Label>
+              <p className="text-xs text-muted-foreground">
+                For in-person / hybrid clients — they're matched to coaches at the same gym. Optional for online-only coaches.
+              </p>
+              <GymPicker coachUserId={sessionUser.id} />
+            </div>
+          )}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="whatsapp_country_code">WhatsApp Code</Label>

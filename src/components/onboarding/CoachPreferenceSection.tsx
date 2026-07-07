@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
-import { Loader2, Sparkles, CheckCircle2, AlertCircle, Users, Star, Eye } from "lucide-react";
+import { Loader2, Sparkles, CheckCircle2, AlertCircle, Users, Star, Eye, MapPin } from "lucide-react";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 import { CoachDetailDialog } from "@/components/CoachDetailDialog";
 
@@ -26,12 +26,16 @@ interface Coach {
   available_spots: number;
   max_clients: number;
   current_clients: number;
+  /** Trains at the client's chosen gym (in-person/hybrid). */
+  gym_match: boolean;
 }
 
 interface CoachPreferenceSectionProps {
   form: UseFormReturn<any>;
   planType: 'online' | 'hybrid' | 'in_person';
   focusAreas: string[];
+  /** In-person/hybrid: the client's chosen gym_id → ranks gym-matched coaches first. */
+  preferredGymId?: string | null;
 }
 
 // Map plan types to service names for capacity lookup
@@ -48,7 +52,7 @@ const PLAN_TYPE_LABELS: Record<string, string> = {
   'in_person': 'In-Person',
 };
 
-export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPreferenceSectionProps) {
+export function CoachPreferenceSection({ form, planType, focusAreas, preferredGymId = null }: CoachPreferenceSectionProps) {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
   const [noCoachesAvailable, setNoCoachesAvailable] = useState(false);
@@ -84,8 +88,9 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
       // view is RLS-broken for unauthenticated/pre-subscription callers
       // (returns 0 rows). RPC bundles capacity counting server-side too, so
       // no N+1 per-coach subscription count.
+      // p_gym_id (in-person/hybrid) flags coaches who train at the client's gym.
       const { data: rpcData, error: rpcError } = await supabase
-        .rpc('list_active_coaches_for_service', { p_service_id: serviceData.id });
+        .rpc('list_active_coaches_for_service', { p_service_id: serviceData.id, p_gym_id: preferredGymId ?? null });
 
       if (rpcError) throw rpcError;
 
@@ -101,6 +106,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
         max_clients: number;
         current_clients: number;
         available_spots: number;
+        gym_match?: boolean;
       }>;
 
       if (safeCoaches.length === 0) {
@@ -122,10 +128,12 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
         available_spots: coach.available_spots,
         max_clients: coach.max_clients,
         current_clients: coach.current_clients,
+        gym_match: coach.gym_match ?? false,
       }));
 
-      // Sort coaches by specialization match with focus areas, then by available spots
+      // Sort: trains-at-your-gym first, then focus-area match, then available spots.
       const sortedCoaches = coachesWithCapacity.sort((a, b) => {
+        if (a.gym_match !== b.gym_match) return a.gym_match ? -1 : 1;
         const scoreA = calculateMatchScore(a.specializations, focusAreas);
         const scoreB = calculateMatchScore(b.specializations, focusAreas);
         if (scoreB !== scoreA) return scoreB - scoreA;
@@ -140,7 +148,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
     } finally {
       setLoading(false);
     }
-  }, [planType, focusAreas]);
+  }, [planType, focusAreas, preferredGymId]);
 
   useEffect(() => {
     loadAvailableCoaches();
@@ -358,6 +366,12 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
                                   <h4 className="font-bold text-base">
                                     {coach.first_name} {coach.last_name}
                                   </h4>
+                                  {coach.gym_match && (
+                                    <Badge className="text-xs shrink-0 bg-primary/10 text-primary hover:bg-primary/10">
+                                      <MapPin className="h-3 w-3 mr-1" />
+                                      Trains at your gym
+                                    </Badge>
+                                  )}
                                   {isTopMatch && (
                                     <Badge className="text-xs shrink-0 bg-amber-100 text-amber-700 hover:bg-amber-100">
                                       <Star className="h-3 w-3 mr-1" />
