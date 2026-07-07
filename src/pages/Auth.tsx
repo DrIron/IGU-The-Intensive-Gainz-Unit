@@ -9,7 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { useToast } from "@/hooks/use-toast";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dumbbell, X } from "lucide-react";
+import { Dumbbell, X, MailCheck } from "lucide-react";
 import { z } from "zod";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
 import { AUTH_REDIRECT_URLS } from "@/lib/config";
@@ -21,11 +21,12 @@ import { TIMEOUTS } from "@/lib/constants";
 const signUpSchema = z.object({
   email: z.string().email("Invalid email address").trim().toLowerCase(),
   emailConfirm: z.string().email("Invalid email address").trim().toLowerCase(),
-  password: z.string()
-    .min(8, "Password must be at least 8 characters")
-    .regex(/[A-Z]/, "Password must contain at least one uppercase letter")
-    .regex(/[a-z]/, "Password must contain at least one lowercase letter")
-    .regex(/[^A-Za-z0-9]/, "Password must contain at least one special character"),
+  // Matches the configured Supabase auth policy exactly: minimum length 6, no
+  // character-class requirements. Leaked-password protection (HaveIBeenPwned) is
+  // enforced server-side and surfaced via the sign-up error toast -- we don't
+  // (and can't) replicate that check client-side. Do NOT tighten this beyond the
+  // server policy, or valid passwords get rejected before the API sees them.
+  password: z.string().min(6, "Password must be at least 6 characters"),
   passwordConfirm: z.string(),
   firstName: z.string().min(1, "First name is required").trim(),
   lastName: z.string().min(1, "Last name is required").trim(),
@@ -65,6 +66,12 @@ export default function Auth() {
   const [activeTab, setActiveTab] = useState("signin");
   const [isCoachAuth, setIsCoachAuth] = useState(false);
   const [waitlistActive, setWaitlistActive] = useState(false);
+  // Once signup succeeds we show a calm "check your inbox" verify screen (with a
+  // Resend affordance) instead of the tabs -- the user must confirm their email
+  // before the wizard. Cleared if they choose to start over / sign in.
+  const [signupEmail, setSignupEmail] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Guard to ensure bootstrap-admin-role runs only once per session
   const bootstrapCalledRef = useRef(false);
@@ -316,9 +323,52 @@ export default function Auth() {
     }
   };
 
+  // Preserve ?service= across the email round-trip so plan preselection survives
+  // signup: it rides on emailRedirectTo -> /email-confirmed?service= (see
+  // EmailConfirmed.handleContinue) -> /onboarding?service=.
+  const buildEmailRedirectTo = useCallback(() => {
+    const serviceParam = searchParams.get("service");
+    return serviceParam
+      ? `${AUTH_REDIRECT_URLS.emailConfirmed}?service=${encodeURIComponent(serviceParam)}`
+      : AUTH_REDIRECT_URLS.emailConfirmed;
+  }, [searchParams]);
+
+  // Tick down the resend cooldown once per second.
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((s) => s - 1), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  const handleResendVerification = async () => {
+    if (!signupEmail || resending || resendCooldown > 0) return;
+    setResending(true);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: signupEmail,
+        options: { emailRedirectTo: buildEmailRedirectTo() },
+      });
+      if (error) throw error;
+      setResendCooldown(30);
+      toast({
+        title: "Verification email sent",
+        description: `We've re-sent the link to ${signupEmail}.`,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Couldn't resend",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    } finally {
+      setResending(false);
+    }
+  };
+
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate inputs
     const validation = signUpSchema.safeParse({
       email,
@@ -346,7 +396,7 @@ export default function Auth() {
         email: email.trim().toLowerCase(),
         password,
         options: {
-          emailRedirectTo: AUTH_REDIRECT_URLS.emailConfirmed,
+          emailRedirectTo: buildEmailRedirectTo(),
           data: {
             first_name: firstName.trim(),
             last_name: lastName.trim(),
@@ -375,10 +425,9 @@ export default function Auth() {
         }
       }
 
-      toast({
-        title: "Account created!",
-        description: "Please check your email to verify your account.",
-      });
+      // Swap the tabs for the calm "check your inbox" verify screen.
+      setSignupEmail(email.trim().toLowerCase());
+      setResendCooldown(30);
     } catch (error: any) {
       toast({
         title: "Sign Up Failed",
@@ -585,12 +634,66 @@ export default function Auth() {
               <Dumbbell className="h-8 w-8 text-white" />
             </div>
           </div>
-          <CardTitle className="text-2xl font-bold">Welcome</CardTitle>
+          <CardTitle className="text-2xl font-bold">
+            {signupEmail ? "Check your inbox" : "Welcome"}
+          </CardTitle>
           <CardDescription>
-            {isCoachAuth ? "Coach/Admin Sign In" : "Sign in to your account"}
+            {signupEmail
+              ? "One quick step before we get started"
+              : isCoachAuth
+                ? "Coach/Admin Sign In"
+                : "Sign in to your account"}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {signupEmail ? (
+            <div className="space-y-5 text-center">
+              <div className="flex justify-center">
+                <div className="p-3 rounded-full bg-primary/10">
+                  <MailCheck className="h-10 w-10 text-primary" aria-hidden />
+                </div>
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm text-muted-foreground">
+                  We sent a verification link to
+                </p>
+                <p className="font-medium break-all">{signupEmail}</p>
+                <p className="text-sm text-muted-foreground pt-2">
+                  Click the link in that email to activate your account and continue your registration.
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={handleResendVerification}
+                  disabled={resending || resendCooldown > 0}
+                >
+                  {resending
+                    ? "Resending..."
+                    : resendCooldown > 0
+                      ? `Resend email (${resendCooldown}s)`
+                      : "Resend email"}
+                </Button>
+                <p className="text-xs text-muted-foreground">
+                  Didn't get it? Check your spam folder, or resend.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full text-sm"
+                onClick={() => {
+                  setSignupEmail(null);
+                  setResendCooldown(0);
+                  setActiveTab("signin");
+                }}
+              >
+                Back to sign in
+              </Button>
+            </div>
+          ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             {!waitlistActive && (
               <TabsList className="grid w-full grid-cols-2">
@@ -729,7 +832,7 @@ export default function Auth() {
                     required
                   />
                   <p className="text-xs text-muted-foreground mt-1">
-                    Minimum 8 characters, 1 uppercase, 1 lowercase, 1 special character
+                    At least 6 characters. Avoid common or previously-breached passwords.
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -749,6 +852,7 @@ export default function Auth() {
               </form>
             </TabsContent>
           </Tabs>
+          )}
         </CardContent>
       </Card>
     </div>

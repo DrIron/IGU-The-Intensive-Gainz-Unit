@@ -93,7 +93,11 @@ export default function EmailConfirmed() {
 
         // No profile row yet (trigger lag) OR pending status -> onboarding.
         if (!profile || (!profile.onboarding_completed_at && profile.status === "pending")) {
-          navigate("/onboarding");
+          // Preserve the plan preselection: ?service= rode here on the signup
+          // emailRedirectTo (see Auth.buildEmailRedirectTo) -- forward it so the
+          // wizard's Plan step opens on the right plan.
+          const serviceParam = new URLSearchParams(window.location.search).get("service");
+          navigate(serviceParam ? `/onboarding?service=${encodeURIComponent(serviceParam)}` : "/onboarding");
         } else {
           navigate("/dashboard");
         }
