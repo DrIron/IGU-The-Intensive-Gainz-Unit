@@ -106,6 +106,13 @@ export function ClientWeeklyRibbon({ userId, phaseId, weekNumber, refreshKey = 0
         dots={[...Array(3)].map((_, i) => i < counts.weighIns)}
         done={counts.weighIns >= 3}
         loading={loading}
+        interpretation={
+          counts.weighIns >= 3
+            ? "Goal met"
+            : counts.weighIns === 0
+              ? "Log your first weigh-in"
+              : `${3 - counts.weighIns} more this week`
+        }
       />
       <Tile
         icon={<Footprints className="h-4 w-4" />}
@@ -114,6 +121,13 @@ export function ClientWeeklyRibbon({ userId, phaseId, weekNumber, refreshKey = 0
         dots={[...Array(7)].map((_, i) => i < counts.stepDays)}
         done={counts.stepDays >= 7}
         loading={loading}
+        interpretation={
+          counts.stepDays >= 7
+            ? "Full week"
+            : counts.stepDays === 0
+              ? "Log steps to start"
+              : `${7 - counts.stepDays} more day${7 - counts.stepDays === 1 ? "" : "s"}`
+        }
       />
       <Tile
         icon={<ClipboardCheck className="h-4 w-4" />}
@@ -122,6 +136,7 @@ export function ClientWeeklyRibbon({ userId, phaseId, weekNumber, refreshKey = 0
         dots={[counts.checkInDone]}
         done={counts.checkInDone}
         loading={loading}
+        interpretation={counts.checkInDone ? "Done this week" : "Takes about 2 min"}
       />
     </div>
   );
@@ -134,6 +149,7 @@ function Tile({
   dots,
   done,
   loading,
+  interpretation,
 }: {
   icon: React.ReactNode;
   label: string;
@@ -141,6 +157,7 @@ function Tile({
   dots: boolean[];
   done: boolean;
   loading: boolean;
+  interpretation: string;
 }) {
   return (
     <div
@@ -170,6 +187,9 @@ function Tile({
           />
         ))}
       </div>
+      <p className={cn("text-[11px] truncate", done ? "text-emerald-600 dark:text-emerald-400" : "text-muted-foreground")}>
+        {loading ? "--" : interpretation}
+      </p>
     </div>
   );
 }
