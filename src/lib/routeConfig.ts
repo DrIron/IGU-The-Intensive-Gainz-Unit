@@ -131,6 +131,8 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "client-dashboard-alt", path: "/client/dashboard", label: "Client Dashboard", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },
   { id: "client-workout-session", path: "/client/workout/session/:moduleId", label: "Workout Session", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },
   { id: "client-workout-calendar", path: "/client/workout/calendar", label: "Workouts", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: true, icon: Dumbbell, navOrder: 3 },
+  // CT2 — full program overview (weeks → sessions). No dock item (client dock is at its 5-tab CC4 max); reached from the Workouts header.
+  { id: "client-program-detail", path: "/client/program/detail", label: "Program", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },
   // Folded into Workouts > History tab; redirect-only (see App.tsx). Kept for bookmarks.
   { id: "client-workout-history", path: "/client/workout/history", label: "Exercise History", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false, icon: History, navOrder: 4 },
   { id: "account", path: "/account", label: "Account", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },

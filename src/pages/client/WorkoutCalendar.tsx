@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useDocumentTitle } from "@/hooks/useDocumentTitle";
-import { ChevronLeft, ChevronRight, CheckCircle2, MessageCircle, Dumbbell, Snowflake } from "lucide-react";
+import { ChevronLeft, ChevronRight, CheckCircle2, MessageCircle, Dumbbell, Snowflake, ListTree } from "lucide-react";
 import {
   addMonths,
   addWeeks,
@@ -264,10 +264,16 @@ function WorkoutsContent() {
           </h1>
           <p className="text-sm text-muted-foreground">Your training schedule and history.</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => navigate("/messages")} className="gap-1.5">
-          <MessageCircle className="h-4 w-4" aria-hidden />
-          Message coach
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" onClick={() => navigate("/client/program/detail")} className="gap-1.5">
+            <ListTree className="h-4 w-4" aria-hidden />
+            View full program
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => navigate("/messages")} className="gap-1.5">
+            <MessageCircle className="h-4 w-4" aria-hidden />
+            Message coach
+          </Button>
+        </div>
       </div>
 
       {/* Schedule / History tabs */}

@@ -64,6 +64,7 @@ const CoachHub = lazyWithReload(() => import("./pages/coach/CoachHub"));
 const Unauthorized = lazyWithReload(() => import("./pages/Unauthorized"));
 const WorkoutSessionV2 = lazyWithReload(() => import("./pages/client/WorkoutSessionV2"));
 const WorkoutCalendar = lazyWithReload(() => import("./pages/client/WorkoutCalendar"));
+const ClientProgramDetail = lazyWithReload(() => import("./pages/client/ClientProgramDetail"));
 const AccessDebug = lazyWithReload(() => import("./pages/AccessDebug"));
 const EmailConfirmed = lazyWithReload(() => import("./pages/EmailConfirmed"));
 const Waitlist = lazyWithReload(() => import("./pages/Waitlist"));
@@ -280,6 +281,7 @@ const App = () => {
                   <Route path="/client/dashboard" element={<AuthGuard><OnboardingGuard><Dashboard /></OnboardingGuard></AuthGuard>} />
                   <Route path="/client/workout/session/:moduleId" element={<AuthGuard><OnboardingGuard><WorkoutSessionV2 /></OnboardingGuard></AuthGuard>} />
                   <Route path="/client/workout/calendar" element={<AuthGuard><OnboardingGuard><WorkoutCalendar /></OnboardingGuard></AuthGuard>} />
+                  <Route path="/client/program/detail" element={<AuthGuard><OnboardingGuard><ClientProgramDetail /></OnboardingGuard></AuthGuard>} />
                   <Route path="/client/workout/history" element={<Navigate to="/client/workout/calendar?tab=history" replace />} />
 
                   <Route path="/account" element={<AuthGuard><AccountManagement /></AuthGuard>} />
