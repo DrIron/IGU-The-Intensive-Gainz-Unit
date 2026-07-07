@@ -11,6 +11,9 @@ import { Loader2 } from "lucide-react";
 import { ClientNutritionProgress } from "@/components/nutrition/ClientNutritionProgress";
 import { WeightProgressGraph } from "@/components/nutrition/WeightProgressGraph";
 import { BodyFatProgressGraph } from "@/components/nutrition/BodyFatProgressGraph";
+import { NutritionMetricStack, type NutritionMetricKey, type NutritionMetricTile } from "@/components/nutrition/NutritionMetricStack";
+import { NutritionTrendChart } from "@/components/nutrition/NutritionTrendChart";
+import type { Interpretation } from "@/lib/interpret";
 import { PhaseSummaryReport } from "@/components/nutrition/PhaseSummaryReport";
 import { generatePhaseSummary } from "@/utils/nutritionCalculations";
 import { ErrorFallback } from "@/components/ui/error-fallback";
@@ -66,13 +69,18 @@ export default function ClientNutrition() {
   const [weeklyProgress, setWeeklyProgress] = useState<any[]>([]);
   const [latestAverageWeight, setLatestAverageWeight] = useState<number | null>(null);
   const [latestActualChangePercent, setLatestActualChangePercent] = useState<number | null>(null);
+  // NU5 — weekly-averaged series for the metric-stack tiles + expanded trends.
+  const [weightWeekly, setWeightWeekly] = useState<{ week: number; avg: number }[]>([]);
+  const [stepsWeekly, setStepsWeekly] = useState<{ week: number; value: number }[]>([]);
+  const [adherenceWeekly, setAdherenceWeekly] = useState<{ week: number; value: number }[]>([]);
+  const [adherencePct, setAdherencePct] = useState<number | null>(null);
   const [error, setError] = useState(false);
   // Bumped when LogTodayCard finishes a save so the ribbon re-fetches without
   // reloading the page. Any integer change forces the ribbon's useEffect to fire.
   const [ribbonRefreshKey, setRibbonRefreshKey] = useState(0);
-  // Trend controls (replace the old Graphs tab).
+  // Trend controls (NU5 metric stack).
   const [range, setRange] = useState<"4w" | "12w" | "all">("all");
-  const [metric, setMetric] = useState<"weight" | "bodyfat">("weight");
+  const [selectedMetric, setSelectedMetric] = useState<NutritionMetricKey>("weight");
 
   const loadActivePhase = useCallback(async (user: SupabaseUser | null) => {
     try {
@@ -90,7 +98,7 @@ export default function ClientNutrition() {
       setActivePhase(phase);
 
       if (phase) {
-        const [weightsRes, adherenceRes, adjustmentsRes, bodyFatRes] = await Promise.all([
+        const [weightsRes, adherenceRes, adjustmentsRes, bodyFatRes, stepsRes] = await Promise.all([
           supabase.from("weight_logs").select("*").eq("phase_id", phase.id).order("log_date", { ascending: true }),
           supabase.from("adherence_logs").select("*").eq("phase_id", phase.id),
           supabase.from("nutrition_adjustments").select("*").eq("phase_id", phase.id),
@@ -99,12 +107,15 @@ export default function ClientNutrition() {
           // is a nutrition_goals FK (disjoint from a phase id) so the old read was
           // always 0 rows. Derive week numbers from the phase start below.
           supabase.from("body_fat_logs").select("body_fat_percentage, log_date").eq("user_id", user.id).gte("log_date", phase.start_date).order("log_date", { ascending: true }),
+          // NU5 — steps for the phase (user-keyed, per-day), same shape as body fat.
+          supabase.from("step_logs").select("steps, log_date").eq("user_id", user.id).gte("log_date", phase.start_date).order("log_date", { ascending: true }),
         ]);
 
         if (weightsRes.error) console.warn("[ClientNutrition] weight_logs:", weightsRes.error.message);
         if (adherenceRes.error) console.warn("[ClientNutrition] adherence_logs:", adherenceRes.error.message);
         if (adjustmentsRes.error) console.warn("[ClientNutrition] nutrition_adjustments:", adjustmentsRes.error.message);
         if (bodyFatRes.error) console.warn("[ClientNutrition] body_fat_logs:", bodyFatRes.error.message);
+        if (stepsRes.error) console.warn("[ClientNutrition] step_logs:", stepsRes.error.message);
 
         const weights = weightsRes.data || [];
         setWeightLogs(weights);
@@ -124,6 +135,36 @@ export default function ClientNutrition() {
           .map(([week_number, body_fat_percentage]) => ({ week_number, body_fat_percentage }));
         setWeeklyProgress(bfSeries);
         setInitialBodyFat(bfSeries[0]?.body_fat_percentage ?? null);
+
+        // NU5 — steps per phase-week: average daily steps in each week (same
+        // week-derivation as body fat).
+        const stepsByWeek = new Map<number, number[]>();
+        for (const r of stepsRes.data || []) {
+          if (r.steps == null) continue;
+          const wk = Math.floor((new Date(r.log_date).getTime() - bfStartMs) / (7 * 86400000)) + 1;
+          const arr = stepsByWeek.get(wk) ?? [];
+          arr.push(r.steps as number);
+          stepsByWeek.set(wk, arr);
+        }
+        setStepsWeekly(
+          [...stepsByWeek.entries()]
+            .sort((a, b) => a[0] - b[0])
+            .map(([week, vals]) => ({ week, value: Math.round(vals.reduce((s, v) => s + v, 0) / vals.length) })),
+        );
+
+        // NU5 — adherence per phase-week: followed_calories as 100/0. Overall
+        // adherence % = weeks with followed_calories / total logged weeks.
+        const adherenceRows = (adherenceRes.data || []) as { week_number: number; followed_calories: boolean }[];
+        const adherenceSeries = adherenceRows
+          .slice()
+          .sort((a, b) => a.week_number - b.week_number)
+          .map((r) => ({ week: r.week_number, value: r.followed_calories ? 100 : 0 }));
+        setAdherenceWeekly(adherenceSeries);
+        setAdherencePct(
+          adherenceRows.length > 0
+            ? Math.round((adherenceRows.filter((r) => r.followed_calories).length / adherenceRows.length) * 100)
+            : null,
+        );
 
         // Compute latest week avg weight + actual change % so the hero card
         // can render the same On Track / Ahead / Behind badge the coach sees.
@@ -148,6 +189,8 @@ export default function ClientNutrition() {
             const prevAvg = avg(prevWeek);
             setLatestActualChangePercent(((lastAvg - prevAvg) / prevAvg) * 100);
           }
+          // NU5 — weekly-averaged weight series for the metric tile + sparkline.
+          setWeightWeekly(sortedWeeks.map((week) => ({ week, avg: Math.round(avg(week) * 10) / 10 })));
         }
 
         // Generate phase summary if phase is complete.
@@ -262,6 +305,98 @@ export default function ClientNutrition() {
         (w) => differenceInDays(new Date(), new Date(w.log_date)) <= (range === "4w" ? 28 : 84),
       );
 
+  // NU5 — the same range window applied to the week-numbered series (body fat /
+  // steps / adherence): keep the last N weeks relative to the current phase week.
+  const rangeWeeks = range === "4w" ? 4 : range === "12w" ? 12 : Infinity;
+  const withinRange = <T extends { week: number } | { week_number: number }>(rows: T[]): T[] =>
+    rangeWeeks === Infinity
+      ? rows
+      : rows.filter((r) => ("week" in r ? r.week : r.week_number) > currentWeekNumber - rangeWeeks);
+
+  const bodyFatInRange = withinRange(weeklyProgress);
+  const stepsInRange = withinRange(stepsWeekly);
+  const adherenceInRange = withinRange(adherenceWeekly);
+
+  // NU5 — the 4 metric tiles (latest value + delta + sparkline over the full phase).
+  const last = <T,>(arr: T[]): T | undefined => arr[arr.length - 1];
+  const emptyTile = (sentence: string): Interpretation => ({ tone: "neutral", label: "", sentence });
+
+  const wLast = last(weightWeekly);
+  const wPrev = weightWeekly[weightWeekly.length - 2];
+  const bfLast = last(weeklyProgress);
+  const bfPrev = weeklyProgress[weeklyProgress.length - 2];
+  const sLast = last(stepsWeekly);
+  const sPrev = stepsWeekly[stepsWeekly.length - 2];
+
+  const metricTiles: NutritionMetricTile[] = [
+    wLast
+      ? {
+          key: "weight",
+          label: "Weight",
+          value: wLast.avg.toFixed(1),
+          unit: "kg",
+          delta: wPrev ? { value: Math.round((wLast.avg - wPrev.avg) * 10) / 10, suffix: " kg" } : undefined,
+          spark: weightWeekly.length > 1 ? weightWeekly.map((w) => w.avg) : undefined,
+          interpretation: { tone: "neutral", label: "", sentence: "" },
+        }
+      : { key: "weight", label: "Weight", value: "—", interpretation: emptyTile("Log weight to see your trend.") },
+    bfLast
+      ? {
+          key: "bodyfat",
+          label: "Body fat",
+          value: bfLast.body_fat_percentage.toFixed(1),
+          unit: "%",
+          delta: bfPrev
+            ? {
+                value: Math.round((bfLast.body_fat_percentage - bfPrev.body_fat_percentage) * 10) / 10,
+                suffix: "%",
+              }
+            : undefined,
+          spark: weeklyProgress.length > 1 ? weeklyProgress.map((w) => w.body_fat_percentage) : undefined,
+          interpretation: {
+            tone:
+              bfPrev == null
+                ? "neutral"
+                : bfLast.body_fat_percentage < bfPrev.body_fat_percentage
+                  ? "on_track"
+                  : bfLast.body_fat_percentage > bfPrev.body_fat_percentage
+                    ? "attention"
+                    : "neutral",
+            label: "",
+            sentence: "",
+          },
+        }
+      : { key: "bodyfat", label: "Body fat", value: "—", interpretation: emptyTile("Log body fat to see your trend.") },
+    adherencePct != null
+      ? {
+          key: "adherence",
+          label: "Adherence",
+          value: adherencePct,
+          unit: "%",
+          spark: adherenceWeekly.length > 1 ? adherenceWeekly.map((a) => a.value) : undefined,
+          interpretation: {
+            tone: adherencePct >= 80 ? "on_track" : adherencePct >= 50 ? "attention" : "risk",
+            label: "",
+            sentence: `On plan ${adherenceWeekly.filter((a) => a.value === 100).length}/${adherenceWeekly.length} weeks.`,
+          },
+        }
+      : { key: "adherence", label: "Adherence", value: "—", interpretation: emptyTile("Check in weekly to see adherence.") },
+    sLast
+      ? {
+          key: "steps",
+          label: "Steps",
+          value: sLast.value.toLocaleString(),
+          delta: sPrev ? { value: sLast.value - sPrev.value, suffix: "" } : undefined,
+          spark: stepsWeekly.length > 1 ? stepsWeekly.map((s) => s.value) : undefined,
+          interpretation: {
+            tone: sPrev == null ? "neutral" : sLast.value >= sPrev.value ? "on_track" : "attention",
+            label: "",
+            sentence: "",
+          },
+        }
+      : { key: "steps", label: "Steps", value: "—", interpretation: emptyTile("Log steps to see your trend.") },
+  ];
+
   return (
     <ClientPageLayout>
       <div className="container mx-auto px-4 pt-6 md:pt-8 pb-24 md:pb-12 max-w-6xl">
@@ -330,9 +465,9 @@ export default function ClientNutrition() {
                 </button>
               </div>
 
-              {/* Trend -- range control + Weight|Body-fat toggle above the chart. */}
+              {/* Trend -- 4-metric card stack; tap a tile to expand its chart (NU5). */}
               <div className="space-y-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center justify-end">
                   <div className="inline-flex rounded-lg border p-0.5">
                     {(["4w", "12w", "all"] as const).map((r) => (
                       <button
@@ -350,25 +485,12 @@ export default function ClientNutrition() {
                       </button>
                     ))}
                   </div>
-                  <div className="inline-flex rounded-lg border p-0.5">
-                    {(["weight", "bodyfat"] as const).map((m) => (
-                      <button
-                        key={m}
-                        type="button"
-                        onClick={() => setMetric(m)}
-                        className={cn(
-                          "px-3 py-1 text-sm rounded-md transition-colors",
-                          metric === m
-                            ? "bg-secondary border border-secondary"
-                            : "text-muted-foreground hover:text-foreground",
-                        )}
-                      >
-                        {m === "weight" ? "Weight" : "Body fat"}
-                      </button>
-                    ))}
-                  </div>
                 </div>
-                {metric === "weight" ? (
+
+                <NutritionMetricStack tiles={metricTiles} selected={selectedMetric} onSelect={setSelectedMetric} />
+
+                {/* Expanded detail chart for the selected metric (range-filtered). */}
+                {selectedMetric === "weight" ? (
                   trendWeightLogs.length > 0 ? (
                     <WeightProgressGraph
                       phase={activePhase}
@@ -384,8 +506,25 @@ export default function ClientNutrition() {
                       </CardContent>
                     </Card>
                   )
+                ) : selectedMetric === "bodyfat" ? (
+                  <BodyFatProgressGraph weeklyProgress={bodyFatInRange} />
+                ) : selectedMetric === "steps" ? (
+                  <NutritionTrendChart
+                    label="Steps"
+                    points={stepsInRange}
+                    unit="steps"
+                    color="hsl(var(--chart-3))"
+                    emptyText="Log steps to see your daily-step trend here."
+                  />
                 ) : (
-                  <BodyFatProgressGraph weeklyProgress={weeklyProgress} />
+                  <NutritionTrendChart
+                    label="Adherence"
+                    points={adherenceInRange}
+                    unit="%"
+                    color="hsl(var(--chart-4))"
+                    emptyText="Complete a weekly check-in to see your adherence trend here."
+                    format={(v) => String(v)}
+                  />
                 )}
               </div>
             </div>
