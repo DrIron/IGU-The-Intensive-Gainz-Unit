@@ -30,6 +30,7 @@ interface WaitlistSettings {
 
 export function WaitlistManager() {
   const [loading, setLoading] = useState(false);
+  const [togglingMode, setTogglingMode] = useState(false);
   const [sendingInvites, setSendingInvites] = useState(false);
   const [settings, setSettings] = useState<WaitlistSettings | null>(null);
   const [totalLeads, setTotalLeads] = useState(0);
@@ -91,6 +92,54 @@ export function WaitlistManager() {
     loadStats();
   }, [loadSettings, loadStats]);
 
+  // Waitlist Mode is a binary, site-wide control -- it persists on flip, not on a
+  // separate Save click (the old bug: flipping the switch only touched local state,
+  // so the site kept redirecting). Optimistic update, then persist; revert on any
+  // failure so the UI never lies about the live state.
+  const handleToggleMode = async (checked: boolean) => {
+    if (!settings || togglingMode) return;
+
+    const previous = settings.is_enabled;
+    setSettings({ ...settings, is_enabled: checked }); // optimistic
+    setTogglingMode(true);
+
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      const { data, error } = await supabase
+        .from("waitlist_settings")
+        .update({ is_enabled: checked, updated_by: user?.id })
+        .eq("id", settings.id)
+        .select("id");
+
+      if (error) throw error;
+      // Silent-RLS rule: a denied UPDATE returns 200 with 0 rows and no error.
+      // Treat "no rows affected" as a failure so we don't leave the UI lying.
+      if (!data || data.length === 0) {
+        throw new Error("Update was blocked -- you may not have permission to change waitlist mode.");
+      }
+
+      toast({
+        title: checked ? "Waitlist enabled" : "Waitlist disabled",
+        description: checked
+          ? "Visitors are now redirected to the waitlist."
+          : "The site is now open -- normal access.",
+      });
+    } catch (error: unknown) {
+      console.error("Error toggling waitlist mode:", error);
+      setSettings((s) => (s ? { ...s, is_enabled: previous } : s)); // revert
+      toast({
+        title: "Error",
+        description: sanitizeErrorForUser(error),
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingMode(false);
+    }
+  };
+
   const handleSave = async () => {
     if (!settings) return;
 
@@ -100,10 +149,11 @@ export function WaitlistManager() {
         data: { user },
       } = await supabase.auth.getUser();
 
+      // Copy only -- Waitlist Mode persists on the switch itself (handleToggleMode),
+      // so this button no longer touches is_enabled.
       const { error } = await supabase
         .from("waitlist_settings")
         .update({
-          is_enabled: settings.is_enabled,
           heading: settings.heading,
           subheading: settings.subheading,
           updated_by: user?.id,
@@ -114,7 +164,7 @@ export function WaitlistManager() {
 
       toast({
         title: "Success",
-        description: "Waitlist settings updated successfully",
+        description: "Waitlist copy updated successfully",
       });
     } catch (error: unknown) {
       console.error("Error saving waitlist settings:", error);
@@ -183,9 +233,8 @@ export function WaitlistManager() {
           <Switch
             id="waitlist-toggle"
             checked={settings.is_enabled}
-            onCheckedChange={(checked) =>
-              setSettings({ ...settings, is_enabled: checked })
-            }
+            disabled={togglingMode}
+            onCheckedChange={handleToggleMode}
           />
         </div>
 
@@ -239,7 +288,7 @@ export function WaitlistManager() {
                 Saving...
               </>
             ) : (
-              "Save Settings"
+              "Save copy"
             )}
           </Button>
 
