@@ -67,13 +67,47 @@ export default defineConfig({
       // never yanks in-progress input.
       registerType: "autoUpdate",
       workbox: {
-        globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        navigateFallback: "index.html",
-        navigateFallbackDenylist: [/^\/api/, /^\/functions/],
+        // HTML deliberately EXCLUDED from precache: the hashed JS/CSS are immutable
+        // (cache-first, below), but the index.html shell must stay fresh so it always
+        // points at the newest hashed assets. Precaching it served an old shell
+        // cache-first after each deploy → stale bundle for returning users. The shell
+        // is now served NetworkFirst (runtimeCaching below): fresh online, cached
+        // offline in `html-shell`.
+        //
+        // navigateFallback is explicitly DISABLED (null). Two reasons it must be
+        // off, not merely omitted:
+        //  1. With index.html no longer precached, workbox's
+        //     createHandlerBoundToURL("index.html") throws `non-precached-url`
+        //     synchronously at SW load — bricking the whole service worker.
+        //  2. VitePWA registers the NavigationRoute fallback BEFORE our
+        //     runtimeCaching rules, and workbox matches routes in registration
+        //     order. A live fallback would intercept every navigation and serve
+        //     the cache-first shell, shadowing the NetworkFirst rule below and
+        //     re-introducing the exact staleness this fix removes.
+        // Omitting the key is NOT enough: VitePWA merges in a default of
+        // "index.html", so it must be set to null to suppress the route.
+        // Offline navigations are served from the `html-shell` NetworkFirst cache
+        // (below); the only gap is a never-yet-visited route while offline
+        // (acceptable for an online coaching app).
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        navigateFallback: null as any,
+        globPatterns: ["**/*.{js,css,ico,png,svg,woff2}"],
         cleanupOutdatedCaches: true,
         clientsClaim: true,
         skipWaiting: true,
         runtimeCaching: [
+          {
+            // The document/navigation shell: fetch the freshest index.html online
+            // (so the newest hashed assets load on the next reload), fall back to
+            // the last-cached shell when offline / slow (3s timeout).
+            urlPattern: ({ request }) => request.mode === "navigate",
+            handler: "NetworkFirst",
+            options: {
+              cacheName: "html-shell",
+              networkTimeoutSeconds: 3,
+              cacheableResponse: { statuses: [0, 200] },
+            },
+          },
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
             handler: "CacheFirst",
