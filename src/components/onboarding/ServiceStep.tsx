@@ -9,7 +9,6 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { supabase } from "@/integrations/supabase/client";
 import { Loader2 } from "lucide-react";
 import { PersonalDetailsFields } from "@/components/forms/PersonalDetailsFields";
-import { CoachPreferenceSection } from "@/components/onboarding/CoachPreferenceSection";
 import { TeamSelectionSection } from "@/components/onboarding/TeamSelectionSection";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 
@@ -84,14 +83,6 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
   const isTeamService = () => {
     const selectedService = services.find(s => s.name === selectedPlanName);
     return selectedService?.type === 'team';
-  };
-
-  // Derive plan type for coach matching
-  const getPlanType = (): 'online' | 'hybrid' | 'in_person' | null => {
-    if (selectedPlanName === '1:1 Online') return 'online';
-    if (selectedPlanName === '1:1 Hybrid') return 'hybrid';
-    if (selectedPlanName === '1:1 In-Person') return 'in_person';
-    return null;
   };
 
   const handleFocusAreaChange = (value: string, checked: boolean) => {
@@ -255,14 +246,7 @@ export function ServiceStep({ form, serviceId }: ServiceStepProps) {
         />
       )}
 
-      {/* Coach Preference - Only for 1:1 services */}
-      {isOneToOneService() && getPlanType() && (
-        <CoachPreferenceSection
-          form={form}
-          planType={getPlanType()!}
-          focusAreas={focusAreas}
-        />
-      )}
+      {/* Coach selection lives on the dedicated "Choose Coach" step (ON2) — not here. */}
 
       {/* Team Selection - Only for team services */}
       {isTeamService() && <TeamSelectionSection form={form} />}

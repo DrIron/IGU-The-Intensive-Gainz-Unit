@@ -456,7 +456,7 @@ export function CoachPreferenceSection({ form, planType, focusAreas }: CoachPref
                 location: null,
                 profile_picture_url: profileCoach.profile_picture_url,
                 qualifications: null,
-                specializations: profileCoach.specializations,
+                specializations: profileCoach.specializations?.map((s) => getLabel(s)) ?? null,
                 nickname: null,
                 is_head_coach: null,
                 head_coach_specialisation: null,
