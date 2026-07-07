@@ -56,7 +56,6 @@ import {
   X,
   ArrowRightLeft,
   SkipForward,
-  MoreVertical,
   List,
   Lock,
   Info,
@@ -98,12 +97,6 @@ import {
   WorkoutCompletionSheet,
   type WorkoutSummary,
 } from "@/components/workout/WorkoutCompletionSheet";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -1645,8 +1638,6 @@ function WorkoutSessionV2Content() {
   // button (1:1 clients only; null => no button). Resolved in a separate
   // ref-guarded effect, NOT in loadSession's read burst (BUG3 / WK7 §1.5).
   const [coachWhatsApp, setCoachWhatsApp] = useState<string | null>(null);
-  // WK7 §5 — confirm before skipping the whole workout.
-  const [skipWorkoutOpen, setSkipWorkoutOpen] = useState(false);
   // Elapsed source (§2e): earliest persisted set-log created_at for this session
   // (survives reload/resume); mount time is the fallback before any set logged.
   const sessionMountRef = useRef<number>(Date.now());
@@ -2198,29 +2189,6 @@ function WorkoutSessionV2Content() {
     );
   };
 
-  // WK7 §5 — Skip the whole workout/day via the skip_client_day_module RPC, then
-  // leave for the calendar. Confirmed through the AlertDialog in the header menu.
-  const skipWorkout = async () => {
-    if (!module) return;
-    setSkipWorkoutOpen(false);
-    const { error } = await supabase.rpc("skip_client_day_module", {
-      p_module_id: module.id,
-    });
-    if (error) {
-      toast({
-        title: "Couldn't skip workout",
-        description: sanitizeErrorForUser(error),
-        variant: "destructive",
-      });
-      return;
-    }
-    if (user) {
-      await queryClient.invalidateQueries({ queryKey: ["client-workouts", user.id] });
-    }
-    toast({ title: "Workout skipped", description: "We've let your coach know." });
-    navigate("/client/workout/calendar");
-  };
-
   // Swap exercise
   const swapExercise = async (newExerciseId: string) => {
     if (!swapExerciseId || !module) return;
@@ -2546,62 +2514,15 @@ function WorkoutSessionV2Content() {
       const saved = await saveProgress({ silentSuccess: true });
       if (!saved) return;
 
-      // Canonical mode (P3): there is no client_day_module to complete — module.id is a
-      // plan_session id. The set logs were persisted by saveProgress() above; module-level
-      // completion on the assignment is deferred (P4+). Skip the legacy completion RPC and
-      // fall through to the summary so canonical Finish doesn't 42704.
+      // Canonical Finish (P3+): there is no client_day_module to complete — module.id is
+      // a plan_session id, and the set logs were already persisted by saveProgress()
+      // above. The legacy per-module completion RPC path was removed in P5 A.3: it was
+      // provably dead post-flip (board_v2 ON + coverage = 0 → every active client has a
+      // canonical assignment, so the old legacy-completion guard was always true and the
+      // RPC + its 42501 "expired" UX never ran). Finish now just falls through to
+      // the summary. saveProgress() above is the SOLE set-log persistence point — do not
+      // add another completion write here.
       // TODO(P4): record per-assignment session completion in the canonical model.
-      const skipLegacyCompletion = !!canonicalAssignmentIdRef.current;
-
-      // PR #131: clients have NO RLS UPDATE path on client_day_modules. The
-      // "client_day_modules_update" policy only grants
-      // ( is_admin(auth.uid()) OR module_owner_coach_id = auth.uid() ), so a
-      // direct .update() by the client silently no-ops (0 rows, status stuck on
-      // 'scheduled'). Route completion through the complete_client_day_module
-      // SECURITY DEFINER RPC, which authorises the caller itself (client /
-      // owning coach / admin / service_role) and raises explicitly on failure.
-      // PR #117's rows-affected check was the safety net that detected this
-      // gap; this RPC is the structural fix. The RPC is idempotent on
-      // re-completion and raises 42501 (not authorised) / 42704 (not found),
-      // so its return payload isn't needed here.
-      // Resilience: the completion write is what was stranding finishes under
-      // prod pooler/auth slowness (set logs persist incrementally via
-      // saveProgress() above, but completed_at stayed NULL when this RPC timed
-      // out). Wrap it in the same labeled retry pattern as the loads so a
-      // transient blip retries instead of dropping the completion. Idempotent on
-      // re-completion, so retries are safe.
-      const { error: completeErr } = skipLegacyCompletion
-        ? { error: null }
-        : await selectWithRetry(
-            () => supabase.rpc("complete_client_day_module", { p_module_id: module.id }),
-            3,
-            400,
-            { timeoutMs: 8000, label: "complete_client_day_module" },
-          );
-
-      if (completeErr) {
-        // 42501 = not authorised -> keep PR #117's "expired" UX (still
-        // accurate: the set logs were already persisted by saveProgress()
-        // above). Any other code (e.g. 42704 module not found) is a real error.
-        if ((completeErr as { code?: string }).code === "42501") {
-          // Keep the "expired" UX, but capture it so we can measure how often a
-          // stale session (vs a transient blip the retry already absorbed) is the
-          // real cause of finishes not completing.
-          captureException(completeErr, {
-            source: "completeWorkout",
-            severity: "warning",
-            metadata: { moduleId: module.id, reason: "not_authorised_42501" },
-          });
-          toast({
-            title: "Couldn't mark complete",
-            description:
-              "Your session may have expired -- please refresh and try again. Your set logs are saved.",
-            variant: "destructive",
-          });
-          return;
-        }
-        throw completeErr;
-      }
 
       // Invalidate client-side workout views so TodaysWorkoutHero and
       // WorkoutCalendar refresh within ~1s of return without manual refresh.
@@ -2791,19 +2712,6 @@ function WorkoutSessionV2Content() {
                 )}
                 <span className="ml-2 hidden sm:inline">Save</span>
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" aria-label="More options">
-                    <MoreVertical className="w-5 h-5" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  <DropdownMenuItem onClick={() => setSkipWorkoutOpen(true)}>
-                    <SkipForward className="w-4 h-4 mr-2" />
-                    Skip workout
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
             </div>
 
             {/* Progress ring + context (§2a) */}
@@ -3123,23 +3031,6 @@ function WorkoutSessionV2Content() {
             <AlertDialogFooter>
               <AlertDialogCancel>Keep logging</AlertDialogCancel>
               <AlertDialogAction onClick={confirmFinish}>Finish workout</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-
-        {/* WK7 §5 — confirm skipping the whole workout. */}
-        <AlertDialog open={skipWorkoutOpen} onOpenChange={setSkipWorkoutOpen}>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Skip this workout?</AlertDialogTitle>
-              <AlertDialogDescription>
-                This marks the whole session as skipped and lets your coach know.
-                You can still open it again later.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={skipWorkout}>Skip workout</AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
