@@ -14,6 +14,7 @@ import { Upload } from "lucide-react";
 import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 import { CoachServiceAvailability } from "@/components/coach/CoachServiceAvailability";
+import { SpecializationTagPicker } from "@/components/ui/SpecializationTagPicker";
 
 interface CoachData {
   id: string;
@@ -55,7 +56,7 @@ export default function CoachProfile() {
     bio: "",
     short_bio: "",
     qualifications: "",
-    specializations: "",
+    specializations: [] as string[],
     whatsapp_number: "",
     whatsapp_country_code: "+965",
     nickname: "",
@@ -133,7 +134,7 @@ export default function CoachProfile() {
         bio: data.bio || "",
         short_bio: data.short_bio || "",
         qualifications: (data.qualifications || []).join("\n"),
-        specializations: (data.specializations || []).join(", "),
+        specializations: data.specializations || [],
         whatsapp_number: extractedNumber,
         whatsapp_country_code: extractedCode,
         nickname: data.nickname || "",
@@ -212,9 +213,7 @@ export default function CoachProfile() {
           qualifications: formData.qualifications 
             ? formData.qualifications.split("\n").map(q => q.trim()).filter(Boolean)
             : [],
-          specializations: formData.specializations
-            ? formData.specializations.split(",").map(s => s.trim()).filter(Boolean)
-            : [],
+          specializations: formData.specializations,
           nickname: formData.nickname,
         })
         .eq("id", coachData.id);
@@ -398,13 +397,18 @@ export default function CoachProfile() {
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="specializations">Specializations (comma separated)</Label>
-            <Input
-              id="specializations"
-              type="text"
-              value={formData.specializations}
-              onChange={(e) => setFormData({ ...formData, specializations: e.target.value })}
-              placeholder="e.g., Strength Training, Nutrition, Powerlifting"
+            <Label>Specializations</Label>
+            <SpecializationTagPicker
+              selectedTags={formData.specializations}
+              onToggle={(tagValue) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  specializations: prev.specializations.includes(tagValue)
+                    ? prev.specializations.filter((v) => v !== tagValue)
+                    : [...prev.specializations, tagValue],
+                }))
+              }
+              maxTags={15}
             />
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
