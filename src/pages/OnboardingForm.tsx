@@ -15,6 +15,7 @@ import { PlanStep } from "@/components/onboarding/PlanStep";
 import { AboutYouStep } from "@/components/onboarding/AboutYouStep";
 import { GoalsStep } from "@/components/onboarding/GoalsStep";
 import { TeamStep } from "@/components/onboarding/TeamStep";
+import { WelcomeBackStep } from "@/components/onboarding/WelcomeBackStep";
 import ServiceSpecificStep from "@/components/onboarding/ServiceSpecificStep";
 import { ChooseCoachStep } from "@/components/onboarding/ChooseCoachStep";
 import { Dumbbell, Loader2, Save, CheckCircle2, LogOut } from "lucide-react";
@@ -105,6 +106,14 @@ export default function OnboardingForm() {
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [currentStep, setCurrentStep] = useState(0);
+  // Structural redesign Part C — wizard mode. "reactivate" is a returning client
+  // whose sub lapsed (cancelled/expired): their details are on file, so the forced
+  // path is trimmed to plan -> [details+coach for 1:1] -> payment. "new" is the
+  // full A/B flow. (change/upgrade modes arrive with the Change-plan spec.)
+  const [mode, setMode] = useState<"new" | "reactivate">("new");
+  // When set, a skipped-but-editable step (about/health/legal) is open for review.
+  const [reviewStepId, setReviewStepId] = useState<string | null>(null);
+  const reactivateRef = useRef(false);
   const [userId, setUserId] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -170,20 +179,41 @@ export default function OnboardingForm() {
   const isOneToOne = ["1:1 Online", "1:1 Hybrid", "1:1 In-Person"].includes(selectedPlanName);
   const isTeam = ["Team Plan", "Fe Squad", "Bunz of Steel"].includes(selectedPlanName);
   const steps = useMemo(
-    () => [
-      { id: "plan", label: "Plan" },
-      { id: "about", label: "About you" },
-      ...(isOneToOne ? [{ id: "goals", label: "Goals" }] : []),
-      ...(isTeam
-        ? [{ id: "team", label: "Your Team" }]
-        : [{ id: "details", label: "Service Details" }]),
-      ...(isOneToOne ? [{ id: "coach", label: "Choose Coach" }] : []),
-      { id: "health", label: "Health" },
-      { id: "legal", label: "Legal" },
-    ],
-    [isOneToOne, isTeam],
+    () => {
+      // Reactivation: on-file steps (about/goals/health/legal) are pre-filled and
+      // skipped from the forced path -- welcome -> plan -> [details+coach | team] ->
+      // submit(payment). They stay editable via the Welcome-back review affordance.
+      if (mode === "reactivate") {
+        return [
+          { id: "welcome", label: "Welcome back" },
+          { id: "plan", label: "Plan" },
+          ...(isTeam ? [{ id: "team", label: "Your Team" }] : []),
+          ...(isOneToOne
+            ? [
+                { id: "details", label: "Service Details" },
+                { id: "coach", label: "Choose Coach" },
+              ]
+            : []),
+        ];
+      }
+      return [
+        { id: "plan", label: "Plan" },
+        { id: "about", label: "About you" },
+        ...(isOneToOne ? [{ id: "goals", label: "Goals" }] : []),
+        ...(isTeam
+          ? [{ id: "team", label: "Your Team" }]
+          : [{ id: "details", label: "Service Details" }]),
+        ...(isOneToOne ? [{ id: "coach", label: "Choose Coach" }] : []),
+        { id: "health", label: "Health" },
+        { id: "legal", label: "Legal" },
+      ];
+    },
+    [mode, isOneToOne, isTeam],
   );
   const stepId = steps[currentStep]?.id;
+  // A reactivation review overlay (about/health/legal) takes over the render while
+  // open; otherwise the active step is the current wizard step.
+  const activeStepId = reviewStepId ?? stepId;
 
   // Keep currentStep in range whenever the array changes length (1:1 ↔ team) OR a
   // restored draft lands a stale index past the end — clamp, never crash/blank.
@@ -228,6 +258,77 @@ export default function OnboardingForm() {
       if (import.meta.env.DEV) console.error('Error loading service:', error);
     }
   }, [searchParams, form]);
+
+  // Reactivation pre-fill: hydrate the form from what's already on file so the
+  // returning client doesn't re-enter it. Demographics come from profiles_*
+  // (source of truth); plan/training/legal come from their last form_submissions.
+  // PAR-Q is deliberately NOT restored (it's encrypted PHI) -- it defaults to "no
+  // flags" and the health step stays editable via the Welcome-back review.
+  const loadReactivationData = useCallback(async (uid: string) => {
+    try {
+      const [{ data: pub }, { data: priv }, { data: sub }] = await Promise.all([
+        supabase.from("profiles_public").select("first_name").eq("id", uid).maybeSingle(),
+        supabase
+          .from("profiles_private")
+          .select("email, last_name, phone, date_of_birth, gender, height_cm")
+          .eq("profile_id", uid)
+          .maybeSingle(),
+        supabase
+          .from("form_submissions")
+          .select(
+            "plan_name, focus_areas, heard_about_us, heard_about_us_other, training_experience, training_goals, training_days_per_week, preferred_training_times, gym_access_type, preferred_gym_location, home_gym_equipment, nutrition_approach, coach_preference_type, requested_coach_id, accepts_team_program, understands_no_nutrition, accepts_lower_body_only, agreed_terms, agreed_privacy, agreed_refund_policy, agreed_intellectual_property, agreed_medical_disclaimer, date_of_birth",
+          )
+          .eq("user_id", uid)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+      ]);
+
+      // Demographics
+      if (pub?.first_name) form.setValue("first_name", pub.first_name);
+      if (priv?.email) form.setValue("email", priv.email);
+      if (priv?.last_name) form.setValue("last_name", priv.last_name);
+      if (priv?.phone) form.setValue("phone_number", priv.phone);
+      if (priv?.date_of_birth) form.setValue("date_of_birth", priv.date_of_birth);
+      if (priv?.gender === "male" || priv?.gender === "female") form.setValue("gender", priv.gender);
+      if (typeof priv?.height_cm === "number") form.setValue("height_cm", priv.height_cm);
+
+      if (sub) {
+        // Plan: don't clobber a ?service= preselection if one already landed.
+        if (sub.plan_name && !form.getValues("plan_name")) form.setValue("plan_name", sub.plan_name);
+        if (!priv?.date_of_birth && sub.date_of_birth) form.setValue("date_of_birth", sub.date_of_birth);
+
+        if (sub.focus_areas) form.setValue("focus_areas", sub.focus_areas);
+        if (sub.heard_about_us) form.setValue("heard_about_us", sub.heard_about_us);
+        if (sub.heard_about_us_other) form.setValue("heard_about_us_other", sub.heard_about_us_other);
+        if (sub.training_experience) form.setValue("training_experience", sub.training_experience);
+        if (sub.training_goals) form.setValue("training_goals", sub.training_goals);
+        if (sub.training_days_per_week) form.setValue("training_days_per_week", sub.training_days_per_week);
+        if (sub.preferred_training_times) form.setValue("preferred_training_times", sub.preferred_training_times);
+        if (sub.gym_access_type) form.setValue("gym_access_type", sub.gym_access_type);
+        if (sub.preferred_gym_location) form.setValue("preferred_gym_location", sub.preferred_gym_location);
+        if (sub.home_gym_equipment) form.setValue("home_gym_equipment", sub.home_gym_equipment);
+        if (sub.nutrition_approach) form.setValue("nutrition_approach", sub.nutrition_approach);
+        if (sub.coach_preference_type === "auto" || sub.coach_preference_type === "specific")
+          form.setValue("coach_preference_type", sub.coach_preference_type);
+        if (sub.requested_coach_id) form.setValue("requested_coach_id", sub.requested_coach_id);
+        // selected_team_id is intentionally not restored -- teams fill up between
+        // cycles, so the returning client re-picks their team in the Team step.
+        // Team acknowledgments + legal agreements were accepted before -- restore
+        // them so the returning client isn't forced to re-tick unchanged consents.
+        form.setValue("accepts_team_program", !!sub.accepts_team_program);
+        form.setValue("understands_no_nutrition", !!sub.understands_no_nutrition);
+        form.setValue("accepts_lower_body_only", !!sub.accepts_lower_body_only);
+        form.setValue("agreed_terms", !!sub.agreed_terms);
+        form.setValue("agreed_privacy", !!sub.agreed_privacy);
+        form.setValue("agreed_refund_policy", !!sub.agreed_refund_policy);
+        form.setValue("agreed_intellectual_property", !!sub.agreed_intellectual_property);
+        form.setValue("agreed_medical_disclaimer", !!sub.agreed_medical_disclaimer);
+      }
+    } catch (err) {
+      if (import.meta.env.DEV) console.error("Error loading reactivation data:", err);
+    }
+  }, [form]);
 
   const checkAuth = useCallback(async () => {
     try {
@@ -306,14 +407,34 @@ export default function OnboardingForm() {
         return;
       }
 
-      // Check if user already has a submitted form
+      // Prior submission? Two cases: (a) a completed onboarding whose sub is still
+      // live -> block re-submission (unchanged); (b) a lapsed client (cancelled/
+      // expired) returning to reactivate -> let them in and hydrate what's on file.
+      // The active-sub check above already bounced anyone with a live subscription.
       const { data: existingSubmission } = await supabase
         .from('form_submissions')
         .select('id, submission_status')
         .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
         .maybeSingle();
 
+      const { data: statusRow } = await supabase
+        .from('profiles_public')
+        .select('status')
+        .eq('id', user.id)
+        .maybeSingle();
+      const isReactivationEligible =
+        statusRow?.status === 'cancelled' || statusRow?.status === 'expired';
+
       if (existingSubmission && existingSubmission.submission_status === 'submitted') {
+        if (isReactivationEligible) {
+          reactivateRef.current = true;
+          setMode('reactivate');
+          await loadReactivationData(user.id);
+          setLoading(false);
+          return; // reactivation prefill done -- skip the generic new-user prefill below
+        }
         setHasSubmitted(true);
         toast({
           title: "Form Already Submitted",
@@ -376,10 +497,12 @@ export default function OnboardingForm() {
       setFatalError(true);
       setLoading(false);
     }
-  }, [navigate, toast, form]);
+  }, [navigate, toast, form, loadReactivationData]);
 
   const loadDraft = useCallback(async () => {
     if (!userId) return;
+    // Reactivation hydrates from submitted data, not a (likely deleted/stale) draft.
+    if (reactivateRef.current) return;
 
     try {
       const { data: draft, error } = await supabase
@@ -643,8 +766,13 @@ export default function OnboardingForm() {
         description: "Please provide your date of birth to continue.",
         variant: "destructive",
       });
-      // DOB now lives on the "about" step (index 1); jump there, not the plan step.
-      setCurrentStep(Math.max(0, steps.findIndex((s) => s.id === "about")));
+      // DOB lives on the "about" step. In reactivate mode that step is skipped
+      // from the forced path, so open it as a review overlay; otherwise jump to it.
+      if (mode === "reactivate") {
+        setReviewStepId("about");
+      } else {
+        setCurrentStep(Math.max(0, steps.findIndex((s) => s.id === "about")));
+      }
       return;
     }
 
@@ -844,7 +972,10 @@ export default function OnboardingForm() {
               currentStep={currentStep}
               totalSteps={steps.length}
               steps={steps.map((s) => s.label)}
-              onStepClick={(stepIndex) => setCurrentStep(stepIndex)}
+              onStepClick={(stepIndex) => {
+                setReviewStepId(null);
+                setCurrentStep(stepIndex);
+              }}
             />
 
             <Form {...form}>
@@ -859,77 +990,93 @@ export default function OnboardingForm() {
                   });
                 }
               })} className="space-y-8">
-                {stepId === "plan" && <PlanStep form={form} serviceId={searchParams.get('service') || undefined} />}
-                {stepId === "about" && <AboutYouStep form={form} />}
-                {stepId === "goals" && <GoalsStep form={form} />}
-                {stepId === "team" && <TeamStep form={form} planName={selectedPlanName} />}
-                {stepId === "details" && <ServiceSpecificStep form={form} selectedService={selectedServiceName} />}
-                {stepId === "coach" && <ChooseCoachStep form={form} planName={selectedPlanName} />}
-                {stepId === "health" && <ParqStep form={form} />}
-                {stepId === "legal" && <LegalStep form={form} />}
+                {activeStepId === "welcome" && (
+                  <WelcomeBackStep form={form} isOneToOne={isOneToOne} onReview={setReviewStepId} />
+                )}
+                {activeStepId === "plan" && <PlanStep form={form} serviceId={searchParams.get('service') || undefined} />}
+                {activeStepId === "about" && <AboutYouStep form={form} />}
+                {activeStepId === "goals" && <GoalsStep form={form} />}
+                {activeStepId === "team" && <TeamStep form={form} planName={selectedPlanName} />}
+                {activeStepId === "details" && <ServiceSpecificStep form={form} selectedService={selectedServiceName} />}
+                {activeStepId === "coach" && <ChooseCoachStep form={form} planName={selectedPlanName} />}
+                {activeStepId === "health" && <ParqStep form={form} />}
+                {activeStepId === "legal" && <LegalStep form={form} />}
                 {/* Nav — sticky bottom bar on mobile (Back · progress · Continue),
                     inline on desktop. Content clears it via the container's pb-24. */}
                 <div className="fixed inset-x-0 bottom-0 z-40 border-t bg-background/95 px-4 pt-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] backdrop-blur md:static md:z-auto md:border-0 md:bg-transparent md:px-0 md:pt-6 md:pb-0 md:backdrop-blur-none">
-                  {/* Compact progress — mobile only (the top StepIndicator covers desktop). */}
-                  <div className="mb-2 flex items-center gap-2 md:hidden">
-                    <div className="h-1 flex-1 rounded-full bg-muted">
-                      <div
-                        className="h-1 rounded-full bg-primary transition-all"
-                        style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
-                      />
-                    </div>
-                    <span className="shrink-0 text-[11px] font-medium text-muted-foreground tabular-nums">
-                      {currentStep + 1}/{steps.length}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex gap-2">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        onClick={handleBack}
-                        disabled={currentStep === 0}
-                      >
-                        Back
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        onClick={async () => {
-                          await saveDraft();
-                          toast({
-                            title: "Progress Saved",
-                            description: "You can continue your registration anytime by logging back in.",
-                          });
-                          navigate("/");
-                        }}
-                      >
-                        <LogOut className="h-4 w-4 sm:mr-2" />
-                        <span className="hidden sm:inline">Save & Exit</span>
+                  {reviewStepId ? (
+                    /* Review overlay (reactivation) — one way back to the wizard. */
+                    <div className="flex justify-end">
+                      <Button type="button" onClick={() => setReviewStepId(null)}>
+                        Done reviewing
                       </Button>
                     </div>
+                  ) : (
+                    <>
+                      {/* Compact progress — mobile only (the top StepIndicator covers desktop). */}
+                      <div className="mb-2 flex items-center gap-2 md:hidden">
+                        <div className="h-1 flex-1 rounded-full bg-muted">
+                          <div
+                            className="h-1 rounded-full bg-primary transition-all"
+                            style={{ width: `${((currentStep + 1) / steps.length) * 100}%` }}
+                          />
+                        </div>
+                        <span className="shrink-0 text-[11px] font-medium text-muted-foreground tabular-nums">
+                          {currentStep + 1}/{steps.length}
+                        </span>
+                      </div>
 
-                    {currentStep < steps.length - 1 ? (
-                      <Button type="button" onClick={handleNext}>
-                        Next
-                      </Button>
-                    ) : (
-                      <Button
-                        type="submit"
-                        disabled={submitting || !allLegalAccepted}
-                      >
-                        {submitting ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Submitting...
-                          </>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            onClick={handleBack}
+                            disabled={currentStep === 0}
+                          >
+                            Back
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            onClick={async () => {
+                              await saveDraft();
+                              toast({
+                                title: "Progress Saved",
+                                description: "You can continue your registration anytime by logging back in.",
+                              });
+                              navigate("/");
+                            }}
+                          >
+                            <LogOut className="h-4 w-4 sm:mr-2" />
+                            <span className="hidden sm:inline">Save & Exit</span>
+                          </Button>
+                        </div>
+
+                        {currentStep < steps.length - 1 ? (
+                          <Button type="button" onClick={handleNext}>
+                            Next
+                          </Button>
                         ) : (
-                          "Submit Application"
+                          <Button
+                            type="submit"
+                            disabled={submitting || !allLegalAccepted}
+                          >
+                            {submitting ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Submitting...
+                              </>
+                            ) : mode === "reactivate" ? (
+                              "Continue to payment"
+                            ) : (
+                              "Submit Application"
+                            )}
+                          </Button>
                         )}
-                      </Button>
-                    )}
-                  </div>
+                      </div>
+                    </>
+                  )}
                 </div>
               </form>
             </Form>
