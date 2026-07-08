@@ -84,6 +84,11 @@ const formSchema = z.object({
   // Coach Preference (1:1 plans only)
   coach_preference_type: z.enum(["auto", "specific"]).default("auto"),
   requested_coach_id: z.string().nullable().optional(),
+
+  // Team selection (team plans only). Registered here so TeamSelectionSection's
+  // form.watch("selected_team_id") is reactive — an unregistered field never
+  // re-renders the card on setValue, so the pick appeared to not register.
+  selected_team_id: z.string().uuid().nullable().optional(),
 });
 
 // PAR-Q answers are medical PHI. form_submissions encrypts them at rest via
@@ -157,6 +162,7 @@ export default function OnboardingForm() {
       focus_areas: [],
       coach_preference_type: "auto",
       requested_coach_id: null,
+      selected_team_id: null,
     },
   });
 

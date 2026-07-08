@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { UseFormReturn } from "react-hook-form";
+import { UseFormReturn, useWatch } from "react-hook-form";
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, Users, CheckCircle2 } from "lucide-react";
@@ -14,7 +14,10 @@ export const TeamSelectionSection = memo(function TeamSelectionSection({
   form,
 }: TeamSelectionSectionProps) {
   const { teams, loading } = useTeams({ publicOnly: false });
-  const selectedTeamId = form.watch("selected_team_id");
+  // useWatch (not form.watch): this is a memoized child, so form.watch would
+  // re-render the useForm owner (parent), not this component — the card would
+  // never reflect the pick. useWatch subscribes at THIS component's level.
+  const selectedTeamId = useWatch({ control: form.control, name: "selected_team_id" });
 
   if (loading) {
     return (
