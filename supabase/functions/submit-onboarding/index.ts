@@ -11,6 +11,17 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
+// Surface the real Postgres/PostgREST error in the SERVER logs only (never in the
+// client response body). Every 500 branch below used to log a bare
+// error:"db_error", which is why localizing the last incident needed a full DB
+// sweep. message/code/details/hint make the next one diagnosable from logs alone.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function dbErrDetails(e: any) {
+  return e
+    ? { message: e.message ?? null, code: e.code ?? null, details: e.details ?? null, hint: e.hint ?? null }
+    : null;
+}
+
 // Server-side validation schema matching client-side
 const formSchema = z.object({
   // PAR-Q
@@ -296,21 +307,68 @@ Deno.serve(async (req) => {
     // Capture the current timestamp for legal agreements
     const agreementTimestamp = new Date().toISOString();
 
-  const insertPayload: any = {
+  // Whitelist ONLY real form_submissions columns. A blind `...validatedData`
+  // spread leaked non-column keys into the insert -- gender / height_cm /
+  // date_of_birth belong to profiles_private, activity_level to profiles_public,
+  // other_gym_location has no column at all. PostgREST rejects an unknown key
+  // with "Could not find the 'X' column ... in the schema cache" -> the whole
+  // insert 500s and NO row persists (which is exactly what broke onboarding once
+  // demographics/activity/gym fields entered the schema). date_of_birth is a real
+  // form_submissions column so it stays here too; the others are written to their
+  // own tables below. undefined optionals are dropped by supabase-js (col default).
+  const insertPayload: Record<string, unknown> = {
     user_id: user.id,
     form_type: mappedFormType,
-    ...validatedData,
-    heard_about_us: mappedHeard,
-    training_experience: mappedExp,
-    nutrition_approach: mappedNutrition,
     needs_medical_review,
+    // PAR-Q
+    parq_heart_condition: validatedData.parq_heart_condition,
+    parq_chest_pain_active: validatedData.parq_chest_pain_active,
+    parq_chest_pain_inactive: validatedData.parq_chest_pain_inactive,
+    parq_balance_dizziness: validatedData.parq_balance_dizziness,
+    parq_bone_joint_problem: validatedData.parq_bone_joint_problem,
+    parq_medication: validatedData.parq_medication,
+    parq_other_reason: validatedData.parq_other_reason,
+    parq_injuries_conditions: validatedData.parq_injuries_conditions,
+    parq_additional_details: validatedData.parq_additional_details,
+    // Training / gym
+    training_experience: mappedExp,
+    training_goals: validatedData.training_goals,
+    training_days_per_week: validatedData.training_days_per_week,
+    preferred_training_times: validatedData.preferred_training_times,
+    gym_access_type: validatedData.gym_access_type,
+    preferred_gym_location: validatedData.preferred_gym_location,
+    home_gym_equipment: validatedData.home_gym_equipment,
+    nutrition_approach: mappedNutrition,
+    // Team acknowledgments
+    accepts_team_program: validatedData.accepts_team_program,
+    understands_no_nutrition: validatedData.understands_no_nutrition,
+    accepts_lower_body_only: validatedData.accepts_lower_body_only,
+    // Personal / contact
+    first_name: validatedData.first_name,
+    last_name: validatedData.last_name,
+    email: validatedData.email,
+    phone_number: validatedData.phone_number,
+    date_of_birth: validatedData.date_of_birth,
+    discord_username: validatedData.discord_username,
+    // Plan / referral
+    plan_name: validatedData.plan_name,
     focus_areas: validatedData.focus_areas || [],
-    // Coach preference fields
+    heard_about_us: mappedHeard,
+    heard_about_us_other: validatedData.heard_about_us_other,
+    // Documents
+    master_agreement_url: validatedData.master_agreement_url,
+    liability_release_url: validatedData.liability_release_url,
+    // Coach preference
     coach_preference_type: validatedData.coach_preference_type || 'auto',
     requested_coach_id: validatedData.requested_coach_id || null,
     // Team selection
     selected_team_id: validatedData.selected_team_id || null,
-    // Add timestamps for legal agreement acceptances
+    // Legal agreements + acceptance timestamps
+    agreed_terms: validatedData.agreed_terms,
+    agreed_privacy: validatedData.agreed_privacy,
+    agreed_refund_policy: validatedData.agreed_refund_policy,
+    agreed_intellectual_property: validatedData.agreed_intellectual_property,
+    agreed_medical_disclaimer: validatedData.agreed_medical_disclaimer,
     agreed_terms_at: validatedData.agreed_terms ? agreementTimestamp : null,
     agreed_privacy_at: validatedData.agreed_privacy ? agreementTimestamp : null,
     agreed_refund_policy_at: validatedData.agreed_refund_policy ? agreementTimestamp : null,
@@ -336,7 +394,7 @@ Deno.serve(async (req) => {
       .single();
 
     if (submissionError) {
-      console.error(JSON.stringify({ fn: "submit-onboarding", step: "create_form_submission", ok: false, error: "db_error" }));
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "create_form_submission", ok: false, error: "db_error", ...dbErrDetails(submissionError) }));
       return new Response(
         JSON.stringify({ error: 'Failed to submit form' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -380,7 +438,7 @@ Deno.serve(async (req) => {
       .eq('id', user.id);
 
     if (profilePublicError) {
-      console.error(JSON.stringify({ fn: "submit-onboarding", step: "update_profiles_public", ok: false, error: "db_error" }));
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "update_profiles_public", ok: false, error: "db_error", ...dbErrDetails(profilePublicError) }));
       return new Response(
         JSON.stringify({ error: 'Failed to update profile' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -403,7 +461,7 @@ Deno.serve(async (req) => {
         }, { onConflict: 'user_id' });
 
       if (medicalReviewError) {
-        console.error(JSON.stringify({ fn: "submit-onboarding", step: "create_medical_review", ok: false, error: "db_error" }));
+        console.error(JSON.stringify({ fn: "submit-onboarding", step: "create_medical_review", ok: false, error: "db_error", ...dbErrDetails(medicalReviewError) }));
         return new Response(
           JSON.stringify({ error: 'Failed to create medical review' }),
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -432,7 +490,7 @@ Deno.serve(async (req) => {
       .eq('profile_id', user.id);
 
     if (profilePrivateError) {
-      console.error(JSON.stringify({ fn: "submit-onboarding", step: "update_profiles_private", ok: false, error: "db_error" }));
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "update_profiles_private", ok: false, error: "db_error", ...dbErrDetails(profilePrivateError) }));
       // Non-critical - continue
     }
     
@@ -445,7 +503,7 @@ Deno.serve(async (req) => {
       .maybeSingle();
     
     if (serviceError || !serviceData) {
-      console.error(JSON.stringify({ fn: "submit-onboarding", step: "find_service", ok: false, error: "db_error" }));
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "find_service", ok: false, error: "db_error", ...dbErrDetails(serviceError) }));
       return new Response(
         JSON.stringify({ error: 'Service not found for the selected plan' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -482,7 +540,7 @@ Deno.serve(async (req) => {
       });
 
     if (assignmentError || !assignmentResult) {
-      console.error(JSON.stringify({ fn: "submit-onboarding", step: "assign_coach_atomic", ok: false, error: "db_error" }));
+      console.error(JSON.stringify({ fn: "submit-onboarding", step: "assign_coach_atomic", ok: false, error: "db_error", ...dbErrDetails(assignmentError) }));
       return new Response(
         JSON.stringify({ error: 'Failed to create subscription' }),
         { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
@@ -691,7 +749,7 @@ Deno.serve(async (req) => {
     );
 
   } catch (error) {
-    console.error(JSON.stringify({ fn: "submit-onboarding", step: "unhandled", ok: false, error: "unexpected_error" }));
+    console.error(JSON.stringify({ fn: "submit-onboarding", step: "unhandled", ok: false, error: "unexpected_error", message: error instanceof Error ? error.message : String(error), stack: error instanceof Error ? error.stack : null }));
     return new Response(
       JSON.stringify({ error: 'An error occurred while processing your request' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
