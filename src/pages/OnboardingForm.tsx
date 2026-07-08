@@ -673,8 +673,16 @@ export default function OnboardingForm() {
         break;
       }
       case "team": {
-        // Team plans only — the program acknowledgments (moved out of `details`
-        // in Part B). Team-pick (selected_team_id) stays optional, as before.
+        // Team plans only — must pick a team + accept the acknowledgments before
+        // advancing. Without selected_team_id the edge fn 500s, so gate it here.
+        if (!form.getValues("selected_team_id")) {
+          toast({
+            title: "Select a team",
+            description: "Please choose a team to continue.",
+            variant: "destructive",
+          });
+          return false;
+        }
         const acceptsTeam = form.getValues("accepts_team_program");
         const understandsNoNutrition = form.getValues("understands_no_nutrition");
 
@@ -778,6 +786,25 @@ export default function OnboardingForm() {
         setReviewStepId("about");
       } else {
         setCurrentStep(Math.max(0, steps.findIndex((s) => s.id === "about")));
+      }
+      return;
+    }
+
+    // Team plans require a picked team. The team step is the LAST step in the
+    // reactivate flow, so its Submit runs handleSubmit (Zod) and bypasses
+    // validateStep — guard here too so we never POST a team submission without
+    // selected_team_id (the edge fn 500s on it).
+    const isTeamSubmission = ["Team Plan", "Fe Squad", "Bunz of Steel"].includes(values.plan_name);
+    if (isTeamSubmission && !values.selected_team_id) {
+      toast({
+        title: "Select a team",
+        description: "Please choose a team before continuing.",
+        variant: "destructive",
+      });
+      const teamIdx = steps.findIndex((s) => s.id === "team");
+      if (teamIdx >= 0) {
+        setReviewStepId(null);
+        setCurrentStep(teamIdx);
       }
       return;
     }
