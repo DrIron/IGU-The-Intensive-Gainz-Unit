@@ -19,8 +19,8 @@ import { withTimeout } from "@/lib/withTimeout";
 import { Clock, AlertTriangle, CheckCircle2, CreditCard, Tag, XCircle, Loader2, UserCheck } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { useToast } from "@/hooks/use-toast";
-import { Label } from "@/components/ui/label";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { cn } from "@/lib/utils";
 import { LEVEL_LABELS, type ProfessionalLevel } from "@/auth/roles";
 
 interface PaymentStatusProps {
@@ -499,25 +499,16 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
 
   return (
     <>
-    <Card className="border-2 border-primary/20 shadow-lg">
-      <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
-        <div className="flex items-center gap-2">
-          {isExpired ? (
-            <AlertTriangle className="h-6 w-6 text-destructive" />
-          ) : isUrgent ? (
-            <Clock className="h-6 w-6 text-orange-500 animate-pulse" />
-          ) : (
-            <CreditCard className="h-6 w-6 text-primary" />
-          )}
-          <CardTitle className="text-2xl">
-            {isExpired ? "Payment Deadline Expired" : "Complete Your Payment"}
-          </CardTitle>
-        </div>
-        <CardDescription className="text-base">
-          Secure your spot in <strong>{serviceName}</strong>
+    <Card className="border-border/60 shadow-lg">
+      <CardHeader>
+        <CardTitle className="text-xl font-bold">
+          {isExpired ? "Payment deadline expired" : "Activate your plan"}
+        </CardTitle>
+        <CardDescription>
+          {isExpired ? `Your window to join ${serviceName} has closed.` : "Secure checkout via Tap."}
         </CardDescription>
       </CardHeader>
-      <CardContent className="pt-6 space-y-6">
+      <CardContent className="space-y-5">
         {isExpired ? (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
@@ -527,206 +518,37 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
           </Alert>
         ) : (
           <>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-muted-foreground">Time Remaining</span>
-                <span className={`text-2xl font-bold ${isUrgent ? 'text-orange-500' : 'text-primary'}`}>
-                  {timeRemaining}
+            {/* Plan summary — see the price, then pay. Original price strikes
+                through when a discount applies; "Due today" is the hero number. */}
+            <div className="rounded-lg border p-4 space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="font-medium">{serviceName}</span>
+                <span className={cn("tabular-nums", appliedDiscount && "text-muted-foreground line-through")}>
+                  {(hasBreakdown ? breakdownTotal : servicePrice).toFixed(3)}
                 </span>
               </div>
-              <Progress value={progressPercentage} className="h-3" />
-              <p className="text-xs text-muted-foreground text-center">
-                Payment deadline: {paymentDeadline.toLocaleDateString('en-US', {
-                  weekday: 'long',
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric',
-                  hour: '2-digit',
-                  minute: '2-digit'
-                })}
-              </p>
-            </div>
-
-            {isUrgent && (
-              <Alert className="border-orange-500 bg-orange-50 dark:bg-orange-950/20">
-                <Clock className="h-4 w-4 text-orange-500" />
-                <AlertDescription className="ml-2 text-orange-900 dark:text-orange-100">
-                  <strong>Urgent:</strong> Less than 2 days remaining! Complete your payment to secure your spot.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {/* Price Summary Panel */}
-            <div className="bg-muted/50 p-4 rounded-lg space-y-3 border">
-              <div className="flex justify-between items-center">
-                <span className="text-muted-foreground">Plan</span>
-                <span className="font-medium">{serviceName}</span>
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>Renew monthly &middot; cancel anytime</span>
+                <span>KWD</span>
               </div>
-
-              {/* Price Breakdown Section */}
-              {hasBreakdown ? (
-                <>
-                  <div className="border-t pt-3 space-y-2">
-                    <span className="text-sm font-medium text-muted-foreground">Price Breakdown</span>
-                    {billingComponents.map((component) => (
-                      <div key={component.id} className="flex justify-between items-center text-sm">
-                        <span className="flex items-center gap-2">
-                          {component.label}
-                          <Badge 
-                            variant={component.component_type === 'base' ? 'default' : 'secondary'} 
-                            className="text-xs px-1.5 py-0"
-                          >
-                            {component.component_type === 'base' ? 'Base' : 'Add-on'}
-                          </Badge>
-                        </span>
-                        <span>{Number(component.amount_kwd).toFixed(3)} KWD</span>
-                      </div>
-                    ))}
-                  </div>
-                  
-                  <div className="border-t pt-3">
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Subtotal</span>
-                      <span className={appliedDiscount ? "line-through text-muted-foreground" : "font-semibold"}>
-                        {breakdownTotal.toFixed(3)} KWD/month
-                      </span>
-                    </div>
-                  </div>
-                </>
-              ) : (
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Price</span>
-                  <span className={appliedDiscount ? "line-through text-muted-foreground" : "font-semibold"}>
-                    {servicePrice.toFixed(3)} KWD/month
-                  </span>
-                </div>
-              )}
-
               {appliedDiscount && (
-                <>
-                  <div className="flex justify-between items-center text-green-600 dark:text-green-400">
-                    <span className="flex items-center gap-2">
-                      <Tag className="h-4 w-4" />
-                      Discount ({appliedDiscount.code} – {appliedDiscount.discount_type === 'percent' 
-                        ? `${appliedDiscount.discount_value}%` 
-                        : `${appliedDiscount.discount_value} KWD`} {getDurationBadge(appliedDiscount)})
-                    </span>
-                    <span>−{getDiscountAmount().toFixed(3)} KWD</span>
-                  </div>
-                  
-                  <div className="border-t pt-3 mt-3">
-                    <div className="flex justify-between items-center">
-                      <span className="font-semibold">You Pay Now</span>
-                      <span className="text-2xl font-bold text-primary">
-                        {finalPrice.toFixed(3)} KWD
-                      </span>
-                    </div>
-                  </div>
-                </>
-              )}
-
-              {!appliedDiscount && (
-                <div className="border-t pt-3 mt-3">
-                  <div className="flex justify-between items-center">
-                    <span className="font-semibold">Amount Due</span>
-                    <span className="text-2xl font-bold text-primary">
-                      {finalPrice.toFixed(3)} KWD
-                    </span>
-                  </div>
+                <div className="flex items-center justify-between text-sm text-emerald-600 dark:text-emerald-400">
+                  <span className="flex items-center gap-1.5">
+                    <Tag className="h-3.5 w-3.5" />
+                    {appliedDiscount.code} ({appliedDiscount.discount_type === 'percent'
+                      ? `${appliedDiscount.discount_value}%`
+                      : `${appliedDiscount.discount_value} KWD`} {getDurationBadge(appliedDiscount)})
+                  </span>
+                  <span>−{getDiscountAmount().toFixed(3)}</span>
                 </div>
               )}
-            </div>
-
-            {/* Discount Code Input */}
-            {!appliedDiscount && (
-              <div className="bg-muted/30 p-4 rounded-lg space-y-3">
-                <Label htmlFor="discount-code" className="text-sm font-medium">
-                  Have a promo code?
-                </Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="discount-code"
-                    value={discountCode}
-                    onChange={(e) => {
-                      setDiscountCode(e.target.value.toUpperCase());
-                      setDiscountError(null);
-                    }}
-                    placeholder="Enter code"
-                    className={`flex-1 ${discountError ? 'border-destructive' : ''}`}
-                    disabled={validatingCode}
-                  />
-                  <Button
-                    onClick={validateDiscountCode}
-                    disabled={validatingCode || !discountCode.trim()}
-                    variant="outline"
-                  >
-                    {validatingCode ? "Checking..." : "Apply"}
-                  </Button>
-                </div>
-                {discountError && (
-                  <p className="text-sm text-destructive flex items-center gap-1">
-                    <XCircle className="h-4 w-4" />
-                    {discountError}
-                  </p>
-                )}
+              <div className="flex items-center justify-between border-t pt-3">
+                <span className="font-semibold">Due today</span>
+                <span className="font-display text-3xl font-bold leading-none text-primary">
+                  {finalPrice.toFixed(3)}
+                  <span className="ml-1 text-base font-normal text-muted-foreground">KWD</span>
+                </span>
               </div>
-            )}
-
-            {/* Applied Discount Info */}
-            {appliedDiscount && (
-              <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start gap-2">
-                    <CheckCircle2 className="h-5 w-5 text-green-600 mt-0.5" />
-                    <div>
-                      <p className="font-medium text-green-900 dark:text-green-100">
-                        {appliedDiscount.code} Applied
-                      </p>
-                      {appliedDiscount.description && (
-                        <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-                          {appliedDiscount.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={removeDiscount} 
-                    className="h-auto p-1 text-green-700 hover:text-green-900 dark:text-green-300"
-                  >
-                    Remove
-                  </Button>
-                </div>
-                <p className="text-sm text-green-700 dark:text-green-300 ml-7">
-                  {getDurationDescription(appliedDiscount)}
-                </p>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <h4 className="font-semibold flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-green-500" />
-                What Happens After Payment?
-              </h4>
-              <ol className="space-y-2 text-sm text-muted-foreground ml-7">
-                <li className="flex gap-2">
-                  <span className="font-bold text-primary">1.</span>
-                  <span>Instant confirmation via email</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-bold text-primary">2.</span>
-                  <span>Coach assignment within 24 hours</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-bold text-primary">3.</span>
-                  <span>Your coach will contact you to start your program</span>
-                </li>
-                <li className="flex gap-2">
-                  <span className="font-bold text-primary">4.</span>
-                  <span>Access to exclusive Discord community</span>
-                </li>
-              </ol>
             </div>
 
             {/* Payment Error Display */}
@@ -742,7 +564,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
             <Button
               onClick={openConfirm}
               size="lg"
-              className="w-full text-lg h-14 bg-gradient-to-r from-primary to-accent hover:opacity-90"
+              className="w-full h-14 text-lg"
               disabled={processingPayment}
             >
               {processingPayment ? (
@@ -751,16 +573,120 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
                   Redirecting to Tap...
                 </>
               ) : (
-                <>
-                  <CreditCard className="mr-2 h-5 w-5" />
-                  Complete Payment ({finalPrice.toFixed(3)} KWD)
-                </>
+                `Pay ${finalPrice.toFixed(3)} KWD`
               )}
             </Button>
 
             <p className="text-xs text-center text-muted-foreground">
-              Secure payment powered by Tap Payments • All major cards accepted
+              Secure payment powered by Tap Payments
             </p>
+
+            {/* Secondary affordances — kept, but BELOW the CTA so the primary
+                path stays "see price -> pay" (spec D2). */}
+            {!appliedDiscount ? (
+              <details className="group rounded-lg border border-border/60">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium">
+                  Have a promo code?
+                  <span className="text-muted-foreground transition-transform group-open:rotate-180">▾</span>
+                </summary>
+                <div className="space-y-2 px-4 pb-4">
+                  <div className="flex gap-2">
+                    <Input
+                      id="discount-code"
+                      value={discountCode}
+                      onChange={(e) => {
+                        setDiscountCode(e.target.value.toUpperCase());
+                        setDiscountError(null);
+                      }}
+                      placeholder="Enter code"
+                      className={cn("flex-1", discountError && "border-destructive")}
+                      disabled={validatingCode}
+                    />
+                    <Button
+                      onClick={validateDiscountCode}
+                      disabled={validatingCode || !discountCode.trim()}
+                      variant="outline"
+                    >
+                      {validatingCode ? "Checking..." : "Apply"}
+                    </Button>
+                  </div>
+                  {discountError && (
+                    <p className="flex items-center gap-1 text-sm text-destructive">
+                      <XCircle className="h-4 w-4" />
+                      {discountError}
+                    </p>
+                  )}
+                </div>
+              </details>
+            ) : (
+              <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-800 dark:bg-emerald-950/20">
+                <div className="flex items-center gap-2 text-sm text-emerald-900 dark:text-emerald-100">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+                  <span>
+                    <strong>{appliedDiscount.code}</strong> applied — {getDurationDescription(appliedDiscount)}
+                  </span>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={removeDiscount}
+                  className="shrink-0 text-emerald-700 hover:text-emerald-900 dark:text-emerald-300"
+                >
+                  Remove
+                </Button>
+              </div>
+            )}
+
+            {/* Reservation countdown — subtle, below the CTA. */}
+            {paymentDeadline && (
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-xs">
+                  <span className={cn("flex items-center gap-1 text-muted-foreground", isUrgent && "text-orange-500")}>
+                    <Clock className="h-3.5 w-3.5" />
+                    {isUrgent ? "Less than 2 days to secure your spot" : "Reserve your spot"}
+                  </span>
+                  <span className={cn("tabular-nums text-muted-foreground", isUrgent && "font-medium text-orange-500")}>
+                    {timeRemaining}
+                  </span>
+                </div>
+                <Progress value={progressPercentage} className="h-1.5" />
+                <p className="text-[11px] text-muted-foreground">
+                  Deadline: {paymentDeadline.toLocaleDateString('en-US', {
+                    weekday: 'short', month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
+                  })}
+                </p>
+              </div>
+            )}
+
+            {/* Price breakdown — kept as an expandable, not the default view. */}
+            {hasBreakdown && (
+              <details className="group rounded-lg border border-border/60">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-medium">
+                  View price breakdown
+                  <span className="text-muted-foreground transition-transform group-open:rotate-180">▾</span>
+                </summary>
+                <div className="space-y-2 px-4 pb-4">
+                  {billingComponents.map((component) => (
+                    <div key={component.id} className="flex items-center justify-between text-sm">
+                      <span className="flex items-center gap-2">
+                        {component.label}
+                        <Badge
+                          variant={component.component_type === 'base' ? 'default' : 'secondary'}
+                          className="px-1.5 py-0 text-xs"
+                        >
+                          {component.component_type === 'base' ? 'Base' : 'Add-on'}
+                        </Badge>
+                      </span>
+                      <span>{Number(component.amount_kwd).toFixed(3)} KWD</span>
+                    </div>
+                  ))}
+                  <div className="flex items-center justify-between border-t pt-2 text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span>{breakdownTotal.toFixed(3)} KWD/month</span>
+                  </div>
+                </div>
+              </details>
+            )}
           </>
         )}
       </CardContent>

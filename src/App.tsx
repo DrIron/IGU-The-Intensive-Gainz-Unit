@@ -69,10 +69,6 @@ const AccessDebug = lazyWithReload(() => import("./pages/AccessDebug"));
 const EmailConfirmed = lazyWithReload(() => import("./pages/EmailConfirmed"));
 const Waitlist = lazyWithReload(() => import("./pages/Waitlist"));
 const TeamsPage = lazyWithReload(() => import("./pages/TeamsPage"));
-// Onboarding pages
-const MedicalReview = lazyWithReload(() => import("./pages/onboarding/MedicalReview"));
-const AwaitingApproval = lazyWithReload(() => import("./pages/onboarding/AwaitingApproval"));
-const PaymentOnboarding = lazyWithReload(() => import("./pages/onboarding/Payment"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -269,9 +265,13 @@ const App = () => {
 
                   {/* Onboarding routes - allow incomplete onboarding */}
                   <Route path="/onboarding" element={<AuthGuard><OnboardingForm /></AuthGuard>} />
-                  <Route path="/onboarding/medical-review" element={<AuthGuard><MedicalReview /></AuthGuard>} />
-                  <Route path="/onboarding/awaiting-approval" element={<AuthGuard><AwaitingApproval /></AuthGuard>} />
-                  <Route path="/onboarding/payment" element={<AuthGuard><PaymentOnboarding /></AuthGuard>} />
+                  {/* Part D (D3): the post-submit status/payment surfaces are consolidated onto the
+                      canonical dashboard limited-UI (ClientDashboardLayout). These legacy standalone
+                      pages -- still the target of getOnboardingRedirect after submit -- now bounce to
+                      /dashboard so there's ONE design, not two that drift. */}
+                  <Route path="/onboarding/medical-review" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/onboarding/awaiting-approval" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="/onboarding/payment" element={<Navigate to="/dashboard" replace />} />
 
                   {/* Client dashboard - requires complete onboarding */}
                   <Route path="/dashboard" element={<AuthGuard><OnboardingGuard><Dashboard /></OnboardingGuard></AuthGuard>} />

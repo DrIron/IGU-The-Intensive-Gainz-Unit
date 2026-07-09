@@ -11,6 +11,7 @@ import { PaymentButton } from "@/components/PaymentButton";
 import { SubscriptionManagement } from "@/components/SubscriptionManagement";
 import { NewClientOverview } from "./NewClientOverview";
 import { PaymentStatusDashboard } from "@/components/PaymentStatusDashboard";
+import { OnboardingStatusScreen } from "@/components/onboarding/OnboardingStatusScreen";
 import { CancelledSubscriptionCard } from "./CancelledSubscriptionCard";
 import { GracePeriodBanner } from "./GracePeriodBanner";
 import { WelcomeModal } from "./WelcomeModal";
@@ -214,7 +215,7 @@ export function ClientDashboardLayout({
     );
   }
 
-  // 3. isNeedsMedicalReview → Medical review required
+  // 3. isNeedsMedicalReview → calm status screen (Part D)
   if (isNeedsMedicalReview) {
     return (
       <SidebarProvider defaultOpen={false}>
@@ -223,13 +224,7 @@ export function ClientDashboardLayout({
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
-                <Alert className="border-amber-500/50 bg-amber-500/10">
-                  <AlertCircle className="h-4 w-4 text-amber-500" />
-                  <AlertTitle>Medical Review Required</AlertTitle>
-                  <AlertDescription>
-                    Your application requires medical clearance based on your PAR-Q responses. Our team will review your information and contact you shortly. This typically takes 24-48 hours.
-                  </AlertDescription>
-                </Alert>
+                <OnboardingStatusScreen status="needs_medical_review" clientName={profile?.first_name} />
               </div>
             </div>
           </main>
@@ -238,7 +233,7 @@ export function ClientDashboardLayout({
     );
   }
 
-  // 4. isPendingCoachApproval && hasSubscription && subStatus === "pending" → Waiting for coach approval
+  // 4. isPendingCoachApproval && hasSubscription && subStatus === "pending" → calm status screen (Part D)
   if (isPendingCoachApproval && hasSubscription && subStatus === "pending") {
     return (
       <SidebarProvider defaultOpen={false}>
@@ -247,13 +242,7 @@ export function ClientDashboardLayout({
           <main className="flex-1 min-w-0">
             <div className="p-4 md:p-6">
               <div className="max-w-7xl mx-auto">
-                <Alert className="border-blue-500/50 bg-blue-500/10">
-                  <AlertCircle className="h-4 w-4 text-blue-500" />
-                  <AlertTitle>Waiting for Coach Approval</AlertTitle>
-                  <AlertDescription>
-                    Your application is under review by your coach. You'll receive a notification once approved. This typically takes 24-48 hours.
-                  </AlertDescription>
-                </Alert>
+                <OnboardingStatusScreen status="pending_coach_approval" clientName={profile?.first_name} />
               </div>
             </div>
           </main>
@@ -262,17 +251,36 @@ export function ClientDashboardLayout({
     );
   }
 
-  // 5. isPendingPayment && hasSubscription && subStatus === "pending" → Payment required
-  //    Skip if admin has marked this client as payment exempt
+  // 5. isPendingPayment && hasSubscription && subStatus === "pending" → Payment step (D2)
+  //    Skip if admin has marked this client as payment exempt (branch 5b below).
   if (isPendingPayment && hasSubscription && subStatus === "pending" && !profile?.payment_exempt) {
     return (
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-background pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
-            <div className="p-4 md:p-6">
+            <div className="p-4 md:p-6 pb-24 md:pb-8 safe-area-bottom">
               <div className="max-w-7xl mx-auto">
                 <PaymentStatusDashboard userId={user.id} />
+              </div>
+            </div>
+          </main>
+        </div>
+      </SidebarProvider>
+    );
+  }
+
+  // 5b. isPendingPayment + payment_exempt → neutral "you're all set" (never a pay CTA).
+  //     Previously fell through to the generic-error branch; Part D gives it a calm state.
+  if (isPendingPayment && hasSubscription && subStatus === "pending" && profile?.payment_exempt) {
+    return (
+      <SidebarProvider defaultOpen={false}>
+        <div className="flex min-h-screen w-full bg-background pt-[var(--app-top-offset)]">
+          <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} isPendingApproval={true} profile={profile} subscription={subscription} />
+          <main className="flex-1 min-w-0">
+            <div className="p-4 md:p-6">
+              <div className="max-w-7xl mx-auto">
+                <OnboardingStatusScreen status="pending_payment" clientName={profile?.first_name} />
               </div>
             </div>
           </main>
