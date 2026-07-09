@@ -27,12 +27,16 @@ Deno.serve(async (req) => {
       .lte('effective_at', new Date().toISOString());
     if (error) throw error;
 
-    const results = { due: due?.length ?? 0, applied: 0, needs_admin: 0, skipped: 0, errors: [] as string[] };
+    const results = { due: due?.length ?? 0, applied: 0, waiting_for_payment: 0, needs_admin: 0, skipped: 0, errors: [] as string[] };
 
     for (const r of due ?? []) {
+      // CP6: paid-only reconciliation. p_require_paid gates non-exempt applies to a
+      // captured renewal (exempt bypasses). Unpaid due changes stay scheduled and
+      // follow the existing past-due/dunning flow -- no free override.
       const { data, error: applyErr } = await supabase.rpc('apply_subscription_change', {
         p_request_id: r.id,
-        p_reason: 'scheduled_plan_change_cron',
+        p_reason: 'scheduled_plan_change_cron_reconcile',
+        p_require_paid: true,
       });
       if (applyErr) {
         console.error(JSON.stringify({ fn: 'process-plan-changes', request_id: r.id, ok: false, msg: applyErr.message }));
@@ -40,6 +44,7 @@ Deno.serve(async (req) => {
         continue;
       }
       if (data?.applied) results.applied++;
+      else if (data?.reason === 'renewal_not_paid') results.waiting_for_payment++;
       else if (data?.reason === 'old_sub_not_active') results.needs_admin++;
       else results.skipped++;
     }

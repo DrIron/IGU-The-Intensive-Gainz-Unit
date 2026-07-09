@@ -154,6 +154,23 @@ async function applyCapturedPayment(
 
   console.log(JSON.stringify({ fn: "verify-payment", step: "apply_captured", requestId, chargeId }));
 
+  // IDEMPOTENCY FIRST: if this charge is already recorded as paid, short-circuit
+  // before any validation. Critical for CP6 -- a double-fire of a new-price change
+  // renewal would otherwise fail VALIDATION 2 (the second call may compute the old
+  // price once the change is already applied). If it's recorded, it was validated.
+  {
+    const { data: existingPayment } = await supabase
+      .from('subscription_payments')
+      .select('id')
+      .eq('tap_charge_id', chargeId)
+      .eq('status', 'paid')
+      .maybeSingle();
+    if (existingPayment) {
+      console.log(JSON.stringify({ fn: "verify-payment", step: "already_paid", requestId, chargeId, ok: true }));
+      return { success: true, result: 'already_active' };
+    }
+  }
+
   // VALIDATION 1: Status must be CAPTURED
   if (charge.status !== 'CAPTURED') {
     return { 
@@ -182,19 +199,6 @@ async function applyCapturedPayment(
       result: 'currency_mismatch', 
       error: `Expected KWD, got ${charge.currency}` 
     };
-  }
-
-  // IDEMPOTENCY: Check if already paid
-  const { data: existingPayment } = await supabase
-    .from('subscription_payments')
-    .select('id')
-    .eq('tap_charge_id', chargeId)
-    .eq('status', 'paid')
-    .maybeSingle();
-
-  if (existingPayment) {
-    console.log(JSON.stringify({ fn: "verify-payment", step: "already_paid", requestId, chargeId, ok: true }));
-    return { success: true, result: 'already_active' };
   }
 
   const now = new Date();
@@ -662,12 +666,46 @@ serve(async (req) => {
 
     // Process based on status
     if (charge.status === 'CAPTURED') {
-      const expectedAmount = subscription.billing_amount_kwd || subscription.base_price_kwd;
+      // CP6: is a plan change due for this sub? If so the renewal is at the NEW
+      // price and the change applies on THIS capture. Resolve first (fresh price),
+      // then apply-first so the payment lands on the NEW sub. Non-fatal + idempotent:
+      // apply_subscription_change guards on status='scheduled', and a failed apply
+      // must never fail a verified payment (the paid-only cron reconciles).
+      let expectedAmount = subscription.billing_amount_kwd || subscription.base_price_kwd;
+      let activationSubId = subscription.id;
+
+      let dueChange: any = null;
+      try {
+        const { data } = await supabase.rpc('get_due_change_for_subscription', {
+          p_subscription_id: subscription.id,
+        });
+        dueChange = data?.change_id ? data : null;
+      } catch (e) {
+        console.log(JSON.stringify({ fn: "verify-payment", step: "due_change_lookup_error", requestId, ok: false }));
+      }
+
+      if (dueChange && dueChange.payment_exempt !== true) {
+        expectedAmount = Number(dueChange.new_price_kwd);
+        try {
+          const { data: applyRes } = await supabase.rpc('apply_subscription_change', {
+            p_request_id: dueChange.change_id,
+            p_reason: 'applied on renewal payment',
+            p_require_paid: false, // this fn just verified the CAPTURED charge
+          });
+          if (applyRes?.applied && applyRes?.new_subscription_id) {
+            activationSubId = applyRes.new_subscription_id;
+            console.log(JSON.stringify({ fn: "verify-payment", step: "change_applied_on_payment", requestId, chargeId: targetChargeId, change_id: dueChange.change_id, new_subscription_id: activationSubId, ok: true }));
+          }
+        } catch (e) {
+          // Non-fatal: keep the payment. The paid-only cron reconciles this change.
+          console.error(JSON.stringify({ fn: "verify-payment", step: "change_apply_error", requestId, chargeId: targetChargeId, change_id: dueChange.change_id, ok: false }));
+        }
+      }
 
       const result = await applyCapturedPayment(supabase, requestId, {
         chargeId: targetChargeId,
         charge,
-        subscriptionId: subscription.id,
+        subscriptionId: activationSubId,
         userId,
         serviceId: subscription.service_id,
         expectedAmount,
@@ -692,12 +730,12 @@ serve(async (req) => {
         nextBillingDate.setMonth(nextBillingDate.getMonth() + 1);
 
         return new Response(
-          JSON.stringify({ 
-            success: true, 
-            status: 'active', 
-            subscriptionId: subscription.id,
+          JSON.stringify({
+            success: true,
+            status: 'active',
+            subscriptionId: activationSubId, // CP6: the (possibly new) active sub
             nextBillingDate: nextBillingDate.toISOString(),
-            message: 'Payment verified and subscription activated!' 
+            message: 'Payment verified and subscription activated!'
           }),
           { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );

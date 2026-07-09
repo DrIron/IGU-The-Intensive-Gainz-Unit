@@ -181,11 +181,27 @@ serve(async (req) => {
 
     console.log(JSON.stringify({ fn: "create-tap-payment", step: "price_resolved", ok: true, service_id: serviceId, coach_level: coachLevelAtPurchase, level_priced: levelPrice != null, base_price_kwd: basePrice }));
 
-    // Server-side discount validation - NEVER trust client-side values
+    // CP6: if a plan change is due for this sub, bill the NEW tier price (re-derived
+    // server-side by the resolver) and stamp the change id so verify-payment applies
+    // the change on capture. Exempt -> no charge (resolver returns payment_exempt).
+    let changeRequestId: string | null = null;
+    if (assignedSub?.id) {
+      const { data: dueChange } = await supabase.rpc('get_due_change_for_subscription', {
+        p_subscription_id: assignedSub.id,
+      });
+      if (dueChange?.change_id && dueChange.payment_exempt !== true) {
+        billingAmount = Number(dueChange.new_price_kwd);
+        changeRequestId = dueChange.change_id;
+        console.log(JSON.stringify({ fn: "create-tap-payment", step: "change_due_reprice", ok: true, change_id: changeRequestId, new_price_kwd: billingAmount }));
+      }
+    }
+
+    // Server-side discount validation - NEVER trust client-side values.
+    // Discounts do NOT carry across a plan change (CP6b decision) -> skip when due.
     let discountCodeData = null;
     let validatedCodeId: string | null = null;
 
-    if (discountCode) {
+    if (discountCode && !changeRequestId) {
       console.log(JSON.stringify({ fn: "create-tap-payment", step: "discount_validation", ok: true, service_id: serviceId }));
 
       // First check for a valid pending discount application (not expired, not consumed)
@@ -298,6 +314,8 @@ serve(async (req) => {
           discount_code_id: validatedCodeId || '',
           base_price_kwd: basePrice.toString(),
           billing_amount_kwd: billingAmount.toString(),
+          // CP6: ties this renewal capture to the due plan change (verify-payment applies it).
+          change_request_id: changeRequestId || '',
         },
         receipt: {
           email: true,
