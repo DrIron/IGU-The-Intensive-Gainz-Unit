@@ -138,6 +138,21 @@ serve(async (req) => {
         .update({ status: 'cancelled' })
         .eq('id', userId);
       if (profileUpdateError) throw profileUpdateError;
+
+      // Cancel-orphan retrofit (change-plan CP1): a pending sub is terminated
+      // immediately, so its coach relationship (created by assign_coach_atomic at
+      // onboarding) must be ended and any program assignment detached -- otherwise
+      // the coach keeps a phantom client on their roster/capacity. new=null does
+      // exactly that. Active cancel-at-period-end is finalized later by
+      // cleanup-cancelled-accounts -> delete-account (cascade), so we skip it here.
+      const { error: linkErr } = await supabase.rpc('migrate_subscription_links', {
+        p_old_subscription_id: subscription.id,
+        p_new_subscription_id: null,
+      });
+      if (linkErr) {
+        // Non-fatal: the sub is already cancelled. Log and continue.
+        console.error('migrate_subscription_links (cancel cleanup) failed:', linkErr);
+      }
     }
 
     console.log(`Subscription ${isPending ? 'cancelled immediately' : 'will be deleted at period end'}: ${periodEnd}`);
