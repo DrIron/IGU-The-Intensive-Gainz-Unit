@@ -16,6 +16,7 @@ import { SecurityChecklist } from "@/components/admin/SecurityChecklist";
 import { PHIAccessAuditLog } from "@/components/admin/PHIAccessAuditLog";
 import { PricingPayoutsPage } from "@/components/admin/PricingPayoutsPage";
 import { AdminBillingManager } from "@/components/admin/AdminBillingManager";
+import { PlanChangeRequestsPanel } from "@/components/admin/PlanChangeRequestsPanel";
 import LaunchTestChecklist from "@/pages/admin/LaunchTestChecklist";
 import { Badge } from "@/components/ui/badge";
 import { AdminErrorBoundary } from "@/components/admin/AdminErrorBoundary";
@@ -107,7 +108,12 @@ export function AdminDashboardLayout({
       case "discount-codes":
         return <DiscountSection />;
       case "billing":
-        return <AdminBillingManager />;
+        return (
+          <>
+            <PlanChangeRequestsPanel />
+            <AdminBillingManager />
+          </>
+        );
       case "pricing-payouts":
       case "plans-services":
         return <PricingPayoutsPage />;
