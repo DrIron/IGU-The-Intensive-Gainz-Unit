@@ -148,9 +148,10 @@ async function applyCapturedPayment(
     serviceId: string;
     expectedAmount?: number;
     subscription: any;
+    changeApplied?: boolean;
   }
 ): Promise<{ success: boolean; result: string; error?: string }> {
-  const { chargeId, charge, subscriptionId, userId, serviceId, expectedAmount, subscription } = params;
+  const { chargeId, charge, subscriptionId, userId, serviceId, expectedAmount, subscription, changeApplied } = params;
 
   console.log(JSON.stringify({ fn: "verify-payment", step: "apply_captured", requestId, chargeId }));
 
@@ -279,7 +280,10 @@ async function applyCapturedPayment(
   const basePrice = subscription.base_price_kwd || parseFloat(charge.metadata?.base_price_kwd || '0');
   const billingAmount = subscription.billing_amount_kwd || charge.amount;
   
-  if (discountCodeId && basePrice > billingAmount) {
+  // CP6b: discounts do NOT carry across a plan change. When this payment applied a
+  // change, the new tier is charged at list rate -- skip redemption so a stale
+  // old-sub discount can't fire against the new sub.
+  if (!changeApplied && discountCodeId && basePrice > billingAmount) {
     try {
       const savedAmount = basePrice - billingAmount;
       
@@ -710,6 +714,7 @@ serve(async (req) => {
         serviceId: subscription.service_id,
         expectedAmount,
         subscription,
+        changeApplied: activationSubId !== subscription.id, // CP6b: skip discount carry
       });
 
       // Update payment event with result

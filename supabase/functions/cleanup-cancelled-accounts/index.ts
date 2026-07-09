@@ -40,6 +40,15 @@ serve(async (req) => {
 
     for (const subscription of expiredSubscriptions || []) {
       try {
+        // CP6b: cancel any scheduled plan change against this expiring sub before the
+        // hard delete (delete-account also cascades via the FK; this keeps the admin
+        // queue clean for the window between period-end and deletion). Non-fatal.
+        await supabase
+          .from('subscription_change_requests')
+          .update({ status: 'cancelled', block_reason: 'current subscription expired' })
+          .eq('current_subscription_id', subscription.id)
+          .eq('status', 'scheduled');
+
         console.log(`Hard deleting account for user ${subscription.user_id}`);
 
         // Use delete-account function to handle all cleanup

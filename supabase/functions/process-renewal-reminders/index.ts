@@ -110,6 +110,24 @@ Deno.serve(async (req) => {
         const serviceData = sub.services as any;
         const serviceName = serviceData?.name || "your coaching program";
         const price = serviceData?.price_kwd;
+
+        // CP6b: if a plan change is due at this renewal, the reminder reflects the
+        // TARGET plan + new price (the renewal is billed at the new tier). Purely
+        // presentational; dedup key unchanged.
+        let displayName = serviceName;
+        let displayPrice: number | null = price ?? null;
+        let changeDue = false;
+        try {
+          const { data: dueChange } = await supabase.rpc("get_due_change_for_subscription", {
+            p_subscription_id: sub.id,
+          });
+          if (dueChange?.change_id) {
+            changeDue = true;
+            displayName = dueChange.target_service_name || serviceName;
+            displayPrice = dueChange.payment_exempt ? null : Number(dueChange.new_price_kwd);
+          }
+        } catch (_e) { /* no change -> standard reminder */ }
+
         const renewalDate = billingDate.toLocaleDateString("en-US", {
           weekday: "long",
           month: "long",
@@ -118,16 +136,20 @@ Deno.serve(async (req) => {
         const billingUrl = AUTH_REDIRECT_URLS.billingPay;
 
         const detailItems = [
-          { label: 'Program', value: serviceName },
+          { label: 'Program', value: displayName },
           { label: 'Renewal Date', value: renewalDate },
         ];
-        if (price) {
-          detailItems.push({ label: 'Amount', value: `${price} KWD` });
+        if (displayPrice) {
+          detailItems.push({ label: 'Amount', value: `${displayPrice} KWD` });
         }
+
+        const introParagraph = changeDue
+          ? paragraph(`Heads-up -- your plan changes to <strong>${displayName}</strong> at your renewal on <strong>${renewalDate}</strong>${displayPrice ? `. You'll renew at <strong>${displayPrice} KWD</strong>` : ''}.`)
+          : paragraph(`Just a heads-up -- your <strong>${displayName}</strong> subscription will renew on <strong>${renewalDate}</strong>.`);
 
         const content = [
           greeting(firstName),
-          paragraph(`Just a heads-up -- your <strong>${serviceName}</strong> subscription will renew on <strong>${renewalDate}</strong>.`),
+          introParagraph,
           detailCard('Renewal Details', detailItems),
           paragraph("No action is needed if you'd like to continue -- your payment will be processed automatically. If you need to update your payment method, you can do so from your billing page."),
           ctaButton('View Billing Details', billingUrl),
@@ -136,13 +158,13 @@ Deno.serve(async (req) => {
 
         const html = wrapInLayout({
           content,
-          preheader: `Your ${serviceName} subscription renews on ${renewalDate}${price ? ` -- ${price} KWD` : ''}.`,
+          preheader: `Your ${displayName} subscription renews on ${renewalDate}${displayPrice ? ` -- ${displayPrice} KWD` : ''}.`,
         });
 
         const result = await sendEmail({
           from: EMAIL_FROM_BILLING,
           to: profile.email,
-          subject: `Upcoming renewal: ${serviceName}`,
+          subject: `Upcoming renewal: ${displayName}`,
           html,
           replyTo: REPLY_TO_SUPPORT,
         });

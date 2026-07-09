@@ -131,6 +131,19 @@ serve(async (req) => {
       .eq('id', subscription.id);
     if (subUpdateError) throw subUpdateError;
 
+    // CP6b: a scheduled plan change against a cancelling sub is moot -- cancel it so
+    // it can never apply against a dead current_subscription_id and leaves the admin
+    // review queue. Applies to both the immediate (pending) and period-end (active)
+    // cancel paths -- the client is leaving either way. Non-fatal.
+    const { error: changeCancelError } = await supabase
+      .from('subscription_change_requests')
+      .update({ status: 'cancelled', block_reason: 'current subscription cancelled' })
+      .eq('current_subscription_id', subscription.id)
+      .eq('status', 'scheduled');
+    if (changeCancelError) {
+      console.error('Failed to cancel scheduled plan change on sub cancel:', changeCancelError);
+    }
+
     // Update profile status for pending cancellations
     if (isPending) {
       const { error: profileUpdateError } = await supabase
