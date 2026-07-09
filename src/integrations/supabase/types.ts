@@ -7516,6 +7516,89 @@ export type Database = {
           },
         ]
       }
+      subscription_change_requests: {
+        Row: {
+          applied_at: string | null
+          applied_subscription_id: string | null
+          block_reason: string | null
+          coach_preference: string
+          current_subscription_id: string
+          effective_at: string
+          focus_areas: string[]
+          id: string
+          requested_at: string
+          requested_coach_id: string | null
+          status: string
+          target_price_kwd: number | null
+          target_service_id: string
+          target_team_id: string | null
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_subscription_id?: string | null
+          block_reason?: string | null
+          coach_preference?: string
+          current_subscription_id: string
+          effective_at: string
+          focus_areas?: string[]
+          id?: string
+          requested_at?: string
+          requested_coach_id?: string | null
+          status?: string
+          target_price_kwd?: number | null
+          target_service_id: string
+          target_team_id?: string | null
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_subscription_id?: string | null
+          block_reason?: string | null
+          coach_preference?: string
+          current_subscription_id?: string
+          effective_at?: string
+          focus_areas?: string[]
+          id?: string
+          requested_at?: string
+          requested_coach_id?: string | null
+          status?: string
+          target_price_kwd?: number | null
+          target_service_id?: string
+          target_team_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_change_requests_current_subscription_id_fkey"
+            columns: ["current_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_change_requests_applied_subscription_id_fkey"
+            columns: ["applied_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_change_requests_target_service_id_fkey"
+            columns: ["target_service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_change_requests_target_team_id_fkey"
+            columns: ["target_team_id"]
+            isOneToOne: false
+            referencedRelation: "coach_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscriptions: {
         Row: {
           activation_override_by: string | null
