@@ -43,8 +43,26 @@ Deno.serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body?.action;
 
+    if (action === 'apply') {
+      // Admin/internal single apply (the process-plan-changes cron applies via the
+      // RPC directly; this is for admin manual + future verify-payment reuse).
+      // apply_subscription_change is idempotent. Admin only.
+      const requestId = body?.requestId;
+      if (!requestId) return json({ error: 'Missing requestId' }, 400);
+      const { data: roles } = await admin.from('user_roles').select('role').eq('user_id', user.id);
+      if (!roles?.some((r) => r.role === 'admin')) return json({ error: 'Admin only' }, 403);
+      const { data, error } = await admin.rpc('apply_subscription_change', {
+        p_request_id: requestId,
+        p_reason: 'manual_admin_apply',
+      });
+      if (error) {
+        console.error(JSON.stringify({ fn: 'change-service', step: 'apply', ok: false, msg: error.message }));
+        return json({ error: 'Apply failed' }, 500);
+      }
+      return json({ success: true, result: data });
+    }
+
     if (action !== 'schedule') {
-      // `apply` is CP3.
       return json({ error: 'Unsupported action' }, 400);
     }
 

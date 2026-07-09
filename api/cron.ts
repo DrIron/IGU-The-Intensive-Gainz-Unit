@@ -9,6 +9,7 @@ const ALLOWED_FUNCTIONS = [
   'process-abandoned-onboarding',
   'process-inactive-client-alerts',
   'process-lead-nurture',
+  'process-plan-changes',
 ] as const;
 
 export default async function handler(req: Request): Promise<Response> {
