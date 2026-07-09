@@ -9,12 +9,12 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { StepIndicator } from "@/components/onboarding/StepIndicator";
 import { GoalsStep } from "@/components/onboarding/GoalsStep";
+import { TeamStep } from "@/components/onboarding/TeamStep";
 import { Dumbbell, Loader2, CheckCircle2, ArrowRight, UserCheck, CalendarClock } from "lucide-react";
 import { CLIENT_PRICE_PER_LEVEL, type ProfessionalLevel } from "@/auth/roles";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { format } from "date-fns";
 
-const TEAM_TYPES = new Set(["team"]);
 const ONE_TO_ONE_WITH_GOALS = ["1:1 Online", "1:1 Hybrid", "1:1 In-Person"];
 
 interface CurrentSub {
@@ -70,12 +70,27 @@ export default function ChangePlan() {
     plan_name: string;
     focus_areas: string[];
     coach_preference_type: "keep" | "auto";
+    selected_team_id: string | null;
+    accepts_team_program: boolean;
+    understands_no_nutrition: boolean;
+    accepts_lower_body_only: boolean;
   }>({
-    defaultValues: { plan_name: "", focus_areas: [], coach_preference_type: "keep" },
+    defaultValues: {
+      plan_name: "",
+      focus_areas: [],
+      coach_preference_type: "keep",
+      selected_team_id: null,
+      accepts_team_program: false,
+      understands_no_nutrition: false,
+      accepts_lower_body_only: false,
+    },
   });
 
   const selectedPlanName = form.watch("plan_name");
   const coachPref = form.watch("coach_preference_type");
+  const selectedTeamId = form.watch("selected_team_id");
+  const acceptsTeam = form.watch("accepts_team_program");
+  const understandsNoNutrition = form.watch("understands_no_nutrition");
 
   const hasFetched = useRef(false);
   const load = useCallback(async () => {
@@ -141,8 +156,10 @@ export default function ChangePlan() {
         .select("id, name, slug, type, price_kwd")
         .eq("is_active", true)
         .order("price_kwd");
+      // Targets: all active services except the current 1:1 tier. Team services
+      // stay (a Team Plan client can switch teams -> re-pick Team Plan + new team).
       setServices(
-        (svcs ?? []).filter((s) => !TEAM_TYPES.has(s.type) && s.id !== sub.service_id) as TargetService[],
+        (svcs ?? []).filter((s) => s.type === "team" || s.id !== sub.service_id) as TargetService[],
       );
 
       // Prefill focus areas from the last submission (change may re-confirm them).
@@ -171,17 +188,20 @@ export default function ChangePlan() {
 
   const targetService = services.find((s) => s.name === selectedPlanName) || null;
   const isOneToOneTarget = ONE_TO_ONE_WITH_GOALS.includes(selectedPlanName);
+  const isTeamTarget = targetService?.type === "team";
 
-  // 1:1 -> 1:1: plan -> [goals] -> coach -> confirm. (Gym/details re-ask is a
-  // later refinement; CP2 keeps focus + coach.)
+  // Target-driven steps:
+  //   -> 1:1:  plan -> [goals] -> coach -> confirm
+  //   -> Team: plan -> team (pick team + acks) -> confirm (head coach of the team)
   const steps = useMemo(
     () => [
       { id: "plan", label: "New plan" },
       ...(isOneToOneTarget ? [{ id: "goals", label: "Goals" }] : []),
-      { id: "coach", label: "Coach" },
+      ...(isTeamTarget ? [{ id: "team", label: "Your team" }] : []),
+      ...(isOneToOneTarget ? [{ id: "coach", label: "Coach" }] : []),
       { id: "confirm", label: "Confirm" },
     ],
-    [isOneToOneTarget],
+    [isOneToOneTarget, isTeamTarget],
   );
   const stepId = steps[currentStep]?.id;
 
@@ -201,9 +221,18 @@ export default function ChangePlan() {
     return format(nbd, "d MMM yyyy");
   }, [current]);
 
+  // Selected team's name (for the confirm summary; TeamStep manages the picking).
+  const [teamName, setTeamName] = useState<string | null>(null);
+  useEffect(() => {
+    if (!selectedTeamId) { setTeamName(null); return; }
+    supabase.from("coach_teams").select("name").eq("id", selectedTeamId).maybeSingle()
+      .then(({ data }) => setTeamName(data?.name ?? null));
+  }, [selectedTeamId]);
+
   const canNext = () => {
     if (stepId === "plan") return !!targetService;
     if (stepId === "goals") return (form.getValues("focus_areas") || []).length > 0;
+    if (stepId === "team") return !!selectedTeamId && acceptsTeam && understandsNoNutrition;
     return true;
   };
 
@@ -215,7 +244,8 @@ export default function ChangePlan() {
         body: {
           action: "schedule",
           targetServiceId: targetService.id,
-          coachPreference: coachPref,
+          targetTeamId: isTeamTarget ? selectedTeamId : null,
+          coachPreference: isTeamTarget ? "auto" : coachPref,
           focusAreas: form.getValues("focus_areas") || [],
         },
       });
@@ -389,6 +419,16 @@ export default function ChangePlan() {
 
                 {stepId === "goals" && <GoalsStep form={form as any} />}
 
+                {stepId === "team" && (
+                  <div className="space-y-4">
+                    <div>
+                      <h2 className="text-2xl font-bold mb-2">Pick your team</h2>
+                      <p className="text-muted-foreground">You'll train with the team's head coach. Confirm the acknowledgments to continue.</p>
+                    </div>
+                    <TeamStep form={form as any} planName={selectedPlanName} />
+                  </div>
+                )}
+
                 {stepId === "coach" && (
                   <div className="space-y-4">
                     <div>
@@ -441,7 +481,11 @@ export default function ChangePlan() {
                         </div>
                         <div className="flex justify-between">
                           <span className="text-muted-foreground">Coach</span>
-                          <span className="font-medium">{coachPref === "keep" ? `Keeping ${current.coach_name || "your coach"}` : "New match"}</span>
+                          <span className="font-medium">
+                            {isTeamTarget
+                              ? `Head coach${teamName ? ` of ${teamName}` : ""}`
+                              : coachPref === "keep" ? `Keeping ${current.coach_name || "your coach"}` : "New match"}
+                          </span>
                         </div>
                       </div>
                     </div>

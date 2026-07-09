@@ -67,6 +67,7 @@ Deno.serve(async (req) => {
     }
 
     const targetServiceId: string | undefined = body?.targetServiceId;
+    const targetTeamIdIn: string | null = body?.targetTeamId ?? null;
     const coachPreference: string = ['auto', 'keep', 'specific'].includes(body?.coachPreference)
       ? body.coachPreference
       : 'auto';
@@ -89,7 +90,7 @@ Deno.serve(async (req) => {
     // 1) Current ACTIVE subscription (with service info).
     const { data: currentSub } = await admin
       .from('subscriptions')
-      .select('id, user_id, service_id, coach_id, status, next_billing_date, coach_level_at_purchase, services(id, slug, type, name)')
+      .select('id, user_id, service_id, coach_id, team_id, status, next_billing_date, coach_level_at_purchase, services(id, slug, type, name)')
       .eq('user_id', clientId)
       .eq('status', 'active')
       .order('created_at', { ascending: false })
@@ -106,14 +107,23 @@ Deno.serve(async (req) => {
       .maybeSingle();
     if (!targetService) return json({ error: 'Target plan not found' }, 400);
 
-    const currentType = (currentSub as any).services?.type;
     const currentName = (currentSub as any).services?.name;
+    const isTeamTarget = targetService.type === 'team';
 
-    // 3) Scope (CP2 = 1:1 <-> 1:1). Team transitions land in CP4.
-    if (currentType === 'team' || targetService.type === 'team') {
-      return json({ error: 'Team plan changes are coming soon.', code: 'out_of_scope' }, 400);
+    // 3) Scope: all transitions in (1:1<->1:1, Team<->1:1, Team<->Team). A team
+    //    target picks a team (target_team_id); its head coach is assigned at apply.
+    let targetTeamId: string | null = null;
+    if (isTeamTarget) {
+      if (!targetTeamIdIn) return json({ error: 'Please pick a team.', code: 'team_required' }, 400);
+      const { data: team } = await admin
+        .from('coach_teams').select('id, is_active').eq('id', targetTeamIdIn).maybeSingle();
+      if (!team || team.is_active !== true) return json({ error: 'That team is unavailable.', code: 'team_invalid' }, 400);
+      targetTeamId = targetTeamIdIn;
     }
-    if (targetService.id === currentSub.service_id) {
+
+    // No-op: same service AND (for team) same team.
+    const sameTeam = (targetTeamId ?? null) === ((currentSub as any).team_id ?? null);
+    if (targetService.id === currentSub.service_id && sameTeam) {
       return json({ error: "You're already on this plan.", code: 'no_op' }, 400);
     }
 
@@ -164,9 +174,13 @@ Deno.serve(async (req) => {
     const appliesAtNextPayment = !nbd || nbd <= now;
     const effectiveAt = appliesAtNextPayment ? now.toISOString() : nbd!.toISOString();
 
-    // 9) Write the request (current sub untouched). 'keep' snapshots the current coach.
-    const requestedCoachId =
-      coachPreference === 'keep' ? currentSub.coach_id
+    // 9) Write the request (current sub untouched). A team target takes the team's
+    //    head coach (assigned at apply), so coach preference is forced to auto.
+    //    Otherwise 'keep' snapshots the current coach.
+    const effectiveCoachPref = isTeamTarget ? 'auto' : coachPreference;
+    const requestedCoachId = isTeamTarget
+      ? null
+      : coachPreference === 'keep' ? currentSub.coach_id
       : coachPreference === 'specific' ? requestedCoachIdIn
       : null;
 
@@ -176,8 +190,8 @@ Deno.serve(async (req) => {
         user_id: clientId,
         current_subscription_id: currentSub.id,
         target_service_id: targetServiceId,
-        target_team_id: null,
-        coach_preference: coachPreference,
+        target_team_id: targetTeamId,
+        coach_preference: effectiveCoachPref,
         requested_coach_id: requestedCoachId,
         focus_areas: focusAreas,
         target_price_kwd: isExempt ? null : preview?.client_price ?? null,
@@ -212,7 +226,8 @@ Deno.serve(async (req) => {
       paymentExempt: isExempt,
       effectiveAt,
       appliesAtNextPayment,
-      coachPreference,
+      coachPreference: effectiveCoachPref,
+      isTeamTarget,
     });
   } catch (error) {
     console.error(JSON.stringify({

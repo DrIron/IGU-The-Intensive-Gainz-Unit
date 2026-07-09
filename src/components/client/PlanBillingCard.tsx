@@ -56,9 +56,8 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
   const [cancellingChange, setCancellingChange] = useState(false);
 
   const isActive = subscription?.status === "active";
-  const isTeamPlan = subscription?.services?.type === "team";
-  // CP2 scope = 1:1<->1:1; hide the entry for team plans (Team transitions are CP4).
-  const canChangePlan = isActive && !isTeamPlan;
+  // CP4: all transitions supported (1:1<->1:1, Team<->1:1, Team<->Team).
+  const canChangePlan = isActive;
 
   const loadScheduledChange = useCallback(async () => {
     if (!subscription?.user_id) return;
