@@ -18,8 +18,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { MoreVertical, Calendar, CreditCard, Package, Loader2 } from "lucide-react";
+import { MoreVertical, Calendar, CreditCard, Package, Loader2, CalendarClock, ArrowRight, RefreshCw } from "lucide-react";
 import { format } from "date-fns";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -43,9 +44,66 @@ interface PlanBillingCardProps {
 
 export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCardProps) {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [showCancelDialog, setShowCancelDialog] = useState(false);
   const [cancelling, setCancelling] = useState(false);
   const [addons, setAddons] = useState<SubscriptionAddon[]>([]);
+  // Change-plan (CP2): one scheduled change at a time. If one exists, show its
+  // summary + cancel instead of the "Change plan" entry.
+  const [scheduledChange, setScheduledChange] = useState<
+    { id: string; targetName: string; targetPriceKwd: number | null; effectiveAt: string } | null
+  >(null);
+  const [cancellingChange, setCancellingChange] = useState(false);
+
+  const isActive = subscription?.status === "active";
+  const isTeamPlan = subscription?.services?.type === "team";
+  // CP2 scope = 1:1<->1:1; hide the entry for team plans (Team transitions are CP4).
+  const canChangePlan = isActive && !isTeamPlan;
+
+  const loadScheduledChange = useCallback(async () => {
+    if (!subscription?.user_id) return;
+    const { data: req } = await supabase
+      .from("subscription_change_requests")
+      .select("id, target_service_id, target_price_kwd, effective_at")
+      .eq("user_id", subscription.user_id)
+      .eq("status", "scheduled")
+      .maybeSingle();
+    if (!req) {
+      setScheduledChange(null);
+      return;
+    }
+    const { data: svc } = await supabase
+      .from("services").select("name").eq("id", req.target_service_id).maybeSingle();
+    setScheduledChange({
+      id: req.id,
+      targetName: svc?.name ?? "New plan",
+      targetPriceKwd: req.target_price_kwd,
+      effectiveAt: req.effective_at,
+    });
+  }, [subscription?.user_id]);
+
+  useEffect(() => {
+    loadScheduledChange();
+  }, [loadScheduledChange]);
+
+  const handleCancelScheduledChange = async () => {
+    if (!scheduledChange) return;
+    setCancellingChange(true);
+    try {
+      // RLS: owner may flip their own scheduled -> cancelled.
+      const { error } = await supabase
+        .from("subscription_change_requests")
+        .update({ status: "cancelled" })
+        .eq("id", scheduledChange.id);
+      if (error) throw error;
+      toast({ title: "Change cancelled", description: "Your plan stays the same." });
+      setScheduledChange(null);
+    } catch (error) {
+      toast({ title: "Couldn't cancel", description: sanitizeErrorForUser(error), variant: "destructive" });
+    } finally {
+      setCancellingChange(false);
+    }
+  };
 
   const handleCancelSubscription = async () => {
     if (!subscription?.user_id) {
@@ -183,6 +241,11 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
+                  {canChangePlan && !scheduledChange && (
+                    <DropdownMenuItem onClick={() => navigate("/change-plan")}>
+                      Change plan
+                    </DropdownMenuItem>
+                  )}
                   <DropdownMenuItem onClick={() => setShowCancelDialog(true)} className="text-destructive">
                     Cancel Subscription
                   </DropdownMenuItem>
@@ -254,6 +317,44 @@ export function PlanBillingCard({ subscription, onManageBilling }: PlanBillingCa
             <Calendar className="h-4 w-4" aria-hidden="true" />
             <span>Next Billing: {formatNextBilling()}</span>
           </div>
+
+          {/* Scheduled plan change (CP2): summary + cancel, in place of the entry. */}
+          {scheduledChange ? (
+            <div className="rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+              <div className="flex items-center gap-2 text-sm font-medium">
+                <CalendarClock className="h-4 w-4 text-primary" aria-hidden="true" />
+                Plan change scheduled
+              </div>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-muted-foreground">{subscription?.services?.name}</span>
+                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden="true" />
+                <span className="font-medium">{scheduledChange.targetName}</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Effective {format(new Date(scheduledChange.effectiveAt), "d MMM yyyy")}
+                {scheduledChange.targetPriceKwd != null && ` · ${scheduledChange.targetPriceKwd} KWD/month`}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full"
+                onClick={handleCancelScheduledChange}
+                disabled={cancellingChange}
+              >
+                {cancellingChange ? (
+                  <><RefreshCw className="h-4 w-4 mr-2 animate-spin" aria-hidden="true" />Cancelling…</>
+                ) : (
+                  "Cancel scheduled change"
+                )}
+              </Button>
+            </div>
+          ) : canChangePlan ? (
+            <Button variant="outline" className="w-full" onClick={() => navigate("/change-plan")}>
+              <RefreshCw className="h-4 w-4 mr-2" aria-hidden="true" />
+              Change plan
+            </Button>
+          ) : null}
+
           <Button className="w-full" onClick={onManageBilling}>
             <CreditCard className="h-4 w-4 mr-2" aria-hidden="true" />
             Manage Billing

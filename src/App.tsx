@@ -43,6 +43,7 @@ const ClientNutrition = lazyWithReload(() => import("./pages/ClientNutrition"));
 const PaymentStatus = lazyWithReload(() => import("./pages/PaymentStatus"));
 const PaymentReturn = lazyWithReload(() => import("./pages/PaymentReturn"));
 const BillingPayment = lazyWithReload(() => import("./pages/BillingPayment"));
+const ChangePlan = lazyWithReload(() => import("./pages/ChangePlan"));
 const PendingClientsPage = lazyWithReload(() => import("./pages/coach/PendingClientsPage"));
 const ClientDiagnostics = lazyWithReload(() => import("./pages/admin/ClientDiagnostics"));
 const EmailLog = lazyWithReload(() => import("./pages/admin/EmailLog"));
@@ -106,6 +107,7 @@ const ClientMobileNavGlobal = memo(function ClientMobileNavGlobal() {
     "/educational-videos",
     "/account",
     "/billing",
+    "/change-plan",
     "/payment-status",
     "/payment-return",
     "/services/addons",
@@ -308,6 +310,9 @@ const App = () => {
                   <Route path="/payment-status" element={<AuthGuard><PaymentStatus /></AuthGuard>} />
                   <Route path="/payment-return" element={<AuthGuard><PaymentReturn /></AuthGuard>} />
                   <Route path="/billing/pay" element={<AuthGuard><BillingPayment /></AuthGuard>} />
+                  {/* Change-plan flow (CP2): active client from billing schedules a plan change.
+                      Self-guards on an active sub (redirects others to /billing/pay). */}
+                  <Route path="/change-plan" element={<AuthGuard><ChangePlan /></AuthGuard>} />
                   <Route path="/educational-videos" element={<Navigate to="/learn?tab=videos" replace />} />
                   <Route path="/coach/pending-clients" element={<RoleProtectedRoute requiredRole="coach"><PendingClientsPage /></RoleProtectedRoute>} />
                   <Route path="/coach/content-assignments" element={<RoleProtectedRoute requiredRole="coach"><CoachContentAssignments /></RoleProtectedRoute>} />
