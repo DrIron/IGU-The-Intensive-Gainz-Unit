@@ -12,6 +12,31 @@ export type Database = {
   __InternalSupabase: {
     PostgrestVersion: "14.1"
   }
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
+  }
   public: {
     Tables: {
       activity_techniques: {
@@ -679,10 +704,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "care_team_assignments_added_by_fkey"
+            foreignKeyName: "care_team_assignments_added_by_public_fk"
             columns: ["added_by"]
             isOneToOne: false
-            referencedRelation: "profiles_legacy"
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "care_team_assignments_added_by_public_fk"
+            columns: ["added_by"]
+            isOneToOne: false
+            referencedRelation: "profiles_public"
             referencedColumns: ["id"]
           },
           {
@@ -693,13 +725,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "care_team_assignments_client_id_fkey"
-            columns: ["client_id"]
-            isOneToOne: false
-            referencedRelation: "profiles_legacy"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "care_team_assignments_client_profiles_public_fk"
             columns: ["client_id"]
             isOneToOne: false
@@ -725,13 +750,6 @@ export type Database = {
             columns: ["staff_user_id"]
             isOneToOne: false
             referencedRelation: "profiles_public"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "care_team_assignments_staff_user_id_fkey"
-            columns: ["staff_user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles_legacy"
             referencedColumns: ["id"]
           },
           {
@@ -1554,7 +1572,15 @@ export type Database = {
           subrole_slug?: string
           years_of_experience?: number | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "coach_applications_subrole_slug_fkey"
+            columns: ["subrole_slug"]
+            isOneToOne: false
+            referencedRelation: "subrole_definitions"
+            referencedColumns: ["slug"]
+          },
+        ]
       }
       coach_change_requests: {
         Row: {
@@ -1696,6 +1722,8 @@ export type Database = {
           edited_at: string | null
           id: string
           message: string
+          pinned_at: string | null
+          pinned_by: string | null
           read_by: string[]
           sender_id: string
         }
@@ -1706,6 +1734,8 @@ export type Database = {
           edited_at?: string | null
           id?: string
           message: string
+          pinned_at?: string | null
+          pinned_by?: string | null
           read_by?: string[]
           sender_id: string
         }
@@ -1716,44 +1746,10 @@ export type Database = {
           edited_at?: string | null
           id?: string
           message?: string
+          pinned_at?: string | null
+          pinned_by?: string | null
           read_by?: string[]
           sender_id?: string
-        }
-        Relationships: []
-      }
-      contextual_comments: {
-        Row: {
-          author_id: string
-          client_id: string
-          comment: string
-          created_at: string
-          deleted_at: string | null
-          edited_at: string | null
-          id: string
-          object_id: string
-          object_type: string
-        }
-        Insert: {
-          author_id: string
-          client_id: string
-          comment: string
-          created_at?: string
-          deleted_at?: string | null
-          edited_at?: string | null
-          id?: string
-          object_id: string
-          object_type: string
-        }
-        Update: {
-          author_id?: string
-          client_id?: string
-          comment?: string
-          created_at?: string
-          deleted_at?: string | null
-          edited_at?: string | null
-          id?: string
-          object_id?: string
-          object_type?: string
         }
         Relationships: []
       }
@@ -1832,32 +1828,6 @@ export type Database = {
             columns: ["client_id"]
             isOneToOne: false
             referencedRelation: "profiles_public"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      coach_gyms: {
-        Row: {
-          coach_user_id: string
-          created_at: string
-          gym_id: string
-        }
-        Insert: {
-          coach_user_id: string
-          created_at?: string
-          gym_id: string
-        }
-        Update: {
-          coach_user_id?: string
-          created_at?: string
-          gym_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "coach_gyms_gym_id_fkey"
-            columns: ["gym_id"]
-            isOneToOne: false
-            referencedRelation: "gyms"
             referencedColumns: ["id"]
           },
         ]
@@ -2049,6 +2019,32 @@ export type Database = {
           video_url?: string | null
         }
         Relationships: []
+      }
+      coach_gyms: {
+        Row: {
+          coach_user_id: string
+          created_at: string
+          gym_id: string
+        }
+        Insert: {
+          coach_user_id: string
+          created_at?: string
+          gym_id: string
+        }
+        Update: {
+          coach_user_id?: string
+          created_at?: string
+          gym_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coach_gyms_gym_id_fkey"
+            columns: ["gym_id"]
+            isOneToOne: false
+            referencedRelation: "gyms"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       coach_nutrition_notes: {
         Row: {
@@ -2663,6 +2659,42 @@ export type Database = {
           user_id?: string
           years_experience?: number | null
           youtube_url?: string | null
+        }
+        Relationships: []
+      }
+      contextual_comments: {
+        Row: {
+          author_id: string
+          client_id: string
+          comment: string
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          id: string
+          object_id: string
+          object_type: string
+        }
+        Insert: {
+          author_id: string
+          client_id: string
+          comment: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          object_id: string
+          object_type: string
+        }
+        Update: {
+          author_id?: string
+          client_id?: string
+          comment?: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          object_id?: string
+          object_type?: string
         }
         Relationships: []
       }
@@ -4476,6 +4508,36 @@ export type Database = {
           },
         ]
       }
+      gyms: {
+        Row: {
+          area: string | null
+          created_at: string
+          id: string
+          is_active: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          area?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          area?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       igu_operations_costs: {
         Row: {
           admin_overhead_kwd: number
@@ -4513,36 +4575,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
-      }
-      gyms: {
-        Row: {
-          area: string | null
-          created_at: string
-          id: string
-          is_active: boolean
-          name: string
-          sort_order: number
-          updated_at: string
-        }
-        Insert: {
-          area?: string | null
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          name: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Update: {
-          area?: string | null
-          created_at?: string
-          id?: string
-          is_active?: boolean
-          name?: string
-          sort_order?: number
-          updated_at?: string
-        }
-        Relationships: []
       }
       leads: {
         Row: {
@@ -6710,13 +6742,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "progression_suggestions_client_module_exercise_id_fkey"
-            columns: ["client_module_exercise_id"]
-            isOneToOne: false
-            referencedRelation: "client_module_exercises"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "progression_suggestions_exercise_library_id_fkey"
             columns: ["exercise_library_id"]
             isOneToOne: false
@@ -7456,6 +7481,103 @@ export type Database = {
           },
         ]
       }
+      subscription_change_requests: {
+        Row: {
+          applied_at: string | null
+          applied_subscription_id: string | null
+          block_reason: string | null
+          coach_preference: string
+          current_subscription_id: string
+          effective_at: string
+          focus_areas: string[]
+          id: string
+          requested_at: string
+          requested_coach_id: string | null
+          status: string
+          target_price_kwd: number | null
+          target_service_id: string
+          target_team_id: string | null
+          user_id: string
+        }
+        Insert: {
+          applied_at?: string | null
+          applied_subscription_id?: string | null
+          block_reason?: string | null
+          coach_preference?: string
+          current_subscription_id: string
+          effective_at: string
+          focus_areas?: string[]
+          id?: string
+          requested_at?: string
+          requested_coach_id?: string | null
+          status?: string
+          target_price_kwd?: number | null
+          target_service_id: string
+          target_team_id?: string | null
+          user_id: string
+        }
+        Update: {
+          applied_at?: string | null
+          applied_subscription_id?: string | null
+          block_reason?: string | null
+          coach_preference?: string
+          current_subscription_id?: string
+          effective_at?: string
+          focus_areas?: string[]
+          id?: string
+          requested_at?: string
+          requested_coach_id?: string | null
+          status?: string
+          target_price_kwd?: number | null
+          target_service_id?: string
+          target_team_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscription_change_requests_applied_subscription_id_fkey"
+            columns: ["applied_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_change_requests_applied_subscription_id_fkey"
+            columns: ["applied_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_change_requests_current_subscription_id_fkey"
+            columns: ["current_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "paying_subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_change_requests_current_subscription_id_fkey"
+            columns: ["current_subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_change_requests_target_service_id_fkey"
+            columns: ["target_service_id"]
+            isOneToOne: false
+            referencedRelation: "services"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subscription_change_requests_target_team_id_fkey"
+            columns: ["target_team_id"]
+            isOneToOne: false
+            referencedRelation: "coach_teams"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_payments: {
         Row: {
           amount_kwd: number
@@ -7518,89 +7640,6 @@ export type Database = {
             columns: ["subscription_id"]
             isOneToOne: false
             referencedRelation: "subscriptions"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      subscription_change_requests: {
-        Row: {
-          applied_at: string | null
-          applied_subscription_id: string | null
-          block_reason: string | null
-          coach_preference: string
-          current_subscription_id: string
-          effective_at: string
-          focus_areas: string[]
-          id: string
-          requested_at: string
-          requested_coach_id: string | null
-          status: string
-          target_price_kwd: number | null
-          target_service_id: string
-          target_team_id: string | null
-          user_id: string
-        }
-        Insert: {
-          applied_at?: string | null
-          applied_subscription_id?: string | null
-          block_reason?: string | null
-          coach_preference?: string
-          current_subscription_id: string
-          effective_at: string
-          focus_areas?: string[]
-          id?: string
-          requested_at?: string
-          requested_coach_id?: string | null
-          status?: string
-          target_price_kwd?: number | null
-          target_service_id: string
-          target_team_id?: string | null
-          user_id: string
-        }
-        Update: {
-          applied_at?: string | null
-          applied_subscription_id?: string | null
-          block_reason?: string | null
-          coach_preference?: string
-          current_subscription_id?: string
-          effective_at?: string
-          focus_areas?: string[]
-          id?: string
-          requested_at?: string
-          requested_coach_id?: string | null
-          status?: string
-          target_price_kwd?: number | null
-          target_service_id?: string
-          target_team_id?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "subscription_change_requests_current_subscription_id_fkey"
-            columns: ["current_subscription_id"]
-            isOneToOne: false
-            referencedRelation: "subscriptions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_change_requests_applied_subscription_id_fkey"
-            columns: ["applied_subscription_id"]
-            isOneToOne: false
-            referencedRelation: "subscriptions"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_change_requests_target_service_id_fkey"
-            columns: ["target_service_id"]
-            isOneToOne: false
-            referencedRelation: "services"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "subscription_change_requests_target_team_id_fkey"
-            columns: ["target_team_id"]
-            isOneToOne: false
-            referencedRelation: "coach_teams"
             referencedColumns: ["id"]
           },
         ]
@@ -8537,38 +8576,6 @@ export type Database = {
           user_id: string | null
           youtube_url: string | null
         }
-        Insert: {
-          bio?: string | null
-          certifications?: string[] | null
-          display_name?: string | null
-          first_name?: string | null
-          instagram_url?: string | null
-          location?: string | null
-          nutrition_specialties?: string[] | null
-          profile_picture_url?: string | null
-          qualifications?: string[] | null
-          short_bio?: string | null
-          specializations?: string[] | null
-          tiktok_url?: string | null
-          user_id?: string | null
-          youtube_url?: string | null
-        }
-        Update: {
-          bio?: string | null
-          certifications?: string[] | null
-          display_name?: string | null
-          first_name?: string | null
-          instagram_url?: string | null
-          location?: string | null
-          nutrition_specialties?: string[] | null
-          profile_picture_url?: string | null
-          qualifications?: string[] | null
-          short_bio?: string | null
-          specializations?: string[] | null
-          tiktok_url?: string | null
-          user_id?: string | null
-          youtube_url?: string | null
-        }
         Relationships: []
       }
       paying_subscriptions: {
@@ -8784,6 +8791,14 @@ export type Database = {
           updated_at: string
         }[]
       }
+      apply_subscription_change: {
+        Args: {
+          p_reason?: string
+          p_request_id: string
+          p_require_paid?: boolean
+        }
+        Returns: Json
+      }
       assign_coach_atomic: {
         Args: {
           p_focus_areas?: string[]
@@ -8850,6 +8865,14 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_team_program_atomic: {
+        Args: {
+          p_start_date?: string
+          p_team_id: string
+          p_template_id: string
+        }
+        Returns: Json
+      }
       assign_template_to_client_canonical: {
         Args: {
           p_client_id: string
@@ -8863,14 +8886,9 @@ export type Database = {
         }
         Returns: Json
       }
-      assign_team_program_atomic: {
-        Args: {
-          p_start_date?: string
-          p_team_id: string
-          p_template_id: string
-        }
-        Returns: Json
-      }
+      backfill_all_active_client_programs: { Args: never; Returns: Json }
+      backfill_client_program: { Args: { p_program_id: string }; Returns: Json }
+      backfill_team_programs_canonical: { Args: never; Returns: Json }
       book_session_atomic: {
         Args: { p_slot_id: string; p_user_id: string }
         Returns: Json
@@ -9060,6 +9078,10 @@ export type Database = {
           video_title: string
         }[]
       }
+      get_coach_client_count_band: {
+        Args: { p_coach_user_id: string }
+        Returns: number
+      }
       get_coach_client_tenure: {
         Args: { p_client_uid: string; p_coach_uid: string }
         Returns: {
@@ -9118,6 +9140,10 @@ export type Database = {
       }
       get_default_admin_coach_user_id: { Args: never; Returns: string }
       get_default_column_config: { Args: { p_coach_id: string }; Returns: Json }
+      get_due_change_for_subscription: {
+        Args: { p_subscription_id: string }
+        Returns: Json
+      }
       get_educational_videos_with_access: {
         Args: never
         Returns: {
@@ -9319,17 +9345,6 @@ export type Database = {
         }[]
       }
       get_phi_encryption_key: { Args: never; Returns: string }
-      get_public_identities: {
-        Args: { p_user_ids: string[] }
-        Returns: {
-          user_id: string
-          username: string | null
-          display_name: string | null
-          avatar_url: string | null
-        }[]
-      }
-      is_username_available: { Args: { p_username: string }; Returns: boolean }
-      set_username: { Args: { p_username: string }; Returns: Json }
       get_playlist_videos_with_access: {
         Args: { p_playlist_id: string }
         Returns: {
@@ -9356,6 +9371,15 @@ export type Database = {
           roles: unknown[]
           schemaname: unknown
           tablename: unknown
+        }[]
+      }
+      get_public_identities: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          user_id: string
+          username: string
         }[]
       }
       get_required_content_summary: {
@@ -9401,10 +9425,7 @@ export type Database = {
           table_name: string
         }[]
       }
-      get_team_pulse: {
-        Args: { p_team_id: string }
-        Returns: Json
-      }
+      get_team_pulse: { Args: { p_team_id: string }; Returns: Json }
       get_unread_message_count: {
         Args: { p_client_id: string }
         Returns: number
@@ -9496,6 +9517,10 @@ export type Database = {
         Args: { p_client_uid: string; p_staff_uid: string }
         Returns: boolean
       }
+      is_client_of_coach: {
+        Args: { p_client: string; p_coach: string }
+        Returns: boolean
+      }
       is_coach: { Args: { p_user_id: string }; Returns: boolean }
       is_coach_for_client: {
         Args: { client_user_id: string }
@@ -9530,28 +9555,17 @@ export type Database = {
         Args: { p_client: string; p_coach: string }
         Returns: boolean
       }
+      is_username_available: { Args: { p_username: string }; Returns: boolean }
       join_team: {
         Args: { p_subscription_id: string; p_team_id: string }
         Returns: Json
       }
       list_active_coaches_for_service: {
-        Args: { p_service_id: string; p_gym_id?: string | null }
+        Args: { p_gym_id?: string; p_service_id: string }
         Returns: Json
       }
       list_active_teams_for_client: { Args: never; Returns: Json }
       list_public_teams_for_browser: { Args: never; Returns: Json }
-      set_coach_client_message_pinned: {
-        Args: { p_message_id: string; p_pinned: boolean }
-        Returns: Json
-      }
-      set_coach_service_availability: {
-        Args: {
-          p_service_id: string
-          p_coach_max_clients: number | null
-          p_is_accepting: boolean
-        }
-        Returns: undefined
-      }
       log_addon_session_atomic: {
         Args: {
           p_notes?: string
@@ -9614,12 +9628,29 @@ export type Database = {
         Args: { p_client_id: string }
         Returns: undefined
       }
+      mark_team_waitlist_notified: {
+        Args: { p_waitlist_id: string }
+        Returns: undefined
+      }
       mark_video_complete: { Args: { p_video_id: string }; Returns: boolean }
+      migrate_subscription_links: {
+        Args: { p_new_subscription_id?: string; p_old_subscription_id: string }
+        Returns: Json
+      }
       move_plan_session: {
         Args: {
-          p_session_id: string
-          p_new_day_index: number
           p_apply_following_weeks?: boolean
+          p_new_day_index: number
+          p_session_id: string
+        }
+        Returns: Json
+      }
+      preview_subscription_change_payout: {
+        Args: {
+          p_coach_level?: Database["public"]["Enums"]["professional_level"]
+          p_discount_percentage?: number
+          p_payment_exempt?: boolean
+          p_target_service_id: string
         }
         Returns: Json
       }
@@ -9643,6 +9674,10 @@ export type Database = {
         Returns: Json
       }
       remove_client_deload: { Args: { p_id: string }; Returns: Json }
+      remove_team_member: {
+        Args: { p_subscription_id: string; p_team_id: string }
+        Returns: undefined
+      }
       reorder_macrocycle_blocks: {
         Args: { p_macrocycle_id: string; p_program_template_ids: string[] }
         Returns: Json
@@ -9683,6 +9718,19 @@ export type Database = {
         }
         Returns: boolean
       }
+      set_coach_client_message_pinned: {
+        Args: { p_message_id: string; p_pinned: boolean }
+        Returns: Json
+      }
+      set_coach_service_availability: {
+        Args: {
+          p_coach_max_clients: number
+          p_is_accepting: boolean
+          p_service_id: string
+        }
+        Returns: undefined
+      }
+      set_username: { Args: { p_username: string }; Returns: Json }
       should_create_module_for_specialist: {
         Args: {
           p_day_date: string
@@ -9725,6 +9773,7 @@ export type Database = {
         }
         Returns: Json
       }
+      username_is_reserved: { Args: { p_username: string }; Returns: boolean }
       validate_discount_code: {
         Args: { p_code: string; p_service_id: string; p_user_id: string }
         Returns: {
@@ -9993,6 +10042,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       account_status: [

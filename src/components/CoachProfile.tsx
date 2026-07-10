@@ -151,6 +151,7 @@ export default function CoachProfile() {
   const [contactData, setContactData] = useState<CoachContactData | null>(null);
   const [coachData, setCoachData] = useState<CoachData | null>(null);
   const [gymCount, setGymCount] = useState(0);
+  const [clientBand, setClientBand] = useState<number | null>(null);
   const [previewOpen, setPreviewOpen] = useState(false);
   const loadedFor = useRef<string | null>(null);
   const { getLabel } = useSpecializationTags();
@@ -205,6 +206,13 @@ export default function CoachProfile() {
         .select("*", { count: "exact", head: true })
         .eq("coach_user_id", data.user_id);
       setGymCount(count ?? 0);
+
+      // Clients-count band for the Preview stat (CPR3). Fire-and-forget: on
+      // error or a sub-10 count the RPC returns NULL and the card null-omits it.
+      const { data: band } = await supabase.rpc("get_coach_client_count_band", {
+        p_coach_user_id: data.user_id,
+      });
+      setClientBand(band ?? null);
 
       // Split the stored "+965 12345678" WhatsApp back into code + number.
       const whatsappWithCode = contact?.whatsapp_number || "";
@@ -417,7 +425,7 @@ export default function CoachProfile() {
     introVideoUrl: values.intro_video_url || null,
     yearsExperience:
       values.years_experience && /^\d+$/.test(values.years_experience) ? Number(values.years_experience) : null,
-    clientCount: null,
+    clientCount: clientBand,
   };
 
   return (
