@@ -515,6 +515,7 @@ export default function CoachProfile() {
                     )
                   }
                   maxTags={MAX_SPECIALIZATIONS}
+                  showCounter={false}
                 />
               )}
             />

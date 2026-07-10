@@ -7,6 +7,8 @@ interface SpecializationTagPickerProps {
   onToggle: (tagValue: string) => void;
   maxTags?: number;
   disabled?: boolean;
+  /** Show the built-in "N/max selected" counter. Set false when the consumer renders its own. */
+  showCounter?: boolean;
 }
 
 /**
@@ -19,6 +21,7 @@ export function SpecializationTagPicker({
   onToggle,
   maxTags = 15,
   disabled = false,
+  showCounter = true,
 }: SpecializationTagPickerProps) {
   const { tags, loading, error } = useSpecializationTags();
 
@@ -69,9 +72,11 @@ export function SpecializationTagPicker({
           );
         })}
       </div>
-      <p className="text-sm text-muted-foreground">
-        {selectedTags.length}/{maxTags} selected
-      </p>
+      {showCounter && (
+        <p className="text-sm text-muted-foreground">
+          {selectedTags.length}/{maxTags} selected
+        </p>
+      )}
     </div>
   );
 }
