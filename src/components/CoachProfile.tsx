@@ -20,6 +20,13 @@ import { CoachServiceAvailability } from "@/components/coach/CoachServiceAvailab
 import { SpecializationTagPicker } from "@/components/ui/SpecializationTagPicker";
 import { GymPicker } from "@/components/ui/GymPicker";
 import { computeProfileStrength } from "@/lib/coachProfileStrength";
+import { isAllowedVideoUrl } from "@/lib/videoUrl";
+import { useSpecializationTags } from "@/hooks/useSpecializationTags";
+import { CoachPublicProfile, deriveCoachHeadline } from "@/components/coach/CoachPublicProfile";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogContent,
+} from "@/components/ui/responsive-dialog";
 
 interface CoachData {
   id: string;
@@ -35,6 +42,10 @@ interface CoachData {
   nickname: string | null;
   intro_video_url: string | null;
   years_experience: number | null;
+  // Read-only (admin-assigned) — not in the form; drives the Preview headline.
+  is_head_coach: boolean | null;
+  head_coach_specialisation: string | null;
+  coach_level: string | null;
 }
 
 interface CoachContactData {
@@ -51,19 +62,6 @@ interface CoachContactData {
 const SHORT_BIO_CAP = 160;
 const BIO_CAP = 600;
 const MAX_SPECIALIZATIONS = 15;
-
-/** Intro-video URL whitelist — YouTube / Vimeo / direct .mp4 only (§5.2). */
-function isAllowedVideoUrl(raw: string): boolean {
-  try {
-    const u = new URL(raw);
-    if (!/^https?:$/.test(u.protocol)) return false;
-    const host = u.hostname.replace(/^www\./, "").toLowerCase();
-    const okHost = ["youtube.com", "m.youtube.com", "youtu.be", "vimeo.com", "player.vimeo.com"].includes(host);
-    return okHost || u.pathname.toLowerCase().endsWith(".mp4");
-  } catch {
-    return false;
-  }
-}
 
 const optionalUrl = z
   .string()
@@ -153,7 +151,9 @@ export default function CoachProfile() {
   const [contactData, setContactData] = useState<CoachContactData | null>(null);
   const [coachData, setCoachData] = useState<CoachData | null>(null);
   const [gymCount, setGymCount] = useState(0);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const loadedFor = useRef<string | null>(null);
+  const { getLabel } = useSpecializationTags();
 
   const {
     register,
@@ -178,7 +178,7 @@ export default function CoachProfile() {
       const { data, error } = await supabase
         .from("coaches_public")
         .select(
-          "id, user_id, first_name, last_name, location, bio, short_bio, profile_picture_url, qualifications, specializations, nickname, intro_video_url, years_experience",
+          "id, user_id, first_name, last_name, location, bio, short_bio, profile_picture_url, qualifications, specializations, nickname, intro_video_url, years_experience, is_head_coach, head_coach_specialisation, coach_level",
         )
         .eq("user_id", sessionUser.id)
         .maybeSingle();
@@ -366,15 +366,6 @@ export default function CoachProfile() {
     }
   };
 
-  const handlePreview = () => {
-    // TODO(CPR2): open the CoachPublicProfile card in a Dialog/Drawer populated
-    // from current form state. Component doesn't exist yet — no-op stub for now.
-    toast({
-      title: "Preview coming soon",
-      description: "The live public-profile preview arrives with the public card (CPR2).",
-    });
-  };
-
   // Self-gate: render nothing when there's no coaches_public row (pure specialist).
   if (!coachData) return null;
 
@@ -395,6 +386,40 @@ export default function CoachProfile() {
 
   const savingLabel = loading ? "Saving..." : "Save";
 
+  // Preview card — built from LIVE form state (not a fetch) so the coach sees
+  // the client-facing card while editing (§5.4). rating/reviewCount omitted →
+  // "New coach" state. Gyms omitted here: GymPicker owns its own selection and
+  // doesn't lift it into form state — the real /coach/:slug page (T2) fetches
+  // them. TODO(CPR2): lift gym selection into form state to show it in Preview.
+  const previewSpecializations = (values.specializations || []).map((v) => getLabel(v));
+  const previewCoach = {
+    firstName: values.first_name || coachData.first_name,
+    lastName: coachData.last_name,
+    nickname: values.nickname || null,
+    headline: deriveCoachHeadline({
+      isHeadCoach: coachData.is_head_coach,
+      headCoachSpecialisation: coachData.head_coach_specialisation,
+      coachLevel: coachData.coach_level,
+      primarySpecialty: previewSpecializations[0] ?? null,
+    }),
+    avatarUrl: coachData.profile_picture_url,
+    location: values.location || null,
+    bio: values.bio || null,
+    shortBio: values.short_bio || null,
+    specializations: previewSpecializations,
+    qualifications: (values.qualifications || []).map((q) => q.value.trim()).filter(Boolean),
+    socials: {
+      instagram: values.instagram_url || null,
+      tiktok: values.tiktok_url || null,
+      youtube: values.youtube_url || null,
+      snapchat: values.snapchat_url || null,
+    },
+    introVideoUrl: values.intro_video_url || null,
+    yearsExperience:
+      values.years_experience && /^\d+$/.test(values.years_experience) ? Number(values.years_experience) : null,
+    clientCount: null,
+  };
+
   return (
     <div className="space-y-6">
       <Card>
@@ -407,7 +432,7 @@ export default function CoachProfile() {
               <p className="text-sm text-muted-foreground">Your public coach profile</p>
             </div>
             <div className="flex items-center gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={handlePreview}>
+              <Button type="button" variant="outline" size="sm" onClick={() => setPreviewOpen(true)}>
                 Preview
               </Button>
               <Button type="button" size="sm" onClick={handleSubmit(onSubmit)} disabled={loading}>
@@ -703,6 +728,19 @@ export default function CoachProfile() {
       </Card>
 
       <CoachServiceAvailability coachUserId={coachData.user_id} />
+
+      {/* Live preview of the public card (§5.4) — desktop Dialog / mobile Drawer. */}
+      <ResponsiveDialog open={previewOpen} onOpenChange={setPreviewOpen}>
+        <ResponsiveDialogContent
+          title="Profile preview"
+          description="How clients see your profile. Rating appears once you have reviews."
+          className="sm:max-w-md"
+        >
+          <div className="pb-2">
+            <CoachPublicProfile coach={previewCoach} variant="preview" />
+          </div>
+        </ResponsiveDialogContent>
+      </ResponsiveDialog>
     </div>
   );
 }

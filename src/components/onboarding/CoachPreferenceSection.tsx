@@ -440,17 +440,20 @@ export function CoachPreferenceSection({ form, planType, focusAreas, preferredGy
         coach={
           profileCoach
             ? {
-                id: profileCoach.id,
-                first_name: profileCoach.first_name,
-                last_name: profileCoach.last_name ?? "",
-                bio: profileCoach.short_bio,
+                firstName: profileCoach.first_name,
+                lastName: profileCoach.last_name,
+                avatarUrl: profileCoach.profile_picture_url,
+                shortBio: profileCoach.short_bio,
+                specializations: profileCoach.specializations?.map((s) => getLabel(s)) ?? [],
+                // RLS-gated pre-subscription — omitted so the card hides these sections.
                 location: null,
-                profile_picture_url: profileCoach.profile_picture_url,
-                qualifications: null,
-                specializations: profileCoach.specializations?.map((s) => getLabel(s)) ?? null,
-                nickname: null,
-                is_head_coach: null,
-                head_coach_specialisation: null,
+                qualifications: undefined,
+                gyms: undefined,
+                socials: undefined,
+                introVideoUrl: null,
+                headline: null,
+                yearsExperience: null,
+                clientCount: null,
               }
             : null
         }
