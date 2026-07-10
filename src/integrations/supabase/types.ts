@@ -2583,6 +2583,7 @@ export type Database = {
           head_coach_specialisation: string | null
           id: string
           instagram_url: string | null
+          intro_video_url: string | null
           is_head_coach: boolean
           last_assigned_at: string | null
           last_name: string | null
@@ -2600,6 +2601,7 @@ export type Database = {
           tiktok_url: string | null
           updated_at: string | null
           user_id: string
+          years_experience: number | null
           youtube_url: string | null
         }
         Insert: {
@@ -2611,6 +2613,7 @@ export type Database = {
           head_coach_specialisation?: string | null
           id?: string
           instagram_url?: string | null
+          intro_video_url?: string | null
           is_head_coach?: boolean
           last_assigned_at?: string | null
           last_name?: string | null
@@ -2628,6 +2631,7 @@ export type Database = {
           tiktok_url?: string | null
           updated_at?: string | null
           user_id: string
+          years_experience?: number | null
           youtube_url?: string | null
         }
         Update: {
@@ -2639,6 +2643,7 @@ export type Database = {
           head_coach_specialisation?: string | null
           id?: string
           instagram_url?: string | null
+          intro_video_url?: string | null
           is_head_coach?: boolean
           last_assigned_at?: string | null
           last_name?: string | null
@@ -2656,6 +2661,7 @@ export type Database = {
           tiktok_url?: string | null
           updated_at?: string | null
           user_id?: string
+          years_experience?: number | null
           youtube_url?: string | null
         }
         Relationships: []
