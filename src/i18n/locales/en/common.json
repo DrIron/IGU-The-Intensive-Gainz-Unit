@@ -62,5 +62,7 @@
   "coachTestimonialsShowToggle": "Show on my public page",
   "coachTestimonialsNeedConsent": "Waiting on client consent.",
   "coachTestimonialsWithdrawn": "Client withdrew this.",
-  "coachTestimonialsHidden": "Hidden by IGU."
+  "coachTestimonialsHidden": "Hidden by IGU.",
+  "coachReviewsCount": "{{count}} reviews",
+  "coachReviewsCountOne": "1 review"
 }

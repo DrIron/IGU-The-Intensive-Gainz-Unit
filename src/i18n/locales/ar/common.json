@@ -62,5 +62,7 @@
   "coachTestimonialsShowToggle": "اعرضها على صفحتي العامة",
   "coachTestimonialsNeedConsent": "بانتظار موافقة العميل.",
   "coachTestimonialsWithdrawn": "سحبها العميل.",
-  "coachTestimonialsHidden": "مخفية بواسطة IGU."
+  "coachTestimonialsHidden": "مخفية بواسطة IGU.",
+  "coachReviewsCount": "{{count}} تقييم",
+  "coachReviewsCountOne": "تقييم واحد"
 }

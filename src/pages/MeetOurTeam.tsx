@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ClickableCard } from "@/components/ui/clickable-card";
@@ -30,10 +31,12 @@ interface Coach {
 
 export default function MeetOurTeam() {
   const [coaches, setCoaches] = useState<Coach[]>([]);
+  const [reviewCounts, setReviewCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { getLabel } = useSpecializationTags();
+  const { t } = useTranslation("common");
 
   // SEOHead rendered in JSX below
 
@@ -55,7 +58,21 @@ export default function MeetOurTeam() {
       
       if (error) throw error;
       // Map user_id to id for component compatibility
-      setCoaches((data || []).map(c => ({ ...c, id: c.user_id })) as Coach[]);
+      const mapped = (data || []).map(c => ({ ...c, id: c.user_id })) as Coach[];
+      setCoaches(mapped);
+
+      // Count-only review signal per coach (locked decision: no avg on cards to
+      // avoid ranking coaches at a glance). Best-effort, parallel, anon-safe.
+      const ids = mapped.map((c) => c.id).filter(Boolean) as string[];
+      const aggregates = await Promise.all(
+        ids.map((id) => supabase.rpc("get_coach_rating_aggregate", { p_coach_user_id: id })),
+      );
+      const counts: Record<string, number> = {};
+      ids.forEach((id, i) => {
+        const agg = aggregates[i]?.data as unknown as { count: number } | null;
+        if (agg?.count) counts[id] = agg.count;
+      });
+      setReviewCounts(counts);
     } catch (error) {
       console.error("Error fetching coaches:", error);
     } finally {
@@ -139,6 +156,16 @@ export default function MeetOurTeam() {
                     {coach.is_head_coach && coach.head_coach_specialisation && (
                       <p className="text-sm font-medium text-primary">
                         Head Coach -- {coach.head_coach_specialisation}
+                      </p>
+                    )}
+                    {reviewCounts[coach.id] > 0 && (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {reviewCounts[coach.id] === 1
+                          ? t("coachReviewsCountOne", { defaultValue: "1 review" })
+                          : t("coachReviewsCount", {
+                              count: reviewCounts[coach.id],
+                              defaultValue: "{{count}} reviews",
+                            })}
                       </p>
                     )}
                   </div>
