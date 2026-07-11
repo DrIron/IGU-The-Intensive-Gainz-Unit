@@ -151,8 +151,10 @@ export function CoachPublicProfile({
         </div>
       )}
 
-      {/* New-coach state — graceful, no 0.0 rating (§3.2). */}
-      {!hasRating && (
+      {/* New-coach state — graceful, no 0.0 rating (§3.2). Suppressed when the
+          coach has curated reviews but fewer than the 5-review avg threshold:
+          show the actual quotes (reputationSlot) instead of a contradictory line. */}
+      {!hasRating && !reputationSlot && (
         <div className="flex items-center gap-2 border-b border-border px-4 py-2.5 text-xs text-muted-foreground">
           <Star className="h-3.5 w-3.5 text-primary" aria-hidden />
           <span>{t("coachNewCoach", { defaultValue: "New coach — building their reputation" })}</span>
@@ -284,7 +286,9 @@ export function CoachPublicProfile({
 
       {reviewCount != null && reviewCount > 0 && (
         <p className="px-4 pb-3 text-[11px] text-muted-foreground">
-          {t("coachBasedOnReviews", { count: reviewCount, defaultValue: "Based on {{count}} reviews" })}
+          {reviewCount === 1
+            ? t("coachBasedOnReview", { defaultValue: "Based on 1 review" })
+            : t("coachBasedOnReviews", { count: reviewCount, defaultValue: "Based on {{count}} reviews" })}
         </p>
       )}
     </div>

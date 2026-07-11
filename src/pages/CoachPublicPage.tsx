@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
+import { Star } from "lucide-react";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 import { CoachPublicProfile, deriveCoachHeadline } from "@/components/coach/CoachPublicProfile";
 import { SEOHead } from "@/components/SEOHead";
@@ -30,6 +31,15 @@ interface CoachProfilePayload {
   gyms: { id: string; name: string }[] | null;
 }
 
+/** One publicly-visible review from get_coach_public_testimonials. */
+interface ReputationItem {
+  id: string;
+  rating: number;
+  feedback: string;
+  created_at: string;
+  display_name: string;
+}
+
 export default function CoachPublicPage() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -38,6 +48,8 @@ export default function CoachPublicPage() {
 
   const [profile, setProfile] = useState<CoachProfilePayload | null>(null);
   const [clientBand, setClientBand] = useState<number | null>(null);
+  const [reputation, setReputation] = useState<ReputationItem[]>([]);
+  const [aggregate, setAggregate] = useState<{ count: number; avg: number | null }>({ count: 0, avg: null });
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
@@ -52,6 +64,8 @@ export default function CoachPublicPage() {
     setNotFound(false);
     setProfile(null);
     setClientBand(null);
+    setReputation([]);
+    setAggregate({ count: 0, avg: null });
 
     (async () => {
       try {
@@ -64,11 +78,18 @@ export default function CoachPublicPage() {
         const payload = data as unknown as CoachProfilePayload;
         setProfile(payload);
 
-        // Clients band — fire-and-forget; NULL / error just hides the stat.
-        const { data: band } = await supabase.rpc("get_coach_client_count_band", {
-          p_coach_user_id: payload.coach_user_id,
-        });
-        if (!cancelled) setClientBand(band ?? null);
+        // Secondary anon reads in parallel — each is best-effort; a null/error
+        // result just omits its surface (stat / reputation block).
+        const [bandRes, repRes, aggRes] = await Promise.all([
+          supabase.rpc("get_coach_client_count_band", { p_coach_user_id: payload.coach_user_id }),
+          supabase.rpc("get_coach_public_testimonials", { p_coach_user_id: payload.coach_user_id }),
+          supabase.rpc("get_coach_rating_aggregate", { p_coach_user_id: payload.coach_user_id }),
+        ]);
+        if (cancelled) return;
+        setClientBand(bandRes.data ?? null);
+        setReputation((repRes.data as unknown as ReputationItem[]) ?? []);
+        const agg = aggRes.data as unknown as { count: number; avg: number | null } | null;
+        setAggregate(agg ?? { count: 0, avg: null });
       } catch {
         if (!cancelled) setNotFound(true);
       } finally {
@@ -120,6 +141,28 @@ export default function CoachPublicPage() {
 
   const seoDescription = (profile.short_bio || profile.bio || "").trim() || `${fullName}${headline ? ` — ${headline}` : ""}`;
 
+  // Curated reviews (show_on_coach_page) → the card's reputationSlot. Undefined
+  // when empty so the card omits the "What clients say" section.
+  const reputationSlot = reputation.length > 0 ? (
+    <div className="space-y-3">
+      {reputation.map((r) => (
+        <figure key={r.id} className="rounded-[10px] bg-muted p-3">
+          <div className="mb-1.5 flex gap-0.5" aria-label={`${r.rating} / 5`}>
+            {[1, 2, 3, 4, 5].map((s) => (
+              <Star
+                key={s}
+                className={`h-3.5 w-3.5 ${s <= r.rating ? "fill-primary text-primary" : "text-muted-foreground/40"}`}
+                aria-hidden
+              />
+            ))}
+          </div>
+          <blockquote className="text-[13px] leading-relaxed text-foreground">“{r.feedback}”</blockquote>
+          <figcaption className="mt-1.5 text-[11.5px] text-muted-foreground">— {r.display_name}</figcaption>
+        </figure>
+      ))}
+    </div>
+  ) : undefined;
+
   return (
     <div className="mx-auto max-w-md px-4 py-8">
       <SEOHead
@@ -147,6 +190,9 @@ export default function CoachPublicPage() {
           yearsExperience: profile.years_experience,
           clientCount: clientBand,
         }}
+        rating={aggregate.avg ?? undefined}
+        reviewCount={aggregate.count}
+        reputationSlot={reputationSlot}
         onPrimaryCta={() => navigate(`/onboarding?coach=${profile.coach_user_id}`)}
       />
     </div>

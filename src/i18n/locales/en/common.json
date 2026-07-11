@@ -38,6 +38,7 @@
   "coachWatchIntro": "Watch a 30-sec intro from {{name}}",
   "coachChoose": "Choose {{name}}",
   "coachBasedOnReviews": "Based on {{count}} reviews",
+  "coachBasedOnReview": "Based on 1 review",
   "coachNotFoundTitle": "Coach not found",
   "coachNotFoundBody": "This coach profile doesn’t exist or is no longer active.",
   "coachBackToTeam": "Meet our team",

@@ -38,6 +38,7 @@
   "coachWatchIntro": "شاهد مقدمة قصيرة من {{name}}",
   "coachChoose": "اختر {{name}}",
   "coachBasedOnReviews": "بناءً على {{count}} تقييم",
+  "coachBasedOnReview": "بناءً على تقييم واحد",
   "coachNotFoundTitle": "المدرّب غير موجود",
   "coachNotFoundBody": "هذا الملف الشخصي غير موجود أو لم يعد نشطًا.",
   "coachBackToTeam": "تعرّف على فريقنا",
