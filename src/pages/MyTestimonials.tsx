@@ -38,19 +38,30 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
-function TestimonialRow({ row, onChanged }: { row: MyTestimonial; onChanged: () => void }) {
+function TestimonialRow({ row }: { row: MyTestimonial }) {
   const { t } = useTranslation("common");
   const { toast } = useToast();
+  // Persisted state — a local authoritative copy seeded once from props. We update
+  // it optimistically and roll it back on RPC error, and deliberately do NOT re-read
+  // after a write: IGU's connection pooler can return a read-after-write-stale row,
+  // which previously left the badge showing a change the DB hadn't accepted.
+  const [withdrawn, setWithdrawn] = useState(row.withdrawn_at != null);
+  const [savedConsent, setSavedConsent] = useState(row.display_consent);
+  const [savedAttribution, setSavedAttribution] = useState<Attribution>(row.attribution);
+  // Editable draft for the consent checkbox + attribution radio.
   const [consent, setConsent] = useState(row.display_consent);
   const [attribution, setAttribution] = useState<Attribution>(row.attribution);
   const [saving, setSaving] = useState(false);
   const [busyWithdraw, setBusyWithdraw] = useState(false);
 
-  const withdrawn = row.withdrawn_at != null;
-  const dirty = consent !== row.display_consent || attribution !== row.attribution;
+  const dirty = consent !== savedConsent || attribution !== savedAttribution;
 
   const saveConsent = async () => {
+    const prevConsent = savedConsent;
+    const prevAttribution = savedAttribution;
     setSaving(true);
+    setSavedConsent(consent); // optimistic
+    setSavedAttribution(attribution);
     try {
       const { error } = await supabase.rpc("set_testimonial_consent", {
         p_id: row.id,
@@ -59,8 +70,10 @@ function TestimonialRow({ row, onChanged }: { row: MyTestimonial; onChanged: () 
       });
       if (error) throw error;
       toast({ title: t("testimonialConsentUpdated", { defaultValue: "Your preferences were updated." }) });
-      onChanged();
     } catch (error) {
+      // Roll the badge/persisted state back; keep the draft so the user can retry.
+      setSavedConsent(prevConsent);
+      setSavedAttribution(prevAttribution);
       captureException(error, { source: "my_testimonials_consent" });
       toast({ title: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
@@ -69,12 +82,15 @@ function TestimonialRow({ row, onChanged }: { row: MyTestimonial; onChanged: () 
   };
 
   const toggleWithdraw = async () => {
+    const prev = withdrawn;
+    const next = !prev;
     setBusyWithdraw(true);
+    setWithdrawn(next); // optimistic
     try {
-      const { error } = await supabase.rpc("withdraw_testimonial", { p_id: row.id, p_withdrawn: !withdrawn });
+      const { error } = await supabase.rpc("withdraw_testimonial", { p_id: row.id, p_withdrawn: next });
       if (error) throw error;
-      onChanged();
     } catch (error) {
+      setWithdrawn(prev); // roll back on failure
       captureException(error, { source: "my_testimonials_withdraw" });
       toast({ title: sanitizeErrorForUser(error), variant: "destructive" });
     } finally {
@@ -84,7 +100,7 @@ function TestimonialRow({ row, onChanged }: { row: MyTestimonial; onChanged: () 
 
   const statusBadge = withdrawn
     ? { label: t("testimonialWithdrawn", { defaultValue: "Withdrawn" }), variant: "outline" as const }
-    : row.display_consent
+    : savedConsent
       ? { label: t("testimonialShownPublicly", { defaultValue: "Shown publicly" }), variant: "default" as const }
       : { label: t("testimonialPrivate", { defaultValue: "Private" }), variant: "secondary" as const };
 
@@ -240,7 +256,7 @@ export default function MyTestimonials() {
             </CardContent>
           </Card>
         ) : (
-          rows.map((row) => <TestimonialRow key={row.id} row={row} onChanged={load} />)
+          rows.map((row) => <TestimonialRow key={row.id} row={row} />)
         )}
       </div>
     </ClientPageLayout>
