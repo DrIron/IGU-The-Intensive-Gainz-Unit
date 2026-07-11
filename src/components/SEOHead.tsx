@@ -1,4 +1,4 @@
-import { Helmet } from "react-helmet-async";
+import { useEffect } from "react";
 import { useSiteContent } from "@/hooks/useSiteContent";
 
 interface SEOHeadProps {
@@ -21,6 +21,19 @@ const DEFAULT_DESCRIPTION = "Evidence-based online coaching, team programs, and 
 const DEFAULT_IMAGE = "https://theigu.com/og-image.png";
 const SITE_NAME = "Intensive Gainz Unit";
 
+/**
+ * Per-page document metadata via React 19 native hoisting — the `<meta>` tags
+ * below are hoisted into `<head>` by React regardless of tree position, and
+ * removed on unmount, so each page owns exactly one set. We deliberately do NOT
+ * use react-helmet-async: it is unmaintained and its client dispatcher is inert
+ * under React 19 (silent no-commit) — the cause of the /coaches/:slug SEO
+ * regression. index.html carries NO overridable title/og/twitter tags, only a
+ * minimal static `<title>` fallback (see index.html).
+ *
+ * `<title>` is set imperatively (not rendered) so it overwrites that static
+ * fallback element in place — rendering a `<title>` would append a second one
+ * and the browser would keep using the first (static) one.
+ */
 export function SEOHead({
   page = "homepage",
   title,
@@ -37,10 +50,13 @@ export function SEOHead({
   const finalImage = image || cmsContent?.meta?.og_image || DEFAULT_IMAGE;
   const finalUrl = url || (typeof window !== "undefined" ? window.location.href : "https://theigu.com");
 
+  useEffect(() => {
+    document.title = finalTitle;
+  }, [finalTitle]);
+
   return (
-    <Helmet>
+    <>
       {/* Primary Meta Tags */}
-      <title>{finalTitle}</title>
       <meta name="title" content={finalTitle} />
       <meta name="description" content={finalDescription} />
 
@@ -62,6 +78,6 @@ export function SEOHead({
       <meta property="twitter:title" content={finalTitle} />
       <meta property="twitter:description" content={finalDescription} />
       <meta property="twitter:image" content={finalImage} />
-    </Helmet>
+    </>
   );
 }

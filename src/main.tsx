@@ -1,6 +1,5 @@
 import { createRoot } from "react-dom/client";
 import * as Sentry from "@sentry/react";
-import { HelmetProvider } from "react-helmet-async";
 import './i18n/config';
 import App from "./App.tsx";
 import "./index.css";
@@ -85,9 +84,7 @@ Sentry.init({
 });
 
 createRoot(document.getElementById("root")!).render(
-  <HelmetProvider>
-    <ThemeProvider>
-      <App />
-    </ThemeProvider>
-  </HelmetProvider>
+  <ThemeProvider>
+    <App />
+  </ThemeProvider>
 );
