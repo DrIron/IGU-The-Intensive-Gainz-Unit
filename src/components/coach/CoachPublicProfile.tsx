@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 import { Play, MapPin, Instagram, Youtube, Music2, Ghost, Dumbbell, Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -8,14 +9,12 @@ import { toEmbed } from "@/lib/videoUrl";
  * CoachPublicProfile — presentational client-facing coach card (CPR2, spec §6).
  *
  * Pure props in: NO data fetching, NO Supabase calls, NO hooks that touch the
- * network. Both the editor Preview (`CoachProfile.tsx`, live form state) and
- * the testimonials-plan `/coach/:slug` page (T2) mount it. T2 injects the
- * reputation block via `reputationSlot` and supplies `rating` / `reviewCount`.
+ * network. Both the editor Preview (`CoachProfile.tsx`, live form state) and the
+ * public `/coaches/:slug` page (`CoachPublicPage.tsx`) mount it. T1 later injects
+ * the reputation block via `reputationSlot` and supplies `rating` / `reviewCount`.
  *
- * i18n: NOT yet localized (CPR2 is reachable only via the staff Preview + the
- * RLS-safe onboarding dialog). A react-i18next / RTL pass is REQUIRED before T2
- * ships it at /coach/:slug (spec §7). Copy is kept as flat strings so that pass
- * is cheap.
+ * i18n: localized via react-i18next (`common` ns, `coach*` keys) with Arabic +
+ * RTL dir-flip (T2, spec §7) — required before shipping public.
  */
 export interface CoachPublicProfileProps {
   coach: {
@@ -99,6 +98,7 @@ export function CoachPublicProfile({
   onPrimaryCta,
   variant = "public",
 }: CoachPublicProfileProps) {
+  const { t } = useTranslation("common");
   const [videoOpen, setVideoOpen] = useState(false);
 
   const fullName = [coach.firstName, coach.lastName].filter(Boolean).join(" ");
@@ -155,14 +155,14 @@ export function CoachPublicProfile({
       {!hasRating && (
         <div className="flex items-center gap-2 border-b border-border px-4 py-2.5 text-xs text-muted-foreground">
           <Star className="h-3.5 w-3.5 text-primary" aria-hidden />
-          <span>New coach — building their reputation</span>
+          <span>{t("coachNewCoach", { defaultValue: "New coach — building their reputation" })}</span>
         </div>
       )}
 
       <div className="px-4">
         {/* Specialties */}
         {specialties.length > 0 && (
-          <Section title="Specialties">
+          <Section title={t("coachSpecialties", { defaultValue: "Specialties" })}>
             <div className="flex flex-wrap gap-2">
               {specialties.map((label) => (
                 <span
@@ -178,7 +178,7 @@ export function CoachPublicProfile({
 
         {/* About + intro video */}
         {(about || embed) && (
-          <Section title="About">
+          <Section title={t("coachAbout", { defaultValue: "About" })}>
             {about && <p className="text-sm leading-relaxed text-foreground">{about}</p>}
             {embed && (
               <div className={cn(about && "mt-2.5")}>
@@ -186,13 +186,13 @@ export function CoachPublicProfile({
                   <button
                     type="button"
                     onClick={() => setVideoOpen(true)}
-                    aria-label={`Watch a 30-second intro from ${coach.firstName}`}
+                    aria-label={t("coachWatchIntro", { name: coach.firstName, defaultValue: "Watch a 30-sec intro from {{name}}" })}
                     className="flex w-full items-center gap-2.5 rounded-[10px] bg-muted px-3 py-2.5 text-left text-xs text-foreground transition-colors hover:bg-muted/80"
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                       <Play className="h-3.5 w-3.5 fill-current" aria-hidden />
                     </span>
-                    Watch a 30-sec intro from {coach.firstName}
+                    {t("coachWatchIntro", { name: coach.firstName, defaultValue: "Watch a 30-sec intro from {{name}}" })}
                   </button>
                 ) : (
                   <div className="overflow-hidden rounded-[10px] bg-black">
@@ -216,7 +216,7 @@ export function CoachPublicProfile({
 
         {/* Certified */}
         {quals.length > 0 && (
-          <Section title="Certified">
+          <Section title={t("coachCertified", { defaultValue: "Certified" })}>
             <div className="space-y-1">
               {quals.map((q, i) => (
                 <div key={i} className="text-sm text-foreground">{q}</div>
@@ -227,7 +227,7 @@ export function CoachPublicProfile({
 
         {/* Trains at */}
         {gyms.length > 0 && (
-          <Section title="Trains at">
+          <Section title={t("coachTrainsAt", { defaultValue: "Trains at" })}>
             <div className="space-y-1">
               {gyms.map((gym) => (
                 <div key={gym.id} className="flex items-center gap-2 text-sm text-foreground">
@@ -241,17 +241,17 @@ export function CoachPublicProfile({
 
         {/* Located */}
         {coach.location && (
-          <Section title="Located">
+          <Section title={t("coachLocated", { defaultValue: "Located" })}>
             <div className="text-sm text-foreground">{coach.location}</div>
           </Section>
         )}
 
         {/* What clients say — T2's reputation block */}
-        {reputationSlot && <Section title="What clients say">{reputationSlot}</Section>}
+        {reputationSlot && <Section title={t("coachWhatClientsSay", { defaultValue: "What clients say" })}>{reputationSlot}</Section>}
 
         {/* Follow */}
         {socialEntries.length > 0 && (
-          <Section title="Follow">
+          <Section title={t("coachFollow", { defaultValue: "Follow" })}>
             <div className="flex gap-2.5">
               {socialEntries.map(({ key, href }) => {
                 const Icon = SOCIAL_ICONS[key];
@@ -277,14 +277,14 @@ export function CoachPublicProfile({
       {variant === "public" && (
         <div className="flex flex-col gap-2 border-t border-border p-4">
           <Button type="button" onClick={onPrimaryCta} className="w-full">
-            Choose {coach.firstName}
+            {t("coachChoose", { name: coach.firstName, defaultValue: "Choose {{name}}" })}
           </Button>
         </div>
       )}
 
       {reviewCount != null && reviewCount > 0 && (
         <p className="px-4 pb-3 text-[11px] text-muted-foreground">
-          Based on {reviewCount} client {reviewCount === 1 ? "review" : "reviews"}
+          {t("coachBasedOnReviews", { count: reviewCount, defaultValue: "Based on {{count}} reviews" })}
         </p>
       )}
     </div>

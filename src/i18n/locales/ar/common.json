@@ -26,5 +26,19 @@
   "alreadySubscribedDesc": "",
   "subscribed": "",
   "subscribedDesc": "",
-  "failedToSubscribe": ""
+  "failedToSubscribe": "",
+  "coachSpecialties": "التخصصات",
+  "coachAbout": "نبذة",
+  "coachCertified": "الشهادات",
+  "coachTrainsAt": "يتدرّب في",
+  "coachLocated": "الموقع",
+  "coachWhatClientsSay": "آراء العملاء",
+  "coachFollow": "تابِعه",
+  "coachNewCoach": "مدرّب جديد — يبني سمعته",
+  "coachWatchIntro": "شاهد مقدمة قصيرة من {{name}}",
+  "coachChoose": "اختر {{name}}",
+  "coachBasedOnReviews": "بناءً على {{count}} تقييم",
+  "coachNotFoundTitle": "المدرّب غير موجود",
+  "coachNotFoundBody": "هذا الملف الشخصي غير موجود أو لم يعد نشطًا.",
+  "coachBackToTeam": "تعرّف على فريقنا"
 }

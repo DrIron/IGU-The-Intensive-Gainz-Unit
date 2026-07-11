@@ -26,5 +26,19 @@
   "alreadySubscribedDesc": "This email is already on our newsletter list.",
   "subscribed": "Subscribed!",
   "subscribedDesc": "Thanks for signing up. You'll hear from us soon!",
-  "failedToSubscribe": "Failed to subscribe. Please try again."
+  "failedToSubscribe": "Failed to subscribe. Please try again.",
+  "coachSpecialties": "Specialties",
+  "coachAbout": "About",
+  "coachCertified": "Certified",
+  "coachTrainsAt": "Trains at",
+  "coachLocated": "Located",
+  "coachWhatClientsSay": "What clients say",
+  "coachFollow": "Follow",
+  "coachNewCoach": "New coach — building their reputation",
+  "coachWatchIntro": "Watch a 30-sec intro from {{name}}",
+  "coachChoose": "Choose {{name}}",
+  "coachBasedOnReviews": "Based on {{count}} reviews",
+  "coachNotFoundTitle": "Coach not found",
+  "coachNotFoundBody": "This coach profile doesn’t exist or is no longer active.",
+  "coachBackToTeam": "Meet our team"
 }

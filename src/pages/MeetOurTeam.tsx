@@ -5,6 +5,7 @@ import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CoachDetailDialog } from "@/components/CoachDetailDialog";
+import { deriveCoachHeadline } from "@/components/coach/CoachPublicProfile";
 import { MapPin, Award } from "lucide-react";
 import { SEOHead } from "@/components/SEOHead";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
@@ -24,6 +25,7 @@ interface Coach {
   nickname: string | null;
   is_head_coach: boolean | null;
   head_coach_specialisation: string | null;
+  slug: string | null;
 }
 
 export default function MeetOurTeam() {
@@ -48,7 +50,7 @@ export default function MeetOurTeam() {
       // Filters by active status and is accessible to authenticated users
       const { data, error } = await supabase
         .from("coaches_directory")
-        .select("user_id, first_name, last_name, bio, short_bio, location, profile_picture_url, qualifications, specializations, nickname, is_head_coach, head_coach_specialisation")
+        .select("user_id, first_name, last_name, bio, short_bio, location, profile_picture_url, qualifications, specializations, nickname, is_head_coach, head_coach_specialisation, slug")
         .order("first_name");
       
       if (error) throw error;
@@ -195,8 +197,29 @@ export default function MeetOurTeam() {
         </div>
         )}
 
-        <CoachDetailDialog 
-          coach={selectedCoach}
+        <CoachDetailDialog
+          coach={
+            selectedCoach
+              ? {
+                  firstName: selectedCoach.first_name,
+                  lastName: selectedCoach.last_name,
+                  nickname: selectedCoach.nickname,
+                  headline: deriveCoachHeadline({
+                    isHeadCoach: selectedCoach.is_head_coach,
+                    headCoachSpecialisation: selectedCoach.head_coach_specialisation,
+                    coachLevel: null,
+                    primarySpecialty: selectedCoach.specializations?.map(getLabel)[0] ?? null,
+                  }),
+                  avatarUrl: selectedCoach.profile_picture_url,
+                  location: selectedCoach.location,
+                  bio: selectedCoach.bio,
+                  shortBio: selectedCoach.short_bio,
+                  specializations: selectedCoach.specializations?.map(getLabel) ?? [],
+                  qualifications: selectedCoach.qualifications ?? [],
+                }
+              : null
+          }
+          profileHref={selectedCoach?.slug ? `/coaches/${selectedCoach.slug}` : undefined}
           open={dialogOpen}
           onOpenChange={setDialogOpen}
         />

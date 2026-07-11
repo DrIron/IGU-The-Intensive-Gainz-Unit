@@ -265,6 +265,16 @@ export default function OnboardingForm() {
     }
   }, [searchParams, form]);
 
+  // Coach preselect from /coaches/:slug CTA (?coach=<coach_user_id>). Sets the
+  // specific-coach preference; the coach-selection step still validates the
+  // coach is available and lets the client change it / fall back to auto-match.
+  const loadRequestedCoach = useCallback(() => {
+    const coachId = searchParams.get('coach');
+    if (!coachId) return;
+    form.setValue('coach_preference_type', 'specific');
+    form.setValue('requested_coach_id', coachId);
+  }, [searchParams, form]);
+
   // Reactivation pre-fill: hydrate the form from what's already on file so the
   // returning client doesn't re-enter it. Demographics come from profiles_*
   // (source of truth); plan/training/legal come from their last form_submissions.
@@ -583,7 +593,8 @@ export default function OnboardingForm() {
     hasInitialized.current = true;
     checkAuth();
     loadServiceName();
-  }, [checkAuth, loadServiceName]);
+    loadRequestedCoach();
+  }, [checkAuth, loadServiceName, loadRequestedCoach]);
 
   // Guard set only once userId resolves, so the draft still loads after
   // checkAuth populates it -- but never re-runs on form/toast identity churn.

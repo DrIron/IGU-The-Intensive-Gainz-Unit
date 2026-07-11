@@ -34,6 +34,7 @@ const Testimonial = lazyWithReload(() => import("./pages/Testimonial"));
 const Testimonials = lazyWithReload(() => import("./pages/Testimonials"));
 const ClientSubmission = lazyWithReload(() => import("./pages/ClientSubmission"));
 const MeetOurTeam = lazyWithReload(() => import("./pages/MeetOurTeam"));
+const CoachPublicPage = lazyWithReload(() => import("./pages/CoachPublicPage"));
 const CoachSignup = lazyWithReload(() => import("./pages/CoachSignup"));
 const CoachPasswordSetup = lazyWithReload(() => import("./pages/CoachPasswordSetup"));
 const NotFound = lazyWithReload(() => import("./pages/NotFound"));
@@ -296,6 +297,7 @@ const App = () => {
                   <Route path="/testimonials" element={<WaitlistGuard><PublicLayout><Testimonials /></PublicLayout></WaitlistGuard>} />
                   <Route path="/client-submission/:userId" element={<AuthGuard><ClientSubmission /></AuthGuard>} />
                   <Route path="/meet-our-team" element={<WaitlistGuard><PublicLayout><MeetOurTeam /></PublicLayout></WaitlistGuard>} />
+                  <Route path="/coaches/:slug" element={<WaitlistGuard><PublicLayout><CoachPublicPage /></PublicLayout></WaitlistGuard>} />
                   <Route path="/teams" element={<WaitlistGuard><PublicLayout><TeamsPage /></PublicLayout></WaitlistGuard>} />
                   <Route path="/coach-signup" element={<PublicLayout><CoachSignup /></PublicLayout>} />
                   <Route path="/coach-password-setup" element={<CoachPasswordSetup />} />

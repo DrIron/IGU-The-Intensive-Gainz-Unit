@@ -2591,6 +2591,7 @@ export type Database = {
           profile_picture_url: string | null
           qualifications: string[] | null
           short_bio: string | null
+          slug: string | null
           specializations: string[] | null
           specialties: Database["public"]["Enums"]["staff_specialty"][] | null
           status: string
@@ -2621,6 +2622,7 @@ export type Database = {
           profile_picture_url?: string | null
           qualifications?: string[] | null
           short_bio?: string | null
+          slug?: string | null
           specializations?: string[] | null
           specialties?: Database["public"]["Enums"]["staff_specialty"][] | null
           status?: string
@@ -2651,6 +2653,7 @@ export type Database = {
           profile_picture_url?: string | null
           qualifications?: string[] | null
           short_bio?: string | null
+          slug?: string | null
           specializations?: string[] | null
           specialties?: Database["public"]["Enums"]["staff_specialty"][] | null
           status?: string
@@ -8443,6 +8446,7 @@ export type Database = {
           profile_picture_url: string | null
           qualifications: string[] | null
           short_bio: string | null
+          slug: string | null
           specializations: string[] | null
           specialties: Database["public"]["Enums"]["staff_specialty"][] | null
           status: string | null
@@ -8461,6 +8465,7 @@ export type Database = {
           profile_picture_url?: string | null
           qualifications?: string[] | null
           short_bio?: string | null
+          slug?: string | null
           specializations?: string[] | null
           specialties?: Database["public"]["Enums"]["staff_specialty"][] | null
           status?: string | null
@@ -8479,6 +8484,7 @@ export type Database = {
           profile_picture_url?: string | null
           qualifications?: string[] | null
           short_bio?: string | null
+          slug?: string | null
           specializations?: string[] | null
           specialties?: Database["public"]["Enums"]["staff_specialty"][] | null
           status?: string | null
@@ -9100,6 +9106,10 @@ export type Database = {
         }[]
       }
       get_coach_for_client: { Args: { p_coach_user_id: string }; Returns: Json }
+      get_coach_public_profile_by_slug: {
+        Args: { p_slug: string }
+        Returns: Json
+      }
       get_coach_roster_attention: { Args: never; Returns: Json }
       get_coach_roster_stats: { Args: never; Returns: Json }
       get_coach_whatsapp_for_client: {
