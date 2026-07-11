@@ -14,7 +14,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>Intensive Gainz Unit Coaching</title>
-    <meta name="description" content="Evidence-based online coaching, team programs, and performance tracking for serious lifters. Powered by IGU.">
+    <meta name="description" content="Evidence-based online coaching, team programs, and performance tracking for serious lifters. Powered by IGU." data-rh="true">
     <meta name="author" content="Intensive Gainz Unit" />
 
     <!-- Google Fonts: Geist (body), Bebas Neue (display), JetBrains Mono (mono) -->
@@ -26,16 +26,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
     <noscript><link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
 
-    <!-- Open Graph / Social -->
-    <meta property="og:type" content="website" />
-    <meta property="og:url" content="https://theigu.com" />
-    <meta property="og:title" content="Intensive Gainz Unit | Coaching for Serious Lifters">
-    <meta property="og:description" content="Evidence-based online coaching, team programs, and performance tracking for serious lifters. Powered by IGU.">
-    <meta property="og:image" content="https://theigu.com/og-image.png">
-    <meta property="og:image:width" content="2400" />
-    <meta property="og:image:height" content="1260" />
-    <meta property="og:image:alt" content="Intensive Gainz Unit (IGU)" />
-    <meta property="og:locale" content="en_US" />
+    <!-- Open Graph / Social. data-rh="true" hands these to react-helmet-async so
+         per-page <SEOHead> (e.g. /coaches/:slug) REPLACES them in the DOM instead
+         of duplicating (helmet only manages tags carrying data-rh). The static
+         values remain the no-JS / crawler default. -->
+    <meta property="og:type" content="website" data-rh="true" />
+    <meta property="og:url" content="https://theigu.com" data-rh="true" />
+    <meta property="og:title" content="Intensive Gainz Unit | Coaching for Serious Lifters" data-rh="true" />
+    <meta property="og:description" content="Evidence-based online coaching, team programs, and performance tracking for serious lifters. Powered by IGU." data-rh="true" />
+    <meta property="og:image" content="https://theigu.com/og-image.png" data-rh="true" />
+    <meta property="og:image:width" content="2400" data-rh="true" />
+    <meta property="og:image:height" content="1260" data-rh="true" />
+    <meta property="og:image:alt" content="Intensive Gainz Unit (IGU)" data-rh="true" />
+    <meta property="og:locale" content="en_US" data-rh="true" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
