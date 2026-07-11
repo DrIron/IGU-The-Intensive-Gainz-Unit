@@ -758,6 +758,9 @@ Use `convert_muscle_plan_to_program_v2(p_coach_id, p_plan_name, p_plan_descripti
 2. If the route is role-specific, gate it with `RoleProtectedRoute` — don't rely on the prefix list for security.
 3. A route reachable from multiple roles (e.g. `/client-submission/:userId`, opened from both coach and admin client directories) maps to ONE dock — pick the primary consumer.
 
+### Authenticated pages must render in their role layout shell
+Every authenticated route must render inside its role-appropriate layout shell — client pages wrap themselves in `ClientPageLayout`, coach pages in `CoachDashboardLayout`, admin in `AdminPageLayout` — so a signed-in user always has navigation + the mobile dock. Never render an authed page bare or in `PublicLayout` (that shows the marketing navbar with no dock). The dock-prefix list above is separate and *also* required. (Caught twice in T1: `/my-testimonials` rendered bare and `/testimonial` used `PublicLayout` — both fixed to `ClientPageLayout`.)
+
 ### Mobile layout pb-24 rule
 Bottom nav is `h-16` — **all layout content areas must use `pb-24 md:pb-8`** to prevent content hiding behind it. Applies to `ClientDashboardLayout`, `CoachDashboardLayout`, `AdminDashboardLayout`, `AdminPageLayout`, and any standalone page that bypasses those layouts (e.g. `AccountManagement`, `TestimonialsManagement`, `ClientSubmission`, `AccessDebug`). Pages that already use `py-24` (96px ≥ 64px dock) are fine.
 

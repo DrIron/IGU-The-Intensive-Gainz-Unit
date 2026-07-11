@@ -8,6 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -215,12 +216,12 @@ export default function MyTestimonials() {
   }, [load]);
 
   return (
-    <div className="min-h-screen bg-background pt-24 pb-24 md:pb-8 px-4">
+    <ClientPageLayout>
       <SEOHead
         title="My Testimonials | Intensive Gainz Unit"
         description="Manage the testimonials you've shared with IGU."
       />
-      <div className="max-w-2xl mx-auto space-y-4">
+      <div className="px-4 pt-6 pb-24 md:pb-8 max-w-2xl mx-auto space-y-4">
         <div>
           <h1 className="font-display text-4xl tracking-wide">
             {t("myTestimonialsTitle", { defaultValue: "My testimonials" })}
@@ -242,6 +243,6 @@ export default function MyTestimonials() {
           rows.map((row) => <TestimonialRow key={row.id} row={row} onChanged={load} />)
         )}
       </div>
-    </div>
+    </ClientPageLayout>
   );
 }

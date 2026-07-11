@@ -295,7 +295,7 @@ const App = () => {
                   {/* No OnboardingGuard: coaches/admins (incomplete client onboarding) can preview Learn; Learn's own gate (isStaff || active sub) still bounces incomplete clients. */}
                   <Route path="/learn" element={<AuthGuard><Learn /></AuthGuard>} />
                   <Route path="/workout-library" element={<Navigate to="/learn?tab=exercises" replace />} />
-                  <Route path="/testimonial" element={<WaitlistGuard><AuthGuard><PublicLayout><Testimonial /></PublicLayout></AuthGuard></WaitlistGuard>} />
+                  <Route path="/testimonial" element={<WaitlistGuard><AuthGuard><Testimonial /></AuthGuard></WaitlistGuard>} />
                   <Route path="/testimonials" element={<WaitlistGuard><PublicLayout><Testimonials /></PublicLayout></WaitlistGuard>} />
                   <Route path="/client-submission/:userId" element={<AuthGuard><ClientSubmission /></AuthGuard>} />
                   <Route path="/meet-our-team" element={<WaitlistGuard><PublicLayout><MeetOurTeam /></PublicLayout></WaitlistGuard>} />

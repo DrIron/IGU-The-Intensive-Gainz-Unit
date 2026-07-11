@@ -9,6 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Star } from "lucide-react";
+import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
@@ -221,21 +222,23 @@ const Testimonial = () => {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">Loading...</div>
-      </div>
+      <ClientPageLayout>
+        <div className="px-4 pt-6 flex items-center justify-center min-h-[40vh]">
+          <div className="text-center">Loading...</div>
+        </div>
+      </ClientPageLayout>
     );
   }
 
   // Clients-only: no coach relationship → no form (RLS enforces this too).
   if (myCoaches.length === 0) {
     return (
-      <div className="min-h-screen bg-background pt-24 pb-12 px-4">
+      <ClientPageLayout>
         <SEOHead
           title="Client Success Stories | Intensive Gainz Unit"
           description="Share your experience and read client success stories from IGU coaching."
         />
-        <div className="max-w-2xl mx-auto">
+        <div className="px-4 pt-6 pb-24 md:pb-8 max-w-2xl mx-auto">
           <Card>
             <CardHeader>
               <CardTitle>Testimonials are for IGU clients</CardTitle>
@@ -249,7 +252,7 @@ const Testimonial = () => {
             </CardContent>
           </Card>
         </div>
-      </div>
+      </ClientPageLayout>
     );
   }
 
@@ -257,12 +260,12 @@ const Testimonial = () => {
   const selectedCoachName = selectedCoach?.name;
 
   return (
-    <div className="min-h-screen bg-background pt-24 pb-12 px-4">
+    <ClientPageLayout>
       <SEOHead
         title="Client Success Stories | Intensive Gainz Unit"
         description="Share your experience and read client success stories from IGU coaching."
       />
-      <div className="max-w-2xl mx-auto">
+      <div className="px-4 pt-6 pb-24 md:pb-8 max-w-2xl mx-auto">
         <Card>
           <CardHeader>
             <CardTitle>Share Your Experience</CardTitle>
@@ -408,7 +411,7 @@ const Testimonial = () => {
           </CardContent>
         </Card>
       </div>
-    </div>
+    </ClientPageLayout>
   );
 };
 
