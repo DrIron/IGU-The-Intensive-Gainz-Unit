@@ -56,5 +56,10 @@
   "testimonialRestore": "استعادة",
   "testimonialSave": "حفظ التغييرات",
   "testimonialConsentUpdated": "تم تحديث تفضيلاتك.",
-  "testimonialForCoach": "لـ {{name}}"
+  "testimonialForCoach": "لـ {{name}}",
+  "coachTestimonialsEmpty": "لا توجد شهادات بعد — يمكن لعملائك ترك واحدة من لوحة التحكم الخاصة بهم.",
+  "coachTestimonialsShowToggle": "اعرضها على صفحتي العامة",
+  "coachTestimonialsNeedConsent": "بانتظار موافقة العميل.",
+  "coachTestimonialsWithdrawn": "سحبها العميل.",
+  "coachTestimonialsHidden": "مخفية بواسطة IGU."
 }

@@ -18,6 +18,7 @@ import { CoachClientDetail } from "./CoachClientDetail";
 import { CoachSessions } from "./CoachSessions";
 import { MyAssignmentsPanel } from "./MyAssignmentsPanel";
 import { CoachTeamsPage } from "./teams";
+import { CoachTestimonials } from "./CoachTestimonials";
 import { CoachTrainingDashboard } from "@/pages/coach/CoachTrainingDashboard";
 import { SectionErrorBoundary } from "@/components/SectionErrorBoundary";
 import { supabase } from "@/integrations/supabase/client";
@@ -77,6 +78,7 @@ export function CoachDashboardLayout({
     if (path.includes('/coach/sessions')) return 'sessions';
     if (path.includes('/coach/programs')) return 'programs';
     if (path.includes('/coach/exercises')) return 'exercises';
+    if (path.includes('/coach/testimonials')) return 'testimonials';
     if (path.includes('/coach/profile')) return 'profile';
     return 'overview';
   }, [location.pathname]);
@@ -101,6 +103,7 @@ export function CoachDashboardLayout({
       sessions: "/coach/sessions",
       programs: "/coach/programs",
       exercises: "/coach/exercises",
+      testimonials: "/coach/testimonials",
       profile: "/coach/profile",
     };
     const targetPath = sectionToPath[section] ?? "/coach";
@@ -191,6 +194,8 @@ export function CoachDashboardLayout({
         return user && <CoachProgramsPage coachUserId={user.id} />;
       case "exercises":
         return <ExerciseLibrary />;
+      case "testimonials":
+        return <CoachTestimonials coachUserId={user.id} />;
       case "profile":
         return <CoachProfile />;
       default:
@@ -247,6 +252,7 @@ function getPageTitle(section: string): string {
     "pending-approvals": "Pending Approvals",
     programs: "Programs",
     exercises: "Exercise Library",
+    testimonials: "Testimonials",
     profile: "My Profile",
     "my-documents": "My Documents",
   };
@@ -266,6 +272,7 @@ function getSectionSubtitle(section: string): string {
     "pending-approvals": "Review pending client approvals",
     programs: "Your coaching programs",
     exercises: "Browse and search exercises for your programs",
+    testimonials: "Choose which client reviews appear on your public profile",
     profile: "View and edit your profile",
     "my-documents": "Upload your documents",
   };

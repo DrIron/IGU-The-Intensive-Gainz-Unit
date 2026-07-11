@@ -56,5 +56,10 @@
   "testimonialRestore": "Restore",
   "testimonialSave": "Save changes",
   "testimonialConsentUpdated": "Your preferences were updated.",
-  "testimonialForCoach": "For {{name}}"
+  "testimonialForCoach": "For {{name}}",
+  "coachTestimonialsEmpty": "No testimonials yet — your clients can leave one from their dashboard.",
+  "coachTestimonialsShowToggle": "Show on my public page",
+  "coachTestimonialsNeedConsent": "Waiting on client consent.",
+  "coachTestimonialsWithdrawn": "Client withdrew this.",
+  "coachTestimonialsHidden": "Hidden by IGU."
 }
