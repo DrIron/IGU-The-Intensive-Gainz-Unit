@@ -40,5 +40,21 @@
   "coachBasedOnReviews": "بناءً على {{count}} تقييم",
   "coachNotFoundTitle": "المدرّب غير موجود",
   "coachNotFoundBody": "هذا الملف الشخصي غير موجود أو لم يعد نشطًا.",
-  "coachBackToTeam": "تعرّف على فريقنا"
+  "coachBackToTeam": "تعرّف على فريقنا",
+  "testimonialConsentLabel": "اعرض هذا علنًا على IGU (يمكنك تغييره أو سحبه لاحقًا).",
+  "testimonialAttributionTitle": "كيف نعرض اسمك؟",
+  "testimonialAttribFullName": "الاسم الكامل",
+  "testimonialAttribFirstInitial": "الاسم الأول + الحرف الأول من العائلة",
+  "testimonialAttribAnonymous": "مجهول (عميل IGU)",
+  "myTestimonialsTitle": "شهاداتي",
+  "myTestimonialsSubtitle": "تحكّم فيما شاركته وكيفية ظهوره علنًا.",
+  "myTestimonialsEmpty": "لم تترك أي شهادات بعد.",
+  "testimonialShownPublicly": "معروضة علنًا",
+  "testimonialPrivate": "خاصة",
+  "testimonialWithdrawn": "مسحوبة",
+  "testimonialWithdraw": "سحب",
+  "testimonialRestore": "استعادة",
+  "testimonialSave": "حفظ التغييرات",
+  "testimonialConsentUpdated": "تم تحديث تفضيلاتك.",
+  "testimonialForCoach": "لـ {{name}}"
 }

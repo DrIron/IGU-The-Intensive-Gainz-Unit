@@ -153,6 +153,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "sessions", path: "/sessions", label: "Sessions", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: true, icon: CalendarDays, navOrder: 7 },
   { id: "client-messages", path: "/messages", label: "Messages", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: true, icon: MessageSquare, navOrder: 8 },
   { id: "addons-catalog", path: "/services/addons", label: "Add-on Services", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false, description: "Browse and buy one-off sessions + specialist add-ons" },
+  { id: "my-testimonials", path: "/my-testimonials", label: "My Testimonials", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false, description: "Manage and withdraw testimonials you've shared" },
   { id: "access-debug", path: "/access-debug", label: "Access Debug", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },
 ];
 

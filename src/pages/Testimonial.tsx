@@ -1,15 +1,21 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Label } from "@/components/ui/label";
 import { Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
 import { withTimeout } from "@/lib/withTimeout";
 import { SEOHead } from "@/components/SEOHead";
+
+type Attribution = "full_name" | "first_initial" | "anonymous";
 
 const Testimonial = () => {
   const [searchParams] = useSearchParams();
@@ -24,8 +30,11 @@ const Testimonial = () => {
   const [rating, setRating] = useState(0);
   const [hoveredRating, setHoveredRating] = useState(0);
   const [feedback, setFeedback] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [attribution, setAttribution] = useState<Attribution>("first_initial");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const { t } = useTranslation("common");
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -151,8 +160,20 @@ const Testimonial = () => {
       );
       if (profileError) throw profileError;
 
+      // Snapshot "First Last" when available so the RPC's first_initial derivation
+      // ("First L.") is clean. last_name lives on profiles_private (client can
+      // self-read own row); best-effort — fall back to display_name / first_name.
+      const { data: ownPrivate } = await supabase
+        .from("profiles_private")
+        .select("last_name")
+        .eq("profile_id", user.id)
+        .maybeSingle();
+      const firstName = ownProfile?.first_name?.trim() || "";
+      const lastName = ownPrivate?.last_name?.trim() || "";
+      const fullName = [firstName, lastName].filter(Boolean).join(" ");
+
       // Require a real display name — no "Anonymous" fallback.
-      const authorDisplayName = ownProfile?.display_name || ownProfile?.first_name || null;
+      const authorDisplayName = fullName || ownProfile?.display_name || firstName || null;
       if (!authorDisplayName) {
         toast({
           title: "Couldn't submit",
@@ -169,6 +190,8 @@ const Testimonial = () => {
         rating,
         feedback: feedback.trim(),
         author_display_name: authorDisplayName,
+        display_consent: consent,
+        attribution,
       });
 
       if (error) throw error;
@@ -316,6 +339,52 @@ const Testimonial = () => {
                 <p className="text-xs text-muted-foreground">
                   {feedback.length}/4000 characters
                 </p>
+              </div>
+
+              {/* Public-display consent (default off — saves privately if unchecked) */}
+              <div className="flex items-start gap-3 rounded-md border border-border p-3">
+                <Checkbox
+                  id="display-consent"
+                  checked={consent}
+                  onCheckedChange={(v) => setConsent(v === true)}
+                  className="mt-0.5"
+                />
+                <Label htmlFor="display-consent" className="text-sm font-normal leading-snug cursor-pointer">
+                  {t("testimonialConsentLabel", {
+                    defaultValue: "Show this on IGU publicly (you can change or withdraw this later).",
+                  })}
+                </Label>
+              </div>
+
+              {/* Attribution */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">
+                  {t("testimonialAttributionTitle", { defaultValue: "How should we show your name?" })}
+                </label>
+                <RadioGroup
+                  value={attribution}
+                  onValueChange={(v) => setAttribution(v as Attribution)}
+                  className="gap-2"
+                >
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="full_name" id="attr-full" />
+                    <Label htmlFor="attr-full" className="font-normal cursor-pointer">
+                      {t("testimonialAttribFullName", { defaultValue: "Full name" })}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="first_initial" id="attr-initial" />
+                    <Label htmlFor="attr-initial" className="font-normal cursor-pointer">
+                      {t("testimonialAttribFirstInitial", { defaultValue: "First name + initial" })}
+                    </Label>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <RadioGroupItem value="anonymous" id="attr-anon" />
+                    <Label htmlFor="attr-anon" className="font-normal cursor-pointer">
+                      {t("testimonialAttribAnonymous", { defaultValue: "Anonymous (IGU client)" })}
+                    </Label>
+                  </div>
+                </RadioGroup>
               </div>
 
               {/* Submit Button */}

@@ -40,5 +40,21 @@
   "coachBasedOnReviews": "Based on {{count}} reviews",
   "coachNotFoundTitle": "Coach not found",
   "coachNotFoundBody": "This coach profile doesn’t exist or is no longer active.",
-  "coachBackToTeam": "Meet our team"
+  "coachBackToTeam": "Meet our team",
+  "testimonialConsentLabel": "Show this on IGU publicly (you can change or withdraw this later).",
+  "testimonialAttributionTitle": "How should we show your name?",
+  "testimonialAttribFullName": "Full name",
+  "testimonialAttribFirstInitial": "First name + initial",
+  "testimonialAttribAnonymous": "Anonymous (IGU client)",
+  "myTestimonialsTitle": "My testimonials",
+  "myTestimonialsSubtitle": "Manage what you’ve shared and how it appears publicly.",
+  "myTestimonialsEmpty": "You haven’t left any testimonials yet.",
+  "testimonialShownPublicly": "Shown publicly",
+  "testimonialPrivate": "Private",
+  "testimonialWithdrawn": "Withdrawn",
+  "testimonialWithdraw": "Withdraw",
+  "testimonialRestore": "Restore",
+  "testimonialSave": "Save changes",
+  "testimonialConsentUpdated": "Your preferences were updated.",
+  "testimonialForCoach": "For {{name}}"
 }

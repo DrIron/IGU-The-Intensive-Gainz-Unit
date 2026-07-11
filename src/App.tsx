@@ -35,6 +35,7 @@ const Testimonials = lazyWithReload(() => import("./pages/Testimonials"));
 const ClientSubmission = lazyWithReload(() => import("./pages/ClientSubmission"));
 const MeetOurTeam = lazyWithReload(() => import("./pages/MeetOurTeam"));
 const CoachPublicPage = lazyWithReload(() => import("./pages/CoachPublicPage"));
+const MyTestimonials = lazyWithReload(() => import("./pages/MyTestimonials"));
 const CoachSignup = lazyWithReload(() => import("./pages/CoachSignup"));
 const CoachPasswordSetup = lazyWithReload(() => import("./pages/CoachPasswordSetup"));
 const NotFound = lazyWithReload(() => import("./pages/NotFound"));
@@ -112,6 +113,7 @@ const ClientMobileNavGlobal = memo(function ClientMobileNavGlobal() {
     "/payment-status",
     "/payment-return",
     "/services/addons",
+    "/my-testimonials",
   ];
   // Hide on active workout session — distraction-free logging UI
   if (location.pathname.startsWith("/client/workout/session/")) return null;
@@ -321,6 +323,7 @@ const App = () => {
                   <Route path="/coach/hub" element={<RoleProtectedRoute requiredRole="coach"><CoachHub /></RoleProtectedRoute>} />
                   <Route path="/sessions" element={<AuthGuard><OnboardingGuard><ClientSessions /></OnboardingGuard></AuthGuard>} />
                   <Route path="/messages" element={<AuthGuard><OnboardingGuard><ClientMessages /></OnboardingGuard></AuthGuard>} />
+                  <Route path="/my-testimonials" element={<AuthGuard><OnboardingGuard><MyTestimonials /></OnboardingGuard></AuthGuard>} />
                   <Route path="/services/addons" element={<AuthGuard><OnboardingGuard><AddonsCatalog /></OnboardingGuard></AuthGuard>} />
                   <Route path="/admin/client-diagnostics" element={<RoleProtectedRoute requiredRole="admin"><ClientDiagnostics /></RoleProtectedRoute>} />
                   <Route path="/admin/email-log" element={<RoleProtectedRoute requiredRole="admin"><EmailLog /></RoleProtectedRoute>} />
