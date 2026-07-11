@@ -7962,49 +7962,70 @@ export type Database = {
       }
       testimonials: {
         Row: {
+          attribution: string
           author_display_name: string | null
           coach_id: string | null
           created_at: string | null
+          display_consent: boolean
           duration_weeks: number | null
+          featured_public: boolean
+          featured_rank: number | null
           feedback: string
           goal_type: string | null
+          hidden_by_admin: boolean
           id: string
           is_approved: boolean | null
           is_archived: boolean
           rating: number
+          show_on_coach_page: boolean
           updated_at: string | null
           user_id: string
           weight_change_kg: number | null
+          withdrawn_at: string | null
         }
         Insert: {
+          attribution?: string
           author_display_name?: string | null
           coach_id?: string | null
           created_at?: string | null
+          display_consent?: boolean
           duration_weeks?: number | null
+          featured_public?: boolean
+          featured_rank?: number | null
           feedback: string
           goal_type?: string | null
+          hidden_by_admin?: boolean
           id?: string
           is_approved?: boolean | null
           is_archived?: boolean
           rating: number
+          show_on_coach_page?: boolean
           updated_at?: string | null
           user_id: string
           weight_change_kg?: number | null
+          withdrawn_at?: string | null
         }
         Update: {
+          attribution?: string
           author_display_name?: string | null
           coach_id?: string | null
           created_at?: string | null
+          display_consent?: boolean
           duration_weeks?: number | null
+          featured_public?: boolean
+          featured_rank?: number | null
           feedback?: string
           goal_type?: string | null
+          hidden_by_admin?: boolean
           id?: string
           is_approved?: boolean | null
           is_archived?: boolean
           rating?: number
+          show_on_coach_page?: boolean
           updated_at?: string | null
           user_id?: string
           weight_change_kg?: number | null
+          withdrawn_at?: string | null
         }
         Relationships: []
       }
@@ -9110,6 +9131,14 @@ export type Database = {
         Args: { p_slug: string }
         Returns: Json
       }
+      get_coach_public_testimonials: {
+        Args: { p_coach_user_id: string }
+        Returns: Json
+      }
+      get_coach_rating_aggregate: {
+        Args: { p_coach_user_id: string }
+        Returns: Json
+      }
       get_coach_roster_attention: { Args: never; Returns: Json }
       get_coach_roster_stats: { Args: never; Returns: Json }
       get_coach_whatsapp_for_client: {
@@ -9740,6 +9769,22 @@ export type Database = {
         }
         Returns: undefined
       }
+      set_testimonial_coach_visibility: {
+        Args: { p_id: string; p_show: boolean }
+        Returns: undefined
+      }
+      set_testimonial_consent: {
+        Args: { p_attribution: string; p_consent: boolean; p_id: string }
+        Returns: undefined
+      }
+      set_testimonial_featured: {
+        Args: { p_featured: boolean; p_id: string; p_rank: number }
+        Returns: undefined
+      }
+      set_testimonial_hidden: {
+        Args: { p_hidden: boolean; p_id: string }
+        Returns: undefined
+      }
       set_username: { Args: { p_username: string }; Returns: Json }
       should_create_module_for_specialist: {
         Args: {
@@ -9811,6 +9856,10 @@ export type Database = {
           p_record_created_at: string
         }
         Returns: boolean
+      }
+      withdraw_testimonial: {
+        Args: { p_id: string; p_withdrawn: boolean }
+        Returns: undefined
       }
     }
     Enums: {
