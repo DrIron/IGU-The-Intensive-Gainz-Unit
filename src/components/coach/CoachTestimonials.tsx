@@ -10,6 +10,8 @@ import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
 import { deriveDisplayName, type Attribution } from "@/lib/testimonialAttribution";
+import { WeightChangeProof } from "@/components/testimonials/WeightChangeProof";
+import { type WeightChangeShape } from "@/lib/weightChangeFormat";
 
 interface CoachTestimonialRow {
   id: string;
@@ -21,6 +23,9 @@ interface CoachTestimonialRow {
   withdrawn_at: string | null;
   hidden_by_admin: boolean;
   show_on_coach_page: boolean;
+  attachment_type: string;
+  attachment: WeightChangeShape | null;
+  attachment_note: string | null;
 }
 
 function Stars({ rating }: { rating: number }) {
@@ -80,6 +85,9 @@ function TestimonialCard({ row }: { row: CoachTestimonialRow }) {
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-muted-foreground whitespace-pre-line">{row.feedback}</p>
+        {row.attachment_type === "weight_change" && row.attachment && (
+          <WeightChangeProof attachment={row.attachment} note={row.attachment_note} />
+        )}
         <div className="flex items-center justify-between gap-3 rounded-md border border-border p-3">
           <div className="min-w-0">
             <Label htmlFor={`show-${row.id}`} className="text-sm font-normal cursor-pointer">
@@ -111,12 +119,12 @@ export function CoachTestimonials({ coachUserId }: { coachUserId: string }) {
       const { data, error } = await supabase
         .from("testimonials")
         .select(
-          "id, rating, feedback, attribution, author_display_name, display_consent, withdrawn_at, hidden_by_admin, show_on_coach_page, created_at",
+          "id, rating, feedback, attribution, author_display_name, display_consent, withdrawn_at, hidden_by_admin, show_on_coach_page, created_at, attachment_type, attachment, attachment_note",
         )
         .eq("coach_id", coachUserId)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      setRows((data ?? []) as CoachTestimonialRow[]);
+      setRows((data ?? []) as unknown as CoachTestimonialRow[]);
     } catch (error) {
       captureException(error, { source: "coach_testimonials_load" });
     } finally {

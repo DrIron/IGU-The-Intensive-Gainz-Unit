@@ -5,6 +5,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Star } from "lucide-react";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 import { CoachPublicProfile, deriveCoachHeadline } from "@/components/coach/CoachPublicProfile";
+import { WeightChangeProof } from "@/components/testimonials/WeightChangeProof";
+import { type WeightChangeShape } from "@/lib/weightChangeFormat";
 import { SEOHead } from "@/components/SEOHead";
 import { Button } from "@/components/ui/button";
 
@@ -38,6 +40,9 @@ interface ReputationItem {
   feedback: string;
   created_at: string;
   display_name: string;
+  attachment_type: string;
+  attachment: WeightChangeShape | null;
+  attachment_note: string | null;
 }
 
 export default function CoachPublicPage() {
@@ -157,6 +162,9 @@ export default function CoachPublicPage() {
             ))}
           </div>
           <blockquote className="text-[13px] leading-relaxed text-foreground">“{r.feedback}”</blockquote>
+          {r.attachment_type === "weight_change" && r.attachment && (
+            <WeightChangeProof attachment={r.attachment} note={r.attachment_note} className="mt-2" />
+          )}
           <figcaption className="mt-1.5 text-[11.5px] text-muted-foreground">— {r.display_name}</figcaption>
         </figure>
       ))}

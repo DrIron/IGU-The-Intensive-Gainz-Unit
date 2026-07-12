@@ -2,6 +2,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { captureException } from "@/lib/errorLogging";
 import { deriveDisplayName, deriveAvatarInitial } from "@/lib/testimonialAttribution";
+import { WeightChangeProof } from "@/components/testimonials/WeightChangeProof";
+import { type WeightChangeShape } from "@/lib/weightChangeFormat";
 import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +19,9 @@ export interface TestimonialRow {
   // Snapshotted at submit time so anon browsers read the author name off the row.
   author_display_name: string | null;
   attribution: string;
+  attachment_type: string;
+  attachment: WeightChangeShape | null;
+  attachment_note: string | null;
   coaches?: { first_name: string; last_name: string } | null;
 }
 
@@ -64,7 +69,7 @@ export function TestimonialsList({ limit, coachId, goalType, sortBy = "featured"
 
       const { data, error } = await query;
       if (error) throw error;
-      const rows = (data ?? []) as TestimonialRow[];
+      const rows = (data ?? []) as unknown as TestimonialRow[];
 
       // Coach names in ONE batched read (author name is already on the row). No per-row fan-out.
       const coachIds = [...new Set(rows.map((r) => r.coach_id).filter((v): v is string => Boolean(v)))];
@@ -113,6 +118,9 @@ export function TestimonialsList({ limit, coachId, goalType, sortBy = "featured"
               ))}
             </div>
             <p className="text-muted-foreground mb-4 italic">&quot;{testimonial.feedback}&quot;</p>
+            {testimonial.attachment_type === "weight_change" && testimonial.attachment && (
+              <WeightChangeProof attachment={testimonial.attachment} note={testimonial.attachment_note} className="mb-4" />
+            )}
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
                 <span className={cn("font-semibold text-primary", initial.length > 1 ? "text-xs" : "text-lg")}>

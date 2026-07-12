@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
 import { withTimeout } from '@/lib/withTimeout';
+import { WeightChangeProof } from "@/components/testimonials/WeightChangeProof";
+import { type WeightChangeShape } from "@/lib/weightChangeFormat";
 
 interface Testimonial {
   id: string;
@@ -30,6 +32,10 @@ interface Testimonial {
   withdrawn_at: string | null;
   attribution: string;
   show_on_coach_page: boolean;
+  // Proof attachment (T3)
+  attachment_type: string;
+  attachment: WeightChangeShape | null;
+  attachment_note: string | null;
   profiles?: {
     full_name: string;
     email: string;
@@ -131,7 +137,7 @@ export default function TestimonialsManager() {
         })
       );
 
-      setTestimonials(testimonialsWithDetails as Testimonial[]);
+      setTestimonials(testimonialsWithDetails as unknown as Testimonial[]);
     } catch (error) {
       toast({
         title: "Error loading testimonials",
@@ -348,6 +354,11 @@ export default function TestimonialsManager() {
 
                       {/* Feedback */}
                       <p className="text-foreground italic">&quot;{testimonial.feedback}&quot;</p>
+
+                      {/* Weight-change proof */}
+                      {testimonial.attachment_type === "weight_change" && testimonial.attachment && (
+                        <WeightChangeProof attachment={testimonial.attachment} note={testimonial.attachment_note} />
+                      )}
 
                       {/* Stats Badges */}
                       {(testimonial.weight_change_kg || testimonial.duration_weeks || testimonial.goal_type) && (

@@ -79,5 +79,8 @@
   "saveProof": "Save proof",
   "proofAttached": "Proof attached.",
   "proofAttachFailed": "Testimonial saved, but the proof didn’t attach.",
-  "addProofNonePhases": "No weight-change phases available for this coach yet."
+  "addProofNonePhases": "No weight-change phases available for this coach yet.",
+  "proofKg": "{{n}} kg",
+  "proofWeeks": "{{n}} weeks",
+  "proofWeekOne": "1 week"
 }

@@ -79,5 +79,8 @@
   "saveProof": "حفظ الدليل",
   "proofAttached": "تم إرفاق الدليل.",
   "proofAttachFailed": "تم حفظ الشهادة، لكن تعذّر إرفاق الدليل.",
-  "addProofNonePhases": "لا توجد مراحل تغيّر وزن متاحة لهذا المدرب بعد."
+  "addProofNonePhases": "لا توجد مراحل تغيّر وزن متاحة لهذا المدرب بعد.",
+  "proofKg": "{{n}} كجم",
+  "proofWeeks": "{{n}} أسابيع",
+  "proofWeekOne": "أسبوع واحد"
 }
