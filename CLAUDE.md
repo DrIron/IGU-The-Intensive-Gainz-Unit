@@ -10,7 +10,7 @@ Fitness coaching platform connecting coaches with clients. Handles client onboar
 
 ## Tech Stack
 
-**Frontend:** React 19 + TypeScript, Vite 5, Tailwind + shadcn/ui, React Router v6, TanStack Query, React Hook Form + Zod, `@hello-pangea/dnd`, react-helmet-async, i18next.
+**Frontend:** React 19 + TypeScript, Vite 5, Tailwind + shadcn/ui, React Router v6, TanStack Query, React Hook Form + Zod, `@hello-pangea/dnd`, i18next. Document metadata via **React 19 native `<title>`/`<meta>` hoisting** (`src/components/SEOHead.tsx`) — `react-helmet-async` was removed (inert under React 19); do not reintroduce it.
 
 **Backend:** Supabase (Postgres + Auth + Storage + Edge Functions / Deno).
 
@@ -391,7 +391,7 @@ Never write `<Card onClick={...}>`. Use `<ClickableCard>` from `@/components/ui/
 
 ### Mobile branching — `useIsMobile()`
 
-When building modals, pickers, drawers: branch on `useIsMobile()`. Mobile gets vaul `Drawer` (bottom sheet, `max-h-92vh`, flex-column scroll, safe-area padding, `h-10 text-base` inputs). Desktop stays on Dialog/Popover.
+When building **content-heavy modals and primary pickers/drawers** (multi-field forms, the coach/exercise pickers, the nutrition action dialogs, anything a user dwells in): branch on `useIsMobile()`. Mobile gets vaul `Drawer` (bottom sheet, `max-h-92vh`, flex-column scroll, safe-area padding, `h-10 text-base` inputs). Desktop stays on Dialog/Popover. Scope clarified 2026-07-12: this is **not** a blanket rule for every `Dialog`/`Popover` — simple confirmation dialogs and small popovers can stay Dialog-only. (Known genuine offenders to fix opportunistically: `CoachDetailDialog` — hit during onboarding on phones, folded into ON2; the `NutritionTab` action-pill dialogs.)
 
 Planning Board specifically: `MobileDayDetail.tsx` uses Drawer, `MuscleSlotCard.tsx` desktop still uses Popover.
 
@@ -679,18 +679,22 @@ coach_client_messages (
    exists) — phase name + goal badge, hero `kcal` number, `MacroDistributionRibbon`
    (red/amber/blue stacked bars for P/F/C with gram labels below),
    `expected vs actual` rate strip in monospace, status badge `On Track / Ahead /
-   Behind / No data yet`, colored left rail matching the status.
+   Behind / Completed / No data yet` (5 statuses — `Completed` = slate rail,
+   `NutritionPhaseCard.tsx:141,245`), colored left rail matching the status.
 
-2. **Tabs**:
-   - **Overview**: `CoachNutritionGoal` (phase form) + `StepProgressDisplay` +
-     `StepRecommendationCard`.
-   - **Adjustments**: `CoachNutritionProgress` renders a grid of
-     `NutritionAdjustmentWeekCard` (one per week, 2-up on desktop). Each card
-     has inline pills (`↑ Increase` / `↓ Decrease` opens a popover for amount +
-     notes; `Diet break` / `Delay` direct-fire). Pending adjustments show
-     Approve / Reject + 4-cell macro delta. Below the grid: `DietBreakManager`
-     + `RefeedDayScheduler` side-by-side.
+2. **Tabs** (`NutritionTab.tsx:183-188` — post-redesign labels, verified 2026-07-12):
+   - **This week**: weight + steps two-up trend row, the check-in, then an
+     **action row of `ActionDialog` pills** — Diet break / Refeed / Steps / link
+     managers each open in a **dialog** (`DietBreakManager`, `RefeedDayScheduler`,
+     `StepRecommendationCard`), NOT full inline cards, NOT side-by-side. Then the
+     nutrition calendar. `CoachNutritionProgress` adjustments live here.
    - **History**: `CoachNutritionGraphs` + `CoachNutritionNotes`.
+   - **Edit phase**: `CoachNutritionGoal` (phase form); opened from the hero
+     card's `onEditPhase`.
+
+   (The older Overview / Adjustments / History layout with side-by-side
+   `DietBreakManager` + `RefeedDayScheduler` was superseded by the nutrition-tab
+   redesign — see `docs/NUTRITION_TAB_REDESIGN.md`.)
 
 Permission gates: all editable components wrap in `<NutritionPermissionGate
 clientUserId={selectedClient}>` which consumes `useNutritionPermissions`. Never
