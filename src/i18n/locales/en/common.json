@@ -69,5 +69,15 @@
   "testimonialsAllGoals": "All goals",
   "testimonialsSortFeatured": "Featured",
   "testimonialsSortRecent": "Most recent",
-  "testimonialsSortRating": "Highest rated"
+  "testimonialsSortRating": "Highest rated",
+  "addProofTitle": "Add proof: weight change",
+  "addProofHint": "Optionally attach a real result you achieved with this coach.",
+  "addProofNone": "No proof",
+  "addProofNotePlaceholder": "Add context (optional)",
+  "addProof": "Add proof",
+  "removeProof": "Remove proof",
+  "saveProof": "Save proof",
+  "proofAttached": "Proof attached.",
+  "proofAttachFailed": "Testimonial saved, but the proof didn’t attach.",
+  "addProofNonePhases": "No weight-change phases available for this coach yet."
 }

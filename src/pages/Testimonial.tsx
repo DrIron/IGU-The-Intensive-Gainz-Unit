@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Star } from "lucide-react";
 import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { useToast } from "@/hooks/use-toast";
@@ -15,8 +16,21 @@ import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
 import { withTimeout } from "@/lib/withTimeout";
 import { SEOHead } from "@/components/SEOHead";
+import { formatWeightChange } from "@/lib/weightChangeFormat";
 
 type Attribution = "full_name" | "first_initial" | "anonymous";
+
+interface AttachablePhase {
+  phase_id: string;
+  phase_name: string;
+  goal_type: string | null;
+  start_kg: number;
+  end_kg: number;
+  delta_kg: number;
+  weeks: number;
+  from_date: string;
+  to_date: string;
+}
 
 const Testimonial = () => {
   const [searchParams] = useSearchParams();
@@ -33,9 +47,33 @@ const Testimonial = () => {
   const [feedback, setFeedback] = useState("");
   const [consent, setConsent] = useState(false);
   const [attribution, setAttribution] = useState<Attribution>("first_initial");
+  const [attachablePhases, setAttachablePhases] = useState<AttachablePhase[]>([]);
+  const [selectedPhaseId, setSelectedPhaseId] = useState<string>("none");
+  const [proofNote, setProofNote] = useState("");
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const { t } = useTranslation("common");
+
+  // Coach-scoped attachable weight-change phases (T3). Refetch on coach change;
+  // reset the picker so a stale phase from another coach can't be submitted.
+  useEffect(() => {
+    if (!selectedCoachId) {
+      setAttachablePhases([]);
+      setSelectedPhaseId("none");
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase.rpc("get_attachable_weight_phases", { p_coach_user_id: selectedCoachId });
+      if (cancelled) return;
+      setAttachablePhases((data as unknown as AttachablePhase[]) ?? []);
+      setSelectedPhaseId("none");
+      setProofNote("");
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedCoachId]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -185,22 +223,48 @@ const Testimonial = () => {
         return;
       }
 
-      const { error } = await supabase.from("testimonials").insert({
-        user_id: user.id,
-        coach_id: selectedCoachId,
-        rating,
-        feedback: feedback.trim(),
-        author_display_name: authorDisplayName,
-        display_consent: consent,
-        attribution,
-      });
+      const { data: inserted, error } = await supabase
+        .from("testimonials")
+        .insert({
+          user_id: user.id,
+          coach_id: selectedCoachId,
+          rating,
+          feedback: feedback.trim(),
+          author_display_name: authorDisplayName,
+          display_consent: consent,
+          attribution,
+        })
+        .select("id")
+        .single();
 
       if (error) throw error;
 
-      toast({
-        title: "Thank You!",
-        description: "Your testimonial has been submitted successfully.",
-      });
+      // Optional weight-change proof — best-effort: the testimonial is already
+      // saved, so an attach failure toasts but never blocks the success path.
+      let attachFailed = false;
+      if (selectedPhaseId !== "none" && inserted?.id) {
+        const { error: attachError } = await supabase.rpc("attach_weight_change", {
+          p_testimonial_id: inserted.id,
+          p_phase_id: selectedPhaseId,
+          p_note: proofNote.trim() || null,
+        });
+        if (attachError) {
+          attachFailed = true;
+          captureException(attachError, { source: "testimonial_attach_weight" });
+          toast({
+            title: t("proofAttachFailed", { defaultValue: "Testimonial saved, but the proof didn’t attach." }),
+            description: sanitizeErrorForUser(attachError),
+            variant: "destructive",
+          });
+        }
+      }
+
+      if (!attachFailed) {
+        toast({
+          title: "Thank You!",
+          description: "Your testimonial has been submitted successfully.",
+        });
+      }
 
       // Redirect to dashboard
       navigate("/dashboard");
@@ -389,6 +453,44 @@ const Testimonial = () => {
                   </div>
                 </RadioGroup>
               </div>
+
+              {/* Add proof: weight change (only when the coach has attachable phases) */}
+              {attachablePhases.length > 0 && (
+                <div className="space-y-2 rounded-md border border-border p-3">
+                  <label className="text-sm font-medium">
+                    {t("addProofTitle", { defaultValue: "Add proof: weight change" })}
+                  </label>
+                  <p className="text-xs text-muted-foreground">
+                    {t("addProofHint", { defaultValue: "Optionally attach a real result you achieved with this coach." })}
+                  </p>
+                  <Select value={selectedPhaseId} onValueChange={setSelectedPhaseId}>
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">{t("addProofNone", { defaultValue: "No proof" })}</SelectItem>
+                      {attachablePhases.map((p) => (
+                        <SelectItem key={p.phase_id} value={p.phase_id}>
+                          {formatWeightChange(p)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {selectedPhaseId !== "none" && (
+                    <div className="space-y-1">
+                      <Textarea
+                        value={proofNote}
+                        onChange={(e) => setProofNote(e.target.value)}
+                        maxLength={280}
+                        rows={2}
+                        placeholder={t("addProofNotePlaceholder", { defaultValue: "Add context (optional)" })}
+                        className="resize-none"
+                      />
+                      <p className="text-xs text-muted-foreground">{proofNote.length}/280</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Submit Button */}
               <div className="flex gap-4">

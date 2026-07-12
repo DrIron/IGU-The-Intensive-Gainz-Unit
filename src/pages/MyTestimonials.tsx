@@ -8,14 +8,30 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
 import { SEOHead } from "@/components/SEOHead";
+import { formatWeightChange } from "@/lib/weightChangeFormat";
 
 type Attribution = "full_name" | "first_initial" | "anonymous";
+
+/** get_attachable_weight_phases preview / stored attachment snapshot (same shape). */
+interface WeightChangeSnapshot {
+  phase_id: string;
+  phase_name: string;
+  goal_type: string | null;
+  start_kg: number;
+  end_kg: number;
+  delta_kg: number;
+  weeks: number;
+  from_date: string;
+  to_date: string;
+}
 
 interface MyTestimonial {
   id: string;
@@ -26,6 +42,9 @@ interface MyTestimonial {
   attribution: Attribution;
   withdrawn_at: string | null;
   coachName: string | null;
+  attachment_type: string;
+  attachment: WeightChangeSnapshot | null;
+  attachment_note: string | null;
 }
 
 function Stars({ rating }: { rating: number }) {
@@ -54,7 +73,73 @@ function TestimonialRow({ row }: { row: MyTestimonial }) {
   const [saving, setSaving] = useState(false);
   const [busyWithdraw, setBusyWithdraw] = useState(false);
 
+  // Weight-change proof — local authoritative copy (de478a4): optimistic + rollback,
+  // no post-write re-read.
+  const [attachment, setAttachment] = useState<WeightChangeSnapshot | null>(
+    row.attachment_type === "weight_change" ? row.attachment : null,
+  );
+  const [attachmentNote, setAttachmentNote] = useState<string | null>(row.attachment_note);
+  const [proofBusy, setProofBusy] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [phases, setPhases] = useState<WeightChangeSnapshot[]>([]);
+  const [pickedPhase, setPickedPhase] = useState("none");
+  const [noteDraft, setNoteDraft] = useState("");
+
   const dirty = consent !== savedConsent || attribution !== savedAttribution;
+
+  const openPicker = async () => {
+    setPickerOpen(true);
+    const { data } = await supabase.rpc("get_attachable_weight_phases", { p_coach_user_id: row.coach_id });
+    setPhases((data as unknown as WeightChangeSnapshot[]) ?? []);
+  };
+
+  const cancelPicker = () => {
+    setPickerOpen(false);
+    setPickedPhase("none");
+    setNoteDraft("");
+  };
+
+  const attachProof = async () => {
+    if (pickedPhase === "none") return;
+    const preview = phases.find((p) => p.phase_id === pickedPhase) ?? null;
+    const prevAttachment = attachment;
+    const prevNote = attachmentNote;
+    setProofBusy(true);
+    setAttachment(preview); // optimistic
+    setAttachmentNote(noteDraft.trim() || null);
+    const { data, error } = await supabase.rpc("attach_weight_change", {
+      p_testimonial_id: row.id,
+      p_phase_id: pickedPhase,
+      p_note: noteDraft.trim() || null,
+    });
+    if (error) {
+      setAttachment(prevAttachment); // rollback
+      setAttachmentNote(prevNote);
+      captureException(error, { source: "my_testimonials_attach" });
+      toast({ title: sanitizeErrorForUser(error), variant: "destructive" });
+    } else {
+      setAttachment(data as unknown as WeightChangeSnapshot); // authoritative snapshot
+      toast({ title: t("proofAttached", { defaultValue: "Proof attached." }) });
+      cancelPicker();
+    }
+    setProofBusy(false);
+  };
+
+  const removeProof = async () => {
+    const prevAttachment = attachment;
+    const prevNote = attachmentNote;
+    setProofBusy(true);
+    setAttachment(null); // optimistic
+    setAttachmentNote(null);
+    const { error } = await supabase.rpc("clear_testimonial_attachment", { p_testimonial_id: row.id });
+    if (error) {
+      setAttachment(prevAttachment); // rollback
+      setAttachmentNote(prevNote);
+      captureException(error, { source: "my_testimonials_clear" });
+      toast({ title: sanitizeErrorForUser(error), variant: "destructive" });
+    }
+    setProofBusy(false);
+  };
 
   const saveConsent = async () => {
     const prevConsent = savedConsent;
@@ -169,6 +254,69 @@ function TestimonialRow({ row }: { row: MyTestimonial }) {
               : t("testimonialWithdraw", { defaultValue: "Withdraw" })}
           </Button>
         </div>
+
+        {/* Weight-change proof */}
+        <div className="pt-3 border-t border-border/50 space-y-2">
+          {attachment ? (
+            <div className="rounded-md bg-muted p-3">
+              <p className="text-sm font-medium">{formatWeightChange(attachment)}</p>
+              {attachmentNote && <p className="mt-1 text-xs text-muted-foreground">{attachmentNote}</p>}
+              <Button size="sm" variant="outline" className="mt-2" onClick={removeProof} disabled={proofBusy}>
+                {t("removeProof", { defaultValue: "Remove proof" })}
+              </Button>
+            </div>
+          ) : !pickerOpen ? (
+            <Button size="sm" variant="outline" onClick={openPicker} disabled={withdrawn}>
+              {t("addProof", { defaultValue: "Add proof" })}
+            </Button>
+          ) : phases.length === 0 ? (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">
+                {t("addProofNonePhases", { defaultValue: "No weight-change phases available for this coach yet." })}
+              </p>
+              <Button size="sm" variant="ghost" onClick={cancelPicker}>
+                {t("cancel", { defaultValue: "Cancel" })}
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <Select value={pickedPhase} onValueChange={setPickedPhase}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">{t("addProofNone", { defaultValue: "No proof" })}</SelectItem>
+                  {phases.map((p) => (
+                    <SelectItem key={p.phase_id} value={p.phase_id}>
+                      {formatWeightChange(p)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {pickedPhase !== "none" && (
+                <div className="space-y-1">
+                  <Textarea
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    maxLength={280}
+                    rows={2}
+                    placeholder={t("addProofNotePlaceholder", { defaultValue: "Add context (optional)" })}
+                    className="resize-none"
+                  />
+                  <p className="text-xs text-muted-foreground">{noteDraft.length}/280</p>
+                </div>
+              )}
+              <div className="flex gap-2">
+                <Button size="sm" onClick={attachProof} disabled={proofBusy || pickedPhase === "none"}>
+                  {t("saveProof", { defaultValue: "Save proof" })}
+                </Button>
+                <Button size="sm" variant="ghost" onClick={cancelPicker}>
+                  {t("cancel", { defaultValue: "Cancel" })}
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );
@@ -191,7 +339,9 @@ export default function MyTestimonials() {
       // Own-row SELECT policy (user_id = auth.uid()) returns the caller's rows.
       const { data, error } = await supabase
         .from("testimonials")
-        .select("id, coach_id, rating, feedback, display_consent, attribution, withdrawn_at, created_at")
+        .select(
+          "id, coach_id, rating, feedback, display_consent, attribution, withdrawn_at, created_at, attachment_type, attachment, attachment_note",
+        )
         .eq("user_id", user.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
@@ -218,6 +368,9 @@ export default function MyTestimonials() {
           attribution: r.attribution as Attribution,
           withdrawn_at: r.withdrawn_at,
           coachName: nameById.get(r.coach_id as string) || null,
+          attachment_type: r.attachment_type,
+          attachment: r.attachment as unknown as WeightChangeSnapshot | null,
+          attachment_note: r.attachment_note,
         })),
       );
     } catch (error) {

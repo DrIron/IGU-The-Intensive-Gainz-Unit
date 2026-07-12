@@ -69,5 +69,15 @@
   "testimonialsAllGoals": "كل الأهداف",
   "testimonialsSortFeatured": "المميزة",
   "testimonialsSortRecent": "الأحدث",
-  "testimonialsSortRating": "الأعلى تقييمًا"
+  "testimonialsSortRating": "الأعلى تقييمًا",
+  "addProofTitle": "أضف دليلًا: تغيّر الوزن",
+  "addProofHint": "يمكنك اختياريًا إرفاق نتيجة حقيقية حققتها مع هذا المدرب.",
+  "addProofNone": "بدون دليل",
+  "addProofNotePlaceholder": "أضف سياقًا (اختياري)",
+  "addProof": "أضف دليلًا",
+  "removeProof": "إزالة الدليل",
+  "saveProof": "حفظ الدليل",
+  "proofAttached": "تم إرفاق الدليل.",
+  "proofAttachFailed": "تم حفظ الشهادة، لكن تعذّر إرفاق الدليل.",
+  "addProofNonePhases": "لا توجد مراحل تغيّر وزن متاحة لهذا المدرب بعد."
 }
