@@ -44,7 +44,8 @@ export function PushTemplateDialog({ open, onOpenChange, templatePlanId, assigne
   const toggle = (cloneId: string) =>
     setSelected((prev) => {
       const next = new Set(prev);
-      next.has(cloneId) ? next.delete(cloneId) : next.add(cloneId);
+      if (next.has(cloneId)) next.delete(cloneId);
+      else next.add(cloneId);
       return next;
     });
 
