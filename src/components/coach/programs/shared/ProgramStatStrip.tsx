@@ -28,13 +28,22 @@ export interface StatStripDuration {
 
 interface ProgramStatStripProps {
   sets: number;
+  /**
+   * Exercise count — "312 sets · 18 exercises · ~58 min".
+   *
+   * PR1 deferred this prop "until a consumer needs it"; PR2's ProgramSummaryCard
+   * is that consumer (the locked card spec is sets · exercises · min). Optional
+   * and self-omitting, so the builder's day-column strip — which has no room for
+   * it — renders exactly as before.
+   */
+  exercises?: number;
   duration?: StatStripDuration | null;
   className?: string;
 }
 
-export function ProgramStatStrip({ sets, duration, className }: ProgramStatStripProps) {
+export function ProgramStatStrip({ sets, exercises, duration, className }: ProgramStatStripProps) {
   // Self-omitting: nothing to say → render nothing (matches the builder's guard).
-  if (sets <= 0 && !duration) return null;
+  if (sets <= 0 && !exercises && !duration) return null;
 
   return (
     <div
@@ -44,6 +53,7 @@ export function ProgramStatStrip({ sets, duration, className }: ProgramStatStrip
       )}
     >
       {sets > 0 && <span>{sets} sets</span>}
+      {exercises != null && exercises > 0 && <span>{exercises} exercises</span>}
       {duration && (
         <span
           className="inline-flex items-center gap-0.5"

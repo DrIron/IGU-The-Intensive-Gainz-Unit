@@ -1,10 +1,16 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/empty-state";
+import { ClickableCard } from "@/components/ui/clickable-card";
+import { cn } from "@/lib/utils";
+import { ProgramSummaryCard } from "./shared/ProgramSummaryCard";
+import { useProgramSummaries } from "./useProgramSummaries";
+import { deriveProgramStatus } from "./programStatus";
+import type { ProgramStructure, FocusChips } from "./shared/programSummaryAdapter";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Plus, Search, Copy, Edit, MoreVertical, BookOpen, Tag, Trash2, X, User, Users } from "lucide-react";
@@ -45,6 +51,10 @@ interface MacrocycleOption {
   name: string;
 }
 
+/** Rendered while a card's summary is still loading — every field self-omits. */
+const EMPTY_STRUCTURE: ProgramStructure = { weeks: 0, daysPerWeek: 0, sessions: 0 };
+const EMPTY_FOCUS: FocusChips = { chips: [], overflow: 0 };
+
 interface ProgramLibraryProps {
   coachUserId: string;
   onCreateProgram: () => void;
@@ -54,9 +64,11 @@ interface ProgramLibraryProps {
    *  (not the program id) and is expected to open Planning Board on a
    *  duplicate of that plan. */
   onEditInPlanningBoard?: (musclePlanId: string) => void;
+  /** PR2: primary card click -> the read-optimized detail view (§2B), not the editor. */
+  onOpenProgram?: (programId: string) => void;
 }
 
-export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, onEditInPlanningBoard }: ProgramLibraryProps) {
+export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, onEditInPlanningBoard, onOpenProgram }: ProgramLibraryProps) {
   const [programs, setPrograms] = useState<ProgramTemplate[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -445,6 +457,11 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
   const { paginate } = createPagination(filteredPrograms, PAGE_SIZE);
   const { paginatedItems: pagePrograms, totalPages, totalItems, pageSize } = paginate(currentPage);
 
+  // PR2: one batched fetch for the visible page's summaries (no N+1 across the grid).
+  // Cards render their static shell immediately and fill in when this resolves.
+  const pageProgramIds = useMemo(() => pagePrograms.map((p) => p.id), [pagePrograms]);
+  const { summaries } = useProgramSummaries(pageProgramIds);
+
   // Reset to page 1 when filters change
   const handleSearch = (value: string) => {
     setSearchQuery(value);
@@ -562,127 +579,114 @@ export function ProgramLibrary({ coachUserId, onCreateProgram, onEditProgram, on
         <>
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {pagePrograms.map((program) => (
-            <Card key={program.id} className={`group hover:shadow-md transition-shadow ${selectedIds.has(program.id) ? "ring-2 ring-primary" : ""}`}>
-              <CardHeader className="pb-2">
-                <div className="flex justify-between items-start">
-                  <div className="flex items-center gap-2 min-w-0">
-                    <Checkbox
-                      checked={selectedIds.has(program.id)}
-                      onCheckedChange={() => toggleSelect(program.id)}
-                      className="shrink-0"
-                    />
-                    <CardTitle className="text-lg line-clamp-1">{program.title}</CardTitle>
-                  </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon" className="h-8 w-8">
-                        <MoreVertical className="h-4 w-4" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => onEditProgram(program.id)}>
-                        <Edit className="h-4 w-4 mr-2" />
-                        Edit
-                      </DropdownMenuItem>
-                      {/* Shown only when this program was originally converted from a
-                          Planning Board muscle plan AND the parent page wants this option. */}
-                      {onEditInPlanningBoard && program.source_muscle_plan_id && (
-                        <DropdownMenuItem
-                          onClick={() => onEditInPlanningBoard(program.source_muscle_plan_id!)}
-                        >
-                          <Layers className="h-4 w-4 mr-2" />
-                          Edit in Planning Board
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem onClick={() => duplicateProgram(program)}>
-                        <Copy className="h-4 w-4 mr-2" />
-                        Duplicate
-                      </DropdownMenuItem>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setAssignTarget({ programId: program.id, programTitle: program.title, mode: "client" })}>
-                        <User className="h-4 w-4 mr-2" />
-                        Assign to Client
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setAssignTarget({ programId: program.id, programTitle: program.title, mode: "team" })}>
-                        <Users className="h-4 w-4 mr-2" />
-                        Assign to Team
-                      </DropdownMenuItem>
-                      <DropdownMenuSub>
-                        <DropdownMenuSubTrigger>
-                          <CalendarRange className="h-4 w-4 mr-2" />
-                          Add to macrocycle
-                        </DropdownMenuSubTrigger>
-                        <DropdownMenuSubContent>
-                          <DropdownMenuItem
-                            onClick={() => addToMacrocycle(program.id, program.title, null)}
-                          >
-                            <Plus className="h-4 w-4 mr-2" />
-                            New macrocycle with this
-                          </DropdownMenuItem>
-                          {macrocycleOptions.length > 0 && <DropdownMenuSeparator />}
-                          {macrocycleOptions.map(m => (
-                            <DropdownMenuItem
-                              key={m.id}
-                              onClick={() => addToMacrocycle(program.id, program.title, m.id)}
-                            >
-                              {m.name}
-                            </DropdownMenuItem>
-                          ))}
-                        </DropdownMenuSubContent>
-                      </DropdownMenuSub>
-                      <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        className="text-destructive focus:text-destructive"
-                        onClick={() => setDeleteTarget(program)}
-                      >
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Delete
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {program.description && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">
-                    {program.description}
-                  </p>
-                )}
-                <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <span>{(program.program_template_days?.length || 0) === 1 ? '1 day' : `${program.program_template_days?.length || 0} days`}</span>
-                  {program.level && (
-                    <>
-                      <span>•</span>
-                      <Badge variant="secondary" className="capitalize">
-                        {program.level}
-                      </Badge>
-                    </>
-                  )}
-                </div>
-                {program.tags && program.tags.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {program.tags.slice(0, 3).map((tag) => (
-                      <Badge key={tag} variant="outline" className="text-xs">
-                        {tag}
-                      </Badge>
-                    ))}
-                    {program.tags.length > 3 && (
-                      <Badge variant="outline" className="text-xs">
-                        +{program.tags.length - 3}
-                      </Badge>
-                    )}
-                  </div>
-                )}
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => onEditProgram(program.id)}
-                >
-                  <Edit className="h-4 w-4 mr-2" />
-                  Edit Program
+            <ClickableCard
+              key={program.id}
+              ariaLabel={`Open ${program.title}`}
+              onClick={() => onOpenProgram?.(program.id)}
+              className={cn(
+                "h-full p-0 flex flex-col",
+                selectedIds.has(program.id) && "ring-2 ring-primary",
+              )}
+            >
+              {/* Selection + actions. Both stop propagation so they don't open the detail. */}
+              <div
+                className="flex items-center justify-between px-4 pt-3"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <Checkbox
+                  checked={selectedIds.has(program.id)}
+                  onCheckedChange={() => toggleSelect(program.id)}
+                  aria-label={`Select ${program.title}`}
+                  className="shrink-0"
+                />
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <MoreVertical className="h-4 w-4" />
                 </Button>
-              </CardContent>
-            </Card>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onClick={() => onEditProgram(program.id)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Edit
+                </DropdownMenuItem>
+                {/* Shown only when this program was originally converted from a
+                    Planning Board muscle plan AND the parent page wants this option. */}
+                {onEditInPlanningBoard && program.source_muscle_plan_id && (
+                  <DropdownMenuItem
+                    onClick={() => onEditInPlanningBoard(program.source_muscle_plan_id!)}
+                  >
+                    <Layers className="h-4 w-4 mr-2" />
+                    Edit in Planning Board
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem onClick={() => duplicateProgram(program)}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Duplicate
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setAssignTarget({ programId: program.id, programTitle: program.title, mode: "client" })}>
+                  <User className="h-4 w-4 mr-2" />
+                  Assign to Client
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setAssignTarget({ programId: program.id, programTitle: program.title, mode: "team" })}>
+                  <Users className="h-4 w-4 mr-2" />
+                  Assign to Team
+                </DropdownMenuItem>
+                <DropdownMenuSub>
+                  <DropdownMenuSubTrigger>
+                    <CalendarRange className="h-4 w-4 mr-2" />
+                    Add to macrocycle
+                  </DropdownMenuSubTrigger>
+                  <DropdownMenuSubContent>
+                    <DropdownMenuItem
+                      onClick={() => addToMacrocycle(program.id, program.title, null)}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      New macrocycle with this
+                    </DropdownMenuItem>
+                    {macrocycleOptions.length > 0 && <DropdownMenuSeparator />}
+                    {macrocycleOptions.map(m => (
+                      <DropdownMenuItem
+                        key={m.id}
+                        onClick={() => addToMacrocycle(program.id, program.title, m.id)}
+                      >
+                        {m.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuSubContent>
+                </DropdownMenuSub>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onClick={() => setDeleteTarget(program)}
+                >
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+              </div>
+
+              <ProgramSummaryCard
+                name={program.title}
+                level={program.level}
+                structure={summaries.get(program.id)?.structure ?? EMPTY_STRUCTURE}
+                ribbon={summaries.get(program.id)?.ribbon ?? []}
+                sets={summaries.get(program.id)?.sets ?? 0}
+                exercises={summaries.get(program.id)?.exercises ?? 0}
+                duration={summaries.get(program.id)?.duration ?? null}
+                focus={summaries.get(program.id)?.focus ?? EMPTY_FOCUS}
+                status={deriveProgramStatus(
+                  summaries.get(program.id)?.sets ?? 0,
+                  summaries.get(program.id)?.reach.clients ?? 0,
+                )}
+                reach={summaries.get(program.id)?.reach ?? null}
+                tags={program.tags ?? undefined}
+                className="flex-1"
+              />
+            </ClickableCard>
           ))}
         </div>
         <SimplePagination

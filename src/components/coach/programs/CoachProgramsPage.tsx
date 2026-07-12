@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
 import { ProgramLibrary } from "./ProgramLibrary";
+import { ProgramDetailView } from "./ProgramDetailView";
 import { ProgramCalendarBuilder } from "./ProgramCalendarBuilder";
 import { MuscleBuilderPage } from "./muscle-builder/MuscleBuilderPage";
 import { MusclePlanLibrary } from "./muscle-builder/MusclePlanLibrary";
@@ -40,6 +42,11 @@ type Detail =
  * Builder are unchanged — they open as full-screen detail pages.
  */
 export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
+  // PR2: the mesocycle detail is URL-addressable (/coach/programs/:programId), the
+  // same pattern as /coach/clients/:id and /coach/teams/:id — it routes through
+  // CoachDashboard so it keeps the coach shell + mobile dock.
+  const navigate = useNavigate();
+  const { programId: routeProgramId } = useParams<{ programId: string }>();
   const { canBuildPrograms, isLoading: permissionsLoading } = useSubrolePermissions(coachUserId);
   const isMobile = useIsMobile();
   // `reload` refreshes the macrocycle list — we call it after closing the
@@ -90,6 +97,18 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   }
 
   // Detail views take the whole surface.
+  // URL-driven mesocycle detail (§2B). Takes precedence over the tab hub.
+  if (routeProgramId) {
+    return (
+      <ProgramDetailView
+        programId={routeProgramId}
+        onBack={() => navigate("/coach/programs")}
+        onEditInPlanningBoard={editMusclePlan}
+        onAssign={openProgram}
+      />
+    );
+  }
+
   if (detail.kind === "macrocycle") {
     return (
       <MacrocycleEditor
@@ -182,6 +201,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
             onCreateProgram={newMusclePlan}
             onEditProgram={openProgram}
             onEditInPlanningBoard={editMusclePlan}
+            onOpenProgram={(id) => navigate(`/coach/programs/${id}`)}
           />
         </TabsContent>
 
