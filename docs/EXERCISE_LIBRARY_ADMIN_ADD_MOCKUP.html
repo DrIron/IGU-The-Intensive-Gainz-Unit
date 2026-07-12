@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGU — Admin Add Exercise (cascade)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Bebas+Neue&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --background:220 20% 97%;--card:0 0% 100%;--foreground:240 10% 3.9%;
+    --primary:355 78% 48%;--border:220 15% 92%;--muted:220 14% 96%;
+    --muted-foreground:240 3.8% 46.1%;--radius:0.75rem;
+    --ontrack:142 71% 45%;--attention:38 92% 50%;--risk:0 84% 60%;--desk:220 16% 91%;
+  }
+  .dark{--background:240 10% 3.7%;--foreground:0 0% 98%;--card:240 6% 8.4%;--muted:240 4% 11.8%;--muted-foreground:240 5% 64.9%;--border:240 4% 16.5%;--desk:240 8% 6%;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Geist',system-ui,sans-serif;background:hsl(var(--desk));color:hsl(var(--foreground));-webkit-font-smoothing:antialiased;padding:40px 24px 80px;}
+  .ttoggle{position:fixed;top:14px;right:16px;z-index:99;border:1px solid hsl(var(--border));background:hsl(var(--card));color:hsl(var(--foreground));border-radius:9px;padding:7px 12px;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;}
+  .head{max-width:1000px;margin:0 auto 20px;}
+  .head h1{font-weight:600;font-size:26px;letter-spacing:-0.02em;}
+  .head p{color:hsl(var(--muted-foreground));font-size:14.5px;margin-top:8px;line-height:1.55;max-width:820px;}
+  .head b{color:hsl(var(--primary));font-weight:600;}
+  .note{max-width:820px;margin:12px auto 0;font-size:12.5px;color:hsl(var(--muted-foreground));background:hsl(var(--card));border:1px solid hsl(var(--border));border-left:3px solid hsl(var(--attention));border-radius:10px;padding:11px 14px;line-height:1.55;}
+  .stack{max-width:1000px;margin:22px auto 0;display:flex;flex-direction:column;gap:34px;}
+  .label{font-size:13px;font-weight:600;margin-bottom:10px;}
+  .label b{color:hsl(var(--primary));}
+  .label span{color:hsl(var(--muted-foreground));font-weight:400;}
+
+  .muted{color:hsl(var(--muted-foreground));}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  .win{border-radius:14px;border:1px solid hsl(var(--border));overflow:hidden;box-shadow:0 14px 40px rgba(20,24,33,.16);background:hsl(var(--card));}
+  .chrome{height:34px;background:hsl(var(--muted));border-bottom:1px solid hsl(var(--border));display:flex;align-items:center;gap:7px;padding:0 14px;}
+  .chrome i{width:11px;height:11px;border-radius:50%;background:hsl(var(--border));}
+  .sheettop{padding:15px 20px;border-bottom:1px solid hsl(var(--border));display:flex;align-items:center;justify-content:space-between;}
+  .sheettop h2{font-size:17px;font-weight:600;}
+  .body{display:grid;grid-template-columns:1fr 300px;}
+  .form{padding:18px 20px;border-right:1px solid hsl(var(--border));}
+  .side{padding:18px 18px;background:hsl(var(--muted)/.35);}
+
+  .field{margin-bottom:13px;}
+  .field .l{font-size:11px;font-weight:500;color:hsl(var(--muted-foreground));margin-bottom:5px;display:flex;align-items:center;gap:6px;}
+  .field .l .step{width:16px;height:16px;border-radius:5px;background:hsl(var(--primary)/.12);color:hsl(var(--primary));font-family:'JetBrains Mono';font-size:9px;display:inline-flex;align-items:center;justify-content:center;}
+  .sel{display:flex;align-items:center;justify-content:space-between;border:1px solid hsl(var(--border));border-radius:9px;padding:9px 12px;font-size:13px;background:hsl(var(--card));}
+  .sel.ph{color:hsl(var(--muted-foreground));}
+  .sel.disabled{opacity:.45;}
+  .addnew{font-size:11px;color:hsl(var(--primary));font-weight:500;margin-top:6px;display:inline-flex;align-items:center;gap:5px;}
+  .dropopen{border:1px solid hsl(var(--primary));border-radius:9px;overflow:hidden;margin-top:2px;}
+  .dropopen .opt{padding:8px 12px;font-size:12.5px;border-bottom:1px solid hsl(var(--border));}
+  .dropopen .opt.sel{background:hsl(var(--primary)/.08);color:hsl(var(--primary));}
+  .dropopen .addrow{padding:9px 12px;display:flex;gap:8px;align-items:center;background:hsl(var(--muted)/.5);}
+  .dropopen .addrow input{flex:1;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:7px;padding:6px 9px;font-size:12px;color:hsl(var(--foreground));font-family:inherit;}
+  .mini{font-size:11px;padding:5px 11px;border-radius:8px;font-weight:500;}
+  .mini.primary{background:hsl(var(--primary));color:#fff;border:none;}
+  .mini.outline{background:hsl(var(--card));border:1px solid hsl(var(--border));color:hsl(var(--foreground));}
+
+  .chipset{display:flex;flex-wrap:wrap;gap:7px;}
+  .chipset span{font-size:12px;padding:6px 12px;border-radius:8px;border:1px solid hsl(var(--border));color:hsl(var(--muted-foreground));}
+  .chipset span.on{background:hsl(var(--primary)/.1);border-color:hsl(var(--primary));color:hsl(var(--primary));}
+  .chipset span.add{border-style:dashed;color:hsl(var(--primary));}
+
+  .machine{border:1px solid hsl(var(--border));border-radius:9px;padding:11px 12px;}
+  .radio{display:flex;align-items:center;gap:9px;font-size:12.5px;padding:6px 0;}
+  .rad{width:15px;height:15px;border-radius:50%;border:2px solid hsl(var(--border));flex:none;}
+  .rad.on{border-color:hsl(var(--primary));background:radial-gradient(hsl(var(--primary)) 42%,transparent 46%);}
+
+  .preview{position:sticky;top:0;}
+  .sectlab{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:hsl(var(--muted-foreground));margin:0 0 8px;}
+  .pvcard{border:1px solid hsl(var(--border));border-radius:11px;padding:14px;background:hsl(var(--card));}
+  .pvcard .cn{font-family:'Bebas Neue';font-size:22px;line-height:1.05;}
+  .pvcard .lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:.05em;color:hsl(var(--muted-foreground));margin-top:10px;}
+  .pvcard .coach{font-family:'JetBrains Mono';font-size:11.5px;color:hsl(var(--muted-foreground));margin-top:3px;}
+  .batch{margin-top:12px;font-size:11px;background:hsl(var(--attention)/.12);color:hsl(38 92% 34%);border-radius:8px;padding:8px 10px;line-height:1.4;}
+  .steps{counter-reset:s;list-style:none;margin-top:4px;}
+  .steps li{display:flex;gap:9px;padding:6px 0;font-size:12px;align-items:flex-start;}
+  .steps li::before{counter-increment:s;content:counter(s);font-family:'JetBrains Mono';font-size:10px;color:hsl(var(--primary));width:18px;height:18px;border-radius:5px;background:hsl(var(--primary)/.1);display:flex;align-items:center;justify-content:center;flex:none;}
+  .inherit{font-size:11.5px;color:hsl(var(--muted-foreground));background:hsl(var(--muted)/.5);border-radius:8px;padding:9px 11px;line-height:1.4;}
+  .foot{display:flex;justify-content:flex-end;gap:9px;padding:14px 20px;border-top:1px solid hsl(var(--border));}
+  .btn{border:none;border-radius:9px;font-family:inherit;font-size:12.5px;font-weight:600;padding:9px 15px;}
+  .btn.primary{background:hsl(var(--primary));color:#fff;}
+  .btn.outline{background:hsl(var(--card));border:1px solid hsl(var(--border));font-weight:500;color:hsl(var(--foreground));}
+</style>
+</head>
+<body class="dark">
+<button class="ttoggle" onclick="document.body.classList.toggle('dark')">◐ Theme</button>
+<div class="head">
+  <h1>IGU — Admin · Add Exercise (guided cascade)</h1>
+  <p>The admin cascade form (extends <b>ExerciseLibraryManager</b>): <b>Category → Region → Muscle → Subdivision → Movement → Equipment → Positioning → Resistance → Machine</b>, each step constraining the next. Three key interactions: <b>+ Add new</b> at every dropdown (machines/positions/movements grow over time), a <b>live auto-generated name preview</b> (coach + client), and a <b>machine picker</b> (generic vs named brand). Themed, default dark, IGU tokens.</p>
+  <div class="note"><b>Flag to the data workstream:</b> I couldn't open the attached <span class="mono">IGU_Admin_Add_Exercise_System_Spec.md</span> — designed from your summary + <span class="mono">EXERCISE_LIBRARY_REDESIGN.md</span>. Please confirm: (1) exact <b>cascade order</b> (your summary puts Equipment before Positioning/Resistance; the redesign doc had resistance→positioning→equipment) — I used your summary order; (2) <b>Positioning + Resistance are multiselect</b> → does that <b>batch-create one exercise per combination</b> (shown), or one row with multiple tags? (3) the <b>name-generation</b> function + which axes it reads; (4) <b>positioning applicability</b> per muscle/subdivision; (5) <b>machine brands</b> lookup; (6) which lookups accept inline "+ Add new".</div>
+</div>
+
+<div class="stack">
+
+  <!-- 1 main cascade -->
+  <div>
+    <div class="label">1 · <b>Add Exercise</b> — the cascade + live name preview <span>· "+ Add new" shown open on Movement; Positioning/Resistance multiselect</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="sheettop"><h2>Add Exercise</h2><span class="muted">✕</span></div>
+      <div class="body">
+        <div class="form">
+          <div class="muted" style="font-size:10.5px;margin-bottom:10px">Every dropdown is loaded live from the DB taxonomy — and every one has <b style="color:hsl(var(--primary))">+ Add new</b>.</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="field"><div class="l"><span class="step">1</span>Category</div><div class="sel">Strength <span class="muted">▾</span></div></div>
+            <div class="field"><div class="l"><span class="step">2</span>Region</div><div class="sel">Chest <span class="muted">▾</span></div><div class="addnew">+ Add new region</div></div>
+            <div class="field"><div class="l"><span class="step">3</span>Muscle</div><div class="sel">Pec Major <span class="muted">▾</span></div><div class="addnew">+ Add new muscle</div></div>
+            <div class="field"><div class="l"><span class="step">4</span>Subdivision</div><div class="sel">Clavicular Head <span class="muted">▾</span></div><div class="addnew">+ Add new subdivision</div></div>
+          </div>
+
+          <!-- movement with + add new open -->
+          <div class="field"><div class="l"><span class="step">5</span>Movement <span class="muted" style="font-weight:400">· controlled · execution cues attach here</span></div>
+            <div class="dropopen">
+              <div class="opt">Flat Press</div>
+              <div class="opt sel">Incline Press ✓</div>
+              <div class="opt">Decline Press</div>
+              <div class="addrow"><span style="color:hsl(var(--primary))">+</span><input value="Reverse Incline Press" /><span class="mini primary">Add</span></div>
+            </div>
+          </div>
+
+          <div class="field"><div class="l"><span class="step">6</span>Equipment</div><div class="sel">Dumbbell (DB) <span class="muted">▾</span></div><div class="addnew">+ Add new equipment</div></div>
+
+          <div class="field"><div class="l"><span class="step">7</span>Positioning <span class="muted" style="font-weight:400">· only terms valid for this muscle · multiselect</span></div>
+            <div class="chipset"><span class="on">Incline ✓</span><span>Flat</span><span class="add">+ Add position</span></div>
+          </div>
+
+          <div class="field"><div class="l"><span class="step">8</span>Resistance bias <span class="muted" style="font-weight:400">· multiselect</span></div>
+            <div class="chipset"><span>Shortened</span><span class="on">Mid ✓</span><span>Lengthened</span></div>
+          </div>
+
+          <div class="field"><div class="l"><span class="step">9</span>Machine</div><div class="sel disabled">— (equipment isn't a machine) <span class="muted">▾</span></div></div>
+
+          <div class="field" style="margin-top:6px"><div class="l">Setup <span class="muted" style="font-weight:400">· per-exercise (this leaf)</span></div>
+            <ol class="steps"><li>Set the bench to a 30° incline.</li><li>Sit with a dumbbell on each thigh; kick back to shoulder level.</li></ol>
+            <div class="addnew">+ Add setup step</div>
+          </div>
+          <div class="field"><div class="l">Execution <span class="muted" style="font-weight:400">· inherited from movement</span></div>
+            <div class="inherit">Auto-inherited from <b style="color:hsl(var(--foreground))">Incline Press</b> (written once per movement). <span style="color:hsl(var(--primary))">Edit at the movement node →</span></div>
+          </div>
+        </div>
+
+        <!-- live preview rail -->
+        <div class="side">
+          <div class="preview">
+            <div class="sectlab">Live name preview</div>
+            <div class="pvcard">
+              <div class="lbl" style="margin-top:0">Client sees</div>
+              <div class="cn">Incline Dumbbell Press</div>
+              <div class="lbl">Coach label</div>
+              <div class="coach">Clavicular Pec DB Incline Press (M)</div>
+              <div class="batch">Multiselect → this will create <b>1 exercise</b> (Mid × Incline). Add another resistance/position to batch more.</div>
+            </div>
+            <div class="sectlab" style="margin-top:18px">Cascade</div>
+            <div class="muted" style="font-size:11px;line-height:1.7">Strength › Chest › Pec Major › Clavicular › Incline Press › Dumbbell › Incline · Mid</div>
+          </div>
+        </div>
+      </div>
+      <div class="foot"><button class="btn outline">Cancel</button><button class="btn primary">Save exercise</button></div>
+    </div>
+  </div>
+
+  <!-- 2 machine picker -->
+  <div>
+    <div class="label">2 · <b>Machine step</b> — generic vs named brand <span>· when Equipment = Machine; "+ Add machine brand"; name reflects the brand</span></div>
+    <div class="win" style="max-width:560px">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="sheettop"><h2>Add Exercise · Machine</h2><span class="muted">✕</span></div>
+      <div style="padding:18px 20px">
+        <div class="field"><div class="l"><span class="step">6</span>Equipment</div><div class="sel">Machine (M) <span class="muted">▾</span></div></div>
+        <div class="field"><div class="l"><span class="step">9</span>Machine</div>
+          <div class="machine">
+            <div class="radio"><span class="rad"></span>Generic machine</div>
+            <div class="radio"><span class="rad on"></span>Named brand</div>
+            <div class="sel" style="margin-top:8px">Hammer Strength <span class="muted">▾</span></div>
+            <div class="addnew">+ Add machine brand</div>
+            <div class="muted" style="font-size:10.5px;margin-top:8px">Brand affects <b style="color:hsl(var(--foreground))">setup + name only</b> — never the swap key.</div>
+          </div>
+        </div>
+        <div class="pvcard" style="margin-top:6px">
+          <div class="lbl" style="margin-top:0">Client sees</div>
+          <div class="cn">Hammer Strength Machine Incline Press</div>
+          <div class="lbl">Coach label</div>
+          <div class="coach">Clavicular Pec M Hammer Incline Press (M)</div>
+          <div class="muted" style="font-size:10.5px;margin-top:8px">Generic → "Machine Incline Press". Smith Machine is its own equipment code <b style="color:hsl(var(--foreground))">SM</b>, not a brand.</div>
+        </div>
+      </div>
+      <div class="foot"><button class="btn outline">Cancel</button><button class="btn primary">Save exercise</button></div>
+    </div>
+  </div>
+
+  <!-- 3 add-new popup -->
+  <div>
+    <div class="label">3 · <b>"+ Add new" popup</b> <span>· simple lookups add inline; ones with a parent (muscle→region, subdivision→muscle) use this compact dialog — never leaves the cascade</span></div>
+    <div class="win" style="max-width:400px">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="sheettop" style="padding:14px 18px"><h2 style="font-size:15px">New muscle</h2><span class="muted">✕</span></div>
+      <div style="padding:16px 18px">
+        <div class="field"><div class="l">Name</div><div class="sel" style="color:hsl(var(--foreground))">Serratus Posterior</div></div>
+        <div class="field"><div class="l">Region <span class="muted" style="font-weight:400">· parent</span></div><div class="sel">Back <span class="muted">▾</span></div></div>
+        <div class="inherit" style="background:hsl(var(--primary)/.06);color:hsl(var(--muted-foreground))">Saved to the taxonomy → immediately selectable here, and available to every other exercise + the client browse.</div>
+      </div>
+      <div class="foot" style="padding:12px 18px"><button class="btn outline">Cancel</button><button class="btn primary">Add muscle</button></div>
+    </div>
+    <div class="muted" style="max-width:420px;font-size:12px;margin-top:12px;line-height:1.6"><b style="color:hsl(var(--foreground))">Two add patterns, kept concise:</b> single-field lookups (<b style="color:hsl(var(--foreground))">machine brand, positioning term, equipment</b>) add <b style="color:hsl(var(--foreground))">inline</b> at the bottom of their dropdown (screen 1, Movement). Lookups that need a <b style="color:hsl(var(--foreground))">parent/relationship</b> (muscle→region, subdivision→muscle, and a movement if it later needs a slug/muscle) use this small <b style="color:hsl(var(--foreground))">popup</b>. Either way the new value saves to the DB and is instantly selectable — no leaving the Add-Exercise flow.</div>
+  </div>
+
+</div>
+</body>
+</html>

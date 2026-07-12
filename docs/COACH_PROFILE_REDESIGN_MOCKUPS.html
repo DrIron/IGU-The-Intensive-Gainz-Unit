@@ -1,0 +1,205 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGU — Coach Profile Redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:hsl(240 10% 3.7%); --card:hsl(240 6% 8.4%); --muted:hsl(240 4% 11.8%);
+    --muted-fg:hsl(240 5% 64.9%); --border:hsl(240 4% 16.5%); --fg:hsl(0 0% 98%);
+    --primary:hsl(355 78% 48%); --primary-soft:hsl(355 78% 48% / .14); --primary-ring:hsl(355 78% 48% / .30);
+    --ontrack:hsl(142 64% 52%); --amber:hsl(38 92% 55%);
+    --page:#050506; --radius:12px;
+    --sans:'Geist',system-ui,sans-serif; --display:'Bebas Neue',sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  :root.light{
+    --bg:hsl(220 20% 97%); --card:hsl(0 0% 100%); --muted:hsl(240 5% 95.9%);
+    --muted-fg:hsl(240 4% 46%); --border:hsl(220 15% 90%); --fg:hsl(240 10% 4%);
+    --primary-soft:hsl(355 78% 48% / .08); --primary-ring:hsl(355 78% 48% / .22);
+    --ontrack:hsl(142 71% 38%); --amber:hsl(38 92% 42%); --page:#e9ebf0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--fg);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:26px 20px 90px}
+  .wrap{max-width:1320px;margin:0 auto}
+  .topbar{display:flex;align-items:center;gap:16px;margin-bottom:8px}
+  h1{font-family:var(--display);font-weight:400;letter-spacing:.5px;font-size:42px;margin:0;line-height:1}
+  h1 .em{color:var(--primary)}
+  .toggle{margin-left:auto;display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);color:var(--fg);border-radius:99px;padding:8px 14px;font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer}
+  .toggle .dotp{width:14px;height:14px;border-radius:99px;background:var(--primary)}
+  .sub{color:var(--muted-fg);font-size:14.5px;margin:8px 0 22px;max-width:820px}
+  .legend{display:flex;flex-wrap:wrap;gap:9px 22px;margin:0 0 30px;padding:14px 18px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);font-size:12.5px}
+  .legend b{color:var(--fg);font-weight:600}.legend .k{color:var(--muted-fg)}.legend .dot{color:var(--primary);margin-right:5px}
+  .rowlabel{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-fg);margin:36px 0 14px;display:flex;align-items:center;gap:10px}
+  .rowlabel::before{content:"";width:20px;height:1px;background:var(--primary)}
+  .frames{display:flex;flex-wrap:wrap;gap:24px}
+  .col{display:flex;flex-direction:column;width:320px}
+  .phone{width:320px;background:var(--bg);border:1px solid var(--border);border-radius:26px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 22px 50px -22px rgba(0,0,0,.55)}
+  .status{height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted-fg);font-family:var(--mono)}
+  .body{flex:1;display:flex;flex-direction:column;min-height:600px}
+  .scroll{flex:1;overflow:hidden;padding:0 16px}
+  .caption{font-size:12px;color:var(--muted-fg);margin:10px 2px 0;text-align:center;line-height:1.45}
+  .caption b{color:var(--fg);font-weight:600}
+
+  /* editor header */
+  .ehead{display:flex;align-items:center;justify-content:space-between;padding:13px 16px 8px}
+  .ehead .t{font-size:16px;font-weight:600}
+  .ehead .acts{display:flex;gap:8px}
+  .pill{font-size:12px;padding:6px 12px;border-radius:99px;cursor:pointer;font-weight:500;border:1px solid var(--border);background:transparent;color:var(--fg)}
+  .pill.pri{background:var(--primary);border-color:var(--primary);color:#fff}
+  /* completeness meter */
+  .meter{margin:4px 16px 6px}
+  .meter .lab{display:flex;justify-content:space-between;font-size:11px;color:var(--muted-fg);margin-bottom:5px}
+  .meter .lab b{color:var(--ontrack);font-weight:500}
+  .meter .bar{height:5px;background:var(--muted);border-radius:99px;overflow:hidden}
+  .meter .bar>i{display:block;height:100%;background:var(--ontrack);border-radius:99px}
+
+  .avwrap{display:flex;flex-direction:column;align-items:center;gap:8px;padding:10px 0 6px}
+  .av-lg{width:78px;height:78px;border-radius:99px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:26px;font-family:var(--sans)}
+  .editphoto{color:var(--primary);font-size:12px;cursor:pointer}
+
+  .sechead{font-size:11px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted-fg);margin:16px 0 4px;padding-top:12px;border-top:1px solid var(--border)}
+  .sechead.first{border-top:none;padding-top:0}
+  .field{margin-bottom:11px}.flab{font-size:11.5px;color:var(--muted-fg);margin-bottom:5px;display:flex;justify-content:space-between}
+  .flab .cnt{font-family:var(--mono);font-size:10.5px}
+  .inp{background:var(--muted);border:1px solid var(--border);border-radius:10px;padding:11px 12px;font-size:13.5px;color:var(--fg);font-family:var(--sans)}
+  .ta{min-height:56px}
+  .two{display:flex;gap:10px}.two>*{flex:1}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+  .chip{font-size:12px;padding:7px 12px;border-radius:99px;border:1px solid var(--border);background:var(--muted);color:var(--fg);cursor:pointer;line-height:1;display:inline-flex;align-items:center;gap:6px}
+  .chip.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:500}
+  .counter{font-size:11px;color:var(--muted-fg);margin-top:8px;font-family:var(--mono)}.counter b{color:var(--primary);font-weight:500}
+  .quals{margin-top:2px}
+  .qual{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:8px 10px;border:1px solid var(--border);border-radius:9px;margin-bottom:6px}
+  .qual .g{width:5px;height:5px;border-radius:99px;background:var(--primary);flex:none}
+  .social{display:flex;align-items:center;gap:8px;font-size:12.5px;padding:9px 11px;border:1px solid var(--border);border-radius:9px;margin-bottom:7px;color:var(--muted-fg)}
+  .social b{color:var(--fg);font-weight:400}
+  .foot{border-top:1px solid var(--border);padding:11px 16px calc(11px + env(safe-area-inset-bottom));background:var(--bg)}
+  .btn{border:none;border-radius:10px;padding:12px 18px;font-family:var(--sans);font-size:13.5px;font-weight:600;cursor:pointer;width:100%}
+  .btn.pri{background:var(--primary);color:#fff}
+  .btn.sec{background:transparent;border:1px solid var(--border);color:var(--fg)}
+
+  /* public card */
+  .hero{position:relative;height:230px;background:linear-gradient(180deg,#3a3a40,#17171b);display:flex;align-items:flex-end;overflow:hidden}
+  :root.light .hero{background:linear-gradient(180deg,#c9ccd4,#8f929c)}
+  .hero .shade{position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,rgba(0,0,0,.6))}
+  .hero .figure{position:absolute;right:14px;bottom:0;font-size:150px;line-height:1;color:rgba(255,255,255,.10)}
+  .hero .name{position:relative;padding:16px;z-index:2}
+  .hero .name .n{font-family:var(--display);font-size:38px;letter-spacing:.5px;color:#fff;line-height:.95}
+  .hero .name .r{font-size:12.5px;color:rgba(255,255,255,.85);margin-top:4px;font-weight:500}
+  .stats{display:flex;padding:14px 16px;gap:6px;border-bottom:1px solid var(--border)}
+  .stat{flex:1;text-align:center}
+  .stat .v{font-family:var(--mono);font-size:18px;font-weight:600;color:var(--fg)}
+  .stat .l{font-size:10px;color:var(--muted-fg);text-transform:uppercase;letter-spacing:.06em;margin-top:2px}
+  .pscroll{flex:1;overflow:hidden;padding:0 16px}
+  .psec{padding:14px 0;border-bottom:1px solid var(--border)}
+  .psec:last-child{border-bottom:none}
+  .psec .h{font-size:11px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;color:var(--muted-fg);margin-bottom:8px}
+  .psec p{margin:0;font-size:13px;line-height:1.55;color:var(--fg)}
+  .listrow{font-size:13px;padding:5px 0;color:var(--fg)}
+  .gymrow{display:flex;align-items:center;gap:8px;font-size:13px;padding:5px 0}
+  .gymrow .pin{color:var(--primary)}
+  .socialicons{display:flex;gap:10px}
+  .socialicons span{width:34px;height:34px;border-radius:99px;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;color:var(--muted-fg)}
+  .testi{background:var(--muted);border-radius:10px;padding:12px;font-size:12.5px;line-height:1.5}
+  .testi .q{color:var(--fg)}.testi .a{color:var(--muted-fg);margin-top:6px;font-size:11.5px}
+  .cta{border-top:1px solid var(--border);padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:8px;background:var(--bg)}
+  .badge{font-size:10px;padding:3px 8px;border-radius:99px;font-weight:500;background:hsl(38 92% 50% / .16);color:var(--amber);margin-left:6px}
+  .intro{display:flex;align-items:center;gap:10px;background:var(--muted);border-radius:10px;padding:10px 12px;margin-top:2px;font-size:12.5px}
+  .intro .play{width:32px;height:32px;border-radius:99px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1>IGU Coach Profile — <span class="em">Redesign</span></h1>
+    <button class="toggle" onclick="document.documentElement.classList.toggle('light');this.querySelector('span').textContent=document.documentElement.classList.contains('light')?'Light':'Dark'"><span class="dotp"></span><span>Dark</span> mode</button>
+  </div>
+  <p class="sub">Two connected surfaces — the coach's <b style="color:var(--fg)">editor</b> (sectioned, completeness meter, Preview/Save, counters) and the client-facing <b style="color:var(--fg)">public card</b> it previews (hero + editorial sections + specialty chips + stats). Real IGU tokens, light + dark (toggle top-right). Patterns from Mobbin — Feeld, Badoo, Bumble (editor); Future, Mindvalley, Tonal, Nike, Runna (public). Directional, not final copy.</p>
+
+  <div class="legend">
+    <span class="k"><span class="dot">●</span><b>Completeness meter</b> nudges a full profile (Badoo)</span>
+    <span class="k"><span class="dot">●</span><b>Preview / Save</b> header — edit while seeing the client view (Feeld)</span>
+    <span class="k"><span class="dot">●</span><b>Sectioned</b> instead of one long scroll (Bumble)</span>
+    <span class="k"><span class="dot">●</span><b>Counters</b> on bio + tags</span>
+    <span class="k"><span class="dot">●</span><b>Hero + Bebas name</b>, chips, stats, "Trains at" gyms (Mindvalley/Future)</span>
+  </div>
+
+  <div class="rowlabel">The editor — /coach/profile</div>
+  <div class="frames">
+
+    <!-- EDITOR 1 -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ehead"><div class="t">Edit profile</div><div class="acts"><button class="pill">Preview</button><button class="pill pri">Save</button></div></div>
+      <div class="meter"><div class="lab"><span>Profile strength</span><b>80% complete</b></div><div class="bar"><i style="width:80%"></i></div></div>
+      <div class="scroll">
+        <div class="avwrap"><div class="av-lg">HD</div><span class="editphoto">Change photo</span></div>
+        <div class="sechead first">Identity</div>
+        <div class="two"><div class="field"><div class="flab">First name</div><div class="inp">Hasan</div></div><div class="field"><div class="flab">Nickname</div><div class="inp" style="color:var(--muted-fg)">Dr Iron</div></div></div>
+        <div class="field"><div class="flab">Location</div><div class="inp">Kuwait City</div></div>
+        <div class="sechead">Bio</div>
+        <div class="field"><div class="flab"><span>Short bio (profile card)</span><span class="cnt">88/160</span></div><div class="inp ta" style="color:var(--muted-fg)">Physique &amp; strength coach. 10+ years turning consistency into results.</div></div>
+      </div>
+      <div class="foot"><button class="btn pri">Save changes</button></div>
+    </div></div><p class="caption"><b>Editor top.</b> Preview/Save header + a profile-strength meter; grouped sections replace the long scroll.</p></div>
+
+    <!-- EDITOR 2 -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ehead"><div class="t">Edit profile</div><div class="acts"><button class="pill">Preview</button><button class="pill pri">Save</button></div></div>
+      <div class="scroll" style="padding-top:12px">
+        <div class="sechead first">Specializations <span style="color:var(--muted-fg);text-transform:none;letter-spacing:0;font-family:var(--sans)">— shown to clients &amp; used for matching</span></div>
+        <div class="chips"><span class="chip on">Strength Training ✓</span><span class="chip on">Bodybuilding ✓</span><span class="chip on">Body Recomp ✓</span><span class="chip">Powerlifting</span><span class="chip on">Nutrition Coaching ✓</span><span class="chip">Weight Loss</span></div>
+        <div class="counter"><b>9</b> / 15 selected</div>
+        <div class="sechead">Trains at</div>
+        <div class="chips"><span class="chip on">Oxygen Jabriya ✓</span><span class="chip">Subah AlSalem</span><span class="chip">Spark Shuwaikh</span></div>
+        <div class="counter">clients matched by gym for in-person / hybrid</div>
+        <div class="sechead">Qualifications</div>
+        <div class="quals"><div class="qual"><span class="g"></span>MB BCh BAO (Hons)</div><div class="qual"><span class="g"></span>ACE-CPT · Sports Nutrition Specialist</div></div>
+        <div class="sechead">Contact &amp; social</div>
+        <div class="field"><div class="flab">WhatsApp</div><div class="inp">+965 6060 9681</div></div>
+        <div class="social">Instagram <b>/driron</b></div>
+        <div class="social">YouTube <b style="color:var(--muted-fg)">add link</b></div>
+      </div>
+      <div class="foot"><button class="btn pri">Save changes</button></div>
+    </div></div><p class="caption"><b>Editor cont.</b> Chips + counters; a new "Trains at" gym picker (ties to managed gyms); qualifications as rows; social as labeled links.</p></div>
+
+  </div>
+
+  <div class="rowlabel">The public card — how a client sees the coach</div>
+  <div class="frames">
+
+    <!-- PUBLIC 1 -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="hero"><div class="figure">🏋</div><div class="shade"></div><div class="name"><div class="n">Hasan Dashti</div><div class="r">Head Coach · Strength &amp; Physique</div></div></div>
+      <div class="stats"><div class="stat"><div class="v">10+</div><div class="l">Years</div></div><div class="stat"><div class="v">40+</div><div class="l">Clients</div></div><div class="stat"><div class="v">4.9</div><div class="l">Rating</div></div></div>
+      <div class="pscroll">
+        <div class="psec"><div class="h">Specialties</div><div class="chips"><span class="chip on">Strength Training</span><span class="chip on">Bodybuilding</span><span class="chip on">Body Recomp</span><span class="chip on">Nutrition</span></div></div>
+        <div class="psec"><div class="h">About</div><p>Physique &amp; strength coach with 10+ years turning consistency into results — from first-timers to competitive lifters.</p>
+          <div class="intro"><span class="play"><svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg></span> Watch a 30-sec intro from Hasan</div>
+        </div>
+      </div>
+      <div class="cta"><button class="btn pri">Choose Hasan</button><button class="btn sec">View full profile</button></div>
+    </div></div><p class="caption"><b>Public hero.</b> Photo + Bebas name, a stats row, specialty chips, an intro video — the coach step / <span style="font-family:var(--mono)">/coach/:slug</span> card.</p></div>
+
+    <!-- PUBLIC 2 -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ehead"><div class="t" style="font-size:15px">Hasan Dashti</div><span class="editphoto">Close</span></div>
+      <div class="pscroll" style="padding-top:6px">
+        <div class="psec"><div class="h">Certified</div><div class="listrow">MB BCh BAO (Hons)</div><div class="listrow">ACE-CPT · Sports Nutrition Specialist</div><div class="listrow">Coaching Physique Athletes — Dr Eric Helms</div></div>
+        <div class="psec"><div class="h">Trains at</div><div class="gymrow"><span class="pin"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-6-5.7-6-10a6 6 0 0 1 12 0c0 4.3-6 10-6 10Z"/><circle cx="12" cy="11" r="2"/></svg></span> Oxygen Jabriya</div></div>
+        <div class="psec"><div class="h">Located</div><div class="listrow">Kuwait City, Kuwait</div></div>
+        <div class="psec"><div class="h">What clients say</div>
+          <div class="testi"><div class="q">"Down 9% body fat and stronger than ever — the check-ins kept me honest."</div><div class="a">— A. R. · 1:1 Hybrid <span class="badge">verified</span></div></div>
+        </div>
+        <div class="psec"><div class="h">Follow</div><div class="socialicons"><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.5" cy="6.5" r="1"/></svg></span><span><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 8-6 4 6 4V8Z"/><rect x="2" y="6" width="14" height="12" rx="2"/></svg></span></div></div>
+      </div>
+      <div class="cta"><button class="btn pri">Choose Hasan</button></div>
+    </div></div><p class="caption"><b>Public detail.</b> Editorial sections w/ dividers (Certified / Trains at / Located), a verified testimonial (ties the testimonials plan), social.</p></div>
+
+  </div>
+</div>
+</body>
+</html>

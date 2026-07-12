@@ -1,0 +1,670 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGU — Food Logging Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Bebas+Neue&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --background:220 20% 97%;--card:0 0% 100%;--foreground:240 10% 3.9%;
+    --primary:355 78% 48%;--border:220 15% 92%;--muted:220 14% 96%;
+    --muted-foreground:240 3.8% 46.1%;--radius:0.75rem;--desk:220 16% 91%;
+    --macro-protein:0 72% 51%;--macro-fat:38 92% 50%;--macro-carb:217 91% 60%;
+    --ontrack:142 71% 45%;--attention:38 92% 50%;--risk:0 84% 60%;
+  }
+  .dark{--background:240 10% 3.7%;--foreground:0 0% 98%;--card:240 6% 8.4%;--muted:240 4% 11.8%;--muted-foreground:240 5% 64.9%;--border:240 4% 16.5%;--status-ontrack:142 64% 52%;--status-attention:38 92% 55%;--status-risk:0 84% 64%;--desk:240 8% 6%;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Geist',system-ui,sans-serif;background:hsl(var(--desk));color:hsl(var(--foreground));-webkit-font-smoothing:antialiased;padding:40px 24px 80px;}
+  .ttoggle{position:fixed;top:14px;right:16px;z-index:99;border:1px solid hsl(var(--border));background:hsl(var(--card));color:hsl(var(--foreground));border-radius:9px;padding:7px 12px;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;}
+  .page-head{max-width:1200px;margin:0 auto 22px;}
+  .page-head h1{font-weight:600;font-size:26px;letter-spacing:-0.02em;}
+  .page-head p{color:hsl(var(--muted-foreground));font-size:14.5px;margin-top:8px;max-width:840px;line-height:1.55;}
+  .page-head b{color:hsl(var(--primary));font-weight:600;}
+  .note{max-width:840px;margin:14px auto 0;font-size:12.5px;color:hsl(var(--muted-foreground));background:hsl(var(--card));border:1px solid hsl(var(--border));border-left:3px solid hsl(var(--primary));border-radius:10px;padding:12px 15px;line-height:1.55;}
+  .legend{display:flex;gap:16px;flex-wrap:wrap;margin-top:16px;font-size:12.5px;color:hsl(var(--muted-foreground));}
+  .legend span{display:inline-flex;align-items:center;gap:7px;}
+  .dot{width:11px;height:11px;border-radius:3px;display:inline-block;}
+  .gallery{max-width:1200px;margin:26px auto 0;display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:40px 32px;align-items:start;}
+  .frame-wrap{display:flex;flex-direction:column;gap:11px;}
+  .frame-label{font-size:13px;font-weight:600;}
+  .frame-label b{color:hsl(var(--primary));}
+  .frame-sub{font-size:11.5px;color:hsl(var(--muted-foreground));line-height:1.45;}
+
+  .phone{width:320px;height:678px;background:hsl(var(--background));border-radius:34px;border:9px solid #16181d;overflow:hidden;position:relative;box-shadow:0 12px 38px rgba(20,24,33,.20);}
+  .statusbar{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:12px;font-weight:500;}
+  .statusbar .r{font-size:11px;}
+  .scr{height:calc(100% - 32px);overflow:hidden;display:flex;flex-direction:column;position:relative;}
+  .scrbody{flex:1;overflow:hidden;padding:0 14px 12px;}
+
+  .card{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:12px;}
+  .cardhead{display:flex;align-items:center;justify-content:space-between;padding:13px 15px 10px;}
+  .cardtitle{font-size:14px;font-weight:500;letter-spacing:-0.01em;display:flex;align-items:center;gap:7px;}
+  .cardtitle .i{width:15px;height:15px;border-radius:4px;background:hsl(var(--primary));opacity:.9;}
+  .cardbody{padding:0 15px 15px;}
+  .muted{color:hsl(var(--muted-foreground));}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;}
+  .chip{font-size:11px;color:hsl(var(--muted-foreground));background:hsl(var(--muted));padding:3px 9px;border-radius:6px;}
+  .badge-out{font-size:11px;font-weight:500;padding:2px 10px;border-radius:999px;border:1px solid;white-space:nowrap;}
+  .b-ontrack{border-color:hsl(var(--ontrack)/.4);background:hsl(var(--ontrack)/.1);color:hsl(var(--ontrack));}
+  .plusbtn{width:30px;height:30px;border-radius:9px;background:hsl(var(--primary));color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px;flex:none;}
+
+  /* ===== UNIFIED NutritionSummary ===== */
+  .summary{display:flex;align-items:center;gap:15px;}
+  .donutwrap{position:relative;flex:none;}
+  .donutwrap .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;line-height:1;}
+  .center .k{font-family:'Bebas Neue',sans-serif;color:hsl(var(--primary));line-height:1;}
+  .center .u{font-size:8px;letter-spacing:.06em;color:hsl(var(--muted-foreground));margin-top:2px;text-transform:uppercase;}
+  /* legend: fixed aligned columns — swatch | name | grams | pct — never wraps */
+  .leg{flex:1;min-width:0;display:flex;flex-direction:column;gap:10px;}
+  .leg li{list-style:none;display:grid;grid-template-columns:12px 1fr auto 30px;align-items:center;gap:8px;white-space:nowrap;}
+  .leg .sw{width:11px;height:11px;border-radius:50%;}
+  .leg .nm{font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;}
+  .leg .g{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;font-size:11.5px;text-align:right;}
+  .leg .p{font-family:'JetBrains Mono',monospace;font-size:11px;color:hsl(var(--muted-foreground));text-align:right;}
+  .summarybar{height:6px;border-radius:999px;background:hsl(var(--muted));overflow:hidden;margin-top:13px;}
+  .summarybar > i{display:block;height:100%;border-radius:999px;background:hsl(var(--primary));}
+  .summarybar-cap{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:10.5px;color:hsl(var(--muted-foreground));margin-top:6px;}
+
+  .btn-primary{background:hsl(var(--primary));color:#fff;border:none;border-radius:9px;font-weight:600;font-family:inherit;font-size:13px;padding:11px;width:100%;display:flex;align-items:center;justify-content:center;gap:6px;}
+  .btn-link{background:none;border:none;color:hsl(var(--primary));font-family:inherit;font-size:12px;font-weight:500;display:flex;align-items:center;justify-content:center;gap:5px;width:100%;padding-top:11px;}
+  .btn-ghost{background:none;border:none;color:hsl(var(--foreground));font-family:inherit;font-size:12px;display:inline-flex;align-items:center;gap:5px;}
+
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:11px 14px 8px;}
+  .topbar h2{font-size:16px;font-weight:600;}
+  .seg{display:flex;gap:5px;margin:8px 0;overflow:hidden;}
+  .seg span{font-size:11px;padding:5px 9px;border-radius:8px;border:1px solid hsl(var(--border));color:hsl(var(--muted-foreground));white-space:nowrap;}
+  .seg span.on{background:hsl(var(--foreground));color:hsl(var(--background));border-color:hsl(var(--foreground));}
+  .subtabs{display:flex;gap:18px;border-bottom:1px solid hsl(var(--border));margin:2px 2px 8px;}
+  .subtabs span{font-size:12px;padding:6px 0;color:hsl(var(--muted-foreground));}
+  .subtabs span.on{color:hsl(var(--foreground));font-weight:500;border-bottom:2px solid hsl(var(--primary));}
+
+  .meal{margin-top:13px;}
+  .meal .h{display:flex;justify-content:space-between;align-items:baseline;padding:0 2px 6px;}
+  .meal .h .n{font-size:13.5px;font-weight:600;}
+  .meal .h .k{font-size:12px;color:hsl(var(--muted-foreground));}
+  .entry{display:flex;justify-content:space-between;padding:10px 13px;border-bottom:1px solid hsl(var(--border));font-size:13px;}
+  .entry:last-child{border-bottom:none;}
+  .entry .s{font-size:11px;color:hsl(var(--muted-foreground));}
+  .addrow{padding:10px 13px;color:hsl(var(--primary));font-size:12.5px;font-weight:500;}
+
+  .drawertop{background:hsl(var(--card));border-top-left-radius:18px;border-top-right-radius:18px;border-top:1px solid hsl(var(--border));}
+  .grab{width:34px;height:4px;border-radius:999px;background:hsl(var(--border));margin:8px auto 2px;}
+  .navghost{position:absolute;left:0;right:0;bottom:0;height:54px;border-top:1px solid hsl(var(--border));background:hsl(var(--card));display:flex;align-items:center;justify-content:space-around;font-size:9.5px;color:hsl(var(--muted-foreground));opacity:.55;}
+  .navghost .it{display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .navghost .ic{width:17px;height:17px;border-radius:5px;background:currentColor;opacity:.7;}
+
+  .search{display:flex;align-items:center;gap:8px;background:hsl(var(--muted));border:1px solid hsl(var(--border));border-radius:9px;padding:9px 12px;font-size:13px;color:hsl(var(--muted-foreground));}
+  .fres{display:flex;justify-content:space-between;align-items:center;padding:11px 4px;border-bottom:1px solid hsl(var(--border));}
+  .fres .n{font-size:13px;font-weight:500;}
+  .fres .m{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:hsl(var(--muted-foreground));margin-top:4px;}
+  .badge{font-size:9px;font-weight:600;padding:1px 5px;border-radius:4px;margin-left:6px;}
+  .plus{width:27px;height:27px;border-radius:7px;border:1px solid hsl(var(--border));display:flex;align-items:center;justify-content:center;color:hsl(var(--primary));font-size:16px;flex:none;}
+
+  .unitchips{display:flex;gap:6px;flex-wrap:wrap;}
+  .unitchips span{font-size:12px;padding:7px 14px;border-radius:8px;border:1px solid hsl(var(--border));color:hsl(var(--muted-foreground));font-weight:500;}
+  .unitchips span.on{background:hsl(var(--primary)/.1);border-color:hsl(var(--primary));color:hsl(var(--primary));}
+  .stepper{display:flex;align-items:center;border:1px solid hsl(var(--border));border-radius:9px;overflow:hidden;}
+  .stepper b{width:48px;text-align:center;font-weight:600;font-size:15px;}
+  .stepper span{width:38px;height:42px;display:flex;align-items:center;justify-content:center;font-size:18px;color:hsl(var(--primary));}
+  .sel{display:flex;align-items:center;justify-content:space-between;border:1px solid hsl(var(--border));border-radius:9px;padding:11px 12px;font-size:13px;}
+
+  .nutrow{display:flex;align-items:center;gap:11px;padding:9px 2px;border-bottom:1px solid hsl(var(--border));font-size:12.5px;}
+  .nutrow:last-child{border-bottom:none;}
+  .nutrow .track{flex:1;height:5px;border-radius:999px;background:hsl(var(--muted));overflow:hidden;}
+  .nutrow .track i{display:block;height:100%;border-radius:999px;}
+  .nutrow .amt{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:hsl(var(--muted-foreground));width:84px;text-align:right;flex:none;}
+  .sectlab{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:hsl(var(--muted-foreground));margin:14px 2px 6px;}
+  .insight{display:flex;gap:7px;align-items:flex-start;padding:10px 12px;border-radius:9px;font-size:11.5px;line-height:1.4;}
+  /* two-tier macro alerts (D8): loud for protein+calories, quiet for fat+carbs */
+  .alert-loud{display:flex;align-items:center;gap:9px;padding:11px 12px;border-radius:10px;background:hsl(var(--attention)/.14);border:1px solid hsl(var(--attention)/.45);border-left-width:4px;color:hsl(38 92% 34%);font-size:12px;font-weight:500;}
+  .alert-loud.crit{background:hsl(var(--risk)/.12);border-color:hsl(var(--risk)/.45);color:hsl(var(--risk));}
+  .alert-loud .ico{font-size:15px;flex:none;}
+  .alert-loud .tag{margin-left:auto;font-size:8.5px;font-weight:600;background:hsl(var(--attention)/.2);color:hsl(38 92% 34%);padding:2px 7px;border-radius:6px;white-space:nowrap;}
+  .alert-quiet{display:inline-flex;gap:6px;align-items:center;font-size:11px;color:hsl(var(--muted-foreground));background:hsl(var(--muted));padding:6px 10px;border-radius:7px;margin-top:8px;}
+  .barwrap{display:flex;align-items:flex-end;gap:5px;height:58px;}
+  .barwrap i{flex:1;border-radius:3px 3px 0 0;background:hsl(var(--ontrack));}
+  .barwrap i.o{background:hsl(var(--attention));}
+  .barwrap i.e{background:hsl(var(--border));}
+
+  .fab{position:absolute;right:15px;bottom:68px;width:50px;height:50px;border-radius:50%;background:hsl(var(--primary));color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;box-shadow:0 6px 16px hsla(var(--primary)/.42);}
+  .dock{height:54px;border-top:1px solid hsl(var(--border));background:hsl(var(--card));display:flex;align-items:center;justify-content:space-around;font-size:9.5px;color:hsl(var(--muted-foreground));}
+  .dock .it{display:flex;flex-direction:column;align-items:center;gap:3px;}
+  .dock .it.on{color:hsl(var(--primary));}
+  .dock .ic{width:17px;height:17px;border-radius:5px;background:currentColor;opacity:.9;}
+  /* v4 additions: history/trends, meal builder, food library */
+  .toggle{display:flex;gap:4px;}
+  .toggle span{font-size:10.5px;padding:4px 8px;border-radius:7px;border:1px solid hsl(var(--border));color:hsl(var(--muted-foreground));}
+  .toggle span.on{background:hsl(var(--foreground));color:hsl(var(--background));border-color:hsl(var(--foreground));}
+  .chartleg{display:flex;gap:12px;font-size:10px;color:hsl(var(--muted-foreground));margin-top:8px;}
+  .chartleg span{display:inline-flex;align-items:center;gap:5px;}
+  .dotstrip{display:flex;gap:5px;flex-wrap:wrap;}
+  .dotstrip i{width:15px;height:15px;border-radius:4px;display:inline-block;}
+  .tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .tile{background:hsl(var(--muted)/.5);border-radius:10px;padding:11px 12px;}
+  .tile .n{font-family:'Bebas Neue',sans-serif;font-size:23px;line-height:1;}
+  .tile .l{font-size:10.5px;color:hsl(var(--muted-foreground));margin-top:3px;}
+  .accrow{display:flex;align-items:center;justify-content:space-between;padding:10px 12px;border-bottom:1px solid hsl(var(--border));font-size:13px;font-weight:500;}
+  .accrow.on{color:hsl(var(--primary));}
+  .accsub{display:flex;flex-wrap:wrap;gap:6px;padding:9px 12px;border-bottom:1px solid hsl(var(--border));background:hsl(var(--muted)/.4);}
+  .accsub span{font-size:11px;padding:5px 10px;border-radius:7px;background:hsl(var(--card));border:1px solid hsl(var(--border));color:hsl(var(--foreground));}
+  .accsub span.pick{border-color:hsl(var(--primary));color:hsl(var(--primary));}
+  .filterchips{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
+  .filterchips span{font-size:10.5px;padding:4px 9px;border-radius:7px;border:1px solid hsl(var(--border));color:hsl(var(--muted-foreground));}
+  .filterchips span.on{background:hsl(var(--primary)/.1);border-color:hsl(var(--primary));color:hsl(var(--primary));}
+  .librow{display:flex;align-items:center;gap:8px;padding:10px 4px;border-bottom:1px solid hsl(var(--border));}
+  .approve{font-size:10.5px;font-weight:500;padding:5px 11px;border-radius:7px;background:hsl(var(--ontrack)/.12);color:hsl(var(--ontrack));border:1px solid hsl(var(--ontrack)/.35);}
+  .reject{font-size:10.5px;padding:5px 11px;border-radius:7px;background:hsl(var(--muted));color:hsl(var(--muted-foreground));border:1px solid hsl(var(--border));}
+</style>
+</head>
+<body class="dark">
+<button class="ttoggle" onclick="document.body.classList.toggle('dark')">◐ Theme</button>
+<div class="page-head">
+  <h1>IGU — Food Logging · mockups (v4 — 11 screens · themed, default dark)</h1>
+  <p>One <b>NutritionSummary</b> everywhere: a macro-split <b>donut</b> with the calorie number centered inside, and a <b>fixed-column legend</b> — swatch · name · grams · % — that stays on one line and lines up row to row. The persistent client bottom nav (<b>Dashboard · Nutrition · Workout · Learning · More</b>) is always present; search &amp; food detail are <b>drawers over the Nutrition page</b>, so the nav never disappears.</p>
+  <div class="note"><b>Fixed from v2:</b> the legend no longer wraps/stacks (124, "/", "172g", stray "%" on top of each other) — every value now sits in its own aligned column. Calorie number in the donut is smaller and truly centered. Dashboard card is now <b>Food diary</b> and the log action is the <b>+</b> (same as the diary's), and it links out to history &amp; trends. <b>Adherence</b> = a calorie band (adherent ±10% / off ±20%, hybrid: fixed now, coach-overridable later); <b>macro alerts</b> are two-tier — <b>loud for protein + calories</b> (banner + coach/client notification), quiet inline note for fat + carbs (see coach screen 6 + dashboard 8). <b>New in v4:</b> 9 History &amp; Trends (intake-vs-target trend, adherence dot strip, macro trends), 10 dietitian meal-plan builder (build a meal by browsing food categories, like a workout), 11 admin Food Library Manager (curate the shared catalog: source + approval + provenance + promote client foods).</div>
+  <div class="legend">
+    <span><i class="dot" style="background:hsl(var(--macro-protein))"></i>Protein</span>
+    <span><i class="dot" style="background:hsl(var(--macro-fat))"></i>Fat</span>
+    <span><i class="dot" style="background:hsl(var(--macro-carb))"></i>Carbs</span>
+    <span><i class="dot" style="background:hsl(var(--primary))"></i>Primary / calories</span>
+    <span><i class="dot" style="background:hsl(var(--ontrack))"></i>On track</span>
+  </div>
+</div>
+
+<div class="gallery">
+
+  <!-- 1 · DAY -->
+  <div class="frame-wrap">
+    <div class="frame-label">1 · Client — <b>Nutrition › Food diary (day)</b></div>
+    <div class="frame-sub">Fixed legend: Protein · 124/172g · 72% each on one aligned row. Smaller centered calorie number. Persistent bottom nav + quick-add FAB.</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr">
+        <div class="topbar"><h2>Nutrition</h2><span class="chip">Summer Cut · Wk 3</span></div>
+        <div class="subtabs" style="padding:0 12px"><span class="on">Today</span><span>Plan</span><span>History</span></div>
+        <div class="scrbody">
+          <div class="card">
+            <div class="cardhead"><div class="cardtitle"><i class="i"></i>Today</div><span class="muted mono" style="font-size:11px">Wed 9 Jul</span></div>
+            <div class="cardbody">
+              <div class="summary">
+                <div class="donutwrap" style="width:98px;height:98px">
+                  <svg viewBox="0 0 98 98" width="98" height="98">
+                    <circle cx="49" cy="49" r="42" fill="none" stroke="hsl(var(--muted))" stroke-width="11"/>
+                    <circle cx="49" cy="49" r="42" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="11" stroke-dasharray="98 166" transform="rotate(-90 49 49)"/>
+                    <circle cx="49" cy="49" r="42" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="11" stroke-dasharray="66 198" stroke-dashoffset="-98" transform="rotate(-90 49 49)"/>
+                    <circle cx="49" cy="49" r="42" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="11" stroke-dasharray="100 164" stroke-dashoffset="-164" transform="rotate(-90 49 49)"/>
+                  </svg>
+                  <div class="center"><div class="k" style="font-size:25px">1,480</div><div class="u">kcal</div></div>
+                </div>
+                <ul class="leg">
+                  <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">124/172g</span><span class="p">72%</span></li>
+                  <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">38/60g</span><span class="p">63%</span></li>
+                  <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">128/205g</span><span class="p">62%</span></li>
+                </ul>
+              </div>
+              <div class="summarybar"><i style="width:72%"></i></div>
+              <div class="summarybar-cap"><span>1,480 of 2,050 kcal</span><span>570 left</span></div>
+            </div>
+          </div>
+          <div class="meal"><div class="h"><span class="n">Breakfast</span><span class="k">420 kcal</span></div>
+            <div class="card">
+              <div class="entry"><div>Oats, rolled <span class="s">· 60 g</span></div><div>228</div></div>
+              <div class="entry"><div>Whey, vanilla <span class="s">· 1 scoop</span></div><div>120</div></div>
+              <div class="addrow">+ Add food</div>
+            </div>
+          </div>
+          <div class="meal"><div class="h"><span class="n">Lunch</span><span class="k">640 kcal</span></div>
+            <div class="card"><div class="entry"><div>Chicken breast <span class="s">· 200 g</span></div><div>330</div></div><div class="addrow">+ Add food</div></div>
+          </div>
+        </div>
+        <div class="fab">+</div>
+        <div class="dock"><div class="it"><div class="ic"></div>Dashboard</div><div class="it on"><div class="ic"></div>Nutrition</div><div class="it"><div class="ic"></div>Workout</div><div class="it"><div class="ic"></div>Learning</div><div class="it"><div class="ic"></div>More</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 · SEARCH (drawer) -->
+  <div class="frame-wrap">
+    <div class="frame-label">2 · Client — <b>Add food · search</b> (drawer)</div>
+    <div class="frame-sub">Search + Recent/Frequent/My foods/Recipes tabs. Slides up as a drawer over the Nutrition page — the bottom nav stays behind (shown dimmed).</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr" style="background:rgba(20,24,33,.28)">
+        <div class="navghost"><div class="it"><div class="ic"></div>Dashboard</div><div class="it"><div class="ic"></div>Nutrition</div><div class="it"><div class="ic"></div>Workout</div><div class="it"><div class="ic"></div>Learning</div><div class="it"><div class="ic"></div>More</div></div>
+        <div class="drawertop" style="position:absolute;left:0;right:0;bottom:0;height:590px;display:flex;flex-direction:column">
+          <div class="grab"></div>
+          <div class="topbar"><h2 style="font-size:15px">Add to Lunch</h2><span class="btn-ghost muted">Done</span></div>
+          <div style="padding:0 14px 12px;overflow:hidden">
+            <div class="search"><span>🔍</span><span style="flex:1;color:hsl(var(--muted-foreground))">Search foods…</span></div>
+            <div style="font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:hsl(var(--primary));margin:10px 2px 6px">★ From your plan · Lunch</div>
+            <div class="fres" style="background:hsl(var(--primary)/.06);border-radius:9px;padding:9px 10px;border-bottom:none;margin-bottom:5px"><div><div class="n">Lean beef mince 5% <span class="badge" style="background:hsl(var(--primary)/.14);color:hsl(var(--primary))">Plan</span></div><div class="m">240 g · sized to 50 g protein</div></div><div class="plus">+</div></div>
+            <div class="fres" style="background:hsl(var(--primary)/.06);border-radius:9px;padding:9px 10px;border-bottom:none;margin-bottom:4px"><div><div class="n">Salmon <span class="badge" style="background:hsl(var(--primary)/.14);color:hsl(var(--primary))">Plan</span></div><div class="m">250 g · sized to 50 g protein</div></div><div class="plus">+</div></div>
+            <div style="font-size:9.5px;color:hsl(var(--muted-foreground));margin:2px 2px 10px">Your plan's picks are pushed to the top — or search / browse anything below</div>
+            <div class="seg"><span class="on">All</span><span>Recent</span><span>Frequent</span><span>My foods</span><span>Recipes</span></div>
+            <div class="fres"><div><div class="n">Chicken breast, raw<span class="badge" style="background:hsl(var(--ontrack)/.12);color:hsl(var(--ontrack))">Verified</span></div><div class="m">100g · 165 kcal · P31 F3.6 C0</div></div><div class="plus">+</div></div>
+            <div class="fres"><div><div class="n">Chicken breast, grilled<span class="badge" style="background:hsl(var(--ontrack)/.12);color:hsl(var(--ontrack))">Verified</span></div><div class="m">100g · 195 kcal · P29 F7.7 C0</div></div><div class="plus">+</div></div>
+            <div class="fres"><div><div class="n">Perdue Chicken Breast<span class="badge" style="background:hsl(var(--macro-carb)/.12);color:hsl(var(--macro-carb))">Branded</span></div><div class="m">serving 112g · 130 kcal · P24 F3</div></div><div class="plus">+</div></div>
+            <div class="fres"><div><div class="n">My meal-prep chicken<span class="badge" style="background:hsl(var(--muted));color:hsl(var(--muted-foreground))">Custom</span></div><div class="m">100g · 148 kcal · P30 F2.5 C1</div></div><div class="plus">+</div></div>
+            <div class="fres"><div><div class="n">Chicken breast, minced 5%<span class="badge" style="background:hsl(var(--ontrack)/.12);color:hsl(var(--ontrack))">Verified</span></div><div class="m">100g · 172 kcal · P21 F9 C0</div></div><div class="plus">+</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 · FOOD DETAIL (drawer) -->
+  <div class="frame-wrap">
+    <div class="frame-label">3 · Client — <b>Food detail + units</b> (drawer)</div>
+    <div class="frame-sub">Same summary object (no target). Unit chips g/kg/ml/L/serving + stepper; impact bars; Add to log. Drawer over Nutrition — nav persists.</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr" style="background:rgba(20,24,33,.28)">
+        <div class="navghost"><div class="it"><div class="ic"></div>Dashboard</div><div class="it"><div class="ic"></div>Nutrition</div><div class="it"><div class="ic"></div>Workout</div><div class="it"><div class="ic"></div>Learning</div><div class="it"><div class="ic"></div>More</div></div>
+        <div class="drawertop" style="position:absolute;left:0;right:0;bottom:0;height:600px;display:flex;flex-direction:column">
+          <div class="grab"></div>
+          <div class="topbar"><h2 style="font-size:14px">Chicken breast, grilled</h2><span class="muted">✕</span></div>
+          <div style="padding:0 14px 14px;overflow:hidden">
+            <div class="muted mono" style="font-size:10.5px;margin:-2px 0 12px 2px">USDA · Verified</div>
+            <div class="sectlab" style="margin-top:0">Unit</div>
+            <div class="unitchips"><span>g</span><span>kg</span><span class="on">serving</span><span style="opacity:.38">ml</span><span style="opacity:.38">L</span></div>
+            <div class="muted" style="font-size:10px;margin:7px 2px 0">ml / L unavailable for a solid · "serving" = 1 breast (172 g)</div>
+            <div style="display:flex;gap:10px;margin-top:12px">
+              <div class="sel" style="flex:1">1 breast (172 g) <span class="muted">▾</span></div>
+              <div class="stepper"><span>–</span><b>1</b><span>+</span></div>
+            </div>
+            <div class="card" style="margin-top:13px"><div class="cardbody" style="padding:15px">
+              <div class="summary">
+                <div class="donutwrap" style="width:92px;height:92px">
+                  <svg viewBox="0 0 92 92" width="92" height="92">
+                    <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--muted))" stroke-width="11"/>
+                    <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="11" stroke-dasharray="154 91" transform="rotate(-90 46 46)"/>
+                    <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="11" stroke-dasharray="91 154" stroke-dashoffset="-154" transform="rotate(-90 46 46)"/>
+                  </svg>
+                  <div class="center"><div class="k" style="font-size:22px">336</div><div class="u">kcal</div></div>
+                </div>
+                <ul class="leg">
+                  <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">50g</span><span class="p">63%</span></li>
+                  <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">13g</span><span class="p">37%</span></li>
+                  <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">0g</span><span class="p">0%</span></li>
+                </ul>
+              </div>
+            </div></div>
+            <div class="sectlab">Impact on today's targets</div>
+            <div class="card"><div class="cardbody" style="padding:10px 15px">
+              <div class="nutrow" style="border:none;padding:6px 0"><span style="width:54px">Calories</span><div class="track"><i style="width:16%;background:hsl(var(--primary))"></i></div><span class="amt">+16%</span></div>
+              <div class="nutrow" style="border:none;padding:6px 0"><span style="width:54px">Protein</span><div class="track"><i style="width:29%;background:hsl(var(--macro-protein))"></i></div><span class="amt">+29%</span></div>
+            </div></div>
+            <button class="btn-primary" style="margin-top:13px">Add to log</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 · RECIPE -->
+  <div class="frame-wrap">
+    <div class="frame-label">4 · Client — <b>Recipe builder</b></div>
+    <div class="frame-sub">Per-serving nutrition uses the SAME summary. Ingredients use the same search/detail; final cooked weight; ingredients mix g and ml. Nav persists.</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr">
+        <div class="topbar"><span class="muted">‹</span><h2 style="font-size:14px">New recipe</h2><span class="btn-ghost" style="color:hsl(var(--primary));font-weight:600">Save</span></div>
+        <div class="scrbody">
+          <div class="sel" style="margin-top:4px">Overnight oats <span class="muted">✎</span></div>
+          <div style="display:flex;gap:10px;margin-top:10px">
+            <div class="sel" style="flex:1">Servings <b style="margin-left:6px">4</b></div>
+            <div class="sel" style="flex:1">Cooked wt <b style="margin-left:6px">820 g</b></div>
+          </div>
+          <div class="card" style="margin-top:12px"><div class="cardbody" style="padding:15px">
+            <div class="muted mono" style="font-size:10px;text-align:center;margin-bottom:12px">PER SERVING</div>
+            <div class="summary">
+              <div class="donutwrap" style="width:92px;height:92px">
+                <svg viewBox="0 0 92 92" width="92" height="92">
+                  <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--muted))" stroke-width="11"/>
+                  <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="11" stroke-dasharray="56 189" transform="rotate(-90 46 46)"/>
+                  <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="11" stroke-dasharray="64 181" stroke-dashoffset="-56" transform="rotate(-90 46 46)"/>
+                  <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="11" stroke-dasharray="125 120" stroke-dashoffset="-120" transform="rotate(-90 46 46)"/>
+                </svg>
+                <div class="center"><div class="k" style="font-size:22px">312</div><div class="u">kcal</div></div>
+              </div>
+              <ul class="leg">
+                <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">18g</span><span class="p">23%</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">9g</span><span class="p">26%</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">41g</span><span class="p">51%</span></li>
+              </ul>
+            </div>
+          </div></div>
+          <div class="sectlab">Ingredients</div>
+          <div class="card">
+            <div class="entry"><div>Rolled oats <span class="s">· 240 g</span></div><div class="muted">912</div></div>
+            <div class="entry"><div>Greek yogurt <span class="s">· 400 g</span></div><div class="muted">240</div></div>
+            <div class="entry"><div>Milk, skimmed <span class="s">· 300 ml</span></div><div class="muted">102</div></div>
+            <div class="entry"><div>Blueberries <span class="s">· 150 g</span></div><div class="muted">86</div></div>
+            <div class="addrow">+ Add ingredient</div>
+          </div>
+        </div>
+        <div class="dock"><div class="it"><div class="ic"></div>Dashboard</div><div class="it on"><div class="ic"></div>Nutrition</div><div class="it"><div class="ic"></div>Workout</div><div class="it"><div class="ic"></div>Learning</div><div class="it"><div class="ic"></div>More</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 · NUTRITION HOME -->
+  <div class="frame-wrap">
+    <div class="frame-label">5 · Client — <b>Nutrition section home</b></div>
+    <div class="frame-sub">Today card = unified summary + Log food. Phase card keeps rail + mono expected/actual, same summary. Today / Plan / History tabs link the log to trends.</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr">
+        <div class="topbar"><h2>Nutrition</h2><span class="chip">Summer Cut</span></div>
+        <div class="subtabs" style="padding:0 12px"><span class="on">Today</span><span>Plan</span><span>History</span></div>
+        <div class="scrbody">
+          <div class="card"><div class="cardbody" style="padding:16px 15px 15px">
+            <div class="summary">
+              <div class="donutwrap" style="width:98px;height:98px">
+                <svg viewBox="0 0 98 98" width="98" height="98">
+                  <circle cx="49" cy="49" r="42" fill="none" stroke="hsl(var(--muted))" stroke-width="11"/>
+                  <circle cx="49" cy="49" r="42" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="11" stroke-dasharray="98 166" transform="rotate(-90 49 49)"/>
+                  <circle cx="49" cy="49" r="42" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="11" stroke-dasharray="66 198" stroke-dashoffset="-98" transform="rotate(-90 49 49)"/>
+                  <circle cx="49" cy="49" r="42" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="11" stroke-dasharray="100 164" stroke-dashoffset="-164" transform="rotate(-90 49 49)"/>
+                </svg>
+                <div class="center"><div class="k" style="font-size:25px">1,480</div><div class="u">kcal</div></div>
+              </div>
+              <ul class="leg">
+                <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">124/172g</span><span class="p">72%</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">38/60g</span><span class="p">63%</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">128/205g</span><span class="p">62%</span></li>
+              </ul>
+            </div>
+            <div class="summarybar"><i style="width:72%"></i></div>
+            <div class="summarybar-cap"><span>1,480 of 2,050 kcal</span><span>570 left</span></div>
+            <button class="btn-primary" style="margin-top:14px">+ Log food</button>
+          </div></div>
+
+          <div class="sectlab">Your phase</div>
+          <div class="card" style="overflow:hidden"><div style="display:flex">
+            <div style="width:4px;background:hsl(var(--ontrack));flex:none"></div>
+            <div style="flex:1;padding:14px 15px">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start">
+                <div><div style="display:flex;align-items:center;gap:7px"><span style="font-size:15px;font-weight:600">Summer Cut</span><span class="chip">Fat Loss</span></div>
+                  <div class="mono muted" style="font-size:10.5px;margin-top:4px">Week 3 | target 72.0 kg | avg 76.4 kg</div></div>
+                <span class="badge-out b-ontrack">On Track</span>
+              </div>
+              <div class="summary" style="gap:13px;margin-top:12px">
+                <div class="donutwrap" style="width:78px;height:78px">
+                  <svg viewBox="0 0 78 78" width="78" height="78">
+                    <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--muted))" stroke-width="9"/>
+                    <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="9" stroke-dasharray="70 137" transform="rotate(-90 39 39)"/>
+                    <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="9" stroke-dasharray="54 153" stroke-dashoffset="-70" transform="rotate(-90 39 39)"/>
+                    <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="9" stroke-dasharray="83 124" stroke-dashoffset="-124" transform="rotate(-90 39 39)"/>
+                  </svg>
+                  <div class="center"><div class="k" style="font-size:19px">2,050</div><div class="u">kcal</div></div>
+                </div>
+                <ul class="leg" style="gap:8px">
+                  <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">172g</span><span class="p">34%</span></li>
+                  <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">60g</span><span class="p">26%</span></li>
+                  <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">205g</span><span class="p">40%</span></li>
+                </ul>
+              </div>
+              <div style="display:flex;justify-content:space-between;font-family:'JetBrains Mono';font-size:10.5px;color:hsl(var(--muted-foreground));border-top:1px solid hsl(var(--border));padding-top:10px;margin-top:12px"><span>expected <span style="color:hsl(var(--foreground))">-0.60%</span> /wk</span><span>actual <span style="color:hsl(var(--foreground))">-0.55%</span></span></div>
+            </div>
+          </div></div>
+        </div>
+        <div class="dock"><div class="it"><div class="ic"></div>Dashboard</div><div class="it on"><div class="ic"></div>Nutrition</div><div class="it"><div class="ic"></div>Workout</div><div class="it"><div class="ic"></div>Learning</div><div class="it"><div class="ic"></div>More</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 · COACH -->
+  <div class="frame-wrap">
+    <div class="frame-label">6 · Coach — <b>Client Overview › Nutrition (Intake)</b></div>
+    <div class="frame-sub">Same summary for the 7-day avg intake vs target — macros only, no micros in the payload. Adherence band + weekly chart below.</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr">
+        <div class="topbar"><span class="muted">‹</span><h2 style="font-size:14px">Sara K.</h2><span class="chip">Coach</span></div>
+        <div class="seg" style="padding:0 12px"><span>Overview</span><span class="on">Nutrition</span><span>Workouts</span><span>Msgs</span></div>
+        <div class="scrbody">
+          <div class="subtabs"><span>Phase</span><span class="on">Intake</span><span>History</span></div>
+          <div class="card"><div class="cardbody" style="padding:15px">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><span style="font-size:12.5px;font-weight:600">7-day avg intake</span><span class="badge-out b-ontrack">Adherent · within 5%</span></div>
+            <div class="summary">
+              <div class="donutwrap" style="width:92px;height:92px">
+                <svg viewBox="0 0 92 92" width="92" height="92">
+                  <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--muted))" stroke-width="11"/>
+                  <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="11" stroke-dasharray="83 162" transform="rotate(-90 46 46)"/>
+                  <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="11" stroke-dasharray="64 181" stroke-dashoffset="-83" transform="rotate(-90 46 46)"/>
+                  <circle cx="46" cy="46" r="39" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="11" stroke-dasharray="98 147" stroke-dashoffset="-147" transform="rotate(-90 46 46)"/>
+                </svg>
+                <div class="center"><div class="k" style="font-size:20px">1,980</div><div class="u">avg kcal</div></div>
+              </div>
+              <ul class="leg">
+                <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">165/172g</span><span class="p">96%</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">49/60g</span><span class="p">82%</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">152/205g</span><span class="p">74%</span></li>
+              </ul>
+            </div>
+            <div class="summarybar-cap" style="margin-top:12px"><span>avg 1,980 · target 2,050</span><span style="color:hsl(var(--ontrack))">-3% · 6/7 days logged</span></div>
+          </div></div>
+          <div class="sectlab">kcal vs target · this week</div>
+          <div class="card"><div class="cardbody" style="padding:14px 15px 11px"><div class="barwrap"><i style="height:70%"></i><i style="height:88%"></i><i class="o" style="height:104%"></i><i style="height:80%"></i><i style="height:66%"></i><i style="height:92%"></i><i class="e" style="height:40%"></i></div></div></div>
+          <div class="sectlab">Macro alerts</div>
+          <div class="alert-loud"><span class="ico">⚠</span><span>Protein 14% under target — 3 days</span><span class="tag">COACH + CLIENT</span></div>
+          <div style="margin-top:8px"><span class="alert-quiet">Carbs slightly under · Fat on target</span></div>
+          <div class="muted" style="font-size:9.5px;margin:7px 2px 0">Protein &amp; calories alert loudly (banner + notification); fat &amp; carbs stay a quiet inline note.</div>
+          <div class="insight" style="background:hsl(var(--muted));margin-top:11px;color:hsl(var(--muted-foreground))">🔒 Micronutrients are visible to the dietitian only.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 · DIETITIAN -->
+  <div class="frame-wrap">
+    <div class="frame-label">7 · Dietitian — <b>Full log + micronutrients</b></div>
+    <div class="frame-sub">Same calorie+macro summary, THEN the micro panel the coach can't see. Meet-or-exceed vs stay-under.</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr">
+        <div class="topbar"><span class="muted">‹</span><h2 style="font-size:14px">Sara K.</h2><span class="badge-out" style="border-color:hsl(var(--macro-carb)/.4);background:hsl(var(--macro-carb)/.1);color:hsl(var(--macro-carb))">Dietitian</span></div>
+        <div class="scrbody">
+          <div class="card" style="margin-top:6px"><div class="cardbody" style="padding:15px">
+            <div class="summary">
+              <div class="donutwrap" style="width:78px;height:78px">
+                <svg viewBox="0 0 78 78" width="78" height="78">
+                  <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--muted))" stroke-width="9"/>
+                  <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="9" stroke-dasharray="70 137" transform="rotate(-90 39 39)"/>
+                  <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="9" stroke-dasharray="53 154" stroke-dashoffset="-70" transform="rotate(-90 39 39)"/>
+                  <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="9" stroke-dasharray="84 123" stroke-dashoffset="-123" transform="rotate(-90 39 39)"/>
+                </svg>
+                <div class="center"><div class="k" style="font-size:18px">1,980</div><div class="u">kcal</div></div>
+              </div>
+              <ul class="leg" style="gap:8px">
+                <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">165g</span><span class="p">96%</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">49g</span><span class="p">82%</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">152g</span><span class="p">74%</span></li>
+              </ul>
+            </div>
+          </div></div>
+          <div class="sectlab">Micronutrients · meet or exceed</div>
+          <div class="card"><div class="cardbody" style="padding:11px 15px">
+            <div class="nutrow"><span style="width:66px">Fiber</span><div class="track"><i style="width:64%;background:hsl(var(--attention))"></i></div><span class="amt">19/30g</span></div>
+            <div class="nutrow"><span style="width:66px">Vitamin C</span><div class="track"><i style="width:100%;background:hsl(var(--ontrack))"></i></div><span class="amt">88/75mg</span></div>
+            <div class="nutrow"><span style="width:66px">Iron</span><div class="track"><i style="width:48%;background:hsl(var(--risk))"></i></div><span class="amt">7/15mg</span></div>
+            <div class="nutrow"><span style="width:66px">Potassium</span><div class="track"><i style="width:60%;background:hsl(var(--attention))"></i></div><span class="amt">2.1/3.5g</span></div>
+          </div></div>
+          <div class="sectlab">Stay under</div>
+          <div class="card"><div class="cardbody" style="padding:11px 15px">
+            <div class="nutrow"><span style="width:66px">Sodium</span><div class="track"><i style="width:88%;background:hsl(var(--attention))"></i></div><span class="amt">2.0/2.3g</span></div>
+            <div class="nutrow"><span style="width:66px">Added sugar</span><div class="track"><i style="width:38%;background:hsl(var(--ontrack))"></i></div><span class="amt">14/36g</span></div>
+          </div></div>
+          <div class="insight" style="background:hsl(var(--risk)/.1);color:hsl(var(--risk));margin-top:11px">⚠ Iron trending low 3 days running — consider a red-meat or legume swap.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8 · DASHBOARD -->
+  <div class="frame-wrap">
+    <div class="frame-label">8 · Client — <b>Dashboard › Food diary card</b></div>
+    <div class="frame-sub">Renamed "Food diary"; the + is the log action (same as the diary). Links to history &amp; trends. Same summary at sm. Persistent nav.</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr">
+        <div class="topbar"><h2>Hi, Sara</h2><span class="muted">◔</span></div>
+        <div class="scrbody">
+          <div class="card">
+            <div class="cardhead"><div class="cardtitle"><i class="i"></i>Food diary</div><div class="plusbtn">+</div></div>
+            <div class="cardbody">
+              <div class="summary">
+                <div class="donutwrap" style="width:78px;height:78px">
+                  <svg viewBox="0 0 78 78" width="78" height="78">
+                    <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--muted))" stroke-width="9"/>
+                    <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="9" stroke-dasharray="77 130" transform="rotate(-90 39 39)"/>
+                    <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="9" stroke-dasharray="52 155" stroke-dashoffset="-77" transform="rotate(-90 39 39)"/>
+                    <circle cx="39" cy="39" r="33" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="9" stroke-dasharray="78 129" stroke-dashoffset="-129" transform="rotate(-90 39 39)"/>
+                  </svg>
+                  <div class="center"><div class="k" style="font-size:18px">1,480</div><div class="u">kcal</div></div>
+                </div>
+                <ul class="leg" style="gap:9px">
+                  <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">124/172g</span><span class="p">72%</span></li>
+                  <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">38/60g</span><span class="p">63%</span></li>
+                  <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">128/205g</span><span class="p">62%</span></li>
+                </ul>
+              </div>
+              <div class="summarybar"><i style="width:72%"></i></div>
+              <div class="summarybar-cap"><span>1,480 of 2,050 kcal</span><span>570 left</span></div>
+              <div class="alert-loud" style="margin-top:11px"><span class="ico">⚠</span><span>48g protein to go — you're behind pace</span></div>
+              <button class="btn-link">View history &amp; trends ›</button>
+            </div>
+          </div>
+          <div class="sectlab">Up next</div>
+          <div class="card"><div class="cardbody" style="padding:14px 15px"><div style="display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;font-weight:600">Push Day A</span><span class="badge-out" style="border-color:hsl(var(--primary)/.35);background:hsl(var(--primary)/.08);color:hsl(var(--primary))">Workout</span></div><div class="muted mono" style="font-size:10.5px;margin-top:6px">6 exercises · ~55 min</div></div></div>
+        </div>
+        <div class="dock"><div class="it on"><div class="ic"></div>Dashboard</div><div class="it"><div class="ic"></div>Nutrition</div><div class="it"><div class="ic"></div>Workout</div><div class="it"><div class="ic"></div>Learning</div><div class="it"><div class="ic"></div>More</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9 · HISTORY & TRENDS -->
+  <div class="frame-wrap">
+    <div class="frame-label">9 · Client — <b>Nutrition › History &amp; Trends</b></div>
+    <div class="frame-sub">Where logging pays off: intake-vs-target trend (phase-annotated), adherence-over-time dot strip, macro trends, days-logged. Reuses PhaseAnnotatedTrendChart.</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr">
+        <div class="topbar"><h2>Nutrition</h2><span class="chip">Summer Cut</span></div>
+        <div class="subtabs" style="padding:0 12px"><span>Today</span><span>Plan</span><span class="on">History</span></div>
+        <div class="scrbody">
+          <div style="display:flex;justify-content:flex-end;margin:2px 0 8px"><div class="toggle"><span>M</span><span class="on">Q</span><span>6M</span><span>Y</span><span>All</span></div></div>
+          <div class="card"><div class="cardbody" style="padding:13px 14px 12px">
+            <div style="font-size:12.5px;font-weight:600;margin-bottom:8px">Calories · intake vs target</div>
+            <svg viewBox="0 0 280 92" width="100%" height="92" preserveAspectRatio="none">
+              <rect x="0" y="0" width="150" height="92" fill="hsl(var(--macro-fat)/.07)"/>
+              <rect x="150" y="0" width="130" height="92" fill="hsl(var(--macro-carb)/.07)"/>
+              <line x1="150" y1="0" x2="150" y2="92" stroke="hsl(var(--border))" stroke-dasharray="3 3"/>
+              <line x1="0" y1="42" x2="280" y2="42" stroke="hsl(var(--muted-foreground))" stroke-opacity=".5" stroke-dasharray="4 4"/>
+              <polyline points="6,58 30,50 54,60 78,46 102,52 126,44 150,48 174,40 198,52 222,38 246,46 268,36" fill="none" stroke="hsl(var(--primary))" stroke-width="2"/>
+            </svg>
+            <div class="chartleg"><span><i style="width:12px;height:2px;background:hsl(var(--primary));display:inline-block"></i>intake</span><span><i style="width:12px;height:2px;background:hsl(var(--muted-foreground));display:inline-block"></i>target</span><span>shaded = phase</span></div>
+          </div></div>
+          <div class="sectlab">Adherence · last 14 days</div>
+          <div class="card"><div class="cardbody" style="padding:13px 14px">
+            <div class="dotstrip">
+              <i style="background:hsl(var(--ontrack))"></i><i style="background:hsl(var(--ontrack))"></i><i style="background:hsl(var(--attention))"></i><i style="background:hsl(var(--ontrack))"></i><i style="background:hsl(var(--ontrack))"></i><i style="background:hsl(var(--risk))"></i><i style="background:hsl(var(--ontrack))"></i>
+              <i style="background:hsl(var(--ontrack))"></i><i style="background:hsl(var(--ontrack))"></i><i style="background:hsl(var(--attention))"></i><i style="background:hsl(var(--ontrack))"></i><i style="background:hsl(var(--ontrack))"></i><i style="background:hsl(var(--ontrack))"></i><i style="background:hsl(var(--border))"></i>
+            </div>
+            <div class="mono muted" style="font-size:11px;margin-top:9px">Adherent <span style="color:hsl(var(--ontrack))">78%</span> of days · 12/14 logged</div>
+          </div></div>
+          <div class="sectlab">Macro trends</div>
+          <div class="card"><div class="cardbody" style="padding:13px 14px 10px">
+            <svg viewBox="0 0 280 66" width="100%" height="66" preserveAspectRatio="none">
+              <polyline points="6,20 40,18 74,22 108,16 142,20 176,15 210,19 268,14" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="2"/>
+              <polyline points="6,40 40,42 74,39 108,43 142,40 176,44 210,41 268,43" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="2"/>
+              <polyline points="6,52 40,49 74,54 108,50 142,55 176,51 210,53 268,50" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="2"/>
+            </svg>
+            <div class="chartleg"><span><i class="dot" style="width:9px;height:9px;background:hsl(var(--macro-protein))"></i>Protein</span><span><i class="dot" style="width:9px;height:9px;background:hsl(var(--macro-fat))"></i>Fat</span><span><i class="dot" style="width:9px;height:9px;background:hsl(var(--macro-carb))"></i>Carbs</span></div>
+          </div></div>
+          <div class="tiles" style="margin-top:12px">
+            <div class="tile"><div class="n">12</div><div class="l">days logged · this fortnight</div></div>
+            <div class="tile"><div class="n">6</div><div class="l">day logging streak</div></div>
+          </div>
+        </div>
+        <div class="dock"><div class="it"><div class="ic"></div>Dashboard</div><div class="it on"><div class="ic"></div>Nutrition</div><div class="it"><div class="ic"></div>Workout</div><div class="it"><div class="ic"></div>Learning</div><div class="it"><div class="ic"></div>More</div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 10 · MEAL PLAN BUILDER -->
+  <div class="frame-wrap">
+    <div class="frame-label">10 · Dietitian — <b>Meal plan (per-client)</b></div>
+    <div class="frame-sub">Built for a specific client inside their Nutrition surface (not a generalized template): browse the food taxonomy, drop items into meals, live per-day summary vs the client's target.</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr">
+        <div class="topbar"><span class="muted">‹</span><h2 style="font-size:14px">Sara K. · Meal plan</h2><span class="btn-ghost" style="color:hsl(var(--primary));font-weight:600">Publish</span></div>
+        <div class="scrbody">
+          <div class="card"><div class="cardbody" style="padding:14px 15px 13px">
+            <div class="summary sm">
+              <div class="donutwrap" style="width:74px;height:74px">
+                <svg viewBox="0 0 74 74" width="74" height="74">
+                  <circle cx="37" cy="37" r="31" fill="none" stroke="hsl(var(--muted))" stroke-width="9"/>
+                  <circle cx="37" cy="37" r="31" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="9" stroke-dasharray="70 125" transform="rotate(-90 37 37)"/>
+                  <circle cx="37" cy="37" r="31" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="9" stroke-dasharray="48 147" stroke-dashoffset="-70" transform="rotate(-90 37 37)"/>
+                  <circle cx="37" cy="37" r="31" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="9" stroke-dasharray="77 118" stroke-dashoffset="-118" transform="rotate(-90 37 37)"/>
+                </svg>
+                <div class="center"><div class="k" style="font-size:17px">2,040</div><div class="u">kcal</div></div>
+              </div>
+              <ul class="leg" style="gap:8px">
+                <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">170/172g</span><span class="p">99%</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">58/60g</span><span class="p">97%</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">201/205g</span><span class="p">98%</span></li>
+              </ul>
+            </div>
+            <div class="mono muted" style="font-size:10px;text-align:center;margin-top:9px">plan total vs target — 2,040 / 2,050 kcal</div>
+          </div></div>
+
+          <div class="meal" style="margin-top:12px"><div class="h"><span class="n">Breakfast</span><span class="k">520 kcal</span></div>
+            <div class="card">
+              <div class="entry"><div>Oats, rolled <span class="s">· 80 g</span> <span class="chip" style="font-size:9px;padding:1px 6px">Carbs</span></div><div class="muted">304</div></div>
+              <div class="entry"><div>Whey, vanilla <span class="s">· 1.5 scoop</span> <span class="chip" style="font-size:9px;padding:1px 6px">Protein</span></div><div class="muted">180</div></div>
+              <div class="addrow">+ Add from category</div>
+            </div>
+          </div>
+
+          <div class="sectlab">Add to Lunch · browse by category</div>
+          <div class="card">
+            <div class="accrow on">Protein <span class="muted">▾</span></div>
+            <div class="accsub"><span class="pick">Poultry</span><span>Red meat</span><span>Fish &amp; seafood</span><span>Eggs</span><span>Plant</span></div>
+            <div class="entry"><div>Chicken breast, grilled <span class="s">· lean protein</span></div><div class="plus" style="width:24px;height:24px">+</div></div>
+            <div class="entry"><div>Turkey mince 5% <span class="s">· lean protein</span></div><div class="plus" style="width:24px;height:24px">+</div></div>
+            <div class="accrow">Carbs <span class="muted">›</span></div>
+            <div class="accrow" style="border:none">Vegetables <span class="muted">›</span></div>
+          </div>
+          <div class="muted" style="font-size:10px;margin:8px 2px 0">Tip: items support swap-within-category (chicken ↔ another lean protein), like exercise swaps.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 11 · FOOD LIBRARY MANAGER -->
+  <div class="frame-wrap">
+    <div class="frame-label">11 · Admin — <b>Food Library Manager</b></div>
+    <div class="frame-sub">Curate the shared catalog (mirrors WorkoutLibraryManager): source + approval filters, provenance badge per row, approve pending items + promote client custom foods, partner import.</div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span class="r">5G ▮</span></div>
+      <div class="scr">
+        <div class="topbar"><h2>Food Library</h2><div class="plusbtn">+</div></div>
+        <div class="scrbody">
+          <div class="search"><span>🔍</span><span style="flex:1;color:hsl(var(--muted-foreground))">Search foods…</span></div>
+          <div class="filterchips"><span class="on">All sources</span><span>USDA</span><span>Branded</span><span>Partner</span><span>Custom</span></div>
+          <div class="filterchips" style="margin-top:0"><span class="on">Approved</span><span>Pending</span><span>Rejected</span></div>
+          <div class="librow"><div style="flex:1"><div style="font-size:13px;font-weight:500">Chicken breast, grilled</div><div class="mono muted" style="font-size:10px;margin-top:3px">Protein·Poultry · 195 kcal/100g</div></div><span class="badge" style="background:hsl(var(--ontrack)/.12);color:hsl(var(--ontrack))">USDA ✓</span></div>
+          <div class="librow"><div style="flex:1"><div style="font-size:13px;font-weight:500">Al Baik broasted chicken</div><div class="mono muted" style="font-size:10px;margin-top:3px">Prepared·Partner · 260 kcal/pc</div></div><span class="badge" style="background:hsl(var(--macro-carb)/.12);color:hsl(var(--macro-carb))">Partner</span></div>
+          <div class="librow"><div style="flex:1"><div style="font-size:13px;font-weight:500">IGU protein oats mix</div><div class="mono muted" style="font-size:10px;margin-top:3px">Carbs·Cereals · 372 kcal/100g</div></div><span class="badge" style="background:hsl(var(--primary)/.1);color:hsl(var(--primary))">IGU</span></div>
+
+          <div class="sectlab">Pending approval · 2</div>
+          <div class="card" style="border-color:hsl(var(--attention)/.4)"><div class="cardbody" style="padding:12px 14px">
+            <div style="font-size:13px;font-weight:500">Homemade shawarma bowl</div>
+            <div class="mono muted" style="font-size:10px;margin-top:3px">submitted by client · Prepared · 540 kcal</div>
+            <div style="display:flex;gap:8px;margin-top:10px"><span class="approve">✓ Approve &amp; share</span><span class="reject">Keep private</span></div>
+          </div></div>
+        </div>
+        <div class="dock"><div class="it"><div class="ic"></div>Overview</div><div class="it on"><div class="ic"></div>Library</div><div class="it"><div class="ic"></div>Clients</div><div class="it"><div class="ic"></div>Billing</div><div class="it"><div class="ic"></div>More</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

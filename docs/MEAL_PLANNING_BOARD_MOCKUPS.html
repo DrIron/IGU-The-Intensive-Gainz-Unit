@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGU — Meal Planning Board Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Bebas+Neue&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --background:220 20% 97%;--card:0 0% 100%;--foreground:240 10% 3.9%;
+    --primary:355 78% 48%;--border:220 15% 92%;--muted:220 14% 96%;
+    --muted-foreground:240 3.8% 46.1%;--radius:0.75rem;--desk:220 16% 91%;
+    --macro-protein:0 72% 51%;--macro-fat:38 92% 50%;--macro-carb:217 91% 60%;
+    --ontrack:142 71% 45%;--attention:38 92% 50%;--risk:0 84% 60%;
+  }
+  .dark{--background:240 10% 3.7%;--foreground:0 0% 98%;--card:240 6% 8.4%;--muted:240 4% 11.8%;--muted-foreground:240 5% 64.9%;--border:240 4% 16.5%;--status-ontrack:142 64% 52%;--status-attention:38 92% 55%;--status-risk:0 84% 64%;--desk:240 8% 6%;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Geist',system-ui,sans-serif;background:hsl(var(--desk));color:hsl(var(--foreground));-webkit-font-smoothing:antialiased;padding:40px 24px 80px;}
+  .ttoggle{position:fixed;top:14px;right:16px;z-index:99;border:1px solid hsl(var(--border));background:hsl(var(--card));color:hsl(var(--foreground));border-radius:9px;padding:7px 12px;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;}
+  .head{max-width:940px;margin:0 auto 24px;}
+  .head h1{font-weight:600;font-size:26px;letter-spacing:-0.02em;}
+  .head p{color:hsl(var(--muted-foreground));font-size:14.5px;margin-top:8px;line-height:1.55;}
+  .head b{color:hsl(var(--primary));font-weight:600;}
+  .note{margin-top:12px;font-size:12.5px;color:hsl(var(--muted-foreground));background:hsl(var(--card));border:1px solid hsl(var(--border));border-left:3px solid hsl(var(--primary));border-radius:10px;padding:12px 14px;line-height:1.55;}
+  .stack{max-width:940px;margin:0 auto;display:flex;flex-direction:column;gap:38px;}
+  .label{font-size:13px;font-weight:600;margin-bottom:10px;}
+  .label b{color:hsl(var(--primary));}
+  .label span{color:hsl(var(--muted-foreground));font-weight:400;}
+
+  .win{border-radius:14px;border:1px solid #d4d7dd;overflow:hidden;box-shadow:0 14px 40px rgba(20,24,33,.16);background:hsl(var(--background));}
+  .chrome{height:34px;background:#f1f2f5;border-bottom:1px solid hsl(var(--border));display:flex;align-items:center;gap:7px;padding:0 14px;}
+  .chrome i{width:11px;height:11px;border-radius:50%;background:#cdd0d6;}
+  .wrap{padding:16px 18px;}
+  .bc{font-size:11px;color:hsl(var(--muted-foreground));margin-bottom:8px;}
+  .phead{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:14px;}
+  .phead h2{font-size:18px;font-weight:600;}
+  .phead .sub{font-size:12px;color:hsl(var(--muted-foreground));margin-top:3px;display:flex;gap:8px;align-items:center;}
+  .btn{border:none;border-radius:9px;font-family:inherit;font-size:12px;font-weight:600;padding:8px 13px;}
+  .btn.primary{background:hsl(var(--primary));color:#fff;}
+  .btn.outline{background:hsl(var(--card));border:1px solid hsl(var(--border));font-weight:500;color:hsl(var(--foreground));}
+  .muted{color:hsl(var(--muted-foreground));}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;}
+  .chip{font-size:11px;color:hsl(var(--muted-foreground));background:hsl(var(--muted));padding:3px 9px;border-radius:6px;}
+  .badge-out{font-size:10.5px;font-weight:500;padding:2px 9px;border-radius:999px;border:1px solid;white-space:nowrap;}
+  .b-ontrack{border-color:hsl(var(--ontrack)/.4);background:hsl(var(--ontrack)/.1);color:hsl(var(--ontrack));}
+
+  .daystrip{display:flex;gap:7px;margin-bottom:16px;flex-wrap:wrap;}
+  .daychip{border:1px solid hsl(var(--border));border-radius:10px;padding:7px 11px;min-width:74px;background:hsl(var(--card));}
+  .daychip.on{border-color:hsl(var(--primary));border-width:2px;background:hsl(var(--primary)/.16);padding:6px 10px;}
+  .daychip.on .d{color:hsl(var(--primary));}
+  .daychip .d{font-size:12px;font-weight:600;}
+  .daychip .k{font-size:10px;color:hsl(var(--muted-foreground));margin-top:2px;font-family:'JetBrains Mono';}
+  .daychip .k.over{color:hsl(var(--attention));}
+  .daychip.add{display:flex;align-items:center;justify-content:center;color:hsl(var(--muted-foreground));min-width:40px;}
+
+  .boardgrid{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start;}
+
+  .mblock{border-left:3px solid hsl(var(--primary));padding-left:12px;margin-bottom:16px;}
+  .mblock.snack{border-left-color:hsl(var(--attention));}
+  .mblock .bh{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+  .mblock .bh .nm{font-size:13.5px;font-weight:600;}
+  .mblock .bh .ty{font-size:9.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:hsl(var(--muted-foreground));background:hsl(var(--muted));padding:1px 7px;border-radius:5px;}
+  .mblock .bh .k{margin-left:auto;font-family:'JetBrains Mono';font-size:11px;color:hsl(var(--muted-foreground));}
+  .mblock .bh .kebab{color:hsl(var(--muted-foreground));font-size:14px;padding-left:6px;}
+  .noterow{font-size:11px;color:hsl(var(--attention));background:hsl(var(--attention)/.08);border-radius:7px;padding:5px 9px;margin-bottom:8px;display:inline-flex;gap:6px;align-items:center;}
+
+  .slot{border:1px solid hsl(var(--border));border-radius:10px;padding:10px 11px;margin-bottom:8px;background:hsl(var(--card));}
+  .slot .sl{display:flex;align-items:center;gap:8px;margin-bottom:9px;flex-wrap:wrap;}
+  .slot .cat{font-size:12px;font-weight:600;}
+  .target{display:inline-flex;align-items:center;gap:5px;font-family:'JetBrains Mono';font-size:11px;border:1px solid hsl(var(--primary)/.4);background:hsl(var(--primary)/.06);color:hsl(var(--primary));border-radius:7px;padding:3px 8px;}
+  .mode{font-size:10.5px;color:hsl(var(--muted-foreground));border:1px solid hsl(var(--border));border-radius:7px;padding:3px 8px;}
+  .optlist{display:flex;flex-direction:column;gap:6px;}
+  .optl{display:flex;align-items:center;gap:9px;font-size:12px;padding:6px 8px;border-radius:8px;background:hsl(var(--muted)/.45);}
+  .optl .dot{width:7px;height:7px;border-radius:50%;background:hsl(var(--macro-protein));flex:none;}
+  .optl .fname{flex:1;min-width:0;}
+  .optl .amt{font-family:'JetBrains Mono';font-size:11.5px;font-weight:500;}
+  .optl .auto{font-size:8.5px;font-weight:600;text-transform:uppercase;letter-spacing:.04em;color:hsl(var(--ontrack));background:hsl(var(--ontrack)/.12);border-radius:4px;padding:1px 5px;}
+  .optl .contrib{font-family:'JetBrains Mono';font-size:10px;color:hsl(var(--muted-foreground));}
+  .optl .x{color:hsl(var(--muted-foreground));font-size:11px;}
+  .slothint{font-size:10px;color:hsl(var(--muted-foreground));margin-top:7px;}
+  .addoptl{font-size:11px;color:hsl(var(--primary));font-weight:500;margin-top:7px;}
+  .slot.open{border-style:dashed;background:hsl(var(--muted)/.4);}
+  .addslot{font-size:11.5px;color:hsl(var(--primary));font-weight:500;padding:4px 2px;}
+  .addblock{display:flex;gap:8px;margin-top:6px;align-items:center;}
+  .addblock span.a{font-size:11.5px;color:hsl(var(--primary));font-weight:500;border:1px dashed hsl(var(--primary)/.5);border-radius:8px;padding:7px 12px;}
+
+  .rail{position:sticky;top:0;}
+  .card{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:12px;}
+  .sectlab{font-size:10.5px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:hsl(var(--muted-foreground));margin:0 0 8px;}
+  .summary{display:flex;align-items:center;gap:15px;}
+  .donutwrap{position:relative;flex:none;}
+  .donutwrap .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;line-height:1;}
+  .center .k{font-family:'Bebas Neue',sans-serif;color:hsl(var(--primary));}
+  .center .u{font-size:8px;letter-spacing:.05em;color:hsl(var(--muted-foreground));margin-top:2px;text-transform:uppercase;}
+  .leg{flex:1;min-width:0;display:flex;flex-direction:column;gap:9px;}
+  .leg li{list-style:none;display:grid;grid-template-columns:12px 1fr auto;align-items:center;gap:8px;white-space:nowrap;}
+  .leg .sw{width:11px;height:11px;border-radius:50%;}
+  .leg .nm{font-size:12px;font-weight:500;}
+  .leg .g{font-family:'JetBrains Mono';font-size:11.5px;text-align:right;color:hsl(var(--muted-foreground));}
+  .alert{display:flex;gap:9px;align-items:center;padding:10px 12px;border-radius:10px;font-size:11.5px;font-weight:500;background:hsl(var(--attention)/.14);border:1px solid hsl(var(--attention)/.45);border-left-width:4px;color:hsl(38 92% 34%);margin-top:12px;}
+  .nutrow{display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid hsl(var(--border));font-size:12px;}
+  .nutrow:last-child{border-bottom:none;}
+  .nutrow .track{flex:1;height:5px;border-radius:999px;background:hsl(var(--muted));overflow:hidden;}
+  .nutrow .track i{display:block;height:100%;border-radius:999px;}
+  .nutrow .amt{font-family:'JetBrains Mono';font-size:10px;color:hsl(var(--muted-foreground));width:66px;text-align:right;flex:none;}
+
+  .panel{max-width:430px;border:1px solid hsl(var(--border));border-radius:14px;background:hsl(var(--card));box-shadow:0 14px 40px rgba(20,24,33,.14);overflow:hidden;}
+  .panelhd{padding:13px 15px;border-bottom:1px solid hsl(var(--border));font-size:13px;font-weight:600;display:flex;align-items:center;justify-content:space-between;}
+  .prow{padding:11px 15px;border-bottom:1px solid hsl(var(--border));display:flex;align-items:center;gap:10px;font-size:12.5px;}
+  .seg{display:flex;gap:5px;}
+  .seg span{font-size:11px;padding:5px 10px;border-radius:7px;border:1px solid hsl(var(--border));color:hsl(var(--muted-foreground));}
+  .seg span.on{background:hsl(var(--foreground));color:#fff;border-color:hsl(var(--foreground));}
+  .tinput{font-family:'JetBrains Mono';font-size:12px;border:1px solid hsl(var(--primary)/.4);background:hsl(var(--primary)/.06);color:hsl(var(--primary));border-radius:7px;padding:5px 9px;font-weight:500;}
+  .accrow{display:flex;align-items:center;justify-content:space-between;padding:9px 15px;border-bottom:1px solid hsl(var(--border));font-size:12.5px;font-weight:500;}
+  .accrow.on{color:hsl(var(--primary));}
+  .foodrow{display:flex;align-items:center;gap:10px;padding:9px 15px;border-bottom:1px solid hsl(var(--border));font-size:12.5px;}
+  .cbx{width:16px;height:16px;border-radius:5px;border:1.5px solid hsl(var(--border));flex:none;display:flex;align-items:center;justify-content:center;font-size:10px;color:#fff;}
+  .cbx.on{background:hsl(var(--primary));border-color:hsl(var(--primary));}
+  .autoamt{margin-left:auto;font-family:'JetBrains Mono';font-size:11px;color:hsl(var(--foreground));display:flex;align-items:center;gap:6px;}
+
+  .phone{width:320px;height:660px;background:hsl(var(--background));border-radius:34px;border:9px solid #16181d;overflow:hidden;box-shadow:0 12px 38px rgba(20,24,33,.2);}
+  .statusbar{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:12px;font-weight:500;}
+  .scr{height:calc(100% - 32px);display:flex;flex-direction:column;}
+  .ptop{display:flex;align-items:center;justify-content:space-between;padding:11px 15px 8px;}
+  .ptop h2{font-size:16px;font-weight:600;}
+  .pbody{flex:1;overflow:hidden;padding:0 14px;}
+  .ptabs{display:flex;gap:6px;margin:6px 0 10px;}
+  .ptabs span{font-size:11px;padding:5px 10px;border-radius:8px;border:1px solid hsl(var(--border));color:hsl(var(--muted-foreground));}
+  .ptabs span.on{background:hsl(var(--foreground));color:#fff;border-color:hsl(var(--foreground));}
+  .radio{width:17px;height:17px;border-radius:50%;border:2px solid hsl(var(--border));flex:none;}
+  .radio.on{border-color:hsl(var(--primary));background:radial-gradient(hsl(var(--primary)) 42%,#fff 46%);}
+  .copt{display:flex;align-items:center;gap:10px;padding:9px 11px;border:1px solid hsl(var(--border));border-radius:9px;margin-bottom:7px;font-size:12.5px;}
+  .copt.sel{border-color:hsl(var(--primary));background:hsl(var(--primary)/.05);}
+  .combine{border:1px solid hsl(var(--macro-protein)/.3);background:hsl(var(--macro-protein)/.05);border-radius:9px;padding:10px 11px;margin-bottom:7px;font-size:12px;}
+</style>
+</head>
+<body class="dark">
+<button class="ttoggle" onclick="document.body.classList.toggle('dark')">◐ Theme</button>
+<div class="head">
+  <h1>IGU — Meal Planning Board · mockups (v2 · themed, default dark)</h1>
+  <p>Built like the workout board (Day → block → slot). Each slot is <b>target-driven</b> — the dietitian sets the amount they want (e.g. <b>40 g protein</b>, or by kcal / carbs / fat) and the board <b>auto-calculates the grams of each food</b> to hit it (no manual math). A slot is either <b>Pick one</b> (options are alternatives, each auto-sized to the target — client picks one) or left <b>Open</b> (client chooses freely). Applies to meals &amp; snacks; <b>supplements deferred for now</b>.</p>
+  <div class="note"><b>Changed from v1:</b> options no longer need a hand-typed amount — set a macro/kcal target per slot and amounts compute automatically. Slots are <b>Pick one</b> or <b>Open</b> (Combine-all removed). Supplements removed from the board (revisit later). The rail still shows estimated daily kcal/macros + micros + the phase over-target alert.</p>
+</div>
+
+<div class="stack">
+
+  <!-- 1 · BOARD -->
+  <div>
+    <div class="label">1 · <b>Dietitian — Meal planning board</b> <span>· target-driven slots (auto-calculated amounts) + Pick-one / Combine + phase alert</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="wrap">
+        <div class="bc">Nutrition Clients › Sara K. › Meal plan</div>
+        <div class="phead">
+          <div><h2>Sara K. · Meal plan</h2><div class="sub"><span class="chip">Linked: Summer Cut</span><span class="mono">target 2,050 kcal · P172 F60 C205</span></div></div>
+          <div style="display:flex;gap:9px"><button class="btn outline">Duplicate day</button><button class="btn primary">Publish to Sara</button></div>
+        </div>
+        <div class="daystrip">
+          <div class="daychip on"><div class="d">Day 1</div><div class="k over">≈2,185 ⚠</div></div>
+          <div class="daychip"><div class="d">Day 2</div><div class="k">≈2,020</div></div>
+          <div class="daychip"><div class="d">Day 3</div><div class="k">≈1,980</div></div>
+          <div class="daychip"><div class="d">Day 4</div><div class="k muted">open</div></div>
+          <div class="daychip add">＋</div>
+        </div>
+
+        <div class="boardgrid">
+          <div>
+            <!-- Meal 1 -->
+            <div class="mblock">
+              <div class="bh"><span class="ty">Meal</span><span class="nm">Pre-workout</span><span class="k">≈620 kcal</span><span class="kebab">⋮</span></div>
+              <div class="noterow">📝 ~90 min before training · can switch with Meal 2</div>
+
+              <!-- Pick one, target-driven -->
+              <div class="slot">
+                <div class="sl"><span class="cat" style="color:hsl(var(--macro-protein))">Protein source</span><span class="target">40 g protein ▾</span><span class="mode">Pick one ▾</span></div>
+                <div class="optlist">
+                  <div class="optl"><span class="dot"></span><span class="fname">Grilled chicken breast</span><span class="amt">133 g</span><span class="auto">auto</span><span class="x">✕</span></div>
+                  <div class="optl"><span class="dot"></span><span class="fname">Turkey mince 5%</span><span class="amt">190 g</span><span class="auto">auto</span><span class="x">✕</span></div>
+                  <div class="optl"><span class="dot"></span><span class="fname">White fish (cod)</span><span class="amt">210 g</span><span class="auto">auto</span><span class="x">✕</span></div>
+                </div>
+                <div class="addoptl">＋ option</div>
+                <div class="slothint">Each amount auto-sized to deliver <b>40 g protein</b> · client picks one</div>
+              </div>
+
+              <!-- Carb source, target-driven -->
+              <div class="slot">
+                <div class="sl"><span class="cat" style="color:hsl(var(--macro-carb))">Carb source</span><span class="target">60 g carbs ▾</span><span class="mode">Pick one ▾</span></div>
+                <div class="optlist">
+                  <div class="optl"><span class="dot" style="background:hsl(var(--macro-carb))"></span><span class="fname">White rice (dry)</span><span class="amt">78 g</span><span class="auto">auto</span><span class="x">✕</span></div>
+                  <div class="optl"><span class="dot" style="background:hsl(var(--macro-carb))"></span><span class="fname">Oats</span><span class="amt">90 g</span><span class="auto">auto</span><span class="x">✕</span></div>
+                  <div class="optl"><span class="dot" style="background:hsl(var(--macro-carb))"></span><span class="fname">Sweet potato</span><span class="amt">300 g</span><span class="auto">auto</span><span class="x">✕</span></div>
+                </div>
+                <div class="addoptl">＋ option</div>
+              </div>
+              <div class="addslot">＋ Add slot (protein · carb · fat · veg · …)</div>
+            </div>
+
+            <!-- Meal 2 with a COMBINE slot -->
+            <div class="mblock">
+              <div class="bh"><span class="ty">Meal</span><span class="nm">Lunch</span><span class="k">≈760 kcal</span><span class="kebab">⋮</span></div>
+
+              <div class="slot">
+                <div class="sl"><span class="cat" style="color:hsl(var(--macro-protein))">Protein source</span><span class="target">50 g protein ▾</span><span class="mode">Pick one ▾</span></div>
+                <div class="optlist">
+                  <div class="optl"><span class="dot"></span><span class="fname">Lean beef mince 5%</span><span class="amt">240 g</span><span class="auto">auto</span><span class="x">✕</span></div>
+                  <div class="optl"><span class="dot"></span><span class="fname">Salmon</span><span class="amt">250 g</span><span class="auto">auto</span><span class="x">✕</span></div>
+                </div>
+                <div class="addoptl">＋ option</div>
+                <div class="slothint">Each amount auto-sized to deliver <b>50 g protein</b> · client picks one</div>
+              </div>
+
+              <!-- open veg -->
+              <div class="slot open">
+                <div class="sl"><span class="cat" style="color:hsl(var(--ontrack))">Vegetables</span><span class="mode">Open ▾</span></div>
+                <div class="muted" style="font-size:11px">Any vegetable, ≥150 g — client's choice.</div>
+              </div>
+              <div class="addslot">＋ Add slot</div>
+            </div>
+
+            <!-- Snack -->
+            <div class="mblock snack">
+              <div class="bh"><span class="ty">Snack</span><span class="nm">Afternoon snack</span><span class="k">≈180 kcal</span><span class="kebab">⋮</span></div>
+              <div class="slot">
+                <div class="sl"><span class="cat">Protein snack</span><span class="target">20 g protein ▾</span><span class="mode">Pick one ▾</span></div>
+                <div class="optlist">
+                  <div class="optl"><span class="dot"></span><span class="fname">Greek yogurt 0%</span><span class="amt">200 g</span><span class="auto">auto</span><span class="x">✕</span></div>
+                  <div class="optl"><span class="dot"></span><span class="fname">Whey shake</span><span class="amt">1 scoop</span><span class="auto">auto</span><span class="x">✕</span></div>
+                </div>
+                <div class="addoptl">＋ option</div>
+              </div>
+            </div>
+
+            <div class="addblock"><span class="a">＋ Add meal</span><span class="a">＋ Add snack</span><span class="muted" style="font-size:10.5px">supplements — coming later</span></div>
+          </div>
+
+          <!-- RAIL -->
+          <div class="rail">
+            <div class="card" style="padding:15px">
+              <div class="sectlab">Day 1 · estimated total</div>
+              <div class="summary">
+                <div class="donutwrap" style="width:96px;height:96px">
+                  <svg viewBox="0 0 96 96" width="96" height="96">
+                    <circle cx="48" cy="48" r="41" fill="none" stroke="hsl(var(--muted))" stroke-width="11"/>
+                    <circle cx="48" cy="48" r="41" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="11" stroke-dasharray="86 172" transform="rotate(-90 48 48)"/>
+                    <circle cx="48" cy="48" r="41" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="11" stroke-dasharray="64 194" stroke-dashoffset="-86" transform="rotate(-90 48 48)"/>
+                    <circle cx="48" cy="48" r="41" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="11" stroke-dasharray="104 154" stroke-dashoffset="-150" transform="rotate(-90 48 48)"/>
+                  </svg>
+                  <div class="center"><div class="k" style="font-size:22px">≈2,185</div><div class="u">kcal</div></div>
+                </div>
+                <ul class="leg">
+                  <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">175g</span></li>
+                  <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">64g</span></li>
+                  <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">212g</span></li>
+                </ul>
+              </div>
+              <div class="mono muted" style="font-size:10px;margin-top:10px">avg of low/high option · range <b>2,050–2,320</b> kcal · excludes open slots</div>
+              <div class="mono muted" style="font-size:10px;margin-top:4px">placed vs target — P 175/172 · F 64/60 · C 212/205</div>
+              <div class="alert">⚠ ≈135 kcal over Summer Cut target — trim the carb-source target to ~50 g.</div>
+            </div>
+            <div class="card" style="padding:15px;margin-top:12px">
+              <div class="sectlab">Micronutrients (est.)</div>
+              <div class="nutrow"><span style="width:58px">Fiber</span><div class="track"><i style="width:70%;background:hsl(var(--attention))"></i></div><span class="amt">21/30g</span></div>
+              <div class="nutrow"><span style="width:58px">Iron</span><div class="track"><i style="width:55%;background:hsl(var(--attention))"></i></div><span class="amt">8/15mg</span></div>
+              <div class="nutrow"><span style="width:58px">Sodium</span><div class="track"><i style="width:74%;background:hsl(var(--ontrack))"></i></div><span class="amt">1.7/2.3g</span></div>
+              <div class="nutrow"><span style="width:58px">Potassium</span><div class="track"><i style="width:62%;background:hsl(var(--attention))"></i></div><span class="amt">2.2/3.5g</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 · BUILD SLOT (target + auto amounts) -->
+  <div>
+    <div class="label">2 · <b>Build a slot</b> <span>· set the target macro, pick foods, amounts auto-calculate — pick-one or combine</span></div>
+    <div class="panel">
+      <div class="panelhd"><span>Protein source</span><span class="muted">✕</span></div>
+      <div class="prow"><span class="muted">Target</span><span class="tinput">40</span><div class="seg"><span class="on">protein g</span><span>carbs g</span><span>fat g</span><span>kcal</span></div></div>
+      <div class="prow"><span class="muted">Mode</span><div class="seg"><span class="on">Pick one</span><span>Open</span></div><span class="muted" style="font-size:10.5px;margin-left:auto">alternatives — each sized to 40 g</span></div>
+      <div class="accrow on">Protein · Poultry <span class="muted">▾</span></div>
+      <div class="foodrow"><span class="cbx on">✓</span><div>Grilled chicken breast <span class="muted" style="font-size:10.5px">· 31 g P/100g</span></div><span class="autoamt">133 g <span class="chip" style="font-size:9px;padding:1px 6px">auto</span></span></div>
+      <div class="foodrow"><span class="cbx on">✓</span><div>Turkey mince 5% <span class="muted" style="font-size:10.5px">· 21 g P/100g</span></div><span class="autoamt">190 g <span class="chip" style="font-size:9px;padding:1px 6px">auto</span></span></div>
+      <div class="accrow">Protein · Fish &amp; seafood <span class="muted">▾</span></div>
+      <div class="foodrow"><span class="cbx on">✓</span><div>White fish (cod) <span class="muted" style="font-size:10.5px">· 19 g P/100g</span></div><span class="autoamt">210 g <span class="chip" style="font-size:9px;padding:1px 6px">auto</span></span></div>
+      <div class="foodrow"><span class="cbx"></span><div>Salmon <span class="muted" style="font-size:10.5px">· 20 g P/100g</span></div><span class="autoamt muted">200 g</span></div>
+      <div style="padding:12px 15px;display:flex;justify-content:space-between;align-items:center"><span class="muted" style="font-size:11px">3 options · each ≈40 g protein</span><div style="display:flex;gap:9px"><button class="btn outline">Cancel</button><button class="btn primary">Add slot</button></div></div>
+    </div>
+  </div>
+
+  <!-- 3 · CLIENT VIEW -->
+  <div>
+    <div class="label">3 · <b>Client view</b> <span>· pick-one → tap one option; combine → all shown together; amounts already sized</span></div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span>5G ▮</span></div>
+      <div class="scr">
+        <div class="ptop"><h2>My meal plan</h2><span class="chip">from Dana</span></div>
+        <div class="pbody">
+          <div class="ptabs"><span class="on">Day 1</span><span>Day 2</span><span>Day 3</span><span>Day 4</span></div>
+          <div style="font-size:13px;font-weight:600;margin:4px 2px 6px">Pre-workout <span class="muted" style="font-weight:400;font-size:11px">· ~90 min before</span></div>
+          <div style="font-size:11px;color:hsl(var(--macro-protein));font-weight:600;margin:0 2px 6px">PROTEIN — choose one (40 g protein)</div>
+          <div class="copt sel"><span class="radio on"></span><div style="flex:1">Grilled chicken breast</div><span class="mono muted" style="font-size:11px">133 g</span></div>
+          <div class="copt"><span class="radio"></span><div style="flex:1">Turkey mince 5%</div><span class="mono muted" style="font-size:11px">190 g</span></div>
+          <div class="copt"><span class="radio"></span><div style="flex:1">White fish</div><span class="mono muted" style="font-size:11px">210 g</span></div>
+          <div style="font-size:13px;font-weight:600;margin:12px 2px 6px">Lunch</div>
+          <div style="font-size:11px;color:hsl(var(--macro-protein));font-weight:600;margin:0 2px 6px">PROTEIN — choose one (50 g protein)</div>
+          <div class="copt sel"><span class="radio on"></span><div style="flex:1">Lean beef mince 5%</div><span class="mono muted" style="font-size:11px">240 g</span></div>
+          <div class="copt"><span class="radio"></span><div style="flex:1">Salmon</div><span class="mono muted" style="font-size:11px">250 g</span></div>
+          <button class="btn primary" style="width:100%;margin-top:14px;padding:11px">Log this meal</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4 · FOOD LOGGER (plan on the diary) -->
+  <div>
+    <div class="label">4 · <b>Food logger — a meal-plan day</b> <span>· the plan shows in the client's Food diary; logging matches the planner (pick one / open / adjustable)</span></div>
+    <div class="phone"><div class="statusbar"><span>9:41</span><span>5G ▮</span></div>
+      <div class="scr">
+        <div class="ptop"><h2>Nutrition</h2><span class="chip">On plan · Day A</span></div>
+        <div class="pbody">
+          <div class="ptabs"><span class="on">Today</span><span>Plan</span><span>History</span></div>
+          <!-- consumed vs target summary (unified) -->
+          <div style="border:1px solid hsl(var(--border));border-radius:13px;padding:13px 14px;margin-bottom:12px">
+            <div class="summary" style="gap:13px">
+              <div class="donutwrap" style="width:70px;height:70px">
+                <svg viewBox="0 0 70 70" width="70" height="70">
+                  <circle cx="35" cy="35" r="29" fill="none" stroke="hsl(var(--muted))" stroke-width="9"/>
+                  <circle cx="35" cy="35" r="29" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="9" stroke-dasharray="60 122" transform="rotate(-90 35 35)"/>
+                  <circle cx="35" cy="35" r="29" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="9" stroke-dasharray="40 142" stroke-dashoffset="-60" transform="rotate(-90 35 35)"/>
+                  <circle cx="35" cy="35" r="29" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="9" stroke-dasharray="62 120" stroke-dashoffset="-100" transform="rotate(-90 35 35)"/>
+                </svg>
+                <div class="center"><div class="k" style="font-size:16px">640</div><div class="u">kcal</div></div>
+              </div>
+              <ul class="leg" style="gap:7px">
+                <li><span class="sw" style="background:hsl(var(--macro-protein))"></span><span class="nm">Protein</span><span class="g">42/172g</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-fat))"></span><span class="nm">Fat</span><span class="g">14/60g</span></li>
+                <li><span class="sw" style="background:hsl(var(--macro-carb))"></span><span class="nm">Carbs</span><span class="g">58/205g</span></li>
+              </ul>
+            </div>
+          </div>
+
+          <div style="font-size:13px;font-weight:600;margin:2px 2px 6px">Pre-workout <span class="muted" style="font-weight:400;font-size:11px">· 297 kcal logged</span></div>
+          <!-- protein: logged -->
+          <div class="copt sel" style="margin-bottom:6px"><span style="color:hsl(var(--ontrack))">✓</span><div style="flex:1">Grilled chicken breast <span class="muted" style="font-size:10.5px">· protein</span></div><span class="mono muted" style="font-size:11px">133 g</span><span style="color:hsl(var(--muted-foreground));margin-left:8px">✎</span></div>
+          <!-- carb: choose one, not yet logged -->
+          <div style="font-size:10.5px;color:hsl(var(--macro-carb));font-weight:600;margin:6px 2px 5px">CARB — choose one</div>
+          <div class="copt"><span class="radio"></span><div style="flex:1">White rice</div><span class="mono muted" style="font-size:11px">78 g</span></div>
+          <div class="copt"><span class="radio"></span><div style="flex:1">Oats</div><span class="mono muted" style="font-size:11px">90 g</span></div>
+
+          <div style="font-size:13px;font-weight:600;margin:12px 2px 6px">Lunch</div>
+          <div style="font-size:10.5px;color:hsl(var(--macro-protein));font-weight:600;margin:0 2px 5px">PROTEIN — choose one (50 g)</div>
+          <div class="copt"><span class="radio"></span><div style="flex:1">Lean beef mince 5%</div><span class="mono muted" style="font-size:11px">240 g</span></div>
+          <div class="copt" style="border-style:dashed;background:hsl(var(--muted)/.4)"><span style="color:hsl(var(--ontrack))">＋</span><div style="flex:1">Vegetables <span class="muted" style="font-size:10.5px">· open — add your choice ≥150 g</span></div><span class="mono muted" style="font-size:11px">🔍</span></div>
+
+          <div class="copt" style="border-style:dashed;justify-content:center;color:hsl(var(--primary));font-weight:500;margin-top:6px">＋ Log something else (off plan)</div>
+          <button class="btn primary" style="width:100%;margin-top:8px;padding:11px">Log remaining from plan</button>
+          <div class="muted" style="font-size:10px;text-align:center;margin-top:7px">The plan is a recommendation — adjust any item, or ignore it and log your own. Never forced.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
