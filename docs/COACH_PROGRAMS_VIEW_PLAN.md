@@ -144,7 +144,29 @@ Mockup: screen 3.
 
 ## 3. What data feeds each surface (all existing rows)
 
-| Surface | Reads | Computed via |
+> ### ⛔ CORRECTION 2026-07-12 — the reads below are the WRONG SURFACE. Read this first.
+>
+> The table below targets `program_template_days` → `day_modules` → `module_exercises`. **That is not
+> the canonical program.** It is the output of `convert_muscle_plan_to_program_v2`, the legacy
+> "Convert to Program" flow (`ConvertToProgram.tsx:172`) — explicitly flagged **KEEP-but-legacy** in
+> `P5_LEGACY_DROP_BUILD.md:47`. It only exists for plans a coach happened to convert (prod: **3**
+> `program_templates` vs **4** board plans), it is a point-in-time snapshot, and **it is not what a
+> client assignment reads.** Building PR2's adapter on it would ship the rich card on a dead surface.
+>
+> **The canonical template read is:**
+> `plan` (WHERE `kind = 'template'`) → `plan_weeks` → `plan_sessions` → `plan_slots`.
+> `plan_slots.prescription_json` already carries **`muscleId` and `sets`** (verified on prod:
+> **682/682 template slots, 100% coverage, zero nulls**), plus `repMin`/`repMax`/`setsDetail`/
+> `exerciseName`. `plan_sessions` carries `day_index`, `activity_type`, `name`, `sort_order`.
+> So `adaptCanonicalPlanToSlots` is a **pure field map into `MuscleSlotData[]`** — no
+> `exercise_library` join, no null handling — and `useMusclePlanVolume` then drives the ribbon,
+> `VolumeTiles` and `LandmarkZoneChip` with zero new math.
+>
+> **⚠️ TWO PREREQUISITES — see §3a below. Do not start PR2 until they are resolved:** the canonical
+> template mirror is currently fire-and-forget (`slot_config` is still authoritative), and prod
+> already contains a duplicate-slot-id that makes the two surfaces disagree about a real program.
+
+| Surface | Reads (SUPERSEDED — see correction above) | Computed via |
 |---|---|---|
 | Mesocycle card ribbon + strip | `day_modules` → `module_exercises` → `exercise_prescriptions` (sets), exercise → `primary_muscle` | `useMusclePlanVolume` fed with a slot-shaped adapter |
 | Structure line (wks/days/sessions) | `program_template_days.day_index`, `day_modules` count | derive weeks from `day_index` ranges |
@@ -157,6 +179,58 @@ Mockup: screen 3.
 `module_exercises` (+ prescriptions + exercise muscle) into the `MuscleSlotData[]` shape that
 `useMusclePlanVolume` and the ribbon already consume. Build that once and both the card and the detail
 view light up. (This adapter is the inverse of `convert_muscle_plan_to_program_v2`, read-side only.)
+
+---
+
+## 3a. PR2 prerequisites — two data-integrity blockers (found 2026-07-12, CC)
+
+Both were found by querying prod. Neither is a design call; both make the card **display a number that
+is not true**, which defeats the entire point of the rich card.
+
+### Blocker A — the canonical template mirror is NOT authoritative, and it is fire-and-forget
+
+`useMuscleBuilderState.ts:1430-1432` (verbatim):
+
+> "mirror the serialized builder state into the canonical `plan*` model via `save_plan_from_builder`.
+> **`slot_config` remains authoritative during the soak** — this runs fire-and-forget AFTER the
+> `slot_config` write, so a mirror failure is a stale mirror, not data loss."
+
+So for TEMPLATES there are two stores and they can disagree:
+
+| | store | status |
+|---|---|---|
+| `muscle_program_templates.slot_config` (JSONB) | what the coach authored + what the **board renders** | **authoritative today** |
+| `plan` kind=`template` + `plan_*` | fire-and-forget mirror | **what a client assignment actually clones** |
+
+That split is the real hazard: the coach sees one program, the client receives another. It must be
+closed (make the mirror transactional, or make `plan*` authoritative for templates) before a card
+claims to summarise "the program".
+
+### Blocker B — a duplicate slot id already exists in prod, and the two stores disagree today
+
+`slot_config` for **"Prenatal Trimester 1 (3 Day)"** contains the same slot id twice:
+
+```
+slot 2be20a8e-2e4c-4220-b7a7-8f227b4144cc — lats_iliac, day 3, 3 sets — appears 2×
+```
+
+`save_plan_from_builder` upserts on `plan_slots.builder_slot_id`, so the two board slots collapse into
+one canonical row:
+
+| | slots | lats_iliac sets, day 3 |
+|---|---|---|
+| board / `slot_config` (coach sees) | **136** | **6** |
+| canonical `plan_slots` (client gets) | **135** | **3** |
+
+Scope: **1 duplicate across 683 template slots, in 1 of 4 plans** (the one edited 2026-07-12) — rare,
+not systemic, but live. Two things to fix: the board operation that clones a slot **without
+regenerating its id** (duplicate-session / paste-day are the suspects; a duplicate `id` is also a React
+key collision), and the orphaned prod row.
+
+**Recommendation:** fix A + B as a small standalone PR (bug track, not design), then build PR2's
+adapter against canonical `plan*`. Reading `slot_config` instead would dodge the bug only by showing
+the coach a number the client will never receive, and would couple the new surface to the board's
+JSONB blob right as it is meant to retire.
 
 ---
 
@@ -196,11 +270,17 @@ completion + day rows) → day-row idiom; **Bevel "Total Volume"** (per-muscle v
 
 ## 6. Open decisions (for Hasan)
 
-1. **Card click target** — open the new **detail view** (recommended) vs keep opening the editor directly.
-2. **Focus-chip source** — session names (`Push`/`Pull`) if coaches name sessions, else auto-derive from
-   dominant muscle per day. Recommend: session name when present, else derived.
-3. **Landmark zones on the card** — show MEV/MAV/MRV chips on the small card too, or reserve for the detail
-   view to keep the card clean? Recommend: ribbon + strip on the card; zones in detail only.
+1. **Card click target — LOCKED 2026-07-12:** the card opens the **detail view**, and a **first-cut detail
+   is pulled into PR2** (so the card is never a dead-end). PR2 detail = header + summary tiles +
+   `MuscleDistributionBars` (all fed by the adapter). The heavier week-by-week `WeekBreakdownCard` + macro
+   arc stay in **PR3**. (Was: open detail vs editor.)
+2. **Focus-chip source — LOCKED 2026-07-12:** **primary = the coach's own session names**
+   (`plan_sessions.name`); **fallback for unnamed sessions = the session's dominant muscle region /
+   activity-type label** ("Chest focus" / "Cardio" / "Mobility"). **Do NOT build a Push/Pull/Legs inference
+   engine** — archetype-guessing from muscles is brittle for IGU's mixed sessions. Cap ~3 chips + "+N".
+3. **Landmark zones on the card — LOCKED 2026-07-12: NO.** Keep MEV/MAV/MRV off the small library card
+   (ribbon + strip already show balance; per-muscle zones across ~11 muscles are too dense for a card).
+   Zones render only in the **detail view's distribution section**.
 4. **Macrocycle volume-trend line** — sets/week per block (simple, recommended) vs a relative-intensity
    proxy (needs load data we may not have per template).
 5. **Progression display** — when weeks differ only by weekly-delta rules, show "Weeks 2–4: +load"
