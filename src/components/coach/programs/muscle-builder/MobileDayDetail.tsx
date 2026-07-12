@@ -6,6 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Drawer, DrawerContent, DrawerTrigger, DrawerTitle, DrawerScrollArea } from "@/components/ui/drawer";
+import { SessionTypeBar } from "../shared/SessionTypeBar";
+import { ProgramStatStrip } from "../shared/ProgramStatStrip";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -221,22 +223,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
             <span className="text-sm font-semibold truncate">
               {dayOptions.find(o => o.dayIndex === selectedDayIndex)?.label ?? DAYS_OF_WEEK[selectedDayIndex - 1]}
             </span>
-            {(totalSets > 0 || sessionDuration) && (
-              <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-mono text-muted-foreground">
-                {totalSets > 0 && <span>{totalSets} sets</span>}
-                {sessionDuration && (
-                  <span
-                    className="inline-flex items-center gap-0.5"
-                    title={sessionDuration.inferred
-                      ? "Estimate assumes 2-4s/rep tempo and 60-120s rest when not set"
-                      : "Estimated session duration"}
-                  >
-                    <Clock className="h-2.5 w-2.5" aria-hidden />
-                    {formatDurationRange(sessionDuration.minSeconds, sessionDuration.maxSeconds)}
-                  </span>
-                )}
-              </div>
-            )}
+            <ProgramStatStrip sets={totalSets} duration={sessionDuration} />
           </div>
           <div className="flex items-center gap-1">
             {daySlots.length > 0 && onCopyDay && (
@@ -313,13 +300,14 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                     .sort((a, b) => a.sortOrder - b.sortOrder);
                   const typeColors = ACTIVITY_TYPE_COLORS[session.type];
                   return (
-                    <div
+                    // Same shared rail as desktop (SessionBlock) so phone + desktop
+                    // can't drift (§11.5). Mobile keeps its own space-y-1.5 — it had
+                    // already diverged from desktop's space-y-1, and PR1 preserves
+                    // rendering rather than silently converging it.
+                    <SessionTypeBar
                       key={session.id}
-                      // Match desktop: 2px colored left bar carries the type
-                      // signal so we drop the bordered subcard. Saves a layer
-                      // of visual nesting and aligns with DayColumn / SessionBlock.
-                      className="border-l-2 pl-2 space-y-1.5"
-                      style={{ borderLeftColor: typeColors.colorHex }}
+                      activityType={session.type}
+                      className="space-y-1.5"
                     >
                       <MobileSessionHeader
                         session={session}
@@ -408,7 +396,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                         <Plus className="h-3.5 w-3.5 mr-1.5" />
                         Add
                       </Button>
-                    </div>
+                    </SessionTypeBar>
                   );
                 })}
               </div>

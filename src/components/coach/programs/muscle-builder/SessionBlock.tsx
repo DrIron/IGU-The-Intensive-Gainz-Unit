@@ -18,6 +18,7 @@ import { MoreVertical, Plus, ArrowUp, ArrowDown, Trash2, Copy, RotateCcw, Chevro
 import { cn } from "@/lib/utils";
 import { isBoardV2Enabled } from "@/lib/featureFlags";
 import { useClientEditor } from "./ClientEditorContext";
+import { SessionTypeBar } from "../shared/SessionTypeBar";
 import { MuscleSlotCard } from "./MuscleSlotCard";
 import { ActivitySlotCard } from "./ActivitySlotCard";
 import { UnifiedSessionPicker } from "./UnifiedSessionPicker";
@@ -146,7 +147,8 @@ export const SessionBlock = memo(function SessionBlock({
   const [expanded, setExpanded] = useState(!boardV2);
   const showSlots = !boardV2 || expanded;
 
-  const typeColors = ACTIVITY_TYPE_COLORS[session.type];
+  // Session-type colour now lives in the shared <SessionTypeBar>; ACTIVITY_TYPE_COLORS
+  // is still used below for the type-picker dots in the kebab menu.
   const displayName = session.name?.trim() || defaultSessionName(session.type);
 
   const sessionSlots = useMemo(
@@ -177,17 +179,19 @@ export const SessionBlock = memo(function SessionBlock({
   );
 
   return (
-    <div
-      // Flat colored-accent layout: 2px left bar (session-type color) carries
-      // the type signal so we drop the per-session border + tinted bg. This
-      // saves ~8px of horizontal width and one layer of visual nesting in
-      // the already-cramped 140px day columns at lg:grid-cols-7.
-      // `group/session` lets the inline `+` reveal on hover only; the kebab
-      // stays faintly visible at all times (opacity-50) so coaches can still
-      // discover session actions, while the name keeps every available pixel
-      // when not hovering.
-      className={cn("group/session border-l-2 pl-2 space-y-1", isOverridden && "border-l-amber-500")}
-      style={{ borderLeftColor: isOverridden ? undefined : typeColors.colorHex }}
+    // Flat colored-accent layout: the 2px left bar (session-type color) carries
+    // the type signal, so there is no per-session border or tinted bg. That saves
+    // ~8px of horizontal width and one layer of visual nesting in the already-
+    // cramped 140px day columns at lg:grid-cols-7. The rail itself now lives in
+    // the shared `SessionTypeBar` so mobile renders the identical rail.
+    //
+    // `group/session` lets the inline `+` reveal on hover only; the kebab stays
+    // faintly visible at all times (opacity-50) so coaches can still discover
+    // session actions, while the name keeps every available pixel when not hovering.
+    <SessionTypeBar
+      activityType={session.type}
+      isOverridden={isOverridden}
+      className="group/session space-y-1"
     >
       {/* Header: name + inline + + kebab. Colored dot dropped — left bar
           already carries the type signal, gives the name another ~10px. */}
@@ -470,6 +474,6 @@ export const SessionBlock = memo(function SessionBlock({
         )}
       </Droppable>
       )}
-    </div>
+    </SessionTypeBar>
   );
 });
