@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGU — Coach Profile & Testimonials Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Bebas+Neue&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --background:220 20% 97%;--card:0 0% 100%;--foreground:240 10% 3.9%;
+    --primary:355 78% 48%;--border:220 15% 92%;--muted:220 14% 96%;
+    --muted-foreground:240 3.8% 46.1%;--radius:0.75rem;
+    --macro-protein:0 72% 51%;--macro-fat:38 92% 50%;--macro-carb:217 91% 60%;
+    --ontrack:142 71% 45%;--attention:38 92% 50%;--risk:0 84% 60%;--desk:220 16% 91%;
+  }
+  .dark{--background:240 10% 3.7%;--foreground:0 0% 98%;--card:240 6% 8.4%;--muted:240 4% 11.8%;--muted-foreground:240 5% 64.9%;--border:240 4% 16.5%;--status-ontrack:142 64% 52%;--status-attention:38 92% 55%;--status-risk:0 84% 64%;--desk:240 8% 6%;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Geist',system-ui,sans-serif;background:hsl(var(--desk));color:hsl(var(--foreground));-webkit-font-smoothing:antialiased;padding:40px 24px 80px;}
+  .ttoggle{position:fixed;top:14px;right:16px;z-index:99;border:1px solid hsl(var(--border));background:hsl(var(--card));color:hsl(var(--foreground));border-radius:9px;padding:7px 12px;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;}
+  .head{max-width:960px;margin:0 auto 22px;}
+  .head h1{font-weight:600;font-size:26px;letter-spacing:-0.02em;}
+  .head p{color:hsl(var(--muted-foreground));font-size:14.5px;margin-top:8px;line-height:1.55;}
+  .head b{color:hsl(var(--primary));font-weight:600;}
+  .stack{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:38px;}
+  .label{font-size:13px;font-weight:600;margin-bottom:10px;}
+  .label b{color:hsl(var(--primary));}
+  .label span{color:hsl(var(--muted-foreground));font-weight:400;}
+  .row{display:flex;gap:22px;flex-wrap:wrap;}
+
+  .muted{color:hsl(var(--muted-foreground));}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;}
+  .card{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:12px;}
+  .btn{border:none;border-radius:9px;font-family:inherit;font-size:12.5px;font-weight:600;padding:10px 15px;}
+  .btn.primary{background:hsl(var(--primary));color:#fff;}
+  .btn.outline{background:hsl(var(--card));border:1px solid hsl(var(--border));font-weight:500;color:hsl(var(--foreground));}
+  .chip{font-size:11px;color:hsl(var(--muted-foreground));background:hsl(var(--muted));padding:3px 9px;border-radius:6px;}
+  .badge{font-size:10px;font-weight:500;padding:2px 9px;border-radius:999px;border:1px solid;white-space:nowrap;}
+  .b-head{border-color:hsl(var(--primary)/.4);background:hsl(var(--primary)/.1);color:hsl(var(--primary));}
+  .b-ok{border-color:hsl(var(--ontrack)/.4);background:hsl(var(--ontrack)/.1);color:hsl(var(--ontrack));}
+  .stars{color:hsl(var(--attention));letter-spacing:1px;font-size:13px;}
+  .stars .off{color:hsl(var(--border));}
+
+  /* phone */
+  .phone{width:320px;height:660px;background:hsl(var(--background));border-radius:34px;border:9px solid #16181d;overflow:hidden;box-shadow:0 12px 38px rgba(20,24,33,.22);flex:none;}
+  .statusbar{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:12px;font-weight:500;}
+  .scr{height:calc(100% - 32px);display:flex;flex-direction:column;}
+  .ptop{display:flex;align-items:center;justify-content:space-between;padding:11px 15px 8px;}
+  .ptop h2{font-size:16px;font-weight:600;}
+  .pbody{flex:1;overflow:hidden;padding:0 14px 12px;}
+  .field{margin-top:12px;}
+  .field .fl{font-size:11px;font-weight:500;margin-bottom:6px;color:hsl(var(--muted-foreground));}
+  .fbox{border:1px solid hsl(var(--border));border-radius:9px;padding:10px 12px;font-size:12.5px;background:hsl(var(--card));}
+  .fbox.area{min-height:64px;color:hsl(var(--muted-foreground));}
+  .starpick{font-size:22px;color:hsl(var(--attention));letter-spacing:3px;}
+  .starpick .off{color:hsl(var(--border));}
+
+  /* attach blocks */
+  .attach{border:1px solid hsl(var(--border));border-radius:10px;padding:11px 12px;background:hsl(var(--muted)/.4);margin-top:8px;}
+  .attach .at{font-size:10.5px;font-weight:600;text-transform:uppercase;letter-spacing:.03em;color:hsl(var(--muted-foreground));margin-bottom:7px;}
+  .wbig{font-family:'Bebas Neue',sans-serif;font-size:30px;line-height:.9;color:hsl(var(--ontrack));}
+  .liftline{display:flex;align-items:center;gap:8px;font-family:'JetBrains Mono';font-size:14px;font-weight:500;}
+  .liftline .up{color:hsl(var(--ontrack));}
+  .proofopt{display:flex;align-items:center;gap:10px;border:1px solid hsl(var(--border));border-radius:9px;padding:11px 12px;font-size:12.5px;margin-top:8px;}
+  .proofopt .ic{width:24px;height:24px;border-radius:7px;background:hsl(var(--primary)/.12);color:hsl(var(--primary));display:flex;align-items:center;justify-content:center;font-size:13px;flex:none;}
+  .proofopt.sel{border-color:hsl(var(--primary));background:hsl(var(--primary)/.05);}
+
+  /* testimonial card */
+  .tcard{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:12px;padding:15px;}
+  .tcard .toprow{display:flex;gap:10px;align-items:center;}
+  .av{width:38px;height:38px;border-radius:50%;background:hsl(var(--muted));flex:none;}
+  .tcard .who{font-size:13px;font-weight:500;}
+  .tcard .coach{font-size:11px;color:hsl(var(--muted-foreground));margin-top:1px;}
+  .tcard .fb{font-size:12.5px;line-height:1.55;margin-top:11px;}
+  .rchips{display:flex;gap:6px;flex-wrap:wrap;margin-top:11px;}
+  .rchip{font-size:10.5px;background:hsl(var(--muted));color:hsl(var(--muted-foreground));padding:3px 8px;border-radius:6px;}
+
+  /* desktop window */
+  .win{border-radius:14px;border:1px solid #d4d7dd;overflow:hidden;box-shadow:0 14px 40px rgba(20,24,33,.16);background:hsl(var(--background));}
+  .dark .win{border-color:hsl(var(--border));}
+  .chrome{height:34px;background:#f1f2f5;border-bottom:1px solid hsl(var(--border));display:flex;align-items:center;gap:7px;padding:0 14px;}
+  .dark .chrome{background:hsl(var(--muted));}
+  .chrome i{width:11px;height:11px;border-radius:50%;background:#cdd0d6;}
+  .nav{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid hsl(var(--border));}
+  .nav .logo{font-weight:600;font-size:16px;}
+  .nav .links{display:flex;gap:18px;font-size:12.5px;color:hsl(var(--muted-foreground));}
+  .nav .links .on{color:hsl(var(--primary));font-weight:500;}
+  .wbody{padding:24px;}
+  .h2{font-size:22px;font-weight:600;letter-spacing:-0.01em;}
+  .filterbar{display:flex;gap:10px;margin:16px 0;flex-wrap:wrap;}
+  .sel{border:1px solid hsl(var(--border));border-radius:9px;padding:8px 13px;font-size:12.5px;color:hsl(var(--muted-foreground));background:hsl(var(--card));}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+
+  /* coach hero */
+  .hero{display:flex;gap:22px;align-items:flex-start;}
+  .hero .photo{width:132px;height:132px;border-radius:16px;background:hsl(var(--muted));flex:none;}
+  .hero h1{font-size:26px;font-weight:600;letter-spacing:-0.01em;}
+  .tagset{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px;}
+  .tagset span{font-size:11.5px;padding:4px 10px;border-radius:7px;background:hsl(var(--muted));color:hsl(var(--foreground));}
+  .agg{display:flex;align-items:baseline;gap:8px;margin-top:12px;}
+  .agg .n{font-family:'Bebas Neue',sans-serif;font-size:30px;line-height:.9;}
+  .sectlab{font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:hsl(var(--muted-foreground));margin:22px 0 12px;}
+
+  /* admin rows */
+  .arow{display:flex;align-items:center;gap:14px;padding:13px 0;border-bottom:1px solid hsl(var(--border));}
+  .arow:last-child{border-bottom:none;}
+  .arow .fb{font-size:12px;color:hsl(var(--muted-foreground));max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .tog{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:hsl(var(--muted-foreground));}
+  .sw{width:30px;height:17px;border-radius:999px;background:hsl(var(--border));position:relative;flex:none;}
+  .sw.on{background:hsl(var(--primary));}
+  .sw i{position:absolute;top:2px;left:2px;width:13px;height:13px;border-radius:50%;background:#fff;}
+  .sw.on i{left:15px;}
+</style>
+</head>
+<body class="dark">
+<button class="ttoggle" onclick="document.body.classList.toggle('dark')">◐ Theme</button>
+<div class="head">
+  <h1>IGU — Coach Profile &amp; Testimonials · mockups</h1>
+  <p>Clients <b>submit</b> testimonials (+ optional attached proof); the <b>coach</b> chooses which show on their <b>/coach/:slug</b> page (screen 7); the <b>admin</b> only features testimonials for the <b>public pages</b> (screen 6, no approval step); plus the public <b>/testimonials</b> view, <b>/meet-our-team</b> cards, and where <b>"Start with a coach"</b> goes (Services, coach preselected). Themed (default dark), flat IGU cards, amber stars. Spec: <b>docs/COACH_PROFILE_TESTIMONIALS_PLAN.md</b>.</p>
+</div>
+
+<div class="stack">
+
+  <!-- CLIENT: submission entry + form + proof -->
+  <div>
+    <div class="label">1–3 · <b>Client — where &amp; how they submit</b> <span>· dashboard CTA → form → optional "add proof"</span></div>
+    <div class="row">
+
+      <!-- 1 entry -->
+      <div class="phone"><div class="statusbar"><span>9:41</span><span>5G ▮</span></div>
+        <div class="scr">
+          <div class="ptop"><h2>Dashboard</h2><span class="muted">◔</span></div>
+          <div class="pbody">
+            <div class="card" style="padding:15px;border-left:3px solid hsl(var(--primary))">
+              <div style="font-size:13px;font-weight:500">You've hit a milestone 🎉</div>
+              <div class="muted" style="font-size:12px;margin-top:6px;line-height:1.5">14 weeks with <b style="color:hsl(var(--foreground))">Coach Omar</b> and down 8 kg. Share your results — your testimonial can appear on Omar's page.</div>
+              <button class="btn primary" style="width:100%;margin-top:12px">Leave a testimonial</button>
+              <div class="muted" style="font-size:10px;text-align:center;margin-top:7px">Only IGU clients can leave one · also in Account</div>
+            </div>
+            <div class="sectlab" style="margin:16px 2px 8px;font-size:10.5px">Today</div>
+            <div class="card" style="padding:13px 14px"><div style="display:flex;justify-content:space-between"><span style="font-size:13px;font-weight:500">Push Day A</span><span class="chip">Workout</span></div></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2 form -->
+      <div class="phone"><div class="statusbar"><span>9:41</span><span>5G ▮</span></div>
+        <div class="scr">
+          <div class="ptop"><span class="muted">‹</span><h2 style="font-size:15px">Leave a testimonial</h2><span></span></div>
+          <div class="pbody">
+            <div class="card" style="padding:11px 13px;display:flex;align-items:center;gap:10px"><span class="av" style="width:32px;height:32px"></span><div><div style="font-size:12.5px;font-weight:500">Reviewing Coach Omar</div><div class="muted" style="font-size:10.5px">your coach · 14 weeks</div></div></div>
+            <div class="field"><div class="fl">Your rating</div><div class="starpick">★★★★★</div></div>
+            <div class="field"><div class="fl">Your experience</div><div class="fbox area">Omar completely changed how I train and eat. Down 8 kg and my lifts are up across the board…</div></div>
+            <div class="field"><div class="fl">Add proof <span class="muted" style="font-weight:400">· optional</span></div>
+              <div class="proofopt sel"><span class="ic">⚖</span><div style="flex:1">Weight change</div><span class="muted">›</span></div>
+              <div class="proofopt"><span class="ic">🏋</span><div style="flex:1">A lift's progression</div><span class="muted">›</span></div>
+            </div>
+            <div class="field"><div class="fl">Show me as</div>
+              <div style="display:flex;gap:6px;flex-wrap:wrap">
+                <span style="font-size:11px;padding:6px 10px;border-radius:8px;border:1px solid hsl(var(--primary));background:hsl(var(--primary)/.1);color:hsl(var(--primary));font-weight:500">Sara K.</span>
+                <span style="font-size:11px;padding:6px 10px;border-radius:8px;border:1px solid hsl(var(--border));color:hsl(var(--muted-foreground))">Full name</span>
+                <span style="font-size:11px;padding:6px 10px;border-radius:8px;border:1px solid hsl(var(--border));color:hsl(var(--muted-foreground))">Anonymous</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:9px;align-items:flex-start;margin-top:13px;font-size:11px;line-height:1.45"><span style="width:16px;height:16px;border-radius:5px;background:hsl(var(--primary));color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;flex:none">✓</span><span class="muted">I allow IGU to display this publicly (my coach's page &amp; public pages). I can withdraw it anytime.</span></div>
+            <button class="btn primary" style="width:100%;margin-top:13px">Submit</button>
+            <div class="muted" style="font-size:10px;text-align:center;margin-top:7px">You choose how you're shown · your coach picks what appears on their page</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 3 proof -->
+      <div class="phone"><div class="statusbar"><span>9:41</span><span>5G ▮</span></div>
+        <div class="scr">
+          <div class="ptop"><span class="muted">‹</span><h2 style="font-size:15px">Add proof</h2><span class="muted" style="font-size:12px">Done</span></div>
+          <div class="pbody">
+            <div class="field" style="margin-top:6px"><div class="fl">Weight change</div>
+              <div class="fbox" style="display:flex;align-items:center;justify-content:space-between">Phase · Summer Cut <span class="muted">▾</span></div>
+              <div class="attach"><div class="at">Pulled from your weigh-ins</div><div style="display:flex;align-items:baseline;gap:8px"><span class="wbig">−8.2 kg</span><span class="muted mono" style="font-size:11px">over 12 weeks · Fat loss</span></div></div>
+              <div class="fbox" style="margin-top:8px;color:hsl(var(--muted-foreground))">Note (optional) — "biggest change was my energy"</div>
+            </div>
+            <div class="field"><div class="fl">A lift's progression <span class="muted" style="font-weight:400">· pick one of your lifts</span></div>
+              <div class="fbox" style="display:flex;align-items:center;justify-content:space-between">Bench press <span class="muted">▾</span></div>
+              <div class="attach"><div class="at">From your logged sets · Spring Strength</div><div class="liftline">60 kg <span class="up">→</span> 90 kg <span class="badge b-ok" style="margin-left:4px">+50%</span></div></div>
+            </div>
+            <button class="btn primary" style="width:100%;margin-top:14px">Attach to testimonial</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- 4 public /testimonials -->
+  <div>
+    <div class="label">4 · <b>Public — /testimonials view</b> <span>· nav points here (not the form); filter by coach / goal; cards show rating + result chips + attached proof</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="nav"><div class="logo">IGU</div><div class="links"><span>Services</span><span class="on">Testimonials</span><span>Meet the Team</span><span>Calculator</span></div><button class="btn outline" style="padding:7px 13px">Sign in</button></div>
+      <div class="wbody">
+        <div class="h2">What our clients say</div>
+        <div class="muted" style="font-size:13px;margin-top:4px">Real results from real IGU clients.</div>
+        <div class="filterbar"><span class="sel">Coach · All ▾</span><span class="sel">Goal · All ▾</span><span class="sel">Sort · Biggest result ▾</span></div>
+        <div class="grid">
+          <div class="tcard">
+            <div class="toprow"><span class="av"></span><div style="flex:1"><div class="who">Sara K.</div><div class="coach">with Coach Omar</div></div><span class="stars">★★★★★</span></div>
+            <div class="fb">Omar changed how I train and eat. The check-ins kept me honest and the results speak for themselves.</div>
+            <div class="attach"><div class="at">Weight change</div><div style="display:flex;align-items:baseline;gap:8px"><span class="wbig" style="font-size:26px">−8.2 kg</span><span class="muted mono" style="font-size:10.5px">12 weeks</span></div></div>
+            <div class="rchips"><span class="rchip">Fat loss</span><span class="rchip">12 weeks</span></div>
+          </div>
+          <div class="tcard">
+            <div class="toprow"><span class="av"></span><div style="flex:1"><div class="who">Khaled T.</div><div class="coach">with Coach Dana</div></div><span class="stars">★★★★<span class="off">★</span></span></div>
+            <div class="fb">Went from never squatting to hitting real numbers. Programming was spot on for my schedule.</div>
+            <div class="attach"><div class="at">Lift progression · Back squat</div><div class="liftline" style="font-size:13px">70 → 120 kg <span class="badge b-ok" style="margin-left:6px">+71%</span></div></div>
+            <div class="rchips"><span class="rchip">Muscle gain</span><span class="rchip">6 months</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 coach profile -->
+  <div>
+    <div class="label">5 · <b>Public — /coach/omar</b> <span>· per-coach profile: hero + specialties + aggregate + curated testimonials + CTA</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="nav"><div class="logo">IGU</div><div class="links"><span>Services</span><span>Testimonials</span><span class="on">Meet the Team</span><span>Calculator</span></div><button class="btn outline" style="padding:7px 13px">Sign in</button></div>
+      <div class="wbody">
+        <div class="hero">
+          <div class="photo"></div>
+          <div style="flex:1">
+            <div style="display:flex;align-items:center;gap:10px"><h1>Omar Farouk</h1><span class="badge b-head">Head Coach · Senior</span></div>
+            <div class="muted" style="font-size:13px;margin-top:3px">"Coach Omar" · Kuwait City</div>
+            <div class="agg"><span class="stars" style="font-size:16px">★★★★★</span><span class="n">4.9</span><span class="muted" style="font-size:12px">· 23 client reviews</span></div>
+            <div class="tagset"><span>Fat loss</span><span>Physique prep</span><span>Strength</span><span>Beginners</span></div>
+            <button class="btn primary" style="margin-top:16px">Start with Omar</button>
+          </div>
+        </div>
+        <div class="sectlab">About</div>
+        <div class="muted" style="font-size:13px;line-height:1.6;max-width:640px">10+ years coaching physique and strength athletes across the GCC. MSc Sports Science, IGU Head Coach. Focused on sustainable fat loss and getting beginners strong without burning out.</div>
+        <div class="sectlab">Client results</div>
+        <div class="grid">
+          <div class="tcard">
+            <div class="toprow"><span class="av"></span><div style="flex:1"><div class="who">Sara K.</div><div class="coach">14 weeks</div></div><span class="stars">★★★★★</span></div>
+            <div class="fb">Down 8 kg and finally consistent. The plan flexed around my life instead of the other way round.</div>
+            <div class="attach"><div class="at">Weight change</div><div style="display:flex;align-items:baseline;gap:8px"><span class="wbig" style="font-size:26px">−8.2 kg</span><span class="muted mono" style="font-size:10.5px">12 weeks</span></div></div>
+          </div>
+          <div class="tcard">
+            <div class="toprow"><span class="av"></span><div style="flex:1"><div class="who">Yousef A.</div><div class="coach">6 months</div></div><span class="stars">★★★★★</span></div>
+            <div class="fb">Biggest change is my strength. Omar kept nudging the numbers up week over week.</div>
+            <div class="attach"><div class="at">Lift progression · Bench press</div><div class="liftline" style="font-size:13px">60 → 90 kg <span class="badge b-ok" style="margin-left:6px">+50%</span></div></div>
+          </div>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:12px">The coach chooses which of their testimonials appear here (screen 8).</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 6 admin curation (public only) -->
+  <div>
+    <div class="label">6 · <b>Admin — feature on public pages</b> <span>· admin's ONLY role now: pick site-wide featured testimonials (no approval, no coach-page control)</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="wbody" style="padding:20px 24px">
+        <div style="display:flex;align-items:center;justify-content:space-between"><div class="h2" style="font-size:18px">Public testimonials rotation</div><span class="sel">Search / filter ▾</span></div>
+        <div class="muted" style="font-size:12px;margin-top:5px">Feature testimonials for the landing + /testimonials. No approval step — coaches curate their own pages themselves.</div>
+        <div style="margin-top:16px">
+          <div class="arow">
+            <span class="av" style="width:34px;height:34px"></span>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">Sara K. <span class="muted" style="font-weight:400;font-size:11px">→ Omar</span> <span class="stars" style="font-size:11px">★★★★★</span></div><div class="fb">Omar changed how I train and eat. The check-ins…</div></div>
+            <span class="badge b-ok">⚖ weight</span>
+            <span class="chip">rank #1</span>
+            <div class="tog"><span class="sw on"><i></i></span>Featured public</div>
+          </div>
+          <div class="arow">
+            <span class="av" style="width:34px;height:34px"></span>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">Khaled T. <span class="muted" style="font-weight:400;font-size:11px">→ Dana</span> <span class="stars" style="font-size:11px">★★★★<span class="off">★</span></span></div><div class="fb">Went from never squatting to hitting real numbers…</div></div>
+            <span class="badge b-ok">🏋 lift</span>
+            <span class="chip">rank #2</span>
+            <div class="tog"><span class="sw on"><i></i></span>Featured public</div>
+          </div>
+          <div class="arow">
+            <span class="av" style="width:34px;height:34px"></span>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">Layla M. <span class="muted" style="font-weight:400;font-size:11px">→ Omar</span> <span class="stars" style="font-size:11px">★★★★<span class="off">★</span></span></div><div class="fb">Good experience overall, would recommend to…</div></div>
+            <span class="chip">no proof</span>
+            <span></span>
+            <div class="tog"><span class="sw"><i></i></span>Featured public</div>
+          </div>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:14px">"Featured public" = the landing / /testimonials rotation (drag to order). That's it — the coach decides their own /coach/:slug page.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 7 coach curation -->
+  <div>
+    <div class="label">7 · <b>Coach — My testimonials</b> <span>· the coach chooses which of their testimonials show on /coach/omar (self-curation, their page only)</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="wbody" style="padding:20px 24px">
+        <div class="h2" style="font-size:18px">My testimonials</div>
+        <div class="muted" style="font-size:12px;margin-top:5px">Toggle which appear on your public profile. You can see all your clients' reviews; you choose what's shown.</div>
+        <div style="margin-top:16px">
+          <div class="arow">
+            <span class="av" style="width:34px;height:34px"></span>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">Sara K. <span class="stars" style="font-size:11px">★★★★★</span></div><div class="fb">Omar changed how I train and eat. The check-ins…</div></div>
+            <span class="badge b-ok">⚖ weight</span>
+            <div class="tog"><span class="sw on"><i></i></span>On my page</div>
+          </div>
+          <div class="arow">
+            <span class="av" style="width:34px;height:34px"></span>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">Yousef A. <span class="stars" style="font-size:11px">★★★★★</span></div><div class="fb">Biggest change is my strength. Omar kept nudging…</div></div>
+            <span class="badge b-ok">🏋 lift</span>
+            <div class="tog"><span class="sw on"><i></i></span>On my page</div>
+          </div>
+          <div class="arow">
+            <span class="av" style="width:34px;height:34px"></span>
+            <div style="flex:1;min-width:0"><div style="font-size:13px;font-weight:500">Layla M. <span class="stars" style="font-size:11px">★★★★<span class="off">★</span></span></div><div class="fb">Good experience overall, would recommend to…</div></div>
+            <span class="chip">no proof</span>
+            <div class="tog"><span class="sw"><i></i></span>On my page</div>
+          </div>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:14px">Your picks (+ order) drive /coach/omar. The admin can't add/remove testimonials on your page — only feature things site-wide.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 8 meet the team -->
+  <div>
+    <div class="label">8 · <b>Public — /meet-our-team</b> <span>· the shopfront grid; each card → /coach/:slug + "Start with"</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="nav"><div class="logo">IGU</div><div class="links"><span>Services</span><span>Testimonials</span><span class="on">Meet the Team</span><span>Calculator</span></div><button class="btn outline" style="padding:7px 13px">Sign in</button></div>
+      <div class="wbody">
+        <div class="h2">Meet the team</div>
+        <div class="muted" style="font-size:13px;margin-top:4px">Vetted IGU coaches. Pick who fits your goal.</div>
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr;margin-top:18px">
+          <div class="card" style="padding:16px;text-align:center">
+            <div class="av" style="width:70px;height:70px;border-radius:14px;margin:0 auto"></div>
+            <div style="font-weight:600;font-size:14px;margin-top:10px">Omar Farouk</div>
+            <div style="margin-top:4px"><span class="badge b-head">Head Coach</span></div>
+            <div class="agg" style="justify-content:center;margin-top:8px"><span class="stars" style="font-size:12px">★★★★★</span><span class="mono" style="font-size:11px">4.9 · 23</span></div>
+            <div class="tagset" style="justify-content:center;margin-top:8px"><span>Fat loss</span><span>Strength</span></div>
+            <div style="display:flex;gap:8px;margin-top:12px"><button class="btn outline" style="flex:1;padding:8px">Profile</button><button class="btn primary" style="flex:1;padding:8px">Start</button></div>
+          </div>
+          <div class="card" style="padding:16px;text-align:center">
+            <div class="av" style="width:70px;height:70px;border-radius:14px;margin:0 auto"></div>
+            <div style="font-weight:600;font-size:14px;margin-top:10px">Dana Rahman</div>
+            <div style="margin-top:4px"><span class="badge" style="border-color:hsl(var(--macro-carb)/.4);background:hsl(var(--macro-carb)/.1);color:hsl(var(--macro-carb))">Senior</span></div>
+            <div class="agg" style="justify-content:center;margin-top:8px"><span class="stars" style="font-size:12px">★★★★<span class="off">★</span></span><span class="mono" style="font-size:11px">4.7 · 15</span></div>
+            <div class="tagset" style="justify-content:center;margin-top:8px"><span>Physique</span><span>Nutrition</span></div>
+            <div style="display:flex;gap:8px;margin-top:12px"><button class="btn outline" style="flex:1;padding:8px">Profile</button><button class="btn primary" style="flex:1;padding:8px">Start</button></div>
+          </div>
+          <div class="card" style="padding:16px;text-align:center">
+            <div class="av" style="width:70px;height:70px;border-radius:14px;margin:0 auto"></div>
+            <div style="font-weight:600;font-size:14px;margin-top:10px">Sami Haddad</div>
+            <div style="margin-top:4px"><span class="badge" style="border-color:hsl(var(--border));color:hsl(var(--muted-foreground))">Junior</span></div>
+            <div class="agg" style="justify-content:center;margin-top:8px"><span class="stars" style="font-size:12px">★★★★★</span><span class="mono" style="font-size:11px">5.0 · 6</span></div>
+            <div class="tagset" style="justify-content:center;margin-top:8px"><span>Beginners</span><span>Hybrid</span></div>
+            <div style="display:flex;gap:8px;margin-top:12px"><button class="btn outline" style="flex:1;padding:8px">Profile</button><button class="btn primary" style="flex:1;padding:8px">Start</button></div>
+          </div>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:12px">Aggregate rating on cards is the open decision — could be count-only to avoid ranking coaches at a glance.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 9 start with coach -->
+  <div>
+    <div class="label">9 · <b>"Start with Omar" → Services</b> <span>· the CTA hands off to the start/onboarding flow with the coach preselected (ON2 handoff)</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="nav"><div class="logo">IGU</div><div class="links"><span class="on">Services</span><span>Testimonials</span><span>Meet the Team</span><span>Calculator</span></div><button class="btn outline" style="padding:7px 13px">Sign in</button></div>
+      <div class="wbody">
+        <div class="h2">Start your journey</div>
+        <div class="card" style="padding:13px 15px;margin-top:14px;display:flex;align-items:center;gap:12px;border-left:3px solid hsl(var(--primary))">
+          <span class="av"></span>
+          <div style="flex:1"><div style="font-size:13px;font-weight:500">Starting with <b>Coach Omar</b></div><div class="muted" style="font-size:11px">Preselected from his profile · <span style="color:hsl(var(--primary))">change coach</span></div></div>
+          <span class="badge b-head">Head Coach</span>
+        </div>
+        <div class="sectlab">Choose your plan</div>
+        <div class="grid" style="grid-template-columns:1fr 1fr 1fr">
+          <div class="card" style="padding:15px"><div style="font-size:13px;font-weight:600">1:1 Online</div><div class="mono" style="font-size:12px;margin-top:6px">40 KWD/mo</div><button class="btn outline" style="width:100%;margin-top:12px;padding:8px">Select</button></div>
+          <div class="card" style="padding:15px;border-color:hsl(var(--primary)/.5)"><div style="font-size:13px;font-weight:600">1:1 Complete</div><div class="mono" style="font-size:12px;margin-top:6px">75 KWD/mo</div><button class="btn primary" style="width:100%;margin-top:12px;padding:8px">Select</button></div>
+          <div class="card" style="padding:15px"><div style="font-size:13px;font-weight:600">Hybrid</div><div class="mono" style="font-size:12px;margin-top:6px">150 KWD/mo</div><button class="btn outline" style="width:100%;margin-top:12px;padding:8px">Select</button></div>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:12px">The exact preselect target + onboarding flow is owned by the coach-selection (ON2) track — this page just passes Omar through.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

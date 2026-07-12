@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IGU — Coach Programs View Redesign (Mesocycle / Macrocycle)</title>
+<style>
+  /* ---- IGU tokens (default dark, from src/index.css) ---- */
+  :root{
+    --background:240 10% 3.7%;
+    --card:240 6% 8.4%;
+    --card-2:240 6% 11%;
+    --muted:240 4% 11.8%;
+    --muted-fg:240 5% 64.9%;
+    --border:240 4% 16.5%;
+    --fg:0 0% 98%;
+    --primary:355 78% 48%;
+    --radius:0.75rem;
+    /* muscle colors (approx getMuscleDisplay palette) */
+    --m-chest:355 78% 55%;
+    --m-back:212 72% 55%;
+    --m-legs:150 55% 45%;
+    --m-shoulders:38 92% 55%;
+    --m-arms:270 60% 62%;
+    --m-core:190 65% 50%;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    background:hsl(var(--background));
+    color:hsl(var(--fg));
+    font-family:'Geist','Inter',system-ui,-apple-system,sans-serif;
+    line-height:1.5;
+    padding:40px 24px 80px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1120px;margin:0 auto}
+  .page-title{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:hsl(var(--muted-fg));margin-bottom:6px}
+  .page-sub{font-size:22px;font-weight:600;margin-bottom:4px}
+  .page-desc{color:hsl(var(--muted-fg));font-size:14px;max-width:760px;margin-bottom:36px}
+  .screen{margin-bottom:52px}
+  .screen-label{display:inline-flex;align-items:center;gap:8px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:hsl(var(--muted-fg));margin-bottom:14px}
+  .screen-label b{color:hsl(var(--primary));font-weight:600}
+  .screen-note{font-size:13px;color:hsl(var(--muted-fg));margin:-6px 0 16px}
+
+  /* app frame */
+  .app{background:hsl(var(--background));border:1px solid hsl(var(--border));border-radius:16px;overflow:hidden}
+  .app-head{display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid hsl(var(--border))}
+  .app-head h1{font-size:18px;font-weight:600;letter-spacing:-.01em}
+  .app-head .muted{color:hsl(var(--muted-fg));font-size:13px}
+  .btn{background:hsl(var(--primary));color:#fff;border:none;border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer}
+  .btn-ghost{background:transparent;color:hsl(var(--fg));border:1px solid hsl(var(--border));border-radius:8px;padding:8px 14px;font-size:13px;font-weight:500;cursor:pointer}
+
+  /* tabs */
+  .tabs{display:flex;gap:2px;padding:8px 20px 0;border-bottom:1px solid hsl(var(--border))}
+  .tab{padding:9px 16px;font-size:13px;font-weight:500;color:hsl(var(--muted-fg));border-bottom:2px solid transparent;cursor:pointer;display:flex;align-items:center;gap:7px}
+  .tab.active{color:hsl(var(--fg));border-bottom-color:hsl(var(--primary))}
+  .tab .count{font-size:11px;background:hsl(var(--muted));color:hsl(var(--muted-fg));border-radius:20px;padding:1px 7px}
+
+  .body{padding:20px}
+
+  /* card */
+  .card{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--radius)}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+
+  /* ===== OLD (before) small card ===== */
+  .old-card{padding:16px}
+  .old-card .t{font-size:15px;font-weight:500;margin-bottom:4px}
+  .old-card .d{font-size:12.5px;color:hsl(var(--muted-fg));margin-bottom:12px;min-height:34px}
+  .old-card .meta{display:flex;align-items:center;gap:8px;font-size:12px;color:hsl(var(--muted-fg));margin-bottom:14px}
+  .badge{font-size:11px;padding:2px 9px;border-radius:20px;border:1px solid hsl(var(--border));color:hsl(var(--muted-fg))}
+  .badge.lvl{border-color:hsl(var(--primary)/.4);color:hsl(var(--primary))}
+  .tagrow{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .tag{font-size:11px;padding:2px 8px;border-radius:6px;background:hsl(var(--muted));color:hsl(var(--muted-fg))}
+
+  /* ===== NEW mesocycle card ===== */
+  .meso-card{padding:16px;display:flex;flex-direction:column;gap:12px;cursor:pointer;transition:border-color .15s}
+  .meso-card:hover{border-color:hsl(var(--muted-fg)/.5)}
+  .meso-top{display:flex;align-items:flex-start;justify-content:space-between;gap:8px}
+  .meso-name{font-size:15px;font-weight:500;letter-spacing:-.01em}
+  .meso-struct{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:hsl(var(--muted-fg));margin-top:3px}
+  .kebab{color:hsl(var(--muted-fg));font-size:18px;line-height:1;cursor:pointer;padding:2px 6px}
+  /* ribbon */
+  .ribbon{height:6px;width:100%;display:flex;overflow:hidden;border-radius:20px;background:hsl(var(--muted)/.4)}
+  .ribbon > div{height:100%}
+  .legend{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:hsl(var(--muted-fg))}
+  .legend .li{display:flex;align-items:center;gap:5px}
+  .dot{width:8px;height:8px;border-radius:2px;display:inline-block}
+  .chips{display:flex;gap:6px;flex-wrap:wrap}
+  .chip{font-size:11px;padding:3px 9px;border-radius:6px;background:hsl(var(--muted));color:hsl(var(--fg))}
+  .strip{font-family:'JetBrains Mono',ui-monospace,monospace;font-size:11.5px;color:hsl(var(--muted-fg));display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+  .strip .sep{opacity:.4}
+  .meso-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid hsl(var(--border));padding-top:12px}
+
+  /* ===== detail view ===== */
+  .detail-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
+  .detail-head h2{font-size:22px;font-weight:600;letter-spacing:-.02em}
+  .crumb{font-size:12px;color:hsl(var(--muted-fg));margin-bottom:6px}
+  .crumb a{color:hsl(var(--muted-fg));text-decoration:none}
+  .crumb b{color:hsl(var(--fg));font-weight:500}
+  .actions{display:flex;gap:8px;flex-wrap:wrap}
+  .metric{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--radius);padding:14px 16px}
+  .metric .k{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:hsl(var(--muted-fg));margin-bottom:8px}
+  .metric .v{font-size:26px;font-weight:600;letter-spacing:-.02em}
+  .metric .v small{font-size:13px;font-weight:400;color:hsl(var(--muted-fg));margin-left:3px}
+
+  .dist-card{padding:16px}
+  .dist-head{font-size:13px;font-weight:500;margin-bottom:14px;display:flex;justify-content:space-between;align-items:center}
+  .dist-head .muted{font-size:11px;color:hsl(var(--muted-fg));font-weight:400}
+  .mbar-row{display:flex;align-items:center;gap:10px;margin-bottom:9px}
+  .mbar-label{width:78px;font-size:12px;color:hsl(var(--muted-fg));text-align:right}
+  .mbar-track{flex:1;height:8px;background:hsl(var(--muted)/.4);border-radius:20px;overflow:hidden}
+  .mbar-fill{height:100%;border-radius:20px}
+  .mbar-val{width:96px;font-family:'JetBrains Mono',monospace;font-size:11px;color:hsl(var(--muted-fg));display:flex;gap:6px;align-items:center}
+  .zone{font-size:9.5px;padding:1px 6px;border-radius:20px;font-weight:600;letter-spacing:.03em}
+  .zone.mev{background:hsl(38 92% 55%/.16);color:hsl(38 92% 62%)}
+  .zone.mav{background:hsl(150 55% 45%/.16);color:hsl(150 55% 58%)}
+  .zone.mrv{background:hsl(355 78% 55%/.16);color:hsl(355 78% 64%)}
+
+  /* week cards */
+  .week{padding:0;overflow:hidden}
+  .week-head{display:flex;align-items:center;justify-content:space-between;padding:13px 16px;border-bottom:1px solid hsl(var(--border));background:hsl(var(--card-2))}
+  .week-head .wk{font-size:14px;font-weight:500}
+  .week-head .wk .deload{font-size:10px;margin-left:8px;padding:1px 7px;border-radius:20px;background:hsl(212 72% 55%/.16);color:hsl(212 72% 66%);font-weight:600;letter-spacing:.03em}
+  .week-head .wksum{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:hsl(var(--muted-fg))}
+  .day-row{display:flex;align-items:center;gap:12px;padding:11px 16px;border-bottom:1px solid hsl(var(--border)/.6)}
+  .day-row:last-child{border-bottom:none}
+  .sbar{width:3px;align-self:stretch;border-radius:2px;min-height:34px}
+  .day-main{flex:1;min-width:0}
+  .day-title{font-size:13px;font-weight:500}
+  .day-ex{font-family:'JetBrains Mono',monospace;font-size:11px;color:hsl(var(--muted-fg));margin-top:2px}
+  .day-stats{font-family:'JetBrains Mono',monospace;font-size:11px;color:hsl(var(--muted-fg));text-align:right;white-space:nowrap}
+  .rest-row{display:flex;align-items:center;gap:12px;padding:11px 16px;color:hsl(var(--muted-fg)/.8);font-size:12px}
+  .rest-badge{font-size:10px;text-transform:uppercase;letter-spacing:.06em;padding:2px 9px;border-radius:20px;border:1px solid hsl(var(--border));background:repeating-linear-gradient(45deg,hsl(var(--muted)/.4) 0 6px,transparent 6px 12px)}
+  .expand-hint{font-size:11px;color:hsl(var(--primary));cursor:pointer;padding:8px 16px;border-top:1px solid hsl(var(--border)/.6)}
+  .repeat-note{font-size:12px;color:hsl(var(--muted-fg));padding:12px 16px;font-style:italic;background:hsl(var(--muted)/.25)}
+
+  /* ===== macrocycle arc ===== */
+  .arc-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:6px}
+  .arc-head h3{font-size:17px;font-weight:600}
+  .arc-span{font-family:'JetBrains Mono',monospace;font-size:12px;color:hsl(var(--muted-fg))}
+  .arc-track{display:flex;gap:6px;margin:18px 0 4px}
+  .block{border:1px solid hsl(var(--border));border-radius:10px;padding:14px;position:relative;overflow:hidden;cursor:pointer;transition:border-color .15s}
+  .block:hover{border-color:hsl(var(--muted-fg)/.5)}
+  .block .phase{font-size:9px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;padding:2px 8px;border-radius:20px;display:inline-block;margin-bottom:10px}
+  .block .bname{font-size:14px;font-weight:500;margin-bottom:3px}
+  .block .bmeta{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:hsl(var(--muted-fg))}
+  .block .bribbon{height:5px;display:flex;border-radius:20px;overflow:hidden;margin-top:12px;background:hsl(var(--muted)/.4)}
+  .block .bribbon>div{height:100%}
+  .ph-hyper{background:hsl(150 55% 45%/.16);color:hsl(150 55% 60%)}
+  .ph-strength{background:hsl(38 92% 55%/.16);color:hsl(38 92% 62%)}
+  .ph-peak{background:hsl(355 78% 55%/.16);color:hsl(355 78% 64%)}
+  /* volume trend */
+  .trend{margin-top:22px;padding-top:18px;border-top:1px solid hsl(var(--border))}
+  .trend .tlabel{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:hsl(var(--muted-fg));margin-bottom:10px}
+  .callout{margin-top:22px;background:hsl(var(--primary)/.07);border:1px solid hsl(var(--primary)/.25);border-radius:10px;padding:12px 14px;font-size:12.5px;color:hsl(var(--fg))}
+  .callout b{color:hsl(var(--primary))}
+  .divider{height:1px;background:hsl(var(--border));margin:8px 0 0}
+
+  /* status pills */
+  .pill{font-size:10.5px;font-weight:600;letter-spacing:.03em;padding:2px 9px;border-radius:20px;display:inline-flex;align-items:center;gap:5px}
+  .pill.draft{background:hsl(240 5% 64.9%/.15);color:hsl(240 5% 72%)}
+  .pill.ready{background:hsl(150 55% 45%/.16);color:hsl(150 55% 60%)}
+  .pill.inuse{background:hsl(355 78% 55%/.16);color:hsl(355 78% 66%)}
+  .pilldot{width:6px;height:6px;border-radius:50%;background:currentColor}
+  .filter-chips{display:flex;gap:8px;margin-bottom:16px}
+  .fchip{font-size:12px;padding:5px 13px;border-radius:20px;border:1px solid hsl(var(--border));color:hsl(var(--muted-fg));cursor:pointer}
+  .fchip.on{background:hsl(var(--fg)/.06);color:hsl(var(--fg));border-color:hsl(var(--muted-fg)/.5)}
+  .assign-btn{background:hsl(var(--primary));color:#fff;border:none;border-radius:8px;padding:7px 16px;font-size:12.5px;font-weight:500;cursor:pointer}
+  .prog-row-foot{display:flex;align-items:center;justify-content:space-between;border-top:1px solid hsl(var(--border));padding-top:12px}
+  .incomplete{font-size:11px;color:hsl(38 92% 62%)}
+
+  /* before/after lifecycle */
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .lane{border:1px solid hsl(var(--border));border-radius:12px;padding:18px}
+  .lane h4{font-size:12px;letter-spacing:.06em;text-transform:uppercase;margin-bottom:14px}
+  .lane.bad h4{color:hsl(355 78% 64%)}
+  .lane.good h4{color:hsl(150 55% 58%)}
+  .obj{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:8px;padding:9px 12px;font-size:12.5px;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+  .obj .tagm{font-family:'JetBrains Mono',monospace;font-size:10px;color:hsl(var(--muted-fg));margin-left:auto}
+  .flowarrow{text-align:center;color:hsl(var(--muted-fg));font-size:16px;margin:2px 0}
+  .lane p.note{font-size:11.5px;color:hsl(var(--muted-fg));margin-top:10px;line-height:1.5}
+
+  /* assign dialog */
+  .overlay{background:hsl(240 10% 2%/.55);border-radius:16px;padding:40px;display:flex;justify-content:center}
+  .dialog{width:440px;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:14px;padding:20px}
+  .dialog h3{font-size:16px;font-weight:600;margin-bottom:4px}
+  .dialog .sub{font-size:12.5px;color:hsl(var(--muted-fg));margin-bottom:18px}
+  .seg{display:flex;background:hsl(var(--muted)/.5);border-radius:9px;padding:3px;margin-bottom:16px}
+  .seg .opt{flex:1;text-align:center;font-size:12.5px;font-weight:500;padding:7px;border-radius:6px;color:hsl(var(--muted-fg));cursor:pointer}
+  .seg .opt.on{background:hsl(var(--card-2));color:hsl(var(--fg))}
+  .field{margin-bottom:14px}
+  .field label{display:block;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:hsl(var(--muted-fg));margin-bottom:6px}
+  .select{width:100%;background:hsl(var(--muted)/.4);border:1px solid hsl(var(--border));border-radius:8px;padding:9px 12px;font-size:13px;color:hsl(var(--fg));display:flex;align-items:center;justify-content:space-between}
+  .cli{display:flex;align-items:center;gap:9px}
+  .avatar{width:26px;height:26px;border-radius:50%;background:hsl(var(--primary)/.25);color:hsl(var(--primary));display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:600}
+  .preview-box{background:hsl(var(--muted)/.25);border:1px solid hsl(var(--border));border-radius:8px;padding:11px 12px;margin-bottom:16px}
+  .preview-box .pt{font-size:12px;font-weight:500;margin-bottom:6px}
+  .dialog-foot{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="page-title">IGU · Coach Programs — Mesocycle / Macrocycle View</div>
+  <div class="page-sub">Making the saved program read as well as the draft</div>
+  <div class="page-desc">
+    The Planning Board draft is rich; the moment it's saved as a mesocycle the card shows only "N days · level · tags."
+    All the structure and volume already live in the saved rows — this redesign renders the draft's own vocabulary
+    (muscle-distribution ribbon, mono sets/duration strip, volume tiles, MEV/MAV/MRV zones) on the saved surface.
+    Default-dark, real IGU tokens.
+  </div>
+
+  <!-- ============ SCREEN 0 — BEFORE ============ -->
+  <div class="screen">
+    <div class="screen-label">Screen 0 — <b>Today (the gap)</b></div>
+    <div class="screen-note">What a saved mesocycle looks like now: title, description, day count, level, tags. No structure, no volume, no muscle info.</div>
+    <div class="app">
+      <div class="tabs" style="border-top:none">
+        <div class="tab">◇ Macrocycles <span class="count">3</span></div>
+        <div class="tab active">▤ Mesocycles <span class="count">12</span></div>
+        <div class="tab">✎ Drafts <span class="count">5</span></div>
+      </div>
+      <div class="body">
+        <div class="grid3">
+          <div class="card old-card">
+            <div class="t">Hypertrophy Block A</div>
+            <div class="d">Upper/lower split focused on progressive overload for intermediate lifters.</div>
+            <div class="meta"><span>28 days</span><span class="badge lvl">Intermediate</span></div>
+            <div class="tagrow"><span class="tag">hypertrophy</span><span class="tag">upper/lower</span></div>
+            <button class="btn-ghost" style="width:100%">Edit Program</button>
+          </div>
+          <div class="card old-card">
+            <div class="t">PPL Volume Phase</div>
+            <div class="d">Push / pull / legs, 6 days.</div>
+            <div class="meta"><span>42 days</span><span class="badge lvl">Advanced</span></div>
+            <div class="tagrow"><span class="tag">ppl</span><span class="tag">high-volume</span></div>
+            <button class="btn-ghost" style="width:100%">Edit Program</button>
+          </div>
+          <div class="card old-card">
+            <div class="t">Foundations 3-Day</div>
+            <div class="d">Full-body beginner ramp.</div>
+            <div class="meta"><span>21 days</span><span class="badge lvl">Beginner</span></div>
+            <div class="tagrow"><span class="tag">full-body</span></div>
+            <button class="btn-ghost" style="width:100%">Edit Program</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 1 — NEW CARD ============ -->
+  <div class="screen">
+    <div class="screen-label">Screen 1 — <b>Rich mesocycle card</b> (P1)</div>
+    <div class="screen-note">Same grid, now content-forward: structure line, the draft's muscle-distribution ribbon aggregated across the block, focus chips, and a mono volume strip. Click → detail view.</div>
+    <div class="app">
+      <div class="tabs" style="border-top:none">
+        <div class="tab">◇ Macrocycles <span class="count">3</span></div>
+        <div class="tab active">▤ Mesocycles <span class="count">12</span></div>
+        <div class="tab">✎ Drafts <span class="count">5</span></div>
+      </div>
+      <div class="body">
+        <div class="grid2">
+          <!-- card 1 -->
+          <div class="card meso-card">
+            <div class="meso-top">
+              <div>
+                <div class="meso-name">Hypertrophy Block A</div>
+                <div class="meso-struct">4 wks · 4 days/wk · 16 sessions</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="badge lvl">Intermediate</span>
+                <span class="kebab">⋯</span>
+              </div>
+            </div>
+            <div class="ribbon">
+              <div style="width:26%;background:hsl(var(--m-back))"></div>
+              <div style="width:22%;background:hsl(var(--m-chest))"></div>
+              <div style="width:20%;background:hsl(var(--m-legs))"></div>
+              <div style="width:14%;background:hsl(var(--m-shoulders))"></div>
+              <div style="width:11%;background:hsl(var(--m-arms))"></div>
+              <div style="width:7%;background:hsl(var(--m-core))"></div>
+            </div>
+            <div class="legend">
+              <span class="li"><span class="dot" style="background:hsl(var(--m-back))"></span>Back</span>
+              <span class="li"><span class="dot" style="background:hsl(var(--m-chest))"></span>Chest</span>
+              <span class="li"><span class="dot" style="background:hsl(var(--m-legs))"></span>Legs</span>
+              <span class="li"><span class="dot" style="background:hsl(var(--m-shoulders))"></span>Delts</span>
+              <span class="li"><span class="dot" style="background:hsl(var(--m-arms))"></span>Arms</span>
+            </div>
+            <div class="chips"><span class="chip">Upper</span><span class="chip">Lower</span></div>
+            <div class="meso-foot">
+              <div class="strip">312 sets <span class="sep">·</span> 18 exercises <span class="sep">·</span> ~58 min/session</div>
+              <div class="tagrow" style="margin:0"><span class="tag">hypertrophy</span></div>
+            </div>
+          </div>
+          <!-- card 2 -->
+          <div class="card meso-card">
+            <div class="meso-top">
+              <div>
+                <div class="meso-name">PPL Volume Phase</div>
+                <div class="meso-struct">6 wks · 6 days/wk · 36 sessions</div>
+              </div>
+              <div style="display:flex;align-items:center;gap:8px">
+                <span class="badge lvl">Advanced</span>
+                <span class="kebab">⋯</span>
+              </div>
+            </div>
+            <div class="ribbon">
+              <div style="width:23%;background:hsl(var(--m-legs))"></div>
+              <div style="width:21%;background:hsl(var(--m-back))"></div>
+              <div style="width:19%;background:hsl(var(--m-chest))"></div>
+              <div style="width:17%;background:hsl(var(--m-arms))"></div>
+              <div style="width:12%;background:hsl(var(--m-shoulders))"></div>
+              <div style="width:8%;background:hsl(var(--m-core))"></div>
+            </div>
+            <div class="legend">
+              <span class="li"><span class="dot" style="background:hsl(var(--m-legs))"></span>Legs</span>
+              <span class="li"><span class="dot" style="background:hsl(var(--m-back))"></span>Back</span>
+              <span class="li"><span class="dot" style="background:hsl(var(--m-chest))"></span>Chest</span>
+              <span class="li"><span class="dot" style="background:hsl(var(--m-arms))"></span>Arms</span>
+              <span class="li"><span class="dot" style="background:hsl(var(--m-shoulders))"></span>Delts</span>
+            </div>
+            <div class="chips"><span class="chip">Push</span><span class="chip">Pull</span><span class="chip">Legs</span></div>
+            <div class="meso-foot">
+              <div class="strip">648 sets <span class="sep">·</span> 24 exercises <span class="sep">·</span> ~72 min/session</div>
+              <div class="tagrow" style="margin:0"><span class="tag">ppl</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 2 — DETAIL ============ -->
+  <div class="screen">
+    <div class="screen-label">Screen 2 — <b>Mesocycle detail view</b> (P2)</div>
+    <div class="screen-note">Opens on click. Summary band (reuses the draft's volume math) + muscle distribution with MEV/MAV/MRV zones + week-by-week breakdown down to exercises. Read-optimized; "Edit in Planning Board" is explicit.</div>
+    <div class="app">
+      <div class="body">
+        <div class="crumb"><a href="#">Programs</a> / <a href="#">Mesocycles</a> / <b>Hypertrophy Block A</b></div>
+        <div class="detail-head">
+          <div>
+            <h2>Hypertrophy Block A</h2>
+            <div class="meso-struct" style="margin-top:6px;font-size:12.5px">Intermediate · 4 wks · 4 days/wk · 16 sessions</div>
+          </div>
+          <div class="actions">
+            <button class="btn-ghost">Assign to client</button>
+            <button class="btn-ghost">Add to macrocycle</button>
+            <button class="btn">Edit in Planning Board</button>
+          </div>
+        </div>
+
+        <!-- summary band -->
+        <div class="grid4" style="margin-bottom:16px">
+          <div class="metric"><div class="k">Sets / week</div><div class="v">78</div></div>
+          <div class="metric"><div class="k">Exercises</div><div class="v">18</div></div>
+          <div class="metric"><div class="k">Muscles targeted</div><div class="v">11</div></div>
+          <div class="metric"><div class="k">Est. / session</div><div class="v">58<small>min</small></div></div>
+        </div>
+
+        <!-- muscle distribution -->
+        <div class="card dist-card" style="margin-bottom:18px">
+          <div class="dist-head"><span>Muscle distribution</span><span class="muted">sets / week · landmark zone</span></div>
+          <div class="mbar-row">
+            <div class="mbar-label">Back</div>
+            <div class="mbar-track"><div class="mbar-fill" style="width:100%;background:hsl(var(--m-back))"></div></div>
+            <div class="mbar-val">20 <span class="zone mav">MAV</span></div>
+          </div>
+          <div class="mbar-row">
+            <div class="mbar-label">Chest</div>
+            <div class="mbar-track"><div class="mbar-fill" style="width:85%;background:hsl(var(--m-chest))"></div></div>
+            <div class="mbar-val">17 <span class="zone mav">MAV</span></div>
+          </div>
+          <div class="mbar-row">
+            <div class="mbar-label">Legs</div>
+            <div class="mbar-track"><div class="mbar-fill" style="width:75%;background:hsl(var(--m-legs))"></div></div>
+            <div class="mbar-val">15 <span class="zone mev">MEV</span></div>
+          </div>
+          <div class="mbar-row">
+            <div class="mbar-label">Delts</div>
+            <div class="mbar-track"><div class="mbar-fill" style="width:55%;background:hsl(var(--m-shoulders))"></div></div>
+            <div class="mbar-val">11 <span class="zone mav">MAV</span></div>
+          </div>
+          <div class="mbar-row">
+            <div class="mbar-label">Arms</div>
+            <div class="mbar-track"><div class="mbar-fill" style="width:45%;background:hsl(var(--m-arms))"></div></div>
+            <div class="mbar-val">9 <span class="zone mev">MEV</span></div>
+          </div>
+          <div class="mbar-row">
+            <div class="mbar-label">Core</div>
+            <div class="mbar-track"><div class="mbar-fill" style="width:30%;background:hsl(var(--m-core))"></div></div>
+            <div class="mbar-val">6 <span class="zone mev">MEV</span></div>
+          </div>
+        </div>
+
+        <!-- weeks -->
+        <div style="display:flex;flex-direction:column;gap:14px">
+          <!-- week 1 -->
+          <div class="card week">
+            <div class="week-head">
+              <div class="wk">Week 1</div>
+              <div class="wksum">4 sessions · 78 sets · ~3h 52m</div>
+            </div>
+            <div class="day-row">
+              <div class="sbar" style="background:hsl(var(--m-chest))"></div>
+              <div class="day-main">
+                <div class="day-title">Day 1 — Upper (Push focus)</div>
+                <div class="day-ex">Incline DB Press · Flat Machine Press · Lateral Raise · Cable Fly · Triceps Pushdown</div>
+              </div>
+              <div class="day-stats">6 exercises<br>20 sets · ~55m</div>
+            </div>
+            <div class="day-row">
+              <div class="sbar" style="background:hsl(var(--m-back))"></div>
+              <div class="day-main">
+                <div class="day-title">Day 2 — Lower (Quad focus)</div>
+                <div class="day-ex">Hack Squat · RDL · Leg Press · Leg Curl · Standing Calf</div>
+              </div>
+              <div class="day-stats">5 exercises<br>19 sets · ~58m</div>
+            </div>
+            <div class="rest-row"><span class="rest-badge">Rest</span> Day 3</div>
+            <div class="day-row">
+              <div class="sbar" style="background:hsl(var(--m-arms))"></div>
+              <div class="day-main">
+                <div class="day-title">Day 4 — Upper (Pull focus)</div>
+                <div class="day-ex">Pull-up · Chest-Supported Row · Lat Pulldown · Rear Delt · Barbell Curl</div>
+              </div>
+              <div class="day-stats">6 exercises<br>21 sets · ~60m</div>
+            </div>
+            <div class="expand-hint">Show all 4 sessions & exercise prescriptions ▾</div>
+          </div>
+          <!-- weeks 2-4 collapsed -->
+          <div class="card week">
+            <div class="week-head">
+              <div class="wk">Weeks 2–3</div>
+              <div class="wksum">repeat Week 1 · +load progression</div>
+            </div>
+            <div class="repeat-note">Same structure as Week 1 with weekly progression (+2.5–5% load, RIR −1). Expand to view per-week deltas.</div>
+          </div>
+          <!-- deload week -->
+          <div class="card week">
+            <div class="week-head">
+              <div class="wk">Week 4 <span class="deload">Deload</span></div>
+              <div class="wksum">4 sessions · 46 sets · ~2h 30m</div>
+            </div>
+            <div class="repeat-note">Volume reduced ~40%, intensity held. Same movement selection as Week 1.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 3 — MACROCYCLE ============ -->
+  <div class="screen">
+    <div class="screen-label">Screen 3 — <b>Macrocycle arc</b> (P3)</div>
+    <div class="screen-note">Not a bare list — an ordered arc of mesocycle blocks sized by week count, phase-labeled, with a sets/week trend across the block so the periodization is legible.</div>
+    <div class="app">
+      <div class="body">
+        <div class="crumb"><a href="#">Programs</a> / <a href="#">Macrocycles</a> / <b>Off-Season → Peak</b></div>
+        <div class="arc-head">
+          <h3>Off-Season → Peak</h3>
+          <div class="arc-span">13 weeks · 3 blocks</div>
+        </div>
+        <div class="meso-struct" style="font-size:12.5px">Goal: build then express strength · Intermediate–Advanced</div>
+
+        <!-- block timeline: widths ~ week counts (6/4/3) -->
+        <div class="arc-track">
+          <div class="block" style="flex:6">
+            <span class="phase ph-hyper">Hypertrophy</span>
+            <div class="bname">Volume Base</div>
+            <div class="bmeta">6 wks · 4 days/wk · 78 sets/wk</div>
+            <div class="bribbon">
+              <div style="width:26%;background:hsl(var(--m-back))"></div>
+              <div style="width:22%;background:hsl(var(--m-chest))"></div>
+              <div style="width:20%;background:hsl(var(--m-legs))"></div>
+              <div style="width:16%;background:hsl(var(--m-shoulders))"></div>
+              <div style="width:16%;background:hsl(var(--m-arms))"></div>
+            </div>
+          </div>
+          <div class="block" style="flex:4">
+            <span class="phase ph-strength">Strength</span>
+            <div class="bname">Intensification</div>
+            <div class="bmeta">4 wks · 4 days/wk · 54 sets/wk</div>
+            <div class="bribbon">
+              <div style="width:30%;background:hsl(var(--m-legs))"></div>
+              <div style="width:28%;background:hsl(var(--m-back))"></div>
+              <div style="width:26%;background:hsl(var(--m-chest))"></div>
+              <div style="width:16%;background:hsl(var(--m-shoulders))"></div>
+            </div>
+          </div>
+          <div class="block" style="flex:3">
+            <span class="phase ph-peak">Peak</span>
+            <div class="bname">Realization</div>
+            <div class="bmeta">3 wks · 3 days/wk · 32 sets/wk</div>
+            <div class="bribbon">
+              <div style="width:38%;background:hsl(var(--m-legs))"></div>
+              <div style="width:34%;background:hsl(var(--m-back))"></div>
+              <div style="width:28%;background:hsl(var(--m-chest))"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- volume trend -->
+        <div class="trend">
+          <div class="tlabel">Sets / week across the macrocycle</div>
+          <svg viewBox="0 0 600 90" width="100%" height="90" preserveAspectRatio="none">
+            <!-- baseline -->
+            <line x1="0" y1="80" x2="600" y2="80" stroke="hsl(240 4% 16.5%)" stroke-width="1"/>
+            <!-- descending taper line: 78 -> 54 -> 32 -->
+            <polyline points="0,20 275,20 275,44 460,44 460,62 600,62" fill="none" stroke="hsl(355 78% 48%)" stroke-width="2.5"/>
+            <circle cx="0" cy="20" r="3.5" fill="hsl(355 78% 48%)"/>
+            <circle cx="275" cy="44" r="3.5" fill="hsl(355 78% 48%)"/>
+            <circle cx="460" cy="62" r="3.5" fill="hsl(355 78% 48%)"/>
+            <text x="6" y="14" fill="hsl(240 5% 64.9%)" font-size="11" font-family="monospace">78</text>
+            <text x="281" y="38" fill="hsl(240 5% 64.9%)" font-size="11" font-family="monospace">54</text>
+            <text x="466" y="56" fill="hsl(240 5% 64.9%)" font-size="11" font-family="monospace">32</text>
+          </svg>
+        </div>
+
+        <div class="callout">
+          <b>Reads as periodization at a glance:</b> volume tapers from base → peak while intensity climbs — the arc, block summaries, and trend all come from the same per-mesocycle volume math used on the cards. Assign the whole macrocycle in one action.
+        </div>
+
+        <div class="actions" style="margin-top:20px">
+          <button class="btn-ghost">+ Add mesocycle block</button>
+          <button class="btn">Assign macrocycle to client</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 4 — FLOW: BEFORE/AFTER ============ -->
+  <div class="screen">
+    <div class="screen-label">Screen 4 — <b>The flow fix</b> (§8): one program, not three copies</div>
+    <div class="screen-note">Today one training block lives as a draft + a separate program + a canonical mirror, exposed as two tabs holding duplicate rows, a jargon "Convert" step, and edits that spawn more copies. The fix collapses it to one object with a status.</div>
+    <div class="compare">
+      <div class="lane bad">
+        <h4>✕ Today — forked at every step</h4>
+        <div class="obj">Draft <span class="tagm">muscle_program_templates</span></div>
+        <div class="flowarrow">↓ "Convert to Program" (INSERTs new)</div>
+        <div class="obj">Program <span class="tagm">program_templates</span></div>
+        <div class="flowarrow">↓ compiled on first open</div>
+        <div class="obj">Canonical plan <span class="tagm">plan</span></div>
+        <p class="note">Draft <b>and</b> program both show in separate tabs (draft keeps a "Converted" badge). "Edit in Planning Board" opens a <b>duplicate</b>. Re-converting makes <b>another</b> program. Assign is buried in a kebab and silently fails if the program was never re-opened.</p>
+      </div>
+      <div class="lane good">
+        <h4>✓ Proposed — one object, one lifecycle</h4>
+        <div class="obj"><span class="pill draft"><span class="pilldot"></span>Draft</span> Program — being built</div>
+        <div class="flowarrow">↓ Save (compiles in place, no new row)</div>
+        <div class="obj"><span class="pill ready"><span class="pilldot"></span>Ready</span> Program — assignable</div>
+        <div class="flowarrow">↓ Assign</div>
+        <div class="obj"><span class="pill inuse"><span class="pilldot"></span>In use · 4</span> Program — live on clients</div>
+        <p class="note">The three representations stay under the hood but read as <b>one Program</b>. Edit always opens the real thing (no duplicate); Save re-compiles in place; "Ready" always means assignable.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 5 — UNIFIED LIBRARY ============ -->
+  <div class="screen">
+    <div class="screen-label">Screen 5 — <b>Unified Programs library</b> (§8.3): one row per program + first-class Assign</div>
+    <div class="screen-note">Drafts and Mesocycles merge into one "Programs" tab. Status pill instead of duplicate rows; filter chips instead of separate tabs; "Assign" is a primary button, not a kebab item.</div>
+    <div class="app">
+      <div class="tabs" style="border-top:none">
+        <div class="tab active">▤ Programs <span class="count">14</span></div>
+        <div class="tab">◇ Macrocycles <span class="count">3</span></div>
+      </div>
+      <div class="body">
+        <div class="filter-chips">
+          <span class="fchip on">All</span>
+          <span class="fchip">Drafts</span>
+          <span class="fchip">Ready</span>
+          <span class="fchip">In use</span>
+        </div>
+        <div class="grid2">
+          <!-- in use -->
+          <div class="card meso-card">
+            <div class="meso-top">
+              <div>
+                <div class="meso-name">Hypertrophy Block A</div>
+                <div class="meso-struct">4 wks · 4 days/wk · 16 sessions</div>
+              </div>
+              <span class="pill inuse"><span class="pilldot"></span>In use · 4</span>
+            </div>
+            <div class="ribbon">
+              <div style="width:26%;background:hsl(var(--m-back))"></div>
+              <div style="width:22%;background:hsl(var(--m-chest))"></div>
+              <div style="width:20%;background:hsl(var(--m-legs))"></div>
+              <div style="width:14%;background:hsl(var(--m-shoulders))"></div>
+              <div style="width:11%;background:hsl(var(--m-arms))"></div>
+              <div style="width:7%;background:hsl(var(--m-core))"></div>
+            </div>
+            <div class="strip">312 sets <span class="sep">·</span> 18 exercises <span class="sep">·</span> ~58 min/session</div>
+            <div class="prog-row-foot">
+              <span class="strip" style="font-size:11px">reach: 4 clients · 1 team</span>
+              <div style="display:flex;gap:8px"><button class="btn-ghost" style="padding:7px 14px">Edit</button><button class="assign-btn">Assign →</button></div>
+            </div>
+          </div>
+          <!-- ready -->
+          <div class="card meso-card">
+            <div class="meso-top">
+              <div>
+                <div class="meso-name">PPL Volume Phase</div>
+                <div class="meso-struct">6 wks · 6 days/wk · 36 sessions</div>
+              </div>
+              <span class="pill ready"><span class="pilldot"></span>Ready</span>
+            </div>
+            <div class="ribbon">
+              <div style="width:23%;background:hsl(var(--m-legs))"></div>
+              <div style="width:21%;background:hsl(var(--m-back))"></div>
+              <div style="width:19%;background:hsl(var(--m-chest))"></div>
+              <div style="width:17%;background:hsl(var(--m-arms))"></div>
+              <div style="width:12%;background:hsl(var(--m-shoulders))"></div>
+              <div style="width:8%;background:hsl(var(--m-core))"></div>
+            </div>
+            <div class="strip">648 sets <span class="sep">·</span> 24 exercises <span class="sep">·</span> ~72 min/session</div>
+            <div class="prog-row-foot">
+              <button class="btn-ghost" style="padding:7px 14px">Edit</button>
+              <button class="assign-btn">Assign →</button>
+            </div>
+          </div>
+          <!-- draft (incomplete) -->
+          <div class="card meso-card">
+            <div class="meso-top">
+              <div>
+                <div class="meso-name">Foundations 3-Day</div>
+                <div class="meso-struct">3 wks · 3 days/wk · 9 sessions</div>
+              </div>
+              <span class="pill draft"><span class="pilldot"></span>Draft</span>
+            </div>
+            <div class="ribbon">
+              <div style="width:40%;background:hsl(var(--m-legs))"></div>
+              <div style="width:35%;background:hsl(var(--m-back))"></div>
+              <div style="width:25%;background:hsl(var(--m-chest))"></div>
+            </div>
+            <div class="strip">96 sets <span class="sep">·</span> 6 exercises</div>
+            <div class="prog-row-foot">
+              <span class="incomplete">⚠ 2 slots need exercises</span>
+              <button class="btn-ghost" style="padding:7px 14px">Finish in board →</button>
+            </div>
+          </div>
+          <!-- draft wip -->
+          <div class="card meso-card">
+            <div class="meso-top">
+              <div>
+                <div class="meso-name">Contest Prep (WIP)</div>
+                <div class="meso-struct">1 wk · 2 days/wk · draft</div>
+              </div>
+              <span class="pill draft"><span class="pilldot"></span>Draft</span>
+            </div>
+            <div class="ribbon">
+              <div style="width:60%;background:hsl(var(--m-back))"></div>
+              <div style="width:40%;background:hsl(var(--m-shoulders))"></div>
+            </div>
+            <div class="strip">24 sets</div>
+            <div class="prog-row-foot">
+              <span class="incomplete">Keep building</span>
+              <button class="btn-ghost" style="padding:7px 14px">Edit →</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 6 — ASSIGN DIALOG ============ -->
+  <div class="screen">
+    <div class="screen-label">Screen 6 — <b>The agreed Assign flow</b> (§8.5, from Program System Unification)</div>
+    <div class="screen-note">Target = Client / Team / Several · start date · start-on-day · and the <b>Sync toggle (1:1 only)</b> — "following template" until the client's copy is edited, then it detaches. Teams share the plan and always inherit, so they get no toggle. A Draft prompts to finish instead of silently skipping.</div>
+    <div class="overlay">
+      <div class="dialog">
+        <h3>Assign "Hypertrophy Block A"</h3>
+        <div class="sub">Ready · 4 wks · 16 sessions · reach: 4 clients · 1 team</div>
+        <div class="seg">
+          <div class="opt on">Client</div>
+          <div class="opt">Team</div>
+          <div class="opt">Several</div>
+        </div>
+        <div class="field">
+          <label>Client</label>
+          <div class="select"><span class="cli"><span class="avatar">SA</span> Sara Al-Amiri</span><span style="color:hsl(var(--muted-fg))">▾</span></div>
+        </div>
+        <div class="field" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div>
+            <label>Start date</label>
+            <div class="select"><span>Mon, 14 Jul</span><span style="color:hsl(var(--muted-fg))">▾</span></div>
+          </div>
+          <div>
+            <label>Start on day</label>
+            <div class="select"><span>Day 1</span><span style="color:hsl(var(--muted-fg))">▾</span></div>
+          </div>
+        </div>
+        <!-- Sync toggle, 1:1 only -->
+        <div class="field" style="background:hsl(var(--muted)/.25);border:1px solid hsl(var(--border));border-radius:8px;padding:11px 12px;margin-bottom:14px">
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:12.5px;font-weight:500">Keep in sync with template</div>
+              <div style="font-size:11px;color:hsl(var(--muted-fg));margin-top:2px">Follows your edits until you customise this client's copy — then it detaches.</div>
+            </div>
+            <div style="width:38px;height:22px;border-radius:20px;background:hsl(var(--primary));position:relative;flex-shrink:0">
+              <div style="width:16px;height:16px;border-radius:50%;background:#fff;position:absolute;top:3px;right:3px"></div>
+            </div>
+          </div>
+        </div>
+        <div class="preview-box">
+          <div class="pt">They'll receive</div>
+          <div class="strip" style="font-size:11px">16 sessions · 312 sets · Back · Chest · Legs focus</div>
+        </div>
+        <div class="dialog-foot">
+          <button class="btn-ghost">Cancel</button>
+          <button class="btn">Assign program</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ SCREEN 7 — REACH / FOLLOWING vs DETACHED ============ -->
+  <div class="screen">
+    <div class="screen-label">Screen 7 — <b>Reach + sync state</b> (§8.3): who's following, who's detached</div>
+    <div class="screen-note">On an in-use program, the detail view shows real reach and each client's sync state. "Following" clients get template edits synced down; "Detached" clients edited their own copy and keep it (Hasan's rule, already decided in the unification plan). Editing here prompts: "Sync to 3 following clients?"</div>
+    <div class="app">
+      <div class="body">
+        <div class="detail-head" style="margin-bottom:14px">
+          <div>
+            <h2>Hypertrophy Block A</h2>
+            <div class="meso-struct" style="margin-top:6px;font-size:12.5px">Ready · reach: 4 clients · 1 team</div>
+          </div>
+          <div class="actions"><button class="btn-ghost">Edit in Planning Board</button><button class="btn">Assign →</button></div>
+        </div>
+        <div class="card dist-card">
+          <div class="dist-head"><span>Assigned clients</span><span class="muted">edit syncs to "following" only</span></div>
+          <div class="day-row" style="padding:10px 0">
+            <span class="avatar">SA</span>
+            <div class="day-main"><div class="day-title">Sara Al-Amiri</div><div class="day-ex">1:1 Online · started Mon 14 Jul</div></div>
+            <span class="pill ready"><span class="pilldot"></span>Following</span>
+          </div>
+          <div class="day-row" style="padding:10px 0">
+            <span class="avatar">MK</span>
+            <div class="day-main"><div class="day-title">Mohammed K.</div><div class="day-ex">1:1 Complete · started Wed 9 Jul</div></div>
+            <span class="pill ready"><span class="pilldot"></span>Following</span>
+          </div>
+          <div class="day-row" style="padding:10px 0">
+            <span class="avatar">LR</span>
+            <div class="day-main"><div class="day-title">Layla R.</div><div class="day-ex">1:1 Online · Day 2 & 4 swapped by coach</div></div>
+            <span class="pill draft" style="background:hsl(38 92% 55%/.16);color:hsl(38 92% 62%)"><span class="pilldot"></span>Detached · edited</span>
+          </div>
+          <div class="day-row" style="padding:10px 0;border-bottom:none">
+            <span class="avatar" style="background:hsl(212 72% 55%/.2);color:hsl(212 72% 66%)">FS</span>
+            <div class="day-main"><div class="day-title">Fe Squad</div><div class="day-ex">Team · 8 members · shared plan (always inherits)</div></div>
+            <span class="pill inuse" style="background:hsl(212 72% 55%/.16);color:hsl(212 72% 66%)"><span class="pilldot"></span>Team</span>
+          </div>
+        </div>
+        <div class="callout" style="margin-top:16px">Editing this program will <b>sync to 2 following clients + the team</b>. Layla's copy is detached and won't change.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

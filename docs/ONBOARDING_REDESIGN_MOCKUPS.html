@@ -1,0 +1,420 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGU — Onboarding Redesign Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Dark = default (real IGU .dark tokens). :root.light = real :root light tokens. */
+  :root{
+    --bg:hsl(240 10% 3.7%); --card:hsl(240 6% 8.4%); --muted:hsl(240 4% 11.8%);
+    --muted-fg:hsl(240 5% 64.9%); --border:hsl(240 4% 16.5%); --fg:hsl(0 0% 98%);
+    --primary:hsl(355 78% 48%); --primary-soft:hsl(355 78% 48% / .14); --primary-ring:hsl(355 78% 48% / .30);
+    --ontrack:hsl(142 64% 52%); --amber:hsl(38 92% 55%);
+    --page:#050506; --radius:12px;
+    --sans:'Geist',system-ui,sans-serif; --display:'Bebas Neue',sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  :root.light{
+    --bg:hsl(220 20% 97%); --card:hsl(0 0% 100%); --muted:hsl(240 5% 95.9%);
+    --muted-fg:hsl(240 4% 46%); --border:hsl(220 15% 90%); --fg:hsl(240 10% 4%);
+    --primary:hsl(355 78% 48%); --primary-soft:hsl(355 78% 48% / .08); --primary-ring:hsl(355 78% 48% / .22);
+    --ontrack:hsl(142 71% 38%); --amber:hsl(38 92% 42%); --page:#e9ebf0;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--fg);font-family:var(--sans);-webkit-font-smoothing:antialiased;padding:26px 20px 90px;transition:background .2s}
+  .wrap{max-width:1320px;margin:0 auto}
+  .topbar{display:flex;align-items:center;gap:16px;margin-bottom:8px}
+  h1{font-family:var(--display);font-weight:400;letter-spacing:.5px;font-size:42px;margin:0;line-height:1}
+  h1 .em{color:var(--primary)}
+  .toggle{margin-left:auto;display:inline-flex;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);color:var(--fg);border-radius:99px;padding:8px 14px;font-family:var(--sans);font-size:13px;font-weight:500;cursor:pointer}
+  .toggle .dotp{width:14px;height:14px;border-radius:99px;background:var(--primary)}
+  .sub{color:var(--muted-fg);font-size:14.5px;margin:8px 0 22px;max-width:820px}
+  .legend{display:flex;flex-wrap:wrap;gap:9px 22px;margin:0 0 30px;padding:14px 18px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);font-size:12.5px}
+  .legend b{color:var(--fg);font-weight:600}.legend .k{color:var(--muted-fg)}.legend .dot{color:var(--primary);margin-right:5px}
+  .rowlabel{font-family:var(--mono);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-fg);margin:36px 0 14px;display:flex;align-items:center;gap:10px}
+  .rowlabel::before{content:"";width:20px;height:1px;background:var(--primary)}
+  .frames{display:flex;flex-wrap:wrap;gap:24px}
+  .col{display:flex;flex-direction:column;width:320px}
+
+  .phone{width:320px;background:var(--bg);border:1px solid var(--border);border-radius:26px;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 22px 50px -22px rgba(0,0,0,.55)}
+  .status{height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;color:var(--muted-fg);font-family:var(--mono)}
+  .body{flex:1;display:flex;flex-direction:column;min-height:566px}
+  .scroll{flex:1;overflow:hidden;padding:0 16px}
+  .caption{font-size:12px;color:var(--muted-fg);margin:10px 2px 0;text-align:center;line-height:1.45}
+  .caption b{color:var(--fg);font-weight:600}
+
+  .ohead{padding:13px 16px 6px}
+  .brand{font-family:var(--display);font-size:19px;letter-spacing:1px}.brand .em{color:var(--primary)}
+  .steplab{font-family:var(--mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted-fg);margin-top:2px}
+  .htitle{font-size:18.5px;font-weight:600;margin:8px 0 2px;line-height:1.2}
+  .hsub{font-size:12.5px;color:var(--muted-fg);margin:0 0 4px;line-height:1.4}
+  .prog{height:4px;background:var(--muted);border-radius:99px;overflow:hidden;margin:9px 16px 4px}
+  .prog>i{display:block;height:100%;background:var(--primary);border-radius:99px}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:13px;margin-bottom:9px;transition:border-color .15s, box-shadow .15s}
+  .card.sel{border-color:var(--primary);box-shadow:0 0 0 3px var(--primary-ring);background:var(--primary-soft)}
+  .card.click{cursor:pointer}.card.click:hover{border-color:hsl(355 78% 48% / .5)}
+  .prow{display:flex;align-items:flex-start;gap:11px}
+  .radio{width:20px;height:20px;border-radius:99px;border:2px solid var(--border);flex:none;margin-top:1px;position:relative}
+  .radio.on{border-color:var(--primary)}.radio.on::after{content:"";position:absolute;inset:3px;border-radius:99px;background:var(--primary)}
+  .ttl{font-size:14px;font-weight:600}.desc{font-size:11.5px;color:var(--muted-fg);margin-top:2px;line-height:1.4}
+  .price{font-family:var(--mono);font-size:13px;color:var(--primary);font-weight:500;margin-top:7px}.price .from{color:var(--muted-fg);font-weight:400}
+  .check{margin-left:auto;color:var(--primary);flex:none}
+
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:2px}
+  .chip{font-size:12.5px;padding:8px 13px;border-radius:99px;border:1px solid var(--border);background:var(--muted);color:var(--fg);cursor:pointer;line-height:1;display:inline-flex;align-items:center;gap:6px;transition:all .12s}
+  .chip:hover{border-color:hsl(355 78% 48% / .5)}
+  .chip.on{background:var(--primary);border-color:var(--primary);color:#fff;font-weight:500}.chip.on .x{opacity:.85}
+  .sectlab{font-size:12.5px;font-weight:600;margin:14px 0 8px}
+  .help{font-size:11px;color:var(--muted-fg);margin:0 0 12px;line-height:1.45}
+
+  /* segmented */
+  .seg{display:flex;gap:6px;margin-bottom:12px}
+  .seg .opt{flex:1;text-align:center;font-size:12px;padding:9px 4px;border:1px solid var(--border);border-radius:9px;background:var(--muted);cursor:pointer;color:var(--muted-fg)}
+  .seg .opt.on{border-color:var(--primary);background:var(--primary-soft);color:var(--fg);font-weight:500}
+  .field{margin-bottom:12px}.flab{font-size:11.5px;color:var(--muted-fg);margin-bottom:5px}
+  .inp{background:var(--muted);border:1px solid var(--border);border-radius:10px;padding:11px 12px;font-size:13.5px;color:var(--fg);font-family:var(--sans)}
+  .two{display:flex;gap:10px}.two>*{flex:1}
+  .ta{min-height:64px}
+
+  /* yes/no PAR-Q */
+  .qrow{display:flex;align-items:center;gap:10px;padding:11px 0;border-bottom:1px solid var(--border)}
+  .qrow:last-child{border-bottom:none}
+  .qtext{font-size:12.5px;line-height:1.35;flex:1}
+  .yn{display:flex;gap:6px;flex:none}
+  .yn .b{font-size:11.5px;padding:6px 12px;border-radius:8px;border:1px solid var(--border);background:var(--muted);color:var(--muted-fg);cursor:pointer}
+  .yn .b.no{border-color:var(--primary);background:var(--primary-soft);color:var(--fg);font-weight:500}
+  .yn .b.yes{border-color:var(--amber);background:hsl(38 92% 50% / .14);color:var(--amber);font-weight:500}
+  .privacy{font-size:10.5px;color:var(--muted-fg);font-family:var(--mono);margin-top:12px;display:flex;align-items:center;gap:6px}
+
+  /* legal / agreements */
+  .agree{display:flex;align-items:center;gap:11px;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:8px}
+  .agree.on{border-color:var(--ontrack);background:hsl(142 64% 52% / .08)}
+  .cb{width:20px;height:20px;border-radius:6px;border:2px solid var(--border);flex:none;position:relative}
+  .cb.on{border-color:var(--ontrack);background:var(--ontrack)}
+  .cb.on::after{content:"✓";color:#fff;font-size:12px;position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+  .alab{font-size:12.5px;flex:1}.alink{color:var(--primary);font-size:11.5px;cursor:pointer;flex:none}
+
+  /* coach */
+  .coach{display:flex;gap:11px;align-items:center}
+  .av{width:42px;height:42px;border-radius:99px;background:var(--primary-soft);color:var(--primary);display:flex;align-items:center;justify-content:center;font-weight:600;font-size:14px;flex:none}
+  .cname{font-size:13.5px;font-weight:600;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+  .badge{font-size:10px;padding:3px 7px;border-radius:99px;font-weight:500;line-height:1;white-space:nowrap}
+  .b-top{background:hsl(38 92% 50% / .16);color:var(--amber)}
+  .b-match{background:hsl(142 64% 52% / .16);color:var(--ontrack)}
+  .b-plan{background:var(--muted);color:var(--muted-fg);border:1px solid var(--border)}
+  .cmeta{font-size:11px;color:var(--muted-fg);margin-top:3px;display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+  .spots{border:1px solid var(--border);border-radius:99px;padding:2px 7px;font-family:var(--mono);font-size:10px}
+  .vprof{color:var(--primary);font-size:11.5px;margin-top:8px;display:inline-flex;align-items:center;gap:5px;cursor:pointer}
+  .ib{width:38px;height:38px;border-radius:99px;display:flex;align-items:center;justify-content:center;flex:none}
+  .ib.pri{background:var(--primary);color:#fff}.ib.mut{background:var(--muted);color:var(--muted-fg)}
+
+  .foot{border-top:1px solid var(--border);padding:11px 16px calc(11px + env(safe-area-inset-bottom));display:flex;align-items:center;gap:12px;background:color-mix(in srgb, var(--bg) 86%, transparent)}
+  .dots{display:flex;gap:5px;margin:0 auto}.dots i{width:6px;height:6px;border-radius:99px;background:var(--muted)}.dots i.on{background:var(--primary);width:16px}
+  .btn{border:none;border-radius:10px;padding:11px 18px;font-family:var(--sans);font-size:13px;font-weight:600;cursor:pointer}
+  .btn.pri{background:var(--primary);color:#fff}.btn.ghost{background:transparent;color:var(--muted-fg);padding-left:2px}.full{width:100%;justify-content:center}
+  .callout{margin-top:12px;padding:11px 12px;border-radius:10px;background:var(--primary-soft);border:1px solid var(--primary-ring);font-size:11.5px;color:var(--fg);line-height:1.5}.callout b{color:var(--primary)}
+  .tag-note{font-size:10.5px;color:var(--muted-fg);font-family:var(--mono);margin-top:10px}
+  .center{display:flex;flex-direction:column;align-items:center;text-align:center;justify-content:center;height:100%;padding:24px 8px}
+  .bigcheck{width:66px;height:66px;border-radius:99px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:center;margin-bottom:16px}
+  .nextrow{display:flex;align-items:center;gap:10px;width:100%;padding:11px;border:1px solid var(--border);border-radius:10px;margin-top:8px;font-size:12.5px;text-align:left}
+  .num{width:22px;height:22px;border-radius:99px;background:var(--muted);color:var(--muted-fg);font-size:11px;font-family:var(--mono);display:flex;align-items:center;justify-content:center;flex:none}
+  .delta{display:flex;align-items:center;justify-content:space-between;padding:12px;border:1px solid var(--border);border-radius:10px;margin-bottom:9px;font-size:13px}
+  .delta .old{color:var(--muted-fg);text-decoration:line-through;font-family:var(--mono)}
+  .delta .new{color:var(--primary);font-weight:600;font-family:var(--mono)}
+  .counter{font-size:11.5px;color:var(--muted-fg);margin-top:12px;font-family:var(--mono)}
+  .counter b{color:var(--primary);font-weight:500}
+  .ruler{position:relative;height:34px;border-radius:8px;border:1px solid var(--border);background-color:var(--muted);background-image:repeating-linear-gradient(90deg, var(--border) 0 1px, transparent 1px 15px)}
+  .ruler .mark{position:absolute;left:50%;top:4px;bottom:4px;width:2px;background:var(--primary);transform:translateX(-50%)}
+  .recap{width:100%;padding:12px;border:1px solid var(--border);border-radius:10px;background:var(--muted);margin-bottom:12px;text-align:left}
+  .ib.amber{background:hsl(38 92% 50% / .16);color:var(--amber)}
+  .ib.ok{background:hsl(142 64% 52% / .16);color:var(--ontrack)}
+  .sumrow{display:flex;justify-content:space-between;align-items:center;font-size:12.5px;padding:9px 0;border-bottom:1px solid var(--border)}
+  .sumrow:last-child{border-bottom:none}.sumrow .v{font-family:var(--mono)}
+  .big{font-family:var(--mono);font-size:20px;color:var(--primary);font-weight:600}
+  [dir="rtl"] .recap,[dir="rtl"] .ohead{text-align:right}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <h1>IGU Onboarding — <span class="em">Redesign</span></h1>
+    <button class="toggle" onclick="document.documentElement.classList.toggle('light');this.querySelector('span').textContent=document.documentElement.classList.contains('light')?'Light':'Dark'"><span class="dotp"></span><span>Dark</span> mode</button>
+  </div>
+  <p class="sub">Grounded in the real tokens — crimson <span style="font-family:var(--mono)">hsl(355 78% 48%)</span>, Geist / Bebas Neue / JetBrains Mono, 12px radius, flat <span style="font-family:var(--mono)">ClickableCard</span>. Both themes are the app's actual light + dark values — toggle top-right. Patterns grounded in real Mobbin references — Tonal, Equinox+, Future, MyFitnessPal, Badoo (single-focus screens, chips + selection counter, recommended-for-you grouping, ruler numeric input, top-recommendation coach card, reassuring health copy, a finish/recap screen). Directional, not final copy.</p>
+
+  <div class="legend">
+    <span class="k"><span class="dot">●</span><b>Goals &amp; expertise = chips</b>, same tag vocabulary both sides</span>
+    <span class="k"><span class="dot">●</span><b>Segmented selectors</b> replace dropdown walls</span>
+    <span class="k"><span class="dot">●</span><b>Flat ClickableCards</b>, sticky footer + progress</span>
+    <span class="k"><span class="dot">●</span><b>Lighter steps</b> — mega Service step split</span>
+    <span class="k"><span class="dot">●</span><b>Light + dark</b> parity</span>
+    <span class="k"><span class="dot">●</span><b>Gone:</b> gradient bg, Discord field</span>
+  </div>
+
+  <div class="rowlabel">The 1:1 flow — every step &amp; question</div>
+  <p class="sub" style="margin-top:-4px">Plan → About you → Goals → Training details → Choose coach → Health → Legal → Done. Team plans swap Goals+Coach for a Team-pick step.</p>
+  <div class="frames">
+
+    <!-- 1 PLAN -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Step 1 of 7 · Plan</div><div class="htitle">Pick your coaching plan</div><div class="hsub">Change it anytime before you pay.</div></div>
+      <div class="prog"><i style="width:14%"></i></div>
+      <div class="scroll">
+        <div class="card click"><div class="prow"><div class="radio"></div><div><div class="ttl">Team Plan</div><div class="desc">Group coaching under a head coach.</div><div class="price">12 KWD<span class="from">/mo</span></div></div></div></div>
+        <div class="card click"><div class="prow"><div class="radio"></div><div><div class="ttl">1:1 Online</div><div class="desc">Personalised online coaching.</div><div class="price"><span class="from">from</span> 40 KWD<span class="from">/mo</span></div></div></div></div>
+        <div class="card sel click"><div class="prow"><div class="radio on"></div><div><div class="ttl">1:1 Hybrid</div><div class="desc">Online + in-person training.</div><div class="price"><span class="from">from</span> 150 KWD<span class="from">/mo</span></div></div><svg class="check" width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M20 6 9 17l-5-5"/></svg></div></div>
+        <div class="card click"><div class="prow"><div class="radio"></div><div><div class="ttl">1:1 In-Person</div><div class="desc">Premium in-person coaching.</div><div class="price"><span class="from">from</span> 250 KWD<span class="from">/mo</span></div></div></div></div>
+      </div>
+      <div class="foot"><button class="btn ghost">Back</button><div class="dots"><i class="on"></i><i></i><i></i><i></i><i></i><i></i><i></i></div><button class="btn pri">Continue</button></div>
+    </div></div><p class="caption"><b>Plan first.</b> One decision, flat cards, price in mono.</p></div>
+
+    <!-- 2 ABOUT YOU -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Step 2 of 7 · About you</div><div class="htitle">A few basics</div><div class="hsub">So your coach can tailor things to you.</div></div>
+      <div class="prog"><i style="width:28%"></i></div>
+      <div class="scroll">
+        <div class="two"><div class="field"><div class="flab">First name</div><div class="inp">Hasan</div></div><div class="field"><div class="flab">Last name</div><div class="inp">Dashti</div></div></div>
+        <div class="field"><div class="flab">Phone</div><div class="inp">+965 5000 0000</div></div>
+        <div class="field"><div class="flab">Date of birth</div><div class="inp" style="color:var(--muted-fg)">01 / 01 / 1995</div></div>
+        <div class="field"><div class="flab">Gender</div><div class="seg" style="margin-bottom:0"><div class="opt on">Male</div><div class="opt">Female</div></div></div>
+        <div class="field" style="margin-top:12px"><div class="flab">Height</div>
+          <div style="text-align:center;font-family:var(--mono);font-size:18px;margin-bottom:6px">170 <span style="color:var(--muted-fg);font-size:12px">cm</span></div>
+          <div class="ruler"><span class="mark"></span></div>
+        </div>
+        <div class="tag-note">// ruler input (Tonal-style) · Discord field removed</div>
+      </div>
+      <div class="foot"><button class="btn ghost">Back</button><div class="dots"><i></i><i class="on"></i><i></i><i></i><i></i><i></i><i></i></div><button class="btn pri">Continue</button></div>
+    </div></div><p class="caption"><b>Grouped, short.</b> Email's already known (locked), so it's off this screen. Segmented gender + unit.</p></div>
+
+    <!-- 3 GOALS -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Step 3 of 7 · Goals</div><div class="htitle">What do you want to focus on?</div><div class="hsub">Tap all that apply — we match you to a coach on these.</div></div>
+      <div class="prog"><i style="width:42%"></i></div>
+      <div class="scroll">
+        <div class="flab" style="margin-bottom:8px">Recommended for your plan</div>
+        <div class="chips">
+          <span class="chip on">Strength Training <span class="x">✕</span></span><span class="chip on">Bodybuilding <span class="x">✕</span></span><span class="chip">Powerlifting</span>
+        </div>
+        <div class="sectlab">All areas</div>
+        <div class="chips">
+          <span class="chip">General Fitness</span><span class="chip on">Body Recomposition <span class="x">✕</span></span><span class="chip">Weight Loss</span><span class="chip">Nutrition Coaching</span><span class="chip">Athletic Performance</span><span class="chip">Mobility &amp; Flexibility</span><span class="chip">Running &amp; Endurance</span><span class="chip">Rehab &amp; Injury Prevention</span><span class="chip">Women's Training</span><span class="chip">Senior Fitness</span><span class="chip">Contest Prep</span>
+        </div>
+        <div class="counter"><b>3</b> / 15 selected · we match your coach on these</div>
+      </div>
+      <div class="foot"><button class="btn ghost">Back</button><div class="dots"><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i></div><button class="btn pri">Continue</button></div>
+    </div></div><p class="caption"><b>The big win.</b> 15 checkboxes → chips, with a recommended group + live counter (MyFitnessPal / Equinox+). These are the match tags.</p></div>
+
+    <!-- 4 TRAINING DETAILS -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Step 4 of 7 · Training</div><div class="htitle">Your training setup</div><div class="hsub">Tailored to 1:1 Hybrid.</div></div>
+      <div class="prog"><i style="width:56%"></i></div>
+      <div class="scroll">
+        <div class="flab">Experience</div>
+        <div class="seg"><div class="opt">Beginner</div><div class="opt on">Intermediate</div><div class="opt">Advanced</div></div>
+        <div class="flab">Days per week</div>
+        <div class="seg"><div class="opt">2</div><div class="opt">3</div><div class="opt on">4</div><div class="opt">5+</div></div>
+        <div class="field"><div class="flab">Your goals</div><div class="inp ta" style="color:var(--muted-fg)">Build strength and improve body composition over the next 6 months.</div></div>
+        <div class="flab">Preferred gym</div>
+        <div class="seg" style="flex-wrap:wrap"><div class="opt on" style="flex:1 1 45%">Oxygen Jabriya</div><div class="opt" style="flex:1 1 45%">Subah AlSalem</div><div class="opt" style="flex:1 1 45%">Spark Shuwaikh</div><div class="opt" style="flex:1 1 45%">Other</div></div>
+      </div>
+      <div class="foot"><button class="btn ghost">Back</button><div class="dots"><i></i><i></i><i></i><i class="on"></i><i></i><i></i><i></i></div><button class="btn pri">Continue</button></div>
+    </div></div><p class="caption"><b>Segmented, not dropdown walls.</b> Fields differ per service (times/gym on Hybrid &amp; In-Person).</p></div>
+
+  </div>
+
+  <div class="frames" style="margin-top:8px">
+    <!-- 5 COACH -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Step 5 of 7 · Coach</div><div class="htitle">Choose your coach</div><div class="hsub">Let us match you, or pick your own.</div></div>
+      <div class="prog"><i style="width:71%"></i></div>
+      <div class="scroll">
+        <div class="card click"><div class="coach"><div class="ib mut"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 1.9 4.5 4.9.4-3.7 3.2 1.1 4.8L12 13.8 7.8 15.9l1.1-4.8L5.2 7.9l4.9-.4z"/></svg></div><div><div class="cname">Auto-Match <span class="badge b-top">Recommended</span></div><div class="cmeta">Best-fit coach for your goals.</div></div></div></div>
+        <div class="card sel click"><div class="coach"><div class="ib pri"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div><div><div class="cname">Choose my coach</div><div class="cmeta">Browse available coaches.</div></div></div></div>
+        <div class="sectlab">Available coaches</div>
+        <div class="card click"><div class="coach"><div class="av">HD</div><div style="min-width:0"><div class="cname">Hasan Dashti <span class="badge b-top">★ Top match</span></div><div class="cmeta"><span class="badge b-match">2 goals match</span><span class="spots">3 spots</span></div></div></div><div class="desc" style="margin-top:8px">Strength · Bodybuilding · Body Recomp</div><span class="vprof"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> View profile</span></div>
+        <div class="card click"><div class="coach"><div class="av">FA</div><div style="min-width:0"><div class="cname">Fahad Alrefai <span class="badge b-plan">Hybrid</span></div><div class="cmeta"><span class="spots">50 spots</span></div></div></div><div class="desc" style="margin-top:8px">Powerlifting · Athletic Performance</div><span class="vprof"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg> View profile</span></div>
+      </div>
+      <div class="foot"><button class="btn ghost">Back</button><div class="dots"><i></i><i></i><i></i><i></i><i class="on"></i><i></i><i></i></div><button class="btn pri">Continue</button></div>
+    </div></div><p class="caption"><b>Reliable match.</b> Badges are real now (same tag vocabulary), not luck.</p></div>
+
+    <!-- 6 HEALTH / PARQ -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Step 6 of 7 · Health</div><div class="htitle">Quick health check</div><div class="hsub">Standard PAR-Q — helps us train you safely.</div></div>
+      <div class="prog"><i style="width:85%"></i></div>
+      <div class="scroll">
+        <div class="qrow"><div class="qtext">Has a doctor ever said you have a heart condition?</div><div class="yn"><div class="b yes">Yes</div><div class="b no">No</div></div></div>
+        <div class="qrow"><div class="qtext">Do you feel chest pain during physical activity?</div><div class="yn"><div class="b yes">Yes</div><div class="b no">No</div></div></div>
+        <div class="qrow"><div class="qtext">Do you lose balance from dizziness?</div><div class="yn"><div class="b yes">Yes</div><div class="b no">No</div></div></div>
+        <div class="qrow"><div class="qtext">A bone or joint problem that activity worsens?</div><div class="yn"><div class="b yes">Yes</div><div class="b no">No</div></div></div>
+        <div class="privacy"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Private &amp; encrypted · only your care team sees this</div>
+      </div>
+      <div class="foot"><button class="btn ghost">Back</button><div class="dots"><i></i><i></i><i></i><i></i><i></i><i class="on"></i><i></i></div><button class="btn pri">Continue</button></div>
+    </div></div><p class="caption"><b>Plain-language yes/no.</b> Reassuring privacy line. A "Yes" routes to medical review, as today.</p></div>
+
+    <!-- 7 LEGAL -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Step 7 of 7 · Legal</div><div class="htitle">Last thing — agreements</div><div class="hsub">Tap to read, then accept.</div></div>
+      <div class="prog"><i style="width:100%"></i></div>
+      <div class="scroll">
+        <div class="agree on"><div class="cb on"></div><div class="alab">Terms of Service</div><span class="alink">Read</span></div>
+        <div class="agree on"><div class="cb on"></div><div class="alab">Privacy Policy</div><span class="alink">Read</span></div>
+        <div class="agree on"><div class="cb on"></div><div class="alab">Refund Policy</div><span class="alink">Read</span></div>
+        <div class="agree"><div class="cb"></div><div class="alab">Medical Disclaimer</div><span class="alink">Read</span></div>
+        <div class="agree"><div class="cb"></div><div class="alab">Intellectual Property</div><span class="alink">Read</span></div>
+      </div>
+      <div class="foot"><button class="btn ghost">Back</button><div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i class="on"></i></div><button class="btn pri">Finish</button></div>
+    </div></div><p class="caption"><b>Grouped rows</b> with inline Read links + a green accepted state. Finish is disabled until all five are on.</p></div>
+
+    <!-- 8 SUCCESS -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="scroll"><div class="center">
+        <div class="bigcheck"><svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M20 6 9 17l-5-5"/></svg></div>
+        <div class="htitle" style="font-size:21px">You're in, Hasan</div>
+        <div class="hsub" style="margin-bottom:16px">Matched with your coach. Here's what's next.</div>
+        <div class="recap"><div class="desc">Your setup</div><div style="font-size:12.5px;margin-top:3px"><b style="font-weight:600">1:1 Hybrid</b> · Coach Hasan D.</div><div class="desc" style="margin-top:3px">Focus: Strength · Bodybuilding · Body Recomp</div></div>
+        <div class="nextrow"><div class="num">1</div><div><b style="font-weight:600">Complete payment</b><div class="desc">Activate your 1:1 Hybrid plan — 150 KWD/mo.</div></div></div>
+        <div class="nextrow"><div class="num">2</div><div><b style="font-weight:600">Meet your coach</b><div class="desc">Intro message + your first program.</div></div></div>
+      </div></div>
+      <div class="foot"><button class="btn pri full">Continue to payment</button></div>
+    </div></div><p class="caption"><b>A finish screen.</b> Momentum into payment (today it just redirects). Warm, specific.</p></div>
+
+  </div>
+
+  <div class="rowlabel">Transitions — the gap today</div>
+  <p class="sub" style="margin-top:-4px">Right now a current client <b style="color:var(--fg)">can't</b> switch service — they'd cancel and re-onboard from scratch. Proposed: a "Change plan" flow that keeps identity, coach &amp; history and only re-asks what's new. (Plan-only ↔ service is designed-for but parked until the marketplace.)</p>
+  <div class="frames">
+    <!-- CHANGE PLAN -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Billing · Change plan</div><div class="htitle">Switch your plan</div><div class="hsub">You're on 1:1 Online. Moving to Hybrid.</div></div>
+      <div class="scroll" style="padding-top:8px">
+        <div class="delta"><div><div class="desc">Current</div><div class="old">40 KWD/mo</div></div><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--muted-fg)" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6"/></svg><div style="text-align:right"><div class="desc">New — 1:1 Hybrid</div><div class="new">150 KWD/mo</div></div></div>
+        <div class="callout"><b>We'll keep</b> your coach, nutrition phase, and program history — nothing resets. Hybrid needs a couple extra details (gym + times).</div>
+        <div class="sectlab">What we still need</div>
+        <div class="flab">Preferred gym</div>
+        <div class="seg" style="flex-wrap:wrap"><div class="opt on" style="flex:1 1 45%">Oxygen Jabriya</div><div class="opt" style="flex:1 1 45%">Subah AlSalem</div><div class="opt" style="flex:1 1 45%">Spark Shuwaikh</div><div class="opt" style="flex:1 1 45%">Other</div></div>
+        <div class="privacy" style="font-family:var(--sans);font-size:11px">Change takes effect next billing cycle.</div>
+      </div>
+      <div class="foot"><button class="btn ghost">Cancel</button><button class="btn pri" style="margin-left:auto">Review &amp; confirm</button></div>
+    </div></div><p class="caption"><b>New capability.</b> Reuses onboarding in "change" mode: skip known answers, keep coach &amp; history, show the price delta.</p></div>
+
+    <!-- COACH EXPERTISE PICKER -->
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span> <span style="font-size:11px;color:var(--muted-fg)">· Coach profile</span></div><div class="steplab">Expertise &amp; matching</div><div class="htitle">Your areas of expertise</div><div class="hsub">Pick the tags you coach.</div></div>
+      <div class="scroll" style="padding-top:10px">
+        <div class="chips">
+          <span class="chip on">Strength Training <span class="x">✕</span></span><span class="chip on">Bodybuilding <span class="x">✕</span></span><span class="chip on">Body Recomposition <span class="x">✕</span></span><span class="chip on">Weight Loss <span class="x">✕</span></span><span class="chip on">Nutrition Coaching <span class="x">✕</span></span><span class="chip">General Fitness</span><span class="chip">Powerlifting</span><span class="chip">Women's Training</span><span class="chip">Contest Prep</span><span class="chip">Senior Fitness</span>
+        </div>
+        <div class="counter"><b>5</b> / 15 selected</div>
+        <div class="callout"><b>Closes the loop:</b> today coaches type free-text ("Nutrition") that never matches a client's <span style="font-family:var(--mono)">nutrition_coaching</span>. Same picker both sides = matching that works. <span class="tag-note">// already specced — CoachProfile is the last free-text holdout</span></div>
+      </div>
+      <div class="foot"><button class="btn pri full">Save expertise</button></div>
+    </div></div><p class="caption"><b>The taxonomy fix.</b> Coaches pick the same chips clients do.</p></div>
+  </div>
+
+  <div class="rowlabel">Account &amp; entry — the seam before "Plan"</div>
+  <p class="sub" style="margin-top:-4px">Signup + email verification happen before the wizard today; a returning (cancelled/expired) client should skip what's already on file.</p>
+  <div class="frames">
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Create your account</div><div class="htitle">Join IGU</div><div class="hsub">You'll pick your plan next.</div></div>
+      <div class="scroll" style="padding-top:10px">
+        <div class="field"><div class="flab">Email</div><div class="inp" style="color:var(--muted-fg)">you@email.com</div></div>
+        <div class="field"><div class="flab">Confirm email</div><div class="inp" style="color:var(--muted-fg)">you@email.com</div></div>
+        <div class="field"><div class="flab">Password</div><div class="inp">••••••••••</div>
+          <div class="help" style="margin:6px 0 0">At least 8 characters, with a number and an uppercase letter.</div></div>
+        <div class="field"><div class="flab">Confirm password</div><div class="inp">••••••••••</div></div>
+        <button class="btn pri full" style="margin-top:4px">Create account</button>
+        <div class="privacy" style="justify-content:center;font-family:var(--sans);font-size:11.5px;margin-top:12px">Already have an account? <span style="color:var(--primary);margin-left:5px">Log in</span></div>
+      </div>
+    </div></div><p class="caption"><b>The true first step.</b> Confirm-email + confirm-password + a password-rules hint. Signup precedes the wizard — own this seam, not skip it.</p></div>
+
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="scroll"><div class="center">
+        <div class="ib amber" style="width:60px;height:60px;margin-bottom:16px"><svg width="27" height="27" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg></div>
+        <div class="htitle" style="font-size:20px">Check your inbox</div>
+        <div class="hsub">We sent a confirmation link to you@email.com. Tap it to continue.</div>
+        <div class="privacy" style="justify-content:center;font-family:var(--sans);font-size:11.5px;margin-top:16px">Didn't get it? <span style="color:var(--primary);margin-left:5px">Resend</span></div>
+      </div></div>
+    </div></div><p class="caption"><b>Email verification.</b> The gap between signup and Plan — currently an abrupt hop.</p></div>
+
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Welcome back</div><div class="htitle">Good to see you, Hasan</div><div class="hsub">We kept your details — just confirm what's changed.</div></div>
+      <div class="scroll" style="padding-top:8px">
+        <div class="agree on"><div class="cb on"></div><div class="alab">Your info &amp; health form <span class="desc">— on file</span></div></div>
+        <div class="agree on"><div class="cb on"></div><div class="alab">Legal agreements <span class="desc">— accepted</span></div></div>
+        <div class="sectlab">Pick up where you left off</div>
+        <div class="card sel click"><div class="prow"><div class="radio on"></div><div><div class="ttl">1:1 Hybrid</div><div class="desc">Your previous plan.</div></div></div></div>
+        <div class="card click"><div class="prow"><div class="radio"></div><div><div class="ttl">Choose a different plan</div></div></div></div>
+      </div>
+      <div class="foot"><button class="btn pri full">Continue to payment</button></div>
+    </div></div><p class="caption"><b>Reactivation mode.</b> A returning client skips PAR-Q, demographics &amp; legal — no re-onboarding from zero.</p></div>
+  </div>
+
+  <div class="rowlabel">Team plan flow — a different shape</div>
+  <p class="sub" style="margin-top:-4px">Team plans (Team Plan / Fe Squad / Bunz of Steel) swap Goals + Coach for a team pick + acknowledgments. 5 steps, no 1:1 coach match.</p>
+  <div class="frames">
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Step 3 of 5 · Team</div><div class="htitle">Pick your team</div><div class="hsub">Each team trains under a head coach.</div></div>
+      <div class="prog"><i style="width:55%"></i></div>
+      <div class="scroll">
+        <div class="card sel click"><div class="prow"><div class="radio on"></div><div><div class="ttl">Fe Squad</div><div class="desc">Head coach: Hasan D. · Hypertrophy &amp; strength.</div><div class="cmeta" style="margin-top:6px"><span class="spots">4 spots left</span></div></div></div></div>
+        <div class="card click"><div class="prow"><div class="radio"></div><div><div class="ttl">Iron Unit</div><div class="desc">Head coach: Fahad A. · General strength.</div><div class="cmeta" style="margin-top:6px"><span class="spots">1 spot left</span></div></div></div></div>
+        <div class="card" style="opacity:.6"><div class="prow"><div class="radio"></div><div><div class="ttl">Bunz of Steel <span class="badge" style="color:var(--amber);background:hsl(38 92% 50% / .16)">Full</span></div><div class="desc">Join the waitlist — we'll notify you.</div></div></div></div>
+      </div>
+      <div class="foot"><button class="btn ghost">Back</button><div class="dots"><i></i><i></i><i class="on"></i><i></i><i></i></div><button class="btn pri">Continue</button></div>
+    </div></div><p class="caption"><b>Team pick (undesigned before).</b> Head coach + spots; Full → waitlist.</p></div>
+
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Step 4 of 5 · Details</div><div class="htitle">Before you join</div><div class="hsub">A couple of things to confirm.</div></div>
+      <div class="prog"><i style="width:78%"></i></div>
+      <div class="scroll">
+        <div class="agree on"><div class="cb on"></div><div class="alab">I understand this is group training with no individual customization.</div></div>
+        <div class="agree on"><div class="cb on"></div><div class="alab">I understand nutrition guidance isn't included in the Team Plan.</div></div>
+        <div class="help" style="margin-top:10px">Bunz of Steel adds a third: "I understand this is a lower-body-focused plan."</div>
+      </div>
+      <div class="foot"><button class="btn ghost">Back</button><div class="dots"><i></i><i></i><i></i><i class="on"></i><i></i></div><button class="btn pri">Continue</button></div>
+    </div></div><p class="caption"><b>Team acknowledgments</b> as clean agreement rows, same vocabulary as Legal.</p></div>
+  </div>
+
+  <div class="rowlabel">After "Finish" — payment &amp; the waiting states</div>
+  <p class="sub" style="margin-top:-4px">Onboarding doesn't end at submit — the client hits payment, and possibly medical review or coach approval first. None of this is designed today.</p>
+  <div class="frames">
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">Almost done · Payment</div><div class="htitle">Activate your plan</div><div class="hsub">Secure checkout via Tap.</div></div>
+      <div class="scroll" style="padding-top:10px">
+        <div class="card" style="margin-bottom:12px">
+          <div class="sumrow"><span>1:1 Hybrid</span><span class="v">150.000</span></div>
+          <div class="sumrow"><span class="desc">Billed monthly · cancel anytime</span><span class="v desc">KWD</span></div>
+          <div class="sumrow"><span>Due today</span><span class="big">150.000</span></div>
+        </div>
+        <div class="field"><div class="flab">Card</div><div class="inp" style="color:var(--muted-fg)">•••• •••• •••• 4242</div></div>
+      </div>
+      <div class="foot"><button class="btn pri full">Pay 150.000 KWD</button></div>
+    </div></div><p class="caption"><b>The payment step.</b> Today it's a bare redirect — give it a clear summary + one CTA.</p></div>
+
+    <div class="col"><div class="phone"><div class="status">9:41</div><div class="body">
+      <div class="scroll"><div class="center">
+        <div class="ib amber" style="width:60px;height:60px;margin-bottom:16px"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div>
+        <div class="htitle" style="font-size:19px">We're reviewing your health form</div>
+        <div class="hsub">You flagged something on the PAR-Q, so a coach is giving it a quick look — usually within a day. We'll email you.</div>
+        <div class="recap" style="margin-top:16px"><div class="desc">While you wait</div><div style="font-size:12.5px;margin-top:3px">Explore the exercise library &amp; calorie calculator.</div></div>
+      </div></div>
+      <div class="foot"><button class="btn ghost full" style="color:var(--muted-fg)">Back to dashboard</button></div>
+    </div></div><p class="caption"><b>Waiting states.</b> Medical review / coach approval / pending payment each need a calm status screen (PAR-Q "Yes" routes here).</p></div>
+
+    <div class="col"><div class="phone" dir="rtl"><div class="status">9:41</div><div class="body">
+      <div class="ohead"><div class="brand"><span class="em">IGU</span></div><div class="steplab">خطوة ٣ من ٧ · الأهداف</div><div class="htitle">ما الذي تريد التركيز عليه؟</div><div class="hsub">اختر كل ما ينطبق — سنطابقك مع مدرب.</div></div>
+      <div class="prog"><i style="width:42%"></i></div>
+      <div class="scroll">
+        <div class="chips"><span class="chip on">تمارين القوة <span class="x">✕</span></span><span class="chip on">كمال الأجسام <span class="x">✕</span></span><span class="chip">رفع الأثقال</span><span class="chip">إنقاص الوزن</span><span class="chip">التغذية</span><span class="chip">اللياقة العامة</span></div>
+        <div class="counter"><b>٢</b> / ١٥ محدد</div>
+      </div>
+      <div class="foot"><button class="btn ghost">رجوع</button><div class="dots"><i></i><i></i><i class="on"></i><i></i><i></i><i></i><i></i></div><button class="btn pri">متابعة</button></div>
+    </div></div><p class="caption"><b>RTL / Arabic parity.</b> Layout mirrors — chips right-align, Back/Continue swap. (Progress fills from the right in production.)</p></div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGU — Plans Marketplace Mockups</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Bebas+Neue&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --background:220 20% 97%;--card:0 0% 100%;--foreground:240 10% 3.9%;
+    --primary:355 78% 48%;--border:220 15% 92%;--muted:220 14% 96%;
+    --muted-foreground:240 3.8% 46.1%;--radius:0.75rem;
+    --macro-protein:0 72% 51%;--macro-fat:38 92% 50%;--macro-carb:217 91% 60%;
+    --ontrack:142 71% 45%;--attention:38 92% 50%;--risk:0 84% 60%;--desk:220 16% 91%;
+  }
+  .dark{--background:240 10% 3.7%;--foreground:0 0% 98%;--card:240 6% 8.4%;--muted:240 4% 11.8%;--muted-foreground:240 5% 64.9%;--border:240 4% 16.5%;--status-ontrack:142 64% 52%;--status-attention:38 92% 55%;--status-risk:0 84% 64%;--desk:240 8% 6%;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Geist',system-ui,sans-serif;background:hsl(var(--desk));color:hsl(var(--foreground));-webkit-font-smoothing:antialiased;padding:40px 24px 80px;}
+  .ttoggle{position:fixed;top:14px;right:16px;z-index:99;border:1px solid hsl(var(--border));background:hsl(var(--card));color:hsl(var(--foreground));border-radius:9px;padding:7px 12px;font-family:inherit;font-size:12px;font-weight:500;cursor:pointer;}
+  .head{max-width:960px;margin:0 auto 22px;}
+  .head h1{font-weight:600;font-size:26px;letter-spacing:-0.02em;}
+  .head p{color:hsl(var(--muted-foreground));font-size:14.5px;margin-top:8px;line-height:1.55;}
+  .head b{color:hsl(var(--primary));font-weight:600;}
+  .stack{max-width:960px;margin:0 auto;display:flex;flex-direction:column;gap:38px;}
+  .label{font-size:13px;font-weight:600;margin-bottom:10px;}
+  .label b{color:hsl(var(--primary));}
+  .label span{color:hsl(var(--muted-foreground));font-weight:400;}
+  .row{display:flex;gap:22px;flex-wrap:wrap;align-items:flex-start;}
+
+  .muted{color:hsl(var(--muted-foreground));}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;}
+  .card{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:12px;}
+  .btn{border:none;border-radius:9px;font-family:inherit;font-size:12.5px;font-weight:600;padding:10px 15px;}
+  .btn.primary{background:hsl(var(--primary));color:#fff;}
+  .btn.outline{background:hsl(var(--card));border:1px solid hsl(var(--border));font-weight:500;color:hsl(var(--foreground));}
+  .chip{font-size:11px;color:hsl(var(--muted-foreground));background:hsl(var(--muted));padding:3px 9px;border-radius:6px;}
+  .badge{font-size:10px;font-weight:500;padding:2px 9px;border-radius:999px;border:1px solid;white-space:nowrap;}
+  .b-head{border-color:hsl(var(--primary)/.4);background:hsl(var(--primary)/.1);color:hsl(var(--primary));}
+  .b-ok{border-color:hsl(var(--ontrack)/.4);background:hsl(var(--ontrack)/.1);color:hsl(var(--ontrack));}
+  .b-at{border-color:hsl(var(--attention)/.4);background:hsl(var(--attention)/.1);color:hsl(var(--attention));}
+  .price{font-family:'Bebas Neue',sans-serif;color:hsl(var(--primary));font-size:24px;line-height:.9;}
+  .stars{color:hsl(var(--attention));font-size:12px;letter-spacing:.5px;}
+
+  .win{border-radius:14px;border:1px solid #d4d7dd;overflow:hidden;box-shadow:0 14px 40px rgba(20,24,33,.16);background:hsl(var(--background));}
+  .dark .win{border-color:hsl(var(--border));}
+  .chrome{height:34px;background:#f1f2f5;border-bottom:1px solid hsl(var(--border));display:flex;align-items:center;gap:7px;padding:0 14px;}
+  .dark .chrome{background:hsl(var(--muted));}
+  .chrome i{width:11px;height:11px;border-radius:50%;background:#cdd0d6;}
+  .nav{display:flex;align-items:center;justify-content:space-between;padding:14px 24px;border-bottom:1px solid hsl(var(--border));}
+  .nav .logo{font-weight:600;font-size:16px;}
+  .nav .links{display:flex;gap:18px;font-size:12.5px;color:hsl(var(--muted-foreground));}
+  .nav .links .on{color:hsl(var(--primary));font-weight:500;}
+  .wbody{padding:24px;}
+  .h2{font-size:22px;font-weight:600;letter-spacing:-0.01em;}
+  .filterbar{display:flex;gap:10px;margin:16px 0;flex-wrap:wrap;}
+  .sel{border:1px solid hsl(var(--border));border-radius:9px;padding:8px 13px;font-size:12.5px;color:hsl(var(--muted-foreground));background:hsl(var(--card));}
+  .sectlab{font-size:11px;font-weight:600;letter-spacing:.03em;text-transform:uppercase;color:hsl(var(--muted-foreground));margin:20px 0 10px;}
+
+  .pgrid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px;}
+  .pcard{border:1px solid hsl(var(--border));border-radius:12px;overflow:hidden;background:hsl(var(--card));}
+  .cover{height:88px;background:linear-gradient(135deg,hsl(var(--primary)/.85),hsl(355 60% 30%));display:flex;align-items:flex-end;padding:9px 11px;color:#fff;font-weight:600;font-size:13px;}
+  .cover.blue{background:linear-gradient(135deg,hsl(var(--macro-carb)/.85),hsl(217 60% 30%));}
+  .cover.grn{background:linear-gradient(135deg,hsl(var(--ontrack)/.85),hsl(142 50% 22%));}
+  .pbody{padding:12px 13px;}
+  .pbody .coach{font-size:11px;color:hsl(var(--muted-foreground));margin-top:3px;}
+  .pmeta{display:flex;gap:6px;flex-wrap:wrap;margin-top:9px;}
+  .pfoot{display:flex;align-items:center;justify-content:space-between;margin-top:12px;}
+
+  .tiles3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+  .tile{background:hsl(var(--muted)/.5);border-radius:10px;padding:11px 12px;text-align:center;}
+  .tile .n{font-family:'Bebas Neue',sans-serif;font-size:24px;line-height:1;}
+  .tile .l{font-size:10.5px;color:hsl(var(--muted-foreground));margin-top:3px;}
+  .inrow{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid hsl(var(--border));font-size:12.5px;}
+  .inrow:last-child{border-bottom:none;}
+
+  .phone{width:320px;height:640px;background:hsl(var(--background));border-radius:34px;border:9px solid #16181d;overflow:hidden;box-shadow:0 12px 38px rgba(20,24,33,.22);flex:none;}
+  .statusbar{height:32px;display:flex;align-items:center;justify-content:space-between;padding:0 20px;font-size:12px;font-weight:500;}
+  .scr{height:calc(100% - 32px);display:flex;flex-direction:column;}
+  .ptop{display:flex;align-items:center;justify-content:space-between;padding:11px 15px 8px;}
+  .ptop h2{font-size:16px;font-weight:600;}
+  .pbody2{flex:1;overflow:hidden;padding:0 14px 12px;}
+
+  .toggle-r{display:flex;align-items:center;justify-content:space-between;padding:12px 0;}
+  .sw{width:34px;height:19px;border-radius:999px;background:hsl(var(--border));position:relative;flex:none;}
+  .sw.on{background:hsl(var(--primary));}
+  .sw i{position:absolute;top:2px;left:2px;width:15px;height:15px;border-radius:50%;background:#fff;}
+  .sw.on i{left:17px;}
+  .radio{width:16px;height:16px;border-radius:50%;border:2px solid hsl(var(--border));flex:none;}
+  .radio.on{border-color:hsl(var(--primary));background:radial-gradient(hsl(var(--primary)) 42%,transparent 46%);}
+  .arow{display:flex;align-items:center;gap:14px;padding:12px 0;border-bottom:1px solid hsl(var(--border));font-size:12.5px;}
+  .arow:last-child{border-bottom:none;}
+</style>
+</head>
+<body class="dark">
+<button class="ttoggle" onclick="document.body.classList.toggle('dark')">◐ Theme</button>
+<div class="head">
+  <h1>IGU — Plans Marketplace · mockups</h1>
+  <p>Coaches sell <b>workout programs</b>; buyers purchase (a <b>one-time</b> charge) and the plan is <b>cloned into their library</b> to start anytime. Screens: the public <b>/plans</b> browse, a <b>listing detail + buy</b>, the buyer <b>library</b> (with a coach <b>sync</b> update), the coach <b>"list on marketplace"</b> toggle, and the <b>admin IGU-cut</b> config. Themed (default dark), flat IGU cards. Spec: <b>docs/PLANS_MARKETPLACE_PLAN.md</b>.</p>
+</div>
+
+<div class="stack">
+
+  <!-- 1 browse -->
+  <div>
+    <div class="label">1 · <b>Public — /plans (browse)</b> <span>· filter by coach / goal / price; each card → detail</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="nav"><div class="logo">IGU</div><div class="links"><span>Services</span><span class="on">Plans</span><span>Meet the Team</span><span>Testimonials</span></div><button class="btn outline" style="padding:7px 13px">Sign in</button></div>
+      <div class="wbody">
+        <div class="h2">Plans marketplace</div>
+        <div class="muted" style="font-size:13px;margin-top:4px">Prebuilt programs from IGU coaches — buy once, keep forever, start anytime.</div>
+        <div class="filterbar"><span class="sel">Coach · All ▾</span><span class="sel">Goal · All ▾</span><span class="sel">Price · Any ▾</span><span class="sel">Sort · Popular ▾</span></div>
+        <div class="pgrid">
+          <div class="pcard"><div class="cover">8-Week Shred</div><div class="pbody"><div style="font-size:13px;font-weight:600">8-Week Shred</div><div class="coach">by Coach Omar</div><div class="pmeta"><span class="chip">Fat loss</span><span class="chip">4 days/wk</span><span class="chip" style="color:hsl(var(--attention))">★ 4.8</span></div><div class="pfoot"><span class="price">15 KWD</span><button class="btn primary" style="padding:7px 12px">View</button></div></div></div>
+          <div class="pcard"><div class="cover blue">Powerbuilder 12</div><div class="pbody"><div style="font-size:13px;font-weight:600">Powerbuilder 12</div><div class="coach">by Coach Dana</div><div class="pmeta"><span class="chip">Strength</span><span class="chip">5 days/wk</span></div><div class="pfoot"><span class="price">20 KWD</span><button class="btn primary" style="padding:7px 12px">View</button></div></div></div>
+          <div class="pcard"><div class="cover grn">Beginner Base</div><div class="pbody"><div style="font-size:13px;font-weight:600">Beginner Base</div><div class="coach">by Coach Sami</div><div class="pmeta"><span class="chip">Beginners</span><span class="chip">3 days/wk</span></div><div class="pfoot"><span class="price">10 KWD</span><button class="btn primary" style="padding:7px 12px">View</button></div></div></div>
+          <div class="pcard"><div class="cover blue">Home Hypertrophy</div><div class="pbody"><div style="font-size:13px;font-weight:600">Home Hypertrophy</div><div class="coach">by Coach Omar</div><div class="pmeta"><span class="chip">Muscle gain</span><span class="chip">4 days/wk</span></div><div class="pfoot"><span class="price">15 KWD</span><button class="btn primary" style="padding:7px 12px">View</button></div></div></div>
+          <div class="pcard"><div class="cover grn">Recomp 10</div><div class="pbody"><div style="font-size:13px;font-weight:600">Recomp 10</div><div class="coach">by Coach Dana</div><div class="pmeta"><span class="chip">Recomp</span><span class="chip">4 days/wk</span></div><div class="pfoot"><span class="price">18 KWD</span><button class="btn primary" style="padding:7px 12px">View</button></div></div></div>
+          <div class="pcard"><div class="cover">Peak Week</div><div class="pbody"><div style="font-size:13px;font-weight:600">Peak Week</div><div class="coach">by Coach Omar</div><div class="pmeta"><span class="chip">Prep</span><span class="chip">1 wk</span></div><div class="pfoot"><span class="price">8 KWD</span><button class="btn primary" style="padding:7px 12px">View</button></div></div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2 detail + buy -->
+  <div>
+    <div class="label">2 · <b>Listing detail + Buy</b> <span>· "what's inside" + one-time purchase → added to library forever</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="nav"><div class="logo">IGU</div><div class="links"><span>Services</span><span class="on">Plans</span><span>Meet the Team</span><span>Testimonials</span></div><button class="btn outline" style="padding:7px 13px">Sign in</button></div>
+      <div class="wbody">
+        <div class="row" style="gap:24px">
+          <div style="flex:1;min-width:300px">
+            <div class="cover" style="height:120px;border-radius:12px;font-size:16px">8-Week Shred</div>
+            <div style="display:flex;align-items:center;gap:8px;margin-top:14px"><span class="h2" style="font-size:20px">8-Week Shred</span></div>
+            <div class="muted" style="font-size:12.5px;margin-top:3px">by <span style="color:hsl(var(--primary))">Coach Omar</span> · Head Coach</div>
+            <div style="margin-top:7px"><span class="stars">★★★★★</span> <span class="mono muted" style="font-size:11px">4.8 · 42 buyer reviews</span></div>
+            <div class="tiles3" style="margin-top:14px">
+              <div class="tile"><div class="n">8</div><div class="l">weeks</div></div>
+              <div class="tile"><div class="n">4</div><div class="l">days / week</div></div>
+              <div class="tile"><div class="n">32</div><div class="l">sessions</div></div>
+            </div>
+            <div class="sectlab">About this plan</div>
+            <div class="muted" style="font-size:13px;line-height:1.6">An 8-week upper/lower cut built for busy schedules — progressive overload, minimal equipment, clear weekly targets. Log every session in your IGU app.</div>
+            <div class="sectlab">What's inside</div>
+            <div class="card" style="padding:4px 15px">
+              <div class="inrow"><span>Split</span><span class="muted">Upper / Lower · 4×</span></div>
+              <div class="inrow"><span>Progression</span><span class="muted">Weekly load + rep targets</span></div>
+              <div class="inrow"><span>Logs to</span><span class="muted">Your IGU workout logger</span></div>
+            </div>
+          </div>
+          <div style="width:260px;flex:none">
+            <div class="card" style="padding:16px">
+              <div style="display:flex;align-items:baseline;gap:8px"><span class="price" style="font-size:34px">15</span><span class="muted mono" style="font-size:12px">KWD · one-time</span></div>
+              <div class="muted" style="font-size:11px;margin-top:8px;line-height:1.5">Buy once — added to your library forever. Start whenever you're ready.</div>
+              <div style="background:hsl(var(--muted)/.5);border-radius:9px;padding:9px 11px;margin-top:11px;font-size:10.5px;line-height:1.45;color:hsl(var(--muted-foreground))"><b style="color:hsl(var(--foreground))">Self-guided</b> — no check-ins, adjustments, or coach messaging. You follow the plan; swap exercises or add sets as you log.</div>
+              <div style="display:flex;gap:8px;align-items:flex-start;margin-top:10px;font-size:10.5px;line-height:1.4"><span style="width:15px;height:15px;border-radius:4px;background:hsl(var(--primary));color:#fff;display:flex;align-items:center;justify-content:center;font-size:9px;flex:none">✓</span><span class="muted">I've read the waiver — self-guided; I'll consult a physician; IGU isn't supervising.</span></div>
+              <button class="btn primary" style="width:100%;margin-top:12px">Buy plan</button>
+              <div class="badge b-ok" style="display:block;text-align:center;margin-top:10px">✓ Yours to keep · syncs coach updates</div>
+              <div class="muted" style="font-size:10px;text-align:center;margin-top:9px">No coach or subscription needed to buy</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3 library + 4 coach toggle (phones/panels) -->
+  <div>
+    <div class="label">3–4 · <b>Buyer library</b> + <b>coach "list on marketplace"</b> <span>· purchased plans (with a sync update) · coach lists a template</span></div>
+    <div class="row">
+      <!-- 3 library -->
+      <div class="phone"><div class="statusbar"><span>9:41</span><span>5G ▮</span></div>
+        <div class="scr">
+          <div class="ptop"><h2>My plans</h2><span class="chip">Library</span></div>
+          <div class="pbody2">
+            <div class="muted" style="font-size:11px;margin:2px 2px 8px">Purchased programs — start or continue anytime.</div>
+            <div class="card" style="overflow:hidden;margin-bottom:10px">
+              <div class="cover" style="height:64px;font-size:12px">8-Week Shred</div>
+              <div style="padding:11px 13px"><div style="font-size:13px;font-weight:600">8-Week Shred</div><div class="muted" style="font-size:11px;margin-top:2px">by Coach Omar · Week 3 of 8</div>
+                <div class="badge b-at" style="display:inline-block;margin-top:8px">⟳ Coach update available</div>
+                <div style="display:flex;gap:8px;margin-top:10px"><button class="btn primary" style="flex:1;padding:8px">Continue</button><button class="btn outline" style="flex:1;padding:8px">Update</button></div>
+              </div>
+            </div>
+            <div class="card" style="overflow:hidden">
+              <div class="cover grn" style="height:64px;font-size:12px">Beginner Base</div>
+              <div style="padding:11px 13px"><div style="font-size:13px;font-weight:600">Beginner Base</div><div class="muted" style="font-size:11px;margin-top:2px">by Coach Sami · Not started</div>
+                <button class="btn primary" style="width:100%;margin-top:10px;padding:8px">Start plan</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 4 coach list toggle -->
+      <div style="flex:1;min-width:320px">
+        <div class="win">
+          <div class="chrome"><i></i><i></i><i></i></div>
+          <div class="wbody" style="padding:20px">
+            <div class="muted" style="font-size:11px">Programs › 8-Week Shred <span class="chip" style="font-size:9px;padding:1px 6px">Mesocycle</span></div>
+            <div class="h2" style="font-size:17px;margin-top:6px">Marketplace</div>
+            <div class="card" style="padding:4px 16px;margin-top:12px">
+              <div class="toggle-r"><div><div style="font-size:13px;font-weight:500">List on marketplace</div><div class="muted" style="font-size:11px;margin-top:2px">Show on /plans + your coach page</div></div><span class="sw on"><i></i></span></div>
+              <div class="toggle-r" style="border-top:1px solid hsl(var(--border))"><div><div style="font-size:13px;font-weight:500">Price</div><div class="muted" style="font-size:11px;margin-top:2px">One-time · KWD</div></div><span class="mono" style="border:1px solid hsl(var(--border));border-radius:8px;padding:6px 12px;font-size:13px">15</span></div>
+            </div>
+            <div class="card" style="padding:12px 16px;margin-top:12px;font-size:11.5px;color:hsl(var(--muted-foreground))">List a <b style="color:hsl(var(--foreground))">mesocycle</b> or a whole <b style="color:hsl(var(--foreground))">macrocycle</b>, right from the programs area. Buyers get a <b style="color:hsl(var(--foreground))">clone</b>; edit &amp; <b style="color:hsl(var(--foreground))">Sync</b> later to push updates to everyone who bought it.</div>
+            <div style="display:flex;gap:9px;margin-top:14px"><button class="btn primary">Save listing</button><button class="btn outline">Sync update to buyers</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5 admin -->
+  <div>
+    <div class="label">5 · <b>Admin — marketplace settings + sales</b> <span>· IGU cut (percent or fixed) + listings / payouts</span></div>
+    <div class="win">
+      <div class="chrome"><i></i><i></i><i></i></div>
+      <div class="wbody" style="padding:20px 24px">
+        <div class="h2" style="font-size:18px">Marketplace</div>
+        <div class="row" style="gap:16px;margin-top:14px;align-items:stretch">
+          <div class="card" style="padding:16px;width:260px;flex:none">
+            <div class="sectlab" style="margin-top:0">IGU cut per sale</div>
+            <div class="arow" style="border:none;padding:8px 0"><span class="radio on"></span><div style="flex:1">Percentage</div><span class="mono" style="border:1px solid hsl(var(--border));border-radius:8px;padding:5px 10px;font-size:12px">20 %</span></div>
+            <div class="arow" style="padding:8px 0"><span class="radio"></span><div style="flex:1">Fixed amount</div><span class="mono muted" style="border:1px solid hsl(var(--border));border-radius:8px;padding:5px 10px;font-size:12px">— KWD</span></div>
+            <div class="muted" style="font-size:10.5px;margin-top:8px">Applies to every sale. The rest is the coach's payout.</div>
+            <button class="btn primary" style="width:100%;margin-top:12px">Save</button>
+          </div>
+          <div class="card" style="padding:16px;flex:1">
+            <div class="sectlab" style="margin-top:0">Listings &amp; sales</div>
+            <div class="arow"><div style="flex:1"><div style="font-size:12.5px;font-weight:500">8-Week Shred <span class="muted" style="font-weight:400">· Omar</span></div><div class="muted mono" style="font-size:10.5px">15 KWD · 42 sales</div></div><span class="mono muted" style="font-size:11px">IGU 126 · coach 504</span><span class="badge b-ok">Listed</span></div>
+            <div class="arow"><div style="flex:1"><div style="font-size:12.5px;font-weight:500">Powerbuilder 12 <span class="muted" style="font-weight:400">· Dana</span></div><div class="muted mono" style="font-size:10.5px">20 KWD · 18 sales</div></div><span class="mono muted" style="font-size:11px">IGU 72 · coach 288</span><span class="badge b-ok">Listed</span></div>
+            <div class="arow"><div style="flex:1"><div style="font-size:12.5px;font-weight:500">Peak Week <span class="muted" style="font-weight:400">· Omar</span></div><div class="muted mono" style="font-size:10.5px">8 KWD · 5 sales</div></div><span class="mono muted" style="font-size:11px">IGU 8 · coach 32</span><span class="badge" style="border-color:hsl(var(--border));color:hsl(var(--muted-foreground))">Unlist ✕</span></div>
+          </div>
+        </div>
+        <div class="muted" style="font-size:11px;margin-top:14px">Admin sets the cut. Coaches <b style="color:hsl(var(--foreground))">self-list instantly</b> — the admin can <b style="color:hsl(var(--foreground))">unlist</b> a plan if there's a problem (no pre-approval gate). Coach payouts flow through the existing payout ops.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>
