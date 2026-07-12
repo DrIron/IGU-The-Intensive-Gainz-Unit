@@ -17,10 +17,11 @@ import {
   ChevronUp,
   Clock,
   ClipboardCheck,
-  Loader2,
   Sparkles,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { LoadError } from "@/components/ui/load-error";
+import { TabShellSkeleton } from "@/components/ui/loading-skeleton";
 import { cn } from "@/lib/utils";
 import { formatSnakeCase } from "@/lib/statusUtils";
 import { DirectClientCalendar } from "@/components/coach/programs/DirectClientCalendar";
@@ -67,6 +68,7 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
 
   const [direct, setDirect] = useState<DirectSession[]>([]);
   const [directLoading, setDirectLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const [coachId, setCoachId] = useState<string | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [logTarget, setLogTarget] = useState<UnusedAddonRow | null>(null);
@@ -108,7 +110,9 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
     if (hasFetched.current === key) return;
     hasFetched.current = key;
     load(clientUserId).catch((err) => {
+      // CC10: was swallowed -> the tab rendered "no sessions" on a failed fetch.
       console.error("[SessionsTab] unexpected:", err);
+      setLoadError(err instanceof Error ? err : new Error(String(err)));
       setDirectLoading(false);
     });
   }, [clientUserId, subscription?.id, load]);
@@ -133,15 +137,20 @@ export function SessionsTab({ context }: ClientOverviewTabProps) {
   }, [unusedAddons, pastLogs]);
 
   if (directLoading) {
+    return <TabShellSkeleton cards={2} />;
+  }
+
+  if (loadError) {
     return (
-      <Card>
-        <CardContent className="py-8 flex items-center justify-center">
-          <Loader2
-            className="h-5 w-5 animate-spin text-muted-foreground"
-            aria-hidden="true"
-          />
-        </CardContent>
-      </Card>
+      <LoadError
+        message="We couldn't load this client's sessions. Check your connection and try again."
+        onRetry={() => {
+          setLoadError(null);
+          setDirectLoading(true);
+          hasFetched.current = null;
+          void load(clientUserId);
+        }}
+      />
     );
   }
 

@@ -2,6 +2,8 @@ import { useState, useEffect, useCallback, useRef, memo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { LoadError } from "@/components/ui/load-error";
+import { MetricCardGridSkeleton } from "@/components/ui/loading-skeleton";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { Loader2, Users2, ChevronRight, Award, Dumbbell, TrendingUp, ClipboardCheck, type LucideIcon } from "lucide-react";
@@ -39,6 +41,7 @@ interface DashboardMetrics {
 export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboardOverviewProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const hasFetched = useRef(false);
   // CO1: single roster-attention source — the banner headline + the Check-ins
   // Due card both read THIS (deduped server-side, same number as the sidebar
@@ -242,7 +245,10 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
       });
 
     } catch (error: unknown) {
+      // CC10: the toast is transient — once it fades the dashboard renders as if every
+      // metric were genuinely zero. Keep the toast, but also hold the error state.
       console.error("Error fetching dashboard metrics:", error);
+      setError(error instanceof Error ? error : new Error(String(error)));
       toast({
         title: "Error",
         description: sanitizeErrorForUser(error),
@@ -266,10 +272,15 @@ export function CoachDashboardOverview({ coachUserId, onNavigate }: CoachDashboa
   }, [onNavigate]);
 
   if (loading) {
+    return <MetricCardGridSkeleton className="min-h-[400px] content-start" />;
+  }
+
+  if (error) {
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
-      </div>
+      <LoadError
+        message="We couldn't load your dashboard metrics. Check your connection and try again."
+        onRetry={() => { setError(null); void fetchDashboardMetrics(); }}
+      />
     );
   }
 

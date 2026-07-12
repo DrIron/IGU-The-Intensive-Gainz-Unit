@@ -8,6 +8,8 @@ import { CoachPublicProfile, deriveCoachHeadline } from "@/components/coach/Coac
 import { WeightChangeProof } from "@/components/testimonials/WeightChangeProof";
 import { type WeightChangeShape } from "@/lib/weightChangeFormat";
 import { SEOHead } from "@/components/SEOHead";
+import { LoadError } from "@/components/ui/load-error";
+import { captureException } from "@/lib/errorLogging";
 import { Button } from "@/components/ui/button";
 
 /** Shape of the get_coach_public_profile_by_slug RPC jsonb payload. */
@@ -57,6 +59,9 @@ export default function CoachPublicPage() {
   const [aggregate, setAggregate] = useState<{ count: number; avg: number | null }>({ count: 0, avg: null });
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+  const [loadError, setLoadError] = useState<Error | null>(null);
+  /** Bumped by LoadError\'s Retry to re-run the fetch effect. */
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,6 +72,7 @@ export default function CoachPublicPage() {
     }
     setLoading(true);
     setNotFound(false);
+    setLoadError(null);
     setProfile(null);
     setClientBand(null);
     setReputation([]);
@@ -76,7 +82,15 @@ export default function CoachPublicPage() {
       try {
         const { data, error } = await supabase.rpc("get_coach_public_profile_by_slug", { p_slug: slug });
         if (cancelled) return;
-        if (error || !data) {
+        // CC10: an RPC/network FAILURE is not a 404. Collapsing them told a visitor the
+        // coach doesn't exist whenever the request merely failed — and gave them no retry.
+        // `!data` (the RPC returned null) IS the genuine not-found case; `error` is not.
+        if (error) {
+          captureException(error, { source: "CoachPublicPage.getProfile" });
+          setLoadError(error instanceof Error ? error : new Error(String(error)));
+          return;
+        }
+        if (!data) {
           setNotFound(true);
           return;
         }
@@ -95,8 +109,11 @@ export default function CoachPublicPage() {
         setReputation((repRes.data as unknown as ReputationItem[]) ?? []);
         const agg = aggRes.data as unknown as { count: number; avg: number | null } | null;
         setAggregate(agg ?? { count: 0, avg: null });
-      } catch {
-        if (!cancelled) setNotFound(true);
+      } catch (err) {
+        if (!cancelled) {
+          captureException(err, { source: "CoachPublicPage.load" });
+          setLoadError(err instanceof Error ? err : new Error(String(err)));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -105,7 +122,7 @@ export default function CoachPublicPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, reloadKey]);
 
   if (loading) {
     return (
@@ -118,6 +135,17 @@ export default function CoachPublicPage() {
             <div className="h-20 w-full animate-pulse rounded bg-muted" />
           </div>
         </div>
+      </div>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="mx-auto max-w-md px-4 py-20">
+        <LoadError
+          message="We couldn't load this coach profile. Check your connection and try again."
+          onRetry={() => setReloadKey((k) => k + 1)}
+        />
       </div>
     );
   }

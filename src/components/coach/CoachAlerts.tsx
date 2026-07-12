@@ -3,6 +3,9 @@ import { AlertCircle, FileWarning, UserPlus } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfIguWeek } from "@/lib/weekUtils";
+import { Skeleton } from "@/components/ui/skeleton";
+import { LoadError } from "@/components/ui/load-error";
+import { captureException } from "@/lib/errorLogging";
 
 interface CoachAlertsProps {
   coachUserId: string;
@@ -14,20 +17,23 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
   const [paymentIssuesCount, setPaymentIssuesCount] = useState(0);
   const [newSignupsCount, setNewSignupsCount] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
 
   const loadAlerts = useCallback(async () => {
+    setError(null);
     try {
       // Get coach's ID from coaches table
-      const { data: coach } = await supabase
+      const { data: coach, error: coachErr } = await supabase
         .from('coaches')
         .select('id')
         .eq('user_id', coachUserId)
         .single();
+      if (coachErr) throw coachErr;
 
       if (!coach) return;
 
       // Get all 1:1 clients for this coach
-      const { data: subscriptions } = await supabase
+      const { data: subscriptions, error: subsErr } = await supabase
         .from('subscriptions')
         .select(`
           user_id,
@@ -38,6 +44,7 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
         `)
         .eq('coach_id', coach.id)
         .eq('status', 'active');
+      if (subsErr) throw subsErr;
 
       if (!subscriptions) return;
 
@@ -73,11 +80,12 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
       }
 
       // Check payment issues
-      const { data: paymentIssues } = await supabase
+      const { data: paymentIssues, error: payErr } = await supabase
         .from('subscriptions')
         .select('id')
         .eq('coach_id', coach.id)
         .in('status', ['payment_failed', 'inactive']);
+      if (payErr) throw payErr;
 
       setPaymentIssuesCount(paymentIssues?.length || 0);
 
@@ -85,16 +93,20 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
       const sevenDaysAgo = new Date();
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-      const { data: newSignups } = await supabase
+      const { data: newSignups, error: signupErr } = await supabase
         .from('subscriptions')
         .select('id')
         .eq('coach_id', coach.id)
         .gte('created_at', sevenDaysAgo.toISOString());
+      if (signupErr) throw signupErr;
 
       setNewSignupsCount(newSignups?.length || 0);
 
-    } catch (error) {
-      console.error('Error loading alerts:', error);
+    } catch (err) {
+      // CC10: an alerts fetch that fails must NOT render as "0 alerts" — that told
+      // the coach everything was fine on the one surface whose job is to say otherwise.
+      captureException(err, { source: 'CoachAlerts.loadAlerts' });
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setLoading(false);
     }
@@ -105,7 +117,26 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
   }, [loadAlerts]);
 
   if (loading) {
-    return <div className="text-sm text-muted-foreground">Loading alerts...</div>;
+    // Layout-shaped: three cards, so the real alerts land where the skeleton was.
+    return (
+      <div className="grid gap-4 md:grid-cols-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="rounded-lg border border-border bg-card p-4">
+            <Skeleton className="h-4 w-24" />
+            <Skeleton className="mt-3 h-7 w-10" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <LoadError
+        message="We couldn't load your alerts. They may be out of date — check your connection."
+        onRetry={() => { void loadAlerts(); }}
+      />
+    );
   }
 
   return (

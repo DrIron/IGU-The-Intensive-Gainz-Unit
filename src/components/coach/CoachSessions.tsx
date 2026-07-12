@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
+import { LoadError } from "@/components/ui/load-error";
+import { TabShellSkeleton } from "@/components/ui/loading-skeleton";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -45,6 +47,7 @@ interface TimeSlot {
 export function CoachSessions({ coachUserId }: CoachSessionsProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [upcomingSessions, setUpcomingSessions] = useState<SessionBooking[]>([]);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
@@ -155,7 +158,9 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
 
       setUpcomingSessions(sessions);
     } catch (error) {
+      // CC10: the toast fades and the page then reads "No upcoming sessions booked".
       console.error("Error fetching upcoming sessions:", error);
+      setError(error instanceof Error ? error : new Error(String(error)));
       toast({
         title: "Error",
         description: "Failed to load upcoming sessions",
@@ -403,10 +408,15 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
   }, {} as Record<string, TimeSlot[]>);
 
   if (loading) {
+    return <TabShellSkeleton cards={3} />;
+  }
+
+  if (error) {
     return (
-      <div className="flex items-center justify-center py-12">
-        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-      </div>
+      <LoadError
+        message="We couldn't load your sessions. Check your connection and try again."
+        onRetry={() => { setError(null); void fetchData(); }}
+      />
     );
   }
 

@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { TabShellSkeleton } from "@/components/ui/loading-skeleton";
 import { Link } from "react-router-dom";
 import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, ChevronLeft, UserX, Users } from "lucide-react";
+import { ChevronLeft, UserX, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { ClientOverviewHeader } from "@/components/client-overview/ClientOverviewHeader";
@@ -204,11 +205,7 @@ export function ClientOverviewPanel({ clientUserId }: { clientUserId?: string })
   }
 
   if (state.kind === "loading") {
-    return (
-      <div className="flex items-center justify-center py-24">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" aria-hidden="true" />
-      </div>
-    );
+    return <TabShellSkeleton cards={3} />;
   }
 
   if (state.kind === "not-found") return <NotFoundState />;

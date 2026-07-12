@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Users, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { LoadError } from "@/components/ui/load-error";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { CareTeamCard } from "@/components/coach/CareTeamCard";
 import { CareTeamMessagesPanel } from "@/components/nutrition/CareTeamMessagesPanel";
@@ -45,6 +46,7 @@ export function CareTeamTab({ context }: ClientOverviewTabProps) {
   // isPrimaryCoach / isAdmin.
   const [isCareTeamMember, setIsCareTeamMember] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const hasFetched = useRef<string | null>(null);
 
   const load = useCallback(async (subscriptionId: string, viewerUserId: string | null) => {
@@ -112,10 +114,26 @@ export function CareTeamTab({ context }: ClientOverviewTabProps) {
     }
 
     load(subscription.id, viewerId).catch((err) => {
+      // CC10: was swallowed -> the tab rendered an empty care team on a failed fetch.
       console.error("[CareTeamTab] unexpected:", err);
+      setLoadError(err instanceof Error ? err : new Error(String(err)));
       setLoading(false);
     });
   }, [clientUserId, subscription?.id, viewerId, load]);
+
+  if (loadError) {
+    return (
+      <LoadError
+        message="We couldn't load this client's care team. Check your connection and try again."
+        onRetry={() => {
+          setLoadError(null);
+          setLoading(true);
+          hasFetched.current = null;
+          if (subscription?.id && viewerId) void load(subscription.id, viewerId);
+        }}
+      />
+    );
+  }
 
   if (!subscription) {
     return (

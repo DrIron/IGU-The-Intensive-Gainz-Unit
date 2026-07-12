@@ -140,3 +140,87 @@ export function PageLoadingSkeleton({ className }: { className?: string }) {
     </div>
   );
 }
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * CC6 — layout-shaped shells.
+ *
+ * The coach side was spinner-only (53 files on Loader2, 4 on Skeleton). A
+ * centered spinner tells the user nothing about what is coming and causes a
+ * layout jump when it resolves. These mirror the real components' boxes so the
+ * content lands in the space the skeleton was already holding.
+ *
+ * Build 3 shells and swap; do NOT hand-write a skeleton per file.
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Mirrors the CC1 MetricCard grid: label bar · hero number · sparkline strip. */
+export function MetricCardGridSkeleton({
+  count = 4,
+  className,
+}: {
+  count?: number;
+  className?: string;
+}) {
+  return (
+    <div className={cn("grid grid-cols-2 gap-4 lg:grid-cols-4", className)}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div key={i} className="rounded-lg border border-border bg-card p-4">
+          <Skeleton className="h-3 w-20" />
+          <Skeleton className="mt-3 h-7 w-16" />
+          <Skeleton className="mt-3 h-6 w-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Mirrors a roster row: avatar · name + meta · trailing pill. */
+export function RosterRowSkeleton({
+  count = 5,
+  className,
+}: {
+  count?: number;
+  className?: string;
+}) {
+  return (
+    <div className={cn("space-y-2", className)}>
+      {Array.from({ length: count }).map((_, i) => (
+        <div
+          key={i}
+          className="flex items-center gap-3 rounded-lg border border-border bg-card p-3"
+        >
+          <Skeleton className="h-10 w-10 shrink-0 rounded-full" />
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton className="h-4 w-40" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+          <Skeleton className="h-6 w-16 shrink-0 rounded-full" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/** Mirrors a tab/panel shell: header bar + stacked cards. */
+export function TabShellSkeleton({
+  cards = 3,
+  className,
+}: {
+  cards?: number;
+  className?: string;
+}) {
+  return (
+    <div className={cn("space-y-4", className)}>
+      <div className="flex items-center justify-between">
+        <Skeleton className="h-5 w-40" />
+        <Skeleton className="h-8 w-24 rounded-md" />
+      </div>
+      {Array.from({ length: cards }).map((_, i) => (
+        <div key={i} className="space-y-2 rounded-lg border border-border bg-card p-4">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-2/3" />
+        </div>
+      ))}
+    </div>
+  );
+}

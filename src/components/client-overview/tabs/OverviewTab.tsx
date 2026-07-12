@@ -14,6 +14,7 @@ import {
   Calendar,
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { LoadError } from "@/components/ui/load-error";
 import { cn } from "@/lib/utils";
 import { formatDistanceToNowStrict } from "date-fns";
 import type { ClientOverviewTabProps } from "../types";
@@ -51,6 +52,7 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
   const { clientUserId } = context;
   const [stats, setStats] = useState<OverviewStats>(EMPTY);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const hasFetched = useRef<string | null>(null);
 
   const load = useCallback(async (userId: string) => {
@@ -116,10 +118,26 @@ export function OverviewTab({ context }: ClientOverviewTabProps) {
     if (hasFetched.current === clientUserId) return;
     hasFetched.current = clientUserId;
     load(clientUserId).catch((err) => {
+      // CC10: was swallowed -> the overview rendered blank/zeroed on a failed fetch.
       console.error("[OverviewTab] unexpected:", err);
+      setLoadError(err instanceof Error ? err : new Error(String(err)));
       setLoading(false);
     });
   }, [clientUserId, load]);
+
+  if (loadError) {
+    return (
+      <LoadError
+        message="We couldn't load this client's overview. Check your connection and try again."
+        onRetry={() => {
+          setLoadError(null);
+          setLoading(true);
+          hasFetched.current = null;
+          void load(clientUserId);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
