@@ -64,5 +64,10 @@
   "coachTestimonialsWithdrawn": "Client withdrew this.",
   "coachTestimonialsHidden": "Hidden by IGU.",
   "coachReviewsCount": "{{count}} reviews",
-  "coachReviewsCountOne": "1 review"
+  "coachReviewsCountOne": "1 review",
+  "testimonialsAllCoaches": "All coaches",
+  "testimonialsAllGoals": "All goals",
+  "testimonialsSortFeatured": "Featured",
+  "testimonialsSortRecent": "Most recent",
+  "testimonialsSortRating": "Highest rated"
 }

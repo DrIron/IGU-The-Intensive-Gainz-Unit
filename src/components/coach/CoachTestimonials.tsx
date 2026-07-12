@@ -9,8 +9,7 @@ import { Star } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { captureException } from "@/lib/errorLogging";
-
-type Attribution = "full_name" | "first_initial" | "anonymous";
+import { deriveDisplayName, type Attribution } from "@/lib/testimonialAttribution";
 
 interface CoachTestimonialRow {
   id: string;
@@ -22,20 +21,6 @@ interface CoachTestimonialRow {
   withdrawn_at: string | null;
   hidden_by_admin: boolean;
   show_on_coach_page: boolean;
-}
-
-/**
- * Mirror of get_coach_public_testimonials' server-side derivation so the coach
- * sees exactly the name the public sees. full_name → snapshot; first_initial →
- * "First L." (fallback first token); anonymous → "IGU client".
- */
-function deriveDisplayName(attribution: Attribution, authorDisplayName: string | null): string {
-  const raw = (authorDisplayName ?? "").trim();
-  if (attribution === "anonymous") return "IGU client";
-  if (attribution === "full_name") return raw || "IGU client";
-  const [first, second] = raw.split(/\s+/);
-  if (first && second) return `${first} ${second.charAt(0)}.`;
-  return first || "IGU client";
 }
 
 function Stars({ rating }: { rating: number }) {

@@ -64,5 +64,10 @@
   "coachTestimonialsWithdrawn": "سحبها العميل.",
   "coachTestimonialsHidden": "مخفية بواسطة IGU.",
   "coachReviewsCount": "{{count}} تقييم",
-  "coachReviewsCountOne": "تقييم واحد"
+  "coachReviewsCountOne": "تقييم واحد",
+  "testimonialsAllCoaches": "كل المدربين",
+  "testimonialsAllGoals": "كل الأهداف",
+  "testimonialsSortFeatured": "المميزة",
+  "testimonialsSortRecent": "الأحدث",
+  "testimonialsSortRating": "الأعلى تقييمًا"
 }
