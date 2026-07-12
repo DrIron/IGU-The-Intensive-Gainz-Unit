@@ -3,14 +3,15 @@ import { type BoardDayOption } from "@/lib/boardDates";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Copy, ClipboardPaste, Plus, Clock } from "lucide-react";
+import { Copy, ClipboardPaste, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   estimateSessionDuration,
-  formatDurationRange,
   type SetDurationInputs,
 } from "@/lib/sessionDuration";
 import { SessionBlock } from "./SessionBlock";
+import { MuscleDistributionRibbon } from "../shared/MuscleDistributionRibbon";
+import { ProgramStatStrip } from "../shared/ProgramStatStrip";
 import {
   DAYS_OF_WEEK,
   ACTIVITY_TYPE_LABELS,
@@ -290,33 +291,8 @@ export const DayColumn = memo(function DayColumn({
             )}
           </div>
         </div>
-        {(totalSets > 0 || sessionDuration) && (
-          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[10px] font-mono text-muted-foreground">
-            {totalSets > 0 && <span>{totalSets} sets</span>}
-            {sessionDuration && (
-              <span
-                className="inline-flex items-center gap-0.5"
-                title={sessionDuration.inferred
-                  ? "Estimate assumes 2-4s/rep tempo and 60-120s rest when not set"
-                  : "Estimated session duration"}
-              >
-                <Clock className="h-2.5 w-2.5" aria-hidden />
-                {formatDurationRange(sessionDuration.minSeconds, sessionDuration.maxSeconds)}
-              </span>
-            )}
-          </div>
-        )}
-        {/* Muscle-distribution ribbon */}
-        {muscleDistribution.length > 0 && (
-          <div
-            className="mt-1.5 h-[2px] w-full flex overflow-hidden rounded-full bg-muted/30"
-            aria-hidden
-          >
-            {muscleDistribution.map(({ id, colorHex, pct }) => (
-              <div key={id} style={{ width: `${pct}%`, backgroundColor: colorHex }} />
-            ))}
-          </div>
-        )}
+        <ProgramStatStrip sets={totalSets} duration={sessionDuration} className="mt-1" />
+        <MuscleDistributionRibbon segments={muscleDistribution} className="mt-1.5" />
       </CardHeader>
       <CardContent className="p-2 pt-0">
         {daySessions.length === 0 ? (

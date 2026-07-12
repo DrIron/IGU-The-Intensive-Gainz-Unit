@@ -1,6 +1,4 @@
 import { memo, useState, useCallback } from "react";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -9,31 +7,16 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { BarChart3, List, X, Info } from "lucide-react";
-import {
-  getLandmarkColor,
-  getLandmarkBgColor,
-  getLandmarkLabel,
-} from "@/types/muscle-builder";
+import { getLandmarkBgColor } from "@/types/muscle-builder";
+import { LandmarkZoneChip } from "../shared/LandmarkZoneChip";
+import { VolumeTiles } from "../shared/VolumeTiles";
+import { formatTustRange } from "../shared/volumeFormat";
 import type { MuscleVolumeEntry, VolumeSummary } from "../muscle-builder/hooks/useMusclePlanVolume";
 
 interface VolumeOverviewProps {
   entries: MuscleVolumeEntry[];
   summary: VolumeSummary;
   onMuscleClick?: (muscleId: string) => void;
-}
-
-/** Format seconds as minutes with 1 decimal, or seconds if < 60 */
-function formatTust(seconds: number): string {
-  if (seconds === 0) return '0s';
-  if (seconds < 60) return `${seconds}s`;
-  return `${(seconds / 60).toFixed(1)} min`;
-}
-
-/** Format TUST range */
-function formatTustRange(min: number, max: number): string {
-  if (min === 0 && max === 0) return '0s';
-  if (min === max) return formatTust(min);
-  return `${formatTust(min)}-${formatTust(max)}`;
 }
 
 export const VolumeOverview = memo(function VolumeOverview({
@@ -77,15 +60,7 @@ export const VolumeOverview = memo(function VolumeOverview({
 
       {/* Summary cards */}
       <div className="flex items-center justify-between gap-2">
-        <div className={`grid gap-2 flex-1 ${isDetailed ? 'grid-cols-2 sm:grid-cols-5' : 'grid-cols-2 sm:grid-cols-4'}`}>
-          <SummaryCard label="Total Sets" value={summary.totalSets} />
-          <SummaryCard label="Muscles" value={summary.musclesTargeted} />
-          <SummaryCard label="Training Days" value={summary.trainingDays} />
-          <SummaryCard label="Avg Sets/Muscle" value={summary.avgSetsPerMuscle} />
-          {isDetailed && summary.totalTustSecondsMax > 0 && (
-            <SummaryCard label="Total TUST" value={formatTustRange(summary.totalTustSecondsMin, summary.totalTustSecondsMax)} isString />
-          )}
-        </div>
+        <VolumeTiles summary={summary} detailed={isDetailed} />
 
         {/* View mode toggle */}
         <div className="flex items-center gap-0.5 border rounded-md p-0.5 shrink-0">
@@ -164,12 +139,7 @@ export const VolumeOverview = memo(function VolumeOverview({
                     </div>
 
                     {/* Zone badge */}
-                    <Badge
-                      variant="outline"
-                      className={`text-[10px] shrink-0 w-16 justify-center ${getLandmarkColor(entry.zone)}`}
-                    >
-                      {getLandmarkLabel(entry.zone)}
-                    </Badge>
+                    <LandmarkZoneChip zone={entry.zone} />
 
                     {/* Frequency */}
                     <span className="text-[10px] text-muted-foreground w-5 text-right shrink-0">
@@ -218,14 +188,3 @@ export const VolumeOverview = memo(function VolumeOverview({
     </div>
   );
 });
-
-function SummaryCard({ label, value, isString }: { label: string; value: number | string; isString?: boolean }) {
-  return (
-    <Card className="bg-muted/30">
-      <CardContent className="p-3">
-        <p className="text-[10px] text-muted-foreground uppercase tracking-wider">{label}</p>
-        <p className={`font-mono font-bold ${isString ? 'text-sm' : 'text-lg'}`}>{value}</p>
-      </CardContent>
-    </Card>
-  );
-}
