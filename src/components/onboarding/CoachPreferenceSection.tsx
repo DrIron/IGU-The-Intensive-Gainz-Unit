@@ -13,15 +13,34 @@ import { supabase } from "@/integrations/supabase/client";
 import { Loader2, Sparkles, CheckCircle2, AlertCircle, Users, Star, Eye, MapPin } from "lucide-react";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
 import { CoachDetailDialog } from "@/components/CoachDetailDialog";
+import { deriveCoachHeadline } from "@/components/coach/CoachPublicProfile";
 
 interface Coach {
   id: string;
   user_id: string;
   first_name: string;
   last_name: string | null;
+  nickname: string | null;
+  /** Deep-links the profile dialog to the public /coaches/:slug page. */
+  slug: string | null;
   profile_picture_url: string | null;
   short_bio: string | null;
+  bio: string | null;
   specializations: string[] | null;
+  // Public profile fields (ON2) — the same set get_coach_public_profile_by_slug
+  // already serves anon on /coaches/:slug. Every one is null-omitted by
+  // CoachPublicProfile, so a half-filled coach renders no empty headers.
+  location: string | null;
+  qualifications: string[] | null;
+  intro_video_url: string | null;
+  years_experience: number | null;
+  is_head_coach: boolean | null;
+  head_coach_specialisation: string | null;
+  coach_level: string | null;
+  socials: { instagram?: string | null; tiktok?: string | null; youtube?: string | null; snapchat?: string | null } | null;
+  gyms: { id: string; name: string }[] | null;
+  /** Active clients floored to the nearest 10, null under 10 (engagement band). */
+  client_count_band: number | null;
   // Capacity fields
   available_spots: number;
   max_clients: number;
@@ -56,9 +75,9 @@ export function CoachPreferenceSection({ form, planType, focusAreas, preferredGy
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [loading, setLoading] = useState(true);
   const [noCoachesAvailable, setNoCoachesAvailable] = useState(false);
-  // ON2 — "View profile" dialog target. Populated from the RPC's already-fetched
-  // fields (name / avatar / short bio / specializations) — a lite profile; the
-  // fuller coaches_public profile is RLS-gated until the client is subscribed.
+  // ON2 — "View profile" dialog target. Populated from the full public profile the
+  // list RPC now returns (see the enriched `list_active_coaches_for_service`); no
+  // second fetch on open.
   const [profileCoach, setProfileCoach] = useState<Coach | null>(null);
   const { getLabel } = useSpecializationTags();
 
@@ -99,9 +118,22 @@ export function CoachPreferenceSection({ form, planType, focusAreas, preferredGy
         user_id: string;
         first_name: string;
         last_name: string | null;
+        nickname: string | null;
+        slug: string | null;
         profile_picture_url: string | null;
         short_bio: string | null;
+        bio: string | null;
         specializations: string[] | null;
+        location: string | null;
+        qualifications: string[] | null;
+        intro_video_url: string | null;
+        years_experience: number | null;
+        is_head_coach: boolean | null;
+        head_coach_specialisation: string | null;
+        coach_level: string | null;
+        socials: Coach["socials"];
+        gyms: Coach["gyms"];
+        client_count_band: number | null;
         status: string;
         max_clients: number;
         current_clients: number;
@@ -122,9 +154,22 @@ export function CoachPreferenceSection({ form, planType, focusAreas, preferredGy
         user_id: coach.user_id,
         first_name: coach.first_name,
         last_name: coach.last_name,
+        nickname: coach.nickname,
+        slug: coach.slug,
         profile_picture_url: coach.profile_picture_url,
         short_bio: coach.short_bio,
+        bio: coach.bio,
         specializations: coach.specializations,
+        location: coach.location,
+        qualifications: coach.qualifications,
+        intro_video_url: coach.intro_video_url,
+        years_experience: coach.years_experience,
+        is_head_coach: coach.is_head_coach,
+        head_coach_specialisation: coach.head_coach_specialisation,
+        coach_level: coach.coach_level,
+        socials: coach.socials,
+        gyms: coach.gyms,
+        client_count_band: coach.client_count_band,
         available_spots: coach.available_spots,
         max_clients: coach.max_clients,
         current_clients: coach.current_clients,
@@ -431,29 +476,44 @@ export function CoachPreferenceSection({ form, planType, focusAreas, preferredGy
         </div>
       )}
 
-      {/* ON2 — lite coach profile (name / avatar / short bio / specializations)
-          built from the RPC data; the fuller coaches_public fields are RLS-gated
-          pre-subscription, so location/qualifications/head-coach are omitted. */}
+      {/* ON2 — the full public coach profile, same shape /coaches/:slug renders.
+          These fields are NOT gated pre-subscription: they come from the
+          SECURITY DEFINER `list_active_coaches_for_service` RPC (RLS does not
+          apply to it), and `get_coach_public_profile_by_slug` already serves the
+          identical set to anonymous visitors. `/meet-our-team` mounts this same
+          dialog with location + qualifications populated for logged-out users.
+          Every section null-omits, so a half-filled coach shows no empty headers. */}
       <CoachDetailDialog
         open={!!profileCoach}
         onOpenChange={(open) => !open && setProfileCoach(null)}
+        profileHref={profileCoach?.slug ? `/coaches/${profileCoach.slug}` : undefined}
         coach={
           profileCoach
             ? {
                 firstName: profileCoach.first_name,
                 lastName: profileCoach.last_name,
+                nickname: profileCoach.nickname,
                 avatarUrl: profileCoach.profile_picture_url,
+                bio: profileCoach.bio,
                 shortBio: profileCoach.short_bio,
                 specializations: profileCoach.specializations?.map((s) => getLabel(s)) ?? [],
-                // RLS-gated pre-subscription — omitted so the card hides these sections.
-                location: null,
-                qualifications: undefined,
-                gyms: undefined,
-                socials: undefined,
-                introVideoUrl: null,
-                headline: null,
-                yearsExperience: null,
-                clientCount: null,
+                // Shared derivation — onboarding, /coaches/:slug and /meet-our-team
+                // must all build the headline the same way.
+                headline: deriveCoachHeadline({
+                  isHeadCoach: profileCoach.is_head_coach,
+                  headCoachSpecialisation: profileCoach.head_coach_specialisation,
+                  coachLevel: profileCoach.coach_level,
+                  primarySpecialty: profileCoach.specializations?.[0]
+                    ? getLabel(profileCoach.specializations[0])
+                    : null,
+                }),
+                location: profileCoach.location,
+                qualifications: profileCoach.qualifications ?? [],
+                gyms: profileCoach.gyms ?? [],
+                socials: profileCoach.socials ?? undefined,
+                introVideoUrl: profileCoach.intro_video_url,
+                yearsExperience: profileCoach.years_experience,
+                clientCount: profileCoach.client_count_band,
               }
             : null
         }
