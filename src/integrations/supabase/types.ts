@@ -7962,6 +7962,9 @@ export type Database = {
       }
       testimonials: {
         Row: {
+          attachment: Json | null
+          attachment_note: string | null
+          attachment_type: string
           attribution: string
           author_display_name: string | null
           coach_id: string | null
@@ -7984,6 +7987,9 @@ export type Database = {
           withdrawn_at: string | null
         }
         Insert: {
+          attachment?: Json | null
+          attachment_note?: string | null
+          attachment_type?: string
           attribution?: string
           author_display_name?: string | null
           coach_id?: string | null
@@ -8006,6 +8012,9 @@ export type Database = {
           withdrawn_at?: string | null
         }
         Update: {
+          attachment?: Json | null
+          attachment_note?: string | null
+          attachment_type?: string
           attribution?: string
           author_display_name?: string | null
           coach_id?: string | null
@@ -8913,6 +8922,10 @@ export type Database = {
         }
         Returns: Json
       }
+      attach_weight_change: {
+        Args: { p_note: string; p_phase_id: string; p_testimonial_id: string }
+        Returns: Json
+      }
       backfill_all_active_client_programs: { Args: never; Returns: Json }
       backfill_client_program: { Args: { p_program_id: string }; Returns: Json }
       backfill_team_programs_canonical: { Args: never; Returns: Json }
@@ -8963,6 +8976,10 @@ export type Database = {
         Returns: Json
       }
       cleanup_expired_discount_applications: { Args: never; Returns: number }
+      clear_testimonial_attachment: {
+        Args: { p_testimonial_id: string }
+        Returns: undefined
+      }
       client_has_dietitian: { Args: { p_client_uid: string }; Returns: boolean }
       clone_plan: { Args: { p_source_plan_id: string }; Returns: string }
       coach_assignment_would_block: {
@@ -9045,6 +9062,10 @@ export type Database = {
           pending_testimonials: number
           total_monthly_revenue: number
         }[]
+      }
+      get_attachable_weight_phases: {
+        Args: { p_coach_user_id: string }
+        Returns: Json
       }
       get_client_age: { Args: { p_client_id: string }; Returns: number }
       get_client_from_day_module: {
