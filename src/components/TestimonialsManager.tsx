@@ -2,10 +2,9 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Star, Check, X, Archive, TrendingDown, TrendingUp, Clock, Target } from "lucide-react";
+import { Search, Star, TrendingDown, TrendingUp, Clock, Target } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { sanitizeErrorForUser } from '@/lib/errorSanitizer';
@@ -23,6 +22,14 @@ interface Testimonial {
   weight_change_kg: number | null;
   duration_weeks: number | null;
   goal_type: string | null;
+  // Curation / consent (T1)
+  featured_public: boolean;
+  featured_rank: number | null;
+  hidden_by_admin: boolean;
+  display_consent: boolean;
+  withdrawn_at: string | null;
+  attribution: string;
+  show_on_coach_page: boolean;
   profiles?: {
     full_name: string;
     email: string;
@@ -41,6 +48,29 @@ const GOAL_TYPES = [
   { value: "recomp", label: "Body Recomposition" },
   { value: "general_health", label: "General Health" },
 ];
+
+/** Read-only visibility context (coach-owned + client-owned bits the admin can see but not set). */
+function ContextBadges({ t }: { t: Testimonial }) {
+  const badge = (label: string, tone: "ok" | "muted" | "warn" | "danger") => {
+    const cls =
+      tone === "ok"
+        ? "bg-green-500/15 text-green-700 dark:text-green-400"
+        : tone === "warn"
+          ? "bg-orange-500/15 text-orange-700 dark:text-orange-400"
+          : tone === "danger"
+            ? "bg-destructive/15 text-destructive"
+            : "bg-muted text-muted-foreground";
+    return <span className={`px-2 py-0.5 rounded-full text-[11px] font-medium ${cls}`}>{label}</span>;
+  };
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {t.display_consent ? badge("consented", "ok") : badge("no consent", "muted")}
+      {t.show_on_coach_page && badge("on coach page", "ok")}
+      {t.withdrawn_at && badge("withdrawn", "warn")}
+      {t.hidden_by_admin && badge("hidden", "danger")}
+    </div>
+  );
+}
 
 export default function TestimonialsManager() {
   const [testimonials, setTestimonials] = useState<Testimonial[]>([]);
@@ -101,8 +131,8 @@ export default function TestimonialsManager() {
         })
       );
 
-      setTestimonials(testimonialsWithDetails);
-    } catch (error: any) {
+      setTestimonials(testimonialsWithDetails as Testimonial[]);
+    } catch (error) {
       toast({
         title: "Error loading testimonials",
         description: sanitizeErrorForUser(error),
@@ -147,67 +177,48 @@ export default function TestimonialsManager() {
     filterTestimonials();
   }, [filterTestimonials]);
 
-  const handleApprovalToggle = async (testimonialId: string, currentStatus: boolean) => {
-    try {
-      // B9-N4: rows-affected check -- an RLS denial (e.g. admin role lost
-      // mid-session) returns HTTP 200 with 0 rows; without this the success
-      // toast fires while the DB is unchanged. Same shape as PR #117 / B6-N3.
-      const { data, error } = await supabase
-        .from("testimonials")
-        .update({ is_approved: !currentStatus })
-        .eq("id", testimonialId)
-        .select("id");
+  // Optimistic local patch (de478a4): update the row in place, run the RPC, and
+  // roll the patch back + toast on { error }. No post-write re-read (the pooler
+  // can return a read-after-write-stale row).
+  const patchRow = useCallback((id: string, fields: Partial<Testimonial>) => {
+    setTestimonials((prev) => prev.map((t) => (t.id === id ? { ...t, ...fields } : t)));
+  }, []);
 
-      if (error) throw error;
-      if (!data || data.length === 0) throw new Error("Update not persisted");
-
-      setTestimonials((prev) =>
-        prev.map((t) =>
-          t.id === testimonialId ? { ...t, is_approved: !currentStatus } : t
-        )
-      );
-
-      toast({
-        title: "Success",
-        description: `Testimonial ${!currentStatus ? "approved" : "unapproved"} successfully`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error updating testimonial",
-        description: sanitizeErrorForUser(error),
-        variant: "destructive",
-      });
+  const handleFeaturedToggle = async (t: Testimonial) => {
+    const next = !t.featured_public;
+    patchRow(t.id, { featured_public: next });
+    const { error } = await supabase.rpc("set_testimonial_featured", {
+      p_id: t.id,
+      p_featured: next,
+      p_rank: t.featured_rank,
+    });
+    if (error) {
+      patchRow(t.id, { featured_public: t.featured_public }); // rollback
+      toast({ title: "Error updating testimonial", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 
-  const handleArchiveToggle = async (testimonialId: string, currentStatus: boolean) => {
-    try {
-      // B9-N4: rows-affected check (see handleApprovalToggle).
-      const { data, error } = await supabase
-        .from("testimonials")
-        .update({ is_archived: !currentStatus })
-        .eq("id", testimonialId)
-        .select("id");
+  const handleRankChange = async (t: Testimonial, newRank: number | null) => {
+    if (newRank === t.featured_rank) return;
+    patchRow(t.id, { featured_rank: newRank });
+    const { error } = await supabase.rpc("set_testimonial_featured", {
+      p_id: t.id,
+      p_featured: t.featured_public,
+      p_rank: newRank,
+    });
+    if (error) {
+      patchRow(t.id, { featured_rank: t.featured_rank }); // rollback
+      toast({ title: "Error updating testimonial", description: sanitizeErrorForUser(error), variant: "destructive" });
+    }
+  };
 
-      if (error) throw error;
-      if (!data || data.length === 0) throw new Error("Update not persisted");
-
-      setTestimonials((prev) =>
-        prev.map((t) =>
-          t.id === testimonialId ? { ...t, is_archived: !currentStatus } : t
-        )
-      );
-
-      toast({
-        title: "Success",
-        description: `Testimonial ${!currentStatus ? "archived" : "unarchived"} successfully`,
-      });
-    } catch (error: any) {
-      toast({
-        title: "Error updating testimonial",
-        description: sanitizeErrorForUser(error),
-        variant: "destructive",
-      });
+  const handleHiddenToggle = async (t: Testimonial) => {
+    const next = !t.hidden_by_admin;
+    patchRow(t.id, { hidden_by_admin: next });
+    const { error } = await supabase.rpc("set_testimonial_hidden", { p_id: t.id, p_hidden: next });
+    if (error) {
+      patchRow(t.id, { hidden_by_admin: t.hidden_by_admin }); // rollback
+      toast({ title: "Error updating testimonial", description: sanitizeErrorForUser(error), variant: "destructive" });
     }
   };
 
@@ -217,10 +228,10 @@ export default function TestimonialsManager() {
     value: string | number | null
   ) => {
     try {
-      const updateData: Record<string, any> = {};
+      const updateData: Record<string, string | number | null> = {};
       updateData[field] = value;
 
-      // B9-N4: rows-affected check (matches approve/archive handlers).
+      // B9-N4: rows-affected check -- an RLS denial returns HTTP 200 with 0 rows.
       const { data, error } = await supabase
         .from("testimonials")
         .update(updateData)
@@ -230,17 +241,10 @@ export default function TestimonialsManager() {
       if (error) throw error;
       if (!data || data.length === 0) throw new Error("Update not persisted");
 
-      setTestimonials((prev) =>
-        prev.map((t) =>
-          t.id === testimonialId ? { ...t, [field]: value } : t
-        )
-      );
+      patchRow(testimonialId, { [field]: value } as Partial<Testimonial>);
 
-      toast({
-        title: "Success",
-        description: "Stats updated successfully",
-      });
-    } catch (error: any) {
+      toast({ title: "Success", description: "Stats updated successfully" });
+    } catch (error) {
       toast({
         title: "Error updating testimonial",
         description: sanitizeErrorForUser(error),
@@ -263,10 +267,10 @@ export default function TestimonialsManager() {
         <CardHeader>
           <CardTitle className="text-2xl">Testimonials Management</CardTitle>
           <p className="text-sm text-muted-foreground">
-            Review and approve testimonials to display on the homepage
+            Feature testimonials on the public site and moderate visibility. Coaches choose what shows on their own page.
           </p>
         </CardHeader>
-        
+
         <CardContent className="space-y-6">
           {/* Search Bar */}
           <div className="relative">
@@ -280,27 +284,27 @@ export default function TestimonialsManager() {
           </div>
 
           {/* Statistics */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="bg-secondary/20 rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">Total Testimonials</p>
-              <p className="text-2xl font-bold">{testimonials.filter((t) => !t.is_archived).length}</p>
+              <p className="text-sm text-muted-foreground">Total</p>
+              <p className="text-2xl font-bold">{testimonials.length}</p>
+            </div>
+            <div className="bg-primary/10 rounded-lg p-4">
+              <p className="text-sm text-muted-foreground">Featured</p>
+              <p className="text-2xl font-bold text-primary">
+                {testimonials.filter((t) => t.featured_public && !t.hidden_by_admin).length}
+              </p>
             </div>
             <div className="bg-green-500/10 rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">Approved</p>
+              <p className="text-sm text-muted-foreground">Consented</p>
               <p className="text-2xl font-bold text-green-600">
-                {testimonials.filter((t) => t.is_approved && !t.is_archived).length}
+                {testimonials.filter((t) => t.display_consent && !t.withdrawn_at).length}
               </p>
             </div>
-            <div className="bg-orange-500/10 rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">Pending Review</p>
-              <p className="text-2xl font-bold text-orange-600">
-                {testimonials.filter((t) => !t.is_approved && !t.is_archived).length}
-              </p>
-            </div>
-            <div className="bg-gray-500/10 rounded-lg p-4">
-              <p className="text-sm text-muted-foreground">Archived</p>
-              <p className="text-2xl font-bold text-gray-600">
-                {testimonials.filter((t) => t.is_archived).length}
+            <div className="bg-destructive/10 rounded-lg p-4">
+              <p className="text-sm text-muted-foreground">Hidden</p>
+              <p className="text-2xl font-bold text-destructive">
+                {testimonials.filter((t) => t.hidden_by_admin).length}
               </p>
             </div>
           </div>
@@ -312,16 +316,18 @@ export default function TestimonialsManager() {
                 {searchQuery ? "No testimonials found matching your search" : "No testimonials yet"}
               </div>
             ) : (
-              filteredTestimonials.filter(t => !t.is_archived).map((testimonial) => (
+              filteredTestimonials.map((testimonial) => (
                 <div
                   key={testimonial.id}
                   className={`border rounded-lg p-6 transition-all ${
-                    testimonial.is_approved
-                      ? "bg-green-500/5 border-green-500/20"
-                      : "bg-card border-border"
+                    testimonial.hidden_by_admin
+                      ? "bg-destructive/5 border-destructive/20"
+                      : testimonial.featured_public
+                        ? "bg-primary/5 border-primary/20"
+                        : "bg-card border-border"
                   }`}
                 >
-                  <div className="flex items-start justify-between gap-4">
+                  <div className="flex flex-col md:flex-row md:items-start justify-between gap-4">
                     <div className="flex-1 space-y-3">
                       {/* Rating */}
                       <div className="flex gap-1">
@@ -336,6 +342,9 @@ export default function TestimonialsManager() {
                           />
                         ))}
                       </div>
+
+                      {/* Visibility context (read-only) */}
+                      <ContextBadges t={testimonial} />
 
                       {/* Feedback */}
                       <p className="text-foreground italic">&quot;{testimonial.feedback}&quot;</p>
@@ -385,6 +394,10 @@ export default function TestimonialsManager() {
                             {testimonial.coaches.first_name} {testimonial.coaches.last_name}
                           </div>
                         )}
+                        <div>
+                          <span className="font-medium">Shown as:</span>{" "}
+                          {testimonial.attribution}
+                        </div>
                         <div>
                           <span className="font-medium">Submitted:</span>{" "}
                           {new Date(testimonial.created_at).toLocaleDateString()}
@@ -441,49 +454,46 @@ export default function TestimonialsManager() {
                       </div>
                     </div>
 
-                    {/* Approval Toggle */}
-                    <div className="flex flex-col items-end gap-3">
-                      <div
-                        className={`px-3 py-1 rounded-full text-xs font-medium ${
-                          testimonial.is_approved
-                            ? "bg-green-500/20 text-green-700"
-                            : "bg-orange-500/20 text-orange-700"
-                        }`}
-                      >
-                        {testimonial.is_approved ? (
-                          <span className="flex items-center gap-1">
-                            <Check className="h-3 w-3" />
-                            Approved
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1">
-                            <X className="h-3 w-3" />
-                            Pending
-                          </span>
-                        )}
+                    {/* Admin curation controls (via SECURITY DEFINER RPCs) */}
+                    <div className="flex flex-row md:flex-col md:items-end gap-4 md:w-56 shrink-0">
+                      <div className="flex items-center justify-between gap-3 w-full">
+                        <div>
+                          <p className="text-sm font-medium">Feature publicly</p>
+                          <p className="text-xs text-muted-foreground">Landing / /testimonials</p>
+                        </div>
+                        <Switch
+                          checked={testimonial.featured_public}
+                          onCheckedChange={() => handleFeaturedToggle(testimonial)}
+                          aria-label="Feature publicly"
+                        />
                       </div>
-                      
-                      <div className="flex flex-col gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm text-muted-foreground">
-                            {testimonial.is_approved ? "Hide" : "Show"}
-                          </span>
-                          <Switch
-                            checked={testimonial.is_approved}
-                            onCheckedChange={() =>
-                              handleApprovalToggle(testimonial.id, testimonial.is_approved)
-                            }
+
+                      {testimonial.featured_public && (
+                        <div className="flex items-center justify-between gap-3 w-full">
+                          <Label className="text-xs text-muted-foreground">Rank</Label>
+                          <Input
+                            type="number"
+                            defaultValue={testimonial.featured_rank ?? ""}
+                            onBlur={(e) => {
+                              const value = e.target.value ? parseInt(e.target.value) : null;
+                              handleRankChange(testimonial, value);
+                            }}
+                            className="h-8 w-20 text-sm"
+                            aria-label="Featured rank"
                           />
                         </div>
-                        
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleArchiveToggle(testimonial.id, testimonial.is_archived)}
-                        >
-                          <Archive className="h-4 w-4 mr-2" />
-                          Archive
-                        </Button>
+                      )}
+
+                      <div className="flex items-center justify-between gap-3 w-full">
+                        <div>
+                          <p className="text-sm font-medium">Hide everywhere</p>
+                          <p className="text-xs text-muted-foreground">Moderation floor</p>
+                        </div>
+                        <Switch
+                          checked={testimonial.hidden_by_admin}
+                          onCheckedChange={() => handleHiddenToggle(testimonial)}
+                          aria-label="Hide everywhere"
+                        />
                       </div>
                     </div>
                   </div>
