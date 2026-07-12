@@ -266,6 +266,11 @@ const App = () => {
                       (like /coach/clients/:id) so it gets the coach Navigation + sidebar; CoachTeamsPage
                       renders the detail panel when :teamId is present. Must precede /coach/:section. */}
                   <Route path="/coach/teams/:teamId" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
+                  {/* PR2: mesocycle detail. Routes through CoachDashboard (like /coach/clients/:id and
+                      /coach/teams/:teamId) so it keeps the coach Navigation + sidebar + mobile dock;
+                      CoachProgramsPage renders ProgramDetailView when :programId is present.
+                      Must precede /coach/:section. */}
+                  <Route path="/coach/programs/:programId" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
                   <Route path="/coach/:section" element={<RoleProtectedRoute requiredRole="coach"><CoachDashboard /></RoleProtectedRoute>} />
 
                   {/* Onboarding routes - allow incomplete onboarding */}
