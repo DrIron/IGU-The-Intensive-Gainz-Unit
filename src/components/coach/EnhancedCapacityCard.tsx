@@ -176,12 +176,14 @@ export function EnhancedCapacityCard({ coachUserId, onNavigate, onMetricsLoaded 
     }
     const remaining = max - active;
     if (remaining < 0) {
-      return <Badge variant="destructive" className="text-xs">Over by {Math.abs(remaining)}</Badge>;
+      return <Badge variant="outline" className="text-xs text-status-warning border-status-warning/40">Over by {Math.abs(remaining)}</Badge>;
     }
     if (remaining === 0) {
-      return <Badge variant="secondary" className="text-xs bg-amber-100 text-amber-800">At capacity</Badge>;
+      return <Badge variant="outline" className="text-xs text-status-warning border-status-warning/40">At capacity</Badge>;
     }
-    return <Badge variant="outline" className="text-xs text-green-700 border-green-300">{remaining} spots left</Badge>;
+    // Neutral, not green: spare capacity is not a "good" score, it is just a number.
+    // (Matches the gauge's colour rule; see CapacityGauge below.)
+    return <Badge variant="outline" className="text-xs text-muted-foreground">{remaining} spots left</Badge>;
   };
 
   const handleViewClients = () => {
@@ -224,41 +226,17 @@ export function EnhancedCapacityCard({ coachUserId, onNavigate, onMetricsLoaded 
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
-        {/* Summary Stats */}
-        <div className="flex items-center justify-between p-3 bg-muted/30 rounded-lg">
-          <div>
-            <p className="text-xl font-bold">{totalActiveClients}</p>
-            <p className="text-xs text-muted-foreground">Active Clients</p>
-          </div>
-          <div className="text-right">
-            <p className="text-xl font-bold">
-              {totalConfiguredCapacity !== null ? totalConfiguredCapacity : '∞'}
-            </p>
-            <p className="text-xs text-muted-foreground">Total Capacity</p>
-          </div>
-          {overallLoadPercent !== null && (
-            <div className="text-center">
-              <Progress 
-                value={Math.min(overallLoadPercent, 100)} 
-                className={cn("h-2 w-16", getLoadColor(overallLoadPercent))}
-              />
-              <p className={cn(
-                "text-xs font-medium mt-1",
-                overallLoadPercent > 100 ? "text-destructive" :
-                overallLoadPercent >= 70 ? "text-amber-600" : "text-green-600"
-              )}>
-                {Math.round(overallLoadPercent)}% used
-              </p>
-            </div>
-          )}
-        </div>
+        {/* CO4: the roster load, as one arc. Reads the SAME capacity numbers as before
+            (subscriptions incl. payment-exempt clients — an operational surface, per
+            CLAUDE.md; do NOT switch this to paying_subscriptions). Nothing re-derived. */}
+        <CapacityGauge current={totalActiveClients} max={totalConfiguredCapacity} className="py-2" />
 
-        {/* Capacity Warning */}
+        {/* Capacity Warning — same >=90% threshold that turns the arc amber. */}
         {showCapacityWarning && (
-          <Alert className="border-amber-200 bg-amber-50 py-2">
-            <AlertTriangle className="h-4 w-4 text-amber-600" />
-            <AlertDescription className="text-amber-800 text-sm">
-              You're close to capacity. Contact admin to adjust limits.
+          <Alert className="border-status-warning/30 bg-status-warning/10 py-2">
+            <AlertTriangle className="h-4 w-4 text-status-warning" />
+            <AlertDescription className="text-sm">
+              You&apos;re close to capacity. Contact admin to adjust limits.
             </AlertDescription>
           </Alert>
         )}
@@ -306,5 +284,109 @@ export function EnhancedCapacityCard({ coachUserId, onNavigate, onMetricsLoaded 
         </Button>
       </CardContent>
     </Card>
+  );
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+ * CO4 — capacity as a filled arc gauge.
+ *
+ * Grounded in Oura's Activity Goal arc: a partial semicircle, the value as a large
+ * display number in the middle, the cap as the arc's full extent, and a
+ * plain-language read underneath.
+ *
+ * COLOUR RULE (deliberate, and NOT the getLoadColor vocabulary):
+ *   crimson (--primary) normally -> amber (--status-warning) at >= 90%.
+ *
+ * This is a NEUTRAL LOAD indicator, not a scorecard. A full roster is not "bad"
+ * and an empty one is not "good" — so there is no green-as-good / red-as-bad here.
+ * Amber at >=90% means "near full, act soon", nothing more.
+ *
+ * (Note: the per-service rows below still use `getLoadColor`, which IS green/amber/
+ * red. Retokenising that is FU1's job — flagged, not silently changed here.)
+ * ──────────────────────────────────────────────────────────────────────────── */
+
+/** Near-capacity threshold: the arc turns amber at or above this. */
+export const CAPACITY_WARNING_THRESHOLD = 90;
+
+const GAUGE_RADIUS = 50;
+/** Length of a semicircular arc of radius r = pi * r. */
+const ARC_LENGTH = Math.PI * GAUGE_RADIUS;
+
+export function CapacityGauge({
+  current,
+  max,
+  className,
+}: {
+  current: number;
+  /** null = no configured limit; the arc is omitted rather than faked. */
+  max: number | null;
+  className?: string;
+}) {
+  const hasCap = max !== null && max > 0;
+  const loadPercent = hasCap ? (current / max) * 100 : null;
+  // Fill is clamped to the arc: an over-capacity coach fills it, never overflows it.
+  const fillFraction = hasCap ? Math.min(current / max, 1) : 0;
+  const nearCapacity = loadPercent !== null && loadPercent >= CAPACITY_WARNING_THRESHOLD;
+  const remaining = hasCap ? max - current : null;
+
+  // Literal class strings (not interpolated) so Tailwind's JIT scanner sees both.
+  const arcStroke = nearCapacity ? "stroke-status-warning" : "stroke-primary";
+
+  return (
+    <div className={cn("flex flex-col items-center", className)}>
+      <div className="relative w-[160px]">
+        <svg viewBox="0 0 120 68" className="w-full" role="img" aria-label={`${current} of ${hasCap ? max : "unlimited"} clients`}>
+          {/* Flat track */}
+          <path
+            d="M 10 60 A 50 50 0 0 1 110 60"
+            fill="none"
+            strokeWidth={9}
+            strokeLinecap="round"
+            className="stroke-muted"
+          />
+          {/* Filled arc — omitted entirely when there is no cap to fill against. */}
+          {hasCap && (
+            <path
+              d="M 10 60 A 50 50 0 0 1 110 60"
+              fill="none"
+              strokeWidth={9}
+              strokeLinecap="round"
+              className={cn(arcStroke, "transition-[stroke-dashoffset] duration-500")}
+              strokeDasharray={ARC_LENGTH}
+              strokeDashoffset={ARC_LENGTH * (1 - fillFraction)}
+              data-testid="capacity-arc"
+              data-fill={fillFraction.toFixed(4)}
+            />
+          )}
+        </svg>
+
+        {/* Hero number, centred in the arc. */}
+        <div className="absolute inset-x-0 bottom-0 flex flex-col items-center">
+          <span className="font-display text-4xl leading-none tracking-wide text-foreground">
+            {Math.round(current)}
+          </span>
+        </div>
+      </div>
+
+      {/* Mono readout — every number rounded. */}
+      <p className="mt-2 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+        {hasCap ? (
+          <>
+            {Math.round(current)} / {Math.round(max)} · {Math.round(loadPercent!)}% capacity
+          </>
+        ) : (
+          <>{Math.round(current)} clients · no limit set</>
+        )}
+      </p>
+
+      {/* CC2 plain-language read — one sentence that says what the number means. */}
+      <p className="mt-1 text-sm text-muted-foreground">
+        {!hasCap
+          ? "No capacity limit configured."
+          : remaining! > 0
+            ? `${Math.round(remaining!)} ${remaining === 1 ? "spot" : "spots"} open`
+            : "At capacity — new clients will waitlist"}
+      </p>
+    </div>
   );
 }
