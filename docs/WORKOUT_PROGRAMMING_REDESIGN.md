@@ -328,7 +328,7 @@ come from the existing sources (`getMuscleDisplay`, `ACTIVITY_TYPE_COLORS`, `get
 | `LandmarkZoneChip` | `zone: LandmarkZone` | `VolumeOverview` inline chip (`getVolumeLandmarkZone`) | builder rail, detail distribution |
 | `VolumeTiles` | `summary: VolumeSummary` · `layout?: 'row'\|'grid'` | `VolumeOverview` tiles | detail summary band, in-use |
 | `MuscleDistributionBars` | `entries: MuscleVolumeEntry[]` | new (composed from `volumeEntries`) | detail, in-use |
-| `ProgramStatStrip` | `{ sets, exercises, estMin?, reach? }` (mono) | `DayColumn` header strip | card, detail, assign, in-use |
+| `ProgramStatStrip` | **AS BUILT (PR1):** `{ sets: number; duration?: {minSeconds; maxSeconds; inferred} \| null; className? }` — renders "12 sets · 48–62 min", self-omitting. The original sketch (`{ sets, exercises, estMin?, reach? }`) was written before reading the strip; `exercises`/`reach` are deferred until a consumer needs them. | `DayColumn` header strip | card, detail, assign, in-use |
 | `ProgramStatusPill` | `status: 'draft'\|'ready'\|'in_use'` · `count?` | new | library card, detail header |
 | `SyncStatePill` | `state: 'following'\|'detached'\|'team'` | new | in-use client list, client/team skin banner |
 | `WeekBreakdownCard` | `{ week, days[] }` · `defaultCollapsed?` | new (composed) | detail, in-use, mobile day-drawer |
