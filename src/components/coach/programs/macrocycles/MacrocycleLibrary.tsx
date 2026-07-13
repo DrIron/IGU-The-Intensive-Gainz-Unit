@@ -146,15 +146,22 @@ export const MacrocycleLibrary = memo(function MacrocycleLibrary({
                       )}
                     </div>
                   </div>
+                  {/* PR4 — compact arc preview: the block sequence as a proportion
+                      bar, each segment sized by its block's week count, so the shape
+                      of the arc is legible from the library grid. No phase chip (no
+                      column to read one from); no volume here — the authoritative
+                      canonical numbers live on the detail arc. */}
+                  <ArcPreview blockWeeks={m.blockWeeks} />
+
                   <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
-                    <span>
-                      <strong className="text-foreground">{m.blockCount}</strong>{" "}
-                      mesocycle{m.blockCount !== 1 ? "s" : ""}
-                    </span>
-                    <span>·</span>
-                    <span>
+                    <span className="font-mono">
                       <strong className="text-foreground">{m.weeksTotal}</strong>{" "}
                       week{m.weeksTotal !== 1 ? "s" : ""}
+                    </span>
+                    <span>·</span>
+                    <span className="font-mono">
+                      <strong className="text-foreground">{m.blockCount}</strong>{" "}
+                      block{m.blockCount !== 1 ? "s" : ""}
                     </span>
                     <span>·</span>
                     <span>{timeAgo(m.updatedAt)}</span>
@@ -238,3 +245,27 @@ export const MacrocycleLibrary = memo(function MacrocycleLibrary({
     </div>
   );
 });
+
+/**
+ * ArcPreview — the macrocycle's shape in one bar (PR4).
+ *
+ * Each segment is one block, flex-sized by its week count, so a long block looks
+ * long. Presentational; renders nothing for an empty macrocycle rather than an
+ * empty rail.
+ */
+function ArcPreview({ blockWeeks }: { blockWeeks: number[] }) {
+  const total = blockWeeks.reduce((sum, w) => sum + w, 0);
+  if (blockWeeks.length === 0 || total === 0) return null;
+
+  return (
+    <div className="flex h-1.5 w-full overflow-hidden rounded-full bg-muted" aria-hidden>
+      {blockWeeks.map((weeks, i) => (
+        <div
+          key={i}
+          className="h-full border-r border-background last:border-r-0 bg-primary"
+          style={{ flexGrow: weeks, flexBasis: 0, opacity: 1 - i * 0.18 }}
+        />
+      ))}
+    </div>
+  );
+}

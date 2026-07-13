@@ -43,6 +43,8 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useMacrocycle } from "@/hooks/useMacrocycles";
 import { MesocyclePicker } from "./MesocyclePicker";
 import { AssignMacrocycleDialog } from "./AssignMacrocycleDialog";
+import { MacrocycleArc, buildArcBlocks } from "./MacrocycleArc";
+import { useProgramSummaries } from "../useProgramSummaries";
 import { cn } from "@/lib/utils";
 
 interface MacrocycleEditorProps {
@@ -104,6 +106,18 @@ export function MacrocycleEditor({
   const [assignOpen, setAssignOpen] = useState(false);
 
   const { macrocycle, loading, reload } = useMacrocycle(macroId);
+
+  // PR4: per-block canonical summaries in ONE batched read (PR2's hook) — never a
+  // query per block. Feeds the arc's ribbon / sets-per-week / trend line.
+  const blockProgramIds = useMemo(
+    () => (macrocycle?.blocks ?? []).map((b) => b.programTemplateId),
+    [macrocycle],
+  );
+  const { summaries: blockSummaries } = useProgramSummaries(blockProgramIds);
+  const arcBlocks = useMemo(
+    () => buildArcBlocks(macrocycle?.blocks ?? [], blockSummaries),
+    [macrocycle, blockSummaries],
+  );
 
   // Hydrate local state when we load an existing macrocycle.
   useEffect(() => {
@@ -339,24 +353,20 @@ export function MacrocycleEditor({
                 />
               }
             />
-          ) : isMobile ? (
-            // Mobile: vertical stack with connectors
-            <div className="space-y-0">
-              {blocks.map((b, i) => (
-                <div key={b.programTemplateId}>
-                  <MobileBlockCard
-                    block={b}
-                    canMoveUp={i > 0}
-                    canMoveDown={i < blocks.length - 1}
-                    onMoveUp={() => moveBlock(i, i - 1)}
-                    onMoveDown={() => moveBlock(i, i + 1)}
-                    onOpen={() => onOpenProgram(b.programTemplateId)}
-                    onRemove={() => removeBlock(b.programTemplateId)}
-                    weekStart={blocks.slice(0, i).reduce((s, x) => s + x.weeks, 0) + 1}
-                  />
-                  {i < blocks.length - 1 && <BlockConnector weekStart={blocks.slice(0, i + 1).reduce((s, x) => s + x.weeks, 0) + 1} />}
-                </div>
-              ))}
+          ) : (
+            <>
+              {/* PR4 — the macrocycle as an ARC: span header, sets/week trend line,
+                  and blocks flex-sized by week count. Reorder / remove / open use the
+                  SAME handlers as before: this is a presentation change, not an
+                  editing rewrite. No phase chip — there is no column to read one from
+                  (see MacrocycleArc). */}
+              <MacrocycleArc
+                arcBlocks={arcBlocks}
+                isMobile={isMobile}
+                onOpenProgram={onOpenProgram}
+                onMove={moveBlock}
+                onRemove={removeBlock}
+              />
               <Drawer open={mobilePickerOpen} onOpenChange={setMobilePickerOpen}>
                 <DrawerTrigger asChild>
                   <Button variant="outline" className="w-full h-11 mt-2">
@@ -382,30 +392,7 @@ export function MacrocycleEditor({
                   </div>
                 </DrawerContent>
               </Drawer>
-            </div>
-          ) : (
-            // Desktop: horizontal timeline
-            <div className="flex items-stretch gap-2 overflow-x-auto pb-2">
-              {blocks.map((b, i) => (
-                <div key={b.programTemplateId} className="flex items-stretch gap-2">
-                  <DesktopBlockCard
-                    block={b}
-                    weekStart={blocks.slice(0, i).reduce((s, x) => s + x.weeks, 0) + 1}
-                    canMoveLeft={i > 0}
-                    canMoveRight={i < blocks.length - 1}
-                    onMoveLeft={() => moveBlock(i, i - 1)}
-                    onMoveRight={() => moveBlock(i, i + 1)}
-                    onOpen={() => onOpenProgram(b.programTemplateId)}
-                    onRemove={() => removeBlock(b.programTemplateId)}
-                  />
-                  {i < blocks.length - 1 && (
-                    <div className="flex items-center text-muted-foreground shrink-0">
-                      <ChevronRight className="h-5 w-5" />
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
+            </>
           )}
         </div>
 
@@ -443,155 +430,6 @@ export function MacrocycleEditor({
           blockCount={blocks.length}
         />
       )}
-    </div>
-  );
-}
-
-/* -- block cards ------------------------------------------------------ */
-
-interface BlockProps {
-  block: { programTemplateId: string; sequence: number; title: string; description: string | null; weeks: number };
-  weekStart: number;
-  onOpen: () => void;
-  onRemove: () => void;
-}
-
-function DesktopBlockCard({
-  block,
-  weekStart,
-  canMoveLeft,
-  canMoveRight,
-  onMoveLeft,
-  onMoveRight,
-  onOpen,
-  onRemove,
-}: BlockProps & {
-  canMoveLeft: boolean;
-  canMoveRight: boolean;
-  onMoveLeft: () => void;
-  onMoveRight: () => void;
-}) {
-  const weekEnd = weekStart + block.weeks - 1;
-  return (
-    <ClickableCard
-      ariaLabel={`Open ${block.title}`}
-      onClick={onOpen}
-      className="w-64 shrink-0 group hover:border-primary/50 transition-colors"
-    >
-      <CardContent className="p-3 space-y-2">
-        <div className="flex items-start justify-between gap-1">
-          <div className="min-w-0">
-            <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-              W{weekStart}
-              {block.weeks > 1 ? `–${weekEnd}` : ""}
-            </p>
-            <p className="text-sm font-semibold truncate">{block.title}</p>
-          </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-6 w-6 opacity-60 hover:opacity-100 shrink-0"
-                onClick={e => e.stopPropagation()}
-                aria-label="Block actions"
-              >
-                <MoreVertical className="h-3.5 w-3.5" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-40">
-              <DropdownMenuItem onClick={e => { e.stopPropagation(); onOpen(); }}>
-                Open program
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled={!canMoveLeft} onClick={e => { e.stopPropagation(); onMoveLeft(); }}>
-                <ArrowUp className="h-3.5 w-3.5 mr-2 rotate-[-90deg]" /> Move left
-              </DropdownMenuItem>
-              <DropdownMenuItem disabled={!canMoveRight} onClick={e => { e.stopPropagation(); onMoveRight(); }}>
-                <ArrowDown className="h-3.5 w-3.5 mr-2 rotate-[-90deg]" /> Move right
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={e => { e.stopPropagation(); onRemove(); }}
-              >
-                <Trash2 className="h-3.5 w-3.5 mr-2" /> Remove
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {block.weeks} {block.weeks === 1 ? "week" : "weeks"}
-        </div>
-      </CardContent>
-    </ClickableCard>
-  );
-}
-
-function MobileBlockCard({
-  block,
-  canMoveUp,
-  canMoveDown,
-  onMoveUp,
-  onMoveDown,
-  onOpen,
-  onRemove,
-  weekStart,
-}: BlockProps & {
-  canMoveUp: boolean;
-  canMoveDown: boolean;
-  onMoveUp: () => void;
-  onMoveDown: () => void;
-}) {
-  const weekEnd = weekStart + block.weeks - 1;
-  return (
-    <Card className="active:scale-[0.99] transition-transform">
-      <CardContent className="p-3 flex items-center gap-2">
-        <button
-          onClick={onOpen}
-          className="flex-1 min-w-0 text-left"
-          aria-label={`Open ${block.title}`}
-        >
-          <p className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-            W{weekStart}
-            {block.weeks > 1 ? `–${weekEnd}` : ""} · {block.weeks} {block.weeks === 1 ? "wk" : "wks"}
-          </p>
-          <p className="text-sm font-semibold truncate">{block.title}</p>
-          {block.description && (
-            <p className="text-xs text-muted-foreground truncate">{block.description}</p>
-          )}
-        </button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" aria-label="Block actions">
-              <MoreVertical className="h-4 w-4" />
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-44">
-            <DropdownMenuItem onClick={onOpen}>
-              <Replace className="h-3.5 w-3.5 mr-2" /> Open program
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!canMoveUp} onClick={onMoveUp}>
-              <ArrowUp className="h-3.5 w-3.5 mr-2" /> Move up
-            </DropdownMenuItem>
-            <DropdownMenuItem disabled={!canMoveDown} onClick={onMoveDown}>
-              <ArrowDown className="h-3.5 w-3.5 mr-2" /> Move down
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-destructive focus:text-destructive" onClick={onRemove}>
-              <Trash2 className="h-3.5 w-3.5 mr-2" /> Remove
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </CardContent>
-    </Card>
-  );
-}
-
-function BlockConnector({ weekStart }: { weekStart: number }) {
-  return (
-    <div className="flex items-center gap-2 pl-4 py-1 text-[10px] text-muted-foreground">
-      <div className="w-px h-5 bg-border/60" />
-      <span>Week {weekStart} →</span>
     </div>
   );
 }
