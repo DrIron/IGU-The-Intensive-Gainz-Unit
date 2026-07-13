@@ -59,7 +59,7 @@ async function computeProgramWeeks(programTemplateIds: string[]): Promise<Map<st
 /** Fetch all macrocycles owned by the coach, with denormalised block count + total weeks. */
 export function useMacrocycleList(coachUserId: string) {
   const [macrocycles, setMacrocycles] = useState<
-    Array<Macrocycle & { blockCount: number; weeksTotal: number }>
+    Array<Macrocycle & { blockCount: number; weeksTotal: number; blockWeeks: number[] }>
   >([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,8 +104,12 @@ export function useMacrocycleList(coachUserId: string) {
       setMacrocycles(
         macroRows.map(m => {
           const js = byMacro.get(m.id) ?? [];
-          const totalWeeks = js.reduce((sum, j) => sum + (weekMap.get(j.program_template_id) ?? 0), 0);
-          return { ...rowToMacrocycle(m), blockCount: js.length, weeksTotal: totalWeeks };
+          // PR4: keep the PER-BLOCK week counts (already computed above, previously
+          // summed away) so the library card can draw a proportion bar. Zero extra
+          // queries. Sequence order is preserved by the junction `.order("sequence")`.
+          const blockWeeks = js.map(j => weekMap.get(j.program_template_id) ?? 0);
+          const totalWeeks = blockWeeks.reduce((sum, w) => sum + w, 0);
+          return { ...rowToMacrocycle(m), blockCount: js.length, weeksTotal: totalWeeks, blockWeeks };
         }),
       );
       setError(null);
