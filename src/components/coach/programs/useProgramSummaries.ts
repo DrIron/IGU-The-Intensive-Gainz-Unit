@@ -64,6 +64,23 @@ export interface ProgramSummary {
   muscleTemplateId: string | null;
   /** The library row itself — lets the detail view render from a URL alone. */
   meta: { title: string; description: string | null; level: string | null; tags: string[] };
+  /**
+   * PR3 — the RAW canonical tree for this plan (every week, not just the
+   * representative one).
+   *
+   * The hook already fetches the whole plan_weeks → plan_sessions → plan_slots
+   * hierarchy above and then computes the card's summary over ONE week, discarding
+   * the rest. Handing the rows back costs ZERO extra queries, so the week-by-week
+   * detail view does not need a second read. Empty on the legacy shim path (there is
+   * no canonical tree to hand back).
+   *
+   * Map any week with adaptCanonicalPlanToSessions / adaptCanonicalPlanToSlots.
+   */
+  tree: {
+    weeks: CanonicalPlanWeekRow[];
+    sessions: CanonicalPlanSessionRow[];
+    slots: CanonicalPlanSlotRow[];
+  };
 }
 
 /** Est. time per session — reuses the builder's estimator over the rep week. */
@@ -179,7 +196,7 @@ export function useProgramSummaries(programIds: string[]) {
               .in("plan_id", planIds),
             supabase
               .from("plan_slots")
-              .select("id, plan_id, plan_session_id, sort_order, prescription_json")
+              .select("id, plan_id, plan_session_id, sort_order, activity_id, activity_name, prescription_json")
               .in("plan_id", planIds),
           ])
         : [
@@ -298,6 +315,7 @@ export function useProgramSummaries(programIds: string[]) {
         const planId = mptId ? (planByMpt.get(mptId) ?? null) : null;
 
         let slots: MuscleSlotData[];
+        let tree: ProgramSummary["tree"] = { weeks: [], sessions: [], slots: [] };
         let repWeekSessions: SessionData[];
         let totalSessions: number;
         let weekCount: number;
@@ -326,6 +344,19 @@ export function useProgramSummaries(programIds: string[]) {
           repWeekSessions = adaptCanonicalPlanToSessions(weekSessions);
           totalSessions = allSessions.length;
           weekCount = weeks.length;
+
+          // PR3: hand the raw tree back instead of throwing it away — the rows are
+          // already in memory, so the week-by-week view costs no extra query.
+          // Defensive dedupe by slot id: canonical plan_slots.id is a PK so duplicates
+          // shouldn't occur (the known "Prenatal Trimester 1" dup is a duplicate
+          // builder_slot_id in slot_config, which save_plan_from_builder already
+          // collapses). Deduping here means any future dup can't double-count sets.
+          const seen = new Set<string>();
+          tree = {
+            weeks: [...weeks].sort((a, b) => a.week_index - b.week_index),
+            sessions: allSessions,
+            slots: allSlots.filter((sl) => !seen.has(sl.id) && seen.add(sl.id)),
+          };
         } else {
           source = "legacy";
           const days = legacyDays.filter((d) => d.program_template_id === programId);
@@ -374,6 +405,7 @@ export function useProgramSummaries(programIds: string[]) {
             level: null,
             tags: [],
           },
+          tree,
         });
       }
 
