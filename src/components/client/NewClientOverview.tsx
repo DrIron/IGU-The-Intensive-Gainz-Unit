@@ -8,6 +8,8 @@ import { AlertsCard } from "./AlertsCard";
 import { LogTodayCard } from "./LogTodayCard";
 import { MyCareTeamCard } from "./MyCareTeamCard";
 import { TodaysWorkoutHero } from "./TodaysWorkoutHero";
+import { WeekConsistencyDots } from "./WeekConsistencyDots";
+import { useWeeklyConsistency } from "@/hooks/useWeeklyConsistency";
 import { AdherenceSummaryCard } from "./AdherenceSummaryCard";
 import { WeeklyProgressCard } from "./WeeklyProgressCard";
 import { NutritionTargetsCard } from "./NutritionTargetsCard";
@@ -207,6 +209,11 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         <TodaysWorkoutHero userId={user?.id} />
       )}
 
+      {/* CL5 — a quiet week strip under the hero. Presence, not a streak: a day the
+          client didn't train is a neutral outline dot, never a warning. Supersedes
+          AD2 (no separate awards/trophy surface). */}
+      <WeeklyConsistencyRow userId={user?.id} />
+
       {/* Main + rail. The main column carries the substantial, scannable
           content top-down (nutrition target → weekly numbers → adherence); the
           rail holds the quick + relational cards (daily log, coach, care team).
@@ -258,5 +265,28 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         />
       </section>
     </div>
+  );
+}
+
+/**
+ * CL5 container — owns the read so `WeekConsistencyDots` stays presentational.
+ *
+ * Renders NOTHING while loading (a half-drawn week is worse than none) and nothing
+ * when there's no user. A failed read resolves to an empty set, which would show a
+ * blank week the client didn't actually have — so the hook logs it and we simply
+ * omit the row rather than assert an absence we can't stand behind.
+ */
+function WeeklyConsistencyRow({ userId }: { userId: string | undefined }) {
+  const { loading, weekDates, activeDates, activeCount } = useWeeklyConsistency(userId);
+
+  if (!userId || loading) return null;
+
+  return (
+    <WeekConsistencyDots
+      weekDates={weekDates}
+      activeDates={activeDates}
+      activeCount={activeCount}
+      className="py-1"
+    />
   );
 }
