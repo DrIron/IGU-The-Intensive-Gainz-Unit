@@ -10,6 +10,9 @@ import { deriveCoachHeadline } from "@/components/coach/CoachPublicProfile";
 import { MapPin, Award } from "lucide-react";
 import { SEOHead } from "@/components/SEOHead";
 import { useSpecializationTags } from "@/hooks/useSpecializationTags";
+import { LoadError } from "@/components/ui/load-error";
+import { RosterRowSkeleton } from "@/components/ui/loading-skeleton";
+import { captureException } from "@/lib/errorLogging";
 import { useSiteContent } from "@/hooks/useSiteContent";
 
 // Public coach profile - no sensitive contact info
@@ -33,6 +36,7 @@ export default function MeetOurTeam() {
   const [coaches, setCoaches] = useState<Coach[]>([]);
   const [reviewCounts, setReviewCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [selectedCoach, setSelectedCoach] = useState<Coach | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const { getLabel } = useSpecializationTags();
@@ -73,8 +77,11 @@ export default function MeetOurTeam() {
         if (agg?.count) counts[id] = agg.count;
       });
       setReviewCounts(counts);
-    } catch (error) {
-      console.error("Error fetching coaches:", error);
+    } catch (err) {
+      // CC10: a failed fetch used to render the EMPTY state — telling prospects on a
+      // public marketing page that IGU has no coaches. Never conflate the two.
+      captureException(err, { source: "MeetOurTeam.fetchCoaches" });
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setLoading(false);
     }
@@ -82,8 +89,24 @@ export default function MeetOurTeam() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <p className="text-muted-foreground">Loading our team...</p>
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-16">
+          <RosterRowSkeleton count={4} className="mx-auto max-w-2xl" />
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-background">
+        <div className="container mx-auto px-4 py-16">
+          <LoadError
+            className="mx-auto max-w-md"
+            message="We couldn't load the coaching team. Check your connection and try again."
+            onRetry={() => { void fetchCoaches(); }}
+          />
+        </div>
       </div>
     );
   }

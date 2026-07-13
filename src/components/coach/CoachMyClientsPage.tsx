@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
+import { RosterRowSkeleton } from "@/components/ui/loading-skeleton";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useStaffUnreadCounts } from "@/hooks/useStaffUnreadCounts";
 import { useCoachDeloadRequestCounts } from "@/hooks/useCoachDeloadRequests";
@@ -78,6 +80,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   const [activeTab, setActiveTab] = useState(urlTab);
   const [clients, setClients] = useState<CoachClient[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<Error | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   // One RPC returns the (client_id -> unread_count) map for the whole
@@ -241,7 +244,10 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
 
       setClients(clientList);
     } catch (error: any) {
+      // CC10: without this, a failed roster fetch rendered the "no clients" EmptyState —
+      // a coach with 20 clients was told they had none.
       console.error("[CoachMyClientsPage] Error fetching clients:", error);
+      setError(error instanceof Error ? error : new Error(String(error)));
       toast({
         title: "Error",
         description: sanitizeErrorForUser(error),
@@ -1034,9 +1040,12 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-            </div>
+            <RosterRowSkeleton count={5} />
+          ) : error ? (
+            <LoadError
+              message="We couldn't load your clients. Check your connection and try again."
+              onRetry={() => { setError(null); void fetchClients(); }}
+            />
           ) : (
             <div className="space-y-6">
               {/* Needs-attention strip — count chips that jump to the relevant

@@ -6,6 +6,7 @@ import { WeightChangeProof } from "@/components/testimonials/WeightChangeProof";
 import { type WeightChangeShape } from "@/lib/weightChangeFormat";
 import { Star } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { LoadError } from "@/components/ui/load-error";
 
 export type TestimonialsSort = "featured" | "recent" | "rating";
 
@@ -47,9 +48,11 @@ interface TestimonialsListProps {
 export function TestimonialsList({ limit, coachId, goalType, sortBy = "featured", className }: TestimonialsListProps) {
   const [testimonials, setTestimonials] = useState<TestimonialRow[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
   const hasFetched = useRef<string | null>(null);
 
   const load = useCallback(async () => {
+    setError(null);
     try {
       let query = supabase.from("testimonials").select("*").eq("featured_public", true);
       if (coachId) query = query.eq("coach_id", coachId);
@@ -84,8 +87,15 @@ export function TestimonialsList({ limit, coachId, goalType, sortBy = "featured"
         }
       }
       setTestimonials(rows.map((r) => ({ ...r, coaches: r.coach_id ? coachById.get(r.coach_id) ?? null : null })));
-    } catch (error: unknown) {
-      captureException(error, { source: "TestimonialsList.load" });
+    } catch (err: unknown) {
+      // CC10: a failed fetch used to fall through to the marketing PLACEHOLDER cards
+      // below — i.e. it answered a network error with three fabricated 5-star reviews
+      // on the public homepage. An error must never render as content.
+      //
+      // NOTE (PUB6): only the ERROR branch is fixed here. The placeholder cards in the
+      // EMPTY branch are still there and are PUB6's job, together with the card reorder.
+      captureException(err, { source: "TestimonialsList.load" });
+      setError(err instanceof Error ? err : new Error(String(err)));
     } finally {
       setLoaded(true);
     }
@@ -97,6 +107,22 @@ export function TestimonialsList({ limit, coachId, goalType, sortBy = "featured"
     hasFetched.current = key;
     load();
   }, [limit, coachId, goalType, sortBy, load]);
+
+  // CC10: error short-circuits ahead of the grid. Previously a failed fetch fell
+  // through to the `loaded ? <fake cards>` branch below and published three
+  // fabricated 5-star reviews. PUB6 still owns those fakes in the EMPTY case.
+  if (error) {
+    return (
+      <LoadError
+        className={className}
+        message="We couldn't load testimonials right now. Please try again."
+        onRetry={() => {
+          hasFetched.current = null;
+          void load();
+        }}
+      />
+    );
+  }
 
   return (
     <div className={cn("grid md:grid-cols-3 gap-8", className)}>

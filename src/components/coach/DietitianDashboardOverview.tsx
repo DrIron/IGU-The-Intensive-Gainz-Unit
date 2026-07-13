@@ -1,4 +1,6 @@
 import { useState, useEffect, useCallback, useRef, memo } from "react";
+import { LoadError } from "@/components/ui/load-error";
+import { MetricCardGridSkeleton } from "@/components/ui/loading-skeleton";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -7,7 +9,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { Button } from "@/components/ui/button";
 import {
-  Loader2,
   Bell,
   ChevronRight,
   Activity,
@@ -88,6 +89,7 @@ export default function DietitianDashboardOverview({
   const { toast } = useToast();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const [metrics, setMetrics] = useState<DietitianMetrics>(EMPTY_METRICS);
   const hasFetched = useRef(false);
 
@@ -98,12 +100,14 @@ export default function DietitianDashboardOverview({
       // 1) Active dietitian assignments -> roster. Filters on `status='active'`
       //    to match the `is_dietitian_for_client` RLS helper (see
       //    DietitianMyClientsPage.tsx for the column-ambiguity note).
+      // NOTE: three chained .eq() calls put this file over TypeScript's generic
+      // instantiation-depth limit (TS2589) — adding two imports was enough to cross it.
+      // .match() applies the same three filters in ONE builder layer instead of three.
+      // Behaviour is identical; it just costs the type-checker less.
       const { data: assignments, error: assignmentsError } = await supabase
         .from("care_team_assignments")
         .select("client_id")
-        .eq("staff_user_id", userId)
-        .eq("specialty", "dietitian")
-        .eq("status", "active");
+        .match({ staff_user_id: userId, specialty: "dietitian", status: "active" });
 
       if (assignmentsError) throw assignmentsError;
 
@@ -224,6 +228,7 @@ export default function DietitianDashboardOverview({
         recentWeighIns,
       });
     } catch (error: unknown) {
+      setLoadError(error instanceof Error ? error : new Error(String(error)));
       console.error("[DietitianDashboardOverview] fetch:", error);
       toast({
         title: "Error",
@@ -252,10 +257,17 @@ export default function DietitianDashboardOverview({
   );
 
   if (loading) {
+    return <MetricCardGridSkeleton className="min-h-[400px] content-start" />;
+  }
+
+  if (loadError) {
+    // CC10: previously fell through to the rosterSize===0 empty state — a dietitian
+    // with clients was told their roster was empty whenever the fetch failed.
     return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <Loader2 className="h-12 w-12 animate-spin text-muted-foreground" />
-      </div>
+      <LoadError
+        message="We couldn't load your nutrition dashboard. Check your connection and try again."
+        onRetry={() => { setLoadError(null); void fetchMetrics(); }}
+      />
     );
   }
 

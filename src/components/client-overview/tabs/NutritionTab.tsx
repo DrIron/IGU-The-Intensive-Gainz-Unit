@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Coffee, Flame, Footprints, Link2, Pencil, type LucideIcon } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { LoadError } from "@/components/ui/load-error";
 import { NutritionPhaseCard } from "@/components/nutrition/NutritionPhaseCard";
 import { PhaseSwitcher } from "@/components/nutrition/PhaseSwitcher";
 import { NutritionPermissionGate } from "@/components/nutrition/NutritionPermissionGate";
@@ -50,6 +51,7 @@ interface PhaseStats {
  * `context.clientUserId`.
  */
 export function NutritionTab({ context }: ClientOverviewTabProps) {
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const { clientUserId } = context;
   // B6: gate contextual-comment composers on the same edit permission as the
   // rest of the nutrition surface (React-Query cached — dedupes with the gates).
@@ -84,9 +86,13 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
       .order("start_date", { ascending: false }); // then most recent
 
     if (error) {
+      // CC10: this used to `return` silently — the tab then rendered as "no phases",
+      // so a failed fetch was indistinguishable from a client who has none.
       console.error("[NutritionTab] load phases:", error.message);
+      setLoadError(new Error(error.message));
       return;
     }
+    setLoadError(null);
 
     const list = data ?? [];
     setPhases(list);
@@ -149,6 +155,16 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
       cancelled = true;
     };
   }, [selectedPhase]);
+
+
+  if (loadError) {
+    return (
+      <LoadError
+        message="We couldn't load this client's nutrition phases. Check your connection and try again."
+        onRetry={() => { setLoadError(null); void loadClientPhases(); }}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">

@@ -61,6 +61,7 @@ export function ProfileInfoTab({ context }: ClientOverviewTabProps) {
   const demographics = useClientDemographics(clientUserId);
   const [submission, setSubmission] = useState<SubmissionMeta | null>(null);
   const [submissionLoading, setSubmissionLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const hasFetched = useRef<string | null>(null);
 
   const loadSubmission = useCallback(async (userId: string) => {
@@ -97,7 +98,9 @@ export function ProfileInfoTab({ context }: ClientOverviewTabProps) {
     if (hasFetched.current === clientUserId) return;
     hasFetched.current = clientUserId;
     loadSubmission(clientUserId).catch((err) => {
+      // CC10: was swallowed -> the intake summary silently rendered blank.
       console.error("[ProfileInfoTab] unexpected:", err);
+      setLoadError(err instanceof Error ? err : new Error(String(err)));
       setSubmissionLoading(false);
     });
   }, [clientUserId, loadSubmission]);
