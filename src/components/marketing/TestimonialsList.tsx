@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useTranslation } from "react-i18next";
 import { supabase } from "@/integrations/supabase/client";
 import { captureException } from "@/lib/errorLogging";
 import { deriveDisplayName, deriveAvatarInitial } from "@/lib/testimonialAttribution";
-import { WeightChangeProof } from "@/components/testimonials/WeightChangeProof";
-import { type WeightChangeShape } from "@/lib/weightChangeFormat";
-import { Star } from "lucide-react";
+import { formatWeightChange, type WeightChangeShape } from "@/lib/weightChangeFormat";
+import { Star, TrendingDown, TrendingUp, MessageSquareQuote } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { LoadError } from "@/components/ui/load-error";
+import { EmptyState } from "@/components/ui/empty-state";
 
 export type TestimonialsSort = "featured" | "recent" | "rating";
 
@@ -46,6 +47,7 @@ interface TestimonialsListProps {
  * border, fill-primary stars, no shadows/gradients).
  */
 export function TestimonialsList({ limit, coachId, goalType, sortBy = "featured", className }: TestimonialsListProps) {
+  const { t } = useTranslation("common");
   const [testimonials, setTestimonials] = useState<TestimonialRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState<Error | null>(null);
@@ -124,70 +126,134 @@ export function TestimonialsList({ limit, coachId, goalType, sortBy = "featured"
     );
   }
 
+  // Nothing fabricated, ever. When there are no featured testimonials we say so —
+  // the old behaviour rendered three fake 5-star "Client Name" cards on the public
+  // homepage, which is manufactured social proof and the exact opposite of PUB6's ask.
+  if (loaded && testimonials.length === 0) {
+    return (
+      <EmptyState
+        className={className}
+        icon={MessageSquareQuote}
+        title={t("testimonialsEmptyTitle", { defaultValue: "No testimonials yet" })}
+        description={t("testimonialsEmptyBody", {
+          defaultValue: "Real client stories will appear here as clients share them.",
+        })}
+      />
+    );
+  }
+
   return (
     <div className={cn("grid md:grid-cols-3 gap-8", className)}>
-      {testimonials.length > 0 ? (
-        testimonials.map((testimonial) => {
-          const displayName = deriveDisplayName(testimonial.attribution, testimonial.author_display_name);
-          const initial = deriveAvatarInitial(testimonial.attribution, displayName);
-          return (
+      {testimonials.map((testimonial) => {
+        const displayName = deriveDisplayName(testimonial.attribution, testimonial.author_display_name);
+        const initial = deriveAvatarInitial(testimonial.attribution, displayName);
+        // Only a REAL weight_change attachment earns the hero. Never invent an outcome
+        // for a card that has none — those stay quote-led.
+        const proof =
+          testimonial.attachment_type === "weight_change" && testimonial.attachment
+            ? testimonial.attachment
+            : null;
+
+        return (
           <div key={testimonial.id} className="bg-card border border-border rounded-lg p-6">
-            <div className="flex gap-1 mb-4">
-              {[...Array(5)].map((_, index) => (
-                <Star
-                  key={index}
-                  className={cn(
-                    "h-5 w-5",
-                    index < testimonial.rating ? "fill-primary text-primary" : "text-muted-foreground/30",
-                  )}
-                />
-              ))}
-            </div>
+            {/* 1. OUTCOME FIRST (when there is a real one). */}
+            {proof && <ResultHero attachment={proof} note={testimonial.attachment_note} />}
+
+            {/* 2. Quote. */}
             <p className="text-muted-foreground mb-4 italic">&quot;{testimonial.feedback}&quot;</p>
-            {testimonial.attachment_type === "weight_change" && testimonial.attachment && (
-              <WeightChangeProof attachment={testimonial.attachment} note={testimonial.attachment_note} className="mb-4" />
-            )}
+
+            {/* 3. Author. */}
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-primary/20 flex items-center justify-center">
                 <span className={cn("font-semibold text-primary", initial.length > 1 ? "text-xs" : "text-lg")}>
                   {initial}
                 </span>
               </div>
-              <div>
+              <div className="min-w-0">
                 <p className="font-semibold">{displayName}</p>
                 {testimonial.coaches && (
-                  <p className="text-sm text-muted-foreground">
-                    Coach: {testimonial.coaches.first_name} {testimonial.coaches.last_name}
+                  <p className="text-sm text-muted-foreground truncate">
+                    {t("testimonialCoachLabel", {
+                      name: `${testimonial.coaches.first_name} ${testimonial.coaches.last_name}`,
+                      defaultValue: "Coach: {{name}}",
+                    })}
                   </p>
                 )}
               </div>
             </div>
-          </div>
-          );
-        })
-      ) : loaded ? (
-        // Empty (or not-yet-loaded shows nothing): marketing placeholders, same as before.
-        [...Array(limit ?? 3)].map((_, i) => (
-          <div key={i} className="bg-card border border-border rounded-lg p-6">
-            <div className="flex gap-1 mb-4">
+
+            {/* 4. Stars — demoted to supporting metadata in the footer. */}
+            <div
+              className="mt-4 flex gap-0.5 border-t border-border/60 pt-3"
+              aria-label={t("testimonialRatingAria", {
+                n: testimonial.rating,
+                defaultValue: "{{n}} out of 5",
+              })}
+            >
               {[...Array(5)].map((_, index) => (
-                <Star key={index} className="h-5 w-5 fill-primary text-primary" />
+                <Star
+                  key={index}
+                  className={cn(
+                    "h-3.5 w-3.5",
+                    index < testimonial.rating ? "fill-primary text-primary" : "text-muted-foreground/30",
+                  )}
+                  aria-hidden
+                />
               ))}
             </div>
-            <p className="text-muted-foreground mb-4 italic">
-              &quot;Coming soon - your testimonial could be here! Join our coaching program and transform
-              your fitness journey.&quot;
-            </p>
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-full bg-primary/20" />
-              <div>
-                <p className="font-semibold">Client Name</p>
-                <p className="text-sm text-muted-foreground">Program Type</p>
-              </div>
-            </div>
           </div>
-        ))
-      ) : null}
+        );
+      })}
+    </div>
+  );
+}
+
+/**
+ * ResultHero — the outcome, as the headline (PUB6).
+ *
+ * HONESTY CONTRACT (inherited from WeightChangeProof.tsx:9-11 — do not break it):
+ *   - The number is `text-foreground`, NEVER crimson/emerald. Colouring a loss as
+ *     "success" would imply down is universally good; a -2.1 kg under a lean-bulk
+ *     phase is not a win. The direction glyph states the sign, nothing more.
+ *   - The phase name rides along underneath so the number reads against the client's
+ *     OWN goal, not an assumed one.
+ *   - delta/weeks come straight off the stored attachment — nothing is recomputed,
+ *     estimated or backfilled.
+ */
+function ResultHero({
+  attachment,
+  note,
+}: {
+  attachment: WeightChangeShape;
+  note?: string | null;
+}) {
+  const { t } = useTranslation("common");
+  const delta = Number(attachment.delta_kg);
+  const weeks = Number(attachment.weeks);
+  if (!Number.isFinite(delta) || !Number.isFinite(weeks)) return null;
+
+  const Icon = delta < 0 ? TrendingDown : TrendingUp;
+  const weeksLabel =
+    weeks === 1
+      ? t("proofWeekOne", { defaultValue: "1 week" })
+      : t("proofWeeks", { n: weeks, defaultValue: "{{n}} weeks" });
+
+  return (
+    <div className="mb-4" title={formatWeightChange(attachment)}>
+      <div className="flex items-baseline gap-1.5 text-foreground">
+        <Icon className="h-5 w-5 shrink-0 self-center text-muted-foreground" aria-hidden />
+        <span className="font-display text-4xl leading-none tracking-wide">
+          {Math.abs(delta)}
+        </span>
+        <span className="text-sm font-medium text-muted-foreground">
+          {t("proofKgUnit", { defaultValue: "kg" })}
+        </span>
+      </div>
+      <p className="mt-1.5 font-mono text-xs uppercase tracking-wider text-muted-foreground">
+        {weeksLabel}
+        {attachment.phase_name && <> · {attachment.phase_name}</>}
+      </p>
+      {note && <p className="mt-1.5 text-xs text-muted-foreground">{note}</p>}
     </div>
   );
 }

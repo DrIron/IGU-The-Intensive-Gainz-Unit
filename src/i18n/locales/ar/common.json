@@ -82,5 +82,10 @@
   "addProofNonePhases": "لا توجد مراحل تغيّر وزن متاحة لهذا المدرب بعد.",
   "proofKg": "{{n}} كجم",
   "proofWeeks": "{{n}} أسابيع",
-  "proofWeekOne": "أسبوع واحد"
+  "proofWeekOne": "أسبوع واحد",
+  "proofKgUnit": "كجم",
+  "testimonialCoachLabel": "المدرب: {{name}}",
+  "testimonialRatingAria": "{{n}} من 5",
+  "testimonialsEmptyTitle": "لا توجد شهادات بعد",
+  "testimonialsEmptyBody": "ستظهر قصص العملاء الحقيقية هنا عندما يشاركونها."
 }

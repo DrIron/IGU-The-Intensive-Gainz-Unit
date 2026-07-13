@@ -82,5 +82,10 @@
   "addProofNonePhases": "No weight-change phases available for this coach yet.",
   "proofKg": "{{n}} kg",
   "proofWeeks": "{{n}} weeks",
-  "proofWeekOne": "1 week"
+  "proofWeekOne": "1 week",
+  "proofKgUnit": "kg",
+  "testimonialCoachLabel": "Coach: {{name}}",
+  "testimonialRatingAria": "{{n}} out of 5",
+  "testimonialsEmptyTitle": "No testimonials yet",
+  "testimonialsEmptyBody": "Real client stories will appear here as clients share them."
 }
