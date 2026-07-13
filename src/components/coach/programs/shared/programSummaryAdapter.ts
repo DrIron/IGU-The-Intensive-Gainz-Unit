@@ -64,6 +64,9 @@ export interface CanonicalPlanSlotRow {
   id: string;
   plan_session_id: string | null;
   sort_order: number | null;
+  /** Non-strength slots: the activity + its display name. */
+  activity_id?: string | null;
+  activity_name?: string | null;
   /** Carries muscleId / sets / repMin / repMax / setsDetail / exerciseName. */
   prescription_json: unknown;
 }
@@ -179,8 +182,16 @@ export function adaptCanonicalPlanToSlots(
         setsDetail: Array.isArray(p.setsDetail)
           ? (p.setsDetail as MuscleSlotData["setsDetail"])
           : undefined,
+        // NOTE (PR3): §2B says to render the exercise as `client_name ?? name`, but
+        // `exercise_library` has NO `client_name` column and the field exists nowhere in
+        // src/. `prescription_json.exerciseName` is the name captured at selection time
+        // and is the only exercise name the canonical slot carries — so that is what we
+        // show. Flagged to the planning session; no join needed.
         exercise: str(p.exerciseName) ? { exerciseId: "", name: str(p.exerciseName)! } : undefined,
         activityType,
+        activityId: str(slot.activity_id) ?? str(p.activityId),
+        activityName: str(slot.activity_name) ?? str(p.activityName),
+        duration: typeof p.duration === "number" ? p.duration : undefined,
       } satisfies MuscleSlotData;
     });
 }

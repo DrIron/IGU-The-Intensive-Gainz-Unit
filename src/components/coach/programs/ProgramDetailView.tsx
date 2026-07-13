@@ -10,6 +10,11 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { useMusclePlanVolume } from "./muscle-builder/hooks/useMusclePlanVolume";
 import { useProgramSummaries } from "./useProgramSummaries";
 import { MuscleDistributionBars } from "./shared/MuscleDistributionBars";
+import { WeekBreakdownCard, type WeekBreakdown } from "./shared/WeekBreakdownCard";
+import {
+  adaptCanonicalPlanToSlots,
+  adaptCanonicalPlanToSessions,
+} from "./shared/programSummaryAdapter";
 import { MuscleDistributionRibbon } from "./shared/MuscleDistributionRibbon";
 import { ProgramStatStrip } from "./shared/ProgramStatStrip";
 import { ProgramStatusPill } from "./shared/ProgramStatusPill";
@@ -47,6 +52,35 @@ export function ProgramDetailView({
   const { summaries, isLoading, error } = useProgramSummaries(ids);
 
   const summary = summaries.get(programId);
+
+  /**
+   * PR3 — week-by-week, mapped from the RAW canonical tree the hook hands back.
+   * No second read: useProgramSummaries already fetched every plan_week /
+   * plan_session / plan_slot for this plan. Canonical plan_slots only — the legacy
+   * day_modules tree is never touched (the legacy-shim path has no tree, so a
+   * legacy-only program simply shows no week breakdown).
+   */
+  const weeks: WeekBreakdown[] = useMemo(() => {
+    const tree = summary?.tree;
+    if (!tree || tree.weeks.length === 0) return [];
+
+    return tree.weeks.map((week) => {
+      const weekSessions = tree.sessions.filter((s) => s.plan_week_id === week.id);
+      const sessionIds = new Set(weekSessions.map((s) => s.id));
+      const weekSlots = tree.slots.filter(
+        (sl) => sl.plan_session_id != null && sessionIds.has(sl.plan_session_id),
+      );
+
+      return {
+        weekId: week.id,
+        weekIndex: week.week_index,
+        isDeload: week.is_deload === true,
+        sessions: adaptCanonicalPlanToSessions(weekSessions),
+        slots: adaptCanonicalPlanToSlots(weekSessions, weekSlots),
+      };
+    });
+  }, [summary]);
+
   const title = summary?.meta.title ?? "";
   const description = summary?.meta.description;
   const level = summary?.meta.level;
@@ -155,6 +189,27 @@ export function ProgramDetailView({
             </h2>
             <MuscleDistributionBars entries={volumeEntries} />
           </section>
+
+          {/* PR3 — week-by-week (microcycles). Mobile collapses each week to its
+              header summary; desktop opens them. Progression week-collapse
+              ("Weeks 2-4 repeat Week 1 + load") was an optional stretch and is
+              deferred — every week renders in full with its deload badge. */}
+          {weeks.length > 0 && (
+            <section className="space-y-2 pb-24 md:pb-8">
+              <h2 className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+                Week by week
+              </h2>
+              <div className="space-y-2">
+                {weeks.map((week) => (
+                  <WeekBreakdownCard
+                    key={week.weekId}
+                    week={week}
+                    defaultCollapsed={isMobile}
+                  />
+                ))}
+              </div>
+            </section>
+          )}
         </>
       )}
     </div>
