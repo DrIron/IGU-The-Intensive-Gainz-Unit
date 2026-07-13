@@ -23,6 +23,14 @@ import type { MuscleVolumeEntry, VolumeSummary } from "../../muscle-builder/hook
  *
  * That is a strictly stronger guarantee than an eyeballed screenshot: it compares
  * markup byte-for-byte, including classes a screenshot could never reveal.
+ *
+ * ── SNAPSHOT RE-BLESSED 2026-07-13 (deliberate, not a silent override) ───────
+ * ProgramStatStrip's docstring always said it renders "12 sets · 48-62 min", but the
+ * render never emitted the middot — segments were merely gap-separated, so the
+ * builder's day strip and PR2's library card shipped "312 sets 18 exercises". The
+ * separator was restored, which IS a visual change to the builder (a "·" now sits
+ * between the sets count and the duration). This guard correctly failed on it; the
+ * baseline was updated on purpose. Everything else in these snapshots is unchanged.
  */
 
 let container: HTMLDivElement;

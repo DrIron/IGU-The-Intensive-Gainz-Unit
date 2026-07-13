@@ -100,7 +100,13 @@ Hevy's muscle-distribution + stat tiles.
    already computes `getVolumeLandmarkZone`.
 3. **Week-by-week (microcycles)** — one card per week: `Week 1 · 4 sessions · 78 sets`, then day rows
    (`Day 1 — Push · 6 exercises · 18 sets · ~55 min`) with the session-type colored bar. A day expands to
-   its exercises (`Incline DB Press · 4 × 8–10`, reusing `client_name ?? name`). If weeks are identical
+   its exercises (`Incline DB Press · 4 × 8–10`).
+   > **CORRECTION 2026-07-13 (shipped in PR3).** This line previously said "reusing `client_name ?? name`".
+   > **`exercise_library` has NO `client_name` column** (`id, name, primary_muscle, …, anatomical_name`) and
+   > the field exists nowhere in `src/` for exercises. The exercise name a canonical slot carries is
+   > `plan_slots.prescription_json.exerciseName`, captured at selection time and already mapped by PR2's
+   > adapter — no join, no extra query. PR3 renders that.
+   If weeks are identical
    except for progression, collapse to "Weeks 2–4 repeat Week 1 with +load" (progression deltas exist in
    the Planning Board's weekly-delta engine; surface them read-only).
 4. **Deload / phase markers** — flag deload weeks (the draft's `isDeloadByWeek`) inline on the week card.
@@ -112,10 +118,22 @@ Mockup: screen 2.
 A macrocycle is an ordered sequence of mesocycles. Present it as a **training arc / timeline**:
 
 - **Arc header:** total span (`13 weeks · 3 blocks`), goal/phase label.
-- **Block timeline:** each mesocycle as a block segment sized by its week count, labeled with its phase
-  intent (`Hypertrophy → Strength → Peak`), showing per-block summary (weeks, sessions/wk, headline
-  focus, sets/wk). A thin **volume-trend line** across blocks makes the periodization legible (e.g.
-  volume tapering into the peak block).
+- **Block timeline:** each mesocycle as a block segment sized by its week count, showing per-block summary
+  (weeks, sessions/wk, headline focus, sets/wk). A thin **volume-trend line** across blocks makes the
+  periodization legible (e.g. volume tapering into the peak block).
+  > **⛔ BLOCKER 2026-07-13 (PR4) — "phase intent" has NO DATA SOURCE. Planning session must rule.**
+  > This line asks each block to be "labeled with its phase intent (`Hypertrophy → Strength → Peak`)".
+  > There is nowhere to read that from:
+  > - `macrocycle_mesocycles` = `(macrocycle_id, program_template_id, sequence)` — no phase/label column.
+  > - `macrocycles` = `(id, coach_id, name, description)` — no goal/phase column.
+  >
+  > Under the no-fabrication rule (mirroring §6.2's focus-chip ruling — real data, never inference), the
+  > phase chip collapses to the mesocycle's own name, which is already the block title — i.e. it is
+  > redundant, or must be omitted entirely. `Hypertrophy → Strength → Peak` is a mockup fiction.
+  >
+  > **Options:** (a) drop the phase chip and let the block title + mono meta carry it; (b) add a
+  > `phase`/`label` column to `macrocycle_mesocycles` — but that is a NEW DATA MODEL, which PR4's own
+  > scope guard forbids. Needs a decision before PR4 builds.
 - **Reorder / add / remove** blocks inline (the existing `MacrocycleEditor` actions), plus **Assign whole
   macrocycle to client** (the existing `assign_macrocycle_to_client_canonical` engine).
 - Each block links to its mesocycle detail (2B).
