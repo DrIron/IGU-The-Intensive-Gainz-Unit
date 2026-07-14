@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IGU — Unified Nutrition Display (ribbon → donut), before/after</title>
+<style>
+  :root{
+    --background:240 10% 3.7%; --card:240 6% 8.4%; --card-2:240 6% 11%;
+    --muted:240 4% 11.8%; --muted-fg:240 5% 64.9%; --border:240 4% 16.5%;
+    --fg:0 0% 98%; --primary:355 78% 48%; --radius:0.75rem;
+    --p:355 78% 55%; --f:38 92% 55%; --c:212 72% 55%;
+    --emerald:150 55% 45%;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:hsl(240 10% 6%);color:hsl(var(--fg));font-family:'Geist','Inter',system-ui,sans-serif;line-height:1.5;padding:38px 22px 80px;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto}
+  .ptitle{font-size:13px;letter-spacing:.12em;text-transform:uppercase;color:hsl(var(--muted-fg));margin-bottom:6px}
+  .psub{font-size:22px;font-weight:600;margin-bottom:4px}
+  .pdesc{color:hsl(var(--muted-fg));font-size:14px;max-width:800px;margin-bottom:14px}
+  .ruling{font-size:12.5px;color:hsl(var(--fg));background:hsl(var(--primary)/.08);border:1px solid hsl(var(--primary)/.25);border-radius:10px;padding:11px 14px;margin-bottom:34px}
+  .ruling b{color:hsl(var(--primary))}
+  .mono{font-family:'JetBrains Mono',ui-monospace,monospace}
+  .bebas{font-family:'Bebas Neue','Oswald',sans-serif;letter-spacing:.02em}
+
+  .surface{margin-bottom:40px}
+  .slabel{display:flex;align-items:baseline;gap:10px;margin-bottom:12px}
+  .slabel .n{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:hsl(var(--muted-fg))}
+  .slabel .v{font-size:12px;font-weight:600}
+  .verdict{font-size:11px;font-weight:600;padding:2px 9px;border-radius:20px}
+  .v-donut{background:hsl(var(--primary)/.16);color:hsl(var(--primary))}
+  .v-keep{background:hsl(38 92% 55%/.16);color:hsl(38 92% 62%)}
+  .ba{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+  .col .tag{font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;color:hsl(var(--muted-fg));margin-bottom:8px}
+  .col.before .tag{color:hsl(var(--muted-fg))}
+  .col.after .tag{color:hsl(var(--primary))}
+
+  .card{position:relative;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--radius);padding:16px 16px 16px 18px;overflow:hidden}
+  .rail{position:absolute;left:0;top:0;bottom:0;width:3px;background:hsl(var(--emerald))}
+  .chdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:9px}
+  .cname{font-size:14px;font-weight:500}
+  .badge{font-size:10px;padding:2px 8px;border-radius:20px;border:1px solid hsl(var(--border));color:hsl(var(--muted-fg))}
+  .badge.goal{border-color:hsl(var(--primary)/.4);color:hsl(var(--primary))}
+  .statusb{font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;background:hsl(var(--emerald)/.16);color:hsl(var(--emerald))}
+  .metaline{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:hsl(var(--muted-fg));margin-bottom:9px}
+  .cc2{font-size:12px;color:hsl(var(--fg));display:flex;gap:7px;align-items:flex-start;margin:9px 0}
+  .cc2 .dot{width:7px;height:7px;border-radius:50%;background:hsl(var(--emerald));margin-top:5px;flex-shrink:0}
+  .kcal{font-size:38px;line-height:1;color:hsl(var(--primary))}
+  .kcal small{font-size:12px;color:hsl(var(--muted-fg));margin-left:4px;font-family:'Geist',sans-serif;letter-spacing:0}
+  .pfc-mono{font-family:'JetBrains Mono',monospace;font-size:11px;color:hsl(var(--muted-fg));margin-top:6px}
+
+  /* ribbon */
+  .ribbon{height:7px;width:100%;display:flex;overflow:hidden;border-radius:20px;margin:11px 0}
+  .ribbon>span{height:100%}
+  .ribbon.thin{height:4px}
+  .rib-p{background:hsl(var(--p))}.rib-f{background:hsl(var(--f))}.rib-c{background:hsl(var(--c))}
+
+  /* 3-col grid */
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:10px}
+  .g3{background:hsl(var(--muted)/.3);border-radius:8px;padding:8px;text-align:center}
+  .g3 .gv{font-size:16px;font-weight:600}
+  .g3 .gk{font-size:9px;text-transform:uppercase;letter-spacing:.05em;color:hsl(var(--muted-fg))}
+  .g3 .gp{font-size:10px;color:hsl(var(--muted-fg));font-family:monospace}
+  .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
+
+  /* donut summary */
+  .summary{display:flex;align-items:center;gap:16px;margin:11px 0}
+  .donut{position:relative;border-radius:50%;flex-shrink:0}
+  .donut::after{content:"";position:absolute;border-radius:50%;background:hsl(var(--card))}
+  .donut.lg{width:132px;height:132px}.donut.lg::after{inset:16px}
+  .donut.md{width:108px;height:108px}.donut.md::after{inset:13px}
+  .donut.sm{width:84px;height:84px}.donut.sm::after{inset:10px}
+  .dcenter{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:2}
+  .dcenter .dk{color:hsl(var(--primary));line-height:.9}
+  .donut.lg .dk{font-size:34px}.donut.md .dk{font-size:28px}.donut.sm .dk{font-size:20px}
+  .dcenter .du{font-size:9px;color:hsl(var(--muted-fg));text-transform:uppercase;letter-spacing:.06em}
+  .legend{flex:1;display:flex;flex-direction:column;gap:7px;min-width:0}
+  .lrow{display:flex;align-items:center;gap:9px;font-size:12.5px}
+  .lsw{width:9px;height:9px;border-radius:2px;flex-shrink:0}
+  .lname{color:hsl(var(--fg))}
+  .lvals{margin-left:auto;display:flex;gap:12px;font-family:'JetBrains Mono',monospace;font-size:11.5px;color:hsl(var(--muted-fg));font-variant-numeric:tabular-nums}
+  .lvals .lg-g{width:52px;text-align:right;color:hsl(var(--fg))}
+  .lvals .lg-p{width:34px;text-align:right}
+
+  /* rate strip */
+  .rate{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:hsl(var(--muted-fg));background:hsl(var(--muted)/.28);border-radius:7px;padding:7px 10px;margin:9px 0;display:flex;justify-content:space-between;flex-wrap:wrap;gap:6px}
+  .actions{display:flex;gap:8px;margin-top:11px}
+  .btn{flex:1;text-align:center;font-size:12px;padding:8px;border-radius:8px;background:transparent;border:1px solid hsl(var(--border));color:hsl(var(--fg))}
+  .btn.p{background:hsl(var(--primary));border-color:hsl(var(--primary));color:#fff}
+
+  .twocol{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .subhdr{font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:hsl(var(--muted-fg));margin-bottom:7px}
+  .journey{background:hsl(var(--muted)/.25);border-radius:8px;padding:10px;font-size:11px;color:hsl(var(--muted-fg))}
+  .fiber{font-size:9.5px;padding:1px 7px;border-radius:20px;background:hsl(var(--c)/.16);color:hsl(var(--c));display:inline-block;margin-top:8px}
+  .alertcard{border-left:3px solid hsl(var(--f))}
+  .weighthero{text-align:center;padding:6px 0 12px}
+  .weighthero .wd{font-size:44px;line-height:1;color:hsl(var(--fg))}
+  .weighthero .wc{font-family:monospace;font-size:11px;color:hsl(var(--muted-fg));margin-top:4px}
+  .note{font-size:11px;color:hsl(var(--muted-fg));margin-top:8px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="ptitle">IGU · Part IV — Unified nutrition display</div>
+  <div class="psub">Ribbon → donut conversion (before / after)</div>
+  <div class="pdesc">Hasan ruled option B: the macro-distribution ribbon retires into the shared <span class="mono">NutritionSummary</span> donut across the nutrition surfaces. A deliberate per-surface redesign, not a silent refactor. Donut composes WITH each card's existing chrome (status rail, rate strip, actions) — it replaces the calorie+macro block only. Default-dark, real IGU tokens.</div>
+  <div class="ruling"><b>Outcome (reconciled 2026-07-13 — single source of truth):</b> donut on <b>4</b> surfaces — NutritionGoal, NutritionTargetsCard, NutritionPhaseCard, NutritionProgress <b>Block B</b>. <b>Ribbon retained on 2</b> — the branded PhaseSummaryCard export (weight delta is the hero) + NutritionProgress <b>Block A</b> (the adjustment nudge).</div>
+
+  <!-- 1. NutritionPhaseCard -->
+  <div class="surface">
+    <div class="slabel"><span class="n">1 · NutritionPhaseCard</span><span class="v">Coach phase hero</span><span class="verdict v-donut">→ DONUT (md)</span></div>
+    <div class="ba">
+      <div class="col before">
+        <div class="tag">Before — number + ribbon</div>
+        <div class="card">
+          <div class="rail"></div>
+          <div class="chdr"><span class="cname">Summer Cut</span><span class="badge goal">Fat loss</span></div>
+          <div class="metaline">Week 3 · target 82 kg · avg −0.6 kg · ~4 wks to target</div>
+          <div class="cc2"><span class="dot"></span>On track — losing about as planned.</div>
+          <div class="kcal bebas">2,050<small>kcal</small></div>
+          <div class="pfc-mono">P 172 g · F 57 g · C 210 g</div>
+          <div class="ribbon"><span class="rib-p" style="width:34%"></span><span class="rib-f" style="width:25%"></span><span class="rib-c" style="width:41%"></span></div>
+          <div class="rate"><span>expected −0.5% / wk</span><span>actual −0.6% / wk</span></div>
+          <div class="actions"><span class="btn">Edit phase</span><span class="btn">Review</span></div>
+        </div>
+      </div>
+      <div class="col after">
+        <div class="tag">After — donut + grams & %</div>
+        <div class="card">
+          <div class="rail"></div>
+          <div class="chdr"><span class="cname">Summer Cut</span><div style="display:flex;gap:6px"><span class="badge goal">Fat loss</span><span class="statusb">On track</span></div></div>
+          <div class="cc2"><span class="dot"></span>On track — losing about as planned.</div>
+          <div class="summary">
+            <div class="donut md" style="background:conic-gradient(hsl(var(--p)) 0 34%, hsl(var(--f)) 34% 59%, hsl(var(--c)) 59% 100%)">
+              <div class="dcenter"><span class="dk bebas">2,050</span><span class="du">kcal</span></div>
+            </div>
+            <div class="legend">
+              <div class="lrow"><span class="lsw rib-p"></span><span class="lname">Protein</span><span class="lvals"><span class="lg-g">172 g</span><span class="lg-p">34%</span></span></div>
+              <div class="lrow"><span class="lsw rib-f"></span><span class="lname">Fat</span><span class="lvals"><span class="lg-g">57 g</span><span class="lg-p">25%</span></span></div>
+              <div class="lrow"><span class="lsw rib-c"></span><span class="lname">Carbs</span><span class="lvals"><span class="lg-g">210 g</span><span class="lg-p">41%</span></span></div>
+            </div>
+          </div>
+          <div class="rate"><span>exp −0.5% · act −0.6% / wk</span><span>avg −0.6 kg · ~4 wks</span></div>
+          <div class="actions"><span class="btn">Edit phase</span><span class="btn">Review</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 2. NutritionTargetsCard -->
+  <div class="surface">
+    <div class="slabel"><span class="n">2 · NutritionTargetsCard</span><span class="v">Client daily targets</span><span class="verdict v-donut">→ DONUT (md)</span></div>
+    <div class="ba">
+      <div class="col before">
+        <div class="tag">Before — number + ribbon + 3-col grid (redundant)</div>
+        <div class="card">
+          <div class="chdr"><span class="cname">Daily Targets</span><span class="badge goal">Fat loss</span></div>
+          <div style="text-align:center"><div class="kcal bebas" style="font-weight:700">2,050<small>calories</small></div></div>
+          <div class="ribbon"><span class="rib-p" style="width:34%"></span><span class="rib-f" style="width:25%"></span><span class="rib-c" style="width:41%"></span></div>
+          <div class="grid3">
+            <div class="g3"><div class="gv">172g</div><div class="gk">Protein</div><div class="gp">34%</div></div>
+            <div class="g3"><div class="gv">57g</div><div class="gk">Fat</div><div class="gp">25%</div></div>
+            <div class="g3"><div class="gv">210g</div><div class="gk">Carbs</div><div class="gp">41%</div></div>
+          </div>
+          <div class="cc2"><span class="dot"></span>Higher protein to hold muscle while cutting.</div>
+          <div class="actions"><span class="btn p">Weekly check-in</span></div>
+        </div>
+      </div>
+      <div class="col after">
+        <div class="tag">After — one donut (legend carries grams + %)</div>
+        <div class="card">
+          <div class="chdr"><span class="cname">Daily Targets</span><span class="badge goal">Fat loss</span></div>
+          <div class="summary">
+            <div class="donut md" style="background:conic-gradient(hsl(var(--p)) 0 34%, hsl(var(--f)) 34% 59%, hsl(var(--c)) 59% 100%)">
+              <div class="dcenter"><span class="dk bebas">2,050</span><span class="du">calories</span></div>
+            </div>
+            <div class="legend">
+              <div class="lrow"><span class="lsw rib-p"></span><span class="lname">Protein</span><span class="lvals"><span class="lg-g">172 g</span><span class="lg-p">34%</span></span></div>
+              <div class="lrow"><span class="lsw rib-f"></span><span class="lname">Fat</span><span class="lvals"><span class="lg-g">57 g</span><span class="lg-p">25%</span></span></div>
+              <div class="lrow"><span class="lsw rib-c"></span><span class="lname">Carbs</span><span class="lvals"><span class="lg-g">210 g</span><span class="lg-p">41%</span></span></div>
+            </div>
+          </div>
+          <div class="cc2"><span class="dot"></span>Higher protein to hold muscle while cutting.</div>
+          <div class="actions"><span class="btn p">Weekly check-in</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 3. NutritionGoal -->
+  <div class="surface">
+    <div class="slabel"><span class="n">3 · NutritionGoal</span><span class="v">Self-service goal (Current Targets block)</span><span class="verdict v-donut">→ DONUT (lg)</span></div>
+    <div class="ba">
+      <div class="col before">
+        <div class="tag">Before — number + donut + ribbon (double macro viz)</div>
+        <div class="card">
+          <div class="subhdr">Current targets</div>
+          <div style="text-align:center"><div class="kcal bebas">2,050<small>kcal</small></div></div>
+          <div class="summary" style="justify-content:center">
+            <div class="donut md" style="background:conic-gradient(hsl(var(--p)) 0 34%, hsl(var(--f)) 34% 59%, hsl(var(--c)) 59% 100%)"><div class="dcenter"><span class="dk bebas">2,050</span></div></div>
+          </div>
+          <div class="ribbon thin"><span class="rib-p" style="width:34%"></span><span class="rib-f" style="width:25%"></span><span class="rib-c" style="width:41%"></span></div>
+          <span class="fiber">Fiber 30 g</span>
+        </div>
+      </div>
+      <div class="col after">
+        <div class="tag">After — one NutritionSummary, ribbon dropped</div>
+        <div class="card">
+          <div class="subhdr">Current targets</div>
+          <div class="summary">
+            <div class="donut lg" style="background:conic-gradient(hsl(var(--p)) 0 34%, hsl(var(--f)) 34% 59%, hsl(var(--c)) 59% 100%)">
+              <div class="dcenter"><span class="dk bebas">2,050</span><span class="du">kcal</span></div>
+            </div>
+            <div class="legend">
+              <div class="lrow"><span class="lsw rib-p"></span><span class="lname">Protein</span><span class="lvals"><span class="lg-g">172 g</span><span class="lg-p">34%</span></span></div>
+              <div class="lrow"><span class="lsw rib-f"></span><span class="lname">Fat</span><span class="lvals"><span class="lg-g">57 g</span><span class="lg-p">25%</span></span></div>
+              <div class="lrow"><span class="lsw rib-c"></span><span class="lname">Carbs</span><span class="lvals"><span class="lg-g">210 g</span><span class="lg-p">41%</span></span></div>
+            </div>
+          </div>
+          <span class="fiber">Fiber 30 g</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 4. NutritionProgress -->
+  <div class="surface">
+    <div class="slabel"><span class="n">4 · NutritionProgress</span><span class="v">Block A nudge (keep ribbon) · Block B summary (donut)</span><span class="verdict v-keep">A: RIBBON</span><span class="verdict v-donut">B → DONUT (md)</span></div>
+    <div class="ba">
+      <div class="col before">
+        <div class="tag">Before</div>
+        <div class="card alertcard" style="margin-bottom:12px">
+          <div class="cname" style="margin-bottom:8px">Your plan just updated</div>
+          <div class="kcal bebas" style="font-size:26px;font-weight:700">1,920<small>kcal</small></div>
+          <div class="ribbon"><span class="rib-p" style="width:36%"></span><span class="rib-f" style="width:24%"></span><span class="rib-c" style="width:40%"></span></div>
+          <div class="cc2"><span class="dot" style="background:hsl(var(--f))"></span>Calories trimmed 130 to keep the rate on target.</div>
+        </div>
+        <div class="card">
+          <div class="chdr"><span class="cname">Summer Cut · wk 3 of 8</span><span class="badge">Edit targets</span></div>
+          <div class="grid4">
+            <div class="g3"><div class="gv">2,050</div><div class="gk">kcal</div></div>
+            <div class="g3"><div class="gv">172</div><div class="gk">P</div></div>
+            <div class="g3"><div class="gv">57</div><div class="gk">F</div></div>
+            <div class="g3"><div class="gv">210</div><div class="gk">C</div></div>
+          </div>
+          <div class="ribbon"><span class="rib-p" style="width:34%"></span><span class="rib-f" style="width:25%"></span><span class="rib-c" style="width:41%"></span></div>
+        </div>
+      </div>
+      <div class="col after">
+        <div class="tag">After</div>
+        <div class="card alertcard" style="margin-bottom:12px">
+          <div class="chdr"><span class="cname">Your plan just updated</span><span class="verdict v-keep" style="font-size:9px">ribbon kept</span></div>
+          <div class="kcal bebas" style="font-size:26px;font-weight:700">1,920<small>kcal</small></div>
+          <div class="ribbon"><span class="rib-p" style="width:36%"></span><span class="rib-f" style="width:24%"></span><span class="rib-c" style="width:40%"></span></div>
+          <div class="cc2"><span class="dot" style="background:hsl(var(--f))"></span>Calories trimmed 130 to keep the rate on target.</div>
+          <div class="note" style="margin-top:2px">Nudge alert — ribbon is the right minimal context; the donut belongs on the goal summary below.</div>
+        </div>
+        <div class="card">
+          <div class="chdr"><span class="cname">Summer Cut · wk 3 of 8</span><span class="badge">Edit targets</span></div>
+          <div class="summary">
+            <div class="donut md" style="background:conic-gradient(hsl(var(--p)) 0 34%, hsl(var(--f)) 34% 59%, hsl(var(--c)) 59% 100%)"><div class="dcenter"><span class="dk bebas">2,050</span><span class="du">kcal</span></div></div>
+            <div class="legend">
+              <div class="lrow"><span class="lsw rib-p"></span><span class="lname">Protein</span><span class="lvals"><span class="lg-g">172 g</span><span class="lg-p">34%</span></span></div>
+              <div class="lrow"><span class="lsw rib-f"></span><span class="lname">Fat</span><span class="lvals"><span class="lg-g">57 g</span><span class="lg-p">25%</span></span></div>
+              <div class="lrow"><span class="lsw rib-c"></span><span class="lname">Carbs</span><span class="lvals"><span class="lg-g">210 g</span><span class="lg-p">41%</span></span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 5. PhaseSummaryCard -->
+  <div class="surface">
+    <div class="slabel"><span class="n">5 · PhaseSummaryCard</span><span class="v">Branded share / PNG export</span><span class="verdict v-keep">RIBBON RETAINED</span></div>
+    <div class="ba">
+      <div class="col before">
+        <div class="tag">Unchanged — the one exception</div>
+        <div class="card" style="max-width:320px">
+          <div class="chdr"><span class="cname bebas" style="letter-spacing:.08em">IGU</span><span class="badge">Phase complete</span></div>
+          <div class="weighthero">
+            <div class="wd bebas">−5.2 kg</div>
+            <div class="wc">8 weeks · Summer Cut</div>
+          </div>
+          <div class="subhdr">Average macros</div>
+          <div class="ribbon"><span class="rib-p" style="width:34%"></span><span class="rib-f" style="width:25%"></span><span class="rib-c" style="width:41%"></span></div>
+          <div class="metaline" style="margin:8px 0 0">— Hasan</div>
+        </div>
+      </div>
+      <div class="col after">
+        <div class="tag">Why the ribbon stays</div>
+        <div class="card" style="background:transparent;border-style:dashed">
+          <div class="note" style="margin:0">This is a flat, export-friendly social-share artifact where the <b style="color:hsl(var(--fg))">weight delta is the hero</b>. A donut (even <span class="mono">sm</span> = ~84px + legend) competes with the −5.2 kg number and adds height to a card designed to render as a clean PNG. The ribbon is the minimal macro context — <b style="color:hsl(var(--fg))">simplicity is the feature</b>. Not an analysis surface, so it's excluded from the donut conversion.</div>
+          <div class="note" style="margin-top:10px;color:hsl(var(--f))">⚑ Flagged for Hasan to confirm this is the intended exception.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+</body>
+</html>

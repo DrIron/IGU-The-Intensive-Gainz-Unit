@@ -526,11 +526,28 @@ grid; NU7 uses a donut). We consolidate all of it into one primitive and reuse i
   legend grams read `124 / 172 g`, and a **single thin progress bar** sits beneath. A food item (no
   target) simply omits the target text and the bar — same component, fewer props. No second "way".
 
-**Rule for the build:** never introduce a bespoke calorie/macro visual. If a surface shows calories +
-macros, it renders `NutritionSummary`. The ribbon and standalone donut are retired into it, and the
-existing `NutritionPhaseCard` / `NutritionTargetsCard` are refactored onto it as part of this work
-(they keep their surrounding chrome — status rail, mono expected/actual strip — but the calorie+macro
-block becomes the shared summary). Type ramp is fixed centrally here so nothing looks off-size.
+**Rule for the build:** never introduce a bespoke calorie/macro visual. If a surface presents calories +
+macros **as its subject**, it renders `NutritionSummary`. The surrounding chrome stays (status rail, mono
+expected/actual strip, actions) — only the calorie+macro block becomes the shared summary. Type ramp is
+fixed centrally here so nothing looks off-size.
+
+**The standalone `MacroDonut` import is retired** — it survives only as `NutritionSummary`'s internal
+ring. No surface imports it directly.
+
+### Per-surface conversion outcome — RULED 2026-07-13 (Hasan = donut / option B)
+
+Deliberate per-surface redesign (mockups: docs/NUTRITION_UNIFIED_DISPLAY_MOCKUPS.html) — NOT a silent refactor. NutritionSummary composes WITH each card's chrome; it replaces the calorie+macro block only. One surface per commit + snapshot check.
+
+| Surface | Today | Outcome |
+|---|---|---|
+| **NutritionPhaseCard** (coach hero) | number + ribbon | **→ DONUT (md).** Donut + Bebas kcal + legend (grams AND %) as the top row; keep status badge, CC2 line, expected-vs-actual rate strip, Edit/Review actions; fold the "avg X kg / ~N wks" line into the rate strip. ⚠ Maintenance-phase caveat (shipped fix, #212): maintenance phases render NO expected/actual rate row — the strip must still render to show avg when present; do NOT delete avg or invent a rate row. |
+| **NutritionTargetsCard** (client daily) | number + ribbon + 3-col grid | **→ DONUT (md).** Legend carries grams + %, so it replaces both the ribbon and the redundant grid. % derived from the 4/9/4 macro sum (not targets.kcal) so legend + arcs total 100 (#212 fix). |
+| **NutritionGoal** (self-service goal) | number + donut + ribbon | **→ DONUT (lg).** Collapse the raw MacroDonut + redundant ribbon into NutritionSummary. Keep two-col layout, fiber badge, journey arc, All-numbers collapsible. |
+| **NutritionProgress — Block B** (goal summary) | 4-col grid + ribbon | **→ DONUT (md).** Replaces the redundant grid + ribbon. Keep phase header, progress bars, trend graph, weekly logs. |
+| **NutritionProgress — Block A** (adjustment nudge) | number + ribbon | **→ RIBBON RETAINED.** Tight alert; updated-calories + nudge are the focus, ribbon is the right minimal context. |
+| **PhaseSummaryCard** (branded share/export) | ribbon only | **→ RIBBON RETAINED.** Flat PNG export; weight delta is the hero; not an analysis surface. |
+
+**Net:** DONUT on 4 (NutritionGoal, NutritionTargetsCard, NutritionPhaseCard, NutritionProgress Block B); ribbon RETAINED on 2 (PhaseSummaryCard export + NutritionProgress Block A nudge). NOTE: the ribbon/donut allowlist keys on the FILE, so it can't distinguish Block A from Block B in NutritionProgress — the split is pinned by the named test, not the allowlist.
 
 **What we deliberately DON'T copy from competitors:** MFP's "calories remaining = goal − food +
 exercise" (IGU targets are coach-set phases, not a subtract-exercise budget); gamified streaks;
