@@ -534,24 +534,20 @@ fixed centrally here so nothing looks off-size.
 **The standalone `MacroDonut` import is retired** — it survives only as `NutritionSummary`'s internal
 ring. No surface imports it directly.
 
-### The ribbon is NOT fully retired (RULED 2026-07-14 — mockups: `docs/NUTRITION_DONUT_CONVERSION_MOCKUPS.html`)
+### Per-surface conversion outcome — RULED 2026-07-13 (Hasan = donut / option B)
 
-An earlier draft of this section said "the ribbon and standalone donut are retired into it". **That was
-wrong**, and it was wrong in a dangerous direction: it reads as a mandate to convert every surface, which
-would damage two of them. Hasan ruled the conversion goes ahead (option B) — and the per-surface pass that
-produced the mockups found the blanket version indefensible. Ruling, 3 convert / 2 keep:
+Deliberate per-surface redesign (mockups: docs/NUTRITION_UNIFIED_DISPLAY_MOCKUPS.html) — NOT a silent refactor. NutritionSummary composes WITH each card's chrome; it replaces the calorie+macro block only. One surface per commit + snapshot check.
 
-| Surface | Ruling | Why |
+| Surface | Today | Outcome |
 |---|---|---|
-| `NutritionPhaseCard` | **Donut** (`md`) | The flagship. Donut earns its space: the ribbon showed grams but never the **%**. Keep the rail, StatusBadge, CC2 sentence, rate strip, actions; fold `avg … kg` / `~N wks` into the rate strip. |
-| `NutritionTargetsCard` | **Donut** (`md`) | Spends **three visuals on one fact** today — crimson kcal box + ribbon + 3-col grams/% grid. The donut **replaces all three**. Net −2 visuals; the card gets simpler. |
-| `NutritionGoal` | **Donut**, delete the duplicate ribbon | Already renders a donut **AND** a ribbon, stacked — the same split said twice. Not a redesign; a deletion. Lowest risk, do it first. |
-| `PhaseSummaryCard` (NU6 share PNG) | **KEEP the ribbon** | (1) A second colourful focal point competes with the one number the card exists to deliver — the result, deliberately neutral under the NU6 honesty contract. (2) It's the one artifact that **leaves the app**: the ribbon paints tokens as `backgroundColor` on divs, the donut as an SVG `stroke` — a different path through `html-to-image`, so a silent colour-drop ships a grey donut to a client's Instagram. (3) The % upgrade is the donut's whole argument, and nobody shares their fat percentage. |
-| `NutritionProgress` adjustment notice | **KEEP the ribbon** | A **transient notification**, not a hero. A 120px donut turns a nudge into a panel and pushes the plain-language sentence — the actual payload — down the card. Right weight for the right job. |
+| **NutritionPhaseCard** (coach hero) | number + ribbon | **→ DONUT (md).** Donut + Bebas kcal + legend (grams AND %) as the top row; keep status badge, CC2 line, expected-vs-actual rate strip, Edit/Review actions; fold the "avg X kg / ~N wks" line into the rate strip. ⚠ Maintenance-phase caveat (shipped fix, #212): maintenance phases render NO expected/actual rate row — the strip must still render to show avg when present; do NOT delete avg or invent a rate row. |
+| **NutritionTargetsCard** (client daily) | number + ribbon + 3-col grid | **→ DONUT (md).** Legend carries grams + %, so it replaces both the ribbon and the redundant grid. % derived from the 4/9/4 macro sum (not targets.kcal) so legend + arcs total 100 (#212 fix). |
+| **NutritionGoal** (self-service goal) | number + donut + ribbon | **→ DONUT (lg).** Collapse the raw MacroDonut + redundant ribbon into NutritionSummary. Keep two-col layout, fiber badge, journey arc, All-numbers collapsible. |
+| **NutritionProgress — Block B** (goal summary) | 4-col grid + ribbon | **→ DONUT (md).** Replaces the redundant grid + ribbon. Keep phase header, progress bars, trend graph, weekly logs. |
+| **NutritionProgress — Block A** (adjustment nudge) | number + ribbon | **→ RIBBON RETAINED.** Tight alert; updated-calories + nudge are the focus, ribbon is the right minimal context. |
+| **PhaseSummaryCard** (branded share/export) | ribbon only | **→ RIBBON RETAINED.** Flat PNG export; weight delta is the hero; not an analysis surface. |
 
-So the ribbon survives in exactly **two** roles, and adding a third is a decision, not a reflex:
-**(a)** a *compact notification* where the split is supporting context and a donut would outweigh the
-message; **(b)** the *NU6 share card*, for the focal-point and export reasons above.
+**Net:** DONUT on 4 (NutritionGoal, NutritionTargetsCard, NutritionPhaseCard, NutritionProgress Block B); ribbon RETAINED on 2 (PhaseSummaryCard export + NutritionProgress Block A nudge). NOTE: the ribbon/donut allowlist keys on the FILE, so it can't distinguish Block A from Block B in NutritionProgress — the split is pinned by the named test, not the allowlist.
 
 **What we deliberately DON'T copy from competitors:** MFP's "calories remaining = goal − food +
 exercise" (IGU targets are coach-set phases, not a subtract-exercise budget); gamified streaks;
