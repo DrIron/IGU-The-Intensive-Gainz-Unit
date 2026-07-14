@@ -132,7 +132,8 @@ interface SetPrescription {
   branches?: SetBranchT[];
 }
 
-interface HistorySet {
+/** Exported for unit tests. */
+export interface HistorySet {
   set_number: number;
   weight: number;
   reps: number;
@@ -140,7 +141,8 @@ interface HistorySet {
   rpe?: number;
 }
 
-interface Exercise {
+/** Exported for unit tests. */
+export interface Exercise {
   id: string;
   exercise_id: string;
   section: "warmup" | "main" | "accessory" | "cooldown";
@@ -963,7 +965,8 @@ function SetRow({
 }
 
 // Exercise Card
-function ExerciseCard({
+/** Exported for unit tests (WorkoutSessionV2.history.test.tsx) — not a public entry point. */
+export function ExerciseCard({
   exercise,
   exerciseIndex,
   logs,
@@ -1043,7 +1046,15 @@ function ExerciseCard({
   // shows its own target.
   const p0 = prescriptions[0];
 
-  const lastSet = exercise.history?.sets?.[0];
+  // "Last" = the FINAL set of the previous session. That is the highest set_number, which
+  // today happens to sit at sets[0] because the rows arrive newest-log-first -- an ordering
+  // coincidence, not a guarantee. Derive it explicitly so a re-ordered input can't silently
+  // relabel some middle set as the last one (the same positional assumption that reversed
+  // the per-set history below).
+  const lastSet = exercise.history?.sets?.reduce(
+    (latest, s) => (latest == null || s.set_number > latest.set_number ? s : latest),
+    undefined as HistorySet | undefined,
+  );
   const pb = exercise.personal_best;
   // Rep-range record (heaviest within ±1 of the target reps) — the PR coaches
   // and lifters actually train against, matching what the History screen shows.
@@ -1168,7 +1179,10 @@ function ExerciseCard({
                 prescription, so it was dropped. */}
             <div className="space-y-1">
               {lastSet || pb ? (
-                <p className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap">
+                <p
+                  className="text-xs text-muted-foreground flex items-center gap-3 flex-wrap"
+                  data-history-summary
+                >
                   {lastSet && (
                     <span>
                       <History className="inline w-3 h-3 mr-1 -mt-0.5" />
@@ -1235,10 +1249,17 @@ function ExerciseCard({
                   : null;
                 if (restRepeat) instructionBadges.push(restPauseBadgeLabel(restRepeat));
                 return (
-                  <div key={i} className="space-y-1">
+                  <div key={i} className="space-y-1" data-set-row={prescription.set_number}>
                     <SetRow
                       prescription={prescription}
-                      historySet={exercise.history?.sets[i]}
+                      // Match by set IDENTITY, never by array position. `history.sets` is
+                      // built newest-log-first, so sets[0] is the LAST set of the previous
+                      // session -- indexing by `i` handed set 1 the values from set 4, set 2
+                      // the values from set 3, and so on. Every set row showed a number the
+                      // client never lifted on that set.
+                      historySet={exercise.history?.sets.find(
+                        (s) => s.set_number === prescription.set_number,
+                      )}
                       log={
                         logs[i] || {
                           set_index: i + 1,
@@ -1794,8 +1815,17 @@ function WorkoutSessionV2Content() {
             (l) => l.plan_slot_id !== rex.planSlotId,
           );
           if (logsForExercise.length > 0) {
-            // newest-first already; take the most recent setCount (matches the old .limit()).
-            historyData = logsForExercise.slice(0, setCount);
+            // Scope history to the PREVIOUS INSTANCE of this movement, not the most recent
+            // N logs. A plan_slot is week-scoped, so all logs sharing the newest log's
+            // plan_slot_id ARE that one previous session — no more, no less.
+            //
+            // The old `slice(0, setCount)` blended sessions whenever the set counts differed:
+            // if last week was 2 sets and today prescribes 4, it pulled 2 logs from last week
+            // and 2 from the week before, then labelled the whole lot with last week's date.
+            // Rows are matched by set_number below, so a stale set 3/4 would have been shown
+            // as last week's. Filtering by instance makes that impossible.
+            const lastInstanceSlotId = logsForExercise[0].plan_slot_id;
+            historyData = logsForExercise.filter((l) => l.plan_slot_id === lastInstanceSlotId);
             let best: (typeof logsForExercise)[number] | null = null;
             for (const l of logsForExercise) {
               if (l.performed_load != null && (best == null || l.performed_load > best.performed_load!)) best = l;
