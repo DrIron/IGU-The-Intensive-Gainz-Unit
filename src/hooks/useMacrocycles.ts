@@ -35,22 +35,121 @@ function rowToMacrocycle(r: MacrocycleRow): Macrocycle {
   };
 }
 
-/** Compute week count from program_template_days (MAX day_index / 7, ceil). */
-async function computeProgramWeeks(programTemplateIds: string[]): Promise<Map<string, number>> {
+/**
+ * Week count per program_template — CANONICAL, with a legacy fallback.
+ *
+ * ── Why this was repointed ──────────────────────────────────────────────────
+ * This used to derive weeks from `program_template_days` alone
+ * (`ceil(max(day_index) / 7)`). That is the LEGACY tree the unification is
+ * dropping. It agrees with canonical today, which is exactly the problem: when
+ * `program_template_days` goes, every count would silently collapse to the `1`
+ * default and the macrocycle list would report a 16-week arc as 2 weeks — wrong,
+ * but not loud.
+ *
+ * So: count the canonical plan's `plan_weeks`, resolving the plan through the SAME
+ * join `useProgramSummaries` uses (verified identical against prod 2026-07-14):
+ *
+ *   program_templates.id
+ *     ← muscle_program_templates.converted_program_id
+ *     → muscle_program_templates.id
+ *     ← plan.source_muscle_template_id  (kind = 'template')
+ *     → plan → COUNT(plan_weeks)
+ *
+ * ── The fallback ────────────────────────────────────────────────────────────
+ * A program_template with NO canonical mirror (never compiled — prod has one: an
+ * orphaned double-conversion) keeps the legacy `ceil(max(day_index)/7)`. Same
+ * null-safe discipline as PR2's adapter: use canonical when it exists, never fake it
+ * when it doesn't.
+ *
+ * When `program_template_days` is finally DROPPED, that legacy query returns nothing
+ * and the fallback yields the known-safe minimum of 1 — a floor, not a crash, and
+ * only for templates that have no canonical plan to measure anyway.
+ *
+ * NOTE: `assign_macrocycle_to_client_canonical` is already canonical — it staggers by
+ * `COUNT(plan_weeks)` on the clone (`20260630140000…sql:104-106`) and never touches
+ * `program_template_days`. This function is the LAST legacy consumer in the macrocycle
+ * layer, and it only feeds display (the list's total-weeks) plus PR4's proportion bar.
+ *
+ * Signature and return shape are unchanged (Map<program_template_id, weeks>), so no
+ * caller moves.
+ */
+/** Exported for unit tests — not part of the hook API. */
+export async function computeProgramWeeks(programTemplateIds: string[]): Promise<Map<string, number>> {
   if (programTemplateIds.length === 0) return new Map();
-  const { data, error } = await supabase
-    .from("program_template_days")
-    .select("program_template_id, day_index")
-    .in("program_template_id", programTemplateIds);
-  if (error) throw error;
-  const map = new Map<string, number>();
-  for (const d of data ?? []) {
-    const current = map.get(d.program_template_id) ?? 0;
-    if (d.day_index > current) map.set(d.program_template_id, d.day_index);
+
+  // 1. program_template -> its Planning Board plan (the reverse map).
+  const { data: mpts, error: mptErr } = await supabase
+    .from("muscle_program_templates")
+    .select("id, converted_program_id")
+    .in("converted_program_id", programTemplateIds);
+  if (mptErr) throw mptErr;
+
+  const mptByProgram = new Map<string, string>();
+  for (const m of mpts ?? []) {
+    if (m.converted_program_id) mptByProgram.set(m.converted_program_id, m.id);
   }
+  const mptIds = [...mptByProgram.values()];
+
+  // 2. Planning Board plan -> canonical template plan.
+  const { data: plans, error: planErr } = mptIds.length
+    ? await supabase
+        .from("plan")
+        .select("id, source_muscle_template_id")
+        .eq("kind", "template")
+        .in("source_muscle_template_id", mptIds)
+    : { data: [], error: null };
+  if (planErr) throw planErr;
+
+  const planByMpt = new Map<string, string>();
+  for (const p of plans ?? []) {
+    if (p.source_muscle_template_id) planByMpt.set(p.source_muscle_template_id, p.id);
+  }
+  const planIds = [...planByMpt.values()];
+
+  // 3. COUNT(plan_weeks) per plan — one batched read, no N+1.
+  const { data: weekRows, error: weekErr } = planIds.length
+    ? await supabase.from("plan_weeks").select("plan_id").in("plan_id", planIds)
+    : { data: [], error: null };
+  if (weekErr) throw weekErr;
+
+  const weeksByPlan = new Map<string, number>();
+  for (const w of weekRows ?? []) {
+    if (w.plan_id) weeksByPlan.set(w.plan_id, (weeksByPlan.get(w.plan_id) ?? 0) + 1);
+  }
+
+  const canonicalWeeks = new Map<string, number>();
+  for (const programId of programTemplateIds) {
+    const mptId = mptByProgram.get(programId);
+    const planId = mptId ? planByMpt.get(mptId) : undefined;
+    const count = planId ? (weeksByPlan.get(planId) ?? 0) : 0;
+    if (count > 0) canonicalWeeks.set(programId, count);
+  }
+
+  // 4. LEGACY FALLBACK — only for templates with no canonical plan to measure.
+  //    Dies with program_template_days; see the note above.
+  const needsLegacy = programTemplateIds.filter((id) => !canonicalWeeks.has(id));
+  const legacyMaxDay = new Map<string, number>();
+  if (needsLegacy.length > 0) {
+    const { data: days, error: dayErr } = await supabase
+      .from("program_template_days")
+      .select("program_template_id, day_index")
+      .in("program_template_id", needsLegacy);
+    if (dayErr) throw dayErr;
+    for (const d of days ?? []) {
+      const current = legacyMaxDay.get(d.program_template_id) ?? 0;
+      if (d.day_index > current) legacyMaxDay.set(d.program_template_id, d.day_index);
+    }
+  }
+
   const weekMap = new Map<string, number>();
   for (const id of programTemplateIds) {
-    const maxIdx = map.get(id) ?? 0;
+    const canonical = canonicalWeeks.get(id);
+    if (canonical != null) {
+      weekMap.set(id, canonical);
+      continue;
+    }
+    // Post-drop this is always 0 -> Math.max(1, 0) = 1, the known-safe floor.
+    const maxIdx = legacyMaxDay.get(id) ?? 0;
     weekMap.set(id, Math.max(1, Math.ceil(maxIdx / 7)));
   }
   return weekMap;
