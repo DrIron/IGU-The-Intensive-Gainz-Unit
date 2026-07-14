@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { interpretMacroTargets, toneClasses } from "@/lib/interpret";
-import { MacroDistributionRibbon } from "@/components/nutrition/MacroDistributionRibbon";
+import { NutritionSummary } from "@/components/nutrition/NutritionSummary";
 import { cn } from "@/lib/utils";
 import { Apple, ChevronRight } from "lucide-react";
 
@@ -126,36 +126,27 @@ export function NutritionTargetsCard({ userId }: NutritionTargetsCardProps) {
         </div>
       </CardHeader>
       <CardContent className="space-y-3">
-        {/* Calories - Prominent */}
-        <div className="text-center py-2 bg-primary/5 rounded-lg">
-          <p className="text-3xl font-bold text-primary">{targets.calories}</p>
-          <p className="text-xs text-muted-foreground">calories</p>
-        </div>
+        {/* THE canonical calories+macros display (Part IV).
+            This card used to spend THREE separate visuals on one fact: a crimson kcal box, a
+            macro ribbon, and a 3-column grams/% grid beneath it. The summary replaces all
+            three — the centre carries the kcal, the legend carries the grams AND the %. Net
+            -2 visuals: the only surface in the conversion where the donut makes the card
+            simpler rather than richer.
 
-        {/* Macro split ribbon — shared P/F/C visual used on the coach nutrition tab */}
-        <MacroDistributionRibbon
-          protein={targets.protein}
-          fat={targets.fat}
-          carbs={targets.carbs}
-          className="px-1"
+            The % now comes from the MACRO calorie sum (4/9/4) rather than the stated
+            `calories`, so the legend and the arcs agree with each other. The old grid divided
+            by `targets.calories`, which drifts from the macro sum by a few percent whenever
+            fibre or rounding is in play — and showed a total that didn't add to 100%. */}
+        <NutritionSummary
+          size="md"
+          centerLabel="kcal · daily target"
+          totals={{
+            kcal: targets.calories,
+            protein: targets.protein,
+            fat: targets.fat,
+            carbs: targets.carbs,
+          }}
         />
-
-        {/* Macros — grams + % of calories */}
-        <div className="grid grid-cols-3 gap-2 text-center">
-          {[
-            { label: "Protein", grams: targets.protein, kcal: targets.protein * 4 },
-            { label: "Carbs", grams: targets.carbs, kcal: targets.carbs * 4 },
-            { label: "Fat", grams: targets.fat, kcal: targets.fat * 9 },
-          ].map((m) => (
-            <div key={m.label} className="p-2 bg-muted/50 rounded-lg">
-              <p className="text-lg font-semibold tabular-nums">{m.grams}g</p>
-              <p className="text-xs text-muted-foreground">{m.label}</p>
-              <p className="text-[11px] text-muted-foreground/70 tabular-nums">
-                {targets.calories > 0 ? Math.round((m.kcal / targets.calories) * 100) : 0}%
-              </p>
-            </div>
-          ))}
-        </div>
 
         {/* CC2 interpretation line (mirrors WeeklyProgressCard) */}
         {(() => {

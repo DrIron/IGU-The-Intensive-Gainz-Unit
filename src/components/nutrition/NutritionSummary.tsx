@@ -46,6 +46,16 @@ interface NutritionSummaryProps {
    * Same component, fewer props. There is no second way to render this.
    */
   target?: NutritionTotals | null;
+  /**
+   * Overrides the sub-label under the centred calorie number. Defaults to `kcal`.
+   *
+   * The coach nutrition cards render a PLAN TARGET, not consumed-vs-target — so they pass
+   * `totals` with no `target` and set this to "kcal · daily target". Without it the donut
+   * centre would read a bare "kcal", which on a targets card is ambiguous: is that what the
+   * client ate, or what they're aiming for? Ignored when a `target` is supplied, because
+   * then the centre already reads "N of M" and there is nothing left to disambiguate.
+   */
+  centerLabel?: string;
   size?: "sm" | "md" | "lg";
   className?: string;
 }
@@ -64,7 +74,13 @@ const MACRO_ROWS = [
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
 
-export function NutritionSummary({ totals, target, size = "md", className }: NutritionSummaryProps) {
+export function NutritionSummary({
+  totals,
+  target,
+  centerLabel,
+  size = "md",
+  className,
+}: NutritionSummaryProps) {
   const s = SIZES[size];
   const hasTarget = target != null && target.kcal > 0;
 
@@ -99,7 +115,16 @@ export function NutritionSummary({ totals, target, size = "md", className }: Nut
               {hasTarget ? (
                 <span className={cn("mt-1 text-muted-foreground", s.unit)}>of {fmt(target!.kcal)}</span>
               ) : (
-                <span className={cn("mt-1 text-muted-foreground", s.unit)}>kcal</span>
+                /* A custom label ("kcal · daily target") is far wider than the ring's inner
+                   space, so it must wrap inside the donut rather than spill over the arcs. */
+                <span
+                  className={cn(
+                    "mt-1 max-w-[76%] text-balance leading-tight text-muted-foreground",
+                    s.unit,
+                  )}
+                >
+                  {centerLabel ?? "kcal"}
+                </span>
               )}
             </>
           }

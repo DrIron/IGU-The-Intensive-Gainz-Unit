@@ -3,7 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Pencil, ArrowDown } from "lucide-react";
-import { MacroDistributionRibbon } from "./MacroDistributionRibbon";
+import { NutritionSummary } from "./NutritionSummary";
 import { cn } from "@/lib/utils";
 import { differenceInCalendarWeeks } from "date-fns";
 import { classifyPhaseStatus, interpretPhaseStatus, toneClasses, type PhaseStatus } from "@/lib/interpret";
@@ -154,11 +154,12 @@ export function NutritionPhaseCard({
                   <h2 className="font-semibold text-lg md:text-xl truncate">{phase.phase_name}</h2>
                   <Badge variant="secondary" className="shrink-0">{goalLabel}</Badge>
                 </div>
+                {/* `avg` and `~N wks` moved OUT of here and INTO the rate strip below — the
+                    donut now takes the top row, so the header keeps only the two facts that
+                    identify the phase (which week, and what it's aiming at). */}
                 <p className="font-mono text-[11px] text-muted-foreground tabular-nums">
                   Week {weeks}
                   {phase.target_weight_kg != null && ` | target ${phase.target_weight_kg.toFixed(1)} kg`}
-                  {latestAverageWeight != null && ` | avg ${latestAverageWeight.toFixed(1)} kg`}
-                  {projectedWeeks != null && ` | ~${projectedWeeks} wk${projectedWeeks === 1 ? "" : "s"} to target`}
                 </p>
               </div>
               <StatusBadge status={status} />
@@ -175,46 +176,59 @@ export function NutritionPhaseCard({
               </p>
             )}
 
-            {/* Hero numbers */}
-            <div className="flex items-baseline gap-4 font-mono tabular-nums">
-              <div>
-                <span className="text-3xl md:text-4xl font-display leading-none">
-                  {Math.round(phase.daily_calories)}
-                </span>
-                <span className="text-[11px] text-muted-foreground ml-1">kcal</span>
-              </div>
-              <div className="text-[11px] text-muted-foreground hidden md:block">
-                P {Math.round(phase.protein_grams)}g &nbsp;|&nbsp;
-                F {Math.round(phase.fat_grams)}g &nbsp;|&nbsp;
-                C {Math.round(phase.carb_grams)}g
-              </div>
-            </div>
-
-            <MacroDistributionRibbon
-              protein={phase.protein_grams}
-              fat={phase.fat_grams}
-              carbs={phase.carb_grams}
+            {/* THE canonical calories+macros display (Part IV).
+                This replaces the Bebas kcal hero + the desktop-only "P 165g | F 55g | C 165g"
+                line + the ribbon. The donut earns its space here: the ribbon showed the grams
+                but never the PERCENTAGES, and the split is the whole point of a macro target.
+                No `target` prop — this is the coach's PLAN, not the client's intake. */}
+            <NutritionSummary
+              size="md"
+              centerLabel="kcal · daily target"
+              totals={{
+                kcal: phase.daily_calories,
+                protein: phase.protein_grams,
+                fat: phase.fat_grams,
+                carbs: phase.carb_grams,
+              }}
             />
 
-            {/* Rate comparison strip */}
-            {goalType !== "maintenance" && (
-              <div className="flex items-center justify-between font-mono text-[11px] text-muted-foreground tabular-nums gap-3 border-t pt-3">
-                <div>
-                  <span className="opacity-70">expected</span>{" "}
-                  <span className="text-foreground">
-                    {goalType === "fat_loss" ? "-" : "+"}
-                    {expectedLabel}%
-                  </span>
-                  <span className="opacity-70"> / {goalType === "muscle_gain" ? "mo" : "wk"}</span>
-                </div>
-                <div>
-                  <span className="opacity-70">actual</span>{" "}
-                  {actualLabel != null ? (
-                    <span className="text-foreground">{Number(actualLabel) > 0 ? "+" : ""}{actualLabel}%</span>
-                  ) : (
-                    <span className="opacity-70">--</span>
-                  )}
-                </div>
+            {/* Rate comparison strip. `avg` / `~N wks` were folded in from the header meta
+                line (the donut took the top row) — they belong here anyway: all three are the
+                phase's PACE, and they were previously split across two places in the card.
+                Wraps rather than crushing on narrow cards. */}
+            {(goalType !== "maintenance" || latestAverageWeight != null) && (
+              <div className="flex flex-wrap items-center justify-between font-mono text-[11px] text-muted-foreground tabular-nums gap-x-3 gap-y-1.5 border-t pt-3">
+                {goalType !== "maintenance" && (
+                  <>
+                    <div>
+                      <span className="opacity-70">expected</span>{" "}
+                      <span className="text-foreground">
+                        {goalType === "fat_loss" ? "-" : "+"}
+                        {expectedLabel}%
+                      </span>
+                      <span className="opacity-70"> / {goalType === "muscle_gain" ? "mo" : "wk"}</span>
+                    </div>
+                    <div>
+                      <span className="opacity-70">actual</span>{" "}
+                      {actualLabel != null ? (
+                        <span className="text-foreground">{Number(actualLabel) > 0 ? "+" : ""}{actualLabel}%</span>
+                      ) : (
+                        <span className="opacity-70">--</span>
+                      )}
+                    </div>
+                  </>
+                )}
+                {latestAverageWeight != null && (
+                  <div>
+                    <span className="opacity-70">avg</span>{" "}
+                    <span className="text-foreground">{latestAverageWeight.toFixed(1)} kg</span>
+                    {projectedWeeks != null && (
+                      <span className="opacity-70">
+                        {" "}· ~{projectedWeeks} wk{projectedWeeks === 1 ? "" : "s"}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             )}
 
