@@ -12,6 +12,7 @@ import { Calendar } from "@/components/ui/calendar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { CoachScheduledSessions } from "@/components/client/CoachScheduledSessions";
 import { Calendar as CalendarIcon, Clock, MapPin, User, AlertCircle, Check, X, Loader2 } from "lucide-react";
 import { format, parseISO, startOfWeek, addDays, isSameDay } from "date-fns";
 
@@ -199,6 +200,7 @@ function ClientSessionsContent() {
 
   const weeklyLimit = sessionSubscription?.weekly_session_limit ?? 0;
   const remaining = Math.max(weeklyLimit - weeklyUsed, 0);
+  const clientUserId = access.profile?.id ?? null;
 
   const handleBookSession = async (slotId: string) => {
     try {
@@ -362,12 +364,20 @@ function ClientSessionsContent() {
     );
   }
 
+  // Sessions the COACH scheduled are independent of the client's booking entitlement — a coach
+  // can put a session on any client's calendar. So this card renders in EVERY branch below,
+  // including the two that bail out early. Rendering it only in the happy path would have left
+  // it invisible to precisely the clients most likely to have coach-scheduled sessions: the
+  // ones with no session-booking plan of their own.
+  const coachScheduled = clientUserId ? <CoachScheduledSessions clientUserId={clientUserId} /> : null;
+
   // No session-enabled subscription
   if (!sessionSubscription) {
     return (
       <ClientPageLayout>
         <main className="container mx-auto px-4 py-8 max-w-6xl pt-6 pb-24 md:pb-8">
           <h1 className="text-3xl font-bold mb-8">Sessions</h1>
+          {coachScheduled}
           <Alert>
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Session Booking Not Available</AlertTitle>
@@ -386,6 +396,7 @@ function ClientSessionsContent() {
       <ClientPageLayout>
         <main className="container mx-auto px-4 py-8 max-w-6xl pt-6 pb-24 md:pb-8">
           <h1 className="text-3xl font-bold mb-8">Sessions</h1>
+          {coachScheduled}
           <Alert variant="destructive">
             <AlertCircle className="h-4 w-4" />
             <AlertTitle>Configuration Required</AlertTitle>
@@ -402,6 +413,8 @@ function ClientSessionsContent() {
     <ClientPageLayout>
       <main className="container mx-auto px-4 py-8 max-w-6xl pt-6 pb-24 md:pb-8">
         <h1 className="text-3xl font-bold mb-8">Sessions</h1>
+
+        {coachScheduled}
 
         {/* Weekly Summary */}
         <Card className="mb-6">
