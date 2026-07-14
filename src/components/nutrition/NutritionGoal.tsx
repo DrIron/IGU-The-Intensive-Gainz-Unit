@@ -12,8 +12,7 @@ import { calculateAge, formatDateForInput } from "@/lib/dateUtils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { MacroDonut } from "./MacroDonut";
-import { MacroDistributionRibbon } from "./MacroDistributionRibbon";
+import { NutritionSummary } from "./NutritionSummary";
 import { JourneyArc, PhaseTimeline } from "./GoalJourney";
 import { useCurrentBodyComp } from "@/hooks/useCurrentBodyComp";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -403,26 +402,21 @@ export function NutritionGoal({ onSaved }: NutritionGoalProps = {}) {
             <div>
               <h3 className="font-semibold mb-3">Current Targets</h3>
               <div className="space-y-4">
-                {/* Calorie hero — brand/primary (aligned with the home Daily Targets card), never destructive */}
-                <div className="flex items-baseline gap-2 font-mono tabular-nums">
-                  <span className="text-3xl md:text-4xl font-display leading-none text-primary">
-                    {Math.round(activeGoal.daily_calories)}
-                  </span>
-                  <span className="text-xs text-muted-foreground">kcal · daily target</span>
-                </div>
-                {/* Macro donut (by calorie contribution) + legend (grams + %) */}
-                <MacroDonut
-                  protein={activeGoal.protein_grams}
-                  fat={activeGoal.fat_grams}
-                  carbs={activeGoal.carb_grams}
-                />
-                {/* Thin macro ribbon — same vocabulary as the dashboard card */}
-                <MacroDistributionRibbon
-                  protein={activeGoal.protein_grams}
-                  fat={activeGoal.fat_grams}
-                  carbs={activeGoal.carb_grams}
-                  variant="thin"
-                  showLabels={false}
+                {/* THE canonical calories+macros display (Part IV).
+                    This block used to be a Bebas kcal hero + a MacroDonut + a
+                    MacroDistributionRibbon, stacked: the same calorie split rendered TWICE,
+                    one above the other. Converting it isn't a redesign, it's deleting a
+                    duplicate — the summary already carries the kcal (centred) and the grams
+                    AND % (legend), which is everything the three of them said between them. */}
+                <NutritionSummary
+                  size="md"
+                  centerLabel="kcal · daily target"
+                  totals={{
+                    kcal: activeGoal.daily_calories,
+                    protein: activeGoal.protein_grams,
+                    fat: activeGoal.fat_grams,
+                    carbs: activeGoal.carb_grams,
+                  }}
                 />
                 {/* Fiber — a chip, not a calorie macro */}
                 {activeGoal.fiber_grams ? (
