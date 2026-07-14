@@ -43,12 +43,17 @@ const RIBBON_ALLOWED: Record<string, string> = {
     "grey donut to a client's feed. Ribbon stays.",
 
   [join("src", "components", "nutrition", "NutritionProgress.tsx")]:
-    "ADJUSTMENT NOTICE ('Your plan just updated') — a transient nudge, not a hero. A donut " +
-    "turns it into a panel and pushes the plain-language sentence (the actual payload) down " +
-    "the card. NOTE: this file ALSO has a second ribbon in the goal-summary block, which " +
-    "SHOULD convert (it sits under a redundant 4-col macro grid, the same pattern " +
-    "NutritionTargetsCard was convicted of). That is a known, flagged follow-up — see the PR. " +
-    "This entry covers the file, so it cannot currently distinguish the two.",
+    "BLOCK A ONLY — the adjustment notice ('Your plan just updated'). A transient nudge, not " +
+    "a hero: a donut turns it into a panel and pushes the plain-language sentence (the actual " +
+    "payload) down the card. " +
+    "\n" +
+    "LIMITATION, stated rather than hidden: this allowlist keys on the FILE, so it cannot tell " +
+    "Block A's ribbon from any other in the same file. Block B (the goal-summary card) was a " +
+    "4-col macro grid + a ribbon — the identical redundancy NutritionTargetsCard was convicted " +
+    "of — and HAS been converted. The file therefore keeps exactly ONE ribbon and gains exactly " +
+    "ONE donut, and that split is pinned by NutritionProgress.blocks.test.tsx, which asserts " +
+    "the counts directly. If someone converts Block A, or deletes its ribbon along with " +
+    "something else, THAT test fails even though this one still passes.",
 };
 
 function walk(dir: string, out: string[] = []): string[] {

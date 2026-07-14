@@ -23,6 +23,7 @@ import { useAuthSession } from "@/hooks/useAuthSession";
 import { interpretAdjustment, toneClasses } from "@/lib/interpret";
 import { cn } from "@/lib/utils";
 import { MacroDistributionRibbon } from "@/components/nutrition/MacroDistributionRibbon";
+import { NutritionSummary } from "@/components/nutrition/NutritionSummary";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { Drawer, DrawerContent, DrawerTitle, DrawerDescription, DrawerScrollArea } from "@/components/ui/drawer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogScrollArea } from "@/components/ui/dialog";
@@ -306,33 +307,27 @@ export function NutritionProgress() {
           </div>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Calories</p>
-              <p className="text-2xl font-bold">{currentCalories}</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Protein</p>
-              <p className="text-2xl font-bold">{currentProteinGrams}g</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Fat</p>
-              <p className="text-2xl font-bold">{currentFatGrams}g</p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Carbs</p>
-              <p className="text-2xl font-bold">{currentCarbGrams}g</p>
-            </div>
-          </div>
+          {/* BLOCK B — the goal summary. THE canonical calories+macros display (Part IV).
+              This was a 4-column Calories/Protein/Fat/Carbs grid with a MacroDistributionRibbon
+              underneath it: the identical grid+ribbon redundancy NutritionTargetsCard was
+              convicted of — the same fact stated twice, once as numbers and once as a bar.
+              Both collapse into one summary: the centre carries the kcal, the legend carries
+              the grams AND the % (which neither the grid nor the ribbon ever showed).
 
-          <div className="mt-4">
-            <MacroDistributionRibbon
-              protein={currentProteinGrams}
-              fat={currentFatGrams}
-              carbs={currentCarbGrams}
-              showLabels
-            />
-          </div>
+              NOTE: Block A above (the "Your plan just updated" nudge, ~:276) KEEPS its ribbon
+              by ruling — it is a transient notification, and a donut there turns a nudge into a
+              panel and pushes the plain-language sentence (the payload) down the card. The two
+              blocks are deliberately NOT the same call. */}
+          <NutritionSummary
+            size="md"
+            centerLabel="kcal · daily target"
+            totals={{
+              kcal: currentCalories,
+              protein: currentProteinGrams,
+              fat: currentFatGrams,
+              carbs: currentCarbGrams,
+            }}
+          />
 
           {/* Progress Bars */}
           <div className="mt-6 space-y-4">
