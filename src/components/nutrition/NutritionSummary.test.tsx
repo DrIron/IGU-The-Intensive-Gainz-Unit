@@ -97,6 +97,30 @@ describe("NutritionSummary", () => {
     expect(el.querySelector("[data-remaining]")?.textContent).toBe("2,050 kcal left");
   });
 
+  it("centerLabel disambiguates a PLAN TARGET from consumed calories", async () => {
+    // The coach cards render a target, not intake. A bare "kcal" under the number is
+    // ambiguous there — is that what they ate, or what they're aiming for?
+    const el = await mount(
+      <NutritionSummary totals={TOTALS} centerLabel="kcal · daily target" size="md" />,
+    );
+    expect(el.textContent).toContain("kcal · daily target");
+    expect(el.querySelector('[role="progressbar"]')).toBeNull(); // no target -> no bar
+  });
+
+  it("centerLabel is IGNORED when a target exists — the centre already reads 'N of M'", async () => {
+    const el = await mount(
+      <NutritionSummary totals={TOTALS} target={TARGET} centerLabel="kcal · daily target" />,
+    );
+    expect(el.textContent).toContain("of 2,050");
+    expect(el.textContent).not.toContain("daily target");
+  });
+
+  it("defaults to a bare 'kcal' when no centerLabel is given (unchanged behaviour)", async () => {
+    const el = await mount(<NutritionSummary totals={TOTALS} />);
+    expect(el.textContent).toContain("kcal");
+    expect(el.textContent).not.toContain("daily target");
+  });
+
   it("the calorie number is the crimson font-display hero, not a progress ring", async () => {
     const el = await mount(<NutritionSummary totals={TOTALS} target={TARGET} size="lg" />);
     const hero = [...el.querySelectorAll("span")].find((s) => s.textContent === "1,480");
