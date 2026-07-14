@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
@@ -10,7 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2, Save, Info } from "lucide-react";
+import { Loader2, Save, Info, Users } from "lucide-react";
 import {
   ProfessionalLevel,
   COACH_PAYOUT_PER_CLIENT,
@@ -316,8 +317,8 @@ export function ProfessionalLevelManager() {
             <TableBody>
               {coaches.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
-                    No active coaches found
+                  <TableCell colSpan={9} className="py-8">
+                    <EmptyState icon={Users} size="sm" title="No active coaches" description="Coaches appear here once they're approved and active." />
                   </TableCell>
                 </TableRow>
               ) : (

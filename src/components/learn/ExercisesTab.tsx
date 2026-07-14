@@ -4,6 +4,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Dumbbell, Youtube, ChevronDown, ChevronUp, Shuffle } from "lucide-react";
 import { useExerciseLibraryData, filterExercises, type ExerciseRow } from "@/hooks/useExerciseLibrary";
 import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
@@ -28,7 +31,10 @@ const MOBILITY_LIKE_CATEGORIES = ["mobility", "warmup", "cooldown"];
  * `search` so it's shared across tabs. Category + taxonomy facets stay local.
  */
 export function ExercisesTab({ search }: { search: string }) {
-  const { data: rows = [], isLoading: rowsLoading } = useExerciseLibraryData();
+  // CC10 SPLIT: previously only { data, isLoading } was destructured, so a query
+  // error yielded rows=[] and rendered the EMPTY state — telling the client the
+  // library is empty when we simply failed to read it. Empty != error.
+  const { data: rows = [], isLoading: rowsLoading, isError, refetch } = useExerciseLibraryData();
   const { data: taxonomy } = useExerciseTaxonomy();
 
   const [category, setCategory] = useState<string>("strength");
@@ -189,15 +195,28 @@ export function ExercisesTab({ search }: { search: string }) {
       </div>
 
       {rowsLoading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading exercises...</div>
-      ) : filteredExercises.length === 0 ? (
-        <div className="text-center py-12">
-          <Dumbbell className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No exercises found</h3>
-          <p className="text-muted-foreground">
-            {search || facetsActive ? "Try adjusting your search or filters" : "No exercises in this category yet"}
-          </p>
+        <div className="space-y-2">
+          {Array.from({ length: 4 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 w-full rounded-lg" />
+          ))}
         </div>
+      ) : isError ? (
+        <LoadError
+          message="We couldn't load the exercise library. Check your connection and try again."
+          onRetry={() => { void refetch(); }}
+        />
+      ) : filteredExercises.length === 0 ? (
+        // CC8: this hand-rolled block duplicated EmptyState exactly (icon + title +
+        // description). Use the primitive. Empty-search guard per CLAUDE.md.
+        <EmptyState
+          icon={Dumbbell}
+          title={search ? `No exercises matching "${search}"` : "No exercises found"}
+          description={
+            search || facetsActive
+              ? "Try adjusting your search or filters."
+              : "No exercises in this category yet."
+          }
+        />
       ) : (
         <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
           {filteredExercises.map((exercise) => (

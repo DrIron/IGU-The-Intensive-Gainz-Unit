@@ -2,7 +2,8 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
 import { Video, Pin, History, Sparkles, AlertTriangle, UserCheck, Dumbbell, Apple } from "lucide-react";
 import { VideoAccessCard, VideoAccessState } from "@/components/video/VideoAccessCard";
 import { useVideoProgress } from "@/hooks/useVideoProgress";
@@ -86,6 +87,7 @@ export function VideosTab({ search, hideCompleteButton = false, onAssign, onGoTo
 
   const [videos, setVideos] = useState<VideoWithAccess[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<Error | null>(null);
   const [selectedCategory, setSelectedCategory] = useState(ALL_CATEGORIES_LABEL);
   const [completingVideoId, setCompletingVideoId] = useState<string | null>(null);
   const [programLinked, setProgramLinked] = useState<LinkedContentRow[]>([]);
@@ -100,7 +102,11 @@ export function VideosTab({ search, hideCompleteButton = false, onAssign, onGoTo
       if (error) throw error;
       setVideos((data || []) as VideoWithAccess[]);
     } catch (error: unknown) {
+      // CC10 SPLIT: without this, a failed fetch fell into the `videos.length === 0`
+      // branch and told the client "Videos are coming soon" — an empty state asserting
+      // a fact we never established. Empty != error.
       console.error("Error loading videos:", error);
+      setLoadError(error instanceof Error ? error : new Error(String(error)));
       toast({ variant: "destructive", title: "Error", description: "Failed to load videos. Please try again." });
     } finally {
       setLoading(false);
@@ -268,6 +274,11 @@ export function VideosTab({ search, hideCompleteButton = false, onAssign, onGoTo
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-primary border-r-transparent"></div>
           <p className="mt-4 text-muted-foreground">Loading videos...</p>
         </div>
+      ) : loadError ? (
+        <LoadError
+          message="We couldn't load the video library. Check your connection and try again."
+          onRetry={() => { setLoadError(null); void loadVideos(); }}
+        />
       ) : (
         <>
           {required.length > 0 && (
@@ -369,23 +380,29 @@ export function VideosTab({ search, hideCompleteButton = false, onAssign, onGoTo
             </div>
           )}
 
+          {/* GENUINELY empty — no videos exist. A failed fetch is handled above and
+              must never reach here (CC10: empty != error). */}
           {filteredVideos.length === 0 && videos.length === 0 && (
-            <Card className="border-dashed">
-              <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                <Video className="h-12 w-12 text-muted-foreground mb-4" />
-                <h3 className="text-lg font-semibold mb-2">Videos are coming soon</h3>
-                <p className="text-sm text-muted-foreground max-w-md">
-                  For now, your main instructions will come from your program guide and updates from your coach. Check back here for technique breakdowns and deep-dive lessons.
-                </p>
-              </CardContent>
-            </Card>
+            <EmptyState
+              icon={Video}
+              title="Videos are coming soon"
+              description="For now your instructions come from your program guide and your coach. Technique breakdowns will land here."
+            />
           )}
 
           {filteredVideos.length === 0 && videos.length > 0 && (
-            <Alert>
-              <Video className="h-4 w-4" />
-              <AlertDescription>No videos found matching your criteria. Try adjusting your search or filter.</AlertDescription>
-            </Alert>
+            // CC8: EmptyState, not a bare Alert. Empty-search guard per CLAUDE.md —
+            // never render `matching ""` when the search box is blank.
+            <EmptyState
+              icon={Video}
+              size="sm"
+              title={search ? `No videos matching "${search}"` : "No videos here yet"}
+              description={
+                search
+                  ? "Try a different search, or clear the category filter."
+                  : "Try another category — your coach adds new videos here."
+              }
+            />
           )}
         </>
       )}
