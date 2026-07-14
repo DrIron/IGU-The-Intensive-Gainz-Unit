@@ -62,6 +62,7 @@ export default function ClientNutrition() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [weightLogs, setWeightLogs] = useState<any[]>([]);
   const [userGender, setUserGender] = useState<string | null>(null);
+  const [firstName, setFirstName] = useState<string | null>(null);
   const [initialBodyFat, setInitialBodyFat] = useState<number | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [phaseSummary, setPhaseSummary] = useState<any>(null);
@@ -228,7 +229,9 @@ export default function ClientNutrition() {
       }
 
       const [{ data: profilePublic }, { data: profilePrivate }, { data: subscription }] = await Promise.all([
-        supabase.from("profiles_public").select("status").eq("id", user.id).maybeSingle(),
+        // NU6: first_name rides along on the existing select (no extra query) so the
+        // shareable phase card can attribute the result.
+        supabase.from("profiles_public").select("status, first_name").eq("id", user.id).maybeSingle(),
         supabase.from("profiles_private").select("gender").eq("profile_id", user.id).maybeSingle(),
         supabase
           .from("subscriptions")
@@ -265,6 +268,7 @@ export default function ClientNutrition() {
 
       setUser(user);
       setUserGender(profilePrivate?.gender || null);
+      setFirstName(profilePublic?.first_name ?? null);
       loadActivePhase(user);
     } catch (err) {
       console.error("Error loading user:", err);
@@ -420,7 +424,9 @@ export default function ClientNutrition() {
           </Card>
         ) : (
           <div className="space-y-6">
-            {phaseSummary && <PhaseSummaryReport phase={activePhase} summary={phaseSummary} />}
+            {phaseSummary && (
+              <PhaseSummaryReport phase={activePhase} summary={phaseSummary} firstName={firstName} />
+            )}
 
             {/* Status/action stack (left) beside the trend graph (right). The
                 short cards -- phase, weekly ribbon, daily log -- stack into one
