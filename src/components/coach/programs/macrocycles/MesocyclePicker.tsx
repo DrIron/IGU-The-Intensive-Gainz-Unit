@@ -11,6 +11,7 @@ import { DrawerScrollArea } from "@/components/ui/drawer";
 import { Search, Plus, BookOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { computeProgramWeeks } from "@/hooks/useMacrocycles";
 import { cn } from "@/lib/utils";
 
 interface MesocycleOption {
@@ -51,23 +52,16 @@ export const MesocyclePicker = memo(function MesocyclePicker({
         .order("updated_at", { ascending: false });
       if (pErr) throw pErr;
 
+      // ONE source of truth for counting a program's weeks: computeProgramWeeks
+      // (canonical plan_weeks, legacy only as a fallback — see useMacrocycles).
+      //
+      // This used to be an inline COPY of the legacy `ceil(max(day_index)/7)` read.
+      // PR #202 repointed the macrocycle list at canonical and missed this duplicate,
+      // which had the identical silent-failure mode: after the legacy drop
+      // program_template_days returns nothing, every count floors to 1, and the picker
+      // would offer every 8-week mesocycle as "1 week". Never re-inline this.
       const ids = (programs ?? []).map(p => p.id);
-      const weekMap = new Map<string, number>();
-      if (ids.length > 0) {
-        const { data: days, error: dErr } = await supabase
-          .from("program_template_days")
-          .select("program_template_id, day_index")
-          .in("program_template_id", ids);
-        if (dErr) throw dErr;
-        const maxByProgram = new Map<string, number>();
-        for (const d of days ?? []) {
-          const cur = maxByProgram.get(d.program_template_id) ?? 0;
-          if (d.day_index > cur) maxByProgram.set(d.program_template_id, d.day_index);
-        }
-        for (const id of ids) {
-          weekMap.set(id, Math.max(1, Math.ceil((maxByProgram.get(id) ?? 0) / 7)));
-        }
-      }
+      const weekMap = await computeProgramWeeks(ids);
 
       setOptions(
         (programs ?? []).map(p => ({
