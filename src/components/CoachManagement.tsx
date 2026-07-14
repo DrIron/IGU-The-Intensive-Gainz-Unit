@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
+import { EmptyState } from "@/components/ui/empty-state";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
@@ -505,8 +506,8 @@ export default function CoachManagement({ defaultTab }: CoachManagementProps) {
       <TableBody>
         {coachList.length === 0 ? (
           <TableRow>
-            <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-              No coaches found
+            <TableCell colSpan={7} className="py-8">
+              <EmptyState icon={Users} size="sm" title="No coaches yet" description="Approved coaches will appear here." />
             </TableCell>
           </TableRow>
         ) : (

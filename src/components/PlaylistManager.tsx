@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -324,7 +325,12 @@ export function PlaylistManager() {
                         <div className="space-y-2">
                           <Label>Videos in Playlist (drag to reorder)</Label>
                           {playlistVideos.length === 0 ? (
-                            <p className="text-sm text-muted-foreground">No videos in this playlist yet</p>
+                            <EmptyState
+                              icon={Video}
+                              size="sm"
+                              title="No videos in this playlist yet"
+                              description="Add videos below to build the playlist."
+                            />
                           ) : (
                             <DragDropContext onDragEnd={(r) => handleReorderPlaylistVideos(playlist.id, r)}>
                               <Droppable droppableId={`playlist-${playlist.id}`}>

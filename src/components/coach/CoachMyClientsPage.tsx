@@ -22,12 +22,7 @@ import { useCoachRosterStats } from "@/hooks/useCoachRosterStats";
 import { cn } from "@/lib/utils";
 import { toneClasses } from "@/lib/interpret";
 import { rosterTone, byRosterUrgency } from "@/lib/rosterTone";
-import {
-  Users, Search, Eye, Activity, AlertCircle,
-  Dumbbell, Library, MoreVertical, MessageSquare, ArrowRight,
-  Check, X, Mail, Phone, DollarSign, Calendar, UserCheck, Clock, CreditCard,
-  AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown, UserPlus, Snowflake, Gift, SlidersHorizontal
-} from "lucide-react";
+import { Users, Search, Eye, Activity, AlertCircle, Dumbbell, Library, MoreVertical, MessageSquare, ArrowRight, Check, X, Mail, Phone, DollarSign, Calendar, UserCheck, Clock, CreditCard, AlertTriangle, RefreshCw, Loader2, Inbox, ChevronDown, UserPlus, Snowflake, Gift, SlidersHorizontal, CheckCircle2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -1048,8 +1043,20 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
             />
           ) : (
             <div className="space-y-6">
-              {/* Needs-attention strip — count chips that jump to the relevant
-                  section/client. Zero-count chips stay (muted) so the row is stable. */}
+              {/* RO5 — the all-clear. When nothing is flagged, a row of muted zeroes
+                  reads like a dashboard with the lights off. Say the true, good thing
+                  instead: everyone is fine. Calm check glyph, one line, no alarm.
+                  `attention.total` is deduped server-side, so 0 genuinely means 0. */}
+              {attention.total === 0 ? (
+                <EmptyState
+                  icon={CheckCircle2}
+                  size="sm"
+                  title="No clients need attention — nice."
+                  description="Everyone's logged, paid up and on track."
+                />
+              ) : (
+              /* Needs-attention strip — count chips that jump to the relevant
+                 section/client. Zero-count chips stay (muted) so the row is stable. */
               <div className="flex flex-wrap items-center gap-2">
                 <button
                   type="button"
@@ -1092,6 +1099,7 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                   <span>Adjustments</span>
                 </button>
               </div>
+              )}
 
               {/* Active first — the primary roster is no longer buried. */}
               <QueueSectionCard

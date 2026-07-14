@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { EmptyState } from "@/components/ui/empty-state";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,20 +32,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Separator } from "@/components/ui/separator";
-import {
-  Calendar,
-  CreditCard,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
-  Send,
-  Shield,
-  History,
-  Loader2,
-  Search,
-  RefreshCw,
-  Mail,
-} from "lucide-react";
+import { Calendar, CreditCard, Clock, AlertTriangle, CheckCircle2, Send, Shield, History, Loader2, Search, RefreshCw, Mail, Users } from "lucide-react";
 import { format, addDays, differenceInDays } from "date-fns";
 
 interface BillingClient {
@@ -626,8 +614,8 @@ export function AdminBillingManager() {
               <TableBody>
                 {filteredClients.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                      No clients found
+                    <TableCell colSpan={6} className="py-8">
+                      <EmptyState icon={Users} size="sm" title="No clients found" description="No clients match the current filters." />
                     </TableCell>
                   </TableRow>
                 ) : (

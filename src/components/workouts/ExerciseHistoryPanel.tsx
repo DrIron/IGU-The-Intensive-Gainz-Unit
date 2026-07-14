@@ -4,6 +4,7 @@ import { MetricCard } from "@/components/ui/metric-card";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Search, Dumbbell } from "lucide-react";
 import { format } from "date-fns";
@@ -86,11 +87,12 @@ export function ExerciseHistoryPanel() {
           {exercisesLoading ? (
             <Skeleton className="h-10 w-full" />
           ) : exercises.length === 0 ? (
-            <div className="text-center py-6 text-muted-foreground">
-              <Dumbbell className="h-8 w-8 mx-auto mb-2 opacity-30" />
-              <p>No exercise history yet</p>
-              <p className="text-sm mt-1">Start logging your workouts to see history</p>
-            </div>
+            <EmptyState
+              icon={Dumbbell}
+              size="sm"
+              title="No exercise history yet"
+              description="Log a workout and your lifts will show up here."
+            />
           ) : (
             <Select value={selectedExercise} onValueChange={setSelectedExercise}>
               <SelectTrigger>
