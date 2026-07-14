@@ -16,6 +16,16 @@ interface MacroDonutProps {
   size?: number;
   strokeWidth?: number;
   className?: string;
+  /**
+   * Rendered in the middle of the ring. `NutritionSummary` puts the calorie number here so
+   * that ONE object carries both "how many calories" and "what's the macro split".
+   */
+  center?: React.ReactNode;
+  /**
+   * `NutritionSummary` supplies its own spacious legend (aligned grams/% columns + target
+   * context), so it turns this one off. Defaults to true — existing callers are unchanged.
+   */
+  showLegend?: boolean;
 }
 
 const MACROS = [
@@ -31,6 +41,8 @@ export function MacroDonut({
   size = 132,
   strokeWidth = 14,
   className,
+  center,
+  showLegend = true,
 }: MacroDonutProps) {
   const grams = { protein: Math.max(0, protein), fat: Math.max(0, fat), carb: Math.max(0, carbs) };
   const cals = { protein: grams.protein * 4, fat: grams.fat * 9, carb: grams.carb * 4 };
@@ -76,9 +88,15 @@ export function MacroDonut({
               />
             ))}
         </svg>
+        {center && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+            {center}
+          </div>
+        )}
       </div>
 
       {/* Legend — grams + % stay visible */}
+      {showLegend && (
       <ul className="flex-1 min-w-0 space-y-1.5 text-sm">
         {MACROS.map((m) => {
           const pct = total > 0 ? Math.round((cals[m.key] / total) * 100) : 0;
@@ -98,6 +116,7 @@ export function MacroDonut({
           );
         })}
       </ul>
+      )}
     </div>
   );
 }
