@@ -188,7 +188,7 @@ export function RefundAddonDialog({
       onRefunded?.();
       onOpenChange(false);
     } catch (err) {
-      captureException(err, { context: "refund_addon_purchase" });
+      captureException(err, { source: "refund_addon_purchase" });
       const msg = sanitizeErrorForUser(err) || "Refund failed. Please try again.";
       setSubmitError(msg);
       toast.error("Refund failed", { description: msg });

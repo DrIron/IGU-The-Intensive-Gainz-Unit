@@ -187,7 +187,7 @@ export function CareTeamMessagesPanel({
           }
         });
     } catch (error) {
-      captureException(error, { context: 'care_team_messages_load' });
+      captureException(error, { source: 'care_team_messages_load' });
     } finally {
       setLoading(false);
     }
