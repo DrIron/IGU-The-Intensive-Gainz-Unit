@@ -8,6 +8,7 @@ import { CheckCircle2, Circle, TrendingDown, TrendingUp, Minus, ChevronRight } f
 import { startOfWeek, endOfWeek, format } from "date-fns";
 import { interpretWeeklyHabit, toneClasses } from "@/lib/interpret";
 import { useCanonicalWeeklyAdherence } from "@/hooks/useCanonicalWeeklyAdherence";
+import { calculateRollingAverage } from "@/utils/nutritionCalculations";
 import { cn } from "@/lib/utils";
 
 interface WeeklyProgressCardProps {
@@ -18,6 +19,52 @@ interface WeeklyStats {
   nutritionDaysLogged: number;
   weightTrend: "up" | "down" | "stable" | null;
   weightChange: number | null;
+}
+
+/** A weigh-in the client actually took. Zero and non-finite rows are data entry noise. */
+function isRealWeighIn(kg: number): boolean {
+  return Number.isFinite(kg) && kg > 0;
+}
+
+/**
+ * FU4 — week-over-week weight movement, SMOOTHED.
+ *
+ * The old math was `weights[0] - weights[weights.length - 1]` over the last 14 log ROWS:
+ * a single raw endpoint at each end. One stray weigh-in anywhere in that window moved the
+ * headline directly and completely — a mis-typed `0` produced "+17.5 kg" on a client's
+ * dashboard, and any normal day-to-day fluctuation (water, food, time of day) was reported
+ * as if it were real trend.
+ *
+ * Instead: compare the mean of the last 7 days against the mean of the 7 before it, via the
+ * same `calculateRollingAverage` the rest of the nutrition surfaces use. Averaging is what
+ * makes a single bad reading survivable — it can shift the number, but it can no longer BE
+ * the number. Zero/invalid weigh-ins are dropped before any averaging.
+ *
+ * Returns null when either week has no real weigh-in: we don't know, and saying nothing beats
+ * inventing a trend from one datapoint.
+ *
+ * Exported for unit tests.
+ */
+export function computeSmoothedWeeklyTrend(
+  logs: Array<{ log_date: string; weight_kg: number }>,
+  today: Date,
+): { weightTrend: WeeklyStats["weightTrend"]; weightChange: number | null } {
+  const clean = logs.filter((l) => isRealWeighIn(l.weight_kg));
+
+  const priorWeekEnd = new Date(today);
+  priorWeekEnd.setDate(priorWeekEnd.getDate() - 7);
+
+  // Two 7-day windows: [today-6 .. today] and [today-13 .. today-7]. No overlap.
+  const thisWeekAvg = calculateRollingAverage(clean, format(today, "yyyy-MM-dd"));
+  const priorWeekAvg = calculateRollingAverage(clean, format(priorWeekEnd, "yyyy-MM-dd"));
+
+  if (thisWeekAvg == null || priorWeekAvg == null) {
+    return { weightTrend: null, weightChange: null };
+  }
+
+  const weightChange = Number((thisWeekAvg - priorWeekAvg).toFixed(1));
+  const weightTrend = Math.abs(weightChange) < 0.3 ? "stable" : weightChange > 0 ? "up" : "down";
+  return { weightTrend, weightChange };
 }
 
 export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
@@ -48,30 +95,29 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
 
       const nutritionDays = new Set(nutritionLogs?.map(l => l.log_date)).size;
 
-      // Get weight trend (last 2 weeks)
-      const { data: weights } = await supabase
+      // Weight trend — the last 14 DAYS, by date range. `.limit(14)` counted ROWS, which is
+      // only 14 days if the client logs exactly once a day; weight_logs is unique per
+      // (phase_id, log_date), so a client mid-phase-switch can have two rows on one day and
+      // the window quietly shrank to a week.
+      const trendStart = new Date(now);
+      trendStart.setDate(trendStart.getDate() - 13);
+
+      const { data: weights, error: weightErr } = await supabase
         .from("weight_logs")
         .select("weight_kg, log_date")
         .eq("user_id", userId)
-        .order("log_date", { ascending: false })
-        .limit(14);
+        .gte("log_date", format(trendStart, "yyyy-MM-dd"))
+        .lte("log_date", format(now, "yyyy-MM-dd"))
+        .order("log_date", { ascending: false });
+      if (weightErr) throw weightErr;
 
-      let weightTrend: "up" | "down" | "stable" | null = null;
-      let weightChange: number | null = null;
-
-      if (weights && weights.length >= 2) {
-        const recent = weights[0].weight_kg;
-        const older = weights[weights.length - 1].weight_kg;
-        weightChange = Number((recent - older).toFixed(1));
-
-        if (Math.abs(weightChange) < 0.3) {
-          weightTrend = "stable";
-        } else if (weightChange > 0) {
-          weightTrend = "up";
-        } else {
-          weightTrend = "down";
-        }
-      }
+      const { weightTrend, weightChange } = computeSmoothedWeeklyTrend(
+        (weights ?? []).map((w) => ({
+          log_date: w.log_date as string,
+          weight_kg: parseFloat(String(w.weight_kg)),
+        })),
+        now,
+      );
 
       setStats({
         nutritionDaysLogged: nutritionDays,
@@ -91,10 +137,14 @@ export function WeeklyProgressCard({ userId }: WeeklyProgressCardProps) {
     loadWeeklyStats();
   }, [userId, loadWeeklyStats]);
 
+  // NEUTRAL by design. This used to be orange-up / green-down, which asserts that gaining is
+  // bad and losing is good -- false for every client in a muscle-gain phase, i.e. exactly the
+  // people the orange arrow would be scolding. The direction is already in the arrow and the
+  // sign; the colour added nothing but a verdict. Same rule NU6 / PUB6 / CL5 / CO4 enforce.
   const getTrendIcon = () => {
-    if (stats.weightTrend === "up") return <TrendingUp className="h-4 w-4 text-orange-500" aria-hidden="true" />;
-    if (stats.weightTrend === "down") return <TrendingDown className="h-4 w-4 text-green-500" aria-hidden="true" />;
-    if (stats.weightTrend === "stable") return <Minus className="h-4 w-4 text-blue-500" aria-hidden="true" />;
+    if (stats.weightTrend === "up") return <TrendingUp className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
+    if (stats.weightTrend === "down") return <TrendingDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
+    if (stats.weightTrend === "stable") return <Minus className="h-4 w-4 text-muted-foreground" aria-hidden="true" />;
     return null;
   };
 
