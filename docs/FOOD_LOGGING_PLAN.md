@@ -526,11 +526,32 @@ grid; NU7 uses a donut). We consolidate all of it into one primitive and reuse i
   legend grams read `124 / 172 g`, and a **single thin progress bar** sits beneath. A food item (no
   target) simply omits the target text and the bar — same component, fewer props. No second "way".
 
-**Rule for the build:** never introduce a bespoke calorie/macro visual. If a surface shows calories +
-macros, it renders `NutritionSummary`. The ribbon and standalone donut are retired into it, and the
-existing `NutritionPhaseCard` / `NutritionTargetsCard` are refactored onto it as part of this work
-(they keep their surrounding chrome — status rail, mono expected/actual strip — but the calorie+macro
-block becomes the shared summary). Type ramp is fixed centrally here so nothing looks off-size.
+**Rule for the build:** never introduce a bespoke calorie/macro visual. If a surface presents calories +
+macros **as its subject**, it renders `NutritionSummary`. The surrounding chrome stays (status rail, mono
+expected/actual strip, actions) — only the calorie+macro block becomes the shared summary. Type ramp is
+fixed centrally here so nothing looks off-size.
+
+**The standalone `MacroDonut` import is retired** — it survives only as `NutritionSummary`'s internal
+ring. No surface imports it directly.
+
+### The ribbon is NOT fully retired (RULED 2026-07-14 — mockups: `docs/NUTRITION_DONUT_CONVERSION_MOCKUPS.html`)
+
+An earlier draft of this section said "the ribbon and standalone donut are retired into it". **That was
+wrong**, and it was wrong in a dangerous direction: it reads as a mandate to convert every surface, which
+would damage two of them. Hasan ruled the conversion goes ahead (option B) — and the per-surface pass that
+produced the mockups found the blanket version indefensible. Ruling, 3 convert / 2 keep:
+
+| Surface | Ruling | Why |
+|---|---|---|
+| `NutritionPhaseCard` | **Donut** (`md`) | The flagship. Donut earns its space: the ribbon showed grams but never the **%**. Keep the rail, StatusBadge, CC2 sentence, rate strip, actions; fold `avg … kg` / `~N wks` into the rate strip. |
+| `NutritionTargetsCard` | **Donut** (`md`) | Spends **three visuals on one fact** today — crimson kcal box + ribbon + 3-col grams/% grid. The donut **replaces all three**. Net −2 visuals; the card gets simpler. |
+| `NutritionGoal` | **Donut**, delete the duplicate ribbon | Already renders a donut **AND** a ribbon, stacked — the same split said twice. Not a redesign; a deletion. Lowest risk, do it first. |
+| `PhaseSummaryCard` (NU6 share PNG) | **KEEP the ribbon** | (1) A second colourful focal point competes with the one number the card exists to deliver — the result, deliberately neutral under the NU6 honesty contract. (2) It's the one artifact that **leaves the app**: the ribbon paints tokens as `backgroundColor` on divs, the donut as an SVG `stroke` — a different path through `html-to-image`, so a silent colour-drop ships a grey donut to a client's Instagram. (3) The % upgrade is the donut's whole argument, and nobody shares their fat percentage. |
+| `NutritionProgress` adjustment notice | **KEEP the ribbon** | A **transient notification**, not a hero. A 120px donut turns a nudge into a panel and pushes the plain-language sentence — the actual payload — down the card. Right weight for the right job. |
+
+So the ribbon survives in exactly **two** roles, and adding a third is a decision, not a reflex:
+**(a)** a *compact notification* where the split is supporting context and a donut would outweigh the
+message; **(b)** the *NU6 share card*, for the focal-point and export reasons above.
 
 **What we deliberately DON'T copy from competitors:** MFP's "calories remaining = goal − food +
 exercise" (IGU targets are coach-set phases, not a subtract-exercise budget); gamified streaks;

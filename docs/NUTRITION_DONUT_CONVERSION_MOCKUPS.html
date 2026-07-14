@@ -1,0 +1,623 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGU — Nutrition donut conversion (Part IV) · before/after</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Bebas+Neue&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  /* Real IGU tokens (src/index.css). Nothing invented. */
+  :root{
+    --background:220 20% 97%; --foreground:240 10% 3.9%;
+    --card:0 0% 100%; --muted:240 4.8% 95.9%; --muted-foreground:240 3.8% 46.1%;
+    --primary:355 78% 48%; --border:220 15% 92%; --radius:0.75rem;
+    --status-ontrack:142 71% 45%; --status-attention:38 92% 50%; --status-risk:0 84% 60%; --status-neutral:215 16% 47%;
+    --macro-protein:0 72% 51%; --macro-fat:38 92% 50%; --macro-carb:217 91% 60%;
+    --desk:220 16% 91%;
+  }
+  :root[data-theme="dark"], html.dark{
+    --background:240 10% 3.7%; --foreground:0 0% 98%;
+    --card:240 6% 8.4%; --muted:240 5% 16%; --muted-foreground:240 5% 65%;
+    --border:240 5% 18%; --desk:240 8% 6%;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Geist',system-ui,sans-serif;background:hsl(var(--desk));color:hsl(var(--foreground));
+       -webkit-font-smoothing:antialiased;padding:40px 24px 90px;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto}
+  h1{font-size:22px;font-weight:600;letter-spacing:-.01em;margin-bottom:6px;text-wrap:balance}
+  .sub{color:hsl(var(--muted-foreground));font-size:14px;margin-bottom:8px;max-width:76ch}
+  .mono{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums}
+  .ttoggle{position:fixed;top:14px;right:16px;z-index:99;border:1px solid hsl(var(--border));
+           background:hsl(var(--card));color:hsl(var(--foreground));border-radius:9px;padding:7px 12px;
+           font-family:inherit;font-size:12px;font-weight:500;cursor:pointer}
+  .ttoggle:focus-visible{outline:2px solid hsl(var(--primary));outline-offset:2px}
+
+  /* Verdict banner */
+  .verdict{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin:22px 0 34px}
+  .vcell{border:1px solid hsl(var(--border));background:hsl(var(--card));border-radius:var(--radius);padding:12px 14px}
+  .vcell .n{font-family:'Bebas Neue',sans-serif;font-size:30px;line-height:1;color:hsl(var(--primary))}
+  .vcell .l{font-size:12px;color:hsl(var(--muted-foreground));margin-top:3px}
+
+  section{margin-bottom:44px}
+  .shead{display:flex;align-items:center;gap:10px;margin-bottom:4px;flex-wrap:wrap}
+  .shead h2{font-size:16px;font-weight:600}
+  .path{font-family:'JetBrains Mono',monospace;font-size:11px;color:hsl(var(--muted-foreground))}
+  .why{font-size:13.5px;color:hsl(var(--muted-foreground));max-width:82ch;margin-bottom:14px}
+  .why b{color:hsl(var(--foreground));font-weight:500}
+
+  .tag{font-size:10.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;
+       border-radius:999px;padding:3px 9px;border:1px solid}
+  .t-convert{border-color:hsl(var(--status-ontrack)/.4);background:hsl(var(--status-ontrack)/.1);color:hsl(var(--status-ontrack))}
+  .t-keep{border-color:hsl(var(--status-neutral)/.4);background:hsl(var(--status-neutral)/.12);color:hsl(var(--status-neutral))}
+
+  .two{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+  @media(max-width:900px){.two{grid-template-columns:1fr}}
+  .col-label{font-family:'JetBrains Mono',monospace;font-size:10.5px;letter-spacing:.06em;text-transform:uppercase;
+             color:hsl(var(--muted-foreground));margin-bottom:8px}
+
+  /* The app's Card primitive: 12px radius, 1px border, flat — NO shadow (DS1). */
+  .card{background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:var(--radius);overflow:hidden}
+  .cbody{padding:20px}
+  .rail{width:4px;flex:none}
+  .row{display:flex}
+
+  .chip{font-size:11px;border-radius:999px;padding:2px 8px;background:hsl(var(--muted));
+        color:hsl(var(--muted-foreground));font-weight:500}
+  .badge{font-size:11px;font-weight:500;border-radius:999px;padding:2px 9px;border:1px solid}
+  .b-ontrack{border-color:hsl(var(--status-ontrack)/.4);background:hsl(var(--status-ontrack)/.1);color:hsl(var(--status-ontrack))}
+  .dot{width:6px;height:6px;border-radius:99px;flex:none;margin-top:6px}
+  .interp{display:flex;gap:6px;font-size:12px;color:hsl(var(--muted-foreground));align-items:flex-start}
+  .meta{font-family:'JetBrains Mono',monospace;font-size:11px;color:hsl(var(--muted-foreground))}
+  .strip{display:flex;justify-content:space-between;gap:12px;border-top:1px solid hsl(var(--border));
+         padding-top:10px;font-family:'JetBrains Mono',monospace;font-size:11px;color:hsl(var(--muted-foreground))}
+  .strip .v{color:hsl(var(--foreground))}
+  .btn{font-size:12px;font-weight:500;border-radius:8px;padding:6px 10px;border:1px solid hsl(var(--border));
+       background:transparent;color:hsl(var(--foreground))}
+  .btn.ghost{border-color:transparent;color:hsl(var(--muted-foreground))}
+  .acts{display:flex;gap:8px}
+
+  /* Ribbon (as shipped) */
+  .ribbon{height:8px;border-radius:999px;background:hsl(var(--muted));display:flex;overflow:hidden}
+  .rlabels{display:flex;justify-content:space-between;font-family:'JetBrains Mono',monospace;font-size:10px;margin-top:6px}
+
+  /* Donut + legend (the proposal) */
+  .summary{display:flex;align-items:center;gap:18px}
+  .donutwrap{position:relative;flex:none}
+  .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .center .k{font-family:'Bebas Neue',sans-serif;font-size:34px;line-height:1;color:hsl(var(--primary))}
+  .center .u{font-size:10px;color:hsl(var(--muted-foreground));margin-top:2px}
+  .legend{flex:1;min-width:0;max-width:300px;display:flex;flex-direction:column;gap:8px;font-size:13px}
+  .lrow{display:flex;align-items:center;gap:8px}
+  .sw{width:9px;height:9px;border-radius:99px;flex:none}
+  .lname{flex:1;font-weight:500}
+  .lg{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;flex:none}
+  .lp{font-family:'JetBrains Mono',monospace;font-variant-numeric:tabular-nums;width:38px;text-align:right;
+      color:hsl(var(--muted-foreground));flex:none}
+  .muted{color:hsl(var(--muted-foreground))}
+
+  .kbox{text-align:center;padding:10px;border-radius:10px;background:hsl(var(--primary)/.05)}
+  .kbox .n{font-size:28px;font-weight:600;color:hsl(var(--primary));line-height:1.1}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;text-align:center}
+  .g3c{background:hsl(var(--muted)/.5);border-radius:9px;padding:8px 4px}
+  .g3c .g{font-family:'JetBrains Mono',monospace;font-weight:600;font-size:14px}
+  .g3c .l{font-size:10px;color:hsl(var(--muted-foreground))}
+
+  .stack{display:flex;flex-direction:column;gap:14px}
+  .note{border-left:3px solid hsl(var(--primary));background:hsl(var(--card));border-radius:0 8px 8px 0;
+        padding:11px 14px;font-size:13px;color:hsl(var(--muted-foreground));margin-top:14px}
+  .note b{color:hsl(var(--foreground));font-weight:500}
+  code{font-family:'JetBrains Mono',monospace;font-size:12px;background:hsl(var(--muted));padding:1px 5px;border-radius:4px}
+  hr{border:0;border-top:1px solid hsl(var(--border));margin:38px 0}
+</style>
+</head>
+<body>
+<button class="ttoggle" id="tt">Light / Dark</button>
+<div class="wrap">
+
+  <h1>Part IV — the donut conversion, ruled per surface</h1>
+  <p class="sub">
+    Hasan ruled <b>(B)</b>: convert the coach nutrition cards to the donut, so Part IV's original intent stands.
+    But "retire the ribbon everywhere" is <b>false for two of the five surfaces</b> — and rather than convert them
+    badly to satisfy a sentence, this sheet rules each surface on its own merits and Part IV is amended to say so.
+  </p>
+
+  <div class="verdict">
+    <div class="vcell"><div class="n">3</div><div class="l">surfaces convert to the donut</div></div>
+    <div class="vcell"><div class="n">2</div><div class="l">keep the ribbon, deliberately</div></div>
+    <div class="vcell"><div class="n">1</div><div class="l">redundant ribbon deleted outright (NutritionGoal renders BOTH today)</div></div>
+    <div class="vcell"><div class="n">0</div><div class="l">bespoke calorie visuals left behind</div></div>
+  </div>
+
+  <!-- ══════════════════════════ 1 ══════════════════════════ -->
+  <section>
+    <div class="shead">
+      <h2>1 · NutritionPhaseCard</h2>
+      <span class="tag t-convert">Convert · donut</span>
+      <span class="path">src/components/nutrition/NutritionPhaseCard.tsx → ClientNutrition + NutritionTab</span>
+    </div>
+    <p class="why">
+      The flagship, and the one Hasan grounded. It carries far more than the client diary: status rail, goal badge,
+      StatusBadge, the CC2 interpretation line, a Bebas kcal hero, the ribbon, an expected-vs-actual rate strip, and
+      actions. <b>The donut works here</b> — it earns its space by making the macro grams legible (the ribbon showed
+      grams but never the %). The donut takes the top row, so the <code>avg 78.4 kg</code> / <code>~6 wks</code> pair
+      folds into the rate strip. Everything else stays exactly where it is.
+    </p>
+    <div class="two">
+      <div>
+        <div class="col-label">Before — as shipped</div>
+        <div class="card"><div class="row">
+          <div class="rail" style="background:hsl(var(--status-ontrack))"></div>
+          <div class="cbody stack" style="flex:1">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+              <div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <strong style="font-size:17px">Summer Cut</strong><span class="chip">Fat Loss</span>
+                </div>
+                <div class="meta" style="margin-top:3px">Week 3 | target 74.0 kg | avg 78.4 kg | ~6 wks to target</div>
+              </div>
+              <span class="badge b-ontrack">On Track</span>
+            </div>
+            <div class="interp">
+              <span class="dot" style="background:hsl(var(--status-ontrack))"></span>
+              Losing at about the planned pace. Keep going.
+            </div>
+            <div style="display:flex;align-items:baseline;gap:14px" class="mono">
+              <div><span style="font-family:'Bebas Neue',sans-serif;font-size:38px;line-height:1">1850</span>
+                   <span class="muted" style="font-size:11px">kcal</span></div>
+              <div class="muted" style="font-size:11px">P 165g&nbsp; | &nbsp;F 55g&nbsp; | &nbsp;C 165g</div>
+            </div>
+            <div>
+              <div class="ribbon">
+                <div style="width:36.4%;background:hsl(var(--macro-protein))"></div>
+                <div style="width:27.3%;background:hsl(var(--macro-fat))"></div>
+                <div style="width:36.4%;background:hsl(var(--macro-carb))"></div>
+              </div>
+              <div class="rlabels">
+                <span style="color:hsl(var(--macro-protein))">P 165g</span>
+                <span style="color:hsl(var(--macro-fat))">F 55g</span>
+                <span style="color:hsl(var(--macro-carb))">C 165g</span>
+              </div>
+            </div>
+            <div class="strip">
+              <div><span style="opacity:.7">expected</span> <span class="v">-0.75%</span><span style="opacity:.7"> / wk</span></div>
+              <div><span style="opacity:.7">actual</span> <span class="v">-0.68%</span></div>
+            </div>
+            <div class="acts"><button class="btn">Edit phase</button><button class="btn ghost">Review weeks</button></div>
+          </div>
+        </div></div>
+      </div>
+
+      <div>
+        <div class="col-label">After — NutritionSummary (md)</div>
+        <div class="card"><div class="row">
+          <div class="rail" style="background:hsl(var(--status-ontrack))"></div>
+          <div class="cbody stack" style="flex:1">
+            <div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start">
+              <div>
+                <div style="display:flex;align-items:center;gap:8px">
+                  <strong style="font-size:17px">Summer Cut</strong><span class="chip">Fat Loss</span>
+                </div>
+                <div class="meta" style="margin-top:3px">Week 3 | target 74.0 kg</div>
+              </div>
+              <span class="badge b-ontrack">On Track</span>
+            </div>
+            <div class="interp">
+              <span class="dot" style="background:hsl(var(--status-ontrack))"></span>
+              Losing at about the planned pace. Keep going.
+            </div>
+
+            <div class="summary">
+              <div class="donutwrap" style="width:120px;height:120px">
+                <svg width="120" height="120" style="transform:rotate(-90deg)" role="img" aria-label="Macro calorie split">
+                  <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--muted))" stroke-width="12"/>
+                  <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="12"
+                          stroke-dasharray="123.5 215.8" stroke-dashoffset="0"/>
+                  <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="12"
+                          stroke-dasharray="92.6 246.7" stroke-dashoffset="-123.5"/>
+                  <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="12"
+                          stroke-dasharray="123.5 215.8" stroke-dashoffset="-216.1"/>
+                </svg>
+                <div class="center"><span class="k">1850</span><span class="u">kcal · daily target</span></div>
+              </div>
+              <ul class="legend">
+                <li class="lrow"><span class="sw" style="background:hsl(var(--macro-protein))"></span>
+                    <span class="lname">Protein</span><span class="lg">165<span class="muted"> g</span></span><span class="lp">36%</span></li>
+                <li class="lrow"><span class="sw" style="background:hsl(var(--macro-fat))"></span>
+                    <span class="lname">Fat</span><span class="lg">55<span class="muted"> g</span></span><span class="lp">27%</span></li>
+                <li class="lrow"><span class="sw" style="background:hsl(var(--macro-carb))"></span>
+                    <span class="lname">Carbs</span><span class="lg">165<span class="muted"> g</span></span><span class="lp">36%</span></li>
+              </ul>
+            </div>
+
+            <div class="strip" style="flex-wrap:wrap">
+              <div><span style="opacity:.7">expected</span> <span class="v">-0.75%</span><span style="opacity:.7"> / wk</span></div>
+              <div><span style="opacity:.7">actual</span> <span class="v">-0.68%</span></div>
+              <div><span style="opacity:.7">avg</span> <span class="v">78.4 kg</span><span style="opacity:.7"> · ~6 wks</span></div>
+            </div>
+            <div class="acts"><button class="btn">Edit phase</button><button class="btn ghost">Review weeks</button></div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+    <div class="note">
+      <b>What changed:</b> the ribbon + the separate <code>P/F/C</code> gram line collapse into one object that shows
+      grams <em>and</em> %. The <code>avg</code> / <code>~wks</code> pair moves from the header meta line into the rate
+      strip. Card gets taller. <b>What must NOT change:</b> the status rail colour, the StatusBadge, the CC2 sentence
+      (single source: <code>interpret.ts</code>), the expected/actual values, and both actions.
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ══════════════════════════ 2 ══════════════════════════ -->
+  <section>
+    <div class="shead">
+      <h2>2 · NutritionTargetsCard</h2>
+      <span class="tag t-convert">Convert · donut</span>
+      <span class="path">src/components/client/NutritionTargetsCard.tsx → NewClientOverview (client dashboard)</span>
+    </div>
+    <p class="why">
+      The strongest case in the set. This card currently spends <b>three separate visuals on one fact</b>: a crimson
+      kcal box, the ribbon, and a 3-column grams/% grid underneath it. The donut+legend is not an addition here —
+      it <b>replaces all three</b> and the card gets simpler, not busier. Keep the header, the goal pill, the
+      interpretation line and the tap-through to /nutrition.
+    </p>
+    <div class="two">
+      <div>
+        <div class="col-label">Before — three visuals, one fact</div>
+        <div class="card"><div class="cbody stack">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong style="font-size:15px">Daily Targets</strong><span class="chip">Fat Loss</span>
+          </div>
+          <div class="kbox"><div class="n">2100</div><div class="muted" style="font-size:11px">calories</div></div>
+          <div>
+            <div class="ribbon">
+              <div style="width:33%;background:hsl(var(--macro-protein))"></div>
+              <div style="width:26.2%;background:hsl(var(--macro-fat))"></div>
+              <div style="width:40.8%;background:hsl(var(--macro-carb))"></div>
+            </div>
+            <div class="rlabels">
+              <span style="color:hsl(var(--macro-protein))">P 170g</span>
+              <span style="color:hsl(var(--macro-fat))">F 60g</span>
+              <span style="color:hsl(var(--macro-carb))">C 210g</span>
+            </div>
+          </div>
+          <div class="grid3">
+            <div class="g3c"><div class="g">170g</div><div class="l">Protein · 33%</div></div>
+            <div class="g3c"><div class="g">60g</div><div class="l">Fat · 26%</div></div>
+            <div class="g3c"><div class="g">210g</div><div class="l">Carbs · 41%</div></div>
+          </div>
+          <div class="interp"><span class="dot" style="background:hsl(var(--status-ontrack))"></span>
+            Protein's set high enough to hold muscle while you cut.</div>
+        </div></div>
+      </div>
+      <div>
+        <div class="col-label">After — one object</div>
+        <div class="card"><div class="cbody stack">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <strong style="font-size:15px">Daily Targets</strong><span class="chip">Fat Loss</span>
+          </div>
+          <div class="summary">
+            <div class="donutwrap" style="width:120px;height:120px">
+              <svg width="120" height="120" style="transform:rotate(-90deg)" role="img" aria-label="Macro calorie split">
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--muted))" stroke-width="12"/>
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="12"
+                        stroke-dasharray="112.0 227.3" stroke-dashoffset="0"/>
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="12"
+                        stroke-dasharray="88.9 250.4" stroke-dashoffset="-112.0"/>
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="12"
+                        stroke-dasharray="138.4 200.9" stroke-dashoffset="-200.9"/>
+              </svg>
+              <div class="center"><span class="k">2100</span><span class="u">kcal · daily target</span></div>
+            </div>
+            <ul class="legend">
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-protein))"></span>
+                  <span class="lname">Protein</span><span class="lg">170<span class="muted"> g</span></span><span class="lp">33%</span></li>
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-fat))"></span>
+                  <span class="lname">Fat</span><span class="lg">60<span class="muted"> g</span></span><span class="lp">26%</span></li>
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-carb))"></span>
+                  <span class="lname">Carbs</span><span class="lg">210<span class="muted"> g</span></span><span class="lp">41%</span></li>
+            </ul>
+          </div>
+          <div class="interp"><span class="dot" style="background:hsl(var(--status-ontrack))"></span>
+            Protein's set high enough to hold muscle while you cut.</div>
+        </div></div>
+      </div>
+    </div>
+    <div class="note">
+      <b>Net −2 visuals.</b> The crimson kcal box and the 3-col grid both die; the donut centre carries the kcal and the
+      legend carries the grams + %. This is the surface where the "one primitive" rule pays for itself.
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ══════════════════════════ 3 ══════════════════════════ -->
+  <section>
+    <div class="shead">
+      <h2>3 · NutritionGoal</h2>
+      <span class="tag t-convert">Convert · donut, and DELETE the duplicate ribbon</span>
+      <span class="path">src/components/nutrition/NutritionGoal.tsx → NutritionProgress → TeamNutrition</span>
+    </div>
+    <p class="why">
+      This one is already broken and nobody noticed: it renders a <b>Bebas kcal hero, then a MacroDonut, then a
+      MacroDistributionRibbon</b> — the same split, twice, stacked. Converting it isn't a redesign, it's deleting a
+      duplicate. Lowest-risk surface in the set; do it first.
+    </p>
+    <div class="two">
+      <div>
+        <div class="col-label">Before — donut AND ribbon, stacked</div>
+        <div class="card"><div class="cbody stack">
+          <div style="display:flex;align-items:baseline;gap:8px" class="mono">
+            <span style="font-family:'Bebas Neue',sans-serif;font-size:38px;line-height:1;color:hsl(var(--primary))">2400</span>
+            <span class="muted" style="font-size:12px">kcal · daily target</span>
+          </div>
+          <div class="summary">
+            <div class="donutwrap" style="width:100px;height:100px">
+              <svg width="100" height="100" style="transform:rotate(-90deg)" aria-hidden="true">
+                <circle cx="50" cy="50" r="43" fill="none" stroke="hsl(var(--muted))" stroke-width="11"/>
+                <circle cx="50" cy="50" r="43" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="11"
+                        stroke-dasharray="78.6 191.6" stroke-dashoffset="0"/>
+                <circle cx="50" cy="50" r="43" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="11"
+                        stroke-dasharray="68.9 201.3" stroke-dashoffset="-78.6"/>
+                <circle cx="50" cy="50" r="43" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="11"
+                        stroke-dasharray="122.4 147.8" stroke-dashoffset="-147.5"/>
+              </svg>
+            </div>
+            <ul class="legend">
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-protein))"></span>
+                  <span class="lname">Protein</span><span class="lg">180g <span class="muted">· 29%</span></span></li>
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-fat))"></span>
+                  <span class="lname">Fat</span><span class="lg">70g <span class="muted">· 26%</span></span></li>
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-carb))"></span>
+                  <span class="lname">Carbs</span><span class="lg">280g <span class="muted">· 45%</span></span></li>
+            </ul>
+          </div>
+          <div style="opacity:.55">
+            <div class="ribbon">
+              <div style="width:29.1%;background:hsl(var(--macro-protein))"></div>
+              <div style="width:25.5%;background:hsl(var(--macro-fat))"></div>
+              <div style="width:45.4%;background:hsl(var(--macro-carb))"></div>
+            </div>
+            <div class="rlabels">
+              <span style="color:hsl(var(--macro-protein))">P 180g</span>
+              <span style="color:hsl(var(--macro-fat))">F 70g</span>
+              <span style="color:hsl(var(--macro-carb))">C 280g</span>
+            </div>
+            <div class="muted mono" style="font-size:10px;margin-top:5px">↑ the same split, said twice</div>
+          </div>
+        </div></div>
+      </div>
+      <div>
+        <div class="col-label">After — one NutritionSummary (md)</div>
+        <div class="card"><div class="cbody stack">
+          <div class="summary">
+            <div class="donutwrap" style="width:120px;height:120px">
+              <svg width="120" height="120" style="transform:rotate(-90deg)" role="img" aria-label="Macro calorie split">
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--muted))" stroke-width="12"/>
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="12"
+                        stroke-dasharray="98.7 240.6" stroke-dashoffset="0"/>
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="12"
+                        stroke-dasharray="86.5 252.8" stroke-dashoffset="-98.7"/>
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="12"
+                        stroke-dasharray="153.7 185.6" stroke-dashoffset="-185.2"/>
+              </svg>
+              <div class="center"><span class="k">2400</span><span class="u">kcal · daily target</span></div>
+            </div>
+            <ul class="legend">
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-protein))"></span>
+                  <span class="lname">Protein</span><span class="lg">180<span class="muted"> g</span></span><span class="lp">29%</span></li>
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-fat))"></span>
+                  <span class="lname">Fat</span><span class="lg">70<span class="muted"> g</span></span><span class="lp">26%</span></li>
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-carb))"></span>
+                  <span class="lname">Carbs</span><span class="lg">280<span class="muted"> g</span></span><span class="lp">45%</span></li>
+            </ul>
+          </div>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ══════════════════════════ 4 ══════════════════════════ -->
+  <section>
+    <div class="shead">
+      <h2>4 · PhaseSummaryCard <span class="muted" style="font-weight:400;font-size:13px">(NU6 — the shareable PNG)</span></h2>
+      <span class="tag t-keep">Keep the ribbon</span>
+      <span class="path">src/components/nutrition/PhaseSummaryCard.tsx → PhaseSummaryReport</span>
+    </div>
+    <p class="why">
+      <b>Three reasons the donut is the wrong call here, and they compound.</b><br>
+      (1) <b>It fights the hero.</b> This card exists to say one thing — the result, <code>−4.2 kg</code>, deliberately
+      neutral <code>text-foreground</code> under the NU6 honesty contract. A second, brightly-coloured focal point
+      halves the impact of the only number that matters. "Average macros" is footnote context, not the subject.<br>
+      (2) <b>Export risk.</b> This is the one artifact that <em>leaves the app</em>, rasterised by
+      <code>html-to-image</code>. The ribbon paints its tokens as <code>backgroundColor</code> on divs; the donut paints
+      the same tokens as an SVG <code>stroke</code> attribute — a <b>different code path through the serialiser</b>.
+      A silent colour-drop here ships a grey donut to the client's Instagram.<br>
+      (3) <b>Nothing is gained.</b> The legend's grams-and-% upgrade is the donut's whole argument, and on a share card
+      the % of calories from fat is not what anyone is sharing.
+    </p>
+    <div class="two">
+      <div>
+        <div class="col-label">Keep exactly as shipped</div>
+        <div class="card" style="max-width:360px"><div class="cbody stack" style="gap:16px">
+          <div class="mono" style="font-size:11px;letter-spacing:.12em;color:hsl(var(--primary));font-weight:500">IGU</div>
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:64px;line-height:1;color:hsl(var(--foreground))">−4.2 kg</div>
+            <div class="mono" style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:hsl(var(--muted-foreground));margin-top:6px">
+              12 weeks · Summer Cut</div>
+          </div>
+          <div>
+            <div class="mono" style="font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:hsl(var(--muted-foreground));margin-bottom:6px">
+              Average macros</div>
+            <div class="ribbon">
+              <div style="width:33%;background:hsl(var(--macro-protein))"></div>
+              <div style="width:26.2%;background:hsl(var(--macro-fat))"></div>
+              <div style="width:40.8%;background:hsl(var(--macro-carb))"></div>
+            </div>
+            <div class="rlabels">
+              <span style="color:hsl(var(--macro-protein))">P 170g</span>
+              <span style="color:hsl(var(--macro-fat))">F 60g</span>
+              <span style="color:hsl(var(--macro-carb))">C 210g</span>
+            </div>
+          </div>
+          <div style="border-top:1px solid hsl(var(--border));padding-top:12px;font-size:13px;color:hsl(var(--muted-foreground))">Hasan</div>
+        </div></div>
+      </div>
+      <div>
+        <div class="col-label">Rejected — the donut steals the card</div>
+        <div class="card" style="max-width:360px;opacity:.62"><div class="cbody stack" style="gap:16px">
+          <div class="mono" style="font-size:11px;letter-spacing:.12em;color:hsl(var(--primary));font-weight:500">IGU</div>
+          <div>
+            <div style="font-family:'Bebas Neue',sans-serif;font-size:64px;line-height:1;color:hsl(var(--foreground))">−4.2 kg</div>
+            <div class="mono" style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:hsl(var(--muted-foreground));margin-top:6px">
+              12 weeks · Summer Cut</div>
+          </div>
+          <div class="summary">
+            <div class="donutwrap" style="width:110px;height:110px">
+              <svg width="110" height="110" style="transform:rotate(-90deg)" aria-hidden="true">
+                <circle cx="55" cy="55" r="48" fill="none" stroke="hsl(var(--muted))" stroke-width="12"/>
+                <circle cx="55" cy="55" r="48" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="12"
+                        stroke-dasharray="99.5 202.1" stroke-dashoffset="0"/>
+                <circle cx="55" cy="55" r="48" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="12"
+                        stroke-dasharray="79.0 222.6" stroke-dashoffset="-99.5"/>
+                <circle cx="55" cy="55" r="48" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="12"
+                        stroke-dasharray="123.1 178.5" stroke-dashoffset="-178.5"/>
+              </svg>
+              <div class="center"><span class="k" style="font-size:26px">2100</span><span class="u">kcal</span></div>
+            </div>
+            <ul class="legend" style="font-size:12px">
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-protein))"></span>
+                  <span class="lname">Protein</span><span class="lg">170<span class="muted"> g</span></span><span class="lp">33%</span></li>
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-fat))"></span>
+                  <span class="lname">Fat</span><span class="lg">60<span class="muted"> g</span></span><span class="lp">26%</span></li>
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-carb))"></span>
+                  <span class="lname">Carbs</span><span class="lg">210<span class="muted"> g</span></span><span class="lp">41%</span></li>
+            </ul>
+          </div>
+          <div style="border-top:1px solid hsl(var(--border));padding-top:12px;font-size:13px;color:hsl(var(--muted-foreground))">Hasan</div>
+        </div></div>
+        <div class="mono muted" style="font-size:10.5px;margin-top:8px">
+          two focal points · a second kcal number nobody asked for · SVG strokes through html-to-image
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <!-- ══════════════════════════ 5 ══════════════════════════ -->
+  <section>
+    <div class="shead">
+      <h2>5 · NutritionProgress — "Your plan just updated"</h2>
+      <span class="tag t-keep">Keep the ribbon</span>
+      <span class="path">src/components/nutrition/NutritionProgress.tsx (adjustment notice)</span>
+    </div>
+    <p class="why">
+      This is a <b>transient notification</b>, not a hero: a tone-railed nudge that fires when the coach changes the
+      client's numbers — new kcal, the new split, one sentence of plain language. Its job is to be read in two seconds
+      and dismissed from mind. A 120px donut turns a nudge into a panel and pushes the sentence — the actual payload —
+      below the fold of the card. <b>The ribbon is the right weight for the right job.</b>
+    </p>
+    <div class="two">
+      <div>
+        <div class="col-label">Keep — a nudge stays a nudge</div>
+        <div class="card" style="border-left:4px solid hsl(var(--status-attention))"><div class="cbody stack">
+          <div>
+            <strong style="font-size:15px">Your plan just updated</strong>
+            <div class="muted" style="font-size:12.5px">Week 7 target</div>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:8px">
+            <span class="mono" style="font-size:26px;font-weight:600">1,950</span>
+            <span class="muted" style="font-size:13px">kcal / day</span>
+          </div>
+          <div>
+            <div class="ribbon">
+              <div style="width:35%;background:hsl(var(--macro-protein))"></div>
+              <div style="width:27%;background:hsl(var(--macro-fat))"></div>
+              <div style="width:38%;background:hsl(var(--macro-carb))"></div>
+            </div>
+            <div class="rlabels">
+              <span style="color:hsl(var(--macro-protein))">P 170g</span>
+              <span style="color:hsl(var(--macro-fat))">F 58g</span>
+              <span style="color:hsl(var(--macro-carb))">C 185g</span>
+            </div>
+          </div>
+          <div class="interp"><span class="dot" style="background:hsl(var(--status-attention))"></span>
+            You lost a little faster than planned, so calories go up slightly to protect muscle.</div>
+        </div></div>
+      </div>
+      <div>
+        <div class="col-label">Rejected — the nudge becomes a panel</div>
+        <div class="card" style="border-left:4px solid hsl(var(--status-attention));opacity:.62"><div class="cbody stack">
+          <div>
+            <strong style="font-size:15px">Your plan just updated</strong>
+            <div class="muted" style="font-size:12.5px">Week 7 target</div>
+          </div>
+          <div class="summary">
+            <div class="donutwrap" style="width:120px;height:120px">
+              <svg width="120" height="120" style="transform:rotate(-90deg)" aria-hidden="true">
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--muted))" stroke-width="12"/>
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-protein))" stroke-width="12"
+                        stroke-dasharray="118.8 220.5" stroke-dashoffset="0"/>
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-fat))" stroke-width="12"
+                        stroke-dasharray="91.6 247.7" stroke-dashoffset="-118.8"/>
+                <circle cx="60" cy="60" r="54" fill="none" stroke="hsl(var(--macro-carb))" stroke-width="12"
+                        stroke-dasharray="128.9 210.4" stroke-dashoffset="-210.4"/>
+              </svg>
+              <div class="center"><span class="k">1950</span><span class="u">kcal / day</span></div>
+            </div>
+            <ul class="legend" style="font-size:12px">
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-protein))"></span>
+                  <span class="lname">Protein</span><span class="lg">170<span class="muted"> g</span></span><span class="lp">35%</span></li>
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-fat))"></span>
+                  <span class="lname">Fat</span><span class="lg">58<span class="muted"> g</span></span><span class="lp">27%</span></li>
+              <li class="lrow"><span class="sw" style="background:hsl(var(--macro-carb))"></span>
+                  <span class="lname">Carbs</span><span class="lg">185<span class="muted"> g</span></span><span class="lp">38%</span></li>
+            </ul>
+          </div>
+          <div class="interp"><span class="dot" style="background:hsl(var(--status-attention))"></span>
+            You lost a little faster than planned, so calories go up slightly to protect muscle.</div>
+        </div></div>
+      </div>
+    </div>
+  </section>
+
+  <hr>
+
+  <section>
+    <div class="shead"><h2>What Part IV must now say</h2></div>
+    <p class="why">
+      Part IV currently reads: <em>"The ribbon and standalone donut are retired into it."</em> That sentence is
+      <b>false</b> after this ruling, and leaving it in invites the next build session to "finish the job" and convert
+      the two surfaces that were deliberately spared. Replace it with the rule below.
+    </p>
+    <div class="note" style="border-left-color:hsl(var(--status-ontrack))">
+      <b>The rule.</b> Every surface that presents calories + macros <em>as its subject</em> renders
+      <code>NutritionSummary</code>. The <code>MacroDistributionRibbon</code> survives in exactly two roles, and adding
+      a third is a decision, not a reflex:
+      <br>&nbsp;&nbsp;<b>(a)</b> a <b>compact notification</b> where the split is supporting context and a donut would
+      outweigh the message (<code>NutritionProgress</code>'s adjustment notice);
+      <br>&nbsp;&nbsp;<b>(b)</b> the <b>NU6 share card</b>, where a second focal point would compete with the result
+      number the card exists to deliver, and where SVG strokes carry avoidable <code>html-to-image</code> export risk.
+      <br><br>
+      <b>The standalone <code>MacroDonut</code> import is retired</b> — it survives only as
+      <code>NutritionSummary</code>'s internal ring. No surface imports it directly.
+    </div>
+  </section>
+
+</div>
+<script>
+  const root = document.documentElement;
+  const t = document.getElementById('tt');
+  const set = m => root.setAttribute('data-theme', m);
+  set(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+  t.addEventListener('click', () =>
+    set(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'));
+</script>
+</body>
+</html>
