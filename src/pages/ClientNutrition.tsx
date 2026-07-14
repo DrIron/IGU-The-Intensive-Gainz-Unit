@@ -20,6 +20,7 @@ import { ErrorFallback } from "@/components/ui/error-fallback";
 import { NutritionPhaseCard } from "@/components/nutrition/NutritionPhaseCard";
 import { ClientWeeklyRibbon } from "@/components/nutrition/ClientWeeklyRibbon";
 import { LogTodayCard } from "@/components/client/LogTodayCard";
+import { FoodLogDayView } from "@/components/nutrition/food-log/FoodLogDayView";
 import { differenceInCalendarWeeks, differenceInDays } from "date-fns";
 
 /**
@@ -414,16 +415,28 @@ export default function ClientNutrition() {
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
           </div>
         ) : !activePhase ? (
-          <Card>
-            <CardHeader>
-              <CardTitle>No Active Nutrition Phase</CardTitle>
-              <CardDescription>
-                Your coach hasn't set up a nutrition phase yet. Contact them to get started.
-              </CardDescription>
-            </CardHeader>
-          </Card>
+          /* No coach phase yet — but the client can still log their food. Gating the diary
+             behind a phase would have made the whole feature invisible to exactly the clients
+             most likely to be waiting on a coach. The day view simply renders without a
+             target (NutritionSummary drops the "of N" and the bar). */
+          <div className="space-y-6">
+            {user?.id && <FoodLogDayView clientUserId={user.id} />}
+            <Card>
+              <CardHeader>
+                <CardTitle>No Active Nutrition Phase</CardTitle>
+                <CardDescription>
+                  Your coach hasn't set up a nutrition phase yet. Contact them to get started.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
         ) : (
           <div className="space-y-6">
+            {/* The food log is the Nutrition section's "Today" surface (D5 — no separate
+                Diary route). It sits above the coach's phase view: the client's actuals
+                first, then the plan they're measured against. */}
+            {user?.id && <FoodLogDayView clientUserId={user.id} />}
+
             {phaseSummary && (
               <PhaseSummaryReport phase={activePhase} summary={phaseSummary} firstName={firstName} />
             )}
