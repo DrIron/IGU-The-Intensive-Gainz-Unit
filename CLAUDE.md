@@ -312,7 +312,7 @@ const form = useForm<FormData>({
 ```typescript
 import { captureException } from '@/lib/errorLogging';
 try { /* risky */ } catch (error) {
-  captureException(error, { context: 'payment_processing' });
+  captureException(error, { source: 'payment_processing' });
 }
 ```
 

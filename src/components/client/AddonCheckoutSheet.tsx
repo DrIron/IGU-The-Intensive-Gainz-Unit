@@ -129,7 +129,7 @@ export function AddonCheckoutSheet({
 
       window.location.assign(data.paymentUrl as string);
     } catch (err) {
-      captureException(err, { context: "addon_checkout_invoke" });
+      captureException(err, { source: "addon_checkout_invoke" });
       setSubmitError(sanitizeErrorForUser(err) || t("checkoutFailed"));
       setIsSubmitting(false);
     }

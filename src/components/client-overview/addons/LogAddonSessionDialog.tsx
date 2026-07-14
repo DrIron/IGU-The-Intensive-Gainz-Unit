@@ -83,7 +83,7 @@ export function LogAddonSessionDialog({
       onLogged?.();
       onOpenChange(false);
     } catch (err) {
-      captureException(err, { context: "log_addon_session" });
+      captureException(err, { source: "log_addon_session" });
       setSubmitError(sanitizeErrorForUser(err) || t("logSessionToastFailed"));
       setIsSubmitting(false);
     }

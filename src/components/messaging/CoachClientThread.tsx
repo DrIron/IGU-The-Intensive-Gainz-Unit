@@ -124,7 +124,7 @@ export function CoachClientThread({
       .order("created_at", { ascending: true });
 
     if (fetchError) {
-      captureException(fetchError, { context: "coach_client_thread_load" });
+      captureException(fetchError, { source: "coach_client_thread_load" });
       setError(fetchError.message);
       setLoading(false);
       return;
@@ -172,7 +172,7 @@ export function CoachClientThread({
     if (hasFetched.current === clientUserId) return;
     hasFetched.current = clientUserId;
     load(clientUserId).catch((err) => {
-      captureException(err, { context: "coach_client_thread_load_unexpected" });
+      captureException(err, { source: "coach_client_thread_load_unexpected" });
       setLoading(false);
     });
   }, [clientUserId, load]);
@@ -269,7 +269,7 @@ export function CoachClientThread({
       .single();
 
     if (insertError || !data) {
-      captureException(insertError, { context: "coach_client_thread_insert" });
+      captureException(insertError, { source: "coach_client_thread_insert" });
       setError(insertError?.message ?? "Send failed");
       setSending(false);
       return;
@@ -316,7 +316,7 @@ export function CoachClientThread({
         .eq("id", id);
 
       if (updateError) {
-        captureException(updateError, { context: "coach_client_thread_edit" });
+        captureException(updateError, { source: "coach_client_thread_edit" });
         setError(updateError.message);
         // Roll back optimistic edit.
         setMessages((all) =>
@@ -342,7 +342,7 @@ export function CoachClientThread({
       .eq("id", id);
 
     if (updateError) {
-      captureException(updateError, { context: "coach_client_thread_delete" });
+      captureException(updateError, { source: "coach_client_thread_delete" });
       setError(updateError.message);
       setMessages((all) =>
         all.map((m) => (m.id === id ? { ...m, deleted_at: null } : m)),
