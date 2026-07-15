@@ -7,6 +7,7 @@ import { ChevronLeft, ChevronRight, Loader2, UtensilsCrossed } from "lucide-reac
 import { addDays, format, isToday } from "date-fns";
 import { NutritionSummary } from "../NutritionSummary";
 import { useCoachFoodLog } from "./useCoachFoodLog";
+import { FoodLogAdherenceCard } from "./FoodLogAdherenceCard";
 import { formatAmount, MEAL_SLOTS, MEAL_SLOT_LABEL } from "@/lib/foodLog";
 
 /**
@@ -59,6 +60,9 @@ export function CoachFoodLogDay({ clientUserId }: { clientUserId: string }) {
 
   return (
     <div className="space-y-6">
+      {/* P5a — the 7-day adherence headline, ending on the day being viewed. */}
+      <FoodLogAdherenceCard clientUserId={clientUserId} endDate={date} />
+
       <Card>
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between gap-2">
