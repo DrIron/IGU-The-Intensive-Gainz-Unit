@@ -10147,6 +10147,24 @@ export type Database = {
           violation_type: string
         }[]
       }
+      search_foods: {
+        Args: { p_category?: string; p_limit?: number; p_query: string }
+        Returns: {
+          brand: string
+          carb_100g: number
+          category_id: string
+          fat_100g: number
+          id: string
+          is_verified: boolean
+          kcal_100g: number
+          name: string
+          owner_user_id: string
+          protein_100g: number
+          serving_default_g: number
+          source: Database["public"]["Enums"]["food_source"]
+          tags: string[]
+        }[]
+      }
       set_client_medical_clearance: {
         Args: {
           p_cleared: boolean

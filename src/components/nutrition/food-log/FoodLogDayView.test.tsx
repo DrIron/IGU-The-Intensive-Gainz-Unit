@@ -116,8 +116,27 @@ function builder(table: string) {
   return api;
 }
 
+// Food search now goes through the search_foods RPC (P0-ingest ranking), not a from().ilike().
+// The mock runs the same name-contains / category filter the real function does, over the
+// seeded foods_search rows, so the add-food path still resolves the chicken row.
+function searchFoods(args: { p_query?: string; p_category?: string | null; p_limit?: number }) {
+  const q = (args.p_query ?? "").trim().toLowerCase();
+  const rows = (db.foods_search ?? []).filter((r) => {
+    const nameOk = q === "" || String((r as Row).name ?? "").toLowerCase().includes(q);
+    const catOk = !args.p_category || (r as Row).category_id === args.p_category;
+    return nameOk && catOk;
+  });
+  return Promise.resolve({ data: rows.slice(0, args.p_limit ?? 50), error: null });
+}
+
 vi.mock("@/integrations/supabase/client", () => ({
-  supabase: { from: (t: string) => builder(t) },
+  supabase: {
+    from: (t: string) => builder(t),
+    rpc: (name: string, args: Record<string, unknown>) =>
+      name === "search_foods"
+        ? searchFoods(args)
+        : Promise.resolve({ data: [], error: null }),
+  },
 }));
 vi.mock("@/lib/errorLogging", () => ({ captureException: vi.fn() }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));

@@ -79,10 +79,15 @@ export function useFoodSearch(query: string, categoryId: string | null) {
     // Debounce so a fast typist doesn't fire a query per keystroke.
     const t = setTimeout(async () => {
       try {
-        let req = supabase.from("foods_search").select(SELECT).limit(50);
-        if (q) req = req.ilike("name", `%${q}%`);
-        if (categoryId) req = req.eq("category_id", categoryId);
-        const { data, error } = await req.order("name");
+        // Ranked full-text via search_foods (P0-ingest): ts_rank over the search_tsv GIN index,
+        // with a server-side ilike fallback for short/partial tokens. At ~8k foods, name-order
+        // ilike buried the obvious match; this puts "Chicken breast" above "Chicken, canned…".
+        // The RPC returns the exact foods_search column shape, so toRow() is unchanged.
+        const { data, error } = await supabase.rpc("search_foods", {
+          p_query: q,
+          p_category: categoryId,
+          p_limit: 50,
+        });
         if (error) throw error;
         if (!cancelled) setResults((data ?? []).map((r) => toRow(r as Record<string, unknown>)));
       } catch (e: unknown) {
