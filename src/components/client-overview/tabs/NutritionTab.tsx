@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CoachFoodLogDay } from "@/components/nutrition/food-log/CoachFoodLogDay";
+import { NutritionIntakeHistory } from "@/components/nutrition/history/NutritionIntakeHistory";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -291,6 +292,13 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
               <AllPhasesStepsChart clientUserId={clientUserId} />
               <AllPhasesBodyFatChart clientUserId={clientUserId} />
               <AllPhasesCircumferenceChart clientUserId={clientUserId} />
+              {/* P5b -- logged food-intake trends + adherence, beside the measurement charts.
+                  viewerRole only reserves the seam for deferred dietitian micro trends; it
+                  gates nothing today, so admin folds to the coach view. */}
+              <NutritionIntakeHistory
+                clientUserId={clientUserId}
+                viewerRole={context.viewerRole === "dietitian" ? "dietitian" : "coach"}
+              />
               <CoachNutritionGraphs phase={selectedPhase} />
               <CoachNutritionProgress
                 phase={selectedPhase}

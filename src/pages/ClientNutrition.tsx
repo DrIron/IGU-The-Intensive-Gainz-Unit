@@ -21,6 +21,7 @@ import { NutritionPhaseCard } from "@/components/nutrition/NutritionPhaseCard";
 import { ClientWeeklyRibbon } from "@/components/nutrition/ClientWeeklyRibbon";
 import { LogTodayCard } from "@/components/client/LogTodayCard";
 import { FoodLogDayView } from "@/components/nutrition/food-log/FoodLogDayView";
+import { NutritionIntakeHistory } from "@/components/nutrition/history/NutritionIntakeHistory";
 import { differenceInCalendarWeeks, differenceInDays } from "date-fns";
 
 /**
@@ -547,6 +548,15 @@ export default function ClientNutrition() {
                 )}
               </div>
             </div>
+
+            {/* P5b -- food-intake History & Trends (calories vs target, macros, 8-week
+                adherence). Appended below the existing trend grid; no page restructure. */}
+            {user?.id && (
+              <div className="space-y-3">
+                <h2 className="text-xl font-bold">Intake history</h2>
+                <NutritionIntakeHistory clientUserId={user.id} viewerRole="client" />
+              </div>
+            )}
 
             {/* This week -- the full tracking form (circumference, BF%, check-in). */}
             <div className="space-y-3">
