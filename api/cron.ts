@@ -1,3 +1,13 @@
+// This dispatcher is written to the Web handler API (req: Request, req.headers.get,
+// new Response, new URL, fetch) — NOT the Node (req, res) API. Without this declaration Vercel
+// runs api/*.ts on the Node.js runtime, hands the handler a Node `req` whose `.headers` is a
+// plain object with no `.get()`, and EVERY invocation 500s on line 1 with
+// "TypeError: req.headers.get is not a function". That silently killed all scheduled crons
+// (renewal reminders, payment-failure drips, digests, alerts) since the n8n→Vercel migration.
+// The Edge runtime is the one this code was written for; the dispatcher uses only fetch +
+// process.env + URL, all Edge-compatible.
+export const config = { runtime: 'edge' };
+
 const ALLOWED_FUNCTIONS = [
   'send-admin-daily-summary',
   'send-weekly-coach-digest',
