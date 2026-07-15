@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { CoachFoodLogDay } from "@/components/nutrition/food-log/CoachFoodLogDay";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -197,8 +198,9 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
       )}
 
       <Tabs value={innerTab} onValueChange={setInnerTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="this-week">This week</TabsTrigger>
+          <TabsTrigger value="food-log">Food log</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="edit">Edit phase</TabsTrigger>
         </TabsList>
@@ -306,6 +308,14 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Food log (P4) -- the coach/dietitian READ of what the client actually logged.
+            NOT gated on selectedPhase: food logging is phase-independent, and the most useful
+            time to read a client's intake is often before any phase exists. The RPC shapes the
+            payload by role (a plain coach sees macros only; a dietitian sees micros too). */}
+        <TabsContent value="food-log" className="space-y-6">
+          <CoachFoodLogDay clientUserId={clientUserId} />
         </TabsContent>
 
         {/* Edit phase -- just the goal form now. Steps + linked content moved

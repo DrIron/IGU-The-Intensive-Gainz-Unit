@@ -9441,6 +9441,10 @@ export type Database = {
         Returns: Json
       }
       get_client_age: { Args: { p_client_id: string }; Returns: number }
+      get_client_daily_nutrition: {
+        Args: { p_client_id: string; p_log_date: string }
+        Returns: Json
+      }
       get_client_from_day_module: {
         Args: { p_module_id: string }
         Returns: string
