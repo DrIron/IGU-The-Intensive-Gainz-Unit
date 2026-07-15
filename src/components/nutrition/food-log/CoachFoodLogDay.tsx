@@ -8,6 +8,7 @@ import { addDays, format, isToday } from "date-fns";
 import { NutritionSummary } from "../NutritionSummary";
 import { useCoachFoodLog } from "./useCoachFoodLog";
 import { FoodLogAdherenceCard } from "./FoodLogAdherenceCard";
+import { MacroAlertBanner } from "./MacroAlertBanner";
 import { formatAmount, MEAL_SLOTS, MEAL_SLOT_LABEL } from "@/lib/foodLog";
 
 /**
@@ -60,6 +61,10 @@ export function CoachFoodLogDay({ clientUserId }: { clientUserId: string }) {
 
   return (
     <div className="space-y-6">
+      {/* P5c — the loud macro-alert banner, above the adherence card. Renders only when the
+          signal actually fires (>= 4 logged days, past tolerance); nothing otherwise. */}
+      <MacroAlertBanner clientUserId={clientUserId} />
+
       {/* P5a — the 7-day adherence headline, ending on the day being viewed. */}
       <FoodLogAdherenceCard clientUserId={clientUserId} endDate={date} />
 

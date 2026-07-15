@@ -812,7 +812,7 @@ Deploy without JWT: `supabase functions deploy <name> --no-verify-jwt`
 | `send-deload-request-email` | No | Called from frontend; internal JWT validation; client-initiated. Sends to primary coach + active care team. No window throttle (DB partial unique index already forbids 2 pending requests per client). |
 | `send-deload-response-email` | No | Called from frontend; internal JWT + care-team/admin check. Sends to the client when the coach approves/declines/schedules. |
 | `fetch-video-metadata` | No | Called from frontend; internal JWT + admin role check |
-| All 10 `process-*` / `send-admin-daily-summary` / `send-weekly-coach-digest` | No | Vercel Cron with service role key |
+| All `process-*` (incl. `process-macro-alerts`) / `send-admin-daily-summary` / `send-weekly-coach-digest` | No | Vercel Cron with service role key |
 
 ---
 
@@ -834,6 +834,7 @@ Dispatcher: `/api/cron.ts` (single function handling all 10 jobs, allowlists fun
 | 10:00 AM | Daily | `process-abandoned-onboarding` | Day 1/3/7 drip |
 | 10:30 AM | Daily | `process-inactive-client-alerts` | Coach alert when client inactive 5+ days |
 | 11:00 AM | Daily | `process-lead-nurture` | Day 1/3/7 for newsletter leads |
+| 11:30 AM | Daily | `process-macro-alerts` | Coach nudge when a client's 7-day avg calories/protein drift past ±15% (≥4 logged days; P5c) |
 
 **Dedup:** All functions check `email_notifications` before sending. Each uses a `notification_type` string (e.g., `abandoned_onboarding_day1`).
 

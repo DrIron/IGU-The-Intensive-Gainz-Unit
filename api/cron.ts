@@ -10,6 +10,7 @@ const ALLOWED_FUNCTIONS = [
   'process-inactive-client-alerts',
   'process-lead-nurture',
   'process-plan-changes',
+  'process-macro-alerts',
 ] as const;
 
 export default async function handler(req: Request): Promise<Response> {
