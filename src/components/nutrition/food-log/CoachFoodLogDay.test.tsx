@@ -24,6 +24,20 @@ vi.mock("@/integrations/supabase/client", () => ({
       name === "get_client_daily_nutrition"
         ? Promise.resolve(shouldFail ? { data: null, error: new Error("boom") } : { data: payload, error: null })
         : Promise.resolve({ data: null, error: null }),
+    // The day view now renders the P5a adherence card, which reads rollups + the target via
+    // from(). This test is about the DAY view, not adherence — so return an empty week: the
+    // card falls to its neutral "no food logged" note and adds no buttons of its own.
+    from: () => {
+      const api: Record<string, unknown> = {
+        select: () => api,
+        eq: () => api,
+        gte: () => api,
+        lte: () => api,
+        maybeSingle: () => Promise.resolve({ data: null, error: null }),
+        then: (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null }),
+      };
+      return api;
+    },
   },
 }));
 vi.mock("@/lib/errorLogging", () => ({ captureException: vi.fn() }));
@@ -129,9 +143,11 @@ describe("CoachFoodLogDay — role-shaped read", () => {
     const el = await mount();
 
     // The lie a coach could act on: "this client logged nothing today" when the read broke.
+    // Scoped to the DAY view's own empty copy ("No food logged on <date>") — the sibling
+    // adherence card legitimately uses "No food logged in the last 7 days" for its own week.
     expect(el.querySelector('[role="alert"]')).not.toBeNull();
     expect(el.textContent).toContain("Couldn't load");
-    expect(el.textContent).not.toContain("No food logged");
+    expect(el.textContent).not.toContain("No food logged on");
   });
 
   it("a genuinely empty day says so — and it is NOT the error copy", async () => {
