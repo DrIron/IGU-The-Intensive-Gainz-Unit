@@ -5,6 +5,7 @@ import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useFoodLogAdherence } from "./useFoodLogAdherence";
 import { BAND_STATUS, BAND_LABEL, MACRO_TIER, type AdherenceBand } from "@/lib/adherence";
+import { STATUS_DOT } from "@/components/nutrition/adherenceBandStyles";
 
 /**
  * "Adherence · last 7 days" — the coach/dietitian headline above the day view (P5a).
@@ -16,14 +17,6 @@ import { BAND_STATUS, BAND_LABEL, MACRO_TIER, type AdherenceBand } from "@/lib/a
  */
 
 // Band → the app's status tokens (NutritionPhaseCard rail vocabulary). No invented colours.
-const STATUS_DOT: Record<AdherenceBand, string> = {
-  adherent: "bg-status-ontrack",
-  slightly_off: "bg-status-attention",
-  off_track: "bg-status-risk",
-  // A hollow ring, not a filled colour — "no data", visibly distinct from any verdict.
-  not_logged: "border border-muted-foreground/30 bg-transparent",
-};
-
 const STATUS_BADGE: Record<AdherenceBand, string> = {
   adherent: "border-status-ontrack/40 bg-status-ontrack/10 text-status-ontrack",
   slightly_off: "border-status-attention/40 bg-status-attention/10 text-status-attention",
