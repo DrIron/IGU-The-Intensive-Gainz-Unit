@@ -9414,6 +9414,15 @@ export type Database = {
       encrypt_phi_boolean: { Args: { bool_value: boolean }; Returns: string }
       encrypt_phi_date: { Args: { date_value: string }; Returns: string }
       encrypt_phi_text: { Args: { plain_text: string }; Returns: string }
+      evaluate_loud_macro_alert: {
+        Args: {
+          p_client_id: string
+          p_end_date: string
+          p_min_logged?: number
+          p_tolerance?: number
+        }
+        Returns: Json
+      }
       extract_video_thumbnail: {
         Args: { p_type: string; p_url: string }
         Returns: string
@@ -9425,6 +9434,10 @@ export type Database = {
           specialty: string
           staff_user_id: string
         }[]
+      }
+      get_active_nutrition_target: {
+        Args: { p_user_id: string }
+        Returns: Json
       }
       get_admin_analytics: {
         Args: never
