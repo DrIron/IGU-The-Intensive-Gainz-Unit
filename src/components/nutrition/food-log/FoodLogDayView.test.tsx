@@ -32,6 +32,9 @@ const db: Record<string, Row[]> = {};
 
 function reset() {
   db.food_log_entries = [];
+  // No active phase by default — the base tests exercise the goals-fallback path. Tests that
+  // need a coached target seed db.nutrition_phases explicitly. Reset it so it can't leak.
+  db.nutrition_phases = [];
   db.nutrition_goals = [
     { user_id: "client-1", is_active: true, daily_calories: 2050, protein_grams: 172, fat_grams: 68, carb_grams: 205 },
   ];
@@ -358,7 +361,8 @@ describe("P1 GATE — the hero updates live on add / edit / delete", () => {
   });
 
   it("a client with NO coach target can still log — the diary just has nothing to measure against", async () => {
-    db.nutrition_goals = []; // no active phase
+    db.nutrition_goals = [];   // team-plan self-service target: none
+    db.nutrition_phases = [];  // coached target: none either
     await act(async () => root.render(<FoodLogDayView clientUserId="client-1" />));
     await settle();
 
@@ -370,5 +374,40 @@ describe("P1 GATE — the hero updates live on add / edit / delete", () => {
     expect(db.food_log_entries).toHaveLength(1);
     expect(text()).toContain("209");        // the food still logs, and still totals
     expect(text()).not.toContain("kcal left"); // ...but nothing is invented to compare it to
+  });
+
+  // ── The regression this PR fixes ─────────────────────────────────────────────
+  // A coached (1:1) client's target lives on nutrition_PHASES, not nutrition_goals.
+  // The old code read only nutrition_goals, so every coached client — who is exactly the
+  // client with a coach-set target to show — saw "no target". Verified live: 5 active phases
+  // carry a target, nutrition_goals had 1 active row total.
+
+  it("PHASE TARGET: a coached client with an active phase (and NO goals row) shows the target", async () => {
+    db.nutrition_goals = []; // the coached client has none — the old bug blanked the target here
+    db.nutrition_phases = [
+      { user_id: "client-1", is_active: true, daily_calories: 1950, protein_grams: 160, fat_grams: 60, carb_grams: 180 },
+    ];
+    await act(async () => root.render(<FoodLogDayView clientUserId="client-1" />));
+    await settle();
+
+    // The target renders — the exact thing that was null before the fix.
+    expect(text()).toContain("1,950 kcal left");
+    expect(text()).not.toContain("No coach target set");
+    expect(doc().querySelector('[role="progressbar"]')).not.toBeNull();
+  });
+
+  it("PHASE WINS when both a phase and a goals row exist", async () => {
+    // The phase is the coach's live target; goals is a stale self-service leftover. Phase wins.
+    db.nutrition_goals = [
+      { user_id: "client-1", is_active: true, daily_calories: 2050, protein_grams: 172, fat_grams: 68, carb_grams: 205 },
+    ];
+    db.nutrition_phases = [
+      { user_id: "client-1", is_active: true, daily_calories: 1950, protein_grams: 160, fat_grams: 60, carb_grams: 180 },
+    ];
+    await act(async () => root.render(<FoodLogDayView clientUserId="client-1" />));
+    await settle();
+
+    expect(text()).toContain("1,950 kcal left");   // phase
+    expect(text()).not.toContain("2,050 kcal left"); // not the goals row
   });
 });
