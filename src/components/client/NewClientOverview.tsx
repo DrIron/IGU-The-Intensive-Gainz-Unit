@@ -14,6 +14,7 @@ import { AdherenceSummaryCard } from "./AdherenceSummaryCard";
 import { WeeklyProgressCard } from "./WeeklyProgressCard";
 import { NutritionTargetsCard } from "./NutritionTargetsCard";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveNutritionTarget } from "@/lib/nutritionTarget";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { CardContent } from "@/components/ui/card";
@@ -85,31 +86,12 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         }
       }
 
-      // Load active nutrition phase (check both nutrition_phases and nutrition_goals for team plans)
-      let phaseData = null;
-      
-      // First try nutrition_phases (for 1:1 clients with coach-managed phases)
-      const { data: phaseResult } = await supabase
-        .from("nutrition_phases")
-        .select("*")
-        .eq("user_id", user.id)
-        .eq("is_active", true)
-        .maybeSingle();
-      
-      if (phaseResult) {
-        phaseData = phaseResult;
-      } else {
-        // If no phase found, check nutrition_goals (for team plan self-service)
-        const { data: goalResult } = await supabase
-          .from("nutrition_goals")
-          .select("*")
-          .eq("user_id", user.id)
-          .eq("is_active", true)
-          .maybeSingle();
-        
-        if (goalResult) phaseData = goalResult;
-      }
-      
+      // Active nutrition target via the shared phase-first-then-goals coalesce. This surface
+      // uses the WHOLE row (id, etc.) for context, so it takes `.raw` — the untouched phase or
+      // goal row, exactly what the inline block stored before (a goal row as phaseData when
+      // there's no phase).
+      const activeTarget = await getActiveNutritionTarget(user.id);
+      const phaseData = activeTarget?.raw ?? null;
       if (phaseData) setActivePhase(phaseData);
 
       // Count this week's weight logs
@@ -120,7 +102,7 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         const { count } = await supabase
           .from("weight_logs")
           .select("*", { count: "exact", head: true })
-          .eq("phase_id", phaseData.id)
+          .eq("phase_id", phaseData.id as string)
           .gte("log_date", weekStart.toISOString());
 
         setWeeklyLogsCount(count || 0);
