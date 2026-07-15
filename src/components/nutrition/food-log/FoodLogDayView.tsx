@@ -15,6 +15,7 @@ import { NutritionSummary } from "../NutritionSummary";
 import { AddFoodDrawer } from "./AddFoodDrawer";
 import { FoodDetailDrawer, type PendingEntry } from "./FoodDetailDrawer";
 import { CustomFoodDialog } from "./CustomFoodDialog";
+import { ClientMacroNudge } from "./ClientMacroNudge";
 import { useFoodLog, insertEntry, updateEntry, deleteEntry, type FoodLogEntry } from "./useFoodLog";
 import type { FoodRow } from "./useFoodCatalog";
 import { captureException } from "@/lib/errorLogging";
@@ -207,6 +208,11 @@ export function FoodLogDayView({ clientUserId }: FoodLogDayViewProps) {
           )}
         </CardContent>
       </Card>
+
+      {/* P5c-client — a gentle additive nudge (protein/calories under target), only when
+          viewing TODAY. A "this past week" note while browsing a past day would be confusing.
+          calories_high is suppressed for the client inside the component. */}
+      {isToday(date) && <ClientMacroNudge clientUserId={clientUserId} />}
 
       {/* Meal sections */}
       {!loading && !loadError && (
