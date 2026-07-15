@@ -92,7 +92,7 @@ export function FoodDetailDrawer({
   onSubmit,
   submitLabel = "Add to log",
 }: FoodDetailDrawerProps) {
-  const { portions } = useFoodDetail(open && food ? food.id : null);
+  const { portions, micros100g } = useFoodDetail(open && food ? food.id : null);
 
   const [quantity, setQuantity] = useState("100");
   const [unit, setUnit] = useState<FoodLogUnit>("g");
@@ -150,7 +150,12 @@ export function FoodDetailDrawer({
         proteinG: entryMacros.protein_g,
         fatG: entryMacros.fat_g,
         carbG: entryMacros.carb_g,
-        micros: {},
+        // Snapshot the food's micros scaled to the logged grams. P1 stubbed this as {} — the
+        // detail drawer already loaded micros100g and imported microsForGrams but never wired
+        // them, so every entry stored empty micros and the dietitian micro panel (P4) had
+        // nothing to show. Same denormalize-at-log-time rule as the macros: the diary is an
+        // immutable record, so we store the values as they were, not a live re-read.
+        micros: grams != null ? microsForGrams(micros100g, grams) : {},
         portionLabel: unit === "serving" ? (selectedPortion?.label ?? null) : null,
         mealSlot,
       });
