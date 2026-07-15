@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { captureException } from "@/lib/errorLogging";
+import { getActiveNutritionTarget } from "@/lib/nutritionTarget";
 import type { NutritionTotals } from "../NutritionSummary";
 import { sumEntries, type FoodLogUnit } from "@/lib/foodLog";
 
@@ -46,8 +47,7 @@ export function useFoodLog(clientUserId: string | null, logDate: string) {
         if (!opts?.silent) setLoading(true);
         setLoadError(false);
 
-        const TARGET_COLS = "daily_calories, protein_grams, fat_grams, carb_grams";
-        const [entryRes, phaseRes] = await Promise.all([
+        const [entryRes, activeTarget] = await Promise.all([
           supabase
             .from("food_log_entries")
             .select(
@@ -56,29 +56,13 @@ export function useFoodLog(clientUserId: string | null, logDate: string) {
             .eq("client_id", clientUserId)
             .eq("log_date", logDate)
             .order("logged_at", { ascending: true }),
-          // The target: a COACHED client's lives on the active nutrition_phases row; a team-plan
-          // self-service client's on nutrition_goals. Same columns on both. Phase wins — mirrors
-          // NutritionTargetsCard's convention. Reading only nutrition_goals (the old bug) blanked
-          // the target for every 1:1 client, who is exactly the client with a coach target to show.
-          supabase
-            .from("nutrition_phases")
-            .select(TARGET_COLS)
-            .eq("user_id", clientUserId)
-            .eq("is_active", true)
-            .maybeSingle(),
+          // Phase-first-then-goals coalesce, shared (getActiveNutritionTarget). It never throws
+          // — a target-read failure resolves to null, not a diary failure — preserving the #215
+          // split. Kept in the Promise.all so it still runs parallel to the entries read.
+          getActiveNutritionTarget(clientUserId),
         ]);
 
         if (entryRes.error) throw entryRes.error;
-        // Fall back to nutrition_goals only when there's no active phase.
-        const goalRes =
-          phaseRes.data || phaseRes.error
-            ? { data: null }
-            : await supabase
-                .from("nutrition_goals")
-                .select(TARGET_COLS)
-                .eq("user_id", clientUserId)
-                .eq("is_active", true)
-                .maybeSingle();
 
         setEntries(
           (entryRes.data ?? []).map((e) => ({
@@ -99,18 +83,9 @@ export function useFoodLog(clientUserId: string | null, logDate: string) {
           })),
         );
 
-        // Phase wins; else the goals fallback; else no target. A target-read error is NOT a
-        // diary failure — the target is optional (a client with none still logs food), so we
-        // leave target null rather than blanking the diary with loadError.
-        const t = phaseRes.data ?? goalRes.data;
         setTarget(
-          t && Number(t.daily_calories) > 0
-            ? {
-                kcal: Number(t.daily_calories),
-                protein: Number(t.protein_grams ?? 0),
-                fat: Number(t.fat_grams ?? 0),
-                carbs: Number(t.carb_grams ?? 0),
-              }
+          activeTarget
+            ? { kcal: activeTarget.kcal, protein: activeTarget.protein, fat: activeTarget.fat, carbs: activeTarget.carbs }
             : null,
         );
       } catch (e: unknown) {

@@ -24,6 +24,8 @@ function builder(table: string) {
     eq: () => api,
     gte: () => api,
     lte: () => api,
+    order: () => api, // getActiveNutritionTarget chains .order().limit() now
+    limit: () => api,
     maybeSingle: () =>
       Promise.resolve({
         data: table === "nutrition_phases" ? phaseRow : table === "nutrition_goals" ? goalRow : null,

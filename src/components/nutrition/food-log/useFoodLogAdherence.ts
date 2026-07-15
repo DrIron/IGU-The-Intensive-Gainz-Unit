@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { captureException } from "@/lib/errorLogging";
+import { getActiveNutritionTarget } from "@/lib/nutritionTarget";
 import { format, subDays } from "date-fns";
 import { rollingAdherence, macroDeviation, type RollingAdherence, type AdherenceBand } from "@/lib/adherence";
 
@@ -12,12 +13,9 @@ import { rollingAdherence, macroDeviation, type RollingAdherence, type Adherence
  * honesty rules — unlogged ≠ off_track, headline over logged days only — live in that module;
  * this hook just supplies data.
  *
- * TARGET SOURCE: active phase first, then active goal — the same coalesce as useFoodLog and
- * get_client_daily_nutrition. That coalesce now lives in several places; extracting a shared
- * getActiveNutritionTarget() is a deliberate later cleanup, out of scope for this slice.
+ * TARGET SOURCE: the shared getActiveNutritionTarget (active phase first, then active goal) —
+ * one implementation, mirrored on the SQL side by get_active_nutrition_target.
  */
-
-const TARGET_COLS = "daily_calories, protein_grams, fat_grams, carb_grams";
 
 export interface AdherenceData extends RollingAdherence {
   /** null when there is no active target to measure against. */
@@ -53,43 +51,23 @@ export function useFoodLogAdherence(clientUserId: string | null, endDate: Date) 
       const from = dates[0];
       const to = dates[dates.length - 1];
 
-      const [rollupRes, phaseRes] = await Promise.all([
+      const [rollupRes, activeTarget] = await Promise.all([
         supabase
           .from("food_log_daily_rollup")
           .select("log_date, total_kcal, total_protein_g, total_fat_g, total_carb_g")
           .eq("client_id", clientUserId)
           .gte("log_date", from)
           .lte("log_date", to),
-        supabase
-          .from("nutrition_phases")
-          .select(TARGET_COLS)
-          .eq("user_id", clientUserId)
-          .eq("is_active", true)
-          .maybeSingle(),
+        // Shared phase-first-then-goals coalesce; never throws (null on error). Parallel to the
+        // rollup read.
+        getActiveNutritionTarget(clientUserId),
       ]);
 
       if (rollupRes.error) throw rollupRes.error;
 
-      const goalRes =
-        phaseRes.data || phaseRes.error
-          ? { data: null }
-          : await supabase
-              .from("nutrition_goals")
-              .select(TARGET_COLS)
-              .eq("user_id", clientUserId)
-              .eq("is_active", true)
-              .maybeSingle();
-
-      const t = phaseRes.data ?? goalRes.data;
-      const target =
-        t && Number(t.daily_calories) > 0
-          ? {
-              kcal: Number(t.daily_calories),
-              protein: Number(t.protein_grams ?? 0),
-              fat: Number(t.fat_grams ?? 0),
-              carbs: Number(t.carb_grams ?? 0),
-            }
-          : null;
+      const target = activeTarget
+        ? { kcal: activeTarget.kcal, protein: activeTarget.protein, fat: activeTarget.fat, carbs: activeTarget.carbs }
+        : null;
 
       // Index rollups by date; a date with no row is an unlogged day (null intake).
       const byDate = new Map<string, RollupRow>();

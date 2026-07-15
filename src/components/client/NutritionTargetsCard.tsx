@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
+import { getActiveNutritionTarget } from "@/lib/nutritionTarget";
 import { interpretMacroTargets, toneClasses } from "@/lib/interpret";
 import { NutritionSummary } from "@/components/nutrition/NutritionSummary";
 import { cn } from "@/lib/utils";
@@ -27,47 +28,19 @@ export function NutritionTargetsCard({ userId }: NutritionTargetsCardProps) {
   const hasFetched = useRef(false);
 
   const loadNutritionTargets = useCallback(async () => {
-    try {
-      // First try nutrition_phases (for 1:1 clients with coach-managed phases)
-      const { data: phase } = await supabase
-        .from("nutrition_phases")
-        .select("*")
-        .eq("user_id", userId)
-        .eq("is_active", true)
-        .maybeSingle();
-
-      if (phase) {
-        setTargets({
-          calories: Math.round(phase.daily_calories || 0),
-          protein: Math.round(phase.protein_grams || 0),
-          carbs: Math.round(phase.carb_grams || 0),
-          fat: Math.round(phase.fat_grams || 0),
-          goalType: phase.goal_type || "maintenance",
-        });
-      } else {
-        // Fallback to nutrition_goals (for team plan self-service)
-        const { data: goal } = await supabase
-          .from("nutrition_goals")
-          .select("*")
-          .eq("user_id", userId)
-          .eq("is_active", true)
-          .maybeSingle();
-
-        if (goal) {
-          setTargets({
-            calories: Math.round(goal.daily_calories || 0),
-            protein: Math.round(goal.protein_grams || 0),
-            carbs: Math.round(goal.carb_grams || 0),
-            fat: Math.round(goal.fat_grams || 0),
-            goalType: goal.goal_type || "maintenance",
-          });
-        }
-      }
-    } catch (error) {
-      console.error("Error loading nutrition targets:", error);
-    } finally {
-      setLoading(false);
+    // Shared phase-first-then-goals coalesce (getActiveNutritionTarget). It never throws — a
+    // failed read resolves to null, which this card already treats as "no plan set".
+    const t = await getActiveNutritionTarget(userId);
+    if (t) {
+      setTargets({
+        calories: Math.round(t.kcal),
+        protein: Math.round(t.protein),
+        carbs: Math.round(t.carbs),
+        fat: Math.round(t.fat),
+        goalType: t.goalType || "maintenance",
+      });
     }
+    setLoading(false);
   }, [userId]);
 
   useEffect(() => {
