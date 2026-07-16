@@ -60,6 +60,14 @@ interface AssignFromLibraryDialogProps {
   coachUserId: string;
   mode: "client" | "team";
   onAssigned?: () => void;
+  /**
+   * Client mode only: when the dialog is opened from a specific client's surface
+   * (e.g. the Workouts tab), pre-select that client and lock the selector so the
+   * coach can't accidentally retarget. Ignored in team mode. If the id isn't in
+   * the coach's active-client list, we fall back to the normal selectable state
+   * rather than locking to an empty selection.
+   */
+  preselectedClientUserId?: string;
 }
 
 export const AssignFromLibraryDialog = memo(function AssignFromLibraryDialog({
@@ -70,6 +78,7 @@ export const AssignFromLibraryDialog = memo(function AssignFromLibraryDialog({
   coachUserId,
   mode,
   onAssigned,
+  preselectedClientUserId,
 }: AssignFromLibraryDialogProps) {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [teams, setTeams] = useState<TeamOption[]>([]);
@@ -112,6 +121,14 @@ export const AssignFromLibraryDialog = memo(function AssignFromLibraryDialog({
 
       clientList.sort((a, b) => a.firstName.localeCompare(b.firstName));
       setClients(clientList);
+
+      // Opened from a specific client's surface: pre-select that client. If it
+      // isn't in the coach's active-client list, leave the selector free rather
+      // than locking to an empty selection.
+      if (preselectedClientUserId) {
+        const match = clientList.find((c) => c.userId === preselectedClientUserId);
+        if (match) setSelectedClientSub(match.subscriptionId);
+      }
     } catch (error: unknown) {
       toast({
         title: "Error loading clients",
@@ -121,7 +138,7 @@ export const AssignFromLibraryDialog = memo(function AssignFromLibraryDialog({
     } finally {
       setLoading(false);
     }
-  }, [coachUserId, toast]);
+  }, [coachUserId, toast, preselectedClientUserId]);
 
   const loadTeams = useCallback(async () => {
     try {
@@ -302,6 +319,13 @@ export const AssignFromLibraryDialog = memo(function AssignFromLibraryDialog({
   const selectedTeam = teams.find((t) => t.id === selectedTeamId);
   const activeTeamMembers = selectedTeam?.members.filter((m) => m.status === "active") || [];
 
+  // Client mode, opened from a specific client's surface and that client is a
+  // real active client → lock the selector to them.
+  const lockedClient =
+    mode === "client" && preselectedClientUserId
+      ? clients.find((c) => c.userId === preselectedClientUserId)
+      : undefined;
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-md">
@@ -318,9 +342,17 @@ export const AssignFromLibraryDialog = memo(function AssignFromLibraryDialog({
         <div className="space-y-4">
           {mode === "client" ? (
             <div className="space-y-2">
-              <Label>Select Client</Label>
+              <Label>{lockedClient ? "Client" : "Select Client"}</Label>
               {loading ? (
                 <div className="text-sm text-muted-foreground">Loading clients...</div>
+              ) : lockedClient ? (
+                <div
+                  data-locked-client={lockedClient.userId}
+                  className="rounded-md border bg-muted px-3 py-2 text-sm font-medium"
+                >
+                  Assigning to {lockedClient.firstName}
+                  {lockedClient.lastName ? ` ${lockedClient.lastName}` : ""}
+                </div>
               ) : clients.length === 0 ? (
                 <div className="text-sm text-muted-foreground">
                   No active clients found.

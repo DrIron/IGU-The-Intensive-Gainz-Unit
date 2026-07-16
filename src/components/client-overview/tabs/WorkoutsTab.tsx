@@ -390,6 +390,7 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
           programTitle={assignTarget.programTitle}
           coachUserId={coachUserId}
           mode="client"
+          preselectedClientUserId={clientUserId}
           onAssigned={reloadPrograms}
         />
       )}
