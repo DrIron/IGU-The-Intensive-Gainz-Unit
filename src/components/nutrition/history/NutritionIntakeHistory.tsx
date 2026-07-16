@@ -8,6 +8,7 @@ import {
 import { STATUS_DOT } from "@/components/nutrition/adherenceBandStyles";
 import { useNutritionIntakeHistory } from "./useNutritionIntakeHistory";
 import { NutritionMicroTrends } from "./NutritionMicroTrends";
+import { NutritionReverseTdeeTrend } from "./NutritionReverseTdeeTrend";
 
 /**
  * Nutrition intake History & Trends (P5b) — reusable on the coach nutrition History tab and on
@@ -82,6 +83,10 @@ export function NutritionIntakeHistory({ clientUserId, viewerRole }: NutritionIn
         hasTargetHistory={hasTargetHistory}
         loading={loading}
       />
+
+      {/* NU2 — real (reverse) TDEE from logged calories vs measured weight change. Shown to all
+          viewers (calorie-derived, no role gate); phase bands reused from the intake trends. */}
+      <NutritionReverseTdeeTrend clientUserId={clientUserId} phases={phases} />
 
       {/* Dietitian/admin only. A coach's `microsByDay` is empty by construction (gated in the
           hook), so even if this rendered for a coach it would show nothing — but we gate here
