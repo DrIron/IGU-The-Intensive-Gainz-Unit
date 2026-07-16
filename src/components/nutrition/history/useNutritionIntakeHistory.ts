@@ -10,10 +10,11 @@ import { rollingAdherence, dayCalorieBand, type AdherenceBand } from "@/lib/adhe
  * so the shared chart shows its calm empty state. There is deliberately NO error banner — a
  * history panel that can't load is quiet, not alarming.
  *
- * TARGET IS PHASE-BASED ONLY. The per-day target is the nutrition_phase in effect that day.
- * A team-plan self-service client (target in nutrition_goals, no phases) gets the intake trend
- * but a neutral "no target" adherence state — goals-based history is a deferred follow-up. We
- * do NOT inline a goals coalesce here.
+ * TARGET is a UNIFIED TIMELINE, phases-first-else-goals (the getActiveNutritionTarget
+ * precedence, applied over time). A coached client's per-day target is the nutrition_phase in
+ * effect that day (with chart bands); a team-plan self-service client's is the nutrition_goal
+ * in effect that day (target + intake lines, no bands — goals aren't phases). Precedence is
+ * exclusive: any real phase target means phases win and goals are ignored entirely.
  */
 
 const ADHERENCE_WINDOW_DAYS = 56; // fixed trailing 8 weeks
@@ -41,6 +42,10 @@ export interface PhaseWithTarget {
  * The phase in effect on a given day = the one with the greatest start ≤ day. A day before the
  * first phase has no target (null) — the same [start, nextStart) partitioning the chart uses
  * for its phase bands. `phases` MUST be sorted ascending by startMs.
+ *
+ * Kept as the phase-specific case (its test proves the partition); `targetInEffect` below
+ * generalizes it to explicit [start, end) segments so goals — which carry their own end_date
+ * and can have gaps — work too.
  */
 export function phaseInEffect(phases: PhaseWithTarget[], dayMs: number): PhaseWithTarget | null {
   let current: PhaseWithTarget | null = null;
@@ -49,6 +54,33 @@ export function phaseInEffect(phases: PhaseWithTarget[], dayMs: number): PhaseWi
     else break;
   }
   return current;
+}
+
+/** A span of time during which one target applied. endMs null = open-ended (still active). */
+export interface TargetSegment {
+  startMs: number;
+  endMs: number | null;
+  kcal: number;
+  protein: number;
+  fat: number;
+  carbs: number;
+}
+
+/**
+ * The target segment in effect on a given day: startMs ≤ day AND (endMs == null || day < endMs).
+ *
+ * Unlike phaseInEffect this uses EXPLICIT ends, so it handles the two shapes uniformly:
+ *   - phases: contiguous (each endMs = the next phase's start; the last is null) — no gaps.
+ *   - goals: each span carries its own end_date, so there CAN be a gap between two goals. A day
+ *     in that gap, or before the first / after an ended last span, correctly resolves to null →
+ *     no target → adherence not-measurable there (never a red verdict on a targetless day).
+ * `segments` MUST be sorted ascending by startMs.
+ */
+export function targetInEffect(segments: TargetSegment[], dayMs: number): TargetSegment | null {
+  for (const s of segments) {
+    if (s.startMs <= dayMs && (s.endMs == null || dayMs < s.endMs)) return s;
+  }
+  return null;
 }
 
 export interface NutritionAdherenceWindow {
@@ -94,7 +126,7 @@ export function useNutritionIntakeHistory(clientUserId: string | null) {
   const hasFetched = useRef<string | null>(null);
 
   const load = useCallback(async (userId: string) => {
-    const [rollupRes, phasesRes] = await Promise.all([
+    const [rollupRes, phasesRes, goalsRes] = await Promise.all([
       supabase
         .from("food_log_daily_rollup")
         .select("log_date, total_kcal, total_protein_g, total_fat_g, total_carb_g")
@@ -105,9 +137,15 @@ export function useNutritionIntakeHistory(clientUserId: string | null) {
         .select("start_date, phase_name, daily_calories, protein_grams, fat_grams, carb_grams")
         .eq("user_id", userId)
         .order("start_date", { ascending: true }),
+      supabase
+        .from("nutrition_goals")
+        .select("start_date, end_date, daily_calories, protein_grams, fat_grams, carb_grams")
+        .eq("user_id", userId)
+        .order("start_date", { ascending: true }),
     ]);
     if (rollupRes.error) console.warn("[NutritionIntakeHistory] rollups:", rollupRes.error.message);
     if (phasesRes.error) console.warn("[NutritionIntakeHistory] phases:", phasesRes.error.message);
+    if (goalsRes.error) console.warn("[NutritionIntakeHistory] goals:", goalsRes.error.message);
 
     const rollups = (rollupRes.data ?? []) as RollupRow[];
 
@@ -123,7 +161,40 @@ export function useNutritionIntakeHistory(clientUserId: string | null) {
       .filter((p) => Number.isFinite(p.startMs))
       .sort((a, b) => a.startMs - b.startMs);
 
-    const phases: TrendPhase[] = phasesWithTarget.map((p) => ({ t: p.startMs, name: p.name }));
+    // Unified target timeline, phases-first-else-goals (the getActiveNutritionTarget precedence,
+    // applied OVER TIME). Precedence is EXCLUSIVE: a client with any real phase target uses
+    // phases and ignores goals entirely.
+    const usePhases = phasesWithTarget.some((p) => p.kcal > 0);
+
+    let segments: TargetSegment[];
+    let phases: TrendPhase[];
+    if (usePhases) {
+      // Contiguous partition: each phase runs until the next phase starts (last is open-ended).
+      segments = phasesWithTarget.map((p, i) => ({
+        startMs: p.startMs,
+        endMs: i + 1 < phasesWithTarget.length ? phasesWithTarget[i + 1].startMs : null,
+        kcal: p.kcal,
+        protein: p.protein,
+        fat: p.fat,
+        carbs: p.carbs,
+      }));
+      phases = phasesWithTarget.map((p) => ({ t: p.startMs, name: p.name }));
+    } else {
+      // Team-plan self-service: goals carry their OWN end_date (null = active). Goals aren't
+      // phases, so no chart bands — just the intake + target lines.
+      segments = (goalsRes.data ?? [])
+        .map((g) => ({
+          startMs: new Date(g.start_date as string).getTime(),
+          endMs: g.end_date ? new Date(g.end_date as string).getTime() : null,
+          kcal: Number(g.daily_calories ?? 0),
+          protein: Number(g.protein_grams ?? 0),
+          fat: Number(g.fat_grams ?? 0),
+          carbs: Number(g.carb_grams ?? 0),
+        }))
+        .filter((s) => Number.isFinite(s.startMs))
+        .sort((a, b) => a.startMs - b.startMs);
+      phases = [];
+    }
 
     // Trend series over all logged history.
     const intake: TrendPoint[] = [];
@@ -138,9 +209,9 @@ export function useNutritionIntakeHistory(clientUserId: string | null) {
       protein.push({ t, value: Math.round(Number(r.total_protein_g)) });
       fat.push({ t, value: Math.round(Number(r.total_fat_g)) });
       carbs.push({ t, value: Math.round(Number(r.total_carb_g)) });
-      // Target line only where a phase was in effect (with a real calorie target).
-      const ph = phaseInEffect(phasesWithTarget, t);
-      if (ph && ph.kcal > 0) target.push({ t, value: Math.round(ph.kcal) });
+      // Target line only where a target segment (phase or goal) was in effect.
+      const seg = targetInEffect(segments, t);
+      if (seg && seg.kcal > 0) target.push({ t, value: Math.round(seg.kcal) });
     }
 
     // Adherence over the fixed trailing 56-day window.
@@ -154,8 +225,8 @@ export function useNutritionIntakeHistory(clientUserId: string | null) {
       const dayMs = today.getTime() - i * DAY_MS;
       const iso = new Date(dayMs).toISOString().slice(0, 10);
       const row = byDate.get(iso);
-      const ph = phaseInEffect(phasesWithTarget, dayMs);
-      const targetKcal = ph && ph.kcal > 0 ? ph.kcal : null;
+      const seg = targetInEffect(segments, dayMs);
+      const targetKcal = seg && seg.kcal > 0 ? seg.kcal : null;
       windowDays.push({
         consumedKcal: row ? Number(row.total_kcal) : null,
         targetKcal,
@@ -185,7 +256,7 @@ export function useNutritionIntakeHistory(clientUserId: string | null) {
         totalDays: ADHERENCE_WINDOW_DAYS,
         streak,
       },
-      hasTargetHistory: phasesWithTarget.some((p) => p.kcal > 0),
+      hasTargetHistory: segments.some((s) => s.kcal > 0),
       loading: false,
     });
   }, []);

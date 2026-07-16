@@ -15,6 +15,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 let rollupRows: Array<Record<string, unknown>> = [];
 let phaseRows: Array<Record<string, unknown>> = [];
+let goalRows: Array<Record<string, unknown>> = [];
 let failRollup = false;
 
 function tableData(table: string) {
@@ -22,6 +23,7 @@ function tableData(table: string) {
     return failRollup ? { data: null, error: new Error("boom") } : { data: rollupRows, error: null };
   }
   if (table === "nutrition_phases") return { data: phaseRows, error: null };
+  if (table === "nutrition_goals") return { data: goalRows, error: null };
   return { data: [], error: null };
 }
 
@@ -78,6 +80,7 @@ describe("NutritionIntakeHistory", () => {
     root = createRoot(container);
     rollupRows = [];
     phaseRows = [{ start_date: iso(60), phase_name: "Cut", daily_calories: 2000, protein_grams: 160, fat_grams: 60, carb_grams: 200 }];
+    goalRows = [];
     failRollup = false;
   });
   afterEach(async () => {
@@ -125,8 +128,9 @@ describe("NutritionIntakeHistory", () => {
     expect(text).not.toContain("off track");
   });
 
-  it("team-plan client (no phases) → intake shown, adherence is neutral 'no target'", async () => {
+  it("NEITHER phases nor goals → intake shown, adherence is neutral 'no target' (unchanged)", async () => {
     phaseRows = [];
+    goalRows = [];
     rollupRows = [
       { log_date: iso(2), total_kcal: 2000, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200 },
       { log_date: iso(1), total_kcal: 1900, total_protein_g: 150, total_fat_g: 55, total_carb_g: 190 },
@@ -137,6 +141,49 @@ describe("NutritionIntakeHistory", () => {
     expect(el.textContent).toContain("2/56 days logged"); // logging still counted
     expect(el.textContent).not.toContain("on target when logged"); // no % without a target
     expect(el.textContent).not.toContain("Off track");
+  });
+
+  // ── The gap this PR closes ───────────────────────────────────────────────────
+  it("REGRESSION: a goals-only client now gets a target + adherence (was neutral before)", async () => {
+    phaseRows = []; // team-plan self-service: no coach phases
+    goalRows = [{ start_date: iso(60), end_date: null, daily_calories: 2000, protein_grams: 160, fat_grams: 60, carb_grams: 200 }];
+    rollupRows = [
+      { log_date: iso(3), total_kcal: 2000, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200 },
+      { log_date: iso(2), total_kcal: 1980, total_protein_g: 158, total_fat_g: 61, total_carb_g: 198 },
+      { log_date: iso(1), total_kcal: 2020, total_protein_g: 162, total_fat_g: 59, total_carb_g: 202 },
+    ];
+    const el = await mount();
+
+    // The gap: it went from a neutral "no target" note to a real adherence readout.
+    expect(el.querySelector("[data-no-target]")).toBeNull();
+    expect(el.textContent).toContain("on target when logged");
+    expect(el.textContent).toContain("3/56 days logged");
+  });
+
+  it("goals path renders NO phase bands (goals aren't phases)", async () => {
+    phaseRows = [];
+    goalRows = [{ start_date: iso(60), end_date: null, daily_calories: 2000, protein_grams: 160, fat_grams: 60, carb_grams: 200 }];
+    rollupRows = [
+      { log_date: iso(2), total_kcal: 2000, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200 },
+      { log_date: iso(1), total_kcal: 1950, total_protein_g: 158, total_fat_g: 61, total_carb_g: 198 },
+    ];
+    const el = await mount();
+    // The chart's phase-legend swatches only render when phases are passed; a goals client
+    // has none. (The phase name "Cut" from the default seed must not appear — we cleared it.)
+    expect(el.textContent).not.toContain("Cut");
+  });
+
+  it("PRECEDENCE: a client with BOTH phases and goals uses the PHASE target, ignoring goals", async () => {
+    // Phase says 2,000; goal says 1,500. If the phase wins, on-target logging reads 100%.
+    phaseRows = [{ start_date: iso(60), phase_name: "Cut", daily_calories: 2000, protein_grams: 160, fat_grams: 60, carb_grams: 200 }];
+    goalRows = [{ start_date: iso(60), end_date: null, daily_calories: 1500, protein_grams: 120, fat_grams: 45, carb_grams: 150 }];
+    rollupRows = Array.from({ length: 5 }, (_, i) => ({
+      log_date: iso(i + 1), total_kcal: 2000, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200,
+    }));
+    const el = await mount();
+
+    // On-target vs the 2,000 PHASE target → 100%. Against the 1,500 goal it'd read off-track.
+    expect(el.textContent).toContain("100% on target when logged");
   });
 
   it("a failed rollup read degrades safely — charts show their empty state, NO error banner", async () => {
