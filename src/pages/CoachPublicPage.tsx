@@ -11,6 +11,7 @@ import { SEOHead } from "@/components/SEOHead";
 import { LoadError } from "@/components/ui/load-error";
 import { captureException } from "@/lib/errorLogging";
 import { Button } from "@/components/ui/button";
+import { buildCoachJsonLd } from "@/lib/coachJsonLd";
 
 /** Shape of the get_coach_public_profile_by_slug RPC jsonb payload. */
 interface CoachProfilePayload {
@@ -174,6 +175,22 @@ export default function CoachPublicPage() {
 
   const seoDescription = (profile.short_bio || profile.bio || "").trim() || `${fullName}${headline ? ` — ${headline}` : ""}`;
 
+  // PUB11 — Schema.org JSON-LD from the SAME already-public data the page renders. The builder
+  // enforces the honesty rule: no aggregateRating / review[] when there are no real reviews.
+  const jsonLd = buildCoachJsonLd({
+    name: fullName || profile.display_name || "IGU Coach",
+    url: typeof window !== "undefined" ? window.location.href : `https://theigu.com/coaches/${slug ?? ""}`,
+    description: seoDescription || null,
+    image: profile.profile_picture_url,
+    aggregate,
+    reviews: reputation.map((r) => ({
+      author: r.display_name, // the public display name only — no PII beyond the page
+      rating: r.rating,
+      body: r.feedback,
+      datePublished: (r.created_at || "").slice(0, 10),
+    })),
+  });
+
   // Curated reviews (show_on_coach_page) → the card's reputationSlot. Undefined
   // when empty so the card omits the "What clients say" section.
   const reputationSlot = reputation.length > 0 ? (
@@ -206,6 +223,12 @@ export default function CoachPublicPage() {
         description={seoDescription.slice(0, 200)}
         image={profile.profile_picture_url || undefined}
         type="profile"
+      />
+      {/* PUB11 — structured data. Google reads JSON-LD anywhere in the DOM; an inline script body
+          is set via dangerouslySetInnerHTML (that IS the correct way to write a script body). */}
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
       <CoachPublicProfile
         variant="public"
