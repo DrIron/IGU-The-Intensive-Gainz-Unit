@@ -32,6 +32,13 @@ const FLAGS = {
     storageKey: "igu_ff_board_v2",
     env: import.meta.env.VITE_FF_BOARD_V2 as string | undefined,
   },
+  // Roster real-adherence: also compute logged-intake adherence (food_log_daily_rollup vs the
+  // coach target) and prefer it over the self-report proxy on the "My Clients" roster. OFF leaves
+  // the roster on pure self-report (get_coach_roster_stats), untouched.
+  roster_logged_adherence: {
+    storageKey: "igu_ff_roster_logged_adherence",
+    env: import.meta.env.VITE_FF_ROSTER_LOGGED_ADHERENCE as string | undefined,
+  },
 } as const;
 
 export type FeatureFlag = keyof typeof FLAGS;
