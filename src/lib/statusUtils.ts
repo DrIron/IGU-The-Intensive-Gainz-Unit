@@ -115,18 +115,22 @@ export function getSubscriptionStatusVariant(status: string | null | undefined):
   }
 }
 
-// Coach load percentage → Tailwind background color class
+// Coach load percentage → Tailwind background color class.
+// FU1: uses the shared status-* token system (like NutritionPhaseCard / adherence surfaces) so
+// the load colors are theme-aware — the raw bg-green-500/amber-500 had no dark variants; the
+// status-* tokens define both themes. Hues are near-identical (status-attention = amber-500),
+// so this is a tokenize-in-place, not a recolor.
 export function getLoadColor(loadPercent: number | null): string {
   if (loadPercent === null) return 'bg-muted';
-  if (loadPercent > 100) return 'bg-destructive';
-  if (loadPercent >= 70) return 'bg-amber-500';
-  return 'bg-green-500';
+  if (loadPercent > 100) return 'bg-status-risk';
+  if (loadPercent >= 70) return 'bg-status-attention';
+  return 'bg-status-ontrack';
 }
 
-// Coach load percentage → Tailwind text color class
+// Coach load percentage → Tailwind text color class (same status-* tokenization as above).
 export function getLoadTextColor(loadPercent: number | null): string {
   if (loadPercent === null) return 'text-muted-foreground';
-  if (loadPercent > 100) return 'text-destructive';
-  if (loadPercent >= 70) return 'text-amber-600';
-  return 'text-green-600';
+  if (loadPercent > 100) return 'text-status-risk';
+  if (loadPercent >= 70) return 'text-status-attention';
+  return 'text-status-ontrack';
 }
