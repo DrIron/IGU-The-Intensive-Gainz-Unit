@@ -19,6 +19,8 @@ import { useStaffUnreadCounts } from "@/hooks/useStaffUnreadCounts";
 import { useCoachDeloadRequestCounts } from "@/hooks/useCoachDeloadRequests";
 import { useCoachRosterAttention } from "@/hooks/useCoachRosterAttention";
 import { useCoachRosterStats } from "@/hooks/useCoachRosterStats";
+import { useCoachRosterLoggedAdherence, resolveRosterAdherence } from "@/hooks/useCoachRosterLoggedAdherence";
+import { isFeatureEnabled } from "@/lib/featureFlags";
 import { cn } from "@/lib/utils";
 import { toneClasses } from "@/lib/interpret";
 import { rosterTone, byRosterUrgency } from "@/lib/rosterTone";
@@ -90,6 +92,20 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
   // RO Phase 2 — per-active-client stats (adherence / weigh-ins / last weigh-in /
   // has-program) via the coach-scoped RPC (coach RLS hides the raw tables).
   const { stats } = useCoachRosterStats();
+  // Roster real-adherence (flag): also compute logged-intake adherence and prefer it over the
+  // self-report proxy. Flag off → the hook fetches nothing and every row stays on self-report.
+  const loggedAdherenceEnabled = isFeatureEnabled("roster_logged_adherence");
+  const { logged } = useCoachRosterLoggedAdherence(loggedAdherenceEnabled);
+  /** The adherence % actually shown for a client (logged when available, else self-report). */
+  const resolveAdherencePct = useCallback(
+    (clientId: string): number | null =>
+      resolveRosterAdherence(
+        loggedAdherenceEnabled,
+        logged[clientId]?.logged_adherence_pct ?? null,
+        stats[clientId]?.adherence_pct ?? null,
+      ).pct,
+    [loggedAdherenceEnabled, logged, stats],
+  );
 
   // Filter state
   const [planFilter, setPlanFilter] = useState<string>('all');
@@ -374,8 +390,8 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
       });
     } else if (sortBy === 'adherence') {
       sorted.sort((a, b) => {
-        const aa = stats[a.id]?.adherence_pct;
-        const ab = stats[b.id]?.adherence_pct;
+        const aa = resolveAdherencePct(a.id);
+        const ab = resolveAdherencePct(b.id);
         if (aa == null && ab == null) return 0;
         if (aa == null) return 1; // nulls (no recent data) last
         if (ab == null) return -1;
@@ -731,7 +747,14 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                 // RO Phase 2 stats (active clients only; undefined for other sections).
                 const stat = stats[client.id];
                 const noProgram = stat ? stat.has_program === false : false;
-                const adherencePct = stat?.adherence_pct ?? null;
+                // Flag on → prefer the logged-intake %; else self-report. `selfReportedHint`
+                // marks a self-report proxy so the coach can tell it from a real logged %.
+                const adherence = resolveRosterAdherence(
+                  loggedAdherenceEnabled,
+                  logged[client.id]?.logged_adherence_pct ?? null,
+                  stat?.adherence_pct ?? null,
+                );
+                const adherencePct = adherence.pct;
                 const lastWeighInDays = stat?.last_weigh_in_date
                   ? Math.floor((Date.now() - new Date(stat.last_weigh_in_date).getTime()) / (1000 * 60 * 60 * 24))
                   : null;
@@ -802,12 +825,17 @@ export function CoachMyClientsPage({ coachUserId, onViewClient }: CoachMyClients
                           {adherencePct == null ? (
                             <span className="text-muted-foreground/50">—</span>
                           ) : (
-                            <span className={cn(
-                              "font-medium",
-                              adherencePct >= 80 ? "text-status-ontrack"
-                                : adherencePct >= 50 ? "text-status-attention"
-                                : "text-status-risk",
-                            )}>
+                            <span
+                              data-adherence-source={adherence.source}
+                              title={adherence.selfReportedHint ? "self-reported" : undefined}
+                              className={cn(
+                                "font-medium",
+                                adherence.selfReportedHint && "underline decoration-dotted underline-offset-2",
+                                adherencePct >= 80 ? "text-status-ontrack"
+                                  : adherencePct >= 50 ? "text-status-attention"
+                                  : "text-status-risk",
+                              )}
+                            >
                               {adherencePct}%
                             </span>
                           )}

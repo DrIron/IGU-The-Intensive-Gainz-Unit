@@ -9554,6 +9554,7 @@ export type Database = {
         Returns: Json
       }
       get_coach_roster_attention: { Args: never; Returns: Json }
+      get_coach_roster_logged_adherence: { Args: never; Returns: Json }
       get_coach_roster_stats: { Args: never; Returns: Json }
       get_coach_whatsapp_for_client: {
         Args: { p_coach_user_id: string }
