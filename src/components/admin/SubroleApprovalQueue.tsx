@@ -231,7 +231,7 @@ export function SubroleApprovalQueue() {
   const revokedRequests = requests.filter((r) => r.status === "revoked");
 
   const renderRequestCard = (request: SubroleRequest) => (
-    <Card key={request.id} className="hover:shadow-lg transition-shadow">
+    <Card key={request.id}>
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>

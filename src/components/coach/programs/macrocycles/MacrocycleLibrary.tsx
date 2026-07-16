@@ -133,7 +133,7 @@ export const MacrocycleLibrary = memo(function MacrocycleLibrary({
               <ClickableCard
                 ariaLabel={`Open macrocycle ${m.name}`}
                 onClick={() => onOpenMacrocycle(m.id)}
-                className="h-full hover:shadow-md transition-shadow"
+                className="h-full"
               >
                 <CardContent className="p-4 md:p-5 space-y-3">
                   <div className="flex items-start justify-between gap-2 min-w-0">

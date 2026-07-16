@@ -460,7 +460,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
 
   if (loading || verifyingPayment) {
     return (
-      <Card className="border-2 border-primary/20 shadow-lg">
+      <Card className="border-2 border-primary/20">
         <CardContent className="pt-6 flex flex-col items-center justify-center gap-4 py-12">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <p className="text-muted-foreground">
@@ -474,7 +474,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
   // Payment was verified as successful - show success message
   if (paymentVerified) {
     return (
-      <Card className="border-2 border-green-500/30 shadow-lg bg-green-50 dark:bg-green-950/20">
+      <Card className="border-2 border-green-500/30 bg-green-50 dark:bg-green-950/20">
         <CardContent className="pt-6 flex flex-col items-center justify-center gap-4 py-12">
           <CheckCircle2 className="h-16 w-16 text-green-500" />
           <h2 className="text-2xl font-bold text-green-700 dark:text-green-400">Payment Successful!</h2>
@@ -499,7 +499,7 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
 
   return (
     <>
-    <Card className="border-border/60 shadow-lg">
+    <Card className="border-border/60">
       <CardHeader>
         <CardTitle className="text-xl font-bold">
           {isExpired ? "Payment deadline expired" : "Activate your plan"}

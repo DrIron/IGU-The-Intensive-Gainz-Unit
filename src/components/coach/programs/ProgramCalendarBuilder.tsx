@@ -371,7 +371,7 @@ const DayCell = memo(function DayCell({
 
   return (
     <Card
-      className={`min-h-[140px] ${day.isRestDay ? "bg-muted/30" : ""} hover:shadow-md transition-shadow`}
+      className={`min-h-[140px] ${day.isRestDay ? "bg-muted/30" : ""}`}
     >
       <CardHeader className="p-2 pb-1">
         <div className="flex items-center justify-between">

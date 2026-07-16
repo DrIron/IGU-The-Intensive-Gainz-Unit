@@ -102,7 +102,7 @@ const ProgramCard = memo(function ProgramCard({
       ariaLabel={`Open program ${program.title}`}
       onClick={onOpen}
       className={cn(
-        "h-full transition-shadow hover:shadow-md",
+        "h-full",
         muted && "opacity-80",
       )}
     >

@@ -545,7 +545,7 @@ export function CoachApplicationsManager() {
   };
 
   const renderApplicationCard = (app: CoachApplication) => (
-    <Card key={app.id} className="hover:shadow-lg transition-shadow">
+    <Card key={app.id}>
       <CardHeader>
         <div className="flex items-start justify-between">
           <div>

@@ -42,7 +42,7 @@ export function WeightUnitToggle({
           aria-pressed={unit === u}
           className={cn(
             "px-2.5 py-1 text-xs font-semibold rounded uppercase transition-colors touch-manipulation",
-            unit === u ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+            unit === u ? "bg-background text-foreground" : "text-muted-foreground hover:text-foreground",
           )}
         >
           {u}

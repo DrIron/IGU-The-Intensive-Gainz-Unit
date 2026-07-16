@@ -232,7 +232,7 @@ export function MusclePlanLibrary({ coachUserId, onNewPlan, onEditPlan, onBack }
               .map(([id]) => ({ id, display: getMuscleDisplay(id) }));
 
             return (
-              <Card key={plan.id} className="group hover:shadow-md transition-shadow">
+              <Card key={plan.id} className="group">
                 <CardHeader className="pb-2">
                   <div className="flex justify-between items-start">
                     <CardTitle className="text-lg line-clamp-1">{plan.name}</CardTitle>

@@ -224,8 +224,10 @@ export const ExerciseCardV2 = memo(function ExerciseCardV2({
 
   return (
     <div
-      className={`border rounded-lg transition-shadow bg-card ${
-        isDragging ? "shadow-lg ring-2 ring-primary" : "shadow-sm hover:shadow-md"
+      className={`border rounded-lg transition-colors bg-card ${
+        // DS3-tail: keep the drag-lift (functional elevation while dragging); the resting state
+        // flattens to a hover border, no decorative shadow.
+        isDragging ? "shadow-lg ring-2 ring-primary" : "hover:border-primary/40"
       }`}
     >
       {/* Title Row */}

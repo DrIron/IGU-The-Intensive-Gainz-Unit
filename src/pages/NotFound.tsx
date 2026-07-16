@@ -27,7 +27,7 @@ const NotFound = () => {
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       {/* React 19 hoists this into <head> */}
       <meta name="robots" content="noindex, nofollow" />
-      <Card className="max-w-md w-full border-border/50 shadow-xl">
+      <Card className="max-w-md w-full border-border/50">
         <CardHeader className="text-center pb-4">
           <div className="mx-auto mb-4 text-6xl font-bold text-primary">404</div>
           <CardTitle className="text-2xl">Page not found</CardTitle>
