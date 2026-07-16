@@ -216,6 +216,12 @@ export const DayColumn = memo(function DayColumn({
   const isCopiedDay = copiedDayIndex === dayIndex;
   const hasAnyContent = daySessions.length > 0 || daySlots.length > 0;
 
+  // CC9 exclusion: this is a drag-and-drop EDITING container, not a navigation tile. The
+  // whole-card click is a secondary "select day" convenience over a surface full of its own
+  // interactive controls (sessions, drag handles, popovers). Wrapping that in role="button"
+  // would nest interactive content inside a button — an a11y anti-pattern worse than the bare
+  // onClick, and it also breaks the visualNoOp render-stability guard. A proper keyboard path
+  // for day-selection is a separate, non-mechanical slice.
   return (
     <Card
       data-day-index={dayIndex}

@@ -66,18 +66,40 @@ export function AlertsCard({ profile, subscription, weeklyLogsCount }: AlertsCar
 
   return (
     <div className="space-y-3">
-      {alerts.map((alert, index) => (
-        <Alert 
-          key={index} 
-          variant={alert.variant}
-          className={alert.onClick ? "cursor-pointer transition-all hover:shadow-md hover:opacity-90 active:opacity-80" : ""}
-          onClick={alert.onClick}
-        >
-          <alert.icon className="h-4 w-4" />
-          <AlertTitle>{alert.title}</AlertTitle>
-          <AlertDescription>{alert.description}</AlertDescription>
-        </Alert>
-      ))}
+      {alerts.map((alert, index) => {
+        const content = (
+          <>
+            <alert.icon className="h-4 w-4" />
+            <AlertTitle>{alert.title}</AlertTitle>
+            <AlertDescription>{alert.description}</AlertDescription>
+          </>
+        );
+
+        // An actionable alert becomes a real <button> — keyboard-operable (Enter/Space) with a
+        // visible focus ring, which a bare onClick on the <Alert> div lacked. Flat hover (DS3):
+        // a border + background shift, no shadow.
+        if (alert.onClick) {
+          return (
+            <button
+              key={index}
+              type="button"
+              onClick={alert.onClick}
+              aria-label={alert.title}
+              className="block w-full rounded-lg text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+            >
+              <Alert variant={alert.variant} className="cursor-pointer hover:border-primary/40 hover:bg-muted/40 active:opacity-80">
+                {content}
+              </Alert>
+            </button>
+          );
+        }
+
+        return (
+          <Alert key={index} variant={alert.variant}>
+            {content}
+          </Alert>
+        );
+      })}
     </div>
   );
 }

@@ -7,8 +7,12 @@ import { cn } from "@/lib/utils";
  *
  * Use this whenever a Card represents a navigation target or primary action.
  * Handles keyboard activation (Enter / Space), screen reader announcement
- * (role="button"), focus visibility, and the hover/shadow affordance in one
- * place so individual cards don't re-implement a11y plumbing.
+ * (role="button"), focus visibility, and the hover affordance in one place so
+ * individual cards don't re-implement a11y plumbing.
+ *
+ * DS3: the hover is FLAT — a border + background shift, no shadow. Elevation-on-hover
+ * was retired platform-wide (shadow-discipline ruling); changing it here reflats every
+ * ClickableCard at once.
  *
  * Example:
  *   <ClickableCard onClick={() => navigate("/x")} ariaLabel="Go to X">
@@ -48,8 +52,9 @@ export const ClickableCard = forwardRef<HTMLDivElement, ClickableCardProps>(
         onClick={disabled ? undefined : onClick}
         onKeyDown={handleKeyDown}
         className={cn(
-          "cursor-pointer transition-shadow",
-          "hover:shadow-md hover:border-primary/30",
+          "cursor-pointer transition-colors",
+          // DS3 flat hover: shift the border + a faint background, NO shadow.
+          "hover:border-primary/40 hover:bg-muted/40",
           "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
           disabled && "cursor-not-allowed opacity-60",
           className

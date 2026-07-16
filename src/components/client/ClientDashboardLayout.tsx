@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { ClientSidebar } from "./ClientSidebar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -732,8 +733,9 @@ function OverviewSection({ profile, subscription, user, needsOnboarding, navigat
           </CardContent>
         </Card>
 
-        <Card 
-          className="border-border/50 hover:border-primary/50 transition-colors cursor-pointer"
+        <ClickableCard
+          ariaLabel="Next billing — view subscription"
+          className="border-border/50"
           onClick={() => setActiveSection("subscription")}
         >
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -749,21 +751,15 @@ function OverviewSection({ profile, subscription, user, needsOnboarding, navigat
               <p className="text-sm text-muted-foreground mt-2">N/A</p>
             )}
           </CardContent>
-        </Card>
+        </ClickableCard>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card 
-          className={`border-border/50 transition-colors ${
-            profile?.status === 'active' && subscription?.status === 'active' 
-              ? 'hover:border-primary/50 cursor-pointer' 
-              : 'opacity-50 cursor-not-allowed'
-          }`}
-          onClick={() => {
-            if (profile?.status === 'active' && subscription?.status === 'active') {
-              navigate("/nutrition");
-            }
-          }}
+        <ClickableCard
+          ariaLabel="Nutrition & Calculator"
+          className="border-border/50"
+          disabled={!(profile?.status === 'active' && subscription?.status === 'active')}
+          onClick={() => navigate("/nutrition")}
         >
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -776,19 +772,13 @@ function OverviewSection({ profile, subscription, user, needsOnboarding, navigat
                 : 'Available after subscription activation'}
             </CardDescription>
           </CardHeader>
-        </Card>
+        </ClickableCard>
 
-        <Card 
-          className={`border-border/50 transition-colors ${
-            profile?.status === 'active' && subscription?.status === 'active' 
-              ? 'hover:border-primary/50 cursor-pointer' 
-              : 'opacity-50 cursor-not-allowed'
-          }`}
-          onClick={() => {
-            if (profile?.status === 'active' && subscription?.status === 'active') {
-              navigate("/workout-library");
-            }
-          }}
+        <ClickableCard
+          ariaLabel="Exercise Library"
+          className="border-border/50"
+          disabled={!(profile?.status === 'active' && subscription?.status === 'active')}
+          onClick={() => navigate("/workout-library")}
         >
           <CardHeader>
             <div className="flex items-center gap-2">
@@ -801,7 +791,7 @@ function OverviewSection({ profile, subscription, user, needsOnboarding, navigat
                 : 'Available after subscription activation'}
             </CardDescription>
           </CardHeader>
-        </Card>
+        </ClickableCard>
       </div>
     </div>
   );

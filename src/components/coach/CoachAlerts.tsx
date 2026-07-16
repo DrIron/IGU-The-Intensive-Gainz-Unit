@@ -1,4 +1,5 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { AlertCircle, FileWarning, UserPlus } from "lucide-react";
 import { useEffect, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -141,8 +142,9 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
 
   return (
     <div className="grid gap-4 md:grid-cols-3">
-      <Card
-        className="border-destructive/50 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col"
+      <ClickableCard
+        ariaLabel={`Missed logs (${missedLogsCount})`}
+        className="border-destructive/50 h-full flex flex-col"
         onClick={() => missedLogsCount > 0 && onNavigateToClients('missed-logs')}
       >
         <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -155,10 +157,11 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
             1:1 clients haven't logged nutrition this week
           </p>
         </CardContent>
-      </Card>
+      </ClickableCard>
 
-      <Card
-        className="border-orange-500/50 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col"
+      <ClickableCard
+        ariaLabel={`Payment issues (${paymentIssuesCount})`}
+        className="border-orange-500/50 h-full flex flex-col"
         onClick={() => paymentIssuesCount > 0 && onNavigateToClients('payment-issues')}
       >
         <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -171,10 +174,11 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
             Clients with payment problems
           </p>
         </CardContent>
-      </Card>
+      </ClickableCard>
 
-      <Card
-        className="border-primary/50 hover:shadow-lg transition-shadow cursor-pointer h-full flex flex-col"
+      <ClickableCard
+        ariaLabel={`New signups (${newSignupsCount})`}
+        className="border-primary/50 h-full flex flex-col"
         onClick={() => newSignupsCount > 0 && onNavigateToClients('new-signups')}
       >
         <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -187,7 +191,7 @@ export function CoachAlerts({ coachUserId, onNavigateToClients }: CoachAlertsPro
             New clients joined this week
           </p>
         </CardContent>
-      </Card>
+      </ClickableCard>
     </div>
   );
 }

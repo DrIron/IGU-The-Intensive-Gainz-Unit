@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -285,9 +286,10 @@ export function CoachTrainingDashboard({ coachUserId, onTrainingComplete }: Coac
             {requiredContent.map((item) => {
               const isCompleted = completedIds.has(item.id);
               return (
-                <Card
+                <ClickableCard
                   key={item.id}
-                  className={`cursor-pointer transition-shadow hover:shadow-md ${isCompleted ? "border-green-500/30" : ""}`}
+                  ariaLabel={`${item.title}${isCompleted ? " (completed)" : ""}`}
+                  className={isCompleted ? "border-green-500/30" : ""}
                   onClick={() => handleSelectContent(item)}
                 >
                   <CardContent className="flex items-center gap-4 py-4">
@@ -309,7 +311,7 @@ export function CoachTrainingDashboard({ coachUserId, onTrainingComplete }: Coac
                       {item.duration_minutes}m
                     </div>
                   </CardContent>
-                </Card>
+                </ClickableCard>
               );
             })}
           </div>
@@ -324,9 +326,9 @@ export function CoachTrainingDashboard({ coachUserId, onTrainingComplete }: Coac
             {optionalContent.map((item) => {
               const isCompleted = completedIds.has(item.id);
               return (
-                <Card
+                <ClickableCard
                   key={item.id}
-                  className="cursor-pointer transition-shadow hover:shadow-md"
+                  ariaLabel={`${item.title}${isCompleted ? " (completed)" : ""}`}
                   onClick={() => handleSelectContent(item)}
                 >
                   <CardContent className="flex items-center gap-4 py-4">
@@ -346,7 +348,7 @@ export function CoachTrainingDashboard({ coachUserId, onTrainingComplete }: Coac
                       <span className="text-sm text-muted-foreground">{item.duration_minutes}m</span>
                     </div>
                   </CardContent>
-                </Card>
+                </ClickableCard>
               );
             })}
           </div>
