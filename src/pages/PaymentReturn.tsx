@@ -247,7 +247,7 @@ export default function PaymentReturn() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="max-w-md w-full border-2 border-primary/20 shadow-lg">
         <CardHeader className="text-center">
           {state === 'verifying' && (

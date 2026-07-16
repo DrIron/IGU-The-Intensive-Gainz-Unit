@@ -570,7 +570,7 @@ export default function EducationalVideos() {
   // Loading state
   if (access.loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-24 max-w-7xl">
           <div className="text-center py-12">
@@ -585,7 +585,7 @@ export default function EducationalVideos() {
   // Error state
   if (access.error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-24 max-w-7xl">
           <div className="text-center py-12">
@@ -603,7 +603,7 @@ export default function EducationalVideos() {
   // Admins get the full manager UI
   if (access.isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-24 max-w-7xl">
           <EducationalVideosManager />
@@ -615,7 +615,7 @@ export default function EducationalVideos() {
   // Coaches (non-admin) see the client browse UI as a read-only preview.
   if (access.isCoach && !access.isAdmin) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-24 max-w-7xl">
           <Alert className="mb-6">
@@ -665,7 +665,7 @@ export default function EducationalVideos() {
 
   // Client view
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen bg-background">
       <Navigation />
       <div className="container mx-auto px-4 py-24 max-w-7xl">
         <div className="mb-8">

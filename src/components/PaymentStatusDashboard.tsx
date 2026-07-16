@@ -729,7 +729,6 @@ export function PaymentStatusDashboard({ userId }: PaymentStatusProps) {
           <Button
             onClick={handlePayment}
             disabled={processingPayment || !confirmed}
-            className="bg-gradient-to-r from-primary to-accent hover:opacity-90"
           >
             {processingPayment ? (
               <>

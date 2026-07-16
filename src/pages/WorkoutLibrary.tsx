@@ -223,7 +223,7 @@ export default function WorkoutLibrary() {
 
   if (access.loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <main className="container mx-auto px-4 pt-24 pb-12 max-w-7xl">
           <div className="text-center py-12">
@@ -237,7 +237,7 @@ export default function WorkoutLibrary() {
 
   if (access.error) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <main className="container mx-auto px-4 pt-24 pb-12 max-w-7xl">
           <div className="text-center py-12">
@@ -253,7 +253,7 @@ export default function WorkoutLibrary() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen bg-background">
       <Navigation />
 
       <main className="container mx-auto px-4 pt-24 pb-24 md:pb-12 max-w-7xl">

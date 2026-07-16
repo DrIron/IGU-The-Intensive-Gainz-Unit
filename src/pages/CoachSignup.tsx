@@ -196,14 +196,14 @@ export default function CoachSignup() {
 
   if (initializing) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center p-4">
+      <div className="min-h-screen bg-background flex items-center justify-center p-4">
         <div className="animate-pulse text-lg text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-2xl">
         <CardHeader>
           <CardTitle>Complete Your Coach Profile</CardTitle>
