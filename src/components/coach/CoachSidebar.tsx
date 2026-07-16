@@ -15,7 +15,7 @@ import { useSubrolePermissions } from "@/hooks/useSubrolePermissions";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useCoachRosterAttention } from "@/hooks/useCoachRosterAttention";
 import { Badge } from "@/components/ui/badge";
-import { GraduationCap, Salad, UserCog } from "lucide-react";
+import { GraduationCap, MessageSquare, Salad, UserCog } from "lucide-react";
 
 interface CoachSidebarProps {
   activeSection: string;
@@ -218,6 +218,13 @@ interface CoachMobileNavOptions {
  * Adding a 5th slot would crowd the dock past usable density, so the
  * sidebar surfaces "Nutrition clients" instead.
  */
+// MS5: the staff Messages dock item. It lands on the client roster (where per-client unread
+// badges surface) via a DISTINCT path — the "Clients" item already owns /coach/clients, and the
+// dock keys items by path, so Messages needs its own. /coach/messages routes through the
+// /coach/:section catch-all; CoachDashboard's SECTION_MAP maps "messages" -> the clients roster.
+// (A dedicated unified inbox route is deferred; the item lands on the roster for now.)
+export const COACH_MESSAGES_MOBILE_PATH = "/coach/messages";
+
 // eslint-disable-next-line react-refresh/only-export-components
 export function getCoachMobileNavItems(opts: CoachMobileNavOptions = {}) {
   const { isDietitian = false, isCoach = false } = opts;
@@ -248,6 +255,13 @@ export function getCoachMobileNavItems(opts: CoachMobileNavOptions = {}) {
       icon: DIETITIAN_NUTRITION_CLIENTS_ITEM.icon,
     });
   }
+
+  // Messages, just before Profile (the last item). Badged in the dock via useStaffUnreadCounts.
+  items.splice(items.length - 1, 0, {
+    path: COACH_MESSAGES_MOBILE_PATH,
+    label: "Messages",
+    icon: MessageSquare,
+  });
 
   return items;
 }
