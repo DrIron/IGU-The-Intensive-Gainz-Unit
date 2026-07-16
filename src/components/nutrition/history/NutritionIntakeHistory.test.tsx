@@ -16,6 +16,7 @@ import { createRoot, type Root } from "react-dom/client";
 let rollupRows: Array<Record<string, unknown>> = [];
 let phaseRows: Array<Record<string, unknown>> = [];
 let goalRows: Array<Record<string, unknown>> = [];
+let nutrientRows: Array<Record<string, unknown>> = [];
 let failRollup = false;
 
 function tableData(table: string) {
@@ -24,8 +25,17 @@ function tableData(table: string) {
   }
   if (table === "nutrition_phases") return { data: phaseRows, error: null };
   if (table === "nutrition_goals") return { data: goalRows, error: null };
+  if (table === "nutrients") return { data: nutrientRows, error: null };
   return { data: [], error: null };
 }
+
+// The micronutrient roster the picker is populated from (order = display_order).
+const MICRO_NUTRIENTS = [
+  { key: "sodium", name: "Sodium", unit: "mg" },
+  { key: "potassium", name: "Potassium", unit: "mg" },
+  { key: "iron", name: "Iron", unit: "mg" },
+  { key: "vitamin_d", name: "Vitamin D", unit: "mcg" },
+];
 
 function builder(table: string) {
   const api: Record<string, unknown> = {
@@ -52,8 +62,22 @@ Object.defineProperty(window, "matchMedia", {
     addEventListener: vi.fn(), removeEventListener: vi.fn(), dispatchEvent: vi.fn(),
   }),
 });
+// Radix Select opens on pointerdown; jsdom lacks PointerEvent + pointer capture.
+if (typeof window.PointerEvent === "undefined") {
+  class PE extends MouseEvent {
+    constructor(type: string, params: MouseEventInit = {}) { super(type, params); }
+  }
+  (window as unknown as { PointerEvent: unknown }).PointerEvent = PE;
+  (globalThis as unknown as { PointerEvent: unknown }).PointerEvent = PE;
+}
+window.HTMLElement.prototype.scrollIntoView = vi.fn();
+window.HTMLElement.prototype.hasPointerCapture = vi.fn();
+window.HTMLElement.prototype.releasePointerCapture = vi.fn();
+window.HTMLElement.prototype.setPointerCapture = vi.fn();
 
 const { NutritionIntakeHistory } = await import("./NutritionIntakeHistory");
+const { useNutritionIntakeHistory } = await import("./useNutritionIntakeHistory");
+type HistoryViewerRole = "client" | "coach" | "dietitian" | "admin";
 
 const iso = (daysAgo: number) => {
   const d = new Date();
@@ -65,11 +89,23 @@ const iso = (daysAgo: number) => {
 let container: HTMLDivElement;
 let root: Root;
 
-async function mount(): Promise<HTMLDivElement> {
-  await act(async () => root.render(<NutritionIntakeHistory clientUserId="client-1" viewerRole="coach" />));
+async function mount(viewerRole: HistoryViewerRole = "coach"): Promise<HTMLDivElement> {
+  await act(async () => root.render(<NutritionIntakeHistory clientUserId="client-1" viewerRole={viewerRole} />));
   await act(async () => {
     await new Promise((r) => setTimeout(r, 30));
   });
+  return container;
+}
+
+// Probes the hook directly so we can assert the micros map is gated AT THE SOURCE, not just
+// hidden in markup: it renders the map's day-count into a data attribute.
+function MicrosProbe({ role }: { role: HistoryViewerRole }) {
+  const { microsByDay } = useNutritionIntakeHistory("client-1", role);
+  return <div data-micro-days={Object.keys(microsByDay).length} />;
+}
+async function mountProbe(role: HistoryViewerRole): Promise<HTMLDivElement> {
+  await act(async () => root.render(<MicrosProbe role={role} />));
+  await act(async () => { await new Promise((r) => setTimeout(r, 30)); });
   return container;
 }
 
@@ -81,6 +117,7 @@ describe("NutritionIntakeHistory", () => {
     rollupRows = [];
     phaseRows = [{ start_date: iso(60), phase_name: "Cut", daily_calories: 2000, protein_grams: 160, fat_grams: 60, carb_grams: 200 }];
     goalRows = [];
+    nutrientRows = MICRO_NUTRIENTS;
     failRollup = false;
   });
   afterEach(async () => {
@@ -207,5 +244,100 @@ describe("NutritionIntakeHistory", () => {
     const el = await mount();
     expect(el.textContent).toContain("Calorie intake vs target");
     expect(el.textContent).toContain("Macro trends");
+  });
+
+  // ── Dietitian micronutrient trends (P5b extension) ───────────────────────────
+  const microRollups = () => [
+    { log_date: iso(3), total_kcal: 2000, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200, micros: { sodium: 1800, iron: 12 } },
+    { log_date: iso(2), total_kcal: 1950, total_protein_g: 158, total_fat_g: 61, total_carb_g: 198, micros: { sodium: 1600, iron: 14 } },
+    { log_date: iso(1), total_kcal: 2010, total_protein_g: 162, total_fat_g: 59, total_carb_g: 202, micros: { sodium: 1700, iron: 13 } },
+  ];
+
+  it("micro panel renders for a dietitian, defaulting to Sodium with phase bands", async () => {
+    rollupRows = microRollups();
+    const el = await mount("dietitian");
+
+    const panel = el.querySelector("[data-micro-trends]");
+    expect(panel).not.toBeNull();
+    expect(el.textContent).toContain("Micronutrient trends");
+    // Default nutrient is sodium, rendered in its own unit.
+    expect(el.querySelector('[aria-label="Micronutrient"]')?.textContent).toContain("Sodium (mg)");
+    expect(el.textContent).toContain("daily logged sodium");
+    // >=2 sodium points → the chart drew (no empty state), and phase bands are reused.
+    expect(el.textContent).not.toContain("Not enough logged days yet to chart this nutrient.");
+    expect(el.textContent).toContain("Phases");
+  });
+
+  it("micro panel renders for an admin too", async () => {
+    rollupRows = microRollups();
+    const el = await mount("admin");
+    expect(el.querySelector("[data-micro-trends]")).not.toBeNull();
+  });
+
+  it("micro panel is ABSENT for a coach and for a client (the role gate)", async () => {
+    rollupRows = microRollups();
+
+    const coachEl = await mount("coach");
+    expect(coachEl.querySelector("[data-micro-trends]")).toBeNull();
+    expect(coachEl.textContent).not.toContain("Micronutrient trends");
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    const clientEl = await mount("client");
+    expect(clientEl.querySelector("[data-micro-trends]")).toBeNull();
+  });
+
+  it("the hook's micros map is EMPTY for coach/client but populated for dietitian (gated at source)", async () => {
+    rollupRows = microRollups(); // 3 days WITH micros for every role
+
+    const coach = await mountProbe("coach");
+    expect(coach.querySelector("[data-micro-days]")?.getAttribute("data-micro-days")).toBe("0");
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    const client = await mountProbe("client");
+    expect(client.querySelector("[data-micro-days]")?.getAttribute("data-micro-days")).toBe("0");
+
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    const diet = await mountProbe("dietitian");
+    expect(diet.querySelector("[data-micro-days]")?.getAttribute("data-micro-days")).toBe("3");
+  });
+
+  it("picking a different nutrient charts that nutrient's series (in its unit)", async () => {
+    rollupRows = microRollups();
+    const el = await mount("dietitian");
+    expect(el.textContent).toContain("daily logged sodium");
+
+    // Open the Select and choose Iron.
+    const trigger = el.querySelector('[aria-label="Micronutrient"]') as HTMLElement;
+    await act(async () => {
+      trigger.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      trigger.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    const ironOption = [...document.body.querySelectorAll('[role="option"]')].find(
+      (o) => (o.textContent ?? "").includes("Iron"),
+    ) as HTMLElement;
+    expect(ironOption).toBeTruthy();
+    await act(async () => {
+      ironOption.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true }));
+      ironOption.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    });
+    await act(async () => { await new Promise((r) => setTimeout(r, 10)); });
+
+    expect(el.textContent).toContain("daily logged iron");
+    // Iron has 3 charted points too → still drawn, not the empty state.
+    expect(el.textContent).not.toContain("Not enough logged days yet to chart this nutrient.");
+  });
+
+  it("<2 charted points → the chart's calm empty state, no crash, no error banner", async () => {
+    rollupRows = [
+      { log_date: iso(1), total_kcal: 2000, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200, micros: { sodium: 1800 } },
+    ];
+    const el = await mount("dietitian");
+
+    expect(el.querySelector("[data-micro-trends]")).not.toBeNull();
+    expect(el.textContent).toContain("Not enough logged days yet to chart this nutrient.");
+    expect(el.querySelector('[role="alert"]')).toBeNull();
   });
 });

@@ -7,6 +7,7 @@ import {
 } from "@/components/client-overview/charts/PhaseAnnotatedTrendChart";
 import { STATUS_DOT } from "@/components/nutrition/adherenceBandStyles";
 import { useNutritionIntakeHistory } from "./useNutritionIntakeHistory";
+import { NutritionMicroTrends } from "./NutritionMicroTrends";
 
 /**
  * Nutrition intake History & Trends (P5b) — reusable on the coach nutrition History tab and on
@@ -17,8 +18,10 @@ import { useNutritionIntakeHistory } from "./useNutritionIntakeHistory";
  * empty adherence window is a neutral note, never an off-track verdict. All of that lives in
  * the pure adherence module and the shared STATUS_DOT map — this component only arranges it.
  *
- * `viewerRole` reserves the seam for the deferred dietitian micronutrient trends; it does not
- * gate anything today (calories + macros are visible to coach and client alike).
+ * `viewerRole` gates the dietitian/admin-only micronutrient trends panel (P5b extension):
+ * calories + macros are visible to coach and client alike, but per-nutrient micro trends render
+ * only for a dietitian/admin — and the hook only hands this component a micros map for those
+ * roles, so the gate is enforced at the data source, not just in the markup.
  */
 
 // Chart line colours (recharts needs literal strings). Crimson = intake, muted slate = target
@@ -31,12 +34,14 @@ const COLOR_CARBS = "#3b82f6";
 
 export interface NutritionIntakeHistoryProps {
   clientUserId: string;
-  viewerRole?: "client" | "coach" | "dietitian";
+  viewerRole?: "client" | "coach" | "dietitian" | "admin";
 }
 
-export function NutritionIntakeHistory({ clientUserId }: NutritionIntakeHistoryProps) {
-  const { intake, target, protein, fat, carbs, phases, adherence, hasTargetHistory, loading } =
-    useNutritionIntakeHistory(clientUserId);
+export function NutritionIntakeHistory({ clientUserId, viewerRole }: NutritionIntakeHistoryProps) {
+  const { intake, target, protein, fat, carbs, phases, adherence, hasTargetHistory, microsByDay, loading } =
+    useNutritionIntakeHistory(clientUserId, viewerRole);
+
+  const showMicros = viewerRole === "dietitian" || viewerRole === "admin";
 
   const calorieSeries: TrendSeries[] = [
     { key: "intake", name: "Intake", color: COLOR_INTAKE, points: intake },
@@ -77,6 +82,13 @@ export function NutritionIntakeHistory({ clientUserId }: NutritionIntakeHistoryP
         hasTargetHistory={hasTargetHistory}
         loading={loading}
       />
+
+      {/* Dietitian/admin only. A coach's `microsByDay` is empty by construction (gated in the
+          hook), so even if this rendered for a coach it would show nothing — but we gate here
+          too so the panel doesn't appear at all. */}
+      {showMicros && (
+        <NutritionMicroTrends clientUserId={clientUserId} microsByDay={microsByDay} phases={phases} />
+      )}
     </div>
   );
 }

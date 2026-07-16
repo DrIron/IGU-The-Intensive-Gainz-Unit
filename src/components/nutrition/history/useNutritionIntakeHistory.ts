@@ -26,7 +26,14 @@ interface RollupRow {
   total_protein_g: number;
   total_fat_g: number;
   total_carb_g: number;
+  micros: Record<string, unknown> | null;
 }
+
+/** Who is viewing — gates the micronutrient map at the source (see below). */
+export type HistoryViewerRole = "client" | "coach" | "dietitian" | "admin";
+
+/** Per-day micronutrient values: ISO date → { nutrient key → value in the nutrient's own unit }. */
+export type MicrosByDay = Record<string, Record<string, number>>;
 
 /** A phase with its target macros, for per-day target resolution. */
 export interface PhaseWithTarget {
@@ -101,6 +108,14 @@ export interface NutritionIntakeHistoryData {
   adherence: NutritionAdherenceWindow;
   /** False when the client has no phases at all (team-plan self-service) → neutral adherence. */
   hasTargetHistory: boolean;
+  /**
+   * Per-day micronutrients. GATED AT THE SOURCE: populated only for a dietitian/admin viewer;
+   * empty for coach/client. The raw food_log_daily_rollup read is staff-readable and its micros
+   * jsonb is NOT role-scoped in the DB (only the get_client_daily_nutrition RPC scopes them), so
+   * this UI gate is the micro/coach boundary — consistent with the P4 rule that a coach's
+   * payload is micro-free by construction.
+   */
+  microsByDay: MicrosByDay;
   loading: boolean;
 }
 
@@ -118,18 +133,21 @@ function dayStartMs(isoDate: string): number {
   return d.getTime();
 }
 
-export function useNutritionIntakeHistory(clientUserId: string | null) {
+export function useNutritionIntakeHistory(
+  clientUserId: string | null,
+  viewerRole?: HistoryViewerRole,
+) {
   const [data, setData] = useState<NutritionIntakeHistoryData>({
     intake: [], target: [], protein: [], fat: [], carbs: [], phases: [],
-    adherence: EMPTY_ADHERENCE, hasTargetHistory: false, loading: true,
+    adherence: EMPTY_ADHERENCE, hasTargetHistory: false, microsByDay: {}, loading: true,
   });
   const hasFetched = useRef<string | null>(null);
 
-  const load = useCallback(async (userId: string) => {
+  const load = useCallback(async (userId: string, role: HistoryViewerRole | undefined) => {
     const [rollupRes, phasesRes, goalsRes] = await Promise.all([
       supabase
         .from("food_log_daily_rollup")
-        .select("log_date, total_kcal, total_protein_g, total_fat_g, total_carb_g")
+        .select("log_date, total_kcal, total_protein_g, total_fat_g, total_carb_g, micros")
         .eq("client_id", userId)
         .order("log_date", { ascending: true }),
       supabase
@@ -214,6 +232,22 @@ export function useNutritionIntakeHistory(clientUserId: string | null) {
       if (seg && seg.kcal > 0) target.push({ t, value: Math.round(seg.kcal) });
     }
 
+    // Micronutrients — GATED AT THE SOURCE. Only a dietitian/admin viewer gets the map; a
+    // coach/client viewer's stays empty, so the micro panel never even receives the data.
+    const microsByDay: MicrosByDay = {};
+    if (role === "dietitian" || role === "admin") {
+      for (const r of rollups) {
+        const raw = r.micros;
+        if (!raw || typeof raw !== "object") continue;
+        const dayMap: Record<string, number> = {};
+        for (const [k, v] of Object.entries(raw)) {
+          const n = Number(v);
+          if (Number.isFinite(n)) dayMap[k] = n;
+        }
+        microsByDay[r.log_date] = dayMap;
+      }
+    }
+
     // Adherence over the fixed trailing 56-day window.
     const byDate = new Map<string, RollupRow>();
     for (const r of rollups) byDate.set(r.log_date, r);
@@ -257,19 +291,21 @@ export function useNutritionIntakeHistory(clientUserId: string | null) {
         streak,
       },
       hasTargetHistory: segments.some((s) => s.kcal > 0),
+      microsByDay,
       loading: false,
     });
   }, []);
 
   useEffect(() => {
-    if (!clientUserId || hasFetched.current === clientUserId) return;
-    hasFetched.current = clientUserId;
+    const key = `${clientUserId}:${viewerRole ?? ""}`;
+    if (!clientUserId || hasFetched.current === key) return;
+    hasFetched.current = key;
     // Degrade-safe: a thrown read leaves the slice at its empty defaults, loading=false.
-    load(clientUserId).catch((err) => {
+    load(clientUserId, viewerRole).catch((err) => {
       console.error("[NutritionIntakeHistory]", err);
       setData((prev) => ({ ...prev, loading: false }));
     });
-  }, [clientUserId, load]);
+  }, [clientUserId, viewerRole, load]);
 
   return data;
 }

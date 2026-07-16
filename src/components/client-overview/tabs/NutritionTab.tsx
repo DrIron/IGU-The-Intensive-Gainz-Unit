@@ -293,11 +293,11 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
               <AllPhasesBodyFatChart clientUserId={clientUserId} />
               <AllPhasesCircumferenceChart clientUserId={clientUserId} />
               {/* P5b -- logged food-intake trends + adherence, beside the measurement charts.
-                  viewerRole only reserves the seam for deferred dietitian micro trends; it
-                  gates nothing today, so admin folds to the coach view. */}
+                  viewerRole now gates the dietitian/admin-only micronutrient trends panel, so
+                  pass it through verbatim (admin + dietitian get micros; a plain coach doesn't). */}
               <NutritionIntakeHistory
                 clientUserId={clientUserId}
-                viewerRole={context.viewerRole === "dietitian" ? "dietitian" : "coach"}
+                viewerRole={context.viewerRole}
               />
               <CoachNutritionGraphs phase={selectedPhase} />
               <CoachNutritionProgress
