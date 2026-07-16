@@ -231,7 +231,7 @@ export default function BillingPayment() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-24 max-w-2xl">
           <div className="flex flex-col items-center justify-center gap-4 py-12">
@@ -245,7 +245,7 @@ export default function BillingPayment() {
 
   if (!subscription) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-24 max-w-2xl">
           <Card>
@@ -268,7 +268,7 @@ export default function BillingPayment() {
 
   if (paymentExempt) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+      <div className="min-h-screen bg-background">
         <Navigation />
         <div className="container mx-auto px-4 py-24 max-w-2xl">
           <Card>
@@ -315,7 +315,7 @@ export default function BillingPayment() {
   const daysUntilGraceEnd = graceDeadline ? differenceInDays(graceDeadline, new Date()) : null;
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen bg-background">
       <Navigation />
       <div className="container mx-auto px-4 py-24 max-w-2xl">
         <Button 

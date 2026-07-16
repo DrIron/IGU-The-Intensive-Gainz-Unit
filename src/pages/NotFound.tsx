@@ -24,7 +24,7 @@ const NotFound = () => {
   }, []);
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-background via-background to-primary/5">
+    <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       {/* React 19 hoists this into <head> */}
       <meta name="robots" content="noindex, nofollow" />
       <Card className="max-w-md w-full border-border/50 shadow-xl">

@@ -20,7 +20,7 @@ export default function Unauthorized() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-background to-destructive/5 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="max-w-md w-full border-destructive/20 shadow-lg">
         <CardHeader className="text-center pb-2">
           <div className="mx-auto mb-4 p-4 rounded-full bg-destructive/10">

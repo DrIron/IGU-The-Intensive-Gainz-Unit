@@ -187,7 +187,7 @@ export default function CoachPasswordSetup() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-background to-muted/20 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <Card className="w-full max-w-md">
         {setupState === "checking" && (
           <CardContent className="flex flex-col items-center justify-center gap-3 py-12 text-center">
