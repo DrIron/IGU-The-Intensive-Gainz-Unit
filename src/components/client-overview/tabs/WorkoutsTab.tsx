@@ -7,7 +7,6 @@
 // AssignFromLibraryDialog + DirectClientCalendar for write actions.
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
@@ -30,6 +29,7 @@ import { ClientScheduleCalendar } from "../workouts/ClientScheduleCalendar";
 import { WorkoutPulse } from "../workouts/WorkoutPulse";
 import { WorkoutTrendCards } from "../workouts/WorkoutTrendCards";
 import { WorkoutHistoryTrends } from "../workouts/WorkoutHistoryTrends";
+import { AssignProgramPicker } from "../workouts/AssignProgramPicker";
 import {
   useAdherencePulse,
   useClientPrograms,
@@ -47,7 +47,6 @@ import {
  */
 export function WorkoutsTab({ context }: ClientOverviewTabProps) {
   const { clientUserId, profile, subscription } = context;
-  const navigate = useNavigate();
 
   // Coach's own user id — not on ClientContext, resolved once from auth.
   const [coachUserId, setCoachUserId] = useState<string | null>(null);
@@ -78,11 +77,22 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
 
   // Write-action dialogs.
   const [assignOpen, setAssignOpen] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
   const [directCalendarOpen, setDirectCalendarOpen] = useState(false);
   const [assignTarget, setAssignTarget] = useState<{
     programId: string;
     programTitle: string;
   } | null>(null);
+
+  // WK10-a: pick a template in-tab, then hand it to AssignFromLibraryDialog —
+  // no navigation to /coach/programs, so the coach never leaves the client.
+  const handlePickTemplate = useCallback(
+    (programId: string, programTitle: string) => {
+      setAssignTarget({ programId, programTitle });
+      setAssignOpen(true);
+    },
+    [],
+  );
 
   // B3 inner tabs: Pulse · Programs · Calendar · History.
   const [innerTab, setInnerTab] = useState("pulse");
@@ -237,7 +247,13 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
             <Button
               size="sm"
               variant="default"
-              onClick={() => navigate("/coach/programs?tab=mesocycles")}
+              onClick={() => setPickerOpen(true)}
+              disabled={!subscription || !coachUserId}
+              title={
+                !subscription
+                  ? "Client has no active subscription — cannot assign a program"
+                  : "Assign a program from your library"
+              }
             >
               <Plus className="h-4 w-4 mr-1.5" />
               Assign program
@@ -279,7 +295,10 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
               </CardContent>
             </Card>
           ) : !hasAnyProgram ? (
-            <EmptyState onGoToPrograms={() => navigate("/coach/programs?tab=mesocycles")} />
+            <EmptyState
+              onAssignProgram={() => setPickerOpen(true)}
+              disabled={!subscription || !coachUserId}
+            />
           ) : (
             <ClientProgramList programs={programs} onOpen={handleOpenProgram} />
           )}
@@ -349,6 +368,16 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
         canComment
       />
 
+      {/* WK10-a in-tab template picker — feeds AssignFromLibraryDialog below. */}
+      {coachUserId && (
+        <AssignProgramPicker
+          open={pickerOpen}
+          onOpenChange={setPickerOpen}
+          coachUserId={coachUserId}
+          onPick={handlePickTemplate}
+        />
+      )}
+
       {/* Assign dialog — opens only when we have a target template id */}
       {assignTarget && coachUserId && (
         <AssignFromLibraryDialog
@@ -391,28 +420,42 @@ export function WorkoutsTab({ context }: ClientOverviewTabProps) {
 
 /* ------------------------------------------------------------------ */
 
-function EmptyState({ onGoToPrograms }: { onGoToPrograms: () => void }) {
-    return (                        
-      <Card>                     
-        <CardContent className="py-12">
-          <div className="flex flex-col items-center text-center gap-3
-  text-muted-foreground">     
-            <div className="inline-flex items-center justify-center p-3 rounded-full bg-muted">
-              <Dumbbell className="h-6 w-6" aria-hidden="true" />
-            </div>              
-            <div>                            
-              <p className="font-medium text-foreground">No programs yet</p>   
-              <p className="text-sm mt-1 max-w-xs">                          
-                Assign a program from your library or inject a direct session  
-  to                                                                         
-                start this client on a workout track.                          
-              </p>                                                             
-            </div>                                                             
-            <Button size="sm" onClick={onGoToPrograms}>                        
-              Go to Programs                                                   
-            </Button>            
-          </div>                          
-        </CardContent>                                                       
-      </Card>                                                                  
-    );                            
-  }                                        
+function EmptyState({
+  onAssignProgram,
+  disabled,
+}: {
+  onAssignProgram: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <Card>
+      <CardContent className="py-12">
+        <div className="flex flex-col items-center text-center gap-3 text-muted-foreground">
+          <div className="inline-flex items-center justify-center p-3 rounded-full bg-muted">
+            <Dumbbell className="h-6 w-6" aria-hidden="true" />
+          </div>
+          <div>
+            <p className="font-medium text-foreground">No programs yet</p>
+            <p className="text-sm mt-1 max-w-xs">
+              Assign a program from your library or inject a direct session to
+              start this client on a workout track.
+            </p>
+          </div>
+          <Button
+            size="sm"
+            onClick={onAssignProgram}
+            disabled={disabled}
+            title={
+              disabled
+                ? "Client has no active subscription — cannot assign a program"
+                : undefined
+            }
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            Assign program
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
