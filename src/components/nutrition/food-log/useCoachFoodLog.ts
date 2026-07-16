@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { captureException } from "@/lib/errorLogging";
 import type { NutritionTotals } from "../NutritionSummary";
 import type { FoodLogUnit } from "@/lib/foodLog";
+import type { FoodLogWriteRole } from "./useFoodLog";
 
 /**
  * The COACH/DIETITIAN read of a client's food log for one day (P4).
@@ -15,6 +16,7 @@ import type { FoodLogUnit } from "@/lib/foodLog";
 
 export interface CoachLogEntry {
   id: string;
+  food_id: string | null;
   meal_slot: string;
   food_name: string;
   quantity: number;
@@ -25,6 +27,8 @@ export interface CoachLogEntry {
   fat_g: number;
   carb_g: number;
   portion_label: string | null;
+  /** Attribution — 'client' when self-logged, a staff role when a coach/dietitian added it. */
+  created_by_role: FoodLogWriteRole;
 }
 
 interface DailyNutritionPayload {
@@ -75,6 +79,7 @@ export function useCoachFoodLog(clientUserId: string | null, logDate: string) {
         setEntries(
           (p?.entries ?? []).map((e) => ({
             id: e.id as string,
+            food_id: (e.food_id as string | null) ?? null,
             meal_slot: e.meal_slot as string,
             food_name: e.food_name as string,
             quantity: Number(e.quantity),
@@ -85,6 +90,7 @@ export function useCoachFoodLog(clientUserId: string | null, logDate: string) {
             fat_g: Number(e.fat_g),
             carb_g: Number(e.carb_g),
             portion_label: (e.portion_label as string | null) ?? null,
+            created_by_role: ((e.created_by_role as string | null) ?? "client") as FoodLogWriteRole,
           })),
         );
         setDayMicros((p?.day_micros ?? {}) as Record<string, number>);
