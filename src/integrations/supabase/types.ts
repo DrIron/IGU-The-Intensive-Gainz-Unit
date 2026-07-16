@@ -5790,6 +5790,7 @@ export type Database = {
       }
       nutrition_phases: {
         Row: {
+          adherence_tolerance_pct: number
           carb_grams: number
           coach_id: string | null
           coach_notes: string | null
@@ -5826,6 +5827,7 @@ export type Database = {
           weekly_rate_percentage: number
         }
         Insert: {
+          adherence_tolerance_pct?: number
           carb_grams: number
           coach_id?: string | null
           coach_notes?: string | null
@@ -5862,6 +5864,7 @@ export type Database = {
           weekly_rate_percentage: number
         }
         Update: {
+          adherence_tolerance_pct?: number
           carb_grams?: number
           coach_id?: string | null
           coach_notes?: string | null

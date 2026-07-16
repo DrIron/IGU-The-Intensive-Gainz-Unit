@@ -25,6 +25,11 @@ export interface ActiveNutritionTarget {
   carbs: number;
   goalType: string | null;
   source: "phase" | "goal";
+  /**
+   * Calorie-adherence tolerance (% of target) for this target. Coaches set it per phase; goals
+   * (team-plan self-service) have no such column and always resolve to 10 (the default band).
+   */
+  tolerancePct: number;
   /** The untouched phase/goal row, for callers needing more than the four macros. */
   raw: Record<string, unknown>;
 }
@@ -34,6 +39,8 @@ function shape(row: Record<string, unknown> | null, source: "phase" | "goal"): A
   if (!row) return null;
   const kcal = Number(row.daily_calories);
   if (!Number.isFinite(kcal) || kcal <= 0) return null;
+  // Only phases carry a tolerance; goals fall back to the default band.
+  const tolRaw = source === "phase" ? Number(row.adherence_tolerance_pct ?? 10) : 10;
   return {
     kcal,
     protein: Number(row.protein_grams ?? 0),
@@ -41,6 +48,7 @@ function shape(row: Record<string, unknown> | null, source: "phase" | "goal"): A
     carbs: Number(row.carb_grams ?? 0),
     goalType: (row.goal_type as string | null) ?? null,
     source,
+    tolerancePct: Number.isFinite(tolRaw) && tolRaw > 0 ? tolRaw : 10,
     raw: row,
   };
 }

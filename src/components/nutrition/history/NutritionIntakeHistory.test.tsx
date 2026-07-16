@@ -246,6 +246,39 @@ describe("NutritionIntakeHistory", () => {
     expect(el.textContent).toContain("Macro trends");
   });
 
+  // ── Coach-overridable adherence tolerance (D7 hybrid) ────────────────────────
+  // 3 logged days all at +8% of a 2,000 target. Adherent at the default ±10, slightly-off at ±5.
+  const plusEightRollups = () => [
+    { log_date: iso(3), total_kcal: 2160, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200 },
+    { log_date: iso(2), total_kcal: 2160, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200 },
+    { log_date: iso(1), total_kcal: 2160, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200 },
+  ];
+
+  it("a STRICT phase (tolerance 5) judges a +8% day as off the adherent band", async () => {
+    phaseRows = [{ start_date: iso(60), phase_name: "Cut", daily_calories: 2000, protein_grams: 160, fat_grams: 60, carb_grams: 200, adherence_tolerance_pct: 5 }];
+    rollupRows = plusEightRollups();
+    const el = await mount();
+    // +8% is slightly_off at ±5 → 0% adherent. (At the default ±10 it would read 100%.)
+    expect(el.textContent).toContain("0% on target when logged");
+    expect(el.textContent).not.toContain("100% on target when logged");
+  });
+
+  it("the SAME days at the default tolerance (10) read 100% — proving the phase value drives it", async () => {
+    phaseRows = [{ start_date: iso(60), phase_name: "Cut", daily_calories: 2000, protein_grams: 160, fat_grams: 60, carb_grams: 200, adherence_tolerance_pct: 10 }];
+    rollupRows = plusEightRollups();
+    const el = await mount();
+    expect(el.textContent).toContain("100% on target when logged");
+  });
+
+  it("a goals-only (team-plan) client has no tolerance column → falls back to the default 10", async () => {
+    phaseRows = []; // no phases
+    goalRows = [{ start_date: iso(60), end_date: null, daily_calories: 2000, protein_grams: 160, fat_grams: 60, carb_grams: 200 }];
+    rollupRows = plusEightRollups();
+    const el = await mount();
+    // +8% is adherent at the fallback ±10.
+    expect(el.textContent).toContain("100% on target when logged");
+  });
+
   // ── Dietitian micronutrient trends (P5b extension) ───────────────────────────
   const microRollups = () => [
     { log_date: iso(3), total_kcal: 2000, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200, micros: { sodium: 1800, iron: 12 } },

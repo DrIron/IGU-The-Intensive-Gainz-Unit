@@ -152,6 +152,28 @@ describe("FoodLogAdherenceCard", () => {
     expect(el.querySelector('[data-day-dot="off_track"]')).not.toBeNull();
   });
 
+  it("a STRICT phase tolerance (5) makes a +8% week read Slightly off, not On target", async () => {
+    // The active phase carries the tolerance; getActiveNutritionTarget threads it to the module.
+    phaseRow = { daily_calories: 2000, protein_grams: 160, fat_grams: 60, carb_grams: 200, adherence_tolerance_pct: 5 };
+    rollupRows = Array.from({ length: 5 }, (_, i) => ({
+      log_date: d(i), total_kcal: 2160, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200, // +8%
+    }));
+    const el = await mount();
+    // +8% is within ±10 (adherent at default) but past ±5 → Slightly off here.
+    expect(el.textContent).toContain("Slightly off");
+    expect(el.textContent).not.toContain("On target");
+  });
+
+  it("a goals-only client (no phase tolerance column) falls back to the default 10 → On target at +8%", async () => {
+    phaseRow = null;
+    goalRow = { daily_calories: 2000, protein_grams: 160, fat_grams: 60, carb_grams: 200 };
+    rollupRows = Array.from({ length: 5 }, (_, i) => ({
+      log_date: d(i), total_kcal: 2160, total_protein_g: 160, total_fat_g: 60, total_carb_g: 200, // +8%
+    }));
+    const el = await mount();
+    expect(el.textContent).toContain("On target");
+  });
+
   it("a failed rollup read renders LoadError, never a neutral empty week", async () => {
     failRollup = true;
     const el = await mount();
