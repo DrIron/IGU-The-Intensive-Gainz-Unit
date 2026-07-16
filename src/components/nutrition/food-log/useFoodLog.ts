@@ -15,6 +15,9 @@ import { sumEntries, type FoodLogUnit } from "@/lib/foodLog";
  * rollup remains the durable, staff-readable source for the coach surfaces (P4).
  */
 
+/** Who authored an entry. Drives attribution; defaults to the client logging their own diary. */
+export type FoodLogWriteRole = "client" | "coach" | "dietitian" | "admin";
+
 export interface FoodLogEntry {
   id: string;
   food_id: string | null;
@@ -28,6 +31,8 @@ export interface FoodLogEntry {
   fat_g: number;
   carb_g: number;
   portion_label: string | null;
+  /** 'client' when self-logged; a staff role when a coach/dietitian added it (attribution). */
+  created_by_role: FoodLogWriteRole;
 }
 
 /** The coach's target for the day, or null if the client has no active nutrition phase. */
@@ -51,7 +56,7 @@ export function useFoodLog(clientUserId: string | null, logDate: string) {
           supabase
             .from("food_log_entries")
             .select(
-              "id, food_id, food_name, meal_slot, quantity, unit, quantity_g, kcal, protein_g, fat_g, carb_g, source_note",
+              "id, food_id, food_name, meal_slot, quantity, unit, quantity_g, kcal, protein_g, fat_g, carb_g, source_note, created_by_role",
             )
             .eq("client_id", clientUserId)
             .eq("log_date", logDate)
@@ -80,6 +85,7 @@ export function useFoodLog(clientUserId: string | null, logDate: string) {
             // The portion label is stashed on source_note at write time so an entry can
             // still say "1 breast" after the food (and its portions) are gone.
             portion_label: (e.source_note as string | null) ?? null,
+            created_by_role: ((e.created_by_role as string | null) ?? "client") as FoodLogWriteRole,
           })),
         );
 
@@ -127,6 +133,10 @@ export interface NewEntry {
   carbG: number;
   micros: Record<string, number>;
   portionLabel: string | null;
+  /** Who is creating this entry. Defaults to the self-logging client. */
+  createdByRole?: FoodLogWriteRole;
+  /** The staff member's uid when a coach/dietitian authors it; null for the client. */
+  createdByUserId?: string | null;
 }
 
 export async function insertEntry(e: NewEntry): Promise<void> {
@@ -145,11 +155,15 @@ export async function insertEntry(e: NewEntry): Promise<void> {
     carb_g: e.carbG,
     micros: e.micros,
     source_note: e.portionLabel,
-    created_by_role: "client",
+    created_by_role: e.createdByRole ?? "client",
+    created_by_user_id: e.createdByUserId ?? null,
   });
   if (error) throw error;
 }
 
+// Attribution = CREATOR and is immutable: an edit never rewrites created_by_role /
+// created_by_user_id (there is no "last edited by" — that's out of scope). So a staff
+// member correcting a client's entry leaves it attributed to the client, and vice versa.
 export async function updateEntry(
   id: string,
   patch: Pick<NewEntry, "quantity" | "unit" | "quantityG" | "kcal" | "proteinG" | "fatG" | "carbG" | "micros" | "portionLabel" | "mealSlot">,

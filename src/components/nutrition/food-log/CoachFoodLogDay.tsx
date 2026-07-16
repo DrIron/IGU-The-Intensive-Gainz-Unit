@@ -3,26 +3,42 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
-import { ChevronLeft, ChevronRight, Loader2, UtensilsCrossed } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { ChevronLeft, ChevronRight, Loader2, MoreVertical, Plus, UtensilsCrossed } from "lucide-react";
 import { addDays, format, isToday } from "date-fns";
 import { NutritionSummary } from "../NutritionSummary";
 import { useCoachFoodLog } from "./useCoachFoodLog";
+import { useFoodLogAuthoring } from "./useFoodLogAuthoring";
+import { EntryAttributionChip } from "./EntryAttributionChip";
 import { FoodLogAdherenceCard } from "./FoodLogAdherenceCard";
 import { MacroAlertBanner } from "./MacroAlertBanner";
+import { useNutritionPermissions } from "@/hooks/useNutritionPermissions";
+import { useAuthSession } from "@/hooks/useAuthSession";
+import type { FoodLogWriteRole } from "./useFoodLog";
 import { formatAmount, MEAL_SLOTS, MEAL_SLOT_LABEL } from "@/lib/foodLog";
 
 /**
- * CoachFoodLogDay — a coach's / dietitian's READ-ONLY view of a client's food log for one day
- * (P4). Mounts inside the Client Overview nutrition tab.
+ * CoachFoodLogDay — a coach's / dietitian's view of a client's food log for one day.
  *
- * Read-only is the whole point: no kebab, no Add, no drawers, no mutations. A coach reviews
- * what the client logged; they do not edit it. (Coach/dietitian AUTHORING is a later slice —
- * `created_by_role` is already in the schema to carry it when it lands.)
+ * P4 shipped this read-only; this slice adds GATED authoring. When `can_edit_nutrition`
+ * grants edit (via useNutritionPermissions) the coach/dietitian can add, correct, and delete
+ * entries through the SAME write path as the client's own diary (useFoodLogAuthoring) — one
+ * mutation path, no second copy. When it does not (e.g. a coach whose client has a dietitian
+ * assigned, or any read-only viewer) it stays exactly read-only: no kebab, no Add, no drawers.
  *
- * Every byte here comes from get_client_daily_nutrition, which has already applied the role
- * gate and the macro/micro boundary. The "Micronutrients" section renders only what the RPC
- * returned — so for a plain coach it is empty (macros only) by construction, not by a check
- * in this file. There is no client-side filtering to get wrong.
+ * RLS is the real gate: `food_log staff write` USES `can_edit_nutrition` server-side, so even
+ * if this UI were coaxed into a write, the row would be refused. `canEdit` only decides which
+ * controls render. Staff-created entries carry `created_by_role` and are visibly attributed on
+ * BOTH surfaces — a client must never find a staff-inserted row indistinguishable from theirs.
+ *
+ * The read still comes from get_client_daily_nutrition, which applies the role gate and the
+ * macro/micro boundary. The "Micronutrients" section renders only what the RPC returned — for
+ * a plain coach it is empty (macros only) by construction, not by a check in this file.
  */
 
 // Display metadata for the micro keys the RPC may return (nutrients.key → label + unit).
@@ -40,7 +56,16 @@ const MICRO_META: Record<string, { label: string; unit: string }> = {
 // Stable display order; unknown keys fall to the end alphabetically.
 const MICRO_ORDER = ["fiber", "sugar", "sat_fat", "sodium", "potassium", "calcium", "iron", "vitamin_c", "vitamin_d"];
 
-export function CoachFoodLogDay({ clientUserId }: { clientUserId: string }) {
+export function CoachFoodLogDay({
+  clientUserId,
+  viewerRole,
+}: {
+  clientUserId: string;
+  /** The viewing staff member's role (context.viewerRole). Stamped as created_by_role on
+   *  entries they author. Defaults to 'coach' — the read-only case never writes, so the
+   *  value is only ever used once canEdit is true. */
+  viewerRole?: FoodLogWriteRole;
+}) {
   const [date, setDate] = useState(() => new Date());
   const logDate = format(date, "yyyy-MM-dd");
 
@@ -48,6 +73,20 @@ export function CoachFoodLogDay({ clientUserId }: { clientUserId: string }) {
     clientUserId,
     logDate,
   );
+
+  // Gated authoring: the same server-side rule (can_edit_nutrition) that RLS enforces.
+  const { canEdit } = useNutritionPermissions({ clientUserId });
+  const { user } = useAuthSession();
+  const { openAdd, startEdit, remove, drawers } = useFoodLogAuthoring({
+    clientUserId,
+    logDate,
+    writeRole: viewerRole ?? "coach",
+    writeUserId: user?.id ?? null,
+    canEdit,
+    dayTotals: totals,
+    dayTarget: target,
+    onChanged: () => reload({ silent: true }),
+  });
 
   const microRows = Object.keys(dayMicros)
     .sort((a, b) => {
@@ -115,7 +154,7 @@ export function CoachFoodLogDay({ clientUserId }: { clientUserId: string }) {
 
       {!loading && !loadError && (
         <>
-          {!hasEntries ? (
+          {!hasEntries && !canEdit ? (
             <EmptyState
               icon={UtensilsCrossed}
               title={`No food logged on ${format(date, "MMM d")}`}
@@ -125,7 +164,9 @@ export function CoachFoodLogDay({ clientUserId }: { clientUserId: string }) {
             <>
               {MEAL_SLOTS.map((slot) => {
                 const slotEntries = entries.filter((e) => e.meal_slot === slot);
-                if (slotEntries.length === 0) return null;
+                // Read-only: skip empty meals (unchanged). Editable: always render so the
+                // coach can add into an empty meal (and into an otherwise-empty day).
+                if (slotEntries.length === 0 && !canEdit) return null;
                 const slotKcal = slotEntries.reduce((s, e) => s + e.kcal, 0);
                 return (
                   <Card key={slot} data-meal-section={slot}>
@@ -138,20 +179,76 @@ export function CoachFoodLogDay({ clientUserId }: { clientUserId: string }) {
                       </div>
                     </CardHeader>
                     <CardContent className="pt-0">
-                      <ul className="divide-y">
-                        {slotEntries.map((e) => (
-                          <li key={e.id} data-entry={e.id} className="flex items-center gap-3 py-2.5">
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate font-medium">{e.food_name}</p>
-                              <p className="truncate font-mono text-xs tabular-nums text-muted-foreground">
-                                {formatAmount(e.quantity, e.unit, e.quantity_g, e.portion_label)} · P{" "}
-                                {Math.round(e.protein_g)} F {Math.round(e.fat_g)} C {Math.round(e.carb_g)}
-                              </p>
-                            </div>
-                            <span className="shrink-0 font-mono text-sm tabular-nums">{Math.round(e.kcal)}</span>
-                          </li>
-                        ))}
-                      </ul>
+                      {slotEntries.length === 0 ? (
+                        <p className="py-2 text-sm text-muted-foreground">Nothing logged yet.</p>
+                      ) : (
+                        <ul className="divide-y">
+                          {slotEntries.map((e) => (
+                            <li key={e.id} data-entry={e.id} className="flex items-center gap-3 py-2.5">
+                              {canEdit ? (
+                                <button
+                                  type="button"
+                                  onClick={() => startEdit(e)}
+                                  className="min-w-0 flex-1 text-left"
+                                  aria-label={`Edit ${e.food_name}`}
+                                >
+                                  <p className="truncate font-medium">{e.food_name}</p>
+                                  <p className="truncate font-mono text-xs tabular-nums text-muted-foreground">
+                                    {formatAmount(e.quantity, e.unit, e.quantity_g, e.portion_label)} · P{" "}
+                                    {Math.round(e.protein_g)} F {Math.round(e.fat_g)} C {Math.round(e.carb_g)}
+                                  </p>
+                                  <EntryAttributionChip role={e.created_by_role} perspective="staff" />
+                                </button>
+                              ) : (
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate font-medium">{e.food_name}</p>
+                                  <p className="truncate font-mono text-xs tabular-nums text-muted-foreground">
+                                    {formatAmount(e.quantity, e.unit, e.quantity_g, e.portion_label)} · P{" "}
+                                    {Math.round(e.protein_g)} F {Math.round(e.fat_g)} C {Math.round(e.carb_g)}
+                                  </p>
+                                  <EntryAttributionChip role={e.created_by_role} perspective="staff" />
+                                </div>
+                              )}
+                              <span className="shrink-0 font-mono text-sm tabular-nums">{Math.round(e.kcal)}</span>
+                              {canEdit && (
+                                <DropdownMenu>
+                                  <DropdownMenuTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 shrink-0"
+                                      aria-label={`Options for ${e.food_name}`}
+                                    >
+                                      <MoreVertical className="h-4 w-4" />
+                                    </Button>
+                                  </DropdownMenuTrigger>
+                                  <DropdownMenuContent align="end">
+                                    <DropdownMenuItem onClick={() => startEdit(e)}>Edit</DropdownMenuItem>
+                                    <DropdownMenuItem
+                                      onClick={() => remove(e)}
+                                      className="text-destructive focus:text-destructive"
+                                    >
+                                      Delete
+                                    </DropdownMenuItem>
+                                  </DropdownMenuContent>
+                                </DropdownMenu>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+
+                      {canEdit && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => openAdd(slot)}
+                          className="mt-1 w-full justify-start text-muted-foreground"
+                        >
+                          <Plus className="mr-2 h-4 w-4" aria-hidden />
+                          Add food
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 );
@@ -182,6 +279,9 @@ export function CoachFoodLogDay({ clientUserId }: { clientUserId: string }) {
           )}
         </>
       )}
+
+      {/* Add/edit/custom-food drawers — mounted only when canEdit (the shared authoring path). */}
+      {drawers}
     </div>
   );
 }

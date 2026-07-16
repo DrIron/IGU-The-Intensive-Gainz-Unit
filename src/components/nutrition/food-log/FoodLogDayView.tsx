@@ -9,16 +9,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronLeft, ChevronRight, Plus, MoreVertical, Loader2 } from "lucide-react";
-import { addDays, format, isToday, parseISO } from "date-fns";
-import { toast } from "sonner";
+import { addDays, format, isToday } from "date-fns";
 import { NutritionSummary } from "../NutritionSummary";
-import { AddFoodDrawer } from "./AddFoodDrawer";
-import { FoodDetailDrawer, type PendingEntry } from "./FoodDetailDrawer";
-import { CustomFoodDialog } from "./CustomFoodDialog";
 import { ClientMacroNudge } from "./ClientMacroNudge";
-import { useFoodLog, insertEntry, updateEntry, deleteEntry, type FoodLogEntry } from "./useFoodLog";
-import type { FoodRow } from "./useFoodCatalog";
-import { captureException } from "@/lib/errorLogging";
+import { EntryAttributionChip } from "./EntryAttributionChip";
+import { useFoodLog } from "./useFoodLog";
+import { useFoodLogAuthoring } from "./useFoodLogAuthoring";
 import { formatAmount, MEAL_SLOTS, MEAL_SLOT_LABEL } from "@/lib/foodLog";
 import { cn } from "@/lib/utils";
 
@@ -44,108 +40,18 @@ export function FoodLogDayView({ clientUserId }: FoodLogDayViewProps) {
 
   const { entries, totals, target, loading, loadError, reload } = useFoodLog(clientUserId, logDate);
 
-  const [addOpen, setAddOpen] = useState(false);
-  const [customOpen, setCustomOpen] = useState(false);
-  const [activeSlot, setActiveSlot] = useState<string>("breakfast");
-  const [pickedFood, setPickedFood] = useState<FoodRow | null>(null);
-  const [editing, setEditing] = useState<FoodLogEntry | null>(null);
-
-  const openAdd = (slot: string) => {
-    setActiveSlot(slot);
-    setAddOpen(true);
-  };
-
-  const handleAdd = async (entry: PendingEntry) => {
-    if (!pickedFood) return;
-    try {
-      await insertEntry({
-        clientId: clientUserId,
-        logDate,
-        mealSlot: entry.mealSlot,
-        foodId: pickedFood.id,
-        foodName: pickedFood.name,
-        quantity: entry.quantity,
-        unit: entry.unit,
-        quantityG: entry.quantityG,
-        kcal: entry.kcal,
-        proteinG: entry.proteinG,
-        fatG: entry.fatG,
-        carbG: entry.carbG,
-        micros: entry.micros,
-        portionLabel: entry.portionLabel,
-      });
-      setPickedFood(null);
-      await reload({ silent: true });
-    } catch (e: unknown) {
-      captureException(e, { source: "FoodLogDayView.add" });
-      toast.error("Couldn't add that entry. Please try again.");
-    }
-  };
-
-  const handleEdit = async (entry: PendingEntry) => {
-    if (!editing) return;
-    try {
-      await updateEntry(editing.id, {
-        mealSlot: entry.mealSlot,
-        quantity: entry.quantity,
-        unit: entry.unit,
-        quantityG: entry.quantityG,
-        kcal: entry.kcal,
-        proteinG: entry.proteinG,
-        fatG: entry.fatG,
-        carbG: entry.carbG,
-        micros: entry.micros,
-        portionLabel: entry.portionLabel,
-      });
-      setEditing(null);
-      await reload({ silent: true });
-    } catch (e: unknown) {
-      captureException(e, { source: "FoodLogDayView.edit" });
-      toast.error("Couldn't update that entry. Please try again.");
-    }
-  };
-
-  const handleDelete = async (entry: FoodLogEntry) => {
-    try {
-      await deleteEntry(entry.id);
-      await reload({ silent: true });
-      toast.success("Entry removed");
-    } catch (e: unknown) {
-      captureException(e, { source: "FoodLogDayView.delete" });
-      toast.error("Couldn't remove that entry. Please try again.");
-    }
-  };
-
-  // The food being edited, re-shaped as a FoodRow so the SAME detail drawer serves both
-  // paths. Its per-100g macros are recovered from the entry's own snapshot (kcal ÷ grams
-  // × 100) — so an entry stays editable even if its food row was later deleted.
-  const editingAsFood: FoodRow | null = editing
-    ? {
-        id: editing.food_id ?? "",
-        name: editing.food_name,
-        brand: null,
-        source: "custom",
-        owner_user_id: null,
-        category_id: null,
-        serving_default_g: null,
-        is_verified: false,
-        kcal_100g: (editing.kcal / editing.quantity_g) * 100,
-        protein_100g: (editing.protein_g / editing.quantity_g) * 100,
-        fat_100g: (editing.fat_g / editing.quantity_g) * 100,
-        carb_100g: (editing.carb_g / editing.quantity_g) * 100,
-      }
-    : null;
-
-  // The day WITHOUT the entry being edited — so the "after this" preview doesn't
-  // double-count the very entry it is re-costing.
-  const totalsExcludingEdited = editing
-    ? {
-        kcal: totals.kcal - editing.kcal,
-        protein: totals.protein - editing.protein_g,
-        fat: totals.fat - editing.fat_g,
-        carbs: totals.carbs - editing.carb_g,
-      }
-    : totals;
+  // The client authors their OWN diary — always editable, attributed 'client'. The add/edit/
+  // delete wiring + drawers live in the shared authoring hook (one write path, no second copy).
+  const { openAdd, startEdit, remove, drawers } = useFoodLogAuthoring({
+    clientUserId,
+    logDate,
+    writeRole: "client",
+    writeUserId: null,
+    canEdit: true,
+    dayTotals: totals,
+    dayTarget: target,
+    onChanged: () => reload({ silent: true }),
+  });
 
   return (
     <div className="space-y-6">
@@ -243,7 +149,7 @@ export function FoodLogDayView({ clientUserId }: FoodLogDayViewProps) {
                         >
                           <button
                             type="button"
-                            onClick={() => setEditing(e)}
+                            onClick={() => startEdit(e)}
                             className="min-w-0 flex-1 text-left"
                             aria-label={`Edit ${e.food_name}`}
                           >
@@ -253,6 +159,10 @@ export function FoodLogDayView({ clientUserId }: FoodLogDayViewProps) {
                               P {Math.round(e.protein_g)} F {Math.round(e.fat_g)} C{" "}
                               {Math.round(e.carb_g)}
                             </p>
+                            {/* Transparency: a staff-added entry is visibly marked on the
+                                client's own diary, so it's never indistinguishable from a
+                                self-logged one. */}
+                            <EntryAttributionChip role={e.created_by_role} perspective="client" />
                           </button>
                           <span className="shrink-0 font-mono text-sm tabular-nums">
                             {Math.round(e.kcal)}
@@ -269,9 +179,9 @@ export function FoodLogDayView({ clientUserId }: FoodLogDayViewProps) {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setEditing(e)}>Edit</DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => startEdit(e)}>Edit</DropdownMenuItem>
                               <DropdownMenuItem
-                                onClick={() => handleDelete(e)}
+                                onClick={() => remove(e)}
                                 className="text-destructive focus:text-destructive"
                               >
                                 Delete
@@ -299,57 +209,7 @@ export function FoodLogDayView({ clientUserId }: FoodLogDayViewProps) {
         </div>
       )}
 
-      <AddFoodDrawer
-        open={addOpen}
-        onOpenChange={setAddOpen}
-        clientUserId={clientUserId}
-        mealSlot={activeSlot}
-        onPick={setPickedFood}
-        onCreateCustom={() => {
-          setAddOpen(false);
-          setCustomOpen(true);
-        }}
-      />
-
-      <CustomFoodDialog
-        open={customOpen}
-        onOpenChange={setCustomOpen}
-        clientUserId={clientUserId}
-        onCreated={setPickedFood}
-      />
-
-      {/* Add */}
-      <FoodDetailDrawer
-        food={pickedFood}
-        open={pickedFood != null}
-        onOpenChange={(o) => !o && setPickedFood(null)}
-        dayTotals={totals}
-        dayTarget={target}
-        defaultMealSlot={activeSlot}
-        onSubmit={handleAdd}
-      />
-
-      {/* Edit — the same drawer, seeded with what was logged. */}
-      <FoodDetailDrawer
-        food={editingAsFood}
-        open={editing != null}
-        onOpenChange={(o) => !o && setEditing(null)}
-        dayTotals={totalsExcludingEdited}
-        dayTarget={target}
-        defaultMealSlot={editing?.meal_slot ?? "breakfast"}
-        initial={
-          editing
-            ? {
-                quantity: editing.quantity,
-                unit: editing.unit,
-                portionLabel: editing.portion_label,
-                mealSlot: editing.meal_slot,
-              }
-            : null
-        }
-        onSubmit={handleEdit}
-        submitLabel="Save changes"
-      />
+      {drawers}
     </div>
   );
 }

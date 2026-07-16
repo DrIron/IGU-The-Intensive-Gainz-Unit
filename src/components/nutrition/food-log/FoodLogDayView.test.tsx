@@ -245,6 +245,10 @@ describe("P1 GATE — the hero updates live on add / edit / delete", () => {
     expect(e.kcal).toBe(208.8);
     expect(e.food_name).toBe("Chicken breast, skinless, raw");
     expect(e.unit).toBe("serving");
+    // The shared write path still attributes a self-logged entry to the client (no regression
+    // from generalizing insertEntry for staff authoring).
+    expect(e.created_by_role).toBe("client");
+    expect(e.created_by_user_id).toBeNull();
 
     // ...and the HERO moved. This is the gate.
     expect(text()).toContain("209");          // kcal centred in the donut
@@ -394,6 +398,35 @@ describe("P1 GATE — the hero updates live on add / edit / delete", () => {
     expect(text()).toContain("1,950 kcal left");
     expect(text()).not.toContain("No coach target set");
     expect(doc().querySelector('[role="progressbar"]')).not.toBeNull();
+  });
+
+  it("ATTRIBUTION: a staff-added entry is visibly marked on the client's OWN diary", async () => {
+    // The client must be able to tell a coach-inserted entry from one they logged themselves.
+    db.food_log_entries = [
+      {
+        id: "staff-entry-1",
+        client_id: "client-1",
+        food_id: CHICKEN_ID,
+        food_name: "Chicken breast, skinless, raw",
+        meal_slot: "breakfast",
+        quantity: 1,
+        unit: "serving",
+        quantity_g: 174,
+        kcal: 208.8,
+        protein_g: 39,
+        fat_g: 5,
+        carb_g: 0,
+        log_date: new Date().toISOString().slice(0, 10),
+        source_note: "1 breast",
+        created_by_role: "coach",
+      },
+    ];
+    await act(async () => root.render(<FoodLogDayView clientUserId="client-1" />));
+    await settle();
+
+    const chip = doc().querySelector('[data-entry-attribution="coach"]');
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toContain("Added by your coach");
   });
 
   it("PHASE WINS when both a phase and a goals row exist", async () => {

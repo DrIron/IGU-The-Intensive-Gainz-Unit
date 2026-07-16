@@ -17,6 +17,7 @@ import { createRoot, type Root } from "react-dom/client";
 
 let payload: unknown = null;
 let shouldFail = false;
+let canEditValue = false;
 
 vi.mock("@/integrations/supabase/client", () => ({
   supabase: {
@@ -41,6 +42,18 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 vi.mock("@/lib/errorLogging", () => ({ captureException: vi.fn() }));
+// The authoring gate — driven per-test via canEditValue.
+vi.mock("@/hooks/useNutritionPermissions", () => ({
+  useNutritionPermissions: () => ({
+    canEdit: canEditValue,
+    isLoading: false,
+    clientHasDietitian: false,
+    currentUserRole: "coach",
+  }),
+}));
+vi.mock("@/hooks/useAuthSession", () => ({
+  useAuthSession: () => ({ user: { id: "coach-1" }, isLoading: false }),
+}));
 
 Object.defineProperty(window, "matchMedia", {
   writable: true,
@@ -79,7 +92,7 @@ let container: HTMLDivElement;
 let root: Root;
 
 async function mount(): Promise<HTMLDivElement> {
-  await act(async () => root.render(<CoachFoodLogDay clientUserId="client-1" />));
+  await act(async () => root.render(<CoachFoodLogDay clientUserId="client-1" viewerRole="coach" />));
   await act(async () => {
     await new Promise((r) => setTimeout(r, 20));
   });
@@ -92,6 +105,7 @@ describe("CoachFoodLogDay — role-shaped read", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     shouldFail = false;
+    canEditValue = false;
   });
   afterEach(async () => {
     await act(async () => root.unmount());
@@ -156,5 +170,50 @@ describe("CoachFoodLogDay — role-shaped read", () => {
 
     expect(el.textContent).toContain("No food logged");
     expect(el.querySelector('[role="alert"]')).toBeNull();
+  });
+
+  // ── WK: gated authoring ───────────────────────────────────────────────────────
+  it("when canEdit, exposes add + per-entry options (authoring enabled)", async () => {
+    canEditValue = true;
+    payload = COACH_PAYLOAD;
+    const el = await mount();
+
+    expect(el.textContent).toMatch(/\bAdd food\b/);
+    expect(el.querySelector('[aria-label^="Options"]')).not.toBeNull();
+    expect(el.querySelector('[aria-label^="Edit "]')).not.toBeNull();
+  });
+
+  it("can author into an EMPTY day (add affordance without any existing entry)", async () => {
+    canEditValue = true;
+    payload = { ...COACH_PAYLOAD, entries: [], totals: { kcal: 0, protein_g: 0, fat_g: 0, carb_g: 0 }, day_micros: {} };
+    const el = await mount();
+
+    // No read-only empty state; instead the meal sections render with an add control.
+    expect(el.textContent).toMatch(/\bAdd food\b/);
+    expect(el.querySelector("[data-meal-section]")).not.toBeNull();
+  });
+
+  it("a staff-created entry is attributed on the coach view", async () => {
+    canEditValue = true;
+    payload = {
+      ...COACH_PAYLOAD,
+      entries: [{ ...COACH_PAYLOAD.entries[0], created_by_role: "coach" }],
+    };
+    const el = await mount();
+
+    const chip = el.querySelector('[data-entry-attribution="coach"]');
+    expect(chip).not.toBeNull();
+    expect(chip?.textContent).toContain("Added by coach");
+  });
+
+  it("a client-logged entry carries NO attribution chip (only staff entries are marked)", async () => {
+    canEditValue = true;
+    payload = {
+      ...COACH_PAYLOAD,
+      entries: [{ ...COACH_PAYLOAD.entries[0], created_by_role: "client" }],
+    };
+    const el = await mount();
+
+    expect(el.querySelector("[data-entry-attribution]")).toBeNull();
   });
 });

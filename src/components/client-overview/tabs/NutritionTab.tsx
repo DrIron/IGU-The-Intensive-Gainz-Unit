@@ -323,7 +323,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
             time to read a client's intake is often before any phase exists. The RPC shapes the
             payload by role (a plain coach sees macros only; a dietitian sees micros too). */}
         <TabsContent value="food-log" className="space-y-6">
-          <CoachFoodLogDay clientUserId={clientUserId} />
+          <CoachFoodLogDay clientUserId={clientUserId} viewerRole={context.viewerRole} />
         </TabsContent>
 
         {/* Edit phase -- just the goal form now. Steps + linked content moved
