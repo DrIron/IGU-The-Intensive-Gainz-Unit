@@ -188,18 +188,29 @@ const MobileBottomNavCoach = lazyWithReload(() =>
     import("@/components/coach/CoachSidebar"),
     import("@/hooks/useSubrolePermissions"),
     import("@/hooks/useAuthSession"),
-  ]).then(([navMod, sidebarMod, subroleMod, authMod]) => ({
+    import("@/hooks/useStaffUnreadCounts"),
+    import("@/lib/unread"),
+  ]).then(([navMod, sidebarMod, subroleMod, authMod, unreadMod, unreadUtil]) => ({
     default: () => {
       // Pass the current user id: useUserSubroles is enabled:!!userId, so a no-arg
       // call silently returns [] and the dock never swaps for a pure dietitian.
       const { user } = authMod.useAuthSession();
       const { isDietitian, approvedSlugs } = subroleMod.useSubrolePermissions(user?.id);
       const isCoach = approvedSlugs.includes("coach");
-      return (
-        <navMod.MobileBottomNav
-          items={sidebarMod.getCoachMobileNavItems({ isDietitian, isCoach })}
-        />
-      );
+      // MS5: dock-level unread total = sum of the per-client counts map (realtime + poll live
+      // inside the hook). `!!user` pauses the fetch pre-auth.
+      const { counts } = unreadMod.useStaffUnreadCounts(!!user);
+      const total = Object.values(counts).reduce((sum, n) => sum + n, 0);
+      const items = sidebarMod
+        .getCoachMobileNavItems({ isDietitian, isCoach })
+        .map((item) =>
+          item.path === sidebarMod.COACH_MESSAGES_MOBILE_PATH
+            ? { ...item, badge: unreadUtil.formatUnreadBadge(total) }
+            : item,
+        );
+      // Five destinations now (Home, Clients, Programs/Nutrition, Messages, Profile) — show all
+      // as fixed tabs (mirrors the client dock, CC4) so Messages + its badge is a real tab.
+      return <navMod.MobileBottomNav items={items} maxVisible={5} />;
     },
   }))
 );
@@ -214,6 +225,10 @@ const AdminMobileNavGlobal = memo(function AdminMobileNavGlobal() {
   return <MobileBottomNavAdmin />;
 });
 
+// MS5 — admin is intentionally OUT of scope: get_unread_message_counts_for_staff is scoped to
+// is_care_team_member_for_client(auth.uid(), ...), and a plain admin is not a care-team member,
+// so the RPC returns {} for admins. There is also no admin messaging surface where per-client
+// unread badges live. Rather than add a dead-end Messages tab, the admin dock is left unchanged.
 const MobileBottomNavAdmin = lazyWithReload(() =>
   Promise.all([
     import("@/components/layouts/MobileBottomNav"),

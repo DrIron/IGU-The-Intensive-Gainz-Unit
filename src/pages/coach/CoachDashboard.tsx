@@ -13,6 +13,8 @@ const SECTION_MAP: Record<string, string> = {
   overview: "overview",
   clients: "clients",
   "my-clients": "clients",
+  // MS5: the mobile Messages dock item lands on the clients roster (per-client unread badges).
+  messages: "clients",
   "nutrition-clients": "nutrition-clients",
   teams: "teams",
   sessions: "sessions",
