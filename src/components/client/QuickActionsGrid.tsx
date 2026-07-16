@@ -1,4 +1,5 @@
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Calendar, Calculator, Dumbbell, CalendarDays } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
@@ -47,10 +48,11 @@ export function QuickActionsGrid({ profile, subscription, sessionBookingEnabled 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
       {actions.map((action, index) => (
-        <Card 
+        <ClickableCard
           key={index}
-          className="cursor-pointer hover:shadow-md transition-shadow border-border"
+          ariaLabel={action.title}
           onClick={action.onClick}
+          className="border-border"
         >
           <CardContent className="p-4 flex flex-col items-center text-center gap-2">
             <div className="inline-flex items-center justify-center p-2 rounded-lg bg-primary/10">
@@ -61,7 +63,7 @@ export function QuickActionsGrid({ profile, subscription, sessionBookingEnabled 
               <p className="text-xs text-muted-foreground">{action.description}</p>
             </div>
           </CardContent>
-        </Card>
+        </ClickableCard>
       ))}
     </div>
   );

@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { supabase } from "@/integrations/supabase/client";
 import { Users, UserCheck, CreditCard, AlertTriangle } from "lucide-react";
 
@@ -202,10 +203,11 @@ export function AdminMetricsCards() {
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {cards.map((card) => (
-        <Card
+        <ClickableCard
           key={card.label}
-          className="cursor-pointer hover:shadow-md transition-shadow hover:border-primary/30 h-full"
+          ariaLabel={card.label}
           onClick={card.onClick}
+          className="h-full"
         >
           <CardContent className="h-full p-4 md:p-6 flex items-center gap-4">
             <div className={`inline-flex items-center justify-center p-2.5 rounded-lg ${card.color} shrink-0`}>
@@ -225,7 +227,7 @@ export function AdminMetricsCards() {
               )}
             </div>
           </CardContent>
-        </Card>
+        </ClickableCard>
       ))}
     </div>
   );

@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Card, CardContent, CardHeader, CardTitle } from "./card";
+import { ClickableCard } from "./clickable-card";
 import {
   Table,
   TableBody,
@@ -114,39 +115,54 @@ export function ResponsiveTable<T extends Record<string, any>>({
 
       {/* Mobile Cards */}
       <div className="md:hidden space-y-3">
-        {data.map((row) => (
-          <Card
-            key={getRowKey(row)}
-            className={cn(
-              "transition-colors",
-              onRowClick && "cursor-pointer hover:bg-muted/50 active:bg-muted"
-            )}
-            onClick={() => onRowClick?.(row)}
-          >
-            {titleColumn && (
-              <CardHeader className="pb-2">
-                <CardTitle className="text-base">
-                  {titleColumn.cell 
-                    ? titleColumn.cell(row) 
-                    : String(row[titleColumn.accessorKey] ?? "")
-                  }
-                </CardTitle>
-              </CardHeader>
-            )}
-            <CardContent className={titleColumn ? "pt-0" : ""}>
-              <dl className="space-y-2">
-                {mobileColumns.map((column) => (
-                  <div key={String(column.accessorKey)} className="flex justify-between gap-2">
-                    <dt className="text-sm text-muted-foreground">{column.header}</dt>
-                    <dd className="text-sm font-medium text-right">
-                      {column.cell ? column.cell(row) : String(row[column.accessorKey] ?? "")}
-                    </dd>
-                  </div>
-                ))}
-              </dl>
-            </CardContent>
-          </Card>
-        ))}
+        {data.map((row) => {
+          const inner = (
+            <>
+              {titleColumn && (
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-base">
+                    {titleColumn.cell
+                      ? titleColumn.cell(row)
+                      : String(row[titleColumn.accessorKey] ?? "")
+                    }
+                  </CardTitle>
+                </CardHeader>
+              )}
+              <CardContent className={titleColumn ? "pt-0" : ""}>
+                <dl className="space-y-2">
+                  {mobileColumns.map((column) => (
+                    <div key={String(column.accessorKey)} className="flex justify-between gap-2">
+                      <dt className="text-sm text-muted-foreground">{column.header}</dt>
+                      <dd className="text-sm font-medium text-right">
+                        {column.cell ? column.cell(row) : String(row[column.accessorKey] ?? "")}
+                      </dd>
+                    </div>
+                  ))}
+                </dl>
+              </CardContent>
+            </>
+          );
+          // Clickable rows become an accessible ClickableCard (keyboard + role="button");
+          // a non-interactive table keeps a plain Card.
+          if (onRowClick) {
+            const label = titleColumn ? String(row[titleColumn.accessorKey] ?? "") : "";
+            return (
+              <ClickableCard
+                key={getRowKey(row)}
+                ariaLabel={label ? `Open ${label}` : "Open row"}
+                className="active:bg-muted"
+                onClick={() => onRowClick(row)}
+              >
+                {inner}
+              </ClickableCard>
+            );
+          }
+          return (
+            <Card key={getRowKey(row)}>
+              {inner}
+            </Card>
+          );
+        })}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { memo, useState, useEffect, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent } from "@/components/ui/card";
+import { CardContent } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -141,8 +142,9 @@ function PresetCard({
   const muscleCount = new Set(slots.map(s => s.muscleId)).size;
 
   return (
-    <Card
-      className="cursor-pointer hover:bg-muted/50 transition-colors border-border/50"
+    <ClickableCard
+      ariaLabel={`Use preset: ${name}`}
+      className="border-border/50"
       onClick={onSelect}
     >
       <CardContent className="p-3 space-y-1.5">
@@ -161,7 +163,7 @@ function PresetCard({
           <Badge variant="outline" className="text-[10px]">{totalSets} sets</Badge>
         </div>
       </CardContent>
-    </Card>
+    </ClickableCard>
   );
 }
 
