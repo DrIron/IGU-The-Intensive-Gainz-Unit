@@ -4,7 +4,8 @@ import path from 'path';
 export default defineConfig({
   test: {
     globals: true,
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // src tests, plus pure (Deno-free) helpers colocated in edge functions.
+    include: ['src/**/*.{test,spec}.{ts,tsx}', 'supabase/functions/**/*.{test,spec}.ts'],
     exclude: ['node_modules', 'dist'],
     testTimeout: 10000,
     // Dummy Supabase env so modules that import `@/integrations/supabase/client`

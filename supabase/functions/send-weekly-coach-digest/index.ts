@@ -8,6 +8,7 @@ import { wrapInLayout } from '../_shared/emailTemplate.ts';
 import { greeting, paragraph, alertBox, ctaButton, signOff, statCard, statGrid, sectionHeading } from '../_shared/emailComponents.ts';
 import { sendEmail } from '../_shared/sendEmail.ts';
 import { isEmailEnabled } from '../_shared/emailTypeLoader.ts';
+import { summarizeRosterProgress } from './summarizeRosterProgress.ts';
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -90,32 +91,51 @@ Deno.serve(async (req) => {
         const totalClients = activeClients?.length || 0;
         if (totalClients === 0) continue;
 
-        let activeCount = 0;
-        const inactiveClients: string[] = [];
+        const rosterUserIds = activeClients!.map((c) => c.user_id).filter(Boolean);
 
-        for (const client of activeClients!) {
-          const { count } = await supabase
+        // Roster-wide batched reads (replaces the per-client loop, which violated the
+        // "no Promise.all in loops" rule). auth.uid() is null under the service role, so the
+        // coach-scoped RPCs return {} here — we read the raw tables directly (service role
+        // bypasses RLS) and crunch the numbers in the pure summarizeRosterProgress helper.
+        const [profileRes, setLogRes, weighInRes, checkInRes] = await Promise.all([
+          supabase.from("profiles").select("id, first_name, last_name").in("id", rosterUserIds),
+          supabase
             .from("exercise_set_logs")
-            .select("id", { count: "exact", head: true })
-            .eq("created_by_user_id", client.user_id)
-            .gte("created_at", oneWeekAgo);
+            .select("created_by_user_id, skipped")
+            .in("created_by_user_id", rosterUserIds)
+            .gte("created_at", oneWeekAgo),
+          supabase
+            .from("weight_logs")
+            .select("user_id")
+            .in("user_id", rosterUserIds)
+            .gte("created_at", oneWeekAgo),
+          supabase
+            .from("adherence_logs")
+            .select("user_id, followed_calories")
+            .in("user_id", rosterUserIds)
+            .gte("created_at", oneWeekAgo),
+        ]);
 
-          const { data: clientProfile } = await supabase
-            .from("profiles")
-            .select("first_name, last_name")
-            .eq("id", client.user_id)
-            .maybeSingle();
-
-          const clientName =
-            `${clientProfile?.first_name || ""} ${clientProfile?.last_name || ""}`.trim() ||
-            "Unknown";
-
-          if (count && count > 0) {
-            activeCount++;
-          } else {
-            inactiveClients.push(clientName);
-          }
+        const nameById = new Map<string, string>();
+        for (const p of profileRes.data ?? []) {
+          nameById.set(
+            p.id,
+            `${p.first_name || ""} ${p.last_name || ""}`.trim() || "Unknown",
+          );
         }
+
+        const progress = summarizeRosterProgress({
+          rosterUserIds,
+          weighInRows: (weighInRes.data ?? []) as Array<{ user_id: string }>,
+          checkInRows: (checkInRes.data ?? []) as Array<{ user_id: string; followed_calories: boolean | null }>,
+          setLogRows: (setLogRes.data ?? []) as Array<{ created_by_user_id: string; skipped: boolean | null }>,
+        });
+
+        const activeSet = new Set(progress.activeClientIds);
+        const activeCount = activeSet.size;
+        const inactiveClients = rosterUserIds
+          .filter((id) => !activeSet.has(id))
+          .map((id) => nameById.get(id) ?? "Unknown");
 
         const newClients = activeClients!.filter(
           (c) => c.start_date && new Date(c.start_date) >= new Date(oneWeekAgo)
@@ -139,6 +159,18 @@ Deno.serve(async (req) => {
             statCard('Inactive', inactiveClients.length, inactiveClients.length > 0),
             statCard('New This Week', newClients.length),
           ]),
+          // AD3 — real progress beyond the bare activity count. Every metric is honest: a client
+          // with no weigh-in/check-in isn't counted, and a metric with no data reads 0.
+          sectionHeading("This Week's Progress"),
+          statGrid([
+            statCard('Weigh-ins', `${progress.weighIns}/${totalClients}`),
+            statCard('Check-ins', progress.checkIns),
+            statCard('On Track', progress.onTrack),
+            statCard('Sets Logged', progress.setsLogged),
+          ]),
+          progress.checkIns === 0
+            ? paragraph('No check-ins logged this week.')
+            : '',
           newClients.length > 0
             ? alertBox(`<strong>${newClients.length} new client${newClients.length > 1 ? 's' : ''}</strong> joined your roster this week!`, 'success')
             : '',
