@@ -259,7 +259,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
                   />
                 </ActionDialog>
                 <Button variant="outline" size="sm" onClick={() => setInnerTab("edit")}>
-                  <Pencil className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+                  <Pencil className="h-3.5 w-3.5 me-1.5" aria-hidden="true" />
                   Edit phase
                 </Button>
               </div>
@@ -357,7 +357,7 @@ function ActionDialog({
     <Dialog>
       <DialogTrigger asChild>
         <Button variant="outline" size="sm">
-          <Icon className="h-3.5 w-3.5 mr-1.5" aria-hidden="true" />
+          <Icon className="h-3.5 w-3.5 me-1.5" aria-hidden="true" />
           {label}
         </Button>
       </DialogTrigger>

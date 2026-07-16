@@ -236,13 +236,13 @@ export function NutritionPhaseCard({
             <div className="flex items-center gap-2 pt-1">
               {onEditPhase && (
                 <Button size="sm" variant="outline" onClick={onEditPhase}>
-                  <Pencil className="h-3.5 w-3.5 mr-1" />
+                  <Pencil className="h-3.5 w-3.5 me-1" />
                   Edit phase
                 </Button>
               )}
               {onScrollToAdjustments && (
                 <Button size="sm" variant="ghost" onClick={onScrollToAdjustments}>
-                  <ArrowDown className="h-3.5 w-3.5 mr-1" />
+                  <ArrowDown className="h-3.5 w-3.5 me-1" />
                   Review weeks
                 </Button>
               )}
