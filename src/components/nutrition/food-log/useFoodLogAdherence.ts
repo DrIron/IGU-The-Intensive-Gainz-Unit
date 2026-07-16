@@ -68,6 +68,8 @@ export function useFoodLogAdherence(clientUserId: string | null, endDate: Date) 
       const target = activeTarget
         ? { kcal: activeTarget.kcal, protein: activeTarget.protein, fat: activeTarget.fat, carbs: activeTarget.carbs }
         : null;
+      // Per-phase adherence tolerance (10 when there's no phase, e.g. a team-plan goal).
+      const tolerancePct = activeTarget?.tolerancePct ?? 10;
 
       // Index rollups by date; a date with no row is an unlogged day (null intake).
       const byDate = new Map<string, RollupRow>();
@@ -80,7 +82,7 @@ export function useFoodLogAdherence(clientUserId: string | null, endDate: Date) 
           targetKcal: target?.kcal ?? null,
         };
       });
-      const rolling = rollingAdherence(days);
+      const rolling = rollingAdherence(days, tolerancePct);
 
       // Macro averages over LOGGED days only (same rule as calories).
       const loggedRows = dates.map((d) => byDate.get(d)).filter((r): r is RollupRow => r != null);

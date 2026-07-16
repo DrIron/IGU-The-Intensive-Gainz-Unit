@@ -136,3 +136,70 @@ describe("mappings", () => {
     expect(MACRO_TIER.carbs).toBe("quiet");
   });
 });
+
+describe("configurable tolerance (D7 hybrid) — default 10 is regression-safe", () => {
+  it("default tolerance reproduces the ±10 / ±20 bands EXACTLY", () => {
+    // No third arg = the historical behavior. Boundaries identical to the top suite.
+    expect(dayCalorieBand(2200, 2000)).toBe("adherent"); // +10% inclusive
+    expect(dayCalorieBand(2201, 2000)).toBe("slightly_off"); // just past 10
+    expect(dayCalorieBand(2400, 2000)).toBe("slightly_off"); // +20% inclusive
+    expect(dayCalorieBand(2401, 2000)).toBe("off_track"); // just past 20
+    // Passing 10 explicitly is the same thing.
+    expect(dayCalorieBand(2200, 2000, 10)).toBe("adherent");
+    expect(dayCalorieBand(2401, 2000, 10)).toBe("off_track");
+  });
+
+  it("tolerancePct=5 → adherent only within ±5, slightly_off within ±10, else off", () => {
+    expect(dayCalorieBand(2100, 2000, 5)).toBe("adherent"); // +5% inclusive
+    expect(dayCalorieBand(2101, 2000, 5)).toBe("slightly_off"); // just past 5
+    expect(dayCalorieBand(2200, 2000, 5)).toBe("slightly_off"); // +10% inclusive (2·5)
+    expect(dayCalorieBand(2201, 2000, 5)).toBe("off_track"); // just past 10
+    // The regression contrast: +10% is ADHERENT at the default but SLIGHTLY_OFF at ±5.
+    expect(dayCalorieBand(2200, 2000, 10)).toBe("adherent");
+  });
+
+  it("tolerancePct=15 → a wider adherent band (±15) than the default", () => {
+    expect(dayCalorieBand(2300, 2000, 15)).toBe("adherent"); // +15% inclusive
+    expect(dayCalorieBand(2301, 2000, 15)).toBe("slightly_off");
+    // +12% is off the default's adherent band's edge... actually within slightly_off there;
+    // at ±15 it's comfortably adherent.
+    expect(dayCalorieBand(2240, 2000, 15)).toBe("adherent"); // +12%
+    expect(dayCalorieBand(2240, 2000, 10)).toBe("slightly_off"); // same day, default band
+  });
+
+  it("an invalid/zero tolerance falls back to the default band (never divide-by-zero chaos)", () => {
+    expect(dayCalorieBand(2200, 2000, 0)).toBe("adherent"); // 0 → default 10
+    expect(dayCalorieBand(2200, 2000, Number.NaN)).toBe("adherent");
+  });
+
+  it("rollingAdherence applies a scalar tolerance to every day", () => {
+    // Three days all at +8% of target. Adherent at default(10), off the adherent band at ±5.
+    const days: DayInput[] = [1, 2, 3].map(() => ({ consumedKcal: 2160, targetKcal: 2000 }));
+    expect(rollingAdherence(days, 10).adherentPct).toBe(100);
+    expect(rollingAdherence(days, 5).adherentPct).toBe(0); // +8% is slightly_off at ±5
+  });
+
+  it("rollingAdherence honors PER-DAY tolerance (P5b: the phase in effect that day)", () => {
+    // Same +8% intake each day, but day 1 sat in a strict (±5) phase, days 2-3 in standard (±10).
+    const days: DayInput[] = [
+      { consumedKcal: 2160, targetKcal: 2000, tolerancePct: 5 },  // slightly_off
+      { consumedKcal: 2160, targetKcal: 2000, tolerancePct: 10 }, // adherent
+      { consumedKcal: 2160, targetKcal: 2000, tolerancePct: 10 }, // adherent
+    ];
+    const r = rollingAdherence(days);
+    expect(r.perDay).toEqual(["slightly_off", "adherent", "adherent"]);
+    expect(r.adherentPct).toBe(67); // 2 of 3 logged days adherent
+  });
+
+  it("an unlogged day stays not_logged at ANY tolerance (the guardrail is tolerance-independent)", () => {
+    expect(dayCalorieBand(null, 2000, 5)).toBe("not_logged");
+    expect(dayCalorieBand(null, 2000, 15)).toBe("not_logged");
+    const days: DayInput[] = [
+      { consumedKcal: null, targetKcal: 2000, tolerancePct: 5 },
+      { consumedKcal: 2000, targetKcal: 2000, tolerancePct: 5 },
+    ];
+    const r = rollingAdherence(days, 5);
+    expect(r.perDay[0]).toBe("not_logged");
+    expect(r.loggedDays).toBe(1);
+  });
+});

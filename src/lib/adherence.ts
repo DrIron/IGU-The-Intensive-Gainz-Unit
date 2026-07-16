@@ -5,8 +5,9 @@
  * over tested arithmetic (FOOD_LOGGING_PLAN §4.6, decisions D7/D8).
  *
  * ── The model ────────────────────────────────────────────────────────────────
- * A day's band is how far consumed calories sat from the target:
- *   within ±10%  → adherent      within ±20% → slightly_off      beyond ±20% → off_track
+ * A day's band is how far consumed calories sat from the target, against a per-phase tolerance
+ * `t` (% of target, default 10 = today's behavior exactly):
+ *   within ±t%  → adherent      within ±2t% → slightly_off      beyond ±2t% → off_track
  *
  * ── Two departures from the plan's literal table, decided 2026-07-15 ──────────
  * These are the honesty guardrails, and they are the whole point of this module:
@@ -35,24 +36,39 @@ function isMeasurable(consumedKcal: number | null, targetKcal: number | null): b
   );
 }
 
+/** Default adherence tolerance (% of target). 10 reproduces the original ±10/±20 bands. */
+export const DEFAULT_TOLERANCE_PCT = 10;
+
+/** Sanitize a tolerance to a usable positive fraction; anything invalid falls back to default. */
+function toleranceFraction(tolerancePct: number): number {
+  return Number.isFinite(tolerancePct) && tolerancePct > 0 ? tolerancePct / 100 : DEFAULT_TOLERANCE_PCT / 100;
+}
+
 /**
- * One day's calorie band.
+ * One day's calorie band, against a tolerance `t`% of target (default 10 → the original ±10/±20).
  *   consumed == null                 → not_logged (no data — NOT a failure)
  *   target == null || target <= 0    → not_logged (nothing to measure against)
- *   |consumed − target| / target     → ≤0.10 adherent · ≤0.20 slightly_off · else off_track
+ *   |consumed − target| / target     → ≤t adherent · ≤2t slightly_off · else off_track
  */
-export function dayCalorieBand(consumedKcal: number | null, targetKcal: number | null): AdherenceBand {
+export function dayCalorieBand(
+  consumedKcal: number | null,
+  targetKcal: number | null,
+  tolerancePct: number = DEFAULT_TOLERANCE_PCT,
+): AdherenceBand {
   if (consumedKcal == null || !Number.isFinite(consumedKcal)) return "not_logged";
   if (!isMeasurable(consumedKcal, targetKcal)) return "not_logged";
   const dev = Math.abs(consumedKcal - (targetKcal as number)) / (targetKcal as number);
-  if (dev <= 0.1) return "adherent";
-  if (dev <= 0.2) return "slightly_off";
+  const frac = toleranceFraction(tolerancePct);
+  if (dev <= frac) return "adherent";
+  if (dev <= 2 * frac) return "slightly_off";
   return "off_track";
 }
 
 export interface DayInput {
   consumedKcal: number | null;
   targetKcal: number | null;
+  /** Per-day tolerance (P5b: the phase in effect that day). Falls back to the rolling default. */
+  tolerancePct?: number;
 }
 
 export interface RollingAdherence {
@@ -76,8 +92,12 @@ export interface RollingAdherence {
  * not a zero, it is an absence). loggedDays carries consistency separately. This split is the
  * §4.6 D7 decision and the reason `not_logged` exists as its own band.
  */
-export function rollingAdherence(days: DayInput[]): RollingAdherence {
-  const perDay = days.map((d) => dayCalorieBand(d.consumedKcal, d.targetKcal));
+export function rollingAdherence(
+  days: DayInput[],
+  tolerancePct: number = DEFAULT_TOLERANCE_PCT,
+): RollingAdherence {
+  // Each day uses its own tolerance when supplied (P5b's per-day phase), else the scalar default.
+  const perDay = days.map((d) => dayCalorieBand(d.consumedKcal, d.targetKcal, d.tolerancePct ?? tolerancePct));
   const totalDays = days.length;
 
   const loggedDays = days.filter(
@@ -99,7 +119,9 @@ export function rollingAdherence(days: DayInput[]): RollingAdherence {
 
   const avgConsumed = measurable.reduce((s, d) => s + (d.consumedKcal as number), 0) / measurable.length;
   const avgTarget = measurable.reduce((s, d) => s + (d.targetKcal as number), 0) / measurable.length;
-  const headlineBand = dayCalorieBand(avgConsumed, avgTarget);
+  // The averaged headline uses the scalar tolerance (P5a's single active phase); per-day
+  // variation lives in `perDay`/`adherentPct`.
+  const headlineBand = dayCalorieBand(avgConsumed, avgTarget, tolerancePct);
   const avgDeviationPct = Math.round(((avgConsumed - avgTarget) / avgTarget) * 1000) / 10; // signed, 1dp
 
   const adherentDays = perDay.filter((b) => b === "adherent").length;

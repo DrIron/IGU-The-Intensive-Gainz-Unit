@@ -72,6 +72,8 @@ export function CoachNutritionGoal({
     dietBreakFrequency: "",
     dietBreakDuration: "",
     coachNotes: "",
+    // Adherence band half-width (% of calorie target). 10 = Standard (the historical default).
+    adherenceTolerance: 10,
   });
 
   // Auto-populate from stored demographics (age/gender/height via SECURITY DEFINER
@@ -111,6 +113,7 @@ export function CoachNutritionGoal({
         dietBreakFrequency: phase.diet_break_frequency_weeks?.toString() || "",
         dietBreakDuration: phase.diet_break_duration_weeks?.toString() || "",
         coachNotes: phase.coach_notes || "",
+        adherenceTolerance: Number(phase.adherence_tolerance_pct ?? 10),
       }));
     } else {
       setFormData(prev => ({
@@ -294,6 +297,7 @@ export function CoachNutritionGoal({
         fat_grams: macros.fat,
         carb_grams: macros.carbs,
         coach_notes: formData.coachNotes,
+        adherence_tolerance_pct: formData.adherenceTolerance,
         is_active: true,
       };
 
@@ -648,6 +652,29 @@ export function CoachNutritionGoal({
             placeholder="Add any notes or instructions for the client..."
             rows={4}
           />
+        </div>
+
+        {/* Adherence tolerance — how tightly this phase's food-log adherence is judged. Standard
+            (±10%) is the historical default and preserves existing behavior. */}
+        <div className="space-y-2">
+          <Label>Adherence tolerance</Label>
+          <Select
+            value={String(formData.adherenceTolerance)}
+            onValueChange={(v) => setFormData({ ...formData, adherenceTolerance: Number(v) })}
+          >
+            <SelectTrigger aria-label="Adherence tolerance">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="5">Strict (±5% of target)</SelectItem>
+              <SelectItem value="10">Standard (±10% of target)</SelectItem>
+              <SelectItem value="15">Relaxed (±15% of target)</SelectItem>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            How close to the calorie target a logged day must be to count as on track. A day within
+            this band is on track, within twice it is slightly off, beyond that is off track.
+          </p>
         </div>
 
         {/* Calculated Macros Preview */}

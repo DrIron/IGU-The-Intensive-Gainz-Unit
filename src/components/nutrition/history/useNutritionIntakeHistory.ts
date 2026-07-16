@@ -43,6 +43,8 @@ export interface PhaseWithTarget {
   protein: number;
   fat: number;
   carbs: number;
+  /** Per-phase adherence tolerance (% of target). Optional; consumers default to 10. */
+  tolerancePct?: number;
 }
 
 /**
@@ -71,6 +73,8 @@ export interface TargetSegment {
   protein: number;
   fat: number;
   carbs: number;
+  /** The per-phase adherence tolerance in effect over this span. Optional; consumers default 10. */
+  tolerancePct?: number;
 }
 
 /**
@@ -152,7 +156,7 @@ export function useNutritionIntakeHistory(
         .order("log_date", { ascending: true }),
       supabase
         .from("nutrition_phases")
-        .select("start_date, phase_name, daily_calories, protein_grams, fat_grams, carb_grams")
+        .select("start_date, phase_name, daily_calories, protein_grams, fat_grams, carb_grams, adherence_tolerance_pct")
         .eq("user_id", userId)
         .order("start_date", { ascending: true }),
       supabase
@@ -175,6 +179,7 @@ export function useNutritionIntakeHistory(
         protein: Number(p.protein_grams ?? 0),
         fat: Number(p.fat_grams ?? 0),
         carbs: Number(p.carb_grams ?? 0),
+        tolerancePct: Number(p.adherence_tolerance_pct ?? 10),
       }))
       .filter((p) => Number.isFinite(p.startMs))
       .sort((a, b) => a.startMs - b.startMs);
@@ -195,6 +200,7 @@ export function useNutritionIntakeHistory(
         protein: p.protein,
         fat: p.fat,
         carbs: p.carbs,
+        tolerancePct: p.tolerancePct,
       }));
       phases = phasesWithTarget.map((p) => ({ t: p.startMs, name: p.name }));
     } else {
@@ -254,7 +260,7 @@ export function useNutritionIntakeHistory(
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const windowDays: { consumedKcal: number | null; targetKcal: number | null; logged: boolean }[] = [];
+    const windowDays: { consumedKcal: number | null; targetKcal: number | null; tolerancePct: number; logged: boolean }[] = [];
     for (let i = ADHERENCE_WINDOW_DAYS - 1; i >= 0; i--) {
       const dayMs = today.getTime() - i * DAY_MS;
       const iso = new Date(dayMs).toISOString().slice(0, 10);
@@ -264,15 +270,17 @@ export function useNutritionIntakeHistory(
       windowDays.push({
         consumedKcal: row ? Number(row.total_kcal) : null,
         targetKcal,
+        // Each day's band uses the tolerance of the phase in effect THAT day (10 for goals / gaps).
+        tolerancePct: seg?.tolerancePct ?? 10,
         logged: row != null,
       });
     }
 
     const rolling = rollingAdherence(
-      windowDays.map((d) => ({ consumedKcal: d.consumedKcal, targetKcal: d.targetKcal })),
+      windowDays.map((d) => ({ consumedKcal: d.consumedKcal, targetKcal: d.targetKcal, tolerancePct: d.tolerancePct })),
     );
     // Per-day band via the pure module (identical to rolling.perDay, kept explicit for clarity).
-    const perDay = windowDays.map((d) => dayCalorieBand(d.consumedKcal, d.targetKcal));
+    const perDay = windowDays.map((d) => dayCalorieBand(d.consumedKcal, d.targetKcal, d.tolerancePct));
 
     // Current streak: consecutive LOGGED days counting back from the most recent day.
     let streak = 0;
