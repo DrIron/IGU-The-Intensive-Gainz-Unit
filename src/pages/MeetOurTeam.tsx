@@ -172,7 +172,7 @@ export default function MeetOurTeam() {
                     </div>
                     {coach.location && (
                       <div className="flex items-center text-sm text-muted-foreground">
-                        <MapPin className="h-3 w-3 mr-1" />
+                        <MapPin className="h-3 w-3 me-1" />
                         {coach.location}
                       </div>
                     )}

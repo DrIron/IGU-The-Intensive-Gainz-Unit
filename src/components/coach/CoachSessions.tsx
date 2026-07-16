@@ -476,7 +476,7 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <>
-                          <Check className="h-4 w-4 mr-1" />
+                          <Check className="h-4 w-4 me-1" />
                           Complete
                         </>
                       )}
@@ -491,7 +491,7 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
                         <Loader2 className="h-4 w-4 animate-spin" />
                       ) : (
                         <>
-                          <X className="h-4 w-4 mr-1" />
+                          <X className="h-4 w-4 me-1" />
                           Cancel
                         </>
                       )}
@@ -520,7 +520,7 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
             <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
               <DialogTrigger asChild>
                 <Button>
-                  <Plus className="h-4 w-4 mr-2" />
+                  <Plus className="h-4 w-4 me-2" />
                   Add Slots
                 </Button>
               </DialogTrigger>
@@ -539,11 +539,11 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
                         <Button
                           variant="outline"
                           className={cn(
-                            "w-full justify-start text-left font-normal",
+                            "w-full justify-start text-start font-normal",
                             !slotDate && "text-muted-foreground"
                           )}
                         >
-                          <Calendar className="mr-2 h-4 w-4" />
+                          <Calendar className="me-2 h-4 w-4" />
                           {slotDate ? format(slotDate, "PPP") : "Pick a date"}
                         </Button>
                       </PopoverTrigger>
@@ -630,9 +630,9 @@ export function CoachSessions({ coachUserId }: CoachSessionsProps) {
                   </Button>
                   <Button onClick={handleAddSlots} disabled={addingSlots}>
                     {addingSlots ? (
-                      <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                      <Loader2 className="h-4 w-4 animate-spin me-2" />
                     ) : (
-                      <Plus className="h-4 w-4 mr-2" />
+                      <Plus className="h-4 w-4 me-2" />
                     )}
                     Create Slots
                   </Button>

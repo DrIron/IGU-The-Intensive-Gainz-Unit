@@ -129,6 +129,8 @@ export function CoachPublicProfile({
         ) : (
           <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-primary/25 via-muted to-background">
             <span className="font-display text-6xl text-muted-foreground/60">{initials(coach.firstName, coach.lastName)}</span>
+            {/* CC11-a: this corner offset stays PHYSICAL — a decorative watermark, not tied to
+                reading direction. It should sit in the same visual corner regardless of dir. */}
             <Dumbbell className="absolute bottom-2 right-3 h-28 w-28 text-foreground/5" aria-hidden />
           </div>
         )}
@@ -189,7 +191,7 @@ export function CoachPublicProfile({
                     type="button"
                     onClick={() => setVideoOpen(true)}
                     aria-label={t("coachWatchIntro", { name: coach.firstName, defaultValue: "Watch a 30-sec intro from {{name}}" })}
-                    className="flex w-full items-center gap-2.5 rounded-[10px] bg-muted px-3 py-2.5 text-left text-xs text-foreground transition-colors hover:bg-muted/80"
+                    className="flex w-full items-center gap-2.5 rounded-[10px] bg-muted px-3 py-2.5 text-start text-xs text-foreground transition-colors hover:bg-muted/80"
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
                       <Play className="h-3.5 w-3.5 fill-current" aria-hidden />
