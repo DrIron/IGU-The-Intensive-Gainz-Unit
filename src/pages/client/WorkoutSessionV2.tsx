@@ -1385,7 +1385,7 @@ function RestTimer({
 
   return (
     <div className="fixed inset-x-0 bottom-20 md:bottom-24 mx-4 z-40">
-      <Card className="shadow-lg border-primary/20">
+      <Card className=" border-primary/20">
         <CardContent className="p-4">
           <div className="flex items-center gap-4">
             {/* Timer display */}

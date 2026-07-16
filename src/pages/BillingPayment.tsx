@@ -327,7 +327,7 @@ export default function BillingPayment() {
           Back to Dashboard
         </Button>
 
-        <Card className="border-2 border-primary/20 shadow-lg">
+        <Card className="border-2 border-primary/20">
           <CardHeader className="bg-gradient-to-r from-primary/5 to-accent/5">
             <div className="flex items-center gap-2">
               <CreditCard className="h-6 w-6 text-primary" />

@@ -52,7 +52,7 @@ export function ClientCardView({
           const displaySubscription = activeSubscription || pendingSubscription;
           
           return (
-            <Card key={client.id} className="hover:shadow-lg transition-shadow">
+            <Card key={client.id}>
               <CardContent className="p-4 space-y-3">
                 <div className="flex items-start justify-between">
                   <div>

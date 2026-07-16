@@ -617,7 +617,7 @@ export default function Auth() {
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
       {/* React 19 hoists this into <head> */}
       <meta name="robots" content="noindex, nofollow" />
-      <Card className="w-full max-w-md border-border/50 shadow-2xl relative">
+      <Card className="w-full max-w-md border-border/50 relative">
         <Button
           variant="ghost"
           size="icon"

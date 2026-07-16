@@ -88,7 +88,7 @@ export function VideoAccessCard({
       className={`overflow-hidden transition-all ${
         accessState === "locked" 
           ? "opacity-75 hover:opacity-85" 
-          : "hover:shadow-lg"
+          : ""
       }`}
     >
       <CardHeader className="pb-3">

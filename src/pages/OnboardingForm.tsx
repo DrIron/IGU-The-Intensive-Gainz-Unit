@@ -908,7 +908,7 @@ export default function OnboardingForm() {
   if (finished) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4 py-24">
-        <Card className="w-full max-w-md border-border/50 shadow-2xl">
+        <Card className="w-full max-w-md border-border/50">
           <CardContent className="p-8 text-center space-y-5">
             <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500/10">
               <CheckCircle2 className="h-8 w-8 text-emerald-500" aria-hidden />
@@ -971,7 +971,7 @@ export default function OnboardingForm() {
           </p>
         </div>
 
-        <Card className="border-border/50 shadow-2xl">
+        <Card className="border-border/50">
           <CardContent className="p-6 md:p-8">
             {/* Auto-save indicator */}
             <div className="mb-4 flex items-center justify-end gap-2 text-sm text-muted-foreground">

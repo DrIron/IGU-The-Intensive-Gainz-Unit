@@ -374,7 +374,7 @@ export function DirectClientCalendar({
                 return (
                   <div
                     key={session.id}
-                    className="p-3 rounded-lg border hover:shadow-sm transition-shadow cursor-pointer"
+                    className="p-3 rounded-lg border cursor-pointer"
                     onClick={() => {
                       setEditingSession(session);
                       setShowEditSheet(true);

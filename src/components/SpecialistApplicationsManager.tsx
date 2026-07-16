@@ -216,7 +216,7 @@ export function SpecialistApplicationsManager() {
   const renderCard = (app: SpecialistApplication) => {
     const config = getSpecialistApplyConfig(app.subrole_slug);
     return (
-      <Card key={app.id} className="hover:shadow-lg transition-shadow">
+      <Card key={app.id}>
         <CardHeader>
           <div className="flex items-start justify-between gap-2">
             <div>

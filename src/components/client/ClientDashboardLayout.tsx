@@ -662,7 +662,7 @@ function OverviewSection({ profile, subscription, user, needsOnboarding, navigat
             </AlertDescription>
           </Alert>
           
-          <Card className="border-border/50 shadow-2xl">
+          <Card className="border-border/50">
             <CardHeader className="text-center">
               <div className="flex justify-center mb-4">
                 <div className="inline-flex items-center justify-center p-3 rounded-full bg-gradient-to-r from-primary to-accent">

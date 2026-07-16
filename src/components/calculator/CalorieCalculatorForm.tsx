@@ -206,7 +206,7 @@ export function CalorieCalculatorForm({
                 type="button"
                 variant={rateOfChange[0] === 0.5 ? "default" : "outline"}
                 className={`h-auto py-4 px-3 flex flex-col items-center justify-center gap-1 transition-all ${
-                  rateOfChange[0] === 0.5 ? 'shadow-md' : 'hover:border-primary/50'
+                  rateOfChange[0] === 0.5 ? '' : 'hover:border-primary/50'
                 }`}
                 onClick={() => setRateOfChange([0.5])}
               >
@@ -217,7 +217,7 @@ export function CalorieCalculatorForm({
                 type="button"
                 variant={rateOfChange[0] === 0.75 ? "default" : "outline"}
                 className={`h-auto py-4 px-3 flex flex-col items-center justify-center gap-1 transition-all ${
-                  rateOfChange[0] === 0.75 ? 'shadow-md' : 'hover:border-primary/50'
+                  rateOfChange[0] === 0.75 ? '' : 'hover:border-primary/50'
                 }`}
                 onClick={() => setRateOfChange([0.75])}
               >
@@ -228,7 +228,7 @@ export function CalorieCalculatorForm({
                 type="button"
                 variant={rateOfChange[0] === 1.0 ? "default" : "outline"}
                 className={`h-auto py-4 px-3 flex flex-col items-center justify-center gap-1 transition-all ${
-                  rateOfChange[0] === 1.0 ? 'shadow-md' : 'hover:border-primary/50'
+                  rateOfChange[0] === 1.0 ? '' : 'hover:border-primary/50'
                 }`}
                 onClick={() => setRateOfChange([1.0])}
               >
@@ -266,7 +266,7 @@ export function CalorieCalculatorForm({
               type="button"
               variant={Math.abs(proteinPreference[0]) === 1.6 ? "default" : "outline"}
               className={`h-auto py-4 px-3 flex flex-col items-center justify-center gap-1 transition-all ${
-                Math.abs(proteinPreference[0]) === 1.6 ? 'shadow-md' : 'hover:border-primary/50'
+                Math.abs(proteinPreference[0]) === 1.6 ? '' : 'hover:border-primary/50'
               }`}
               onClick={() => setProteinPreference([proteinPreference[0] < 0 ? -1.6 : 1.6])}
             >
@@ -277,7 +277,7 @@ export function CalorieCalculatorForm({
               type="button"
               variant={Math.abs(proteinPreference[0]) === 1.8 ? "default" : "outline"}
               className={`h-auto py-4 px-3 flex flex-col items-center justify-center gap-1 transition-all ${
-                Math.abs(proteinPreference[0]) === 1.8 ? 'shadow-md' : 'hover:border-primary/50'
+                Math.abs(proteinPreference[0]) === 1.8 ? '' : 'hover:border-primary/50'
               }`}
               onClick={() => setProteinPreference([proteinPreference[0] < 0 ? -1.8 : 1.8])}
             >
@@ -288,7 +288,7 @@ export function CalorieCalculatorForm({
               type="button"
               variant={Math.abs(proteinPreference[0]) === 2.0 ? "default" : "outline"}
               className={`h-auto py-4 px-3 flex flex-col items-center justify-center gap-1 transition-all ${
-                Math.abs(proteinPreference[0]) === 2.0 ? 'shadow-md' : 'hover:border-primary/50'
+                Math.abs(proteinPreference[0]) === 2.0 ? '' : 'hover:border-primary/50'
               }`}
               onClick={() => setProteinPreference([proteinPreference[0] < 0 ? -2.0 : 2.0])}
             >

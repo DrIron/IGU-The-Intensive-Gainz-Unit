@@ -257,7 +257,7 @@ function ExerciseCard({ exercise, expanded, onToggle, onFindSimilar }: ExerciseC
   const hasDetails = setupPoints.length > 0 || !!exercise.setup_instructions || !!exercise.description;
 
   return (
-    <Card className="overflow-hidden hover:shadow-lg transition-shadow flex flex-col">
+    <Card className="overflow-hidden flex flex-col">
       <CardHeader className="pb-3">
         <CardTitle className="text-lg">{exercise.name}</CardTitle>
         <div className="flex flex-wrap gap-2 mt-2">

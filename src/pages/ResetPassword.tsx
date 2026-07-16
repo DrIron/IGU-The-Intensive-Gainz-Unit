@@ -145,7 +145,7 @@ export default function ResetPassword() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <Card className="w-full max-w-md border-border/50 shadow-2xl relative">
+      <Card className="w-full max-w-md border-border/50 relative">
         <Button
           variant="ghost"
           size="icon"

@@ -304,7 +304,7 @@ export default function ChangePlan() {
     const admin = result.kind === "needs_admin";
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4 py-24">
-        <Card className="w-full max-w-md border-border/50 shadow-2xl">
+        <Card className="w-full max-w-md border-border/50">
           <CardContent className="p-8 text-center space-y-5">
             <div className={`mx-auto flex h-14 w-14 items-center justify-center rounded-full ${admin ? "bg-amber-500/10" : "bg-emerald-500/10"}`}>
               {admin ? <UserCheck className="h-8 w-8 text-amber-500" aria-hidden /> : <CalendarClock className="h-8 w-8 text-emerald-500" aria-hidden />}
@@ -331,7 +331,7 @@ export default function ChangePlan() {
     const svc = services.find((s) => s.id === scheduled.target_service_id);
     return (
       <div className="min-h-screen bg-background flex items-center justify-center px-4 py-24">
-        <Card className="w-full max-w-md border-border/50 shadow-2xl">
+        <Card className="w-full max-w-md border-border/50">
           <CardContent className="p-8 space-y-5">
             <div className="flex items-center gap-3">
               <CalendarClock className="h-6 w-6 text-primary" aria-hidden />
@@ -374,7 +374,7 @@ export default function ChangePlan() {
           </p>
         </div>
 
-        <Card className="border-border/50 shadow-2xl">
+        <Card className="border-border/50">
           <CardContent className="p-6 md:p-8">
             <StepIndicator
               currentStep={currentStep}

@@ -82,7 +82,7 @@ export default function EmailPending() {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
-      <Card className="w-full max-w-md border-border/50 shadow-2xl">
+      <Card className="w-full max-w-md border-border/50">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
             <div className="p-4 rounded-full bg-primary/10">
