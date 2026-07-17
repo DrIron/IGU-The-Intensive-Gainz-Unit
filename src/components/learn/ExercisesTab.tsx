@@ -225,7 +225,7 @@ export function ExercisesTab({ search }: { search: string }) {
               exercise={exercise}
               expanded={expandedCards.has(exercise.id)}
               onToggle={() => toggleCardExpansion(exercise.id)}
-              onFindSimilar={() => setSimilarTarget({ id: exercise.id, name: exercise.name })}
+              onFindSimilar={() => setSimilarTarget({ id: exercise.id, name: exercise.client_name ?? exercise.name })}
             />
           ))}
         </div>
@@ -259,7 +259,7 @@ function ExerciseCard({ exercise, expanded, onToggle, onFindSimilar }: ExerciseC
   return (
     <Card className="overflow-hidden flex flex-col">
       <CardHeader className="pb-3">
-        <CardTitle className="text-lg">{exercise.name}</CardTitle>
+        <CardTitle className="text-lg">{exercise.client_name ?? exercise.name}</CardTitle>
         <div className="flex flex-wrap gap-2 mt-2">
           <Badge variant="secondary" className="text-xs capitalize">
             {exercise.category}

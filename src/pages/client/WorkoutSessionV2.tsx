@@ -66,6 +66,8 @@ import { cn } from "@/lib/utils";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { useProgressionSuggestions } from "@/hooks/useProgressionSuggestions";
 import { ProgressionSuggestionBanner } from "@/components/workout/ProgressionSuggestionBanner";
+import { getYouTubeId, getYouTubeThumbnail } from "@/lib/youtube";
+import { ExerciseDemoCard } from "@/components/exercise/ExerciseDemoCard";
 import type { ProgressionConfig, ColumnConfig, ClientInputColumnType } from "@/types/workout-builder";
 import {
   DEFAULT_PROGRESSION_CONFIG,
@@ -172,14 +174,17 @@ export interface Exercise {
   is_activity: boolean;
   exercise: {
     name: string;
+    client_name: string | null;
     default_video_url: string | null;
     primary_muscle: string;
-    // Form-guide content (exercise_library) shown in the in-session sheet.
+    // Form-guide content (exercise_library) shown in the in-session demo card.
     description: string | null;
     setup_instructions: string | null;
     setup_points: string[] | null;
     equipment: string | null;
     secondary_muscles: string[] | null;
+    laterality: string | null;
+    resistance_profiles: string[] | null;
   };
   // History from previous sessions
   history?: {
@@ -235,22 +240,6 @@ interface Module {
 // =============================================================================
 // HELPER FUNCTIONS
 // =============================================================================
-
-function getYouTubeThumbnail(url: string | null): string | null {
-  if (!url) return null;
-  const match = url.match(
-    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^&?/]+)/
-  );
-  return match ? `https://img.youtube.com/vi/${match[1]}/mqdefault.jpg` : null;
-}
-
-function getYouTubeId(url: string | null): string | null {
-  if (!url) return null;
-  const match = url.match(
-    /(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([^&?/]+)/
-  );
-  return match ? match[1] : null;
-}
 
 // Convert legacy shared prescription to per-set array
 function legacyToPerSet(
@@ -389,103 +378,6 @@ const TEXT_INPUT_TYPES: ReadonlySet<string> = new Set([
 // Per-Set Row with its own prescription.
 // Strength items render the classic Weight / Reps / RIR-or-RPE grid unchanged.
 // Activity items render inputs DYNAMICALLY from the coach-configured input columns.
-// In-session Form & demo sheet — demo video + setup/execution from
-// exercise_library, opened from the exercise card thumbnail or "Form" button so
-// the client never leaves the workout (Runna/Ladder pattern).
-function ExerciseGuideSheet({
-  exercise,
-  open,
-  onOpenChange,
-}: {
-  exercise: Exercise;
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-}) {
-  const lib = exercise.exercise;
-  const videoId = getYouTubeId(lib.default_video_url);
-  const setupPoints =
-    lib.setup_points && lib.setup_points.length > 0
-      ? lib.setup_points
-      : lib.setup_instructions
-        ? lib.setup_instructions.split(/\n+/).map((s) => s.trim()).filter(Boolean)
-        : [];
-  const hasContent = setupPoints.length > 0 || !!lib.description;
-
-  return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="max-h-[90dvh] flex flex-col">
-        <div className="px-4 pt-3 pb-2">
-          <DrawerTitle>{lib.name}</DrawerTitle>
-          <DrawerDescription asChild>
-            <span className="mt-1 flex flex-wrap items-center gap-1.5">
-              {lib.primary_muscle && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{lib.primary_muscle}</span>
-              )}
-              {lib.equipment && (
-                <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{lib.equipment}</span>
-              )}
-              {(lib.secondary_muscles ?? []).slice(0, 2).map((m) => (
-                <span key={m} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{m}</span>
-              ))}
-            </span>
-          </DrawerDescription>
-        </div>
-        <DrawerScrollArea className="px-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
-          {videoId ? (
-            <div className="aspect-video rounded-lg overflow-hidden bg-black mb-4">
-              <iframe
-                src={`https://www.youtube.com/embed/${videoId}?rel=0`}
-                className="w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                title={lib.name}
-              />
-            </div>
-          ) : lib.default_video_url ? (
-            <a
-              href={lib.default_video_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mb-4 flex aspect-video items-center justify-center rounded-lg bg-muted text-sm text-primary underline"
-            >
-              Open demo video
-            </a>
-          ) : (
-            <div className="mb-4 flex aspect-video items-center justify-center rounded-lg bg-muted text-sm text-muted-foreground">
-              No demo video yet
-            </div>
-          )}
-
-          {setupPoints.length > 0 && (
-            <div className="mb-4">
-              <h4 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Setup</h4>
-              <ol className="space-y-1.5">
-                {setupPoints.map((p, i) => (
-                  <li key={i} className="flex gap-2 text-sm text-muted-foreground">
-                    <span className="shrink-0 font-mono text-status-ontrack">{i + 1}</span>
-                    <span>{p}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-          )}
-
-          {lib.description && (
-            <div className="mb-4">
-              <h4 className="mb-2 text-xs uppercase tracking-wide text-muted-foreground">Execution</h4>
-              <p className="whitespace-pre-line text-sm text-muted-foreground">{lib.description}</p>
-            </div>
-          )}
-
-          {!hasContent && (
-            <p className="py-6 text-center text-sm text-muted-foreground">No form notes for this exercise yet.</p>
-          )}
-        </DrawerScrollArea>
-      </DrawerContent>
-    </Drawer>
-  );
-}
-
 // A set is a PR if it beats any of three records vs the movement's prior
 // history: heaviest load ever, heaviest at this rep count (±1), or same
 // load×reps at a higher RIR than before ("got easier"). All loads canonical kg.
@@ -1303,7 +1195,17 @@ export function ExerciseCard({
           </CardContent>
         </CollapsibleContent>
       </Collapsible>
-      <ExerciseGuideSheet exercise={exercise} open={guideOpen} onOpenChange={setGuideOpen} />
+      <ExerciseDemoCard
+        context="in-session"
+        exercise={exercise.exercise}
+        open={guideOpen}
+        onOpenChange={setGuideOpen}
+        lastSet={lastSet ? { weight: Number(fmtW(lastSet.weight)), reps: lastSet.reps, unit } : null}
+        onSwap={() => {
+          setGuideOpen(false);
+          onSwapExercise();
+        }}
+      />
     </Card>
   );
 }
@@ -1866,6 +1768,7 @@ function WorkoutSessionV2Content() {
           skipped: false,
           exercise: {
             name: rex.library?.name || "Unknown Exercise",
+            client_name: rex.library?.client_name ?? null,
             default_video_url: rex.library?.default_video_url ?? null,
             primary_muscle: rex.library?.primary_muscle || "",
             description: rex.library?.description ?? null,
@@ -1873,6 +1776,8 @@ function WorkoutSessionV2Content() {
             setup_points: rex.library?.setup_points ?? null,
             equipment: rex.library?.equipment ?? null,
             secondary_muscles: rex.library?.secondary_muscles ?? null,
+            laterality: rex.library?.laterality ?? null,
+            resistance_profiles: rex.library?.resistance_profiles ?? null,
           },
           history:
             historyData && historyData.length > 0
@@ -2242,7 +2147,7 @@ function WorkoutSessionV2Content() {
       // than a thrown PostgREST 406 — CLAUDE.md ".maybeSingle() vs .single()" rule.
       const { data: newExLib, error: exError } = await supabase
         .from("exercise_library")
-        .select("name, primary_muscle, default_video_url, description, setup_instructions, setup_points, equipment, secondary_muscles")
+        .select("name, client_name, primary_muscle, default_video_url, description, setup_instructions, setup_points, equipment, secondary_muscles, laterality, resistance_profiles")
         .eq("id", newExerciseId)
         .maybeSingle();
 
@@ -2269,6 +2174,7 @@ function WorkoutSessionV2Content() {
           exercise_id: newExerciseId,
           exercise: {
             name: newExLib.name,
+            client_name: newExLib.client_name ?? null,
             primary_muscle: newExLib.primary_muscle,
             default_video_url: newExLib.default_video_url,
             description: newExLib.description ?? null,
@@ -2276,6 +2182,8 @@ function WorkoutSessionV2Content() {
             setup_points: newExLib.setup_points ?? null,
             equipment: newExLib.equipment ?? null,
             secondary_muscles: newExLib.secondary_muscles ?? null,
+            laterality: newExLib.laterality ?? null,
+            resistance_profiles: newExLib.resistance_profiles ?? null,
           },
           history: undefined,
           personal_best: undefined,
