@@ -1,20 +1,13 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { computeSmoothedWeeklyTrend } from "./WeeklyProgressCard";
+import { computeSmoothedWeeklyTrend } from "./ThisWeekCard";
 
 /**
- * BUG B (FU4) — the "This Week" weight trend was a raw endpoint subtraction.
- *
- * The old math was `weights[0] - weights[weights.length - 1]` over the last 14 log rows: the
- * newest reading minus the oldest, with nothing in between contributing anything. A single
- * bad row at either end WAS the answer, so a mis-typed `0` reported a double-digit gain on a
- * client's own dashboard, and ordinary day-to-day noise (water, food, time of day) was
- * presented as trend.
- *
- * The fix compares the mean of the last 7 days against the mean of the 7 before it, dropping
- * zero/invalid rows first. The property under test is that ONE bad reading can no longer
- * dominate: averaging demotes it from "the answer" to "one of n".
+ * BUG B (FU4) — the "This week" weight trend was once a raw endpoint subtraction. Moved here
+ * with the function when WeeklyProgressCard was merged into ThisWeekCard (1B). A single bad row
+ * could once BE the answer, reporting a double-digit gain from a mis-typed 0. The fix compares
+ * the mean of the last 7 days against the mean of the 7 before it, dropping zero/invalid rows.
  */
 
 // Fixed anchor so the 7-day windows are exact:
@@ -31,30 +24,22 @@ function oldNaiveTrend(logs: Array<{ log_date: string; weight_kg: number }>): nu
 describe("BUG B — smoothed weekly weight trend", () => {
   it("a ZERO weigh-in does not produce a wild number", () => {
     const logs = [
-      // Prior week — one row was fat-fingered to 0.
       { log_date: "2026-07-01", weight_kg: 0 },
       { log_date: "2026-07-03", weight_kg: 80.2 },
       { log_date: "2026-07-05", weight_kg: 80.0 },
-      // This week — a real, modest loss.
       { log_date: "2026-07-09", weight_kg: 79.8 },
       { log_date: "2026-07-11", weight_kg: 79.6 },
       { log_date: "2026-07-14", weight_kg: 79.4 },
     ];
 
-    // What the client used to see: newest (79.4) minus oldest (0).
     expect(oldNaiveTrend(logs)).toBe(79.4);
 
     const { weightTrend, weightChange } = computeSmoothedWeeklyTrend(logs, TODAY);
 
-    // this week  = (79.8 + 79.6 + 79.4) / 3 = 79.6
-    // prior week = (80.2 + 80.0) / 2        = 80.1   <- the 0 is excluded, not averaged in
+    // this week = 79.6, prior week = 80.1 (the 0 is excluded, not averaged in).
     expect(weightChange).toBe(-0.5);
     expect(weightTrend).toBe("down");
-
-    // The two ways this could still have been wrong:
-    // - counting the 0 would drag the prior mean to 53.4 and report a ~+26 kg GAIN
     expect(weightTrend).not.toBe("up");
-    // - and in no case may a single bad row still be the headline
     expect(Math.abs(weightChange!)).toBeLessThan(2);
   });
 
@@ -69,7 +54,6 @@ describe("BUG B — smoothed weekly weight trend", () => {
     ];
 
     const { weightTrend, weightChange } = computeSmoothedWeeklyTrend(logs, TODAY);
-
     expect(weightChange).toBe(0.9); // 91.2 - 90.3
     expect(weightTrend).toBe("up");
   });
@@ -80,27 +64,20 @@ describe("BUG B — smoothed weekly weight trend", () => {
       { log_date: "2026-07-04", weight_kg: 80.0 },
       { log_date: "2026-07-06", weight_kg: 80.1 }, // prior mean = 80.1
       { log_date: "2026-07-09", weight_kg: 79.8 },
-      { log_date: "2026-07-11", weight_kg: 84.5 }, // a bad reading -- wrong scale, post-meal
+      { log_date: "2026-07-11", weight_kg: 84.5 }, // a bad reading
       { log_date: "2026-07-14", weight_kg: 79.4 },
     ];
 
-    // Old math: the outlier isn't even the endpoint here, yet the raw endpoints still
-    // disagree by nearly a kilo of pure noise.
     expect(Math.abs(oldNaiveTrend(logs))).toBeGreaterThan(0.5);
 
     const { weightChange } = computeSmoothedWeeklyTrend(logs, TODAY);
-
-    // this week = (79.8 + 84.5 + 79.4) / 3 = 81.23 -> +1.1 against 80.1.
-    // The bad reading moves the number, but it is now one third of one week, not the whole
-    // answer. NOTE: smoothing damps a plausible-but-wrong value; it cannot remove it. A gross
-    // typo (e.g. 180 kg) would still skew this. See the PR -- true outlier rejection is a
-    // separate call, deliberately not made here.
+    // this week = 81.23 -> +1.1 against 80.1. The bad reading moves the number but is now one
+    // third of one week, not the whole answer.
     expect(weightChange).toBe(1.1);
     expect(Math.abs(weightChange!)).toBeLessThanOrEqual(1.5);
   });
 
   it("says NOTHING rather than inventing a trend when a week has no real weigh-in", () => {
-    // Only this week has data -- there is no prior week to compare against.
     const onlyThisWeek = [
       { log_date: "2026-07-09", weight_kg: 79.8 },
       { log_date: "2026-07-14", weight_kg: 79.4 },
@@ -110,7 +87,6 @@ describe("BUG B — smoothed weekly weight trend", () => {
       weightChange: null,
     });
 
-    // A prior week whose ONLY row is a zero is an empty week, not a 0 kg week.
     const zeroedPriorWeek = [
       { log_date: "2026-07-03", weight_kg: 0 },
       { log_date: "2026-07-09", weight_kg: 79.8 },
@@ -143,12 +119,14 @@ describe("BUG B — smoothed weekly weight trend", () => {
 
 describe("BUG B — the trend arrow carries no verdict", () => {
   it("does not colour weight direction green/orange/red", () => {
-    const src = readFileSync(join(process.cwd(), "src/components/client/WeeklyProgressCard.tsx"), "utf8");
+    const src = readFileSync(join(process.cwd(), "src/components/client/ThisWeekCard.tsx"), "utf8");
+    // The getTrendIcon block only — the adherence % legitimately uses green/amber/red, so scope
+    // the assertion to the weight-trend icons.
     const icons = src.slice(src.indexOf("const getTrendIcon"), src.indexOf("const loading ="));
+    expect(icons.length).toBeGreaterThan(0);
 
-    // Gaining is the GOAL in a muscle-gain phase. An orange up-arrow and a green down-arrow
-    // tell that client their progress is a warning. Direction is already in the arrow and the
-    // sign -- the colour only added a judgement. Same rule NU6 / PUB6 / CL5 / CO4 enforce.
+    // Gaining is the GOAL in a muscle-gain phase. Direction is already in the arrow + sign; the
+    // colour would only add a verdict. Same rule NU6 / PUB6 / CL5 / CO4 enforce.
     expect(icons).not.toMatch(/text-(green|orange|red|emerald|amber)-/);
     expect(icons).toContain("text-muted-foreground");
   });

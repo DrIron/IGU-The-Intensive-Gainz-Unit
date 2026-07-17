@@ -7,8 +7,8 @@ import { KUWAIT_UTC_OFFSET_HOURS } from "@/lib/kuwaitTime";
  * useWeeklyConsistency (CL5) — which days this week the client actually trained.
  *
  * PRESENCE, NOT A STREAK. This hook only ever answers "what happened"; it has no
- * concept of a broken chain, a miss, or a failure. The component renders absence as
- * a neutral outline dot. See WeekConsistencyDots for the framing rule.
+ * concept of a broken chain, a miss, or a failure. The consumer (ThisWeekCard) renders
+ * absence as a neutral outline dot — never red / a warning. That framing is non-negotiable.
  *
  * SIGNAL: a day is "active" if the client logged at least one non-skipped set that
  * day (`exercise_set_logs.created_at`, keyed by `created_by_user_id`). That is the
@@ -56,6 +56,12 @@ export function currentIguWeekDates(now: Date = new Date()): string[] {
 
 export interface WeeklyConsistency {
   loading: boolean;
+  /**
+   * A read failed. Distinct from "genuinely no active days" — an empty `activeDates` on a
+   * successful read is a real zero-activity week; on a failed read it is unknown. The consumer
+   * must render nothing (not a fabricated empty week) when this is true. See the catch below.
+   */
+  loadError: boolean;
   /** The 7 Kuwait dates of this week, Monday → Sunday. */
   weekDates: string[];
   /** The subset of `weekDates` on which a workout was logged. */
@@ -67,11 +73,13 @@ export function useWeeklyConsistency(userId: string | undefined): WeeklyConsiste
   const [weekDates] = useState<string[]>(() => currentIguWeekDates());
   const [activeDates, setActiveDates] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const hasFetched = useRef<string | null>(null);
 
   const load = useCallback(
     async (uid: string, dates: string[]) => {
       try {
+        setLoadError(false);
         // Kuwait midnight → the matching UTC instants.
         const fromUtc = new Date(`${dates[0]}T00:00:00+03:00`).toISOString();
         const toUtc = new Date(`${dates[6]}T23:59:59.999+03:00`).toISOString();
@@ -95,9 +103,10 @@ export function useWeeklyConsistency(userId: string | undefined): WeeklyConsiste
         setActiveDates(active);
       } catch (err) {
         // A failed read must not invent absence — it would show the client an empty
-        // week they did not have. Stay silent and render nothing (see the component).
+        // week they did not have. Flag the error so the consumer renders nothing.
         captureException(err, { source: "useWeeklyConsistency" });
         setActiveDates(new Set());
+        setLoadError(true);
       } finally {
         setLoading(false);
       }
@@ -117,6 +126,7 @@ export function useWeeklyConsistency(userId: string | undefined): WeeklyConsiste
 
   return {
     loading,
+    loadError,
     weekDates,
     activeDates,
     activeCount: weekDates.filter((d) => activeDates.has(d)).length,

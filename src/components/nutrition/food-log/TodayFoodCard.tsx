@@ -22,21 +22,39 @@ import { useFoodLog } from "./useFoodLog";
  * the exact bug LoadError exists to prevent. No target → NutritionSummary already drops the
  * "of N" and the progress bar; nothing is fabricated.
  */
+/** DB (fat_loss/muscle_gain/maintenance) and form (loss/gain/maintenance) vocab both map here. */
+const GOAL_LABELS: Record<string, string> = {
+  fat_loss: "Fat loss",
+  loss: "Fat loss",
+  muscle_gain: "Muscle gain",
+  gain: "Muscle gain",
+  maintenance: "Maintenance",
+};
+
 export function TodayFoodCard({ clientUserId }: { clientUserId: string }) {
   const navigate = useNavigate();
-  const { totals, target, loading, loadError, reload } = useFoodLog(
+  const { totals, target, goalType, loading, loadError, reload } = useFoodLog(
     clientUserId,
     format(new Date(), "yyyy-MM-dd"),
   );
 
+  const goalLabel = goalType ? GOAL_LABELS[goalType] ?? null : null;
+
   return (
     <ClickableCard onClick={() => navigate("/nutrition-diary")} ariaLabel="Open your food diary">
       <CardContent className="space-y-4 p-5">
-        <div className="flex items-center justify-between">
-          <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
-            Today's food
-          </span>
-          <span className="inline-flex items-center gap-1 text-sm font-medium text-primary">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="font-mono text-[11px] uppercase tracking-[0.1em] text-muted-foreground">
+              Today's food
+            </span>
+            {goalLabel && (
+              <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[10px] font-medium text-accent">
+                {goalLabel}
+              </span>
+            )}
+          </div>
+          <span className="inline-flex shrink-0 items-center gap-1 text-sm font-medium text-primary">
             Open diary
             <ChevronRight className="h-4 w-4" aria-hidden />
           </span>

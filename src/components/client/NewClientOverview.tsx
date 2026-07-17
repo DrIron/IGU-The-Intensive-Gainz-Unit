@@ -1,18 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { QuickActionsGrid } from "./QuickActionsGrid";
-import { CoachCard } from "./CoachCard";
 import { PlanBillingCard } from "./PlanBillingCard";
 import { PaymentAttentionBanner } from "./PaymentAttentionBanner";
 import { AlertsCard } from "./AlertsCard";
 import { LogTodayCard } from "./LogTodayCard";
 import { MyCareTeamCard } from "./MyCareTeamCard";
 import { TodaysWorkoutHero } from "./TodaysWorkoutHero";
-import { WeekConsistencyDots } from "./WeekConsistencyDots";
-import { useWeeklyConsistency } from "@/hooks/useWeeklyConsistency";
-import { AdherenceSummaryCard } from "./AdherenceSummaryCard";
-import { WeeklyProgressCard } from "./WeeklyProgressCard";
-import { NutritionTargetsCard } from "./NutritionTargetsCard";
+import { ThisWeekCard } from "./ThisWeekCard";
 import { TodayFoodCard } from "@/components/nutrition/food-log/TodayFoodCard";
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveNutritionTarget } from "@/lib/nutritionTarget";
@@ -37,16 +32,7 @@ interface PrimaryCoach {
   profile_picture_url: string | null;
 }
 
-interface CoachInfo {
-  user_id: string;
-  first_name: string;
-  last_name: string | null;
-  nickname: string | null;
-  profile_picture_url: string | null;
-}
-
 export function NewClientOverview({ user, profile, subscription }: NewClientOverviewProps) {
-  const [coach, setCoach] = useState<CoachInfo | null>(null);
   const [primaryCoach, setPrimaryCoach] = useState<PrimaryCoach | null>(null);
   const [activePhase, setActivePhase] = useState<any>(null);
   const [weeklyLogsCount, setWeeklyLogsCount] = useState<number>(0);
@@ -66,18 +52,17 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
     }
 
     try {
-      // Load coach info - subscriptions.coach_id references coaches.user_id
+      // Load primary coach - subscriptions.coach_id references coaches.user_id
       if (subscription?.coach_id) {
         // Use coaches_directory (public-safe view) - only exposes safe public fields.
         // .maybeSingle() — coach row may legitimately be missing for new/exempt clients.
         const { data: coachData } = await supabase
           .from("coaches_directory")
-          .select("user_id, first_name, last_name, nickname, profile_picture_url")
+          .select("user_id, first_name, last_name, profile_picture_url")
           .eq("user_id", subscription.coach_id)
           .maybeSingle();
 
         if (coachData) {
-          setCoach(coachData);
           setPrimaryCoach({
             user_id: coachData.user_id,
             first_name: coachData.first_name,
@@ -192,42 +177,39 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         <TodaysWorkoutHero userId={user?.id} />
       )}
 
-      {/* CL5 — a quiet week strip under the hero. Presence, not a streak: a day the
-          client didn't train is a neutral outline dot, never a warning. Supersedes
-          AD2 (no separate awards/trophy surface). */}
-      <WeeklyConsistencyRow userId={user?.id} />
-
-      {/* Main + rail. The main column carries the substantial, scannable
-          content top-down (nutrition target → weekly numbers → adherence); the
-          rail holds the quick + relational cards (daily log, coach, care team).
-          The two columns flow independently (masonry-like) so the short cards
-          stack to fill the rail's height instead of leaving dead space beside a
-          taller card. Stacks to a single column on mobile (main, then rail). */}
+      {/* Feature grid (1B). DOM order IS the mobile order (single column):
+          Today's nutrition → Log today → This week → Your team. On lg the four cards
+          reflow into a 2×2 grid via explicit column/row placement — main column
+          (nutrition, this week) + rail (log today, your team) — matching the desktop
+          spec without changing the mobile stack. */}
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr] lg:items-start">
-        <div className="space-y-6">
-          {/* Food-diary entry card (1A) — every active plan can log food; links into
-              /nutrition-diary. Gated on active status only, NOT plan. */}
-          {profile?.status === "active" && subscription?.status === "active" && user?.id && (
+        {/* Today's nutrition — main col, row 1 (1A card; its target lives in the donut). */}
+        {profile?.status === "active" && subscription?.status === "active" && user?.id && (
+          <div className="lg:col-start-1 lg:row-start-1">
             <TodayFoodCard clientUserId={user.id} />
-          )}
-          <NutritionTargetsCard userId={user?.id} />
-          <WeeklyProgressCard userId={user?.id} />
-          <AdherenceSummaryCard userId={user?.id} />
-        </div>
-        <div className="space-y-6">
-          {user?.id && (
+          </div>
+        )}
+
+        {/* Log today — rail, row 1. Own card, placed high (Hasan). */}
+        {user?.id && (
+          <div className="lg:col-start-2 lg:row-start-1">
             <LogTodayCard
               userId={user.id}
               phaseId={activePhase?.id ?? null}
               phaseStartDate={activePhase?.start_date ?? null}
             />
-          )}
-          {coach && (
-            <CoachCard
-              coach={{ ...coach, id: coach.user_id }}
-              clientFirstName={profile?.first_name}
-            />
-          )}
+          </div>
+        )}
+
+        {/* This week — main col, row 2. Adherence % + consistency dots + workouts/nutrition/weight. */}
+        {user?.id && (
+          <div className="lg:col-start-1 lg:row-start-2">
+            <ThisWeekCard userId={user.id} />
+          </div>
+        )}
+
+        {/* Your team — rail, row 2. Primary coach (with a Message action) + specialists. */}
+        <div className="lg:col-start-2 lg:row-start-2">
           <MyCareTeamCard
             subscriptionId={subscription?.id}
             primaryCoach={primaryCoach}
@@ -236,11 +218,14 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         </div>
       </div>
 
-      {/* Utility nav */}
-      <QuickActionsGrid
-        profile={profile}
-        subscription={subscription}
-      />
+      {/* Explore — utility nav under its own quiet heading (mirrors Account). */}
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold text-muted-foreground">Explore</h2>
+        <QuickActionsGrid
+          profile={profile}
+          subscription={subscription}
+        />
+      </section>
 
       {/* Quiet "Account" group — billing demoted, visually secondary */}
       <section className="space-y-4 pt-4 border-t border-border/60">
@@ -253,28 +238,5 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
         />
       </section>
     </div>
-  );
-}
-
-/**
- * CL5 container — owns the read so `WeekConsistencyDots` stays presentational.
- *
- * Renders NOTHING while loading (a half-drawn week is worse than none) and nothing
- * when there's no user. A failed read resolves to an empty set, which would show a
- * blank week the client didn't actually have — so the hook logs it and we simply
- * omit the row rather than assert an absence we can't stand behind.
- */
-function WeeklyConsistencyRow({ userId }: { userId: string | undefined }) {
-  const { loading, weekDates, activeDates, activeCount } = useWeeklyConsistency(userId);
-
-  if (!userId || loading) return null;
-
-  return (
-    <WeekConsistencyDots
-      weekDates={weekDates}
-      activeDates={activeDates}
-      activeCount={activeCount}
-      className="py-1"
-    />
   );
 }

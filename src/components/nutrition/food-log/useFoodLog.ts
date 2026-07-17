@@ -41,6 +41,9 @@ export type DayTarget = NutritionTotals | null;
 export function useFoodLog(clientUserId: string | null, logDate: string) {
   const [entries, setEntries] = useState<FoodLogEntry[]>([]);
   const [target, setTarget] = useState<DayTarget>(null);
+  // The active target's goal (fat_loss / muscle_gain / maintenance), or null when there is no
+  // target. Surfaced for the TodayFoodCard goal pill; the diary itself doesn't use it.
+  const [goalType, setGoalType] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
   const fetchKey = useRef<string | null>(null);
@@ -94,6 +97,7 @@ export function useFoodLog(clientUserId: string | null, logDate: string) {
             ? { kcal: activeTarget.kcal, protein: activeTarget.protein, fat: activeTarget.fat, carbs: activeTarget.carbs }
             : null,
         );
+        setGoalType(activeTarget?.goalType ?? null);
       } catch (e: unknown) {
         // A failed read is NOT an empty diary. Never render "nothing logged" for this.
         captureException(e, { source: "useFoodLog" });
@@ -114,7 +118,7 @@ export function useFoodLog(clientUserId: string | null, logDate: string) {
 
   const totals: NutritionTotals = sumEntries(entries);
 
-  return { entries, totals, target, loading, loadError, reload: load };
+  return { entries, totals, target, goalType, loading, loadError, reload: load };
 }
 
 /** Write payload — everything the entry needs to stand on its own forever. */

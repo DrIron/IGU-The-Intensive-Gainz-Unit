@@ -17,6 +17,7 @@ import { createRoot, type Root } from "react-dom/client";
 let foodLog: {
   totals: { kcal: number; protein: number; fat: number; carbs: number };
   target: { kcal: number; protein: number; fat: number; carbs: number } | null;
+  goalType: string | null;
   loading: boolean;
   loadError: boolean;
   reload: () => void;
@@ -56,6 +57,7 @@ describe("TodayFoodCard", () => {
     foodLog = {
       totals: { kcal: 1500, protein: 120, fat: 50, carbs: 150 },
       target: null,
+      goalType: null,
       loading: false,
       loadError: false,
       reload: reloadMock,
@@ -75,6 +77,27 @@ describe("TodayFoodCard", () => {
     // NutritionSummary is present — its kcal number and macro legend both render.
     expect(el.textContent).toContain("1,500");
     expect(el.querySelector('[data-macro-grams="protein"]')?.textContent).toContain("120");
+  });
+
+  it("renders the goal-type pill from the hook's goalType (DB + form vocab both mapped)", async () => {
+    foodLog = { ...foodLog, goalType: "muscle_gain" };
+    let el = await mount();
+    expect(el.textContent).toContain("Muscle gain");
+
+    // The short (form) vocab maps too.
+    await act(async () => root.unmount());
+    root = createRoot(container);
+    foodLog = { ...foodLog, goalType: "fat_loss" };
+    el = await mount();
+    expect(el.textContent).toContain("Fat loss");
+  });
+
+  it("renders no goal pill when there is no active target", async () => {
+    foodLog = { ...foodLog, goalType: null };
+    const el = await mount();
+    expect(el.textContent).not.toContain("Fat loss");
+    expect(el.textContent).not.toContain("Muscle gain");
+    expect(el.textContent).not.toContain("Maintenance");
   });
 
   it("on loadError shows a retry and renders NO summary / no 0-kcal 'nothing logged' card", async () => {
