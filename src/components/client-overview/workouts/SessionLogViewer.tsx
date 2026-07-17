@@ -25,6 +25,7 @@ import { Loader2, Dumbbell, Clock, Check } from "lucide-react";
 import { format } from "date-fns";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { cn } from "@/lib/utils";
+import { SetTypeChip } from "@/components/workout/SetTypeChip";
 import { ContextualCommentThread } from "@/components/comments/ContextualCommentThread";
 import {
   useSessionLog,
@@ -211,7 +212,10 @@ function ExerciseBlock({ entry }: { entry: SessionLogEntry }) {
                 "grid grid-cols-[auto,1fr,1fr,1fr,1fr] gap-2 px-3 py-1.5 text-sm font-mono tabular-nums",
               )}
             >
-              <span className="text-muted-foreground">{s.setIndex}</span>
+              <span className="flex items-center gap-1.5 text-muted-foreground">
+                {s.setIndex}
+                <SetTypeChip type={s.setType} />
+              </span>
               <span>{s.performedLoad ?? "--"}</span>
               <span>{s.performedReps ?? "--"}</span>
               <span>{s.performedRir ?? "--"}</span>
