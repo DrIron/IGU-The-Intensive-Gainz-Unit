@@ -42,6 +42,7 @@ const NotFound = lazyWithReload(() => import("./pages/NotFound"));
 const Nutrition = lazyWithReload(() => import("./pages/Nutrition"));
 const TeamNutrition = lazyWithReload(() => import("./pages/TeamNutrition"));
 const ClientNutrition = lazyWithReload(() => import("./pages/ClientNutrition"));
+const ClientNutritionDiary = lazyWithReload(() => import("./pages/ClientNutritionDiary"));
 const PaymentStatus = lazyWithReload(() => import("./pages/PaymentStatus"));
 const PaymentReturn = lazyWithReload(() => import("./pages/PaymentReturn"));
 const BillingPayment = lazyWithReload(() => import("./pages/BillingPayment"));
@@ -102,6 +103,7 @@ const ClientMobileNavGlobal = memo(function ClientMobileNavGlobal() {
     "/nutrition",
     "/nutrition-client",
     "/nutrition-team",
+    "/nutrition-diary",
     "/sessions",
     "/messages",
     "/learn",
@@ -330,6 +332,7 @@ const App = () => {
                   <Route path="/nutrition" element={<AuthGuard><OnboardingGuard><Nutrition /></OnboardingGuard></AuthGuard>} />
                   <Route path="/nutrition-team" element={<AuthGuard><OnboardingGuard><TeamNutrition /></OnboardingGuard></AuthGuard>} />
                   <Route path="/nutrition-client" element={<AuthGuard><OnboardingGuard><ClientNutrition /></OnboardingGuard></AuthGuard>} />
+                  <Route path="/nutrition-diary" element={<AuthGuard><OnboardingGuard><ClientNutritionDiary /></OnboardingGuard></AuthGuard>} />
                   <Route path="/coach-client-nutrition" element={<CoachClientNutritionRedirect />} />
                   <Route path="/payment-status" element={<AuthGuard><PaymentStatus /></AuthGuard>} />
                   <Route path="/payment-return" element={<AuthGuard><PaymentReturn /></AuthGuard>} />

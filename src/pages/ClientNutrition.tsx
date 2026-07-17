@@ -20,7 +20,7 @@ import { ErrorFallback } from "@/components/ui/error-fallback";
 import { NutritionPhaseCard } from "@/components/nutrition/NutritionPhaseCard";
 import { ClientWeeklyRibbon } from "@/components/nutrition/ClientWeeklyRibbon";
 import { LogTodayCard } from "@/components/client/LogTodayCard";
-import { FoodLogDayView } from "@/components/nutrition/food-log/FoodLogDayView";
+import { TodayFoodCard } from "@/components/nutrition/food-log/TodayFoodCard";
 import { NutritionIntakeHistory } from "@/components/nutrition/history/NutritionIntakeHistory";
 import { differenceInCalendarWeeks, differenceInDays } from "date-fns";
 
@@ -421,7 +421,7 @@ export default function ClientNutrition() {
              most likely to be waiting on a coach. The day view simply renders without a
              target (NutritionSummary drops the "of N" and the bar). */
           <div className="space-y-6">
-            {user?.id && <FoodLogDayView clientUserId={user.id} />}
+            {user?.id && <TodayFoodCard clientUserId={user.id} />}
             <Card>
               <CardHeader>
                 <CardTitle>No Active Nutrition Phase</CardTitle>
@@ -433,10 +433,10 @@ export default function ClientNutrition() {
           </div>
         ) : (
           <div className="space-y-6">
-            {/* The food log is the Nutrition section's "Today" surface (D5 — no separate
-                Diary route). It sits above the coach's phase view: the client's actuals
-                first, then the plan they're measured against. */}
-            {user?.id && <FoodLogDayView clientUserId={user.id} />}
+            {/* Compact food-diary entry card (1A) — the full diary now lives on its own
+                /nutrition-diary sub-page. It sits above the coach's phase view: the
+                client's actuals first, then the plan they're measured against. */}
+            {user?.id && <TodayFoodCard clientUserId={user.id} />}
 
             {phaseSummary && (
               <PhaseSummaryReport phase={activePhase} summary={phaseSummary} firstName={firstName} />

@@ -13,6 +13,7 @@ import { useWeeklyConsistency } from "@/hooks/useWeeklyConsistency";
 import { AdherenceSummaryCard } from "./AdherenceSummaryCard";
 import { WeeklyProgressCard } from "./WeeklyProgressCard";
 import { NutritionTargetsCard } from "./NutritionTargetsCard";
+import { TodayFoodCard } from "@/components/nutrition/food-log/TodayFoodCard";
 import { supabase } from "@/integrations/supabase/client";
 import { getActiveNutritionTarget } from "@/lib/nutritionTarget";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -204,6 +205,11 @@ export function NewClientOverview({ user, profile, subscription }: NewClientOver
           taller card. Stacks to a single column on mobile (main, then rail). */}
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr] lg:items-start">
         <div className="space-y-6">
+          {/* Food-diary entry card (1A) — every active plan can log food; links into
+              /nutrition-diary. Gated on active status only, NOT plan. */}
+          {profile?.status === "active" && subscription?.status === "active" && user?.id && (
+            <TodayFoodCard clientUserId={user.id} />
+          )}
           <NutritionTargetsCard userId={user?.id} />
           <WeeklyProgressCard userId={user?.id} />
           <AdherenceSummaryCard userId={user?.id} />

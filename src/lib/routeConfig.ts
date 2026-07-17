@@ -145,6 +145,7 @@ export const ROUTE_REGISTRY: RouteConfig[] = [
   { id: "nutrition", path: "/nutrition", label: "Nutrition", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: true, icon: Apple, navOrder: 2 },
   { id: "nutrition-team", path: "/nutrition-team", label: "Team Nutrition", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },
   { id: "nutrition-client", path: "/nutrition-client", label: "Client Nutrition", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },
+  { id: "nutrition-diary", path: "/nutrition-diary", label: "Food diary", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },
   // /coach-client-nutrition removed from the registry — now a redirect-only
   // stub in App.tsx pointing at /coach/clients/:id?tab=nutrition.
   { id: "payment-status", path: "/payment-status", label: "Payment Status", layout: "ClientLayout", requiredRoles: ["authenticated"], navGroup: "client", showInNav: false },

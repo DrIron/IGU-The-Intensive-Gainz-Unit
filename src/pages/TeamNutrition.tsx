@@ -4,6 +4,7 @@ import type { User as SupabaseUser } from "@supabase/supabase-js";
 import { ClientPageLayout } from "@/components/layouts/ClientPageLayout";
 import { Calculator } from "lucide-react";
 import { NutritionProgress } from "@/components/nutrition/NutritionProgress";
+import { TodayFoodCard } from "@/components/nutrition/food-log/TodayFoodCard";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuthSession } from "@/hooks/useAuthSession";
 import { useToast } from "@/hooks/use-toast";
@@ -137,7 +138,12 @@ export default function TeamNutrition() {
           </p>
         </div>
 
-        <NutritionProgress />
+        {/* Food-diary entry card (1A) — team members log food too; links into /nutrition-diary. */}
+        {user?.id && <TodayFoodCard clientUserId={user.id} />}
+
+        <div className="mt-6">
+          <NutritionProgress />
+        </div>
       </div>
     </ClientPageLayout>
   );
