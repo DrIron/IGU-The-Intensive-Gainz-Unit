@@ -2,6 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
+import { format } from "date-fns";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -416,7 +417,11 @@ describe("P1 GATE — the hero updates live on add / edit / delete", () => {
         protein_g: 39,
         fat_g: 5,
         carb_g: 0,
-        log_date: new Date().toISOString().slice(0, 10),
+        // Seed the LOCAL date the component queries (format(new Date(), ...)). Using the UTC
+        // toISOString() date desynced from the local query date in the 21:00-24:00 UTC window of
+        // a UTC+n timezone (e.g. Kuwait after midnight), filtering the entry out. CI runs UTC so it
+        // never surfaced there; local runs did.
+        log_date: format(new Date(), "yyyy-MM-dd"),
         source_note: "1 breast",
         created_by_role: "coach",
       },

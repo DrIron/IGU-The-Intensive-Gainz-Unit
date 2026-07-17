@@ -34,6 +34,13 @@ vi.mock("@/integrations/supabase/client", () => ({
         eq: () => api,
         gte: () => api,
         lte: () => api,
+        // The AddFoodDrawer's food-catalog reads (categories/portions/search) chain these; without
+        // them the fire-and-forget queries throw AFTER the tests settle, surfacing as vitest
+        // "unhandled errors" that flip the exit code red even though every test passes.
+        order: () => api,
+        in: () => api,
+        limit: () => api,
+        not: () => api,
         maybeSingle: () => Promise.resolve({ data: null, error: null }),
         then: (resolve: (v: unknown) => unknown) => resolve({ data: [], error: null }),
       };
