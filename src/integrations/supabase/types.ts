@@ -3559,14 +3559,17 @@ export type Database = {
           anatomical_name: string | null
           cardio_movement_id: string | null
           category: Database["public"]["Enums"]["exercise_category"]
+          client_name: string | null
           created_at: string
           created_by_coach_id: string | null
           default_video_url: string | null
           description: string | null
           equipment: string | null
+          grip: string | null
           id: string
           is_active: boolean
           is_global: boolean
+          laterality: string | null
           machine_brand: string | null
           movement_pattern: string | null
           movement_pattern_id: string | null
@@ -3574,6 +3577,7 @@ export type Database = {
           muscle_id: string | null
           name: string
           physio_purpose_id: string | null
+          positioning: string | null
           primary_muscle: string | null
           resistance_profiles: string[] | null
           secondary_muscles: string[] | null
@@ -3590,14 +3594,17 @@ export type Database = {
           anatomical_name?: string | null
           cardio_movement_id?: string | null
           category?: Database["public"]["Enums"]["exercise_category"]
+          client_name?: string | null
           created_at?: string
           created_by_coach_id?: string | null
           default_video_url?: string | null
           description?: string | null
           equipment?: string | null
+          grip?: string | null
           id?: string
           is_active?: boolean
           is_global?: boolean
+          laterality?: string | null
           machine_brand?: string | null
           movement_pattern?: string | null
           movement_pattern_id?: string | null
@@ -3605,6 +3612,7 @@ export type Database = {
           muscle_id?: string | null
           name: string
           physio_purpose_id?: string | null
+          positioning?: string | null
           primary_muscle?: string | null
           resistance_profiles?: string[] | null
           secondary_muscles?: string[] | null
@@ -3621,14 +3629,17 @@ export type Database = {
           anatomical_name?: string | null
           cardio_movement_id?: string | null
           category?: Database["public"]["Enums"]["exercise_category"]
+          client_name?: string | null
           created_at?: string
           created_by_coach_id?: string | null
           default_video_url?: string | null
           description?: string | null
           equipment?: string | null
+          grip?: string | null
           id?: string
           is_active?: boolean
           is_global?: boolean
+          laterality?: string | null
           machine_brand?: string | null
           movement_pattern?: string | null
           movement_pattern_id?: string | null
@@ -3636,6 +3647,7 @@ export type Database = {
           muscle_id?: string | null
           name?: string
           physio_purpose_id?: string | null
+          positioning?: string | null
           primary_muscle?: string | null
           resistance_profiles?: string[] | null
           secondary_muscles?: string[] | null
@@ -10361,6 +10373,8 @@ export type Database = {
         | "warmup"
         | "cooldown"
         | "sport_specific"
+        | "systemic"
+        | "powerlifting"
       exercise_media_type: "video" | "image"
       exercise_section: "warmup" | "main" | "accessory" | "cooldown"
       fee_type: "percent" | "fixed" | "none"
@@ -10626,6 +10640,8 @@ export const Constants = {
         "warmup",
         "cooldown",
         "sport_specific",
+        "systemic",
+        "powerlifting",
       ],
       exercise_media_type: ["video", "image"],
       exercise_section: ["warmup", "main", "accessory", "cooldown"],
