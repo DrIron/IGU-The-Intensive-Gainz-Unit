@@ -34,6 +34,7 @@ import {
 
 export interface CanonicalExerciseLibraryInfo {
   name: string;
+  client_name: string | null;
   default_video_url: string | null;
   primary_muscle: string;
   description: string | null;
@@ -41,6 +42,8 @@ export interface CanonicalExerciseLibraryInfo {
   setup_points: string[] | null;
   equipment: string | null;
   secondary_muscles: string[] | null;
+  laterality: string | null;
+  resistance_profiles: string[] | null;
 }
 
 export interface CanonicalResolvedExercise {
@@ -293,7 +296,7 @@ export async function resolveCanonicalSession(
         supabase
           .from("exercise_library")
           .select(
-            "id, name, default_video_url, primary_muscle, description, setup_instructions, setup_points, equipment, secondary_muscles",
+            "id, name, client_name, default_video_url, primary_muscle, description, setup_instructions, setup_points, equipment, secondary_muscles, laterality, resistance_profiles",
           )
           .in("id", [...exerciseIds]),
       "exercise_library",
@@ -301,6 +304,7 @@ export async function resolveCanonicalSession(
     for (const r of libRows ?? []) {
       libraryById.set(r.id, {
         name: r.name,
+        client_name: r.client_name ?? null,
         default_video_url: r.default_video_url ?? null,
         primary_muscle: r.primary_muscle ?? "",
         description: r.description ?? null,
@@ -308,6 +312,8 @@ export async function resolveCanonicalSession(
         setup_points: r.setup_points ?? null,
         equipment: r.equipment ?? null,
         secondary_muscles: r.secondary_muscles ?? null,
+        laterality: r.laterality ?? null,
+        resistance_profiles: r.resistance_profiles ?? null,
       });
     }
   }

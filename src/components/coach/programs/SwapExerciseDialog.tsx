@@ -69,17 +69,31 @@ export function SwapExerciseDialog({
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SubstituteResult | null>(null);
+  // The RPC returns the dense `name`; resolve the friendly client_name per id so the rows show it
+  // (client_name ?? name). Client-side lookup — no RPC change.
+  const [clientNames, setClientNames] = useState<Record<string, string | null>>({});
 
   const loadSubstitutes = useCallback(async () => {
     if (!exerciseId) return;
     setLoading(true);
     setResult(null);
+    setClientNames({});
     try {
       const { data, error } = await supabase.rpc("get_substitute_exercises", {
         p_exercise_id: exerciseId,
       });
       if (error) throw error;
-      setResult((data as unknown as SubstituteResult) ?? null);
+      const parsed = (data as unknown as SubstituteResult) ?? null;
+      setResult(parsed);
+
+      const ids = (parsed?.substitutes ?? []).map((s) => s.id);
+      if (ids.length > 0) {
+        const { data: names } = await supabase
+          .from("exercise_library")
+          .select("id, client_name")
+          .in("id", ids);
+        setClientNames(Object.fromEntries((names ?? []).map((n) => [n.id, n.client_name])));
+      }
     } catch (error: unknown) {
       toast({
         title: "Couldn't find alternatives",
@@ -117,7 +131,7 @@ export function SwapExerciseDialog({
     <CardContent className="p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-medium text-sm truncate">{sub.name}</div>
+          <div className="font-medium text-sm truncate">{clientNames[sub.id] ?? sub.name}</div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {sub.primary_muscle && (
               <span className="text-xs text-muted-foreground capitalize">{sub.primary_muscle}</span>
