@@ -1,0 +1,577 @@
+region,muscle,subdivision,movement,equipment,positioning,grip,laterality,resistance,name,client_name
+Chest,Pec Major,Clavicular Head,Press,BB,Incline,-,bi,L,Clavicular Pec BB Incline Press (L),Upper Pec Incline Barbell Press
+Chest,Pec Major,Clavicular Head,Press,DB,Incline,-,bi,L,Clavicular Pec DB Incline Press (L),Upper Pec Incline Dumbbell Press
+Chest,Pec Major,Clavicular Head,Press,SM,Incline,-,bi,L,Clavicular Pec SM Incline Press (L),Upper Pec Incline Smith Machine Press
+Chest,Pec Major,Clavicular Head,Press,M,Incline,-,bi,L/M/S,Clavicular Pec M Incline Press (L/M/S),Upper Pec Incline Machine Press
+Chest,Pec Major,Clavicular Head,Press,M,Upright,-,bi,L/M/S,Clavicular Pec M Upright Press (L/M/S),Upper Pec Upright Machine Press
+Chest,Pec Major,Clavicular Head,Press,C-FT,Standing,-,bi,L/M/S,Clavicular Pec C-FT Standing Press (L/M/S),Upper Pec Standing Cable Press
+Chest,Pec Major,Clavicular Head,Press,C-AA,Standing,-,bi,L/M/S,Clavicular Pec C-AA Standing Press (L/M/S),Upper Pec Standing Cable Press
+Chest,Pec Major,Clavicular Head,Press,C-SB,Seated,-,bi,M,Clavicular Pec C-SB Seated Press (M),Upper Pec Seated Cable Press
+Chest,Pec Major,Clavicular Head,Press,C-BS,Standing,-,bi,M,Clavicular Pec C-BS Standing Press (M),Upper Pec Standing Cable Press
+Chest,Pec Major,Clavicular Head,Press,C-SG,Standing,-,uni,L/M/S,Clavicular Pec C-SG Single-Arm Press (L/M/S),Upper Pec Cable Single-Arm Press
+Chest,Pec Major,Clavicular Head,Fly,DB,Incline,-,bi,L,Clavicular Pec DB Incline Fly (L),Upper Pec Incline Dumbbell Fly
+Chest,Pec Major,Clavicular Head,Fly,M,Incline,-,bi,L/M/S,Clavicular Pec M Incline Fly (L/M/S),Upper Pec Incline Machine Fly
+Chest,Pec Major,Clavicular Head,Fly,M,Upright,-,bi,L/M/S,Clavicular Pec M Upright Fly (L/M/S),Upper Pec Upright Machine Fly
+Chest,Pec Major,Clavicular Head,Fly,C-FT,Standing,-,bi,L/M/S,Clavicular Pec C-FT Standing Fly (L/M/S),Upper Pec Standing Cable Fly
+Chest,Pec Major,Clavicular Head,Fly,C-AA,Standing,-,bi,L/M/S,Clavicular Pec C-AA Standing Fly (L/M/S),Upper Pec Standing Cable Fly
+Chest,Pec Major,Clavicular Head,Fly,C-SB,Seated,-,bi,M,Clavicular Pec C-SB Seated Fly (M),Upper Pec Seated Cable Fly
+Chest,Pec Major,Clavicular Head,Fly,C-BS,Standing,-,bi,M,Clavicular Pec C-BS Standing Fly (M),Upper Pec Standing Cable Fly
+Chest,Pec Major,Clavicular Head,Fly,C-SG,Standing,-,uni,L/M/S,Clavicular Pec C-SG Single-Arm Fly (L/M/S),Upper Pec Cable Single-Arm Fly
+Chest,Pec Major,Clavicular Head,Pressaround,C-FT,Standing,-,bi,S,Clavicular Pec C-FT Standing Pressaround (S),Upper Pec Standing Cable Pressaround
+Chest,Pec Major,Clavicular Head,Pressaround,C-AA,Standing,-,bi,S,Clavicular Pec C-AA Standing Pressaround (S),Upper Pec Standing Cable Pressaround
+Chest,Pec Major,Clavicular Head,Pressaround,C-SG,Standing,-,uni,S,Clavicular Pec C-SG Single-Arm Pressaround (S),Upper Pec Cable Single-Arm Pressaround
+Chest,Pec Major,Sternal Head,Press,BB,Flat,-,bi,L,Sternal Pec BB Flat Press (L),Mid Pec Flat Barbell Press
+Chest,Pec Major,Sternal Head,Press,BB,Floor,-,bi,L,Sternal Pec BB Floor Press (L),Mid Pec Floor Barbell Press
+Chest,Pec Major,Sternal Head,Press,BB,Low Incline,-,bi,M,Sternal Pec BB Low Incline Press (M),Mid Pec Low Incline Barbell Press
+Chest,Pec Major,Sternal Head,Press,DB,Flat,-,bi,L,Sternal Pec DB Flat Press (L),Mid Pec Flat Dumbbell Press
+Chest,Pec Major,Sternal Head,Press,DB,Floor,-,bi,L,Sternal Pec DB Floor Press (L),Mid Pec Floor Dumbbell Press
+Chest,Pec Major,Sternal Head,Press,DB,Low Incline,-,bi,M,Sternal Pec DB Low Incline Press (M),Mid Pec Low Incline Dumbbell Press
+Chest,Pec Major,Sternal Head,Press,SM,Flat,-,bi,L,Sternal Pec SM Flat Press (L),Mid Pec Flat Smith Machine Press
+Chest,Pec Major,Sternal Head,Press,SM,Floor,-,bi,L,Sternal Pec SM Floor Press (L),Mid Pec Floor Smith Machine Press
+Chest,Pec Major,Sternal Head,Press,SM,Low Incline,-,bi,M,Sternal Pec SM Low Incline Press (M),Mid Pec Low Incline Smith Machine Press
+Chest,Pec Major,Sternal Head,Press,M,Flat,-,bi,L/M/S,Sternal Pec M Flat Press (L/M/S),Mid Pec Flat Machine Press
+Chest,Pec Major,Sternal Head,Press,M,Upright,-,bi,L/M/S,Sternal Pec M Upright Press (L/M/S),Mid Pec Upright Machine Press
+Chest,Pec Major,Sternal Head,Press,BW,-,-,bi,L,Sternal Pec BW Push-Up (L),Mid Pec Bodyweight Push-Up
+Chest,Pec Major,Sternal Head,Press,C-FT,Standing,-,bi,L/M/S,Sternal Pec C-FT Standing Press (L/M/S),Mid Pec Standing Cable Press
+Chest,Pec Major,Sternal Head,Press,C-FT,Bent-Over,-,bi,L/M/S,Sternal Pec C-FT Bent-Over Press (L/M/S),Mid Pec Bent-Over Cable Press
+Chest,Pec Major,Sternal Head,Press,C-AA,Standing,-,bi,L/M/S,Sternal Pec C-AA Standing Press (L/M/S),Mid Pec Standing Cable Press
+Chest,Pec Major,Sternal Head,Press,C-AA,Bent-Over,-,bi,L/M/S,Sternal Pec C-AA Bent-Over Press (L/M/S),Mid Pec Bent-Over Cable Press
+Chest,Pec Major,Sternal Head,Press,C-SB,Seated,-,bi,M,Sternal Pec C-SB Seated Press (M),Mid Pec Seated Cable Press
+Chest,Pec Major,Sternal Head,Press,C-BS,Standing,-,bi,M,Sternal Pec C-BS Standing Press (M),Mid Pec Standing Cable Press
+Chest,Pec Major,Sternal Head,Press,C-SG,Standing,-,uni,L/M/S,Sternal Pec C-SG Single-Arm Press (L/M/S),Mid Pec Cable Single-Arm Press
+Chest,Pec Major,Sternal Head,Fly,DB,Flat,-,bi,L,Sternal Pec DB Flat Fly (L),Mid Pec Flat Dumbbell Fly
+Chest,Pec Major,Sternal Head,Fly,DB,Low Incline,-,bi,L,Sternal Pec DB Low Incline Fly (L),Mid Pec Low Incline Dumbbell Fly
+Chest,Pec Major,Sternal Head,Fly,DB,Floor,-,bi,L,Sternal Pec DB Floor Fly (L),Mid Pec Floor Dumbbell Fly
+Chest,Pec Major,Sternal Head,Fly,M,Flat,-,bi,L/M/S,Sternal Pec M Flat Fly (L/M/S),Mid Pec Flat Machine Fly
+Chest,Pec Major,Sternal Head,Fly,M,Upright,-,bi,L/M/S,Sternal Pec M Upright Fly (L/M/S),Mid Pec Upright Machine Fly
+Chest,Pec Major,Sternal Head,Fly,C-FT,Standing,-,bi,L/M/S,Sternal Pec C-FT Standing Fly (L/M/S),Mid Pec Standing Cable Fly
+Chest,Pec Major,Sternal Head,Fly,C-FT,Bent-Over,-,bi,L/M/S,Sternal Pec C-FT Bent-Over Fly (L/M/S),Mid Pec Bent-Over Cable Fly
+Chest,Pec Major,Sternal Head,Fly,C-AA,Standing,-,bi,L/M/S,Sternal Pec C-AA Standing Fly (L/M/S),Mid Pec Standing Cable Fly
+Chest,Pec Major,Sternal Head,Fly,C-AA,Bent-Over,-,bi,L/M/S,Sternal Pec C-AA Bent-Over Fly (L/M/S),Mid Pec Bent-Over Cable Fly
+Chest,Pec Major,Sternal Head,Fly,C-SB,Seated,-,bi,M,Sternal Pec C-SB Seated Fly (M),Mid Pec Seated Cable Fly
+Chest,Pec Major,Sternal Head,Fly,C-BS,Standing,-,bi,M,Sternal Pec C-BS Standing Fly (M),Mid Pec Standing Cable Fly
+Chest,Pec Major,Sternal Head,Fly,C-SG,Standing,-,uni,L/M/S,Sternal Pec C-SG Single-Arm Fly (L/M/S),Mid Pec Cable Single-Arm Fly
+Chest,Pec Major,Sternal Head,Pressaround,C-FT,Standing,-,bi,S,Sternal Pec C-FT Standing Pressaround (S),Mid Pec Standing Cable Pressaround
+Chest,Pec Major,Sternal Head,Pressaround,C-AA,Standing,-,bi,S,Sternal Pec C-AA Standing Pressaround (S),Mid Pec Standing Cable Pressaround
+Chest,Pec Major,Sternal Head,Pressaround,C-SG,Standing,-,uni,S,Sternal Pec C-SG Single-Arm Pressaround (S),Mid Pec Cable Single-Arm Pressaround
+Chest,Pec Major,Costal Head,Press,BB,Decline,-,bi,L,Costal Pec BB Decline Press (L),Lower Pec Decline Barbell Press
+Chest,Pec Major,Costal Head,Press,DB,Decline,-,bi,L,Costal Pec DB Decline Press (L),Lower Pec Decline Dumbbell Press
+Chest,Pec Major,Costal Head,Press,SM,Decline,-,bi,L,Costal Pec SM Decline Press (L),Lower Pec Decline Smith Machine Press
+Chest,Pec Major,Costal Head,Press,M,Decline,-,bi,L/M/S,Costal Pec M Decline Press (L/M/S),Lower Pec Decline Machine Press
+Chest,Pec Major,Costal Head,Press,M,Upright,-,bi,L/M/S,Costal Pec M Upright Press (L/M/S),Lower Pec Upright Machine Press
+Chest,Pec Major,Costal Head,Press,BW,-,-,bi,L,Costal Pec BW Bent-Over Dip (L),Lower Pec Bodyweight Bent-Over Dip
+Chest,Pec Major,Costal Head,Press,C-FT,Standing,-,bi,L/M/S,Costal Pec C-FT Standing Press (L/M/S),Lower Pec Standing Cable Press
+Chest,Pec Major,Costal Head,Press,C-AA,Standing,-,bi,L/M/S,Costal Pec C-AA Standing Press (L/M/S),Lower Pec Standing Cable Press
+Chest,Pec Major,Costal Head,Press,C-SB,Seated,-,bi,M,Costal Pec C-SB Seated Press (M),Lower Pec Seated Cable Press
+Chest,Pec Major,Costal Head,Press,C-BS,Standing,-,bi,M,Costal Pec C-BS Standing Press (M),Lower Pec Standing Cable Press
+Chest,Pec Major,Costal Head,Press,C-SG,Standing,-,uni,L/M/S,Costal Pec C-SG Single-Arm Press (L/M/S),Lower Pec Cable Single-Arm Press
+Chest,Pec Major,Costal Head,Fly,DB,Decline,-,bi,L,Costal Pec DB Decline Fly (L),Lower Pec Decline Dumbbell Fly
+Chest,Pec Major,Costal Head,Fly,M,Incline,-,bi,L/M/S,Costal Pec M Incline Fly (L/M/S),Lower Pec Incline Machine Fly
+Chest,Pec Major,Costal Head,Fly,M,Upright,-,bi,L/M/S,Costal Pec M Upright Fly (L/M/S),Lower Pec Upright Machine Fly
+Chest,Pec Major,Costal Head,Fly,C-FT,Standing,-,bi,L/M/S,Costal Pec C-FT Standing Fly (L/M/S),Lower Pec Standing Cable Fly
+Chest,Pec Major,Costal Head,Fly,C-AA,Standing,-,bi,L/M/S,Costal Pec C-AA Standing Fly (L/M/S),Lower Pec Standing Cable Fly
+Chest,Pec Major,Costal Head,Fly,C-SB,Seated,-,bi,M,Costal Pec C-SB Seated Fly (M),Lower Pec Seated Cable Fly
+Chest,Pec Major,Costal Head,Fly,C-BS,Standing,-,bi,M,Costal Pec C-BS Standing Fly (M),Lower Pec Standing Cable Fly
+Chest,Pec Major,Costal Head,Fly,C-SG,Standing,-,uni,L/M/S,Costal Pec C-SG Single-Arm Fly (L/M/S),Lower Pec Cable Single-Arm Fly
+Chest,Pec Major,Costal Head,Pressaround,C-FT,Standing,-,bi,S,Costal Pec C-FT Standing Pressaround (S),Lower Pec Standing Cable Pressaround
+Chest,Pec Major,Costal Head,Pressaround,C-AA,Standing,-,bi,S,Costal Pec C-AA Standing Pressaround (S),Lower Pec Standing Cable Pressaround
+Chest,Pec Major,Costal Head,Pressaround,C-SG,Standing,-,uni,S,Costal Pec C-SG Single-Arm Pressaround (S),Lower Pec Cable Single-Arm Pressaround
+Chest,Serratus Anterior,-,Protraction,BW,-,-,bi,M,Serratus BW Push-Up Plus (M),Serratus Bodyweight Push-Up Plus
+Chest,Serratus Anterior,-,Protraction,BND,-,-,bi,M,Serratus BND Punch (M),Serratus Band Punch
+Chest,Serratus Anterior,-,Protraction,C-FT,-,-,bi,M,Serratus C-FT Punch (M),Serratus Cable Punch
+Chest,Serratus Anterior,-,Protraction,C-AA,-,-,bi,M,Serratus C-AA Punch (M),Serratus Cable Punch
+Chest,Serratus Anterior,-,Protraction,C-SG,-,-,uni,M,Serratus C-SG Single-Arm Punch (M),Serratus Cable Single-Arm Punch
+Back,Lats,Thoracic,Pulldown,M,Wide,Overhand,bi,S,Thoracic Lat M Wide Pulldown (S),Upper Lats Wide Machine Pulldown
+Back,Lats,Thoracic,Pulldown,BW,Wide,Overhand,bi,S,Thoracic Lat BW Wide Pull-Up (S),Upper Lats Wide Bodyweight Pull-Up
+Back,Lats,Thoracic,Pulldown,C-FT,Wide,Overhand,bi,S,Thoracic Lat C-FT Wide Pulldown (S),Upper Lats Wide Cable Pulldown
+Back,Lats,Thoracic,Pulldown,C-SG,Wide,Overhand,uni,S,Thoracic Lat C-SG Wide Single-Arm Pulldown (S),Upper Lats Wide Cable Single-Arm Pulldown
+Back,Lats,Thoracic,Row,BB,Bent-Over,Supinated,bi,M,Thoracic Lat BB Bent-Over Row (M),Upper Lats Bent-Over Barbell Row
+Back,Lats,Thoracic,Row,SM,Bent-Over,Supinated,bi,M,Thoracic Lat SM Bent-Over Row (M),Upper Lats Bent-Over Smith Machine Row
+Back,Lats,Thoracic,Row,BW,Inverted,Neutral,bi,M,Thoracic Lat BW Inverted Row (M),Upper Lats Inverted Bodyweight Row
+Back,Lats,Thoracic,Row,DB,Chest-Supported,Neutral,bi,M,Thoracic Lat DB Chest-Supported Row (M),Upper Lats Chest-Supported Dumbbell Row
+Back,Lats,Thoracic,Row,DB,-,Neutral,uni,M,Thoracic Lat DB Single-Arm Row (M),Upper Lats Dumbbell Single-Arm Row
+Back,Lats,Thoracic,Row,M,Chest-Supported,Supinated/Semi-Supinated/Neutral,bi,M,Thoracic Lat M Chest-Supported Row (M),Upper Lats Chest-Supported Machine Row
+Back,Lats,Thoracic,Row,M,-,Supinated/Semi-Supinated/Neutral,uni,M,Thoracic Lat M Single-Arm Row (M),Upper Lats Machine Single-Arm Row
+Back,Lats,Thoracic,Row,C-FT,Seated,Supinated/Semi-Supinated/Neutral,bi,M,Thoracic Lat C-FT Seated Row (M),Upper Lats Seated Cable Row
+Back,Lats,Thoracic,Row,C-FT,-,Supinated/Semi-Supinated/Neutral,uni,M,Thoracic Lat C-FT Single-Arm Row (M),Upper Lats Cable Single-Arm Row
+Back,Lats,Thoracic,Row,C-AA,Seated,Supinated/Semi-Supinated/Neutral,bi,M,Thoracic Lat C-AA Seated Row (M),Upper Lats Seated Cable Row
+Back,Lats,Thoracic,Row,C-AA,-,Supinated/Semi-Supinated/Neutral,uni,M,Thoracic Lat C-AA Single-Arm Row (M),Upper Lats Cable Single-Arm Row
+Back,Lats,Thoracic,Row,C-SF,Seated,Supinated/Semi-Supinated/Neutral,bi,M,Thoracic Lat C-SF Seated Row (M),Upper Lats Seated Cable Row
+Back,Lats,Thoracic,Row,C-SG,-,Supinated/Semi-Supinated/Neutral,uni,M,Thoracic Lat C-SG Single-Arm Row (M),Upper Lats Cable Single-Arm Row
+Back,Lats,Thoracic,Pull-Around,C-FT,-,Supinated/Semi-Supinated/Neutral,uni,L,Thoracic Lat C-FT Single-Arm Pull-Around (L),Upper Lats Cable Single-Arm Pull-Around
+Back,Lats,Thoracic,Pull-Around,C-AA,-,Supinated/Semi-Supinated/Neutral,uni,L,Thoracic Lat C-AA Single-Arm Pull-Around (L),Upper Lats Cable Single-Arm Pull-Around
+Back,Lats,Thoracic,Pull-Around,C-SF,Seated,Supinated/Semi-Supinated/Neutral,uni,L,Thoracic Lat C-SF Seated Single-Arm Pull-Around (L),Upper Lats Seated Cable Single-Arm Pull-Around
+Back,Lats,Thoracic,Pull-Around,C-SG,-,Supinated/Semi-Supinated/Neutral,uni,L,Thoracic Lat C-SG Single-Arm Pull-Around (L),Upper Lats Cable Single-Arm Pull-Around
+Back,Lats,Lumbar,Row,BB,Bent-Over,Supinated,bi,M,Lumbar Lat BB Bent-Over Row (M),Mid Lats Bent-Over Barbell Row
+Back,Lats,Lumbar,Row,SM,Bent-Over,Supinated,bi,M,Lumbar Lat SM Bent-Over Row (M),Mid Lats Bent-Over Smith Machine Row
+Back,Lats,Lumbar,Row,BW,Inverted,Neutral,bi,M,Lumbar Lat BW Inverted Row (M),Mid Lats Inverted Bodyweight Row
+Back,Lats,Lumbar,Row,DB,Chest-Supported,Neutral,bi,M,Lumbar Lat DB Chest-Supported Row (M),Mid Lats Chest-Supported Dumbbell Row
+Back,Lats,Lumbar,Row,DB,-,Neutral,uni,M,Lumbar Lat DB Single-Arm Row (M),Mid Lats Dumbbell Single-Arm Row
+Back,Lats,Lumbar,Row,M,Chest-Supported,Supinated/Semi-Supinated/Neutral,bi,M/S,Lumbar Lat M Chest-Supported Row (M/S),Mid Lats Chest-Supported Machine Row
+Back,Lats,Lumbar,Row,M,-,Supinated/Semi-Supinated/Neutral,uni,M/S,Lumbar Lat M Single-Arm Row (M/S),Mid Lats Machine Single-Arm Row
+Back,Lats,Lumbar,Row,C-FT,Seated,Supinated/Semi-Supinated/Neutral,bi,M/S,Lumbar Lat C-FT Seated Row (M/S),Mid Lats Seated Cable Row
+Back,Lats,Lumbar,Row,C-FT,-,Supinated/Semi-Supinated/Neutral,uni,M/S,Lumbar Lat C-FT Single-Arm Row (M/S),Mid Lats Cable Single-Arm Row
+Back,Lats,Lumbar,Row,C-AA,Seated,Supinated/Semi-Supinated/Neutral,bi,M/S,Lumbar Lat C-AA Seated Row (M/S),Mid Lats Seated Cable Row
+Back,Lats,Lumbar,Row,C-AA,-,Supinated/Semi-Supinated/Neutral,uni,M/S,Lumbar Lat C-AA Single-Arm Row (M/S),Mid Lats Cable Single-Arm Row
+Back,Lats,Lumbar,Row,C-SF,Seated,Supinated/Semi-Supinated/Neutral,bi,M/S,Lumbar Lat C-SF Seated Row (M/S),Mid Lats Seated Cable Row
+Back,Lats,Lumbar,Row,C-SG,-,Supinated/Semi-Supinated/Neutral,uni,M/S,Lumbar Lat C-SG Single-Arm Row (M/S),Mid Lats Cable Single-Arm Row
+Back,Lats,Lumbar,Pull-Around,C-FT,-,Supinated/Semi-Supinated/Neutral,uni,L,Lumbar Lat C-FT Single-Arm Pull-Around (L),Mid Lats Cable Single-Arm Pull-Around
+Back,Lats,Lumbar,Pull-Around,C-AA,-,Supinated/Semi-Supinated/Neutral,uni,L,Lumbar Lat C-AA Single-Arm Pull-Around (L),Mid Lats Cable Single-Arm Pull-Around
+Back,Lats,Lumbar,Pull-Around,C-SF,Seated,Supinated/Semi-Supinated/Neutral,uni,L,Lumbar Lat C-SF Seated Single-Arm Pull-Around (L),Mid Lats Seated Cable Single-Arm Pull-Around
+Back,Lats,Lumbar,Pull-Around,C-SG,-,Supinated/Semi-Supinated/Neutral,uni,L,Lumbar Lat C-SG Single-Arm Pull-Around (L),Mid Lats Cable Single-Arm Pull-Around
+Back,Lats,Iliac,Pulldown,M,Close,Supinated/Semi-Supinated/Neutral,bi,S,Iliac Lat M Close Pulldown (S),Lower Lats Close Machine Pulldown
+Back,Lats,Iliac,Pulldown,BW,Close,Supinated,bi,S,Iliac Lat BW Close Chin-Up (S),Lower Lats Close Bodyweight Chin-Up
+Back,Lats,Iliac,Pulldown,C-FT,Close,Supinated/Semi-Supinated/Neutral,bi,S,Iliac Lat C-FT Close Pulldown (S),Lower Lats Close Cable Pulldown
+Back,Lats,Iliac,Pulldown,C-SG,Close,Supinated/Semi-Supinated/Neutral,uni,S,Iliac Lat C-SG Close Single-Arm Pulldown (S),Lower Lats Close Cable Single-Arm Pulldown
+Back,Lats,Iliac,Straight-Arm Pullover,DB,-,Neutral,bi,L,Iliac Lat DB Straight-Arm Pullover (L),Lower Lats Dumbbell Straight-Arm Pullover
+Back,Lats,Iliac,Straight-Arm Pullover,M,-,Neutral,bi,L,Iliac Lat M Straight-Arm Pullover (L),Lower Lats Machine Straight-Arm Pullover
+Back,Lats,Iliac,Straight-Arm Pullover,C-FT,Standing,Neutral,bi,L,Iliac Lat C-FT Standing Straight-Arm Pullover (L),Lower Lats Standing Cable Straight-Arm Pullover
+Back,Lats,Iliac,Straight-Arm Pullover,C-AA,Stepped-Back Bent-Over,Neutral,bi,S,Iliac Lat C-AA Stepped-Back Bent-Over Straight-Arm Pullover (S),Lower Lats Stepped-Back Bent-Over Cable Straight-Arm Pullover
+Back,Lats,Iliac,Straight-Arm Pullover,C-SG,-,Neutral,uni,L,Iliac Lat C-SG Single-Arm Straight-Arm Pullover (L),Lower Lats Cable Single-Arm Straight-Arm Pullover
+Back,Lats,Iliac,Pull-Around,C-FT,-,Supinated/Semi-Supinated/Neutral,uni,L,Iliac Lat C-FT Single-Arm Pull-Around (L),Lower Lats Cable Single-Arm Pull-Around
+Back,Lats,Iliac,Pull-Around,C-AA,-,Supinated/Semi-Supinated/Neutral,uni,L,Iliac Lat C-AA Single-Arm Pull-Around (L),Lower Lats Cable Single-Arm Pull-Around
+Back,Lats,Iliac,Pull-Around,C-SF,Seated,Supinated/Semi-Supinated/Neutral,uni,L,Iliac Lat C-SF Seated Single-Arm Pull-Around (L),Lower Lats Seated Cable Single-Arm Pull-Around
+Back,Lats,Iliac,Pull-Around,C-SG,-,Supinated/Semi-Supinated/Neutral,uni,L,Iliac Lat C-SG Single-Arm Pull-Around (L),Lower Lats Cable Single-Arm Pull-Around
+Back,Upper Back,Upper Trapezius,Shrug,BB,-,Pronated/Neutral,bi,L,Upper Traps BB Shrug (L),Upper Traps Barbell Shrug
+Back,Upper Back,Upper Trapezius,Shrug,DB,-,Neutral,bi,L,Upper Traps DB Shrug (L),Upper Traps Dumbbell Shrug
+Back,Upper Back,Upper Trapezius,Shrug,SM,-,Pronated,bi,L,Upper Traps SM Shrug (L),Upper Traps Smith Machine Shrug
+Back,Upper Back,Upper Trapezius,Shrug,M,-,Neutral,bi,L,Upper Traps M Shrug (L),Upper Traps Machine Shrug
+Back,Upper Back,Upper Trapezius,Shrug,C-FT,-,Pronated/Neutral,bi,L,Upper Traps C-FT Shrug (L),Upper Traps Cable Shrug
+Back,Upper Back,Upper Trapezius,Shrug,C-AA,-,Pronated/Neutral,bi,L,Upper Traps C-AA Shrug (L),Upper Traps Cable Shrug
+Back,Upper Back,Upper Trapezius,Shrug,C-SG,-,Pronated/Neutral,bi,L,Upper Traps C-SG Shrug (L),Upper Traps Cable Shrug
+Back,Upper Back,Upper Trapezius,Shrug,C-SG,-,Neutral,uni,L,Upper Traps C-SG Single-Arm Shrug (L),Upper Traps Cable Single-Arm Shrug
+Back,Upper Back,Upper Trapezius,Raise,C-FT,-,Neutral,bi,S,Upper Traps C-FT Raise (S),Upper Traps Cable Raise
+Back,Upper Back,Upper Trapezius,Raise,C-AA,-,Neutral,bi,S,Upper Traps C-AA Raise (S),Upper Traps Cable Raise
+Back,Upper Back,Upper Trapezius,Raise,C-SG,-,Neutral,uni,S,Upper Traps C-SG Single-Arm Raise (S),Upper Traps Cable Single-Arm Raise
+Back,Upper Back,Teres Major,Pullover,DB,-,Neutral,bi,L,Teres Major DB Pullover (L),Teres Major Dumbbell Pullover
+Back,Upper Back,Teres Major,Pullover,M,-,Neutral,bi,L,Teres Major M Pullover (L),Teres Major Machine Pullover
+Back,Upper Back,Teres Major,Pullover,C-FT,Standing,Neutral,bi,L,Teres Major C-FT Standing Pullover (L),Teres Major Standing Cable Pullover
+Back,Upper Back,Teres Major,Pullover,C-SG,-,Neutral,uni,L,Teres Major C-SG Single-Arm Pullover (L),Teres Major Cable Single-Arm Pullover
+Back,Upper Back,Teres Major,Pullover,C-AA,Stepped-Back Bent-Over,Neutral,bi,S,Teres Major C-AA Stepped-Back Bent-Over Pullover (S),Teres Major Stepped-Back Bent-Over Cable Pullover
+Back,Upper Back,Teres Major,Pulldown,M,Wide,Overhand,bi,M,Teres Major M Wide Pulldown (M),Teres Major Wide Machine Pulldown
+Back,Upper Back,Teres Major,Pulldown,C-FT,Wide,Overhand,bi,M,Teres Major C-FT Wide Pulldown (M),Teres Major Wide Cable Pulldown
+Back,Upper Back,Teres Major,Pulldown,C-SG,Wide,Overhand,uni,M,Teres Major C-SG Wide Single-Arm Pulldown (M),Teres Major Wide Cable Single-Arm Pulldown
+Back,Mid Back,Rhomboids,Row,BB,Bent-Over,Pronated,bi,M,Rhomboids BB Bent-Over Row (M),Mid Back Bent-Over Barbell Row
+Back,Mid Back,Rhomboids,Row,SM,Bent-Over,Pronated,bi,M,Rhomboids SM Bent-Over Row (M),Mid Back Bent-Over Smith Machine Row
+Back,Mid Back,Rhomboids,Row,DB,Bent-Over,Neutral/Semi-Pronated/Pronated,bi,S,Rhomboids DB Bent-Over Row (S),Mid Back Bent-Over Dumbbell Row
+Back,Mid Back,Rhomboids,Row,DB,-,Neutral/Semi-Pronated/Pronated,uni,S,Rhomboids DB Single-Arm Row (S),Mid Back Dumbbell Single-Arm Row
+Back,Mid Back,Rhomboids,Row,DB,Chest-Supported,Neutral/Semi-Pronated/Pronated,bi,S,Rhomboids DB Chest-Supported Row (S),Mid Back Chest-Supported Dumbbell Row
+Back,Mid Back,Rhomboids,Row,M,Chest-Supported,Neutral/Semi-Pronated/Pronated,bi,S/M,Rhomboids M Chest-Supported Row (S/M),Mid Back Chest-Supported Machine Row
+Back,Mid Back,Rhomboids,Row,M,-,Neutral/Semi-Pronated/Pronated,uni,S/M,Rhomboids M Single-Arm Row (S/M),Mid Back Machine Single-Arm Row
+Back,Mid Back,Rhomboids,Row,C-FT,Bent-Over,Neutral/Semi-Pronated/Pronated,bi,M,Rhomboids C-FT Bent-Over Row (M),Mid Back Bent-Over Cable Row
+Back,Mid Back,Rhomboids,Row,C-FT,Chest-Supported,Neutral/Semi-Pronated/Pronated,bi,M,Rhomboids C-FT Chest-Supported Row (M),Mid Back Chest-Supported Cable Row
+Back,Mid Back,Rhomboids,Row,C-FT,Seated,Neutral/Semi-Pronated/Pronated,bi,M,Rhomboids C-FT Seated Row (M),Mid Back Seated Cable Row
+Back,Mid Back,Rhomboids,Row,C-FT,-,Neutral/Semi-Pronated/Pronated,uni,M,Rhomboids C-FT Single-Arm Row (M),Mid Back Cable Single-Arm Row
+Back,Mid Back,Rhomboids,Row,C-AA,Bent-Over,Neutral/Semi-Pronated/Pronated,bi,M,Rhomboids C-AA Bent-Over Row (M),Mid Back Bent-Over Cable Row
+Back,Mid Back,Rhomboids,Row,C-AA,-,Neutral/Semi-Pronated/Pronated,uni,M,Rhomboids C-AA Single-Arm Row (M),Mid Back Cable Single-Arm Row
+Back,Mid Back,Rhomboids,Row,C-SF,Seated,Neutral/Semi-Pronated/Pronated,bi,M,Rhomboids C-SF Seated Row (M),Mid Back Seated Cable Row
+Back,Mid Back,Rhomboids,Row,C-SG,-,Neutral/Semi-Pronated/Pronated,bi,M,Rhomboids C-SG Row (M),Mid Back Cable Row
+Back,Mid Back,Rhomboids,Row,C-SG,-,Neutral/Semi-Pronated/Pronated,uni,M,Rhomboids C-SG Single-Arm Row (M),Mid Back Cable Single-Arm Row
+Back,Mid Back,Rhomboids,Reverse Fly,DB,-,Neutral,bi,S,Rhomboids DB Reverse Fly (S),Mid Back Dumbbell Reverse Fly
+Back,Mid Back,Rhomboids,Reverse Fly,M,-,Neutral,bi,S,Rhomboids M Reverse Fly (S),Mid Back Machine Reverse Fly
+Back,Mid Back,Rhomboids,Reverse Fly,C-FT,-,Neutral,bi,S,Rhomboids C-FT Reverse Fly (S),Mid Back Cable Reverse Fly
+Back,Mid Back,Rhomboids,Reverse Fly,C-AA,-,Neutral,bi,S,Rhomboids C-AA Reverse Fly (S),Mid Back Cable Reverse Fly
+Back,Mid Back,Mid Trapezius,Retraction Row,DB,Chest-Supported,Neutral/Pronated,bi,S,Mid Traps DB Chest-Supported Retraction Row (S),Mid Back Chest-Supported Dumbbell Retraction Row
+Back,Mid Back,Mid Trapezius,Retraction Row,M,Chest-Supported,Neutral/Pronated,bi,S,Mid Traps M Chest-Supported Retraction Row (S),Mid Back Chest-Supported Machine Retraction Row
+Back,Mid Back,Mid Trapezius,Retraction Row,C-FT,Chest-Supported,Neutral/Pronated,bi,S,Mid Traps C-FT Chest-Supported Retraction Row (S),Mid Back Chest-Supported Cable Retraction Row
+Back,Mid Back,Mid Trapezius,Retraction Row,C-AA,Chest-Supported,Neutral/Pronated,bi,S,Mid Traps C-AA Chest-Supported Retraction Row (S),Mid Back Chest-Supported Cable Retraction Row
+Back,Mid Back,Mid Trapezius,Retraction Row,C-SG,Chest-Supported,Neutral/Pronated,uni,S,Mid Traps C-SG Chest-Supported Single-Arm Retraction Row (S),Mid Back Chest-Supported Cable Single-Arm Retraction Row
+Back,Mid Back,Lower Trapezius,Pull-Apart,BND,-,Pronated,bi,S,Lower Traps BND Pull-Apart (S),Lower Traps Band Pull-Apart
+Back,Mid Back,Lower Trapezius,Pull-Apart,C-FT,-,Pronated,bi,S,Lower Traps C-FT Pull-Apart (S),Lower Traps Cable Pull-Apart
+Back,Mid Back,Lower Trapezius,Pull-Apart,C-AA,-,Pronated,bi,S,Lower Traps C-AA Pull-Apart (S),Lower Traps Cable Pull-Apart
+Back,Lower Back,Spinal Erectors,Spinal Extension,BB,-,-,bi,L,Spinal Erectors BB Good Morning (L),Lower Back Barbell Good Morning
+Back,Lower Back,Spinal Erectors,Spinal Extension,BB,Seated,-,bi,L,Spinal Erectors BB Seated Good Morning (L),Lower Back Seated Barbell Good Morning
+Back,Lower Back,Spinal Erectors,Spinal Extension,BW,45-Degree,-,bi,M,Spinal Erectors BW 45-Degree Back Extension (M),Lower Back 45-Degree Bodyweight Back Extension
+Back,Lower Back,Spinal Erectors,Spinal Extension,M,45-Degree,-,bi,M,Spinal Erectors M 45-Degree Back Extension (M),Lower Back 45-Degree Machine Back Extension
+Back,Lower Back,Spinal Erectors,Spinal Extension,M,Seated,-,bi,S,Spinal Erectors M Seated Back Extension (S),Lower Back Seated Machine Back Extension
+Back,Lower Back,Spinal Erectors,Spinal Extension,M,-,-,bi,M,Spinal Erectors M Reverse Hyper (M),Lower Back Machine Reverse Hyper
+Back,Upper/Mid Back,Compound,Row,BB,Bent-Over,Pronated,bi,M,Upper/Mid Back BB Bent-Over Row (M),Upper/Mid Back Bent-Over Barbell Row
+Back,Upper/Mid Back,Compound,Row,DB,Bent-Over,Pronated/Semi-Pronated,bi,M,Upper/Mid Back DB Bent-Over Row (M),Upper/Mid Back Bent-Over Dumbbell Row
+Back,Upper/Mid Back,Compound,Row,DB,-,Pronated/Semi-Pronated,uni,M,Upper/Mid Back DB Single-Arm Row (M),Upper/Mid Back Dumbbell Single-Arm Row
+Back,Upper/Mid Back,Compound,Row,DB,Chest-Supported,Pronated/Semi-Pronated,bi,M,Upper/Mid Back DB Chest-Supported Row (M),Upper/Mid Back Chest-Supported Dumbbell Row
+Back,Upper/Mid Back,Compound,Row,M,Chest-Supported,Pronated/Semi-Pronated,bi,M,Upper/Mid Back M Chest-Supported Row (M),Upper/Mid Back Chest-Supported Machine Row
+Back,Upper/Mid Back,Compound,Row,M,-,Pronated/Semi-Pronated,uni,M,Upper/Mid Back M Single-Arm Row (M),Upper/Mid Back Machine Single-Arm Row
+Back,Upper/Mid Back,Compound,Row,C-FT,Bent-Over,Pronated/Semi-Pronated,bi,M,Upper/Mid Back C-FT Bent-Over Row (M),Upper/Mid Back Bent-Over Cable Row
+Back,Upper/Mid Back,Compound,Row,C-FT,Chest-Supported,Pronated/Semi-Pronated,bi,M,Upper/Mid Back C-FT Chest-Supported Row (M),Upper/Mid Back Chest-Supported Cable Row
+Back,Upper/Mid Back,Compound,Row,C-FT,Seated,Pronated/Semi-Pronated,bi,M,Upper/Mid Back C-FT Seated Row (M),Upper/Mid Back Seated Cable Row
+Back,Upper/Mid Back,Compound,Row,C-FT,-,Pronated/Semi-Pronated,uni,M,Upper/Mid Back C-FT Single-Arm Row (M),Upper/Mid Back Cable Single-Arm Row
+Back,Upper/Mid Back,Compound,Row,C-AA,Bent-Over,Pronated/Semi-Pronated,bi,M,Upper/Mid Back C-AA Bent-Over Row (M),Upper/Mid Back Bent-Over Cable Row
+Back,Upper/Mid Back,Compound,Row,C-AA,-,Pronated/Semi-Pronated,uni,M,Upper/Mid Back C-AA Single-Arm Row (M),Upper/Mid Back Cable Single-Arm Row
+Back,Upper/Mid Back,Compound,Row,C-SF,Seated,Pronated/Semi-Pronated,bi,M,Upper/Mid Back C-SF Seated Row (M),Upper/Mid Back Seated Cable Row
+Back,Upper/Mid Back,Compound,Row,C-SG,-,Pronated/Semi-Pronated,bi,M,Upper/Mid Back C-SG Row (M),Upper/Mid Back Cable Row
+Back,Upper/Mid Back,Compound,Row,C-SG,-,Pronated/Semi-Pronated,uni,M,Upper/Mid Back C-SG Single-Arm Row (M),Upper/Mid Back Cable Single-Arm Row
+Shoulders,Deltoids,Anterior,Press,BB,Overhead,Neutral/Pronated/Semi-Pronated,bi,L,Anterior Delt BB Overhead Press (L),Front Delts Overhead Barbell Press
+Shoulders,Deltoids,Anterior,Press,DB,Overhead,Neutral/Pronated/Semi-Pronated,bi,L,Anterior Delt DB Overhead Press (L),Front Delts Overhead Dumbbell Press
+Shoulders,Deltoids,Anterior,Press,SM,Overhead,Neutral/Pronated/Semi-Pronated,bi,L,Anterior Delt SM Overhead Press (L),Front Delts Overhead Smith Machine Press
+Shoulders,Deltoids,Anterior,Press,M,Seated,Neutral/Pronated/Semi-Pronated,bi,L/M,Anterior Delt M Seated Press (L/M),Front Delts Seated Machine Press
+Shoulders,Deltoids,Anterior,Press,C-FT,Stepped-Forward,Neutral/Pronated/Semi-Pronated,bi,S,Anterior Delt C-FT Stepped-Forward Press (S),Front Delts Stepped-Forward Cable Press
+Shoulders,Deltoids,Anterior,Press,C-FT,Standing,Neutral/Pronated/Semi-Pronated,bi,M,Anterior Delt C-FT Standing Press (M),Front Delts Standing Cable Press
+Shoulders,Deltoids,Anterior,Press,C-FT,Stepped-Back,Neutral/Pronated/Semi-Pronated,bi,L,Anterior Delt C-FT Stepped-Back Press (L),Front Delts Stepped-Back Cable Press
+Shoulders,Deltoids,Anterior,Press,C-AA,Stepped-Forward,Neutral/Pronated/Semi-Pronated,bi,S,Anterior Delt C-AA Stepped-Forward Press (S),Front Delts Stepped-Forward Cable Press
+Shoulders,Deltoids,Anterior,Press,C-AA,Standing,Neutral/Pronated/Semi-Pronated,bi,M,Anterior Delt C-AA Standing Press (M),Front Delts Standing Cable Press
+Shoulders,Deltoids,Anterior,Press,C-AA,Stepped-Back,Neutral/Pronated/Semi-Pronated,bi,L,Anterior Delt C-AA Stepped-Back Press (L),Front Delts Stepped-Back Cable Press
+Shoulders,Deltoids,Anterior,Press,C-SG,Standing,Neutral/Pronated/Semi-Pronated,uni,M,Anterior Delt C-SG Single-Arm Press (M),Front Delts Cable Single-Arm Press
+Shoulders,Deltoids,Anterior,Raise,DB,Frontal-Plane,Neutral,bi,L,Anterior Delt DB Frontal-Plane Raise (L),Front Delts Frontal-Plane Dumbbell Raise
+Shoulders,Deltoids,Anterior,Raise,C-FT,Frontal-Plane,Neutral,bi,L,Anterior Delt C-FT Frontal-Plane Raise (L),Front Delts Frontal-Plane Cable Raise
+Shoulders,Deltoids,Anterior,Raise,C-AA,Frontal-Plane,Neutral,bi,L,Anterior Delt C-AA Frontal-Plane Raise (L),Front Delts Frontal-Plane Cable Raise
+Shoulders,Deltoids,Anterior,Raise,C-SG,Frontal-Plane,Neutral,uni,L,Anterior Delt C-SG Frontal-Plane Single-Arm Raise (L),Front Delts Frontal-Plane Cable Single-Arm Raise
+Shoulders,Deltoids,Anterior,Raise,C-FT,Scapular-Plane,Neutral,bi,L,Anterior Delt C-FT Scapular-Plane Raise (L),Front Delts Scapular-Plane Cable Raise
+Shoulders,Deltoids,Anterior,Raise,C-AA,Scapular-Plane,Neutral,bi,L,Anterior Delt C-AA Scapular-Plane Raise (L),Front Delts Scapular-Plane Cable Raise
+Shoulders,Deltoids,Anterior,Raise,C-SG,Scapular-Plane,Neutral,uni,L,Anterior Delt C-SG Scapular-Plane Single-Arm Raise (L),Front Delts Scapular-Plane Cable Single-Arm Raise
+Shoulders,Deltoids,Lateral,Raise,DB,-,Neutral,bi,S,Lateral Delt DB Raise (S),Lateral Delts Dumbbell Raise
+Shoulders,Deltoids,Lateral,Raise,M,-,Neutral,bi,M/S,Lateral Delt M Raise (M/S),Lateral Delts Machine Raise
+Shoulders,Deltoids,Lateral,Raise,C-FT,-,Neutral,bi,L/M/S,Lateral Delt C-FT Raise (L/M/S),Lateral Delts Cable Raise
+Shoulders,Deltoids,Lateral,Raise,C-AA,-,Neutral,bi,L/M/S,Lateral Delt C-AA Raise (L/M/S),Lateral Delts Cable Raise
+Shoulders,Deltoids,Lateral,Raise,C-SG,-,Neutral,uni,L/M/S,Lateral Delt C-SG Single-Arm Raise (L/M/S),Lateral Delts Cable Single-Arm Raise
+Shoulders,Deltoids,Lateral,Raise,DB,Wrist-Supported,Neutral,bi,S,Lateral Delt DB Wrist-Supported Raise (S),Lateral Delts Wrist-Supported Dumbbell Raise
+Shoulders,Deltoids,Lateral,Raise,C-FT,Wrist-Supported,Neutral,bi,L/M/S,Lateral Delt C-FT Wrist-Supported Raise (L/M/S),Lateral Delts Wrist-Supported Cable Raise
+Shoulders,Deltoids,Lateral,Raise,DB,Leaning,Neutral,bi,L,Lateral Delt DB Leaning Raise (L),Lateral Delts Leaning Dumbbell Raise
+Shoulders,Deltoids,Lateral,Raise,C-BS,-,Neutral,bi,M,Lateral Delt C-BS Raise (M),Lateral Delts Cable Raise
+Shoulders,Deltoids,Lateral,Y-Raise,DB,-,Neutral,bi,S,Lateral Delt DB Y-Raise (S),Lateral Delts Dumbbell Y-Raise
+Shoulders,Deltoids,Lateral,Y-Raise,C-FT,-,Neutral,bi,L/M/S,Lateral Delt C-FT Y-Raise (L/M/S),Lateral Delts Cable Y-Raise
+Shoulders,Deltoids,Lateral,Y-Raise,C-AA,-,Neutral,bi,L/M/S,Lateral Delt C-AA Y-Raise (L/M/S),Lateral Delts Cable Y-Raise
+Shoulders,Deltoids,Lateral,Y-Raise,C-SG,-,Neutral,uni,L/M/S,Lateral Delt C-SG Single-Arm Y-Raise (L/M/S),Lateral Delts Cable Single-Arm Y-Raise
+Shoulders,Deltoids,Posterior,Reverse Fly,DB,-,Neutral,bi,S,Posterior Delt DB Reverse Fly (S),Posterior Delts Dumbbell Reverse Fly
+Shoulders,Deltoids,Posterior,Reverse Fly,M,-,Neutral,bi,M/S,Posterior Delt M Reverse Fly (M/S),Posterior Delts Machine Reverse Fly
+Shoulders,Deltoids,Posterior,Reverse Fly,M,Fly-Around,Neutral,uni,L,Posterior Delt M Fly-Around Single-Arm Reverse Fly (L),Posterior Delts Fly-Around Machine Single-Arm Reverse Fly
+Shoulders,Deltoids,Posterior,Reverse Fly,C-FT,-,Neutral,bi,M/S,Posterior Delt C-FT Reverse Fly (M/S),Posterior Delts Cable Reverse Fly
+Shoulders,Deltoids,Posterior,Reverse Fly,C-AA,-,Neutral,bi,M/S,Posterior Delt C-AA Reverse Fly (M/S),Posterior Delts Cable Reverse Fly
+Shoulders,Deltoids,Posterior,Reverse Fly,C-FT,Fly-Around,Neutral,uni,L,Posterior Delt C-FT Fly-Around Single-Arm Reverse Fly (L),Posterior Delts Fly-Around Cable Single-Arm Reverse Fly
+Shoulders,Deltoids,Posterior,Reverse Fly,C-AA,Fly-Around,Neutral,uni,L,Posterior Delt C-AA Fly-Around Single-Arm Reverse Fly (L),Posterior Delts Fly-Around Cable Single-Arm Reverse Fly
+Shoulders,Deltoids,Posterior,Reverse Fly,C-SG,Fly-Around,Neutral,uni,L,Posterior Delt C-SG Fly-Around Single-Arm Reverse Fly (L),Posterior Delts Fly-Around Cable Single-Arm Reverse Fly
+Shoulders,Deltoids,Posterior,Row,DB,-,Neutral/Pronated,bi,S,Posterior Delt DB Row (S),Posterior Delts Dumbbell Row
+Shoulders,Deltoids,Posterior,Row,M,-,Neutral/Pronated,bi,M/S,Posterior Delt M Row (M/S),Posterior Delts Machine Row
+Shoulders,Deltoids,Posterior,Row,C-FT,-,Neutral/Pronated,bi,M/S,Posterior Delt C-FT Row (M/S),Posterior Delts Cable Row
+Shoulders,Deltoids,Posterior,Row,C-AA,-,Neutral/Pronated,bi,M/S,Posterior Delt C-AA Row (M/S),Posterior Delts Cable Row
+Shoulders,Deltoids,Posterior,Row,C-SG,-,Neutral/Pronated,uni,M/S,Posterior Delt C-SG Single-Arm Row (M/S),Posterior Delts Cable Single-Arm Row
+Shoulders,Rotator Cuff,Supraspinatus,Scaption,DB,-,Neutral,bi,S,Supraspinatus DB Scaption (S),Supraspinatus Dumbbell Scaption
+Shoulders,Rotator Cuff,Supraspinatus,Scaption,C-FT,-,Neutral,bi,S,Supraspinatus C-FT Scaption (S),Supraspinatus Cable Scaption
+Shoulders,Rotator Cuff,Supraspinatus,Scaption,C-AA,-,Neutral,bi,S,Supraspinatus C-AA Scaption (S),Supraspinatus Cable Scaption
+Shoulders,Rotator Cuff,Supraspinatus,Scaption,BND,-,Neutral,bi,S,Supraspinatus BND Scaption (S),Supraspinatus Band Scaption
+Shoulders,Rotator Cuff,Supraspinatus,Scaption,C-SG,-,Neutral,uni,S,Supraspinatus C-SG Single-Arm Scaption (S),Supraspinatus Cable Single-Arm Scaption
+Shoulders,Rotator Cuff,Infraspinatus,External Rotation,DB,Side-Lying,Neutral,uni,S,Infraspinatus DB Side-Lying Single-Arm External Rotation (S),Infraspinatus Side-Lying Dumbbell Single-Arm External Rotation
+Shoulders,Rotator Cuff,Infraspinatus,External Rotation,C-FT,Arm-at-Side,Neutral,uni,S,Infraspinatus C-FT Arm-at-Side Single-Arm External Rotation (S),Infraspinatus Arm-at-Side Cable Single-Arm External Rotation
+Shoulders,Rotator Cuff,Infraspinatus,External Rotation,C-FT,90-Abducted,Neutral,uni,S,Infraspinatus C-FT 90-Abducted Single-Arm External Rotation (S),Infraspinatus 90-Abducted Cable Single-Arm External Rotation
+Shoulders,Rotator Cuff,Infraspinatus,External Rotation,C-AA,Arm-at-Side,Neutral,uni,S,Infraspinatus C-AA Arm-at-Side Single-Arm External Rotation (S),Infraspinatus Arm-at-Side Cable Single-Arm External Rotation
+Shoulders,Rotator Cuff,Infraspinatus,External Rotation,C-AA,90-Abducted,Neutral,uni,S,Infraspinatus C-AA 90-Abducted Single-Arm External Rotation (S),Infraspinatus 90-Abducted Cable Single-Arm External Rotation
+Shoulders,Rotator Cuff,Infraspinatus,External Rotation,BND,Arm-at-Side,Neutral,uni,S,Infraspinatus BND Arm-at-Side Single-Arm External Rotation (S),Infraspinatus Arm-at-Side Band Single-Arm External Rotation
+Shoulders,Rotator Cuff,Infraspinatus,External Rotation,BND,90-Abducted,Neutral,uni,S,Infraspinatus BND 90-Abducted Single-Arm External Rotation (S),Infraspinatus 90-Abducted Band Single-Arm External Rotation
+Shoulders,Rotator Cuff,Infraspinatus,External Rotation,C-SG,Arm-at-Side,Neutral,uni,S,Infraspinatus C-SG Arm-at-Side Single-Arm External Rotation (S),Infraspinatus Arm-at-Side Cable Single-Arm External Rotation
+Shoulders,Rotator Cuff,Infraspinatus,External Rotation,C-SG,90-Abducted,Neutral,uni,S,Infraspinatus C-SG 90-Abducted Single-Arm External Rotation (S),Infraspinatus 90-Abducted Cable Single-Arm External Rotation
+Shoulders,Rotator Cuff,Subscapularis,Internal Rotation,C-FT,Arm-at-Side,Neutral,uni,S,Subscapularis C-FT Arm-at-Side Single-Arm Internal Rotation (S),Subscapularis Arm-at-Side Cable Single-Arm Internal Rotation
+Shoulders,Rotator Cuff,Subscapularis,Internal Rotation,C-FT,90-Abducted,Neutral,uni,S,Subscapularis C-FT 90-Abducted Single-Arm Internal Rotation (S),Subscapularis 90-Abducted Cable Single-Arm Internal Rotation
+Shoulders,Rotator Cuff,Subscapularis,Internal Rotation,C-AA,Arm-at-Side,Neutral,uni,S,Subscapularis C-AA Arm-at-Side Single-Arm Internal Rotation (S),Subscapularis Arm-at-Side Cable Single-Arm Internal Rotation
+Shoulders,Rotator Cuff,Subscapularis,Internal Rotation,C-AA,90-Abducted,Neutral,uni,S,Subscapularis C-AA 90-Abducted Single-Arm Internal Rotation (S),Subscapularis 90-Abducted Cable Single-Arm Internal Rotation
+Shoulders,Rotator Cuff,Subscapularis,Internal Rotation,BND,Arm-at-Side,Neutral,uni,S,Subscapularis BND Arm-at-Side Single-Arm Internal Rotation (S),Subscapularis Arm-at-Side Band Single-Arm Internal Rotation
+Shoulders,Rotator Cuff,Subscapularis,Internal Rotation,BND,90-Abducted,Neutral,uni,S,Subscapularis BND 90-Abducted Single-Arm Internal Rotation (S),Subscapularis 90-Abducted Band Single-Arm Internal Rotation
+Shoulders,Rotator Cuff,Subscapularis,Internal Rotation,C-SG,Arm-at-Side,Neutral,uni,S,Subscapularis C-SG Arm-at-Side Single-Arm Internal Rotation (S),Subscapularis Arm-at-Side Cable Single-Arm Internal Rotation
+Shoulders,Rotator Cuff,Subscapularis,Internal Rotation,C-SG,90-Abducted,Neutral,uni,S,Subscapularis C-SG 90-Abducted Single-Arm Internal Rotation (S),Subscapularis 90-Abducted Cable Single-Arm Internal Rotation
+Arms,Elbow Flexors,Biceps,Curl,BB,Standing,Supinated,bi,M,Biceps BB Standing Curl (M),Biceps Standing Barbell Curl
+Arms,Elbow Flexors,Biceps,Curl,DB,Standing,Supinated,bi,M,Biceps DB Standing Curl (M),Biceps Standing Dumbbell Curl
+Arms,Elbow Flexors,Biceps,Curl,DB,Incline,Supinated,bi,L,Biceps DB Incline Curl (L),Biceps Incline Dumbbell Curl
+Arms,Elbow Flexors,Biceps,Curl,M,-,Supinated,bi,M,Biceps M Curl (M),Biceps Machine Curl
+Arms,Elbow Flexors,Biceps,Curl,C-FT,Stepped-Back,Supinated,bi,S,Biceps C-FT Stepped-Back Curl (S),Biceps Stepped-Back Cable Curl
+Arms,Elbow Flexors,Biceps,Curl,C-FT,Standing,Supinated,bi,M,Biceps C-FT Standing Curl (M),Biceps Standing Cable Curl
+Arms,Elbow Flexors,Biceps,Curl,C-FT,Arm's-Length,Supinated,bi,L,Biceps C-FT Arm's-Length Curl (L),Biceps Arm's-Length Cable Curl
+Arms,Elbow Flexors,Biceps,Curl,C-AA,Stepped-Back,Supinated,bi,S,Biceps C-AA Stepped-Back Curl (S),Biceps Stepped-Back Cable Curl
+Arms,Elbow Flexors,Biceps,Curl,C-AA,Standing,Supinated,bi,M,Biceps C-AA Standing Curl (M),Biceps Standing Cable Curl
+Arms,Elbow Flexors,Biceps,Curl,C-AA,Arm's-Length,Supinated,bi,L,Biceps C-AA Arm's-Length Curl (L),Biceps Arm's-Length Cable Curl
+Arms,Elbow Flexors,Biceps,Curl,C-SG,Stepped-Back,Supinated,uni,S,Biceps C-SG Stepped-Back Single-Arm Curl (S),Biceps Stepped-Back Cable Single-Arm Curl
+Arms,Elbow Flexors,Biceps,Curl,C-SG,Standing,Supinated,uni,M,Biceps C-SG Single-Arm Curl (M),Biceps Cable Single-Arm Curl
+Arms,Elbow Flexors,Biceps,Curl,C-SG,Arm's-Length,Supinated,uni,L,Biceps C-SG Arm's-Length Single-Arm Curl (L),Biceps Arm's-Length Cable Single-Arm Curl
+Arms,Elbow Flexors,Biceps,Supination Curl,DB,Standing,Supinating,bi,M,Biceps DB Standing Supination Curl (M),Biceps Standing Dumbbell Supination Curl
+Arms,Elbow Flexors,Biceps,Supination Curl,DB,Incline,Supinating,bi,L,Biceps DB Incline Supination Curl (L),Biceps Incline Dumbbell Supination Curl
+Arms,Elbow Flexors,Biceps,Supination Curl,C-FT,Stepped-Back,Supinating,bi,S,Biceps C-FT Stepped-Back Supination Curl (S),Biceps Stepped-Back Cable Supination Curl
+Arms,Elbow Flexors,Biceps,Supination Curl,C-FT,Standing,Supinating,bi,M,Biceps C-FT Standing Supination Curl (M),Biceps Standing Cable Supination Curl
+Arms,Elbow Flexors,Biceps,Supination Curl,C-FT,Arm's-Length,Supinating,bi,L,Biceps C-FT Arm's-Length Supination Curl (L),Biceps Arm's-Length Cable Supination Curl
+Arms,Elbow Flexors,Biceps,Supination Curl,C-SG,Stepped-Back,Supinating,uni,S,Biceps C-SG Stepped-Back Single-Arm Supination Curl (S),Biceps Stepped-Back Cable Single-Arm Supination Curl
+Arms,Elbow Flexors,Biceps,Supination Curl,C-SG,Standing,Supinating,uni,M,Biceps C-SG Single-Arm Supination Curl (M),Biceps Cable Single-Arm Supination Curl
+Arms,Elbow Flexors,Biceps,Supination Curl,C-SG,Arm's-Length,Supinating,uni,L,Biceps C-SG Arm's-Length Single-Arm Supination Curl (L),Biceps Arm's-Length Cable Single-Arm Supination Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,DB,Standing,Supinated,bi,M,Biceps Long DB Standing Curl (M),Long Head Biceps Standing Dumbbell Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,DB,Incline,Supinated,bi,L,Biceps Long DB Incline Curl (L),Long Head Biceps Incline Dumbbell Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,C-FT,Stepped-Back,Supinated,bi,S,Biceps Long C-FT Stepped-Back Curl (S),Long Head Biceps Stepped-Back Cable Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,C-FT,Standing,Supinated,bi,M,Biceps Long C-FT Standing Curl (M),Long Head Biceps Standing Cable Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,C-FT,Arm's-Length,Supinated,bi,L,Biceps Long C-FT Arm's-Length Curl (L),Long Head Biceps Arm's-Length Cable Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,C-AA,Stepped-Back,Supinated,bi,S,Biceps Long C-AA Stepped-Back Curl (S),Long Head Biceps Stepped-Back Cable Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,C-AA,Standing,Supinated,bi,M,Biceps Long C-AA Standing Curl (M),Long Head Biceps Standing Cable Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,C-AA,Arm's-Length,Supinated,bi,L,Biceps Long C-AA Arm's-Length Curl (L),Long Head Biceps Arm's-Length Cable Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,C-SG,Stepped-Back,Supinated,uni,S,Biceps Long C-SG Stepped-Back Single-Arm Curl (S),Long Head Biceps Stepped-Back Cable Single-Arm Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,C-SG,Standing,Supinated,uni,M,Biceps Long C-SG Single-Arm Curl (M),Long Head Biceps Cable Single-Arm Curl
+Arms,Elbow Flexors,Biceps Long Head,Curl,C-SG,Arm's-Length,Supinated,uni,L,Biceps Long C-SG Arm's-Length Single-Arm Curl (L),Long Head Biceps Arm's-Length Cable Single-Arm Curl
+Arms,Elbow Flexors,Biceps Long Head,Supination Curl,DB,Standing,Supinating,bi,M,Biceps Long DB Standing Supination Curl (M),Long Head Biceps Standing Dumbbell Supination Curl
+Arms,Elbow Flexors,Biceps Long Head,Supination Curl,DB,Incline,Supinating,bi,L,Biceps Long DB Incline Supination Curl (L),Long Head Biceps Incline Dumbbell Supination Curl
+Arms,Elbow Flexors,Biceps Long Head,Supination Curl,C-FT,Stepped-Back,Supinating,bi,S,Biceps Long C-FT Stepped-Back Supination Curl (S),Long Head Biceps Stepped-Back Cable Supination Curl
+Arms,Elbow Flexors,Biceps Long Head,Supination Curl,C-FT,Standing,Supinating,bi,M,Biceps Long C-FT Standing Supination Curl (M),Long Head Biceps Standing Cable Supination Curl
+Arms,Elbow Flexors,Biceps Long Head,Supination Curl,C-FT,Arm's-Length,Supinating,bi,L,Biceps Long C-FT Arm's-Length Supination Curl (L),Long Head Biceps Arm's-Length Cable Supination Curl
+Arms,Elbow Flexors,Biceps Long Head,Supination Curl,C-SG,Stepped-Back,Supinating,uni,S,Biceps Long C-SG Stepped-Back Single-Arm Supination Curl (S),Long Head Biceps Stepped-Back Cable Single-Arm Supination Curl
+Arms,Elbow Flexors,Biceps Long Head,Supination Curl,C-SG,Standing,Supinating,uni,M,Biceps Long C-SG Single-Arm Supination Curl (M),Long Head Biceps Cable Single-Arm Supination Curl
+Arms,Elbow Flexors,Biceps Long Head,Supination Curl,C-SG,Arm's-Length,Supinating,uni,L,Biceps Long C-SG Arm's-Length Single-Arm Supination Curl (L),Long Head Biceps Arm's-Length Cable Single-Arm Supination Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,DB,Standing,Supinated,bi,M,Biceps Short DB Standing Curl (M),Short Head Biceps Standing Dumbbell Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,DB,Incline,Supinated,bi,L,Biceps Short DB Incline Curl (L),Short Head Biceps Incline Dumbbell Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,M,-,Supinated,bi,M,Biceps Short M Curl (M),Short Head Biceps Machine Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,C-FT,Stepped-Back,Supinated,bi,S,Biceps Short C-FT Stepped-Back Curl (S),Short Head Biceps Stepped-Back Cable Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,C-FT,Standing,Supinated,bi,M,Biceps Short C-FT Standing Curl (M),Short Head Biceps Standing Cable Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,C-FT,Arm's-Length,Supinated,bi,L,Biceps Short C-FT Arm's-Length Curl (L),Short Head Biceps Arm's-Length Cable Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,C-AA,Stepped-Back,Supinated,bi,S,Biceps Short C-AA Stepped-Back Curl (S),Short Head Biceps Stepped-Back Cable Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,C-AA,Standing,Supinated,bi,M,Biceps Short C-AA Standing Curl (M),Short Head Biceps Standing Cable Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,C-AA,Arm's-Length,Supinated,bi,L,Biceps Short C-AA Arm's-Length Curl (L),Short Head Biceps Arm's-Length Cable Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,C-SG,Stepped-Back,Supinated,uni,S,Biceps Short C-SG Stepped-Back Single-Arm Curl (S),Short Head Biceps Stepped-Back Cable Single-Arm Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,C-SG,Standing,Supinated,uni,M,Biceps Short C-SG Single-Arm Curl (M),Short Head Biceps Cable Single-Arm Curl
+Arms,Elbow Flexors,Biceps Short Head,Curl,C-SG,Arm's-Length,Supinated,uni,L,Biceps Short C-SG Arm's-Length Single-Arm Curl (L),Short Head Biceps Arm's-Length Cable Single-Arm Curl
+Arms,Elbow Flexors,Biceps Short Head,Supination Curl,DB,Standing,Supinating,bi,M,Biceps Short DB Standing Supination Curl (M),Short Head Biceps Standing Dumbbell Supination Curl
+Arms,Elbow Flexors,Biceps Short Head,Supination Curl,DB,Incline,Supinating,bi,L,Biceps Short DB Incline Supination Curl (L),Short Head Biceps Incline Dumbbell Supination Curl
+Arms,Elbow Flexors,Biceps Short Head,Supination Curl,C-FT,Stepped-Back,Supinating,bi,S,Biceps Short C-FT Stepped-Back Supination Curl (S),Short Head Biceps Stepped-Back Cable Supination Curl
+Arms,Elbow Flexors,Biceps Short Head,Supination Curl,C-FT,Standing,Supinating,bi,M,Biceps Short C-FT Standing Supination Curl (M),Short Head Biceps Standing Cable Supination Curl
+Arms,Elbow Flexors,Biceps Short Head,Supination Curl,C-FT,Arm's-Length,Supinating,bi,L,Biceps Short C-FT Arm's-Length Supination Curl (L),Short Head Biceps Arm's-Length Cable Supination Curl
+Arms,Elbow Flexors,Biceps Short Head,Supination Curl,C-SG,Stepped-Back,Supinating,uni,S,Biceps Short C-SG Stepped-Back Single-Arm Supination Curl (S),Short Head Biceps Stepped-Back Cable Single-Arm Supination Curl
+Arms,Elbow Flexors,Biceps Short Head,Supination Curl,C-SG,Standing,Supinating,uni,M,Biceps Short C-SG Single-Arm Supination Curl (M),Short Head Biceps Cable Single-Arm Supination Curl
+Arms,Elbow Flexors,Biceps Short Head,Supination Curl,C-SG,Arm's-Length,Supinating,uni,L,Biceps Short C-SG Arm's-Length Single-Arm Supination Curl (L),Short Head Biceps Arm's-Length Cable Single-Arm Supination Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,DB,Standing,Neutral,bi,M,Brachialis DB Standing Neutral Curl (M),Brachialis Standing Dumbbell Neutral Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,DB,Incline,Neutral,bi,L,Brachialis DB Incline Neutral Curl (L),Brachialis Incline Dumbbell Neutral Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,C-FT,Stepped-Back,Neutral,bi,S,Brachialis C-FT Stepped-Back Neutral Curl (S),Brachialis Stepped-Back Cable Neutral Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,C-FT,Standing,Neutral,bi,M,Brachialis C-FT Standing Neutral Curl (M),Brachialis Standing Cable Neutral Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,C-FT,Arm's-Length,Neutral,bi,L,Brachialis C-FT Arm's-Length Neutral Curl (L),Brachialis Arm's-Length Cable Neutral Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,C-AA,Stepped-Back,Neutral,bi,S,Brachialis C-AA Stepped-Back Neutral Curl (S),Brachialis Stepped-Back Cable Neutral Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,C-AA,Standing,Neutral,bi,M,Brachialis C-AA Standing Neutral Curl (M),Brachialis Standing Cable Neutral Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,C-AA,Arm's-Length,Neutral,bi,L,Brachialis C-AA Arm's-Length Neutral Curl (L),Brachialis Arm's-Length Cable Neutral Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,C-SG,Stepped-Back,Neutral,uni,S,Brachialis C-SG Stepped-Back Single-Arm Neutral Curl (S),Brachialis Stepped-Back Cable Single-Arm Neutral Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,C-SG,Standing,Neutral,uni,M,Brachialis C-SG Single-Arm Neutral Curl (M),Brachialis Cable Single-Arm Neutral Curl
+Arms,Elbow Flexors,Brachialis,Neutral Curl,C-SG,Arm's-Length,Neutral,uni,L,Brachialis C-SG Arm's-Length Single-Arm Neutral Curl (L),Brachialis Arm's-Length Cable Single-Arm Neutral Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,BB,Standing,Pronated,bi,M,Brachioradialis BB Standing Pronation Curl (M),Brachioradialis Standing Barbell Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,DB,Standing,Pronated,bi,M,Brachioradialis DB Standing Pronation Curl (M),Brachioradialis Standing Dumbbell Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,DB,Incline,Pronated,bi,L,Brachioradialis DB Incline Pronation Curl (L),Brachioradialis Incline Dumbbell Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,C-FT,Stepped-Back,Pronated,bi,S,Brachioradialis C-FT Stepped-Back Pronation Curl (S),Brachioradialis Stepped-Back Cable Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,C-FT,Standing,Pronated,bi,M,Brachioradialis C-FT Standing Pronation Curl (M),Brachioradialis Standing Cable Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,C-FT,Arm's-Length,Pronated,bi,L,Brachioradialis C-FT Arm's-Length Pronation Curl (L),Brachioradialis Arm's-Length Cable Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,C-AA,Stepped-Back,Pronated,bi,S,Brachioradialis C-AA Stepped-Back Pronation Curl (S),Brachioradialis Stepped-Back Cable Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,C-AA,Standing,Pronated,bi,M,Brachioradialis C-AA Standing Pronation Curl (M),Brachioradialis Standing Cable Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,C-AA,Arm's-Length,Pronated,bi,L,Brachioradialis C-AA Arm's-Length Pronation Curl (L),Brachioradialis Arm's-Length Cable Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,C-SG,Stepped-Back,Pronated,uni,S,Brachioradialis C-SG Stepped-Back Single-Arm Pronation Curl (S),Brachioradialis Stepped-Back Cable Single-Arm Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,C-SG,Standing,Pronated,uni,M,Brachioradialis C-SG Single-Arm Pronation Curl (M),Brachioradialis Cable Single-Arm Pronation Curl
+Arms,Elbow Flexors,Brachioradialis,Pronation Curl,C-SG,Arm's-Length,Pronated,uni,L,Brachioradialis C-SG Arm's-Length Single-Arm Pronation Curl (L),Brachioradialis Arm's-Length Cable Single-Arm Pronation Curl
+Arms,Triceps,Long Head,Extension,DB,Overhead,Neutral,bi,L,Triceps Long DB Overhead Extension (L),Triceps Long Head Overhead Dumbbell Extension
+Arms,Triceps,Long Head,Extension,BB,Overhead,Pronated,bi,L,Triceps Long BB Overhead Extension (L),Triceps Long Head Overhead Barbell Extension
+Arms,Triceps,Long Head,Extension,C-FT,Overhead,Neutral,bi,L,Triceps Long C-FT Overhead Extension (L),Triceps Long Head Overhead Cable Extension
+Arms,Triceps,Long Head,Extension,C-AA,Overhead,Neutral,bi,L,Triceps Long C-AA Overhead Extension (L),Triceps Long Head Overhead Cable Extension
+Arms,Triceps,Long Head,Extension,C-SG,Overhead,Neutral,uni,L,Triceps Long C-SG Overhead Single-Arm Extension (L),Triceps Long Head Overhead Cable Single-Arm Extension
+Arms,Triceps,Long Head,Extension,DB,45-Abducted,Neutral,bi,S/M,Triceps Long DB 45-Abducted Extension (S/M),Triceps Long Head 45-Abducted Dumbbell Extension
+Arms,Triceps,Long Head,Extension,C-FT,45-Abducted,Neutral,bi,S/M,Triceps Long C-FT 45-Abducted Extension (S/M),Triceps Long Head 45-Abducted Cable Extension
+Arms,Triceps,Long Head,Extension,C-SG,45-Abducted,Neutral,uni,S/M,Triceps Long C-SG 45-Abducted Single-Arm Extension (S/M),Triceps Long Head 45-Abducted Cable Single-Arm Extension
+Arms,Triceps,Lateral & Medial Head,Extension,C-FT,Overhead,Neutral,bi,M,Triceps Lat+Med C-FT Overhead Extension (M),Triceps Overhead Cable Extension
+Arms,Triceps,Lateral & Medial Head,Extension,C-FT,Stepped-In,Neutral,bi,S,Triceps Lat+Med C-FT Stepped-In Extension (S),Triceps Stepped-In Cable Extension
+Arms,Triceps,Lateral & Medial Head,Extension,C-BS,-,Neutral,bi,M,Triceps Lat+Med C-BS Extension (M),Triceps Cable Extension
+Arms,Triceps,Lateral & Medial Head,Extension,C-SG,-,Neutral,uni,M,Triceps Lat+Med C-SG Single-Arm Extension (M),Triceps Cable Single-Arm Extension
+Arms,Triceps,Lateral & Medial Head,Extension,C-FT,-,Neutral,uni,M,Triceps Lat+Med C-FT Single-Arm Cross-Body Extension (M),Triceps Cable Single-Arm Cross-Body Extension
+Arms,Triceps,Lateral & Medial Head,Extension,DB,Lying,Neutral,bi,M,Triceps Lat+Med DB Lying Cross-Body Extension (M),Triceps Lying Dumbbell Cross-Body Extension
+Arms,Triceps,Lateral & Medial Head,Press,BB,-,Pronated,bi,M,Triceps Lat+Med BB JM Press (M),Triceps Barbell JM Press
+Arms,Triceps,Lateral & Medial Head,Press,DB,-,Neutral,bi,M,Triceps Lat+Med DB JM Press (M),Triceps Dumbbell JM Press
+Arms,Triceps,Lateral & Medial Head,Press,BW,-,-,bi,M,Triceps Lat+Med BW Dip (M),Triceps Bodyweight Dip
+Arms,Triceps,Lateral & Medial Head,Press,BW,-,-,bi,M,Triceps Lat+Med BW Diamond Push-Up (M),Triceps Bodyweight Diamond Push-Up
+Arms,Triceps,Lateral & Medial Head,Press,M,-,-,bi,M,Triceps Lat+Med M Dip (M),Triceps Machine Dip
+Arms,Triceps,Lateral & Medial Head,Press,SM,-,Pronated,bi,M,Triceps Lat+Med SM Close-Grip Press (M),Triceps Smith Machine Close-Grip Press
+Arms,Triceps,Lateral & Medial Head,Press,BB,-,Pronated,bi,M,Triceps Lat+Med BB Close-Grip Press (M),Triceps Barbell Close-Grip Press
+Arms,Triceps,Lateral & Medial Head,Press,C-FT,-,Neutral,uni,M,Triceps Lat+Med C-FT Single-Arm JM Press (M),Triceps Cable Single-Arm JM Press
+Arms,Triceps,Lateral & Medial Head,Press,C-BS,-,Neutral,bi,M,Triceps Lat+Med C-BS JM Press (M),Triceps Cable JM Press
+Arms,Triceps,Lateral & Medial Head,Pressdown,C-FT,Standing,Neutral,bi,M,Triceps Lat+Med C-FT Standing Pressdown (M),Triceps Standing Cable Pressdown
+Arms,Triceps,Lateral & Medial Head,Pressdown,C-FT,Stepped-Back,Neutral,bi,S,Triceps Lat+Med C-FT Stepped-Back Pressdown (S),Triceps Stepped-Back Cable Pressdown
+Arms,Triceps,Lateral & Medial Head,Pressdown,C-AA,Standing,Neutral,bi,M,Triceps Lat+Med C-AA Standing Pressdown (M),Triceps Standing Cable Pressdown
+Arms,Triceps,Lateral & Medial Head,Pressdown,C-AA,Stepped-Back,Neutral,bi,S,Triceps Lat+Med C-AA Stepped-Back Pressdown (S),Triceps Stepped-Back Cable Pressdown
+Arms,Triceps,Lateral & Medial Head,Pressdown,C-SG,Standing,Neutral,uni,M,Triceps Lat+Med C-SG Single-Arm Pressdown (M),Triceps Cable Single-Arm Pressdown
+Arms,Triceps,Lateral & Medial Head,Pressdown,C-SG,Stepped-Back,Neutral,uni,S,Triceps Lat+Med C-SG Stepped-Back Single-Arm Pressdown (S),Triceps Stepped-Back Cable Single-Arm Pressdown
+Arms,Triceps,Lateral & Medial Head,Pressdown,M,-,Neutral,bi,M,Triceps Lat+Med M Pressdown (M),Triceps Machine Pressdown
+Arms,Forearm,Flexors,Wrist Curl,BB,-,Supinated,bi,M,Forearm Flexors BB Wrist Curl (M),Flexors Barbell Wrist Curl
+Arms,Forearm,Flexors,Wrist Curl,DB,-,Supinated,bi,M,Forearm Flexors DB Wrist Curl (M),Flexors Dumbbell Wrist Curl
+Arms,Forearm,Flexors,Wrist Curl,C-FT,-,Supinated,bi,M,Forearm Flexors C-FT Wrist Curl (M),Flexors Cable Wrist Curl
+Arms,Forearm,Extensors,Wrist Extension,BB,-,Pronated,bi,M,Forearm Extensors BB Wrist Extension (M),Extensors Barbell Wrist Extension
+Arms,Forearm,Extensors,Wrist Extension,DB,-,Pronated,bi,M,Forearm Extensors DB Wrist Extension (M),Extensors Dumbbell Wrist Extension
+Arms,Forearm,Extensors,Wrist Extension,C-FT,-,Pronated,bi,M,Forearm Extensors C-FT Wrist Extension (M),Extensors Cable Wrist Extension
+Arms,Forearm,Pronators,Pronation,DB,-,-,bi,M,Forearm Pronators DB Pronation (M),Pronators Dumbbell Pronation
+Arms,Forearm,Pronators,Pronation,C-FT,-,-,bi,M,Forearm Pronators C-FT Pronation (M),Pronators Cable Pronation
+Arms,Forearm,Pronators,Pronation,M,-,-,bi,M,Forearm Pronators M Pronation (M),Pronators Machine Pronation
+Arms,Forearm,Pronators,Pronation,BND,-,-,bi,M,Forearm Pronators BND Pronation (M),Pronators Band Pronation
+Arms,Forearm,Supinators,Supination,DB,-,-,bi,M,Forearm Supinators DB Supination (M),Supinators Dumbbell Supination
+Arms,Forearm,Supinators,Supination,C-FT,-,-,bi,M,Forearm Supinators C-FT Supination (M),Supinators Cable Supination
+Arms,Forearm,Supinators,Supination,M,-,-,bi,M,Forearm Supinators M Supination (M),Supinators Machine Supination
+Arms,Forearm,Supinators,Supination,BND,-,-,bi,M,Forearm Supinators BND Supination (M),Supinators Band Supination
+Legs,Quads,(whole),Squat,BB,-,-,bi,L,Quads BB High-Bar Back Squat (L),Quads Barbell High-Bar Back Squat
+Legs,Quads,(whole),Squat,BB,-,-,bi,L,Quads BB Low-Bar Back Squat (L),Quads Barbell Low-Bar Back Squat
+Legs,Quads,(whole),Squat,BB,-,-,bi,L,Quads BB Front Squat (L),Quads Barbell Front Squat
+Legs,Quads,(whole),Squat,BB,-,-,bi,L,Quads BB Reverse Lunge (L),Quads Barbell Reverse Lunge
+Legs,Quads,(whole),Squat,BB,-,-,bi,L,Quads BB Lunge (L),Quads Barbell Lunge
+Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Goblet Squat (L),Quads Dumbbell Goblet Squat
+Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Heel-Elevated Squat (L),Quads Dumbbell Heel-Elevated Squat
+Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Front-Foot-Elevated Split Squat (L),Quads Dumbbell Front-Foot-Elevated Split Squat
+Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Supported Split Squat (L),Quads Dumbbell Supported Split Squat
+Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Reverse Lunge (L),Quads Dumbbell Reverse Lunge
+Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Lunge (L),Quads Dumbbell Lunge
+Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Step-Up (L),Quads Dumbbell Step-Up
+Legs,Quads,(whole),Squat,SM,-,-,bi,L,Quads SM Smith Squat (L),Quads Smith Squat
+Legs,Quads,(whole),Squat,SM,-,-,bi,L,Quads SM Smith Lunge (L),Quads Smith Lunge
+Legs,Quads,(whole),Squat,M,-,-,bi,L,Quads M Hack Squat (L),Quads Machine Hack Squat
+Legs,Quads,(whole),Squat,M,-,-,bi,M,Quads M Leg Press (M),Quads Machine Leg Press
+Legs,Quads,(whole),Squat,M,-,-,bi,L,Quads M Sissy Leg Press (L),Quads Machine Sissy Leg Press
+Legs,Quads,(whole),Squat,Belt,-,-,bi,L,Quads Belt Belt Squat (L),Quads Belt Squat
+Legs,Quads,(whole),Squat,M,-,-,bi,L,Quads M Squat Machine (L),Quads Squat Machine
+Legs,Quads,(whole),Knee Extension,M,-,-,bi,S,Quads M Knee Extension (S),Quads Machine Knee Extension
+Legs,Quads,(whole),Knee Extension,C-FT,-,-,bi,S,Quads C-FT Knee Extension (S),Quads Cable Knee Extension
+Legs,Quads,(whole),Knee Extension,M,-,-,uni,S,Quads M Single-Leg Knee Extension (S),Quads Machine Single-Leg Knee Extension
+Legs,Quads,(whole),Knee Extension,C-FT,-,-,uni,S,Quads C-FT Single-Leg Knee Extension (S),Quads Cable Single-Leg Knee Extension
+Legs,Quads,Rectus Femoris,Sissy Squat,BW,-,-,bi,L,Rectus Femoris BW Sissy Squat (L),Rectus Femoris Bodyweight Sissy Squat
+Legs,Quads,Rectus Femoris,Sissy Squat,SM,-,-,bi,L,Rectus Femoris SM Smith Sissy Squat (L),Rectus Femoris Smith Sissy Squat
+Legs,Quads,Rectus Femoris,Sissy Squat,M,-,-,bi,L,Rectus Femoris M Hack Sissy Squat (L),Rectus Femoris Machine Hack Sissy Squat
+Legs,Quads,Rectus Femoris,Knee Extension,M,Hip-Extended,-,bi,S,Rectus Femoris M Hip-Extended Knee Extension (S),Rectus Femoris Hip-Extended Machine Knee Extension
+Legs,Quads,Rectus Femoris,Knee Extension,C-FT,Hip-Extended,-,bi,S,Rectus Femoris C-FT Hip-Extended Knee Extension (S),Rectus Femoris Hip-Extended Cable Knee Extension
+Legs,Quads,Rectus Femoris,Knee Extension,M,Hip-Extended,-,uni,S,Rectus Femoris M Hip-Extended Single-Leg Knee Extension (S),Rectus Femoris Hip-Extended Machine Single-Leg Knee Extension
+Legs,Quads,Rectus Femoris,Knee Extension,C-FT,Hip-Extended,-,uni,S,Rectus Femoris C-FT Hip-Extended Single-Leg Knee Extension (S),Rectus Femoris Hip-Extended Cable Single-Leg Knee Extension
+Legs,Hamstrings,(whole),Hip Hinge,BB,-,-,bi,L,Hamstrings BB Stiff-Legged Deadlift (L),Hamstrings Barbell Stiff-Legged Deadlift
+Legs,Hamstrings,(whole),Hip Hinge,BB,-,-,bi,L,Hamstrings BB Stiff-Legged Good Morning (L),Hamstrings Barbell Stiff-Legged Good Morning
+Legs,Hamstrings,(whole),Hip Hinge,DB,-,-,bi,L,Hamstrings DB Stiff-Legged Deadlift (L),Hamstrings Dumbbell Stiff-Legged Deadlift
+Legs,Hamstrings,(whole),Hip Hinge,DB,-,-,bi,L,Hamstrings DB Stiff-Legged Good Morning (L),Hamstrings Dumbbell Stiff-Legged Good Morning
+Legs,Hamstrings,(whole),Hip Hinge,DB,-,-,uni,L,Hamstrings DB Single-Leg Stiff-Legged Deadlift (L),Hamstrings Dumbbell Single-Leg Stiff-Legged Deadlift
+Legs,Hamstrings,(whole),Hip Hinge,DB,-,-,bi,L,Hamstrings DB Supported Stiff-Legged Deadlift (L),Hamstrings Dumbbell Supported Stiff-Legged Deadlift
+Legs,Hamstrings,(whole),Hip Hinge,SM,-,-,bi,L,Hamstrings SM Stiff-Legged Deadlift (L),Hamstrings Smith Machine Stiff-Legged Deadlift
+Legs,Hamstrings,(whole),Hip Hinge,C-FT,-,-,bi,L,Hamstrings C-FT Stiff-Legged Deadlift (L),Hamstrings Cable Stiff-Legged Deadlift
+Legs,Hamstrings,(whole),Hip Hinge,C-FT,-,-,uni,L,Hamstrings C-FT Single-Leg Stiff-Legged Deadlift (L),Hamstrings Cable Single-Leg Stiff-Legged Deadlift
+Legs,Hamstrings,(whole),Hip Hinge,C-AA,-,-,bi,L,Hamstrings C-AA Stiff-Legged Deadlift (L),Hamstrings Cable Stiff-Legged Deadlift
+Legs,Hamstrings,(whole),Hip Hinge,TB,-,-,bi,L,Hamstrings TB Deadlift (L),Hamstrings Trap Bar Deadlift
+Legs,Hamstrings,(whole),Hip Hinge,Belt,-,-,bi,L,Hamstrings Belt Belt Squat RDL (L),Hamstrings Belt Squat RDL
+Legs,Hamstrings,(whole),Leg Curl,M,Lying,-,bi,S,Hamstrings M Lying Leg Curl (S),Hamstrings Lying Machine Leg Curl
+Legs,Hamstrings,(whole),Leg Curl,M,Seated,-,bi,L,Hamstrings M Seated Leg Curl (L),Hamstrings Seated Machine Leg Curl
+Legs,Hamstrings,(whole),Leg Curl,M,-,-,bi,L,Hamstrings M Standing Leg Curl (L),Hamstrings Machine Standing Leg Curl
+Legs,Hamstrings,(whole),Leg Curl,BW,-,-,bi,L,Hamstrings BW Nordic Curl (L),Hamstrings Bodyweight Nordic Curl
+Legs,Hamstrings,(whole),Leg Curl,BW,-,-,bi,S/M,Hamstrings BW Swiss-Ball Curl (S/M),Hamstrings Bodyweight Swiss-Ball Curl
+Legs,Hamstrings,(whole),Leg Curl,C-FT,Prone,-,bi,M,Hamstrings C-FT Prone Leg Curl (M),Hamstrings Prone Cable Leg Curl
+Legs,Glutes,Gluteus Maximus,Hip Hinge,BB,-,-,bi,L,Glute Max BB Romanian Deadlift (L),Glute Max Barbell Romanian Deadlift
+Legs,Glutes,Gluteus Maximus,Hip Hinge,BB,-,-,bi,L,Glute Max BB Conventional Deadlift (L),Glute Max Barbell Conventional Deadlift
+Legs,Glutes,Gluteus Maximus,Hip Hinge,DB,-,-,bi,L,Glute Max DB Romanian Deadlift (L),Glute Max Dumbbell Romanian Deadlift
+Legs,Glutes,Gluteus Maximus,Hip Hinge,C-FT,-,-,bi,L,Glute Max C-FT Pull-Through (L),Glute Max Cable Pull-Through
+Legs,Glutes,Gluteus Maximus,Hip Hinge,TB,-,-,bi,L,Glute Max TB Deadlift (L),Glute Max Trap Bar Deadlift
+Legs,Glutes,Gluteus Maximus,Hip Hinge,TB,-,-,bi,L,Glute Max TB Romanian Deadlift (L),Glute Max Trap Bar Romanian Deadlift
+Legs,Glutes,Gluteus Maximus,Hip Hinge,Belt,-,-,bi,L,Glute Max Belt Belt Squat RDL (L),Glute Max Belt Squat RDL
+Legs,Glutes,Gluteus Maximus,Hip Hinge,M,-,-,bi,L,Glute Max M Romanian Deadlift (L),Glute Max Machine Romanian Deadlift
+Legs,Glutes,Gluteus Maximus,Hip Hinge,M,45-Degree,-,bi,L,Glute Max M 45-Degree Hip Extension (L),Glute Max 45-Degree Machine Hip Extension
+Legs,Glutes,Gluteus Maximus,Thrust,BB,-,-,bi,S,Glute Max BB Hip Thrust (S),Glute Max Barbell Hip Thrust
+Legs,Glutes,Gluteus Maximus,Thrust,DB,-,-,bi,S,Glute Max DB Hip Thrust (S),Glute Max Dumbbell Hip Thrust
+Legs,Glutes,Gluteus Maximus,Thrust,M,-,-,bi,S,Glute Max M Hip Thrust (S),Glute Max Machine Hip Thrust
+Legs,Glutes,Gluteus Maximus,Thrust,BW,-,-,bi,S,Glute Max BW Single-Leg Hip Thrust (S),Glute Max Bodyweight Single-Leg Hip Thrust
+Legs,Glutes,Gluteus Maximus,Thrust,BW,-,-,bi,S,Glute Max BW Deficit Single-Leg Hip Thrust (S),Glute Max Bodyweight Deficit Single-Leg Hip Thrust
+Legs,Glutes,Gluteus Maximus,Bridge,BB,-,-,bi,S,Glute Max BB Glute Bridge (S),Glute Max Barbell Glute Bridge
+Legs,Glutes,Gluteus Maximus,Bridge,DB,-,-,bi,S,Glute Max DB Glute Bridge (S),Glute Max Dumbbell Glute Bridge
+Legs,Glutes,Gluteus Maximus,Bridge,M,-,-,bi,S,Glute Max M Glute Bridge (S),Glute Max Machine Glute Bridge
+Legs,Glutes,Gluteus Maximus,Bridge,BW,-,-,bi,S,Glute Max BW Glute Bridge (S),Glute Max Bodyweight Glute Bridge
+Legs,Glutes,Gluteus Maximus,Squat/Press,BB,-,-,bi,L,Glute Max BB Low-Bar Wide Squat (L),Glute Max Barbell Low-Bar Wide Squat
+Legs,Glutes,Gluteus Maximus,Squat/Press,M,-,-,bi,L,Glute Max M Single-Leg Leg Press (L),Glute Max Machine Single-Leg Leg Press
+Legs,Glutes,Gluteus Maximus,Squat/Press,M,-,-,bi,L,Glute Max M Glute Press (L),Glute Max Machine Glute Press
+Legs,Glutes,Gluteus Maximus,Squat/Press,DB,-,-,bi,L,Glute Max DB Bulgarian Split Squat (L),Glute Max Dumbbell Bulgarian Split Squat
+Legs,Glutes,Gluteus Maximus,Squat/Press,DB,-,-,bi,L,Glute Max DB Walking Lunge (L),Glute Max Dumbbell Walking Lunge
+Legs,Glutes,Gluteus Maximus,Kickback,C-FT,-,-,bi,L,Glute Max C-FT Kickback (L),Glute Max Cable Kickback
+Legs,Glutes,Gluteus Maximus,Kickback,C-AA,-,-,bi,L,Glute Max C-AA Kickback (L),Glute Max Cable Kickback
+Legs,Glutes,Gluteus Maximus,Kickback,M,-,-,bi,L,Glute Max M Kickback (L),Glute Max Machine Kickback
+Legs,Glutes,Gluteus Maximus,Kickback,BW,-,-,bi,L,Glute Max BW Band Kickback (L),Glute Max Bodyweight Band Kickback
+Legs,Glutes,Gluteus Maximus,Kickback,C-FT,Extended-Range,-,bi,L,Glute Max C-FT Extended-Range Kickback (L),Glute Max Extended-Range Cable Kickback
+Legs,Glutes,Gluteus Maximus,Kickback,C-AA,Extended-Range,-,bi,L,Glute Max C-AA Extended-Range Kickback (L),Glute Max Extended-Range Cable Kickback
+Legs,Glutes,Gluteus Medius,Abduction,M,45-Degree,-,bi,S,Glute Med M 45-Degree Seated Abduction (S),Glute Med 45-Degree Machine Seated Abduction
+Legs,Glutes,Gluteus Medius,Abduction,C-FT,45-Degree,-,bi,S,Glute Med C-FT 45-Degree Abduction (S),Glute Med 45-Degree Cable Abduction
+Legs,Glutes,Gluteus Medius,Abduction,C-AA,45-Degree,-,bi,S,Glute Med C-AA 45-Degree Abduction (S),Glute Med 45-Degree Cable Abduction
+Legs,Glutes,Gluteus Medius,Abduction,BW,-,-,bi,S,Glute Med BW Band Lateral Walk (S),Glute Med Bodyweight Band Lateral Walk
+Legs,Glutes,Gluteus Medius,Abduction,BW,-,-,bi,S,Glute Med BW Side-Lying Abduction (S),Glute Med Bodyweight Side-Lying Abduction
+Legs,Glutes,Gluteus Medius,Abduction,BW,-,-,bi,S,Glute Med BW Clamshell (S),Glute Med Bodyweight Clamshell
+Legs,Glutes,Gluteus Medius,Kickback,C-FT,-,-,bi,L,Glute Med C-FT Kickback (L),Glute Med Cable Kickback
+Legs,Glutes,Gluteus Medius,Kickback,C-AA,-,-,bi,L,Glute Med C-AA Kickback (L),Glute Med Cable Kickback
+Legs,Glutes,Gluteus Medius,Kickback,M,-,-,bi,L,Glute Med M Kickback (L),Glute Med Machine Kickback
+Legs,Glutes,Gluteus Medius,Kickback,BW,-,-,bi,L,Glute Med BW Band Kickback (L),Glute Med Bodyweight Band Kickback
+Legs,Glutes,Gluteus Medius,Squat/Press,DB,-,-,bi,L,Glute Med DB Curtsy Split Squat (L),Glute Med Dumbbell Curtsy Split Squat
+Legs,Glutes,Gluteus Medius,Squat/Press,M,-,-,bi,L,Glute Med M Curtsy Leg Press (L),Glute Med Machine Curtsy Leg Press
+Legs,Glutes,Gluteus Medius,Squat/Press,M,-,-,bi,L,Glute Med M Curtsy Squat Machine (L),Glute Med Curtsy Squat Machine
+Legs,Glutes,Gluteus Minimus,Abduction,M,Hip-Extended,-,bi,S,Glute Min M Hip-Extended Abduction (S),Glute Min Hip-Extended Machine Abduction
+Legs,Glutes,Gluteus Minimus,Abduction,C-FT,Hip-Extended,-,bi,S,Glute Min C-FT Hip-Extended Abduction (S),Glute Min Hip-Extended Cable Abduction
+Legs,Glutes,Gluteus Minimus,Abduction,C-AA,Hip-Extended,-,bi,S,Glute Min C-AA Hip-Extended Abduction (S),Glute Min Hip-Extended Cable Abduction
+Legs,Adductors,(whole),Squat,BB,Wide-Stance,-,bi,L,Adductors BB Wide-Stance Squat (L),Adductors Wide-Stance Barbell Squat
+Legs,Adductors,(whole),Squat,SM,Wide-Stance,-,bi,L,Adductors SM Wide-Stance Squat (L),Adductors Wide-Stance Smith Machine Squat
+Legs,Adductors,(whole),Squat,DB,Wide-Stance,-,bi,L,Adductors DB Wide-Stance Goblet Squat (L),Adductors Wide-Stance Dumbbell Goblet Squat
+Legs,Adductors,(whole),Squat,M,-,-,bi,L,Adductors M Squat (L),Adductors Machine Squat
+Legs,Adductors,(whole),Adduction,M,-,-,bi,M,Adductors M Seated Adduction (M),Adductors Machine Seated Adduction
+Legs,Adductors,(whole),Adduction,C-FT,-,-,bi,M,Adductors C-FT Adduction (M),Adductors Cable Adduction
+Legs,Adductors,(whole),Adduction,C-AA,-,-,bi,M,Adductors C-AA Adduction (M),Adductors Cable Adduction
+Legs,Abductors,(whole),Abduction,M,-,-,bi,M,Abductors M Seated Abduction (M),Abductors Machine Seated Abduction
+Legs,Abductors,(whole),Abduction,C-FT,-,-,bi,M,Abductors C-FT Abduction (M),Abductors Cable Abduction
+Legs,Hip Flexors,(whole),Hip Flexion,BW,-,-,bi,M,Hip Flexors BW Hanging Leg Raise (M),Hip Flexors Bodyweight Hanging Leg Raise
+Legs,Hip Flexors,(whole),Hip Flexion,BW,-,-,bi,M,Hip Flexors BW Lying Leg Raise (M),Hip Flexors Bodyweight Lying Leg Raise
+Legs,Hip Flexors,(whole),Hip Flexion,C-FT,-,-,bi,M,Hip Flexors C-FT Hip Flexion (M),Hip Flexors Cable Hip Flexion
+Legs,Hip Flexors,(whole),Hip Flexion,M,-,-,bi,M,Hip Flexors M Hip Flexion (M),Hip Flexors Machine Hip Flexion
+Legs,Calves,Gastrocnemius,Calf Raise,M,-,-,bi,M,Gastrocnemius M Standing Calf Raise (M),Gastrocnemius Machine Standing Calf Raise
+Legs,Calves,Gastrocnemius,Calf Raise,DB,-,-,bi,M,Gastrocnemius DB Standing Calf Raise (M),Gastrocnemius Dumbbell Standing Calf Raise
+Legs,Calves,Gastrocnemius,Calf Raise,SM,-,-,bi,M,Gastrocnemius SM Standing Calf Raise (M),Gastrocnemius Smith Machine Standing Calf Raise
+Legs,Calves,Gastrocnemius,Calf Raise,M,-,-,bi,M,Gastrocnemius M Leg Press Calf Raise (M),Gastrocnemius Machine Leg Press Calf Raise
+Legs,Calves,Gastrocnemius,Calf Raise,M,-,-,bi,M,Gastrocnemius M Donkey Calf Raise (M),Gastrocnemius Machine Donkey Calf Raise
+Legs,Calves,Gastrocnemius,Leg Curl,M,Prone,-,bi,M,Gastrocnemius M Prone Leg Curl (M),Gastrocnemius Prone Machine Leg Curl
+Legs,Calves,Gastrocnemius,Leg Curl,C-FT,Prone,-,bi,M,Gastrocnemius C-FT Prone Leg Curl (M),Gastrocnemius Prone Cable Leg Curl
+Legs,Calves,Soleus,Calf Raise,M,-,-,bi,M,Soleus M Seated Calf Raise (M),Soleus Machine Seated Calf Raise
+Legs,Calves,Soleus,Calf Raise,M,-,-,bi,M,Soleus M Leg Press Bent-Knee Calf Raise (M),Soleus Machine Leg Press Bent-Knee Calf Raise
+Legs,Tibialis Anterior,(whole),Dorsiflexion,BW,-,-,bi,M,Tibialis BW Tib Raise (M),Tibialis Anterior Bodyweight Tib Raise
+Legs,Tibialis Anterior,(whole),Dorsiflexion,C-FT,-,-,bi,M,Tibialis C-FT Dorsiflexion (M),Tibialis Anterior Cable Dorsiflexion
+Legs,Tibialis Anterior,(whole),Dorsiflexion,BND,-,-,bi,M,Tibialis BND Dorsiflexion (M),Tibialis Anterior Band Dorsiflexion
+Legs,Tibialis Anterior,(whole),Dorsiflexion,M,-,-,bi,M,Tibialis M Dorsiflexion (M),Tibialis Anterior Machine Dorsiflexion
+Core,Abs,Rectus Abdominis,Spinal Flexion,BW,-,-,bi,S,Abs BW Decline Crunch (S),Abs Bodyweight Decline Crunch
+Core,Abs,Rectus Abdominis,Spinal Flexion,BW,-,-,bi,S,Abs BW Reverse Crunch (S),Abs Bodyweight Reverse Crunch
+Core,Abs,Rectus Abdominis,Spinal Flexion,BW,-,-,bi,S,Abs BW Hanging Leg Raise (S),Abs Bodyweight Hanging Leg Raise
+Core,Abs,Rectus Abdominis,Spinal Flexion,BW,-,-,bi,S,Abs BW Bench Bent-Leg Raise (S),Abs Bodyweight Bench Bent-Leg Raise
+Core,Abs,Rectus Abdominis,Spinal Flexion,BW,-,-,bi,S,Abs BW Swiss-Ball Crunch (S),Abs Bodyweight Swiss-Ball Crunch
+Core,Abs,Rectus Abdominis,Spinal Flexion,C-FT,-,-,bi,S,Abs C-FT Reverse Crunch (S),Abs Cable Reverse Crunch
+Core,Abs,Rectus Abdominis,Spinal Flexion,DB,-,-,bi,S,Abs DB Weighted Crunch (S),Abs Dumbbell Weighted Crunch
+Core,Abs,Rectus Abdominis,Spinal Flexion,M,-,-,bi,S,Abs M Seated Flexion (S),Abs Machine Seated Flexion
+Core,Abs,Obliques,Rotation,DB,-,-,bi,M,Obliques DB Russian Twist (M),Obliques Dumbbell Russian Twist
+Core,Abs,Obliques,Rotation,BB,-,-,bi,M,Obliques BB Landmine Rotation (M),Obliques Barbell Landmine Rotation
+Core,Abs,Obliques,Rotation,C-FT,-,-,bi,M,Obliques C-FT Woodchop (M),Obliques Cable Woodchop
+Core,Abs,Obliques,Rotation,C-AA,-,-,bi,M,Obliques C-AA Woodchop (M),Obliques Cable Woodchop
+Core,Abs,Obliques,Rotation,M,-,-,bi,M,Obliques M Rotation (M),Obliques Machine Rotation
+Core,Abs,Obliques,Rotation,BW,-,-,bi,M,Obliques BW Oblique Leg Raise (M),Obliques Bodyweight Oblique Leg Raise
+Core,Abs,Obliques,Lateral Flexion,DB,-,-,bi,S,Obliques DB Side Bend (S),Obliques Dumbbell Side Bend
+Core,Abs,Obliques,Lateral Flexion,C-FT,-,-,bi,S,Obliques C-FT Side Bend (S),Obliques Cable Side Bend
+Core,Abs,Obliques,Lateral Flexion,BW,-,-,bi,S,Obliques BW 45-Degree Lateral Flexion (S),Obliques Bodyweight 45-Degree Lateral Flexion
+Core,Core,TVA,Anti-Extension,BW,-,-,bi,M,Core BW Plank (M),Core Bodyweight Plank
+Core,Core,TVA,Anti-Extension,BW,-,-,bi,M,Core BW Ab-Wheel Rollout (M),Core Bodyweight Ab-Wheel Rollout
+Core,Core,TVA,Anti-Extension,BW,-,-,bi,M,Core BW Dead Bug (M),Core Bodyweight Dead Bug
+Core,Core,TVA,Anti-Extension,BW,-,-,bi,M,Core BW Bird Dog (M),Core Bodyweight Bird Dog
+Core,Core,TVA,Anti-Extension,BW,-,-,bi,M,Core BW Bear Plank (M),Core Bodyweight Bear Plank
+Core,Core,TVA,Anti-Rotation,C-FT,-,-,bi,S,Core C-FT Pallof Press (S),Core Cable Pallof Press
+Core,Core,TVA,Anti-Rotation,C-AA,-,-,bi,S,Core C-AA Pallof Press (S),Core Cable Pallof Press
+Core,Core,TVA,Anti-Rotation,BND,-,-,bi,S,Core BND Pallof Press (S),Core Band Pallof Press
+Core,Core,TVA,Crunch,BW,-,-,bi,S,Core BW Crunch (S),Core Bodyweight Crunch
+Core,Core,TVA,Crunch,C-FT,-,-,bi,S,Core C-FT Kneeling Cable Crunch (S),Core Kneeling Cable Crunch
+Core,Core,TVA,Crunch,C-AA,-,-,bi,S,Core C-AA Kneeling Cable Crunch (S),Core Kneeling Cable Crunch
+Core,Core,TVA,Crunch,M,-,-,bi,S,Core M Machine Crunch (S),Core Machine Crunch
+Neck,Neck,(whole),Flexion/Extension,BW,-,-,bi,M,Neck BW Band Neck Curl (M),Neck Bodyweight Band Neck Curl
+Neck,Neck,(whole),Flexion/Extension,BW,-,-,bi,M,Neck BW Band Neck Extension (M),Neck Bodyweight Band Neck Extension
+Neck,Neck,(whole),Flexion/Extension,DB,-,-,bi,M,Neck DB Prone Neck Extension (M),Neck Dumbbell Prone Neck Extension
+Neck,Neck,(whole),Flexion/Extension,DB,-,-,bi,M,Neck DB Supine Neck Curl (M),Neck Dumbbell Supine Neck Curl
+Neck,Neck,(whole),Flexion/Extension,M,-,-,bi,M,Neck M 4-Way Machine (M),Neck 4-Way Machine
+Neck,Neck,(whole),Flexion/Extension,M,-,-,bi,M,Neck M Harness Extension (M),Neck Machine Harness Extension
+Neck,Neck,(whole),Lateral Flexion,DB,-,-,bi,M,Neck DB Side-Lying Lateral Flexion (M),Neck Dumbbell Side-Lying Lateral Flexion
+Neck,Neck,(whole),Lateral Flexion,BW,-,-,bi,M,Neck BW Band Lateral Flexion (M),Neck Bodyweight Band Lateral Flexion
+Systemic,Systemic,(whole),Complex,BB,-,-,bi,M,Systemic BB Thruster (M),Barbell Thruster
+Systemic,Systemic,(whole),Complex,DB,-,-,bi,M,Systemic DB Thruster (M),Dumbbell Thruster
+Systemic,Systemic,(whole),Complex,KB,-,-,bi,M,Systemic KB Thruster (M),Kettlebell Thruster
+Systemic,Systemic,(whole),Complex,BB,-,-,bi,M,Systemic BB Clean and Press (M),Barbell Clean and Press
+Systemic,Systemic,(whole),Complex,DB,-,-,bi,M,Systemic DB Clean and Press (M),Dumbbell Clean and Press
+Systemic,Systemic,(whole),Complex,KB,-,-,bi,M,Systemic KB Clean and Press (M),Kettlebell Clean and Press
+Systemic,Systemic,(whole),Complex,KB,-,-,bi,M,Systemic KB Swing (M),Kettlebell Swing
+Systemic,Systemic,(whole),Complex,KB,-,-,uni,M,Systemic KB Single-Arm Turkish Get-Up (M),Kettlebell Single-Arm Turkish Get-Up
+Systemic,Systemic,(whole),Complex,DB,-,-,uni,M,Systemic DB Single-Arm Turkish Get-Up (M),Dumbbell Single-Arm Turkish Get-Up
+Systemic,Systemic,(whole),Complex,BW,-,-,bi,M,Systemic BW Burpee (M),Bodyweight Burpee
+Systemic,Systemic,(whole),Complex,DB,-,-,bi,M,Systemic DB Devil's Press (M),Dumbbell Devil's Press
+Systemic,Systemic,(whole),Complex,Sled,-,-,bi,M,Systemic Sled Push (M),Sled Push
+Systemic,Systemic,(whole),Complex,Sled,-,-,bi,M,Systemic Sled Pull (M),Sled Pull
+Systemic,Systemic,(whole),Complex,BB,-,-,bi,M,Systemic BB Walking Lunge (M),Barbell Walking Lunge
+Systemic,Systemic,(whole),Complex,DB,-,-,bi,M,Systemic DB Walking Lunge (M),Dumbbell Walking Lunge
+Systemic,Systemic,(whole),Carry,DB,-,-,bi,M,Systemic DB Farmer's Walk (M),Dumbbell Farmer's Walk
+Systemic,Systemic,(whole),Carry,KB,-,-,bi,M,Systemic KB Farmer's Walk (M),Kettlebell Farmer's Walk
+Systemic,Systemic,(whole),Carry,TB,-,-,bi,M,Systemic TB Farmer's Walk (M),Trap Bar Farmer's Walk
+Systemic,Systemic,(whole),Carry,DB,-,-,uni,M,Systemic DB Single-Arm Suitcase Carry (M),Dumbbell Single-Arm Suitcase Carry
+Systemic,Systemic,(whole),Carry,KB,-,-,uni,M,Systemic KB Single-Arm Suitcase Carry (M),Kettlebell Single-Arm Suitcase Carry
+Systemic,Systemic,(whole),Carry,DB,-,-,uni,M,Systemic DB Single-Arm Overhead Carry (M),Dumbbell Single-Arm Overhead Carry
+Systemic,Systemic,(whole),Carry,KB,-,-,uni,M,Systemic KB Single-Arm Overhead Carry (M),Kettlebell Single-Arm Overhead Carry
+Powerlifting,Powerlifting,(whole),Squat,BB,-,-,bi,M,Powerlifting BB Competition Back Squat (M),Barbell Competition Back Squat
+Powerlifting,Powerlifting,(whole),Deadlift,BB,-,-,bi,M,Powerlifting BB Conventional Deadlift (M),Barbell Conventional Deadlift
+Powerlifting,Powerlifting,(whole),Deadlift,BB,-,-,bi,M,Powerlifting BB Sumo Deadlift (M),Barbell Sumo Deadlift
+Powerlifting,Powerlifting,(whole),Bench Press,BB,-,-,bi,M,Powerlifting BB Competition Bench Press (M),Barbell Competition Bench Press

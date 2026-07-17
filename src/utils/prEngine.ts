@@ -24,7 +24,12 @@ export type ExerciseCategory =
   // planning ActivityType variants that also reach us:
   | "hiit"
   | "yoga_mobility"
-  | "recovery";
+  | "recovery"
+  // exercise-library rebuild (2026-07): powerlifting = competition squat/bench/deadlift ->
+  // judged on the STRENGTH rules (1RM/heaviest PRs); systemic = conditioning complexes/carries,
+  // deliberately NOT PR-eligible.
+  | "powerlifting"
+  | "systemic";
 
 export interface LoggedSet {
   performedLoad: number | null; // kg
@@ -58,6 +63,7 @@ type RuleGroup = "strength" | "cardio" | "hiit" | "mobility" | "physio" | "none"
 export function ruleGroupForCategory(category: string | null | undefined): RuleGroup {
   switch (category) {
     case "strength":
+    case "powerlifting": // competition lifts -> heaviest/1RM strength PRs
       return "strength";
     case "cardio":
       return "cardio";
@@ -72,6 +78,7 @@ export function ruleGroupForCategory(category: string | null | undefined): RuleG
     case "warmup":
     case "cooldown":
     case "recovery":
+    case "systemic": // conditioning complexes/carries -> not clean 1RMs, no PRs
       return "none";
     default:
       return "none";
