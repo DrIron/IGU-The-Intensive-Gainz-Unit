@@ -454,10 +454,28 @@ for (const sub of SUBDIVISIONS) {
   SUBDIVISIONS_BY_PARENT.set(sub.parentId, existing);
 }
 
-/** Returns parentId if muscleId is a subdivision, or muscleId itself if it's already a parent */
+/**
+ * Volume-key aliases (exercise-library rebuild, 2026-07). The rebuilt taxonomy introduced
+ * muscles/subdivisions whose DB `volume_key` doesn't match an existing MUSCLE_GROUPS.id, so their
+ * sets counted toward Total Sets but were dropped from per-muscle volume. Each aliases to the
+ * NEAREST existing landmark so the volume consolidates there (rather than splitting into a new
+ * landmark). Applied only in volume resolution — NOT added to SUBDIVISIONS, so pickers are
+ * unaffected. Systemic / Powerlifting deliberately have NULL volume_key (multi-target conditioning)
+ * → they stay out of per-muscle volume while still counting in Total Sets.
+ */
+export const VOLUME_KEY_ALIASES: Record<string, string> = {
+  upper_back: 'upper_mid_back',   // 'Upper/Mid Back' muscle + its 'Compound' subdivision
+  biceps: 'elbow_flexors',        // generic 'Biceps' subdivision
+  rectus_abdominis: 'core',       // 'Abs' -> 'Rectus Abdominis' subdivision
+  abs: 'core',                    // 'Abs' muscle (direct placements)
+};
+
+/** Returns parentId if muscleId is a subdivision, or muscleId itself if it's already a parent.
+ *  Rebuild volume-keys are first canonicalised to their landmark via VOLUME_KEY_ALIASES. */
 export function resolveParentMuscleId(muscleId: string): string {
-  const sub = SUBDIVISION_MAP.get(muscleId);
-  return sub ? sub.parentId : muscleId;
+  const canonical = VOLUME_KEY_ALIASES[muscleId] ?? muscleId;
+  const sub = SUBDIVISION_MAP.get(canonical);
+  return sub ? sub.parentId : canonical;
 }
 
 /** Unified display lookup — checks MUSCLE_MAP first, then SUBDIVISION_MAP (inherits parent color) */
