@@ -125,10 +125,6 @@ export function progressionFlag(args: {
 
 /** Tonnage (kg) for one completed strength set = load x reps. */
 export function setTonnage(set: LoggedSet): number {
-  // WK5: a warm-up set is not working volume — exclude it so marking warm-ups doesn't inflate
-  // tonnage. drop/failure ARE working sets and still count. (Scoped to tonnage; TUST/PR-engine
-  // exclusion is a follow-up.)
-  if (set.setType === "warmup") return 0;
   if (set.performedLoad == null || set.performedReps == null) return 0;
   return set.performedLoad * set.performedReps;
 }

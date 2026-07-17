@@ -36,7 +36,6 @@ import {
   type Prescription,
   type ProgressionFlag,
 } from "@/utils/workoutFlags";
-import { parseSetType } from "@/lib/setType";
 
 export interface PulseExerciseRow {
   exerciseId: string;
@@ -154,7 +153,6 @@ function toLoggedSet(r: PulseLog): LoggedSet {
     performedRounds: num(j.performed_rounds),
     performedCalories: num(j.performed_calories),
     performedSide: typeof j.performed_side === "string" ? j.performed_side : null,
-    setType: parseSetType(j.set_type), // WK5: warm-ups excluded from working tonnage
   };
 }
 

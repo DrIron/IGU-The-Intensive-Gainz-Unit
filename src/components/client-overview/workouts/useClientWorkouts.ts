@@ -13,7 +13,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { startOfIguWeek, endOfIguWeek } from "@/lib/weekUtils";
-import { parseSetType, type SetType } from "@/lib/setType";
 import {
   resolveActiveAssignment,
   loadCanonicalSchedule,
@@ -292,8 +291,6 @@ export interface SetLogRow {
   performedRpe: number | null;
   notes: string | null;
   createdAt: string | null;
-  /** WK5 per-set type from performed_json.set_type ('normal' when absent). */
-  setType: SetType;
 }
 
 /** A canonical session target (board_v2): the assignment + the plan_session to view. */
@@ -334,7 +331,7 @@ async function loadCanonicalSessionEntries(
   const slotIds = slots.map((s) => s.id);
   const { data: logs, error: logsErr } = await supabase
     .from("exercise_set_logs")
-    .select("plan_slot_id, set_index, performed_load, performed_reps, performed_rir, performed_rpe, notes, created_at, performed_json")
+    .select("plan_slot_id, set_index, performed_load, performed_reps, performed_rir, performed_rpe, notes, created_at")
     .eq("assignment_id", target.assignmentId)
     .in("plan_slot_id", slotIds)
     .order("set_index", { ascending: true });
@@ -350,9 +347,6 @@ async function loadCanonicalSessionEntries(
       performedRpe: l.performed_rpe,
       notes: l.notes,
       createdAt: l.created_at,
-      setType: parseSetType(
-        (l.performed_json as Record<string, unknown> | null)?.set_type,
-      ),
     });
     setsBySlot.set(l.plan_slot_id as string, arr);
   }
