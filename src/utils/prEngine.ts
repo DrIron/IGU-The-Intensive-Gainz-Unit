@@ -37,6 +37,8 @@ export interface LoggedSet {
   performedRounds: number | null;
   performedCalories: number | null;
   performedSide: string | null;
+  /** WK5 per-set type from performed_json.set_type. Optional; absent = 'normal'. */
+  setType?: import("@/lib/setType").SetType;
 }
 
 export type PrId =

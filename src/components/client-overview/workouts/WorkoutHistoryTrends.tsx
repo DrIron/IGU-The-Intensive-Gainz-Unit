@@ -14,6 +14,7 @@ import { Dumbbell, Timer } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { setTonnage, estimateSetTust } from "@/utils/workoutFlags";
 import type { LoggedSet } from "@/utils/prEngine";
+import { parseSetType } from "@/lib/setType";
 import {
   PhaseAnnotatedTrendChart,
   type TrendPoint,
@@ -46,6 +47,7 @@ function toLoggedSet(r: RawLog): LoggedSet {
     performedRounds: num(j.performed_rounds),
     performedCalories: num(j.performed_calories),
     performedSide: typeof j.performed_side === "string" ? j.performed_side : null,
+    setType: parseSetType(j.set_type), // WK5: so warm-ups drop out of the tonnage trend
   };
 }
 

@@ -24,6 +24,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { SetTypeChip } from "@/components/workout/SetTypeChip";
+import { SET_TYPES, SET_TYPE_LABEL, parseSetType } from "@/lib/setType";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -740,6 +742,8 @@ function SetRow({
               <Trophy className="w-2.5 h-2.5" aria-hidden="true" /> PR
             </span>
           )}
+          {/* WK5: the logged set-type chip (nothing for a normal set). */}
+          <SetTypeChip type={parseSetType(log.performed_extra.set_type)} className="shrink-0" />
         </span>
         {/* Lock signals "done" — still tappable to fix a mis-log. */}
         <Lock className="w-3.5 h-3.5 text-status-ontrack shrink-0" aria-hidden="true" />
@@ -834,11 +838,32 @@ function SetRow({
           )}
         </div>
 
-        {prescription.weight_suggestion && (
-          <span className="text-xs text-amber-600 dark:text-amber-400 italic shrink-0">
-            {prescription.weight_suggestion}
-          </span>
-        )}
+        <div className="flex items-center gap-2 shrink-0">
+          {prescription.weight_suggestion && (
+            <span className="text-xs text-amber-600 dark:text-amber-400 italic">
+              {prescription.weight_suggestion}
+            </span>
+          )}
+          {/* WK5: optional per-set type marker. Deliberately OUT of the input+complete flow (it
+              sits in the header), so it never gets in the way of logging the set. Native select
+              = compact + a proper mobile picker. 'normal' clears the key (implicit default). */}
+          {!isActivity && (
+            <select
+              aria-label={`Set ${prescription.set_number} type`}
+              value={parseSetType(log.performed_extra.set_type)}
+              onChange={(e) =>
+                onUpdateExtra("set_type", e.target.value === "normal" ? null : e.target.value)
+              }
+              className="h-7 rounded-md border border-border bg-background px-1.5 text-[11px] text-muted-foreground touch-manipulation"
+            >
+              {SET_TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {SET_TYPE_LABEL[t]}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
       </div>
 
       {/* Input row (WK4: ghost placeholders + fixed-height "last" captions so
