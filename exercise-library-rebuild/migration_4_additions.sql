@@ -14,7 +14,7 @@ UPDATE exercise_library SET is_active=false
 --    (from the pre-576 library) hit ON CONFLICT and are reactivated + refreshed to canonical metadata.
 INSERT INTO exercise_library
  (id,name,client_name,equipment,category,muscle_group,subdivision,movement_pattern,positioning,grip,laterality,resistance_profiles,muscle_id,subdivision_id,is_global,is_active)
-SELECT gen_random_uuid(), v.name, v.client_name, v.equipment, 'strength'::text,
+SELECT gen_random_uuid(), v.name, v.client_name, v.equipment, 'strength'::public.exercise_category,
        lower(v.muscle), v.subdivision, v.movement, v.positioning, v.grip, v.laterality, v.resistance,
        m.id, sd.id, true, true
 FROM (VALUES
