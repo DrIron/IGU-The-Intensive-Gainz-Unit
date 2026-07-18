@@ -1,0 +1,461 @@
+import { useEffect, useMemo, useState } from "react";
+import { CardContent } from "@/components/ui/card";
+import { ClickableCard } from "@/components/ui/clickable-card";
+import { Button } from "@/components/ui/button";
+import { EmptyState } from "@/components/ui/empty-state";
+import { LoadError } from "@/components/ui/load-error";
+import { Skeleton } from "@/components/ui/skeleton";
+import { ChevronRight, Info, Dumbbell, Plus, Check } from "lucide-react";
+import { cn } from "@/lib/utils";
+import { type ExerciseRow } from "@/hooks/useExerciseLibrary";
+import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
+import { equipmentLabel } from "@/lib/equipmentLabels";
+
+/**
+ * ExerciseBrowse — the shared anatomical region → muscle → exercise drill (slice 2b).
+ *
+ * ONE surface for the client Learn tab (`mode="browse"`) and the coach picker (`mode="picker"`):
+ * a category strip + region-card grid (live in-memory counts) → muscle list → exercise rows with
+ * subdivision/resistance filter chips. Rows always show the friendly `client_name ?? name`.
+ *
+ * - `mode="browse"`: a row's primary action is ⓘ → `onInfo` (the caller opens the ExerciseDemoCard).
+ * - `mode="picker"`: a row tap fires `onSelect` (single) or `onToggle` + a checkbox (multiSelect).
+ *
+ * The caller supplies the (scoped) `rows`, `search`, and load state; taxonomy comes from the cached
+ * `useExerciseTaxonomy`. `sourceMuscleId` (a taxonomy muscle id) deep-links straight to that muscle's
+ * Level-C list, with the breadcrumb as the "browse other muscles" escape.
+ */
+
+export type ExerciseBrowseMode = "browse" | "picker";
+
+export interface ExerciseBrowseProps {
+  rows: ExerciseRow[];
+  search?: string;
+  loading?: boolean;
+  error?: boolean;
+  onRetry?: () => void;
+  mode?: ExerciseBrowseMode;
+  /** picker single-select: a row tap fires this. */
+  onSelect?: (exercise: ExerciseRow) => void;
+  /** picker replacement mode: rows become checkboxes toggling `onToggle`. */
+  multiSelect?: boolean;
+  selectedIds?: Set<string>;
+  onToggle?: (exercise: ExerciseRow) => void;
+  /** A taxonomy `muscles.id` to deep-link straight to that muscle's exercise list. */
+  sourceMuscleId?: string | null;
+  /** browse: the row opens the demo card via `onInfo`. */
+  showInfo?: boolean;
+  onInfo?: (exercise: ExerciseRow) => void;
+  /** picker: render a trailing badge on a row (e.g. "Custom" for non-global). */
+  renderRowBadge?: (exercise: ExerciseRow) => React.ReactNode;
+}
+
+const CATEGORY_STRIP: { value: string; label: string }[] = [
+  { value: "all", label: "All" },
+  { value: "strength", label: "Strength" },
+  { value: "cardio", label: "Cardio" },
+  { value: "mobility", label: "Mobility" },
+  { value: "physio", label: "Physio" },
+  { value: "warmup", label: "Warmup" },
+  { value: "cooldown", label: "Cooldown" },
+  { value: "sport_specific", label: "Sport-Specific" },
+  { value: "systemic", label: "Systemic" },
+  { value: "powerlifting", label: "Powerlifting" },
+];
+
+const rowName = (r: ExerciseRow): string => r.client_name ?? r.name;
+
+/** Search matches the FRIENDLY name (what's shown) plus the dense name / muscle / equipment. */
+function searchMatch(r: ExerciseRow, q: string): boolean {
+  return (
+    rowName(r).toLowerCase().includes(q) ||
+    r.name.toLowerCase().includes(q) ||
+    (r.primary_muscle ?? "").toLowerCase().includes(q) ||
+    (r.equipment ?? "").toLowerCase().includes(q)
+  );
+}
+
+const byName = (a: ExerciseRow, b: ExerciseRow) => rowName(a).localeCompare(rowName(b));
+
+export function ExerciseBrowse({
+  rows,
+  search = "",
+  loading = false,
+  error = false,
+  onRetry,
+  mode = "browse",
+  onSelect,
+  multiSelect = false,
+  selectedIds,
+  onToggle,
+  sourceMuscleId,
+  showInfo = false,
+  onInfo,
+  renderRowBadge,
+}: ExerciseBrowseProps) {
+  const { data: taxonomy } = useExerciseTaxonomy();
+
+  const [category, setCategory] = useState<string>("strength");
+  const [regionId, setRegionId] = useState("");
+  const [muscleId, setMuscleId] = useState("");
+  const [subFilter, setSubFilter] = useState(""); // subdivision_id chip
+  const [resFilter, setResFilter] = useState(""); // resistance-profile chip
+
+  const q = search.trim().toLowerCase();
+
+  const selectCategory = (v: string) => {
+    setCategory(v);
+    setRegionId("");
+    setMuscleId("");
+    setSubFilter("");
+    setResFilter("");
+  };
+  const selectRegion = (id: string) => {
+    setRegionId(id);
+    setMuscleId("");
+    setSubFilter("");
+    setResFilter("");
+  };
+  const selectMuscle = (id: string) => {
+    setMuscleId(id);
+    setSubFilter("");
+    setResFilter("");
+  };
+
+  // Deep-link: open straight at the source muscle's Level-C list (breadcrumb escapes back up).
+  useEffect(() => {
+    if (!sourceMuscleId || !taxonomy) return;
+    const m = taxonomy.muscles.find((mm) => mm.id === sourceMuscleId);
+    if (m) {
+      setCategory("strength");
+      setRegionId(m.primary_region_id);
+      setMuscleId(m.id);
+    }
+  }, [sourceMuscleId, taxonomy]);
+
+  const muscleToRegion = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const mu of taxonomy?.muscles ?? []) m.set(mu.id, mu.primary_region_id);
+    return m;
+  }, [taxonomy]);
+
+  // Anatomical set: strength rows carry a muscle_id → region. Non-strength categories flat-list.
+  const strengthRows = useMemo(
+    () => rows.filter((r) => r.category === "strength" && r.muscle_id),
+    [rows],
+  );
+
+  const regionCounts = useMemo(() => {
+    const c = new Map<string, number>();
+    for (const r of strengthRows) {
+      const reg = muscleToRegion.get(r.muscle_id as string);
+      if (reg) c.set(reg, (c.get(reg) ?? 0) + 1);
+    }
+    return c;
+  }, [strengthRows, muscleToRegion]);
+
+  const muscleCount = useMemo(() => {
+    const c = new Map<string, number>();
+    for (const r of strengthRows) c.set(r.muscle_id as string, (c.get(r.muscle_id as string) ?? 0) + 1);
+    return c;
+  }, [strengthRows]);
+
+  const flatList = useMemo(() => {
+    let out = rows;
+    if (category !== "all") out = out.filter((r) => r.category === category);
+    if (q) out = out.filter((r) => searchMatch(r, q));
+    return out.slice().sort(byName);
+  }, [rows, category, q]);
+
+  const rowsForMuscle = useMemo(
+    () => strengthRows.filter((r) => r.muscle_id === muscleId),
+    [strengthRows, muscleId],
+  );
+  const muscleExercises = useMemo(() => {
+    let out = rowsForMuscle;
+    if (subFilter) out = out.filter((r) => r.subdivision_id === subFilter);
+    if (resFilter) out = out.filter((r) => (r.resistance_profiles ?? []).includes(resFilter));
+    return out.slice().sort(byName);
+  }, [rowsForMuscle, subFilter, resFilter]);
+
+  const resistanceOptions = useMemo(() => {
+    const s = new Set<string>();
+    for (const r of rowsForMuscle) for (const rp of r.resistance_profiles ?? []) s.add(rp);
+    return [...s].sort();
+  }, [rowsForMuscle]);
+
+  const region = taxonomy?.regions.find((r) => r.id === regionId);
+  const muscle = taxonomy?.muscles.find((m) => m.id === muscleId);
+  const showFlat = !!q || category !== "strength";
+
+  const renderRow = (r: ExerciseRow) => (
+    <BrowseRow
+      key={r.id}
+      row={r}
+      mode={mode}
+      multiSelect={multiSelect}
+      checked={selectedIds?.has(r.id) ?? false}
+      showInfo={showInfo}
+      badge={renderRowBadge?.(r)}
+      onPrimary={() => {
+        if (mode === "picker") {
+          if (multiSelect) onToggle?.(r);
+          else onSelect?.(r);
+        } else {
+          onInfo?.(r);
+        }
+      }}
+    />
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Category strip */}
+      <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Exercise categories">
+        {CATEGORY_STRIP.map((c) => (
+          <Button
+            key={c.value}
+            type="button"
+            size="sm"
+            variant={category === c.value ? "default" : "outline"}
+            className="whitespace-nowrap"
+            onClick={() => selectCategory(c.value)}
+          >
+            {c.label}
+          </Button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 w-full rounded-lg" />
+          ))}
+        </div>
+      ) : error ? (
+        <LoadError
+          message="We couldn't load the exercise library. Check your connection and try again."
+          onRetry={onRetry}
+        />
+      ) : rows.length === 0 ? (
+        <EmptyState
+          icon={Dumbbell}
+          title={q ? `No exercises matching "${search}"` : "No exercises found"}
+          description={q ? "Try a different search." : "The exercise library is empty."}
+        />
+      ) : showFlat ? (
+        flatList.length === 0 ? (
+          <EmptyState
+            icon={Dumbbell}
+            title={q ? `No exercises matching "${search}"` : "No exercises found"}
+            description={q ? "Try a different search." : "No exercises in this category yet."}
+          />
+        ) : (
+          <div className="space-y-2">
+            <p className="text-sm text-muted-foreground">
+              {flatList.length} exercise{flatList.length === 1 ? "" : "s"}
+            </p>
+            {flatList.map(renderRow)}
+          </div>
+        )
+      ) : !taxonomy ? (
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <Skeleton key={i} className="h-28 w-full rounded-lg" />
+          ))}
+        </div>
+      ) : !regionId ? (
+        taxonomy.regions.filter((r) => (regionCounts.get(r.id) ?? 0) > 0).length === 0 ? (
+          <EmptyState icon={Dumbbell} title="No exercises found" description="No strength exercises in the library yet." />
+        ) : (
+          <div className="grid gap-3 grid-cols-2 lg:grid-cols-3">
+            {taxonomy.regions
+              .filter((r) => (regionCounts.get(r.id) ?? 0) > 0)
+              .map((r) => (
+                <ClickableCard
+                  key={r.id}
+                  ariaLabel={`Browse ${r.display_name} exercises`}
+                  onClick={() => selectRegion(r.id)}
+                >
+                  <CardContent className="p-4">
+                    {/* MuscleMap thumb slot — reserved for a future anatomy render (no fake art). */}
+                    <div className="mb-3 aspect-[4/3] rounded-lg border border-dashed border-border bg-muted/20" aria-hidden />
+                    <p className="font-semibold leading-tight">{r.display_name}</p>
+                    <p className="text-sm text-muted-foreground">{regionCounts.get(r.id) ?? 0} exercises</p>
+                  </CardContent>
+                </ClickableCard>
+              ))}
+          </div>
+        )
+      ) : !muscleId ? (
+        <div className="space-y-3">
+          <Breadcrumb items={[{ label: "Regions", onClick: () => selectRegion("") }, { label: region?.display_name ?? "" }]} />
+          <div className="space-y-2">
+            {(taxonomy.musclesByRegion.get(regionId) ?? [])
+              .filter((m) => (muscleCount.get(m.id) ?? 0) > 0)
+              .map((m) => (
+                <ClickableCard key={m.id} ariaLabel={`Browse ${m.display_name} exercises`} onClick={() => selectMuscle(m.id)}>
+                  <CardContent className="flex items-center justify-between p-3">
+                    <div>
+                      <p className="font-medium">{m.display_name}</p>
+                      <p className="text-xs text-muted-foreground">{muscleCount.get(m.id) ?? 0} exercises</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+                  </CardContent>
+                </ClickableCard>
+              ))}
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          <Breadcrumb
+            items={[
+              { label: "Regions", onClick: () => selectRegion("") },
+              { label: region?.display_name ?? "", onClick: () => selectMuscle("") },
+              { label: muscle?.display_name ?? "" },
+            ]}
+          />
+
+          <div className="flex flex-col gap-2">
+            {(taxonomy.subdivisionsByMuscle.get(muscleId) ?? []).some((sd) => rowsForMuscle.some((r) => r.subdivision_id === sd.id)) && (
+              <ChipRow label="Head">
+                <Chip active={!subFilter} onClick={() => setSubFilter("")}>All</Chip>
+                {(taxonomy.subdivisionsByMuscle.get(muscleId) ?? [])
+                  .filter((sd) => rowsForMuscle.some((r) => r.subdivision_id === sd.id))
+                  .map((sd) => (
+                    <Chip key={sd.id} active={subFilter === sd.id} onClick={() => setSubFilter(subFilter === sd.id ? "" : sd.id)}>
+                      {sd.display_name}
+                    </Chip>
+                  ))}
+              </ChipRow>
+            )}
+
+            {resistanceOptions.length > 0 && (
+              <ChipRow label="Resistance">
+                <Chip active={!resFilter} onClick={() => setResFilter("")}>All</Chip>
+                {resistanceOptions.map((rp) => (
+                  <Chip key={rp} active={resFilter === rp} onClick={() => setResFilter(resFilter === rp ? "" : rp)}>
+                    {rp}
+                  </Chip>
+                ))}
+              </ChipRow>
+            )}
+          </div>
+
+          {muscleExercises.length === 0 ? (
+            <EmptyState
+              icon={Dumbbell}
+              title={subFilter || resFilter ? "No exercises match these filters" : "No exercises here yet"}
+              description={subFilter || resFilter ? "Try clearing a filter." : undefined}
+            />
+          ) : (
+            <div className="space-y-2">{muscleExercises.map(renderRow)}</div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/** One exercise row — client_name, a friendly "equipment · resistance" mono line, UNI chip, and a
+ *  mode-specific trailing affordance (ⓘ / + / checkbox). */
+function BrowseRow({
+  row,
+  mode,
+  multiSelect,
+  checked,
+  showInfo,
+  badge,
+  onPrimary,
+}: {
+  row: ExerciseRow;
+  mode: ExerciseBrowseMode;
+  multiSelect: boolean;
+  checked: boolean;
+  showInfo: boolean;
+  badge?: React.ReactNode;
+  onPrimary: () => void;
+}) {
+  const isUnilateral = !!row.laterality && row.laterality !== "bi";
+  const meta = [equipmentLabel(row.equipment), (row.resistance_profiles ?? []).join(", ")].filter(Boolean).join(" · ");
+  const isCheckbox = mode === "picker" && multiSelect;
+
+  return (
+    <ClickableCard
+      ariaLabel={mode === "picker" ? `Select ${rowName(row)}` : `View ${rowName(row)}`}
+      onClick={onPrimary}
+      className={isCheckbox && checked ? "border-primary/40 bg-primary/5" : undefined}
+      {...(isCheckbox ? { role: "checkbox", "aria-checked": checked } : {})}
+    >
+      <CardContent className="flex items-center gap-3 p-3">
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-medium">{rowName(row)}</p>
+          {meta && <p className="truncate font-mono text-xs text-muted-foreground">{meta}</p>}
+        </div>
+        {isUnilateral && (
+          <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 font-mono text-[10px] font-medium text-muted-foreground">
+            UNI
+          </span>
+        )}
+        {badge}
+        {isCheckbox ? (
+          <div
+            className={cn(
+              "flex h-5 w-5 shrink-0 items-center justify-center rounded border transition-colors",
+              checked ? "border-primary bg-primary text-primary-foreground" : "border-input",
+            )}
+          >
+            {checked && <Check className="h-3.5 w-3.5" />}
+          </div>
+        ) : mode === "picker" ? (
+          <Plus className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        ) : showInfo ? (
+          <Info className="h-4 w-4 shrink-0 text-muted-foreground" aria-hidden />
+        ) : null}
+      </CardContent>
+    </ClickableCard>
+  );
+}
+
+function Breadcrumb({ items }: { items: { label: string; onClick?: () => void }[] }) {
+  return (
+    <nav className="flex flex-wrap items-center gap-1 text-sm" aria-label="Breadcrumb">
+      {items.map((it, i) => (
+        <span key={i} className="flex items-center gap-1">
+          {i > 0 && <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" aria-hidden />}
+          {it.onClick ? (
+            <button type="button" onClick={it.onClick} className="text-primary hover:underline">
+              {it.label}
+            </button>
+          ) : (
+            <span className="font-medium text-foreground">{it.label}</span>
+          )}
+        </span>
+      ))}
+    </nav>
+  );
+}
+
+function ChipRow({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex items-center gap-2 overflow-x-auto">
+      <span className="shrink-0 font-mono text-[10px] uppercase tracking-[0.1em] text-muted-foreground">{label}</span>
+      <div className="flex gap-1.5">{children}</div>
+    </div>
+  );
+}
+
+function Chip({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={cn(
+        "shrink-0 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors",
+        active ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted/50",
+      )}
+    >
+      {children}
+    </button>
+  );
+}
