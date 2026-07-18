@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>IGU — By-Muscle browse redesign</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Bebas+Neue&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:220 20% 97%; --card:0 0% 100%; --fg:240 10% 3.9%;
+    --primary:355 78% 48%; --border:220 15% 90%; --muted:220 14% 95%;
+    --mfg:240 3.8% 46%; --desk:220 16% 91%;
+  }
+  .dark{--bg:240 10% 3.7%; --fg:0 0% 96%; --card:240 6% 8.4%; --muted:240 4% 12%; --mfg:240 5% 62%; --border:240 4% 16%; --desk:240 8% 6%;}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Geist',system-ui,sans-serif;background:hsl(var(--desk));color:hsl(var(--fg));-webkit-font-smoothing:antialiased;padding:40px 24px 80px;}
+  .ttoggle{position:fixed;top:14px;right:16px;z-index:99;border:1px solid hsl(var(--border));background:hsl(var(--card));color:hsl(var(--fg));border-radius:9px;padding:7px 12px;font:inherit;font-size:12px;font-weight:500;cursor:pointer;}
+  .head{max-width:1080px;margin:0 auto 26px;}
+  .head h1{font-weight:600;font-size:25px;letter-spacing:-0.02em;}
+  .head p{color:hsl(var(--mfg));font-size:14px;margin-top:8px;line-height:1.6;max-width:840px;}
+  .head b{color:hsl(var(--primary));font-weight:600;}
+  .wrap{max-width:1080px;margin:0 auto;display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start;}
+  .col{flex:0 0 300px;}
+  .clab{font-family:'JetBrains Mono',monospace;font-size:11px;color:hsl(var(--mfg));text-transform:uppercase;letter-spacing:.05em;margin-bottom:9px;}
+  .clab b{color:hsl(var(--primary));}
+  .phone{width:300px;height:640px;background:hsl(var(--bg));border:9px solid #16181d;border-radius:32px;overflow:hidden;box-shadow:0 14px 40px rgba(20,24,33,.28);}
+  .top{display:flex;align-items:center;gap:9px;padding:14px 15px 6px;}
+  .top .bk{color:hsl(var(--mfg));font-size:17px;}
+  .top h2{font-size:18px;font-weight:600;}
+  .crumb{font-size:11px;color:hsl(var(--mfg));padding:0 15px 4px;}
+  .crumb b{color:hsl(var(--fg));font-weight:500;}
+  .body{padding:6px 14px;height:calc(100% - 52px);overflow:hidden;}
+  .cats{display:flex;gap:6px;overflow:hidden;margin:2px 0 10px;}
+  .cats span{font-size:11px;padding:5px 11px;border-radius:8px;border:1px solid hsl(var(--border));color:hsl(var(--mfg));white-space:nowrap;}
+  .cats span.on{background:hsl(var(--primary));color:#fff;border-color:hsl(var(--primary));}
+  .search{display:flex;align-items:center;gap:8px;background:hsl(var(--muted));border:1px solid hsl(var(--border));border-radius:9px;padding:9px 12px;font-size:12.5px;color:hsl(var(--mfg));margin-bottom:12px;}
+  .rgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .rcard{border:1px solid hsl(var(--border));border-radius:12px;padding:12px;background:hsl(var(--card));}
+  .rcard .ic{width:34px;height:34px;border-radius:9px;background:hsl(var(--primary)/.12);display:flex;align-items:center;justify-content:center;color:hsl(var(--primary));margin-bottom:9px;}
+  .rcard .n{font-size:14px;font-weight:600;}
+  .rcard .c{font-family:'JetBrains Mono',monospace;font-size:11px;color:hsl(var(--mfg));margin-top:2px;}
+  .allrow{margin-top:10px;border:1px solid hsl(var(--border));border-radius:11px;padding:12px 13px;background:hsl(var(--card));display:flex;justify-content:space-between;align-items:center;font-size:13px;font-weight:500;}
+  .allrow span{color:hsl(var(--mfg));font-family:'JetBrains Mono';font-size:11px;font-weight:400;}
+  .mrow{display:flex;align-items:center;justify-content:space-between;padding:13px 4px;border-bottom:1px solid hsl(var(--border));}
+  .mrow .n{font-size:14px;font-weight:500;}
+  .mrow .r{display:flex;align-items:center;gap:10px;}
+  .mrow .c{font-family:'JetBrains Mono';font-size:11px;color:hsl(var(--mfg));}
+  .mrow .ch{color:hsl(var(--mfg));font-size:15px;}
+  .fil{display:flex;gap:6px;overflow:hidden;margin:4px 0 8px;}
+  .fil span{font-size:10.5px;padding:4px 10px;border-radius:7px;border:1px solid hsl(var(--border));color:hsl(var(--mfg));white-space:nowrap;}
+  .fil span.on{background:hsl(var(--primary)/.14);color:hsl(var(--primary));border-color:hsl(var(--primary)/.3);}
+  .exrow{display:flex;align-items:center;gap:11px;padding:9px 3px;border-bottom:1px solid hsl(var(--border));}
+  .exrow .th{width:42px;height:42px;border-radius:9px;background:hsl(var(--muted));border:1px solid hsl(var(--border));flex:none;display:flex;align-items:center;justify-content:center;color:hsl(var(--mfg));font-size:9px;}
+  .exrow .n{font-size:12.5px;font-weight:500;line-height:1.25;}
+  .exrow .m{font-family:'JetBrains Mono';font-size:10px;color:hsl(var(--mfg));margin-top:3px;}
+  .exrow .uni{font-size:8.5px;color:hsl(var(--primary));border:1px solid hsl(var(--primary)/.3);border-radius:5px;padding:1px 5px;margin-left:6px;vertical-align:1px;}
+  .exrow .i{color:hsl(var(--mfg));font-size:16px;flex:none;}
+  .legend{max-width:1080px;margin:28px auto 0;padding:15px 18px;background:hsl(var(--card));border:1px solid hsl(var(--border));border-radius:12px;font-size:13px;line-height:1.6;color:hsl(var(--mfg));}
+  .legend b{color:hsl(var(--primary));}
+</style>
+</head>
+<body class="dark">
+<button class="ttoggle" onclick="document.body.classList.toggle('dark')">◐ Theme</button>
+
+<div class="head">
+  <h1>IGU — Exercise library · By-Muscle browse</h1>
+  <p>Replaces the dropdown-facet <b>ExercisesTab</b> (and the duplicate WorkoutLibrary page) with an anatomical <b>region → muscle → exercise</b> drill, using <b>live counts</b>. Same surface serves clients (Learn hub) and coaches (picker). Rows show the friendly <b>client_name</b> with a <b>equipment · resistance</b> mono line — the two axes that make 30 near-identically-named triceps variants scannable. Real data throughout.</p>
+</div>
+
+<div class="wrap">
+
+  <div class="col">
+    <div class="clab"><b>1</b> · regions</div>
+    <div class="phone">
+      <div class="top"><h2>Exercises</h2></div>
+      <div class="body">
+        <div class="cats"><span class="on">All</span><span>Strength</span><span>Cardio</span><span>Mobility</span></div>
+        <div class="search">🔍 Search 576 exercises…</div>
+        <div class="rgrid">
+          <div class="rcard"><div class="ic">▣</div><div class="n">Chest</div><div class="c">82 exercises</div></div>
+          <div class="rcard"><div class="ic">▣</div><div class="n">Back</div><div class="c">119 exercises</div></div>
+          <div class="rcard"><div class="ic">▣</div><div class="n">Shoulders</div><div class="c">66 exercises</div></div>
+          <div class="rcard"><div class="ic">▣</div><div class="n">Arms</div><div class="c">127 exercises</div></div>
+          <div class="rcard"><div class="ic">▣</div><div class="n">Legs</div><div class="c">119 exercises</div></div>
+          <div class="rcard"><div class="ic">▣</div><div class="n">Core</div><div class="c">29 exercises</div></div>
+        </div>
+        <div class="allrow">Neck · Cardio · more <span>→</span></div>
+        <div class="allrow">Browse all <span>576 →</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="clab"><b>2</b> · region → muscles</div>
+    <div class="phone">
+      <div class="top"><span class="bk">‹</span><h2>Arms</h2></div>
+      <div class="crumb">Exercises › <b>Arms</b></div>
+      <div class="body">
+        <div class="search">🔍 Search in Arms…</div>
+        <div class="mrow"><div class="n">Elbow Flexors</div><div class="r"><span class="c">83</span><span class="ch">›</span></div></div>
+        <div class="mrow"><div class="n">Triceps</div><div class="r"><span class="c">30</span><span class="ch">›</span></div></div>
+        <div class="mrow"><div class="n">Forearm</div><div class="r"><span class="c">14</span><span class="ch">›</span></div></div>
+        <div style="margin-top:18px;font-size:11.5px;color:hsl(var(--mfg));line-height:1.55;padding:0 2px;">Tap a muscle to see its exercises, or drill into subdivisions (Long Head · Lateral · Medial) on the next level.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="col">
+    <div class="clab"><b>3</b> · muscle → exercises</div>
+    <div class="phone">
+      <div class="top"><span class="bk">‹</span><h2>Triceps</h2></div>
+      <div class="crumb">Arms › <b>Triceps</b> · 30</div>
+      <div class="body">
+        <div class="fil"><span class="on">All</span><span>Lengthened</span><span>Mid-range</span><span>Shortened</span></div>
+        <div class="exrow"><div class="th">▶</div><div style="flex:1;min-width:0;"><div class="n">Triceps Barbell JM Press</div><div class="m">Barbell · Mid-range</div></div><div class="i">ⓘ</div></div>
+        <div class="exrow"><div class="th">▶</div><div style="flex:1;min-width:0;"><div class="n">Triceps Long Head Overhead Cable Extension</div><div class="m">Cable · Lengthened</div></div><div class="i">ⓘ</div></div>
+        <div class="exrow"><div class="th">▶</div><div style="flex:1;min-width:0;"><div class="n">Triceps Cable Single-Arm Pressdown<span class="uni">UNI</span></div><div class="m">Cable · Shortened</div></div><div class="i">ⓘ</div></div>
+        <div class="exrow"><div class="th">▶</div><div style="flex:1;min-width:0;"><div class="n">Triceps Machine Pressdown</div><div class="m">Machine · Mid-range</div></div><div class="i">ⓘ</div></div>
+        <div class="exrow"><div class="th">▶</div><div style="flex:1;min-width:0;"><div class="n">Triceps Bodyweight Dip</div><div class="m">Bodyweight · Mid-range</div></div><div class="i">ⓘ</div></div>
+        <div class="exrow"><div class="th">▶</div><div style="flex:1;min-width:0;"><div class="n">Triceps Smith Machine Close-Grip Press</div><div class="m">Smith Machine · Mid-range</div></div><div class="i">ⓘ</div></div>
+        <div style="margin-top:12px;font-size:11px;color:hsl(var(--mfg));text-align:center;">ⓘ opens the demo card</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<div class="legend">
+  Notes: <b>region grid uses live counts</b> (Chest 82 · Back 119 · Shoulders 66 · Arms 127 · Legs 119 · Core 29 · Neck 8). "Systemic" (22) and "Powerlifting" (4) sit under the <b>Cardio/category strip</b>, not the anatomical grid. Row thumbnails are the same <b>MuscleMap render slot</b> as the demo card — placeholder now, anatomy stills later. Equipment codes (BB / C-FT / SM) render as friendly labels (Barbell / Cable / Smith Machine). Desktop / coach view = the same drill in a wider multi-column grid. Tapping ⓘ opens the shared <b>ExerciseDemoCard</b>.
+</div>
+
+</body>
+</html>

@@ -19,7 +19,6 @@ const ROOT = process.cwd();
 const FLATTENED_FILES = [
   "src/components/admin/AdminPageLayout.tsx",
   "src/components/admin/AdminDashboardLayout.tsx",
-  "src/pages/WorkoutLibrary.tsx",
   "src/pages/EducationalVideos.tsx",
   "src/pages/BillingPayment.tsx",
   "src/pages/PaymentStatus.tsx",
