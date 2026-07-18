@@ -36,6 +36,10 @@ export interface CanonicalExerciseLibraryInfo {
   name: string;
   client_name: string | null;
   default_video_url: string | null;
+  /** Canonical PRIMARY muscle FK (+ subdivision) — resolved to a display_name in the demo card.
+   *  The legacy `primary_muscle` text is NULL for canonical rows, so the card needs these. */
+  muscle_id: string | null;
+  subdivision_id: string | null;
   primary_muscle: string;
   description: string | null;
   setup_instructions: string | null;
@@ -296,7 +300,7 @@ export async function resolveCanonicalSession(
         supabase
           .from("exercise_library")
           .select(
-            "id, name, client_name, default_video_url, primary_muscle, description, setup_instructions, setup_points, equipment, secondary_muscles, laterality, resistance_profiles",
+            "id, name, client_name, default_video_url, muscle_id, subdivision_id, primary_muscle, description, setup_instructions, setup_points, equipment, secondary_muscles, laterality, resistance_profiles",
           )
           .in("id", [...exerciseIds]),
       "exercise_library",
@@ -306,6 +310,8 @@ export async function resolveCanonicalSession(
         name: r.name,
         client_name: r.client_name ?? null,
         default_video_url: r.default_video_url ?? null,
+        muscle_id: r.muscle_id ?? null,
+        subdivision_id: r.subdivision_id ?? null,
         primary_muscle: r.primary_muscle ?? "",
         description: r.description ?? null,
         setup_instructions: r.setup_instructions ?? null,

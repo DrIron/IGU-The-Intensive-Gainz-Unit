@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
 import { Button } from "@/components/ui/button";
 import {
   Drawer,
@@ -37,7 +38,14 @@ import {
 export interface ExerciseDemoData {
   name: string;
   client_name?: string | null;
+  /** Canonical PRIMARY muscle FK — resolved to a display_name via the taxonomy. Canonical rebuild
+   *  populates this while leaving `primary_muscle` text NULL. */
+  muscle_id?: string | null;
+  /** Canonical subdivision FK — an optional qualifier on the primary chip ("Pec Major · Costal Head"). */
+  subdivision_id?: string | null;
+  /** Legacy PRIMARY muscle text — fallback when no `muscle_id`. NULL for canonical rows. */
   primary_muscle?: string | null;
+  /** Legacy SECONDARY muscle text — no FK exists for secondaries; often empty on canonical rows. */
   secondary_muscles?: string[] | null;
   equipment?: string | null;
   resistance_profiles?: string[] | null;
@@ -74,6 +82,35 @@ export interface ExerciseDemoCardProps {
 
 function displayName(ex: ExerciseDemoData): string {
   return ex.client_name?.trim() ? ex.client_name : ex.name;
+}
+
+interface MuscleMapTaxonomy {
+  muscles: { id: string; display_name: string }[];
+  subdivisions: { id: string; display_name: string }[];
+}
+
+/**
+ * PRIMARY muscle label for the MuscleMap. Canonical exercises carry the muscle in the `muscle_id`
+ * FK (the legacy `primary_muscle` text is NULL for them) — resolve it via the taxonomy, optionally
+ * qualified by its subdivision ("Pec Major · Costal Head"). Fall back to the legacy `primary_muscle`
+ * text for older rows, then null. Returns null ONLY when neither an FK muscle nor legacy text exists
+ * (the one case MuscleMap renders "Not specified"). There is no FK for secondaries — those keep
+ * reading `secondary_muscles` text.
+ */
+export function derivePrimaryMuscle(
+  exercise: Pick<ExerciseDemoData, "muscle_id" | "subdivision_id" | "primary_muscle">,
+  taxonomy?: Partial<MuscleMapTaxonomy> | null,
+): string | null {
+  if (exercise.muscle_id && taxonomy?.muscles) {
+    const muscle = taxonomy.muscles.find((m) => m.id === exercise.muscle_id);
+    if (muscle) {
+      const sub = exercise.subdivision_id
+        ? taxonomy.subdivisions?.find((s) => s.id === exercise.subdivision_id)
+        : undefined;
+      return sub ? `${muscle.display_name} · ${sub.display_name}` : muscle.display_name;
+    }
+  }
+  return exercise.primary_muscle?.trim() || null;
 }
 
 /** Numbered setup steps: explicit points, else the newline-split fallback. */
@@ -230,11 +267,15 @@ function SetupExecution({ exercise }: { exercise: ExerciseDemoData }) {
 export function ExerciseDemoContent({
   exercise,
   context,
+  primaryMuscle,
   lastSet,
   onSwap,
   onFindSimilar,
   onAddAlternative,
-}: Pick<ExerciseDemoCardProps, "exercise" | "context" | "lastSet" | "onSwap" | "onFindSimilar" | "onAddAlternative">) {
+}: Pick<ExerciseDemoCardProps, "exercise" | "context" | "lastSet" | "onSwap" | "onFindSimilar" | "onAddAlternative"> & {
+  /** Resolved PRIMARY muscle label (FK → display_name) from the card shell. Omitted → legacy text. */
+  primaryMuscle?: string | null;
+}) {
   const title = displayName(exercise);
 
   // Context CTA. Only rendered when its handler is supplied.
@@ -275,7 +316,8 @@ export function ExerciseDemoContent({
       <MediaBlock exercise={exercise} />
 
       <MuscleMap
-        primary={exercise.primary_muscle}
+        // FK-derived label when the shell resolved one; else legacy `primary_muscle` text.
+        primary={primaryMuscle === undefined ? exercise.primary_muscle : primaryMuscle}
         secondary={exercise.secondary_muscles}
         renderUrl={exercise.muscleRenderUrl ?? null}
       />
@@ -306,11 +348,18 @@ export function ExerciseDemoContent({
 
 export function ExerciseDemoCard({ exercise, context, open, onOpenChange, ...rest }: ExerciseDemoCardProps) {
   const isMobile = useIsMobile();
+  // The card owns muscle resolution (single source): canonical rows carry the muscle in the
+  // `muscle_id` FK, resolved here to a display_name via the shared taxonomy (already warm on every
+  // surface). MuscleMap keeps its simple string prop.
+  const { data: taxonomy } = useExerciseTaxonomy();
+  const primaryMuscle = useMemo(() => derivePrimaryMuscle(exercise, taxonomy), [exercise, taxonomy]);
   // In-session stays the bottom-sheet Drawer it is today; library/coach/swap use a Dialog on
   // desktop and a Drawer on mobile.
   const asDrawer = context === "in-session" || isMobile;
   const title = displayName(exercise);
-  const content = <ExerciseDemoContent exercise={exercise} context={context} {...rest} />;
+  const content = (
+    <ExerciseDemoContent exercise={exercise} context={context} primaryMuscle={primaryMuscle} {...rest} />
+  );
 
   if (asDrawer) {
     return (
