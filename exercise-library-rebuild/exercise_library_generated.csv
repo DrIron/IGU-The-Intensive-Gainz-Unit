@@ -176,6 +176,9 @@ Back,Mid Back,Mid Trapezius,Retraction Row,M,Chest-Supported,Neutral/Pronated,bi
 Back,Mid Back,Mid Trapezius,Retraction Row,C-FT,Chest-Supported,Neutral/Pronated,bi,S,Mid Traps C-FT Chest-Supported Retraction Row (S),Mid Back Chest-Supported Cable Retraction Row
 Back,Mid Back,Mid Trapezius,Retraction Row,C-AA,Chest-Supported,Neutral/Pronated,bi,S,Mid Traps C-AA Chest-Supported Retraction Row (S),Mid Back Chest-Supported Cable Retraction Row
 Back,Mid Back,Mid Trapezius,Retraction Row,C-SG,Chest-Supported,Neutral/Pronated,uni,S,Mid Traps C-SG Chest-Supported Single-Arm Retraction Row (S),Mid Back Chest-Supported Cable Single-Arm Retraction Row
+Back,Mid Back,Mid Trapezius,Retraction Row,C-FT,Standing,Neutral/Pronated,bi,S,Mid Traps C-FT Standing Retraction Row (S),Mid Back Standing Cable Retraction Row
+Back,Mid Back,Mid Trapezius,Retraction Row,C-AA,Standing,Neutral/Pronated,bi,S,Mid Traps C-AA Standing Retraction Row (S),Mid Back Standing Cable Retraction Row
+Back,Mid Back,Mid Trapezius,Retraction Row,C-SG,Standing,Neutral/Pronated,uni,S,Mid Traps C-SG Single-Arm Retraction Row (S),Mid Back Cable Single-Arm Retraction Row
 Back,Mid Back,Lower Trapezius,Pull-Apart,BND,-,Pronated,bi,S,Lower Traps BND Pull-Apart (S),Lower Traps Band Pull-Apart
 Back,Mid Back,Lower Trapezius,Pull-Apart,C-FT,-,Pronated,bi,S,Lower Traps C-FT Pull-Apart (S),Lower Traps Cable Pull-Apart
 Back,Mid Back,Lower Trapezius,Pull-Apart,C-AA,-,Pronated,bi,S,Lower Traps C-AA Pull-Apart (S),Lower Traps Cable Pull-Apart
@@ -357,6 +360,7 @@ Arms,Triceps,Long Head,Extension,C-SG,Overhead,Neutral,uni,L,Triceps Long C-SG O
 Arms,Triceps,Long Head,Extension,DB,45-Abducted,Neutral,bi,S/M,Triceps Long DB 45-Abducted Extension (S/M),Triceps Long Head 45-Abducted Dumbbell Extension
 Arms,Triceps,Long Head,Extension,C-FT,45-Abducted,Neutral,bi,S/M,Triceps Long C-FT 45-Abducted Extension (S/M),Triceps Long Head 45-Abducted Cable Extension
 Arms,Triceps,Long Head,Extension,C-SG,45-Abducted,Neutral,uni,S/M,Triceps Long C-SG 45-Abducted Single-Arm Extension (S/M),Triceps Long Head 45-Abducted Cable Single-Arm Extension
+Arms,Triceps,Long Head,Extension,M,Overhead,Neutral,bi,L,Triceps Long M Overhead Extension (L),Triceps Long Head Overhead Machine Extension
 Arms,Triceps,Lateral & Medial Head,Extension,C-FT,Overhead,Neutral,bi,M,Triceps Lat+Med C-FT Overhead Extension (M),Triceps Overhead Cable Extension
 Arms,Triceps,Lateral & Medial Head,Extension,C-FT,Stepped-In,Neutral,bi,S,Triceps Lat+Med C-FT Stepped-In Extension (S),Triceps Stepped-In Cable Extension
 Arms,Triceps,Lateral & Medial Head,Extension,C-BS,-,Neutral,bi,M,Triceps Lat+Med C-BS Extension (M),Triceps Cable Extension
@@ -396,15 +400,16 @@ Arms,Forearm,Supinators,Supination,BND,-,-,bi,M,Forearm Supinators BND Supinatio
 Legs,Quads,(whole),Squat,BB,-,-,bi,L,Quads BB High-Bar Back Squat (L),Quads Barbell High-Bar Back Squat
 Legs,Quads,(whole),Squat,BB,-,-,bi,L,Quads BB Low-Bar Back Squat (L),Quads Barbell Low-Bar Back Squat
 Legs,Quads,(whole),Squat,BB,-,-,bi,L,Quads BB Front Squat (L),Quads Barbell Front Squat
-Legs,Quads,(whole),Squat,BB,-,-,bi,L,Quads BB Reverse Lunge (L),Quads Barbell Reverse Lunge
 Legs,Quads,(whole),Squat,BB,-,-,bi,L,Quads BB Lunge (L),Quads Barbell Lunge
 Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Goblet Squat (L),Quads Dumbbell Goblet Squat
 Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Heel-Elevated Squat (L),Quads Dumbbell Heel-Elevated Squat
 Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Front-Foot-Elevated Split Squat (L),Quads Dumbbell Front-Foot-Elevated Split Squat
 Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Supported Split Squat (L),Quads Dumbbell Supported Split Squat
-Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Reverse Lunge (L),Quads Dumbbell Reverse Lunge
 Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Lunge (L),Quads Dumbbell Lunge
 Legs,Quads,(whole),Squat,DB,-,-,bi,L,Quads DB Step-Up (L),Quads Dumbbell Step-Up
+Legs,Quads,(whole),Squat,C-FT,-,-,bi,L,Quads C-FT Step-Up (L),Quads Cable Step-Up
+Legs,Quads,(whole),Squat,C-AA,-,-,bi,L,Quads C-AA Step-Up (L),Quads Cable Step-Up
+Legs,Quads,(whole),Squat,C-SG,-,-,uni,L,Quads C-SG Single-Leg Step-Up (L),Quads Cable Single-Leg Step-Up
 Legs,Quads,(whole),Squat,SM,-,-,bi,L,Quads SM Smith Squat (L),Quads Smith Squat
 Legs,Quads,(whole),Squat,SM,-,-,bi,L,Quads SM Smith Lunge (L),Quads Smith Lunge
 Legs,Quads,(whole),Squat,M,-,-,bi,L,Quads M Hack Squat (L),Quads Machine Hack Squat
@@ -463,7 +468,11 @@ Legs,Glutes,Gluteus Maximus,Squat/Press,BB,-,-,bi,L,Glute Max BB Low-Bar Wide Sq
 Legs,Glutes,Gluteus Maximus,Squat/Press,M,-,-,bi,L,Glute Max M Single-Leg Leg Press (L),Glute Max Machine Single-Leg Leg Press
 Legs,Glutes,Gluteus Maximus,Squat/Press,M,-,-,bi,L,Glute Max M Glute Press (L),Glute Max Machine Glute Press
 Legs,Glutes,Gluteus Maximus,Squat/Press,DB,-,-,bi,L,Glute Max DB Bulgarian Split Squat (L),Glute Max Dumbbell Bulgarian Split Squat
-Legs,Glutes,Gluteus Maximus,Squat/Press,DB,-,-,bi,L,Glute Max DB Walking Lunge (L),Glute Max Dumbbell Walking Lunge
+Legs,Glutes,Gluteus Maximus,Squat/Press,BB,-,-,bi,L,Glute Max BB Reverse Lunge (L),Glute Max Barbell Reverse Lunge
+Legs,Glutes,Gluteus Maximus,Squat/Press,DB,-,-,bi,L,Glute Max DB Reverse Lunge (L),Glute Max Dumbbell Reverse Lunge
+Legs,Glutes,Gluteus Maximus,Squat/Press,SM,-,-,bi,L,Glute Max SM Reverse Lunge (L),Glute Max Smith Machine Reverse Lunge
+Legs,Glutes,Gluteus Maximus,Squat/Press,DB,Front-Foot-Elevated,-,bi,L,Glute Max DB Front-Foot-Elevated Reverse Lunge (L),Glute Max Front-Foot-Elevated Dumbbell Reverse Lunge
+Legs,Glutes,Gluteus Maximus,Squat/Press,DB,Contralateral-Elevated,-,bi,L,Glute Max DB Contralateral-Elevated Reverse Lunge (L),Glute Max Contralateral-Elevated Dumbbell Reverse Lunge
 Legs,Glutes,Gluteus Maximus,Kickback,C-FT,-,-,bi,L,Glute Max C-FT Kickback (L),Glute Max Cable Kickback
 Legs,Glutes,Gluteus Maximus,Kickback,C-AA,-,-,bi,L,Glute Max C-AA Kickback (L),Glute Max Cable Kickback
 Legs,Glutes,Gluteus Maximus,Kickback,M,-,-,bi,L,Glute Max M Kickback (L),Glute Max Machine Kickback
@@ -476,6 +485,7 @@ Legs,Glutes,Gluteus Medius,Abduction,C-AA,45-Degree,-,bi,S,Glute Med C-AA 45-Deg
 Legs,Glutes,Gluteus Medius,Abduction,BW,-,-,bi,S,Glute Med BW Band Lateral Walk (S),Glute Med Bodyweight Band Lateral Walk
 Legs,Glutes,Gluteus Medius,Abduction,BW,-,-,bi,S,Glute Med BW Side-Lying Abduction (S),Glute Med Bodyweight Side-Lying Abduction
 Legs,Glutes,Gluteus Medius,Abduction,BW,-,-,bi,S,Glute Med BW Clamshell (S),Glute Med Bodyweight Clamshell
+Legs,Glutes,Gluteus Medius,Abduction,DB,-,-,bi,S,Glute Med DB Side-Lying Abduction (S),Glute Med Dumbbell Side-Lying Abduction
 Legs,Glutes,Gluteus Medius,Kickback,C-FT,-,-,bi,L,Glute Med C-FT Kickback (L),Glute Med Cable Kickback
 Legs,Glutes,Gluteus Medius,Kickback,C-AA,-,-,bi,L,Glute Med C-AA Kickback (L),Glute Med Cable Kickback
 Legs,Glutes,Gluteus Medius,Kickback,M,-,-,bi,L,Glute Med M Kickback (L),Glute Med Machine Kickback
@@ -493,6 +503,7 @@ Legs,Adductors,(whole),Squat,M,-,-,bi,L,Adductors M Squat (L),Adductors Machine 
 Legs,Adductors,(whole),Adduction,M,-,-,bi,M,Adductors M Seated Adduction (M),Adductors Machine Seated Adduction
 Legs,Adductors,(whole),Adduction,C-FT,-,-,bi,M,Adductors C-FT Adduction (M),Adductors Cable Adduction
 Legs,Adductors,(whole),Adduction,C-AA,-,-,bi,M,Adductors C-AA Adduction (M),Adductors Cable Adduction
+Legs,Adductors,(whole),Adduction,BW,-,-,bi,M,Adductors BW Copenhagen Plank (M),Adductors Bodyweight Copenhagen Plank
 Legs,Abductors,(whole),Abduction,M,-,-,bi,M,Abductors M Seated Abduction (M),Abductors Machine Seated Abduction
 Legs,Abductors,(whole),Abduction,C-FT,-,-,bi,M,Abductors C-FT Abduction (M),Abductors Cable Abduction
 Legs,Hip Flexors,(whole),Hip Flexion,BW,-,-,bi,M,Hip Flexors BW Hanging Leg Raise (M),Hip Flexors Bodyweight Hanging Leg Raise
