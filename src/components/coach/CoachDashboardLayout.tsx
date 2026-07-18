@@ -193,7 +193,7 @@ export function CoachDashboardLayout({
       case "programs":
         return user && <CoachProgramsPage coachUserId={user.id} />;
       case "exercises":
-        return <ExerciseLibrary />;
+        return <ExerciseLibrary coachUserId={user.id} />;
       case "testimonials":
         return <CoachTestimonials coachUserId={user.id} />;
       case "profile":
