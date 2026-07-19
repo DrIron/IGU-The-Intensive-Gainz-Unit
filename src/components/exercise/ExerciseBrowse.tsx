@@ -69,16 +69,44 @@ const CATEGORY_STRIP: { value: string; label: string }[] = [
   { value: "powerlifting", label: "Powerlifting" },
 ];
 
-/** Search matches BOTH label columns (friendly + dense) plus muscle / equipment, regardless of which
- *  one a given audience headlines — so a coach can still type the friendly words, and vice versa. */
-function searchMatch(r: ExerciseRow, q: string): boolean {
-  return (
-    (r.client_name ?? "").toLowerCase().includes(q) ||
-    r.name.toLowerCase().includes(q) ||
-    (r.primary_muscle ?? "").toLowerCase().includes(q) ||
-    (r.equipment ?? "").toLowerCase().includes(q)
-  );
+/** Punctuation-stripped, lowercased form so a hyphenated equipment code also matches its run-together
+ *  spelling ("C-AA" → "caa"). */
+const stripPunct = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+/**
+ * A row's search haystack: every label a coach or client might type, lowercased and space-joined.
+ * Pulls BOTH name columns, the muscle from every angle (legacy text + group + FK display name +
+ * subdivision + anatomical), the equipment (raw code + de-hyphenated + the friendly word via
+ * `equipmentLabel`, e.g. "BB"/"barbell", "C-AA"/"caa"/"cable"), the movement pattern, and category —
+ * so token-AND matching below can hit any of them, order-independently.
+ */
+function buildHaystack(
+  r: ExerciseRow,
+  muscleName: Map<string, string>,
+  subName: Map<string, string>,
+): string {
+  const equip = r.equipment ?? "";
+  const parts = [
+    r.name,
+    r.client_name,
+    r.primary_muscle,
+    r.muscle_group,
+    r.anatomical_name,
+    r.muscle_id ? muscleName.get(r.muscle_id) : "",
+    r.subdivision,
+    r.subdivision_id ? subName.get(r.subdivision_id) : "",
+    equip,
+    stripPunct(equip),
+    equipmentLabel(equip),
+    r.movement_pattern,
+    r.category,
+  ];
+  return parts.filter(Boolean).join(" ").toLowerCase();
 }
+
+/** Token-AND: the row matches iff EVERY query term is a substring of its haystack (order-independent). */
+const matchesAllTerms = (haystack: string, terms: string[]): boolean =>
+  terms.every((t) => haystack.includes(t));
 
 export function ExerciseBrowse({
   rows,
@@ -110,6 +138,17 @@ export function ExerciseBrowse({
   const [resFilter, setResFilter] = useState(""); // resistance-profile chip
 
   const q = search.trim().toLowerCase();
+  // Query → terms (whitespace-split); a row matches iff every term is in its haystack (AND).
+  const terms = useMemo(() => q.split(/\s+/).filter(Boolean), [q]);
+
+  // Per-row search haystack, rebuilt only when the rows or taxonomy change (not per keystroke).
+  const searchIndex = useMemo(() => {
+    const muscleName = new Map((taxonomy?.muscles ?? []).map((m) => [m.id, m.display_name]));
+    const subName = new Map((taxonomy?.subdivisions ?? []).map((s) => [s.id, s.display_name]));
+    const map = new Map<string, string>();
+    for (const r of rows) map.set(r.id, buildHaystack(r, muscleName, subName));
+    return map;
+  }, [rows, taxonomy]);
 
   const selectCategory = (v: string) => {
     setCategory(v);
@@ -171,10 +210,10 @@ export function ExerciseBrowse({
   const flatList = useMemo(() => {
     let out = rows;
     if (category !== "all") out = out.filter((r) => r.category === category);
-    if (q) out = out.filter((r) => searchMatch(r, q));
+    if (terms.length) out = out.filter((r) => matchesAllTerms(searchIndex.get(r.id) ?? "", terms));
     return out.slice().sort(byDisplay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, category, q, audience]);
+  }, [rows, category, terms, searchIndex, audience]);
 
   const rowsForMuscle = useMemo(
     () => strengthRows.filter((r) => r.muscle_id === muscleId),
