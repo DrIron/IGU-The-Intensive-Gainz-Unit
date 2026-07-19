@@ -2,7 +2,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
-import { ExerciseDemoContent, type ExerciseDemoData } from "./ExerciseDemoCard";
+import { ExerciseDemoContent, derivePrimaryMuscle, type ExerciseDemoData } from "./ExerciseDemoCard";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -141,5 +141,53 @@ describe("ExerciseDemoContent", () => {
     );
     expect(el.textContent).toContain("Cable"); // C-FT -> Cable
     expect(el.textContent).toContain("Unilateral"); // laterality !== 'bi'
+  });
+
+  // MuscleMap PRIMARY is derived from the muscle_id FK — the canonical rebuild leaves the legacy
+  // `primary_muscle` text NULL, so the old text-only read showed "Not specified" everywhere.
+  it("MuscleMap PRIMARY shows the FK muscle for a canonical row (primary_muscle NULL, muscle_id set)", async () => {
+    const canonical: ExerciseDemoData = { ...FULL, primary_muscle: null, secondary_muscles: [], muscle_id: "m-pec", subdivision_id: null };
+    const el = await render(<ExerciseDemoContent exercise={canonical} context="library" primaryMuscle="Pec Major" />);
+    const map = el.querySelector("[data-muscle-map]");
+    expect(map?.textContent).toContain("Pec Major");
+    expect(map?.textContent).not.toContain("Not specified");
+  });
+
+  it("MuscleMap renders NO secondary chips when secondary_muscles is empty (no fabrication)", async () => {
+    const canonical: ExerciseDemoData = { ...FULL, primary_muscle: null, secondary_muscles: [], muscle_id: "m-pec" };
+    const el = await render(<ExerciseDemoContent exercise={canonical} context="library" primaryMuscle="Pec Major" />);
+    const map = el.querySelector("[data-muscle-map]");
+    expect(map?.textContent).not.toContain("Secondary");
+    expect(map?.textContent).not.toContain("Not specified");
+  });
+});
+
+describe("derivePrimaryMuscle", () => {
+  const TAX = {
+    muscles: [{ id: "m-pec", display_name: "Pec Major" }, { id: "m-tri", display_name: "Triceps" }],
+    subdivisions: [{ id: "s-costal", display_name: "Costal Head" }],
+  };
+
+  it("resolves the FK muscle_id → display_name (canonical row, primary_muscle NULL)", () => {
+    expect(derivePrimaryMuscle({ muscle_id: "m-pec", subdivision_id: null, primary_muscle: null }, TAX)).toBe("Pec Major");
+  });
+
+  it("qualifies with the subdivision when subdivision_id is set", () => {
+    expect(derivePrimaryMuscle({ muscle_id: "m-pec", subdivision_id: "s-costal", primary_muscle: null }, TAX)).toBe(
+      "Pec Major · Costal Head",
+    );
+  });
+
+  it("falls back to legacy primary_muscle text when muscle_id is NULL", () => {
+    expect(derivePrimaryMuscle({ muscle_id: null, subdivision_id: null, primary_muscle: "Chest" }, TAX)).toBe("Chest");
+  });
+
+  it("returns null when neither an FK muscle nor legacy text exists (→ 'Not specified')", () => {
+    expect(derivePrimaryMuscle({ muscle_id: null, subdivision_id: null, primary_muscle: null }, TAX)).toBeNull();
+  });
+
+  it("falls back to text when the muscle_id has no taxonomy match (or taxonomy not loaded)", () => {
+    expect(derivePrimaryMuscle({ muscle_id: "m-unknown", subdivision_id: null, primary_muscle: "Chest" }, TAX)).toBe("Chest");
+    expect(derivePrimaryMuscle({ muscle_id: "m-pec", subdivision_id: null, primary_muscle: "Chest" }, null)).toBe("Chest");
   });
 });

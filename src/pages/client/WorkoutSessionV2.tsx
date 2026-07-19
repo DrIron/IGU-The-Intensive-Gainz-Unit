@@ -176,6 +176,10 @@ export interface Exercise {
     name: string;
     client_name: string | null;
     default_video_url: string | null;
+    // Canonical muscle FKs — the demo card resolves muscle_id → display_name (primary_muscle text
+    // is NULL for canonical rows). subdivision_id qualifies the primary chip.
+    muscle_id: string | null;
+    subdivision_id: string | null;
     primary_muscle: string;
     // Form-guide content (exercise_library) shown in the in-session demo card.
     description: string | null;
@@ -1770,6 +1774,8 @@ function WorkoutSessionV2Content() {
             name: rex.library?.name || "Unknown Exercise",
             client_name: rex.library?.client_name ?? null,
             default_video_url: rex.library?.default_video_url ?? null,
+            muscle_id: rex.library?.muscle_id ?? null,
+            subdivision_id: rex.library?.subdivision_id ?? null,
             primary_muscle: rex.library?.primary_muscle || "",
             description: rex.library?.description ?? null,
             setup_instructions: rex.library?.setup_instructions ?? null,
@@ -2147,7 +2153,7 @@ function WorkoutSessionV2Content() {
       // than a thrown PostgREST 406 — CLAUDE.md ".maybeSingle() vs .single()" rule.
       const { data: newExLib, error: exError } = await supabase
         .from("exercise_library")
-        .select("name, client_name, primary_muscle, default_video_url, description, setup_instructions, setup_points, equipment, secondary_muscles, laterality, resistance_profiles")
+        .select("name, client_name, muscle_id, subdivision_id, primary_muscle, default_video_url, description, setup_instructions, setup_points, equipment, secondary_muscles, laterality, resistance_profiles")
         .eq("id", newExerciseId)
         .maybeSingle();
 
@@ -2175,6 +2181,8 @@ function WorkoutSessionV2Content() {
           exercise: {
             name: newExLib.name,
             client_name: newExLib.client_name ?? null,
+            muscle_id: newExLib.muscle_id ?? null,
+            subdivision_id: newExLib.subdivision_id ?? null,
             primary_muscle: newExLib.primary_muscle,
             default_video_url: newExLib.default_video_url,
             description: newExLib.description ?? null,

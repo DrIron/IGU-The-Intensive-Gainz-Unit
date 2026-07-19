@@ -18,6 +18,11 @@ Object.defineProperty(window, "matchMedia", {
   }),
 });
 
+// ExerciseCard mounts the shared ExerciseDemoCard, which resolves the PRIMARY muscle via
+// useExerciseTaxonomy (react-query). These tests render ExerciseCard bare (no QueryClient) and
+// don't assert muscle labels — stub the taxonomy so the card's hook has no provider dependency.
+vi.mock("@/hooks/useExerciseTaxonomy", () => ({ useExerciseTaxonomy: () => ({ data: undefined }) }));
+
 /**
  * BUG A — the workout logger showed REVERSED previous-set values.
  *
