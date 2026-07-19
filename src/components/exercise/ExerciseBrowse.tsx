@@ -10,16 +10,20 @@ import { cn } from "@/lib/utils";
 import { type ExerciseRow } from "@/hooks/useExerciseLibrary";
 import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
 import { equipmentLabel } from "@/lib/equipmentLabels";
+import { getExerciseDisplayName, type ExerciseNameAudience } from "@/lib/exerciseDisplay";
 
 /**
  * ExerciseBrowse — the shared anatomical region → muscle → exercise drill (slice 2b).
  *
- * ONE surface for the client Learn tab (`mode="browse"`) and the coach picker (`mode="picker"`):
- * a category strip + region-card grid (live in-memory counts) → muscle list → exercise rows with
- * subdivision/resistance filter chips. Rows always show the friendly `client_name ?? name`.
+ * ONE surface for the client Learn tab, the coach library, and the coach picker: a category strip +
+ * region-card grid (live in-memory counts) → muscle list → exercise rows with subdivision/resistance
+ * filter chips.
  *
  * - `mode="browse"`: a row's primary action is ⓘ → `onInfo` (the caller opens the ExerciseDemoCard).
  * - `mode="picker"`: a row tap fires `onSelect` (single) or `onToggle` + a checkbox (multiSelect).
+ * - `audience`: which label column headlines a row — `"coach"` shows the dense `name`, `"client"`
+ *   shows the friendly `client_name ?? name` (see lib/exerciseDisplay). Mode does NOT imply audience:
+ *   both the client Learn tab and the coach library use `mode="browse"`.
  *
  * The caller supplies the (scoped) `rows`, `search`, and load state; taxonomy comes from the cached
  * `useExerciseTaxonomy`. `sourceMuscleId` (a taxonomy muscle id) deep-links straight to that muscle's
@@ -35,6 +39,8 @@ export interface ExerciseBrowseProps {
   error?: boolean;
   onRetry?: () => void;
   mode?: ExerciseBrowseMode;
+  /** Which label column headlines a row (see lib/exerciseDisplay). Independent of `mode`. */
+  audience?: ExerciseNameAudience;
   /** picker single-select: a row tap fires this. */
   onSelect?: (exercise: ExerciseRow) => void;
   /** picker replacement mode: rows become checkboxes toggling `onToggle`. */
@@ -63,19 +69,16 @@ const CATEGORY_STRIP: { value: string; label: string }[] = [
   { value: "powerlifting", label: "Powerlifting" },
 ];
 
-const rowName = (r: ExerciseRow): string => r.client_name ?? r.name;
-
-/** Search matches the FRIENDLY name (what's shown) plus the dense name / muscle / equipment. */
+/** Search matches BOTH label columns (friendly + dense) plus muscle / equipment, regardless of which
+ *  one a given audience headlines — so a coach can still type the friendly words, and vice versa. */
 function searchMatch(r: ExerciseRow, q: string): boolean {
   return (
-    rowName(r).toLowerCase().includes(q) ||
+    (r.client_name ?? "").toLowerCase().includes(q) ||
     r.name.toLowerCase().includes(q) ||
     (r.primary_muscle ?? "").toLowerCase().includes(q) ||
     (r.equipment ?? "").toLowerCase().includes(q)
   );
 }
-
-const byName = (a: ExerciseRow, b: ExerciseRow) => rowName(a).localeCompare(rowName(b));
 
 export function ExerciseBrowse({
   rows,
@@ -84,6 +87,7 @@ export function ExerciseBrowse({
   error = false,
   onRetry,
   mode = "browse",
+  audience = "client",
   onSelect,
   multiSelect = false,
   selectedIds,
@@ -94,6 +98,10 @@ export function ExerciseBrowse({
   renderRowBadge,
 }: ExerciseBrowseProps) {
   const { data: taxonomy } = useExerciseTaxonomy();
+
+  // Headline the audience-appropriate column; sort rows by what's actually shown.
+  const display = (r: ExerciseRow) => getExerciseDisplayName(r, audience);
+  const byDisplay = (a: ExerciseRow, b: ExerciseRow) => display(a).localeCompare(display(b));
 
   const [category, setCategory] = useState<string>("strength");
   const [regionId, setRegionId] = useState("");
@@ -164,8 +172,9 @@ export function ExerciseBrowse({
     let out = rows;
     if (category !== "all") out = out.filter((r) => r.category === category);
     if (q) out = out.filter((r) => searchMatch(r, q));
-    return out.slice().sort(byName);
-  }, [rows, category, q]);
+    return out.slice().sort(byDisplay);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rows, category, q, audience]);
 
   const rowsForMuscle = useMemo(
     () => strengthRows.filter((r) => r.muscle_id === muscleId),
@@ -175,8 +184,9 @@ export function ExerciseBrowse({
     let out = rowsForMuscle;
     if (subFilter) out = out.filter((r) => r.subdivision_id === subFilter);
     if (resFilter) out = out.filter((r) => (r.resistance_profiles ?? []).includes(resFilter));
-    return out.slice().sort(byName);
-  }, [rowsForMuscle, subFilter, resFilter]);
+    return out.slice().sort(byDisplay);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rowsForMuscle, subFilter, resFilter, audience]);
 
   const resistanceOptions = useMemo(() => {
     const s = new Set<string>();
@@ -193,6 +203,7 @@ export function ExerciseBrowse({
       key={r.id}
       row={r}
       mode={mode}
+      audience={audience}
       multiSelect={multiSelect}
       checked={selectedIds?.has(r.id) ?? false}
       showInfo={showInfo}
@@ -357,11 +368,12 @@ export function ExerciseBrowse({
   );
 }
 
-/** One exercise row — client_name, a friendly "equipment · resistance" mono line, UNI chip, and a
- *  mode-specific trailing affordance (ⓘ / + / checkbox). */
+/** One exercise row — the audience-appropriate headline, a friendly "equipment · resistance" mono
+ *  line, UNI chip, and a mode-specific trailing affordance (ⓘ / + / checkbox). */
 function BrowseRow({
   row,
   mode,
+  audience,
   multiSelect,
   checked,
   showInfo,
@@ -370,6 +382,7 @@ function BrowseRow({
 }: {
   row: ExerciseRow;
   mode: ExerciseBrowseMode;
+  audience: ExerciseNameAudience;
   multiSelect: boolean;
   checked: boolean;
   showInfo: boolean;
@@ -379,17 +392,18 @@ function BrowseRow({
   const isUnilateral = !!row.laterality && row.laterality !== "bi";
   const meta = [equipmentLabel(row.equipment), (row.resistance_profiles ?? []).join(", ")].filter(Boolean).join(" · ");
   const isCheckbox = mode === "picker" && multiSelect;
+  const label = getExerciseDisplayName(row, audience);
 
   return (
     <ClickableCard
-      ariaLabel={mode === "picker" ? `Select ${rowName(row)}` : `View ${rowName(row)}`}
+      ariaLabel={mode === "picker" ? `Select ${label}` : `View ${label}`}
       onClick={onPrimary}
       className={isCheckbox && checked ? "border-primary/40 bg-primary/5" : undefined}
       {...(isCheckbox ? { role: "checkbox", "aria-checked": checked } : {})}
     >
       <CardContent className="flex items-center gap-3 p-3">
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium">{rowName(row)}</p>
+          <p className="truncate font-medium">{label}</p>
           {meta && <p className="truncate font-mono text-xs text-muted-foreground">{meta}</p>}
         </div>
         {isUnilateral && (

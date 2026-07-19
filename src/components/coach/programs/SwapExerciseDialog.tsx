@@ -6,6 +6,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
+import { getExerciseDisplayName, type ExerciseNameAudience } from "@/lib/exerciseDisplay";
 import { Loader2, ArrowLeftRight } from "lucide-react";
 import {
   Dialog,
@@ -55,6 +56,9 @@ interface SwapExerciseDialogProps {
    * no program edit). Used on the client-facing library "Find similar".
    */
   viewOnly?: boolean;
+  /** Which label column headlines a substitute row (see lib/exerciseDisplay). Defaults to the
+   *  client-facing "Find similar" use; the coach program editor passes "coach". */
+  audience?: ExerciseNameAudience;
 }
 
 export function SwapExerciseDialog({
@@ -64,13 +68,14 @@ export function SwapExerciseDialog({
   exerciseName,
   onSelectSubstitute,
   viewOnly = false,
+  audience = "client",
 }: SwapExerciseDialogProps) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SubstituteResult | null>(null);
-  // The RPC returns the dense `name`; resolve the friendly client_name per id so the rows show it
-  // (client_name ?? name). Client-side lookup — no RPC change.
+  // The RPC returns the dense `name`; resolve the friendly client_name per id so the rows can
+  // headline the audience-appropriate label (see subLabel). Client-side lookup — no RPC change.
   const [clientNames, setClientNames] = useState<Record<string, string | null>>({});
 
   const loadSubstitutes = useCallback(async () => {
@@ -127,11 +132,14 @@ export function SwapExerciseDialog({
   const exact = (result?.substitutes ?? []).filter((s) => s.match === "exact");
   const close = (result?.substitutes ?? []).filter((s) => s.match === "close");
 
+  const subLabel = (sub: Substitute) =>
+    getExerciseDisplayName({ name: sub.name, client_name: clientNames[sub.id] ?? null }, audience);
+
   const cardInner = (sub: Substitute) => (
     <CardContent className="p-3">
       <div className="flex items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-medium text-sm truncate">{clientNames[sub.id] ?? sub.name}</div>
+          <div className="font-medium text-sm truncate">{subLabel(sub)}</div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
             {sub.primary_muscle && (
               <span className="text-xs text-muted-foreground capitalize">{sub.primary_muscle}</span>
@@ -159,7 +167,7 @@ export function SwapExerciseDialog({
     ) : (
       <ClickableCard
         key={sub.id}
-        ariaLabel={`Swap to ${sub.name}`}
+        ariaLabel={`Swap to ${subLabel(sub)}`}
         onClick={() => handlePick(sub)}
         className="border"
       >

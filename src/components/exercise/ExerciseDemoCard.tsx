@@ -12,6 +12,7 @@ import {
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { getYouTubeId } from "@/lib/youtube";
 import { equipmentLabel } from "@/lib/equipmentLabels";
+import { getExerciseDisplayName } from "@/lib/exerciseDisplay";
 import { MuscleMap } from "./MuscleMap";
 import {
   Dumbbell,
@@ -276,7 +277,9 @@ export function ExerciseDemoContent({
   /** Resolved PRIMARY muscle label (FK → display_name) from the card shell. Omitted → legacy text. */
   primaryMuscle?: string | null;
 }) {
-  const title = displayName(exercise);
+  // Coach detail headlines the dense `name` (with `client_name` as the subline); every client-facing
+  // context headlines the friendly `client_name ?? name`.
+  const headline = getExerciseDisplayName(exercise, context === "coach" ? "coach" : "client");
 
   // Context CTA. Only rendered when its handler is supplied.
   const cta =
@@ -292,12 +295,15 @@ export function ExerciseDemoContent({
 
   return (
     <div className="space-y-5">
-      {/* Headline — friendly name; coach also sees the dense internal name + descriptor detail. */}
+      {/* Headline — coach sees the dense `name` with the friendly `client_name` as a subline;
+          client-facing contexts headline the friendly name. Descriptor detail is coach-only. */}
       <div>
-        <h2 className="text-lg font-semibold leading-tight">{title}</h2>
+        <h2 className="text-lg font-semibold leading-tight">{headline}</h2>
         {context === "coach" && (
           <>
-            <p className="mt-0.5 text-xs text-muted-foreground">{exercise.name}</p>
+            {exercise.client_name?.trim() && (
+              <p className="mt-0.5 text-xs text-muted-foreground">{exercise.client_name}</p>
+            )}
             {(exercise.resistance_profiles?.length || exercise.positioning || exercise.grip) && (
               <p className="mt-1 text-xs text-muted-foreground">
                 {[
@@ -356,7 +362,8 @@ export function ExerciseDemoCard({ exercise, context, open, onOpenChange, ...res
   // In-session stays the bottom-sheet Drawer it is today; library/coach/swap use a Dialog on
   // desktop and a Drawer on mobile.
   const asDrawer = context === "in-session" || isMobile;
-  const title = displayName(exercise);
+  // sr-only sheet title mirrors the visible headline's audience.
+  const title = getExerciseDisplayName(exercise, context === "coach" ? "coach" : "client");
   const content = (
     <ExerciseDemoContent exercise={exercise} context={context} primaryMuscle={primaryMuscle} {...rest} />
   );

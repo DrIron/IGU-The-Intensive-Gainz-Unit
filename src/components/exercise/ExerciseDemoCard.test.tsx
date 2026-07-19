@@ -59,11 +59,22 @@ describe("ExerciseDemoContent", () => {
     }
   });
 
-  it("coach context shows the friendly name AND the dense name + descriptor detail", async () => {
+  it("coach context HEADLINES the dense name, with client_name as the subline + descriptor detail", async () => {
     const el = await render(<ExerciseDemoContent exercise={FULL} context="coach" />);
-    expect(el.textContent).toContain("Flat Dumbbell Press");
-    expect(el.textContent).toContain("Sternal Pec DB Flat Press (L)");
+    // Contract: coach headline (h2) is the dense `name`; the friendly client_name is the subline.
+    expect(el.querySelector("h2")?.textContent).toBe("Sternal Pec DB Flat Press (L)");
+    expect(el.textContent).toContain("Flat Dumbbell Press"); // client_name subline
     expect(el.textContent).toContain("Pronated"); // grip detail
+  });
+
+  it("client-facing contexts HEADLINE the friendly client_name (never the dense name)", async () => {
+    for (const context of ["library", "in-session", "swap"] as const) {
+      const el = await render(<ExerciseDemoContent exercise={FULL} context={context} />);
+      expect(el.querySelector("h2")?.textContent, context).toBe("Flat Dumbbell Press");
+      expect(el.textContent, context).not.toContain("Sternal Pec DB Flat Press (L)");
+      await act(async () => root.unmount());
+      root = createRoot(container);
+    }
   });
 
   it("no video → branded pending placeholder and NO YouTube iframe", async () => {

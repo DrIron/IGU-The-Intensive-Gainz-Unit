@@ -93,15 +93,16 @@ describe("ExercisePickerDialog — backed by ExerciseBrowse", () => {
     const onSelectExercise = vi.fn();
     await mount({ onSelectExercise, sourceMuscleId: "triceps" }); // builder id → translates to m-tri
 
-    // Deep-linked to Triceps: rows show the FRIENDLY name.
-    expect(doc().textContent).toContain("Triceps Rope Pushdown");
+    // Deep-linked to Triceps: this is a COACH surface, so rows headline the dense `name`.
+    expect(doc().textContent).toContain("Triceps Lat+Med C-FT Rope Pushdown (S)");
+    expect(doc().textContent).not.toContain("Triceps Rope Pushdown");
     // Coach's own custom row is in scope + carries a Custom badge; the foreign coach's is filtered out.
     expect(doc().textContent).toContain("Coach-1 Custom Triceps Move");
     expect(doc().textContent).toContain("Custom");
     expect(doc().textContent).not.toContain("Foreign Coach Triceps Move");
 
     // Tap a row → single select with the DENSE name and the default "main" section.
-    await clickLabel("Select Triceps Rope Pushdown");
+    await clickLabel("Select Triceps Lat+Med C-FT Rope Pushdown (S)");
     expect(onSelectExercise).toHaveBeenCalledTimes(1);
     expect(onSelectExercise.mock.calls[0]).toEqual(["t2", "main", "Triceps Lat+Med C-FT Rope Pushdown (S)"]);
   });
@@ -110,8 +111,8 @@ describe("ExercisePickerDialog — backed by ExerciseBrowse", () => {
     const onSelectMany = vi.fn();
     await mount({ onSelectExercise: vi.fn(), onSelectMany, multiSelect: true, sourceMuscleId: "triceps" });
 
-    await clickLabel("Select Triceps Overhead Machine Extension"); // check t1
-    await clickLabel("Select Triceps Rope Pushdown"); // check t2
+    await clickLabel("Select Triceps Long M Overhead Extension (L)"); // check t1 (dense name)
+    await clickLabel("Select Triceps Lat+Med C-FT Rope Pushdown (S)"); // check t2 (dense name)
     await clickText("Add 2 replacements");
 
     expect(onSelectMany).toHaveBeenCalledTimes(1);

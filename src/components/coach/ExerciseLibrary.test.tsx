@@ -98,15 +98,16 @@ describe("Coach ExerciseLibrary — shared browse", () => {
     expect(doc().textContent).not.toContain("Foreign Coach Move");
   });
 
-  it("ⓘ / row opens the coach-context ExerciseDemoCard (dense name shown)", async () => {
+  it("coach rows headline the dense `name`; ⓘ opens the coach demo card (name + client_name subline)", async () => {
     await mount();
     await clickLabel("Browse Arms exercises");
     await clickLabel("Browse Triceps exercises");
-    // Row shows the friendly client_name...
-    expect(doc().textContent).toContain("Triceps Rope Pushdown");
-    await clickLabel("View Triceps Rope Pushdown");
-    // ...the coach-context demo card exposes the DENSE name + a descriptor detail.
+    // COACH surface: rows headline the dense `name`, NOT the friendly client_name.
     expect(doc().textContent).toContain("Triceps Lat+Med C-FT Rope Pushdown (S)");
+    expect(doc().textContent).not.toContain("Triceps Rope Pushdown");
+    await clickLabel("View Triceps Lat+Med C-FT Rope Pushdown (S)");
+    // The coach demo card headlines the dense name and surfaces client_name as the subline + descriptor.
+    expect(doc().textContent).toContain("Triceps Rope Pushdown"); // client_name subline
     expect(doc().textContent).toContain("Standing"); // positioning detail (coach context)
   });
 });
