@@ -67,6 +67,7 @@ import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { useProgressionSuggestions } from "@/hooks/useProgressionSuggestions";
 import { ProgressionSuggestionBanner } from "@/components/workout/ProgressionSuggestionBanner";
 import { getYouTubeId, getYouTubeThumbnail } from "@/lib/youtube";
+import { getExerciseDisplayName } from "@/lib/exerciseDisplay";
 import { ExerciseDemoCard } from "@/components/exercise/ExerciseDemoCard";
 import type { ProgressionConfig, ColumnConfig, ClientInputColumnType } from "@/types/workout-builder";
 import {
@@ -925,7 +926,7 @@ export function ExerciseCard({
             </div>
             <div className="flex-1 min-w-0">
               <CardTitle className="text-base truncate text-muted-foreground">
-                {exercise.exercise.name}
+                {getExerciseDisplayName(exercise.exercise, "client")}
               </CardTitle>
               <CardDescription className="text-xs">Skipped</CardDescription>
             </div>
@@ -988,13 +989,13 @@ export function ExerciseCard({
               {/* Video thumbnail — opens the Form & demo sheet */}
               <VideoThumbnail
                 url={exercise.exercise.default_video_url}
-                name={exercise.exercise.name}
+                name={getExerciseDisplayName(exercise.exercise, "client")}
                 onOpenGuide={() => setGuideOpen(true)}
               />
 
               {/* Info */}
               <div className="flex-1 min-w-0">
-                <CardTitle className="text-base truncate">{exercise.exercise.name}</CardTitle>
+                <CardTitle className="text-base truncate">{getExerciseDisplayName(exercise.exercise, "client")}</CardTitle>
                 <CardDescription className="text-sm">
                   {exercise.exercise.primary_muscle}
                 </CardDescription>
@@ -1368,7 +1369,7 @@ function SwapExercisePicker({
   onClose: () => void;
 }) {
   const [exercises, setExercises] = useState<
-    { id: string; name: string; primary_muscle: string; equipment: string | null }[]
+    { id: string; name: string; client_name: string | null; primary_muscle: string; equipment: string | null }[]
   >([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
@@ -1378,7 +1379,7 @@ function SwapExercisePicker({
     const load = async () => {
       const { data } = await supabase
         .from("exercise_library")
-        .select("id, name, primary_muscle, equipment")
+        .select("id, name, client_name, primary_muscle, equipment")
         .eq("is_active", true)
         .eq("is_global", true)
         .order("name");
@@ -1388,22 +1389,24 @@ function SwapExercisePicker({
     load();
   }, []);
 
-  // Filter: prioritize same muscle group, then allow all
+  // Filter: prioritize same muscle group, then allow all. Search matches both label columns.
   const filtered = exercises.filter((ex) => {
     if (currentExercise && ex.id === currentExercise.exercise_id) return false;
     if (!searchQuery) return true;
+    const q = searchQuery.toLowerCase();
     return (
-      ex.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      ex.primary_muscle.toLowerCase().includes(searchQuery.toLowerCase())
+      getExerciseDisplayName(ex, "client").toLowerCase().includes(q) ||
+      ex.name.toLowerCase().includes(q) ||
+      ex.primary_muscle.toLowerCase().includes(q)
     );
   });
 
-  // Sort: same muscle group first
+  // Sort: same muscle group first, then by the (client) label shown.
   const sorted = [...filtered].sort((a, b) => {
     const currentMuscle = currentExercise?.exercise.primary_muscle || "";
     const aMatch = a.primary_muscle === currentMuscle ? 0 : 1;
     const bMatch = b.primary_muscle === currentMuscle ? 0 : 1;
-    return aMatch - bMatch || a.name.localeCompare(b.name);
+    return aMatch - bMatch || getExerciseDisplayName(a, "client").localeCompare(getExerciseDisplayName(b, "client"));
   });
 
   // Shared search box + scrollable results, reused by both the mobile Drawer
@@ -1440,7 +1443,7 @@ function SwapExercisePicker({
                 onClick={() => onSelect(ex.id)}
                 className="w-full text-left px-4 py-3 hover:bg-muted/50 transition-colors"
               >
-                <p className="font-medium text-sm">{ex.name}</p>
+                <p className="font-medium text-sm">{getExerciseDisplayName(ex, "client")}</p>
                 <p className="text-xs text-muted-foreground">
                   {ex.primary_muscle}
                   {ex.equipment && ` \u2022 ${ex.equipment}`}
@@ -1468,7 +1471,7 @@ function SwapExercisePicker({
             <DrawerTitle>Swap Exercise</DrawerTitle>
             {currentExercise && (
               <DrawerDescription>
-                Replace {currentExercise.exercise.name}
+                Replace {getExerciseDisplayName(currentExercise.exercise, "client")}
               </DrawerDescription>
             )}
           </div>
@@ -1489,7 +1492,7 @@ function SwapExercisePicker({
             <h3 className="font-semibold">Swap Exercise</h3>
             {currentExercise && (
               <p className="text-sm text-muted-foreground">
-                Replace {currentExercise.exercise.name}
+                Replace {getExerciseDisplayName(currentExercise.exercise, "client")}
               </p>
             )}
           </div>
@@ -2511,7 +2514,7 @@ function WorkoutSessionV2Content() {
         }
         if (best && best.set.performed_load != null && best.set.performed_reps != null) {
           prs.push({
-            name: ex.exercise.name,
+            name: getExerciseDisplayName(ex.exercise, "client"),
             weightKg: best.set.performed_load,
             reps: best.set.performed_reps,
             type: best.type,
@@ -2706,7 +2709,7 @@ function WorkoutSessionV2Content() {
                 return (
                   <ClickableCard
                     key={exercise.id}
-                    ariaLabel={`${exercise.exercise.name} — ${status.label}. Open to log.`}
+                    ariaLabel={`${getExerciseDisplayName(exercise.exercise, "client")} — ${status.label}. Open to log.`}
                     onClick={() => {
                       setFocusIndex(index);
                       setMode("focus");
@@ -2733,7 +2736,7 @@ function WorkoutSessionV2Content() {
                         />
                       )}
                       <div className="flex-1 min-w-0">
-                        <p className="font-medium truncate">{exercise.exercise.name}</p>
+                        <p className="font-medium truncate">{getExerciseDisplayName(exercise.exercise, "client")}</p>
                         <p className="text-xs text-muted-foreground truncate">
                           {exercise.exercise.primary_muscle}
                           {total > 0 ? ` · ${total} ${unitNoun}` : ""}

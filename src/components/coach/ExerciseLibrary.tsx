@@ -41,6 +41,7 @@ export function ExerciseLibrary({ coachUserId }: { coachUserId?: string }) {
 
       <ExerciseBrowse
         mode="browse"
+        audience="coach"
         rows={scopedRows}
         search={search}
         loading={isLoading}

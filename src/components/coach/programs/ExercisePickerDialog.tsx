@@ -192,6 +192,7 @@ export function ExercisePickerDialog({
     <DrawerScrollArea className="flex-1 min-h-0 rounded-md border p-3">
       <ExerciseBrowse
         mode="picker"
+        audience="coach"
         rows={scopedRows}
         search={searchQuery}
         loading={rowsLoading}

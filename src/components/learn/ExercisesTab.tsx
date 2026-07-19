@@ -23,6 +23,7 @@ export function ExercisesTab({ search }: { search: string }) {
     <>
       <ExerciseBrowse
         mode="browse"
+        audience="client"
         rows={rows}
         search={search}
         loading={isLoading}

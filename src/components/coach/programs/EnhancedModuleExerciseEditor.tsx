@@ -683,6 +683,7 @@ export function EnhancedModuleExerciseEditor({
         }}
         exerciseId={swapTarget?.exerciseId ?? null}
         exerciseName={swapTarget?.name}
+        audience="coach"
         onSelectSubstitute={(id) => handleSwapConfirm(id)}
       />
     </div>
