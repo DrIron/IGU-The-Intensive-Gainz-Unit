@@ -23,7 +23,9 @@ export const MUSCLE_SYNONYMS: Record<string, string[]> = {
   "elbow flexors": ["biceps", "bicep", "biceps brachii", "brachialis", "brachioradialis", "elbow flexor", "arms", "arm"],
   forearm: ["forearms", "wrist flexors", "wrist extensors", "grip", "arms"],
   glutes: ["glute", "gluteus", "gluteus maximus", "gluteus medius", "gluteus minimus", "glute max", "glute med", "glute min", "butt", "buttocks", "legs"],
-  hamstrings: ["hamstring", "hams", "ham", "biceps femoris", "semitendinosus", "semimembranosus", "legs"],
+  // "biceps femoris" is deliberately omitted: substring search would pull every hamstring row into a
+  // "biceps" query. Hamstrings stay findable via hamstring / hams / ham / semitendinosus / semimembranosus.
+  hamstrings: ["hamstring", "hams", "ham", "semitendinosus", "semimembranosus", "legs"],
   "hip flexors": ["hip flexor", "iliopsoas", "psoas"],
   lats: ["lat", "latissimus", "latissimus dorsi", "back"],
   "lower back": ["lower-back", "erector spinae", "spinal erectors", "erectors", "lumbar", "back"],

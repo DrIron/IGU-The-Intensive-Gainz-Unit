@@ -17,6 +17,12 @@ describe("muscleSynonyms", () => {
     expect(muscleSynonyms("not-a-muscle")).toEqual([]);
   });
 
+  it("hamstrings drops 'biceps femoris' (substring crossover into 'biceps') but stays findable", () => {
+    const hams = muscleSynonyms("hamstrings");
+    expect(hams).not.toContain("biceps femoris");
+    expect(hams).toEqual(expect.arrayContaining(["hamstring", "hams", "ham", "semitendinosus", "semimembranosus"]));
+  });
+
   it("GUARDRAIL: abs and core stay distinct (Hasan's split — rectus/obliques vs TVA/anti-extension)", () => {
     expect(muscleSynonyms("abs")).not.toContain("core");
     expect(muscleSynonyms("abs")).not.toContain("tva");
