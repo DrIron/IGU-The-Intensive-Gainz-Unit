@@ -27,7 +27,8 @@ const ROWS: Row[] = [
 ];
 
 const TAXONOMY = {
-  muscles: [{ id: "m-quad", volume_key: "quads" }],
+  regions: [], muscles: [{ id: "m-quad", volume_key: "quads" }], subdivisions: [],
+  musclesByRegion: new Map(), subdivisionsByMuscle: new Map(),
   cardioMovements: [], techniques: [], targetRegions: [], physioPurposes: [],
 };
 
@@ -47,11 +48,12 @@ let container: HTMLDivElement;
 let root: Root;
 const tabButton = (label: string) =>
   [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").trim() === label);
-// List-item buttons carry the name PLUS an equipment span, so match by substring.
-const clickContains = async (label: string) => {
-  const btn = [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").includes(label));
-  if (!btn) throw new Error(`no button containing "${label}"`);
-  await act(async () => btn.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+// Non-strength rows now render via the shared ExerciseBrowse (mode="picker") — a ClickableCard
+// (div[role=button]) labelled "Select <name>", not a bespoke <button>.
+const clickAria = async (label: string) => {
+  const el = container.querySelector(`[aria-label="${label}"]`);
+  if (!el) throw new Error(`no element aria-label="${label}"`);
+  await act(async () => el.dispatchEvent(new MouseEvent("click", { bubbles: true })));
 };
 
 describe("UnifiedSessionPicker — category tabs from the shared source", () => {
@@ -86,16 +88,29 @@ describe("UnifiedSessionPicker — category tabs from the shared source", () => 
     expect(tabButton("Systemic")).toBeTruthy();
   });
 
-  it("the Powerlifting tab lists powerlifting exercises; picking one adds an ActivityType 'strength' slot", async () => {
+  it("non-strength tab renders shared ExerciseBrowse picker rows; picking one adds an ActivityType 'strength' slot", async () => {
     const onAddExercise = await mount();
-    // Started on the Powerlifting tab → its three comp lifts are listed, other categories are not.
-    expect(container.textContent).toContain("Competition Back Squat");
+    // Started on the Powerlifting tab → the shared ExerciseBrowse (picker mode) lists its comp lifts
+    // as "Select <name>" rows; other categories are filtered out by the locked category.
+    expect(container.querySelector('[aria-label="Select Competition Back Squat"]')).toBeTruthy();
     expect(container.textContent).toContain("Competition Deadlift");
     expect(container.textContent).not.toContain("Sled Push"); // systemic
     expect(container.textContent).not.toContain("Barbell Back Squat"); // strength
 
-    await clickContains("Competition Back Squat");
+    await clickAria("Select Competition Back Squat");
     expect(onAddExercise).toHaveBeenCalledTimes(1);
     expect(onAddExercise.mock.calls[0]).toEqual([{ exerciseId: "p1", name: "Competition Back Squat" }, "strength"]);
+  });
+
+  it("search inside a non-strength tab filters the shared browse (haystack: name/equipment)", async () => {
+    await mount();
+    const input = container.querySelector("input") as HTMLInputElement;
+    await act(async () => {
+      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value")!.set!;
+      setter.call(input, "deadlift");
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.querySelector('[aria-label="Select Competition Deadlift"]')).toBeTruthy();
+    expect(container.querySelector('[aria-label="Select Competition Back Squat"]')).toBeNull();
   });
 });
