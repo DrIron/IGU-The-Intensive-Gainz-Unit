@@ -119,15 +119,10 @@ describe("ExerciseBrowse — token-AND search", () => {
     expect(anatomical).toEqual(["Barbell Back Squat", "Leg Press", "Smith Hack Squat"]);
   });
 
-  it("muscle synonym: 'biceps' reaches the Elbow-Flexors group (non-zero)", async () => {
+  it("muscle synonym: 'biceps' returns ONLY the Elbow-Flexors group (no hamstring crossover)", async () => {
     await render("biceps");
-    const rows = shownRows();
-    // The two Elbow-Flexors curls are surfaced (the point of the synonym).
-    expect(rows).toContain("Cable Curl");
-    expect(rows).toContain("Dumbbell Curl");
-    // NB: "biceps" is also a substring of hamstrings' "biceps femoris" synonym, so the Romanian
-    // Deadlift comes along too — an accepted consequence of substring matching over the given map
-    // (someone typing "biceps femoris" genuinely wants hamstrings). Not exclusivity, just reach.
+    // "biceps femoris" was removed from hamstrings' synonyms, so no hamstring row tags along.
+    expect(shownRows()).toEqual(["Cable Curl", "Dumbbell Curl"]);
   });
 
   it("region words reach the whole region: chest / shoulders / legs", async () => {
