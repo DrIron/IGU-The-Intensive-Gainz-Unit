@@ -11,6 +11,7 @@ import { type ExerciseRow } from "@/hooks/useExerciseLibrary";
 import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
 import { equipmentLabel } from "@/lib/equipmentLabels";
 import { getExerciseDisplayName, type ExerciseNameAudience } from "@/lib/exerciseDisplay";
+import { muscleSynonyms } from "@/lib/muscleSynonyms";
 
 /**
  * ExerciseBrowse — the shared anatomical region → muscle → exercise drill (slice 2b).
@@ -79,6 +80,10 @@ const stripPunct = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, 
  * subdivision + anatomical), the equipment (raw code + de-hyphenated + the friendly word via
  * `equipmentLabel`, e.g. "BB"/"barbell", "C-AA"/"caa"/"cable"), the movement pattern, and category —
  * so token-AND matching below can hit any of them, order-independently.
+ *
+ * Each muscle value (group + FK display name + subdivision) is ALSO expanded through
+ * `muscleSynonyms` so anatomical / common-usage / region terms match the short stored lay names
+ * ("quads" → "quadriceps"/"legs", "elbow flexors" → "biceps"/"arms").
  */
 function buildHaystack(
   r: ExerciseRow,
@@ -86,15 +91,22 @@ function buildHaystack(
   subName: Map<string, string>,
 ): string {
   const equip = r.equipment ?? "";
+  const muscleDisplay = r.muscle_id ? muscleName.get(r.muscle_id) : "";
+  const subDisplay = r.subdivision_id ? subName.get(r.subdivision_id) : "";
   const parts = [
     r.name,
     r.client_name,
     r.primary_muscle,
     r.muscle_group,
     r.anatomical_name,
-    r.muscle_id ? muscleName.get(r.muscle_id) : "",
+    muscleDisplay,
     r.subdivision,
-    r.subdivision_id ? subName.get(r.subdivision_id) : "",
+    subDisplay,
+    // Anatomical / lay / region synonyms for whichever muscle terms this row carries.
+    ...muscleSynonyms(r.muscle_group),
+    ...muscleSynonyms(muscleDisplay),
+    ...muscleSynonyms(r.subdivision),
+    ...muscleSynonyms(subDisplay),
     equip,
     stripPunct(equip),
     equipmentLabel(equip),
