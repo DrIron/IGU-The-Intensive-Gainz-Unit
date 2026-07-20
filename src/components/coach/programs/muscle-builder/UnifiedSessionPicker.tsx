@@ -13,6 +13,7 @@ import {
 } from "@/types/muscle-builder";
 import { useExerciseLibraryData, filterExercises } from "@/hooks/useExerciseLibrary";
 import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
+import { EXERCISE_CATEGORIES } from "@/lib/exerciseCategories";
 
 /**
  * UnifiedSessionPicker — the single "+ add to session" picker (5g).
@@ -30,15 +31,10 @@ import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
  * no longer scopes what can be added.
  */
 
-const PICKER_CATEGORY_TABS: { value: string; label: string; activity: ActivityType }[] = [
-  { value: "strength", label: "Strength", activity: "strength" },
-  { value: "cardio", label: "Cardio", activity: "cardio" },
-  { value: "mobility", label: "Mobility", activity: "yoga_mobility" },
-  { value: "warmup", label: "Warmup", activity: "yoga_mobility" },
-  { value: "cooldown", label: "Cooldown", activity: "recovery" },
-  { value: "physio", label: "Physio", activity: "recovery" },
-  { value: "sport_specific", label: "Sport", activity: "sport_specific" },
-];
+// Same source of truth as the library browse — no "All" tab (the picker is per-category). Strength
+// routes to the muscle picker; EVERY other category (incl. powerlifting + systemic) → LibraryBrowse
+// via exerciseCategoryToActivityType.
+const PICKER_CATEGORY_TABS = EXERCISE_CATEGORIES;
 
 const MOBILITY_LIKE = ["mobility", "warmup", "cooldown"];
 
