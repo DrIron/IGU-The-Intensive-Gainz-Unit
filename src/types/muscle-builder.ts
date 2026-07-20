@@ -63,6 +63,8 @@ export function exerciseCategoryToActivityType(category: string | null | undefin
     case 'cooldown': return 'recovery';
     case 'physio': return 'recovery';
     case 'sport_specific': return 'sport_specific';
+    case 'powerlifting': return 'strength';
+    case 'systemic': return 'cardio';
     default: return 'cardio';
   }
 }

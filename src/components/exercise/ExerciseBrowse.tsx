@@ -12,6 +12,7 @@ import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
 import { equipmentLabel } from "@/lib/equipmentLabels";
 import { getExerciseDisplayName, type ExerciseNameAudience } from "@/lib/exerciseDisplay";
 import { muscleSynonyms } from "@/lib/muscleSynonyms";
+import { EXERCISE_CATEGORIES, ALL_CATEGORY } from "@/lib/exerciseCategories";
 
 /**
  * ExerciseBrowse — the shared anatomical region → muscle → exercise drill (slice 2b).
@@ -57,18 +58,8 @@ export interface ExerciseBrowseProps {
   renderRowBadge?: (exercise: ExerciseRow) => React.ReactNode;
 }
 
-const CATEGORY_STRIP: { value: string; label: string }[] = [
-  { value: "all", label: "All" },
-  { value: "strength", label: "Strength" },
-  { value: "cardio", label: "Cardio" },
-  { value: "mobility", label: "Mobility" },
-  { value: "physio", label: "Physio" },
-  { value: "warmup", label: "Warmup" },
-  { value: "cooldown", label: "Cooldown" },
-  { value: "sport_specific", label: "Sport-Specific" },
-  { value: "systemic", label: "Systemic" },
-  { value: "powerlifting", label: "Powerlifting" },
-];
+// Single source of truth (lib/exerciseCategories) + an "All" lead — no local copy to drift.
+const CATEGORY_STRIP = [ALL_CATEGORY, ...EXERCISE_CATEGORIES];
 
 /** Punctuation-stripped, lowercased form so a hyphenated equipment code also matches its run-together
  *  spelling ("C-AA" → "caa"). */
