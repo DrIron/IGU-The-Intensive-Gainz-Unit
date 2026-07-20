@@ -56,6 +56,9 @@ export interface ExerciseBrowseProps {
   onInfo?: (exercise: ExerciseRow) => void;
   /** picker: render a trailing badge on a row (e.g. "Custom" for non-global). */
   renderRowBadge?: (exercise: ExerciseRow) => React.ReactNode;
+  /** When set, forces the browse to this category and hides the internal category strip.
+   *  The parent surface (e.g. the planning "+" picker) owns category selection. */
+  lockedCategory?: string;
 }
 
 // Single source of truth (lib/exerciseCategories) + an "All" lead — no local copy to drift.
@@ -127,6 +130,7 @@ export function ExerciseBrowse({
   showInfo = false,
   onInfo,
   renderRowBadge,
+  lockedCategory,
 }: ExerciseBrowseProps) {
   const { data: taxonomy } = useExerciseTaxonomy();
 
@@ -135,6 +139,8 @@ export function ExerciseBrowse({
   const byDisplay = (a: ExerciseRow, b: ExerciseRow) => display(a).localeCompare(display(b));
 
   const [category, setCategory] = useState<string>("strength");
+  // When locked, the parent owns category selection and the internal strip is hidden.
+  const effectiveCategory = lockedCategory ?? category;
   const [regionId, setRegionId] = useState("");
   const [muscleId, setMuscleId] = useState("");
   const [subFilter, setSubFilter] = useState(""); // subdivision_id chip
@@ -212,11 +218,11 @@ export function ExerciseBrowse({
 
   const flatList = useMemo(() => {
     let out = rows;
-    if (category !== "all") out = out.filter((r) => r.category === category);
+    if (effectiveCategory !== "all") out = out.filter((r) => r.category === effectiveCategory);
     if (terms.length) out = out.filter((r) => matchesAllTerms(searchIndex.get(r.id) ?? "", terms));
     return out.slice().sort(byDisplay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, category, terms, searchIndex, audience]);
+  }, [rows, effectiveCategory, terms, searchIndex, audience]);
 
   const rowsForMuscle = useMemo(
     () => strengthRows.filter((r) => r.muscle_id === muscleId),
@@ -238,7 +244,7 @@ export function ExerciseBrowse({
 
   const region = taxonomy?.regions.find((r) => r.id === regionId);
   const muscle = taxonomy?.muscles.find((m) => m.id === muscleId);
-  const showFlat = !!q || category !== "strength";
+  const showFlat = !!q || effectiveCategory !== "strength";
 
   const renderRow = (r: ExerciseRow) => (
     <BrowseRow
@@ -263,21 +269,23 @@ export function ExerciseBrowse({
 
   return (
     <div className="space-y-4">
-      {/* Category strip */}
-      <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Exercise categories">
-        {CATEGORY_STRIP.map((c) => (
-          <Button
-            key={c.value}
-            type="button"
-            size="sm"
-            variant={category === c.value ? "default" : "outline"}
-            className="whitespace-nowrap"
-            onClick={() => selectCategory(c.value)}
-          >
-            {c.label}
-          </Button>
-        ))}
-      </div>
+      {/* Category strip — hidden when the parent locks the category (e.g. the planning "+" picker). */}
+      {!lockedCategory && (
+        <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Exercise categories">
+          {CATEGORY_STRIP.map((c) => (
+            <Button
+              key={c.value}
+              type="button"
+              size="sm"
+              variant={category === c.value ? "default" : "outline"}
+              className="whitespace-nowrap"
+              onClick={() => selectCategory(c.value)}
+            >
+              {c.label}
+            </Button>
+          ))}
+        </div>
+      )}
 
       {loading ? (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

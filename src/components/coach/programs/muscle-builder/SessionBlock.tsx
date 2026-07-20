@@ -267,7 +267,7 @@ export const SessionBlock = memo(function SessionBlock({
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className="w-64 p-2 max-h-96 overflow-y-auto"
+            className="w-80 p-2 max-h-96 overflow-y-auto"
             onClick={e => e.stopPropagation()}
             align="end"
           >
