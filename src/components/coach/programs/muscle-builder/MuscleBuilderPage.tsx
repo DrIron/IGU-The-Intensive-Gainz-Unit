@@ -271,6 +271,8 @@ export function MuscleBuilderPage({
   const [pickerSlotId, setPickerSlotId] = useState<string | null>(null);
   const [pickerMuscleId, setPickerMuscleId] = useState<string | null>(null);
   const [pickerMode, setPickerMode] = useState<'primary' | 'replacement'>('primary');
+  // The slot's current exercise id when replacing — drives the picker's "Best replacements" shelf.
+  const [pickerSourceExerciseId, setPickerSourceExerciseId] = useState<string | null>(null);
 
 
 
@@ -548,9 +550,15 @@ export function MuscleBuilderPage({
       setPickerSlotId(slotId);
       setPickerMuscleId(muscleId);
       setPickerMode(mode);
+      // Replacing → the shelf needs the slot's current exercise as the substitute source.
+      const currentExerciseId =
+        mode === 'replacement'
+          ? getCurrentSlots(state).find((s) => s.id === slotId)?.exercise?.exerciseId ?? null
+          : null;
+      setPickerSourceExerciseId(currentExerciseId);
       setExercisePickerOpen(true);
     },
-    []
+    [state]
   );
 
   const handleExerciseSelected = useCallback(
@@ -1258,6 +1266,7 @@ export function MuscleBuilderPage({
         onSelectMany={handleExercisesSelected}
         coachUserId={coachUserId}
         sourceMuscleId={pickerMuscleId}
+        sourceExerciseId={pickerSourceExerciseId}
       />
 
       {/* ── Clear Confirmation Dialog ─────────────────────────── */}

@@ -33,7 +33,12 @@ import { Enums } from "@/integrations/supabase/types";
 import { resolveParentMuscleId } from "@/types/muscle-builder";
 import { useExerciseLibraryData, type ExerciseRow } from "@/hooks/useExerciseLibrary";
 import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
+import { useSubstituteExercises } from "@/hooks/useSubstituteExercises";
+import { getExerciseDisplayName } from "@/lib/exerciseDisplay";
+import { tierOf, type SubstituteExercise } from "@/lib/substituteMatch";
 import { ExerciseBrowse } from "@/components/exercise/ExerciseBrowse";
+import { MatchChips, MatchTierBadge } from "@/components/exercise/MatchIndicators";
+import { ClickableCard } from "@/components/ui/clickable-card";
 
 interface ExercisePickerDialogProps {
   open: boolean;
@@ -42,6 +47,9 @@ interface ExercisePickerDialogProps {
   coachUserId: string;
   /** Muscle-builder muscle id (from a program slot). Deep-links the browse to that muscle. */
   sourceMuscleId?: string | null;
+  /** Library id of the slot's CURRENT exercise, when replacing/filling. When set, a ranked
+   *  "Best replacements" shelf renders above the browse. Omit when adding fresh (no shelf). */
+  sourceExerciseId?: string | null;
   /**
    * When true, the picker becomes a checkbox multiselect with batch commit
    * (used for replacement-exercise selection). Rows toggle instead of
@@ -68,6 +76,7 @@ export function ExercisePickerDialog({
   onSelectExercise,
   coachUserId,
   sourceMuscleId,
+  sourceExerciseId,
   multiSelect = false,
   onSelectMany,
 }: ExercisePickerDialogProps) {
@@ -131,16 +140,34 @@ export function ExercisePickerDialog({
     return candidates.slice().sort((a, b) => (countByMuscle.get(b.id) ?? 0) - (countByMuscle.get(a.id) ?? 0))[0].id;
   }, [sourceMuscleId, taxonomy, scopedRows]);
 
-  const toggleChecked = useCallback(
-    (exercise: ExerciseRow) => {
+  const toggleById = useCallback(
+    (id: string, name: string) => {
       setCheckedRows((prev) => {
         const next = new Map(prev);
-        if (next.has(exercise.id)) next.delete(exercise.id);
-        else next.set(exercise.id, { section: selectedSection, name: exercise.name });
+        if (next.has(id)) next.delete(id);
+        else next.set(id, { section: selectedSection, name });
         return next;
       });
     },
     [selectedSection]
+  );
+  const toggleChecked = useCallback((exercise: ExerciseRow) => toggleById(exercise.id, exercise.name), [toggleById]);
+
+  // "Best replacements" shelf: the weighted RPC for the slot's current exercise (only when replacing).
+  const { result: subResult } = useSubstituteExercises(sourceExerciseId, open && !!sourceExerciseId);
+  const shelfSubs = useMemo(() => (subResult?.substitutes ?? []).slice(0, 6), [subResult]);
+  const subName = useMemo(
+    () => new Map((taxonomy?.subdivisions ?? []).map((s) => [s.id, s.display_name])),
+    [taxonomy]
+  );
+
+  // Shelf pick feeds the SAME path as ExerciseBrowse: toggle in multiSelect, else select-and-let-parent-close.
+  const handleShelfPick = useCallback(
+    (sub: SubstituteExercise) => {
+      if (multiSelect) toggleById(sub.id, sub.name);
+      else onSelectExercise(sub.id, selectedSection, sub.name);
+    },
+    [multiSelect, toggleById, onSelectExercise, selectedSection]
   );
 
   const handleCommitMany = useCallback(() => {
@@ -155,6 +182,48 @@ export function ExercisePickerDialog({
   }, [checkedRows, onSelectMany, onOpenChange]);
 
   const checkedIds = useMemo(() => new Set(checkedRows.keys()), [checkedRows]);
+
+  // Ranked "Best replacements" shelf — only when replacing a slot's current exercise. Selecting from
+  // it goes through the same path as an ExerciseBrowse row (toggle in multiSelect, else select).
+  const shelf =
+    shelfSubs.length > 0 ? (
+      <div className="space-y-1.5">
+        <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Best replacements</p>
+        <div className="flex gap-2 overflow-x-auto pb-1">
+          {shelfSubs.map((sub) => {
+            const checked = checkedIds.has(sub.id);
+            const label = getExerciseDisplayName(sub, "coach");
+            return (
+              <ClickableCard
+                key={sub.id}
+                ariaLabel={`${multiSelect ? "Select" : "Add"} ${label}`}
+                onClick={() => handleShelfPick(sub)}
+                className={`w-44 shrink-0 border ${checked ? "border-primary/40 bg-primary/5" : ""}`}
+                {...(multiSelect ? { role: "checkbox", "aria-checked": checked } : {})}
+              >
+                <div className="p-2.5">
+                  <div className="flex items-start justify-between gap-1.5">
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{label}</span>
+                    <MatchTierBadge tier={tierOf(sub)} />
+                  </div>
+                  {sub.equipment && (
+                    <p className="mt-0.5 font-mono text-[10px] text-muted-foreground">{sub.equipment}</p>
+                  )}
+                  <div className="mt-1.5">
+                    <MatchChips
+                      dimensions={sub.matched_dimensions}
+                      equipment={sub.equipment}
+                      subdivisionName={sub.subdivision_id ? subName.get(sub.subdivision_id) : null}
+                      max={3}
+                    />
+                  </div>
+                </div>
+              </ClickableCard>
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
 
   const body = (
     <div className="space-y-4">
@@ -234,6 +303,7 @@ export function ExercisePickerDialog({
           </DrawerHeader>
           <div className="flex flex-col flex-1 min-h-0 px-4 pb-[calc(env(safe-area-inset-bottom,0)+1rem)] gap-4 overflow-hidden">
             {body}
+            {shelf}
             {listArea}
             {footer}
           </div>

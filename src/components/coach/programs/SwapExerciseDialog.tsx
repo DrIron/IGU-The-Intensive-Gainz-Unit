@@ -1,12 +1,21 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Badge } from "@/components/ui/badge";
 import { ClickableCard } from "@/components/ui/clickable-card";
 import { Card, CardContent } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
 import { getExerciseDisplayName, type ExerciseNameAudience } from "@/lib/exerciseDisplay";
+import {
+  bucketByTier,
+  TIER_ORDER,
+  TIER_META,
+  type MatchTier,
+  type SubstituteExercise,
+  type SubstituteResult,
+} from "@/lib/substituteMatch";
+import { MatchChips, MatchTierBadge } from "@/components/exercise/MatchIndicators";
 import { Loader2, ArrowLeftRight } from "lucide-react";
 import {
   Dialog,
@@ -23,24 +32,6 @@ import {
   DrawerScrollArea,
   DrawerTitle,
 } from "@/components/ui/drawer";
-
-/** Shape returned by the get_substitute_exercises RPC (jsonb). */
-interface Substitute {
-  id: string;
-  name: string;
-  equipment: string | null;
-  primary_muscle: string | null;
-  resistance_profiles: string[] | null;
-  cardio_movement_id: string | null;
-  technique_id: string | null;
-  target_region_id: string | null;
-  match: "exact" | "close";
-}
-
-interface SubstituteResult {
-  source: { id: string; name: string; category: string };
-  substitutes: Substitute[];
-}
 
 interface SwapExerciseDialogProps {
   open: boolean;
@@ -72,11 +63,18 @@ export function SwapExerciseDialog({
 }: SwapExerciseDialogProps) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
+  const { data: taxonomy } = useExerciseTaxonomy();
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<SubstituteResult | null>(null);
   // The RPC returns the dense `name`; resolve the friendly client_name per id so the rows can
   // headline the audience-appropriate label (see subLabel). Client-side lookup — no RPC change.
   const [clientNames, setClientNames] = useState<Record<string, string | null>>({});
+
+  // subdivision_id → display name, for the "why it matches" subdivision chip.
+  const subName = useMemo(
+    () => new Map((taxonomy?.subdivisions ?? []).map((s) => [s.id, s.display_name])),
+    [taxonomy],
+  );
 
   const loadSubstitutes = useCallback(async () => {
     if (!exerciseId) return;
@@ -121,7 +119,7 @@ export function SwapExerciseDialog({
   }, [open, exerciseId, loadSubstitutes]);
 
   const handlePick = useCallback(
-    (sub: Substitute) => {
+    (sub: SubstituteExercise) => {
       if (viewOnly) return;
       onSelectSubstitute?.(sub.id, sub.name);
       onOpenChange(false);
@@ -129,15 +127,15 @@ export function SwapExerciseDialog({
     [viewOnly, onSelectSubstitute, onOpenChange]
   );
 
-  const exact = (result?.substitutes ?? []).filter((s) => s.match === "exact");
-  const close = (result?.substitutes ?? []).filter((s) => s.match === "close");
+  // Weighted RPC returns rows already sorted by score desc — bucket by tier, keep within-tier order.
+  const buckets = bucketByTier(result?.substitutes ?? []);
 
-  const subLabel = (sub: Substitute) =>
+  const subLabel = (sub: SubstituteExercise) =>
     getExerciseDisplayName({ name: sub.name, client_name: clientNames[sub.id] ?? null }, audience);
 
-  const cardInner = (sub: Substitute) => (
+  const cardInner = (sub: SubstituteExercise, tier: MatchTier) => (
     <CardContent className="p-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <div className="font-medium text-sm truncate">{subLabel(sub)}</div>
           <div className="flex items-center gap-2 mt-1 flex-wrap">
@@ -148,21 +146,23 @@ export function SwapExerciseDialog({
               <span className="text-xs text-muted-foreground">• {sub.equipment}</span>
             )}
           </div>
+          <div className="mt-1.5">
+            <MatchChips
+              dimensions={sub.matched_dimensions}
+              equipment={sub.equipment}
+              subdivisionName={sub.subdivision_id ? subName.get(sub.subdivision_id) : null}
+            />
+          </div>
         </div>
-        <Badge
-          variant={sub.match === "exact" ? "default" : "secondary"}
-          className="text-[10px] shrink-0 capitalize"
-        >
-          {sub.match}
-        </Badge>
+        <MatchTierBadge tier={tier} />
       </div>
     </CardContent>
   );
 
-  const renderCard = (sub: Substitute) =>
+  const renderCard = (sub: SubstituteExercise, tier: MatchTier) =>
     viewOnly ? (
       <Card key={sub.id} className="border">
-        {cardInner(sub)}
+        {cardInner(sub, tier)}
       </Card>
     ) : (
       <ClickableCard
@@ -171,7 +171,7 @@ export function SwapExerciseDialog({
         onClick={() => handlePick(sub)}
         className="border"
       >
-        {cardInner(sub)}
+        {cardInner(sub, tier)}
       </ClickableCard>
     );
 
@@ -188,22 +188,14 @@ export function SwapExerciseDialog({
         </div>
       ) : (
         <div className="space-y-4 pr-1">
-          {exact.length > 0 && (
-            <div className="space-y-2">
+          {TIER_ORDER.filter((tier) => buckets[tier].length > 0).map((tier) => (
+            <div key={tier} className="space-y-2">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Exact match ({exact.length})
+                {TIER_META[tier].section} ({buckets[tier].length})
               </h4>
-              <div className="space-y-2">{exact.map(renderCard)}</div>
+              <div className="space-y-2">{buckets[tier].map((sub) => renderCard(sub, tier))}</div>
             </div>
-          )}
-          {close.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">
-                Close match ({close.length})
-              </h4>
-              <div className="space-y-2">{close.map(renderCard)}</div>
-            </div>
-          )}
+          ))}
         </div>
       )}
     </DrawerScrollArea>
