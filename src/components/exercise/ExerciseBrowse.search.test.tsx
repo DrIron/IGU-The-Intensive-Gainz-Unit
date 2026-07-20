@@ -20,20 +20,29 @@ const mk = (o: Partial<Row>): Row => ({
   ...o,
 });
 
+// muscle_group uses the EXACT short lay terms the library stores (per prod), so the synonym layer —
+// not a literal substring — is what makes "quadriceps"/"biceps"/"chest"/"legs" match.
 const ROWS: Row[] = [
-  // Chest incline-press variants (strength)
-  mk({ id: "c1", muscle_id: "m-pec", muscle_group: "Chest", name: "Sternal Pec BB Incline Press (M)", client_name: "Barbell Incline Bench Press", equipment: "BB", movement_pattern: "horizontal press" }),
-  mk({ id: "c2", muscle_id: "m-pec", muscle_group: "Chest", name: "Sternal Pec SM Incline Press (M)", client_name: "Smith Incline Press", equipment: "SM", movement_pattern: "horizontal press" }),
-  mk({ id: "c3", muscle_id: "m-pec", muscle_group: "Chest", name: "Sternal Pec DB Incline Press", client_name: "Incline Dumbbell Press", equipment: "DB", movement_pattern: "horizontal press" }),
-  // Quads — press + squat variants; muscle_group "Quadriceps" is what "quadriceps" hits
-  mk({ id: "q1", muscle_id: "m-quad", muscle_group: "Quadriceps", name: "Quads BB Back Squat", client_name: "Barbell Back Squat", equipment: "BB", movement_pattern: "squat" }),
-  mk({ id: "q2", muscle_id: "m-quad", muscle_group: "Quadriceps", name: "Quads M Leg Press", client_name: "Leg Press", equipment: "M", movement_pattern: "press" }),
-  mk({ id: "q3", muscle_id: "m-quad", muscle_group: "Quadriceps", name: "Quads SM Hack Squat", client_name: "Smith Hack Squat", equipment: "SM", movement_pattern: "squat" }),
-  // Biceps curls
-  mk({ id: "e1", muscle_id: "m-elb", muscle_group: "Biceps", name: "Elbow Flexors DB Curl", client_name: "Dumbbell Curl", equipment: "DB", movement_pattern: "curl" }),
-  mk({ id: "e2", muscle_id: "m-elb", muscle_group: "Biceps", name: "Elbow Flexors C-FT Curl", client_name: "Cable Curl", equipment: "C-FT", movement_pattern: "curl" }),
+  // Chest (stored "pec major") incline-press variants
+  mk({ id: "c1", muscle_id: "m-pec", muscle_group: "pec major", name: "Sternal Pec BB Incline Press (M)", client_name: "Barbell Incline Bench Press", equipment: "BB", movement_pattern: "horizontal press" }),
+  mk({ id: "c2", muscle_id: "m-pec", muscle_group: "pec major", name: "Sternal Pec SM Incline Press (M)", client_name: "Smith Incline Press", equipment: "SM", movement_pattern: "horizontal press" }),
+  mk({ id: "c3", muscle_id: "m-pec", muscle_group: "pec major", name: "Sternal Pec DB Incline Press", client_name: "Incline Dumbbell Press", equipment: "DB", movement_pattern: "horizontal press" }),
+  // Quads — press + squat variants; "quadriceps"/"legs" reach these only via the synonym for "quads"
+  mk({ id: "q1", muscle_id: "m-quad", muscle_group: "quads", name: "Quads BB Back Squat", client_name: "Barbell Back Squat", equipment: "BB", movement_pattern: "squat" }),
+  mk({ id: "q2", muscle_id: "m-quad", muscle_group: "quads", name: "Quads M Leg Press", client_name: "Leg Press", equipment: "M", movement_pattern: "press" }),
+  mk({ id: "q3", muscle_id: "m-quad", muscle_group: "quads", name: "Quads SM Hack Squat", client_name: "Smith Hack Squat", equipment: "SM", movement_pattern: "squat" }),
+  // Biceps (stored "elbow flexors") curls — "biceps"/"arms" reach these only via synonym
+  mk({ id: "e1", muscle_id: "m-elb", muscle_group: "elbow flexors", name: "Elbow Flexors DB Curl", client_name: "Dumbbell Curl", equipment: "DB", movement_pattern: "curl" }),
+  mk({ id: "e2", muscle_id: "m-elb", muscle_group: "elbow flexors", name: "Elbow Flexors C-FT Curl", client_name: "Cable Curl", equipment: "C-FT", movement_pattern: "curl" }),
+  // Rest of the leg group (for "legs") — hamstrings / glutes / calves
+  mk({ id: "ham1", muscle_group: "hamstrings", name: "Hamstrings BB Romanian Deadlift", client_name: "Romanian Deadlift", equipment: "BB", movement_pattern: "hinge" }),
+  mk({ id: "glute1", muscle_group: "glutes", name: "Glutes BB Hip Thrust", client_name: "Barbell Hip Thrust", equipment: "BB", movement_pattern: "hinge" }),
+  mk({ id: "calf1", muscle_group: "calves", name: "Calves SM Standing Calf Raise", client_name: "Standing Calf Raise", equipment: "SM", movement_pattern: "raise" }),
+  // Shoulder group (for "shoulders") — deltoids / rotator cuff
+  mk({ id: "delt1", muscle_group: "deltoids", name: "Deltoids DB Lateral Raise", client_name: "Dumbbell Lateral Raise", equipment: "DB", movement_pattern: "raise" }),
+  mk({ id: "cuff1", muscle_group: "rotator cuff", name: "Rotator Cuff C-SG External Rotation", client_name: "Cable External Rotation", equipment: "C-SG", movement_pattern: "rotation" }),
   // Triceps overhead (strength) + a mobility row sharing the "overhead" term → category-AND test
-  mk({ id: "t1", muscle_id: "m-tri", muscle_group: "Triceps", name: "Triceps Long M Overhead Extension (L)", client_name: "Triceps Overhead Extension", equipment: "M", movement_pattern: "extension" }),
+  mk({ id: "t1", muscle_id: "m-tri", muscle_group: "triceps", name: "Triceps Long M Overhead Extension (L)", client_name: "Triceps Overhead Extension", equipment: "M", movement_pattern: "extension" }),
   mk({ id: "mob1", category: "mobility", name: "Overhead Shoulder Mobility Reach", client_name: "Overhead Reach", equipment: "BW" }),
 ];
 
@@ -102,9 +111,46 @@ describe("ExerciseBrowse — token-AND search", () => {
     expect(shownRows()).toEqual(["Leg Press"]);
   });
 
-  it("muscle name reaches the whole group: 'quadriceps' → the full quad set (not just one)", async () => {
+  it("muscle synonym: 'quadriceps' → the full quad set (same as 'quads'), not just one", async () => {
     await render("quadriceps");
-    expect(shownRows()).toEqual(["Barbell Back Squat", "Leg Press", "Smith Hack Squat"]);
+    const anatomical = shownRows();
+    await render("quads");
+    expect(anatomical).toEqual(shownRows());
+    expect(anatomical).toEqual(["Barbell Back Squat", "Leg Press", "Smith Hack Squat"]);
+  });
+
+  it("muscle synonym: 'biceps' reaches the Elbow-Flexors group (non-zero)", async () => {
+    await render("biceps");
+    const rows = shownRows();
+    // The two Elbow-Flexors curls are surfaced (the point of the synonym).
+    expect(rows).toContain("Cable Curl");
+    expect(rows).toContain("Dumbbell Curl");
+    // NB: "biceps" is also a substring of hamstrings' "biceps femoris" synonym, so the Romanian
+    // Deadlift comes along too — an accepted consequence of substring matching over the given map
+    // (someone typing "biceps femoris" genuinely wants hamstrings). Not exclusivity, just reach.
+  });
+
+  it("region words reach the whole region: chest / shoulders / legs", async () => {
+    await render("chest"); // pec major
+    expect(shownRows()).toEqual(["Barbell Incline Bench Press", "Incline Dumbbell Press", "Smith Incline Press"]);
+    await render("shoulders"); // deltoids + rotator cuff
+    expect(shownRows()).toEqual(["Cable External Rotation", "Dumbbell Lateral Raise"]);
+    await render("legs"); // quads + hamstrings + glutes + calves
+    expect(shownRows()).toEqual([
+      "Barbell Back Squat",
+      "Barbell Hip Thrust",
+      "Leg Press",
+      "Romanian Deadlift",
+      "Smith Hack Squat",
+      "Standing Calf Raise",
+    ]);
+  });
+
+  it("common-usage synonyms: 'hamstring' (singular) and 'hams' → the hamstring set", async () => {
+    await render("hamstring");
+    expect(shownRows()).toEqual(["Romanian Deadlift"]);
+    await render("hams");
+    expect(shownRows()).toEqual(["Romanian Deadlift"]);
   });
 
   it("equipment synonyms: 'smith incline' and 'cable curl' resolve via the friendly word", async () => {
