@@ -1444,6 +1444,46 @@ function buildPlanPayload(state: MusclePlanState) {
   };
 }
 
+// ── Canonical template authoring (Phase 1b, flag-gated) ─────────────────────────────
+// The board authors a STANDALONE canonical `plan` (kind='template') directly via save_template_plan
+// (NOT the muscle_program_templates + save_plan_from_builder mirror). buildPlanPayload's shape is
+// exactly what save_template_plan expects, so no new serializer. Returns the plan id (new or same).
+async function saveTemplatePlanCanonical(planId: string | null, state: MusclePlanState): Promise<string> {
+  const { data, error } = await supabase.rpc('save_template_plan', {
+    p_plan_id: planId,
+    p_payload: buildPlanPayload(state) as unknown as Json,
+  });
+  if (error) throw error;
+  return (data as unknown as { plan_id: string }).plan_id;
+}
+
+/** get_plan_builder_state → LOAD_TEMPLATE weeks. Slots carry sessionId but not dayIndex/muscleId
+ *  fallbacks — fill them from the parent session (and '' for activity slots) so MuscleSlotData is
+ *  complete for the reducer + volume math. */
+function hydrateCanonicalWeeks(rawWeeks: unknown): WeekData[] {
+  const weeks = Array.isArray(rawWeeks) ? (rawWeeks as Record<string, unknown>[]) : [];
+  return weeks.map((w) => {
+    const sessions = (Array.isArray(w.sessions) ? w.sessions : []) as SessionData[];
+    const dayBySession = new Map(sessions.map((s) => [s.id, s.dayIndex]));
+    const slots = (Array.isArray(w.slots) ? w.slots : []).map((raw) => {
+      const sl = raw as MuscleSlotData;
+      return {
+        ...sl,
+        dayIndex: sl.dayIndex ?? (sl.sessionId ? dayBySession.get(sl.sessionId) ?? 1 : 1),
+        muscleId: sl.muscleId ?? '',
+      } as MuscleSlotData;
+    });
+    return {
+      slots,
+      sessions,
+      label: w.label as string | undefined,
+      isDeload: w.isDeload as boolean | undefined,
+      deloadPresetId: w.deloadPresetId as string | undefined,
+      deloadPlacement: w.deloadPlacement as WeekData['deloadPlacement'],
+    } as WeekData;
+  });
+}
+
 async function mirrorPlanToCanonical(templateId: string, state: MusclePlanState): Promise<void> {
   try {
     const { error } = await supabase.rpc('save_plan_from_builder', {
@@ -1472,6 +1512,12 @@ export function useMuscleBuilderState(
      * assignees". The canonical mirror is awaited first so the push reads fresh.
      */
     onTemplateSaved?: (templatePlanId: string) => void;
+    /**
+     * Phase 1b (canonical_template_authoring): when true (template mode only), existingTemplateId is a
+     * canonical `plan` id — load via get_plan_builder_state, save via save_template_plan. The caller
+     * (CoachProgramsPage) sets this per-route so legacy muscle-plan drafts stay on slot_config.
+     */
+    canonicalTemplate?: boolean;
   },
 ) {
   // P4 Editor v1: when assignmentId is set, the board is scoped to a 1:1 client's plan.
@@ -1484,6 +1530,9 @@ export function useMuscleBuilderState(
   const teamId = opts?.teamId;
   const onTemplateSaved = opts?.onTemplateSaved;
   const boardV2 = isBoardV2Enabled();
+  // Phase 1b: template mode (no assignment/team) authors a standalone canonical `plan` directly.
+  // existingTemplateId is then a `plan` id (loaded via get_plan_builder_state, saved via save_template_plan).
+  const canonicalTemplate = !!opts?.canonicalTemplate && !assignmentId && !teamId;
   const [{ current: state, past, future }, dispatch] = useReducer(undoableReducer, {
     current: initialState,
     past: [],
@@ -1557,6 +1606,29 @@ export function useMuscleBuilderState(
     if (!existingTemplateId) return;
     hasFetched.current = true;
 
+    // Canonical template mode: existingTemplateId is a `plan` id — load the builder state from the
+    // canonical plan (same builder shape the board saves), not muscle_program_templates.slot_config.
+    if (canonicalTemplate) {
+      (async () => {
+        const { data, error } = await supabase.rpc('get_plan_builder_state', { p_plan_id: existingTemplateId });
+        if (error || !data) {
+          toast({ title: 'Error loading template', description: error ? sanitizeErrorForUser(error) : 'Template not found', variant: 'destructive' });
+          return;
+        }
+        const st = data as unknown as { plan_id: string; name: string; description: string | null; weeks: unknown };
+        dispatch({
+          type: 'LOAD_TEMPLATE',
+          payload: {
+            templateId: st.plan_id, // plan id — save routes via save_template_plan
+            name: st.name,
+            description: st.description || '',
+            weeks: hydrateCanonicalWeeks(st.weeks),
+          },
+        });
+      })();
+      return;
+    }
+
     (async () => {
       const { data, error } = await supabase
         .from('muscle_program_templates')
@@ -1611,7 +1683,7 @@ export function useMuscleBuilderState(
         },
       });
     })();
-  }, [existingTemplateId, assignmentId, teamId, toast]);
+  }, [existingTemplateId, assignmentId, teamId, canonicalTemplate, toast]);
 
   // Auto-save: debounce 2s after changes when template already exists
   const autoSaveTimerRef = useRef<ReturnType<typeof setTimeout>>();
@@ -1634,6 +1706,9 @@ export function useMuscleBuilderState(
         } else if (teamId) {
           // Team mode: edit the team's shared clone directly (board_v2).
           if (planIdRef.current) await savePlanDirect(planIdRef.current, buildPlanPayload(s));
+        } else if (canonicalTemplate) {
+          // Phase 1b: auto-save updates the standalone canonical plan (templateId is its plan id).
+          await saveTemplatePlanCanonical(s.templateId!, s);
         } else {
           const { error } = await withTimeout(
             supabase
@@ -1659,7 +1734,7 @@ export function useMuscleBuilderState(
     }, 2000);
 
     return () => clearTimeout(autoSaveTimerRef.current);
-  }, [state.isDirty, state.templateId, state.isSaving, state.weeks, state.name, state.description, assignmentId, teamId, boardV2]);
+  }, [state.isDirty, state.templateId, state.isSaving, state.weeks, state.name, state.description, assignmentId, teamId, boardV2, canonicalTemplate]);
 
   // Save
   const save = useCallback(async () => {
@@ -1679,6 +1754,17 @@ export function useMuscleBuilderState(
         if (planIdRef.current) await savePlanDirect(planIdRef.current, buildPlanPayload(state));
         dispatch({ type: 'MARK_SAVED', templateId: teamId });
         toast({ title: 'Team program saved' });
+        return;
+      }
+      if (canonicalTemplate) {
+        // Phase 1b PRIMARY write: author/update the standalone canonical plan. Identity-preserving —
+        // the returned plan id is stable across re-saves (builder ids drive the upserts server-side).
+        const planId = await saveTemplatePlanCanonical(state.templateId ?? null, state);
+        dispatch({ type: 'MARK_SAVED', templateId: planId });
+        if (onTemplateSaved) {
+          try { onTemplateSaved(planId); } catch { /* push prompt is optional */ }
+        }
+        toast({ title: 'Program saved' });
         return;
       }
       if (state.templateId) {
@@ -1741,7 +1827,7 @@ export function useMuscleBuilderState(
       dispatch({ type: 'SAVE_ERROR' });
       toast({ title: 'Error saving', description: sanitizeErrorForUser(error), variant: 'destructive' });
     }
-  }, [state, state.templateId, state.name, state.description, state.weeks, coachUserId, assignmentId, teamId, boardV2, onTemplateSaved, toast]);
+  }, [state, state.templateId, state.name, state.description, state.weeks, coachUserId, assignmentId, teamId, boardV2, canonicalTemplate, onTemplateSaved, toast]);
 
   // Save as preset
   const saveAsPreset = useCallback(async () => {

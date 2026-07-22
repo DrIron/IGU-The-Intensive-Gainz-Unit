@@ -64,6 +64,9 @@ const EMPTY_ID_SET: Set<string> = new Set<string>();
 interface MuscleBuilderPageProps {
   coachUserId: string;
   existingTemplateId?: string;
+  /** Phase 1b: when true (template mode), existingTemplateId is a canonical `plan` id and the board
+   *  authors a standalone canonical template (save_template_plan / get_plan_builder_state, no convert). */
+  canonical?: boolean;
   onBack: () => void;
   onOpenProgram?: (programId: string) => void;
   // P4 Editor v1: when set, the board edits this 1:1 client's plan via client_plan_overrides
@@ -83,6 +86,7 @@ interface MuscleBuilderPageProps {
 export function MuscleBuilderPage({
   coachUserId,
   existingTemplateId,
+  canonical,
   onBack,
   onOpenProgram,
   assignmentId,
@@ -92,6 +96,9 @@ export function MuscleBuilderPage({
   teamId,
   startDate,
 }: MuscleBuilderPageProps) {
+  // Phase 1b: the board authors a standalone canonical template (no convert-to-program step, and the
+  // template id in state IS the canonical plan id). Template mode only.
+  const canonicalTemplate = !!canonical && !assignmentId && !teamId;
   // S4 selective sync-push: after a manual template save (board_v2), prompt to push
   // to the clients/teams following this template. Defined before the hook so it can
   // be the hook's onTemplateSaved callback.
@@ -111,7 +118,11 @@ export function MuscleBuilderPage({
     useMuscleBuilderState(
       coachUserId,
       existingTemplateId,
-      assignmentId ? { assignmentId } : teamId ? { teamId } : { onTemplateSaved: handleTemplateSaved },
+      assignmentId
+        ? { assignmentId }
+        : teamId
+          ? { teamId }
+          : { onTemplateSaved: handleTemplateSaved, canonicalTemplate },
     );
   // Board v2 (flag-gated): context skin + Calendar/Weeks toggle + inline session expansion.
   const boardV2 = isBoardV2Enabled();
@@ -154,24 +165,29 @@ export function MuscleBuilderPage({
   // just right after a save.
   const handleOpenPush = useCallback(async () => {
     if (!state.templateId) return;
-    const { data: planRow } = await supabase
-      .from("plan")
-      .select("id")
-      .eq("source_muscle_template_id", state.templateId)
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (!planRow?.id) {
+    // Canonical authoring: state.templateId IS the plan id. Legacy: resolve the mirror plan.
+    let planId: string | null = canonicalTemplate ? state.templateId : null;
+    if (!planId) {
+      const { data: planRow } = await supabase
+        .from("plan")
+        .select("id")
+        .eq("source_muscle_template_id", state.templateId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      planId = planRow?.id ?? null;
+    }
+    if (!planId) {
       toast({ title: "Save first", description: "Save this program once, then push to assignees." });
       return;
     }
     try {
-      const assignees = await fetchTemplateAssignees(planRow.id);
-      setPushDialog({ templatePlanId: planRow.id, assignees });
+      const assignees = await fetchTemplateAssignees(planId);
+      setPushDialog({ templatePlanId: planId, assignees });
     } catch {
       toast({ title: "Couldn't load assignees", variant: "destructive" });
     }
-  }, [state.templateId, toast]);
+  }, [state.templateId, canonicalTemplate, toast]);
 
   // Recently-used muscles in the current week, most-recent first, deduped.
   // Drives the "Recently used" row at the top of every session picker so a
@@ -1000,7 +1016,8 @@ export function MuscleBuilderPage({
               errorMessage={saveError}
               onSave={save}
             />
-            {!isEmpty && !isClientMode && (
+            {/* Canonical authoring IS the template — no convert-to-program step. */}
+            {!isEmpty && !isClientMode && !canonicalTemplate && (
               <Button size="sm" onClick={() => setShowConvertDialog(true)}>
                 <Zap className="h-4 w-4 mr-1" />
                 Create Program
@@ -1241,19 +1258,21 @@ export function MuscleBuilderPage({
                 </Alert>
               ))}
 
-            {/* Convert to Program Dialog */}
-            <ConvertToProgram
-              weeks={state.weeks}
-              summary={summary}
-              planName={state.name}
-              coachUserId={coachUserId}
-              templateId={state.templateId}
-              isDirty={state.isDirty}
-              onSave={save}
-              onOpenProgram={onOpenProgram}
-              open={showConvertDialog}
-              onOpenChange={setShowConvertDialog}
-            />
+            {/* Convert to Program Dialog — legacy path only (canonical authoring skips convert). */}
+            {!canonicalTemplate && (
+              <ConvertToProgram
+                weeks={state.weeks}
+                summary={summary}
+                planName={state.name}
+                coachUserId={coachUserId}
+                templateId={state.templateId}
+                isDirty={state.isDirty}
+                onSave={save}
+                onOpenProgram={onOpenProgram}
+                open={showConvertDialog}
+                onOpenChange={setShowConvertDialog}
+              />
+            )}
         </div>
       </div>
 
