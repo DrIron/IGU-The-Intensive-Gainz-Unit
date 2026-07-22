@@ -16,14 +16,15 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AssignFromLibraryDialog } from "./AssignFromLibraryDialog";
 
 /**
  * Canonical template library (Phase 1b, flag `canonical_template_authoring`). Lists the coach's
- * standalone canonical `plan` templates (kind='template') via list_coach_template_plans(). A single
- * "Edit" → the Planning Board (canonical authoring). Team-assign works today via assign_team_plan;
- * CLIENT-assign and DELETE need canonical RPCs that don't exist yet (assign_plan_to_client_canonical /
- * a canonical delete) — shown DISABLED with a "coming in a follow-up" hint, never wired to a stub.
+ * standalone canonical `plan` templates (kind='template') via list_coach_template_plans(). "Edit" →
+ * the Planning Board; "Assign to Team" via assign_team_plan; "Assign to Client" via
+ * assign_plan_to_client_canonical (reusing the shared client picker); "Delete" soft-archives via
+ * delete_template_plan (client copies survive) and the archived template drops off the list.
  */
 
 interface CanonicalTemplateRow {
@@ -48,6 +49,9 @@ export function CanonicalTemplateLibrary({ coachUserId, onCreate, onEditPlan }: 
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [assignTeamTarget, setAssignTeamTarget] = useState<{ planId: string; name: string } | null>(null);
+  const [assignClientTarget, setAssignClientTarget] = useState<{ planId: string; name: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<{ planId: string; name: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const { toast } = useToast();
 
   const load = useCallback(async () => {
@@ -68,6 +72,29 @@ export function CanonicalTemplateLibrary({ coachUserId, onCreate, onEditPlan }: 
     hasFetched.current = true;
     load();
   }, [load]);
+
+  // Delete = soft-archive (delete_template_plan). It never blocks; active client copies survive as
+  // independent clones. On success we drop the card locally (the archived plan also falls off the list).
+  const confirmDelete = useCallback(async () => {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.rpc("delete_template_plan", { p_plan_id: deleteTarget.planId });
+      if (error) throw error;
+      const res = (data as { archived?: boolean; active_client_copies?: number } | null) ?? {};
+      setRows((prev) => prev.filter((r) => r.id !== deleteTarget.planId));
+      const copies = res.active_client_copies ?? 0;
+      toast({
+        title: "Template archived",
+        description: copies > 0 ? `${copies} active client cop${copies === 1 ? "y" : "ies"} keep running.` : undefined,
+      });
+      setDeleteTarget(null);
+    } catch (e: unknown) {
+      toast({ title: "Couldn't delete", description: sanitizeErrorForUser(e), variant: "destructive" });
+    } finally {
+      setDeleting(false);
+    }
+  }, [deleteTarget, toast]);
 
   const filtered = rows.filter(
     (r) =>
@@ -137,16 +164,17 @@ export function CanonicalTemplateLibrary({ coachUserId, onCreate, onEditPlan }: 
                       <Users className="mr-2 h-4 w-4" />
                       Assign to Team
                     </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    {/* Deferred: needs assign_plan_to_client_canonical (data follow-up). */}
-                    <DropdownMenuItem disabled>
+                    <DropdownMenuItem onClick={() => setAssignClientTarget({ planId: t.id, name: t.name })}>
                       <User className="mr-2 h-4 w-4" />
-                      Assign to Client (soon)
+                      Assign to Client
                     </DropdownMenuItem>
-                    {/* Deferred: needs a canonical template delete RPC (data follow-up). */}
-                    <DropdownMenuItem disabled>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem
+                      className="text-destructive focus:text-destructive"
+                      onClick={() => setDeleteTarget({ planId: t.id, name: t.name })}
+                    >
                       <Trash2 className="mr-2 h-4 w-4" />
-                      Delete (soon)
+                      Delete
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
@@ -184,6 +212,42 @@ export function CanonicalTemplateLibrary({ coachUserId, onCreate, onEditPlan }: 
           onClose={() => setAssignTeamTarget(null)}
         />
       )}
+
+      {/* Client-assign: the shared picker (resolves client + active subscription), canonical plan path. */}
+      {assignClientTarget && (
+        <AssignFromLibraryDialog
+          open
+          onOpenChange={(o) => !o && setAssignClientTarget(null)}
+          mode="client"
+          programId={assignClientTarget.planId}
+          programTitle={assignClientTarget.name}
+          coachUserId={coachUserId}
+          canonicalPlanId={assignClientTarget.planId}
+          onAssigned={() => setAssignClientTarget(null)}
+        />
+      )}
+
+      {/* Delete = archive (client copies survive). */}
+      <Dialog open={!!deleteTarget} onOpenChange={(o) => !o && !deleting && setDeleteTarget(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete template?</DialogTitle>
+            <DialogDescription>
+              &ldquo;{deleteTarget?.name}&rdquo; will be archived and removed from your templates. Clients
+              already assigned a copy keep it — their programs are unaffected.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteTarget(null)} disabled={deleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete} disabled={deleting}>
+              {deleting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

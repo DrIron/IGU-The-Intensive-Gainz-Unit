@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { sanitizeErrorForUser } from "@/lib/errorSanitizer";
-import { assignProgramToClient } from "@/lib/assignProgram";
+import { assignProgramToClient, assignPlanToClientCanonical } from "@/lib/assignProgram";
 import { Calendar as CalendarIcon, Loader2 } from "lucide-react";
 import { format } from "date-fns";
 import {
@@ -68,6 +68,12 @@ interface AssignFromLibraryDialogProps {
    * rather than locking to an empty selection.
    */
   preselectedClientUserId?: string;
+  /**
+   * Phase 1b: when set, "Assign to Client" targets a STANDALONE canonical `plan` (this id) via
+   * assign_plan_to_client_canonical, instead of resolving `programId` through a mirror plan. Client
+   * mode only; the picker + subscription resolution are reused unchanged. Legacy callers omit it.
+   */
+  canonicalPlanId?: string;
 }
 
 export const AssignFromLibraryDialog = memo(function AssignFromLibraryDialog({
@@ -79,6 +85,7 @@ export const AssignFromLibraryDialog = memo(function AssignFromLibraryDialog({
   mode,
   onAssigned,
   preselectedClientUserId,
+  canonicalPlanId,
 }: AssignFromLibraryDialogProps) {
   const [clients, setClients] = useState<ClientOption[]>([]);
   const [teams, setTeams] = useState<TeamOption[]>([]);
@@ -213,13 +220,22 @@ export const AssignFromLibraryDialog = memo(function AssignFromLibraryDialog({
 
     setAssigning(true);
     try {
-      const result = await assignProgramToClient({
-        coachUserId,
-        clientUserId: client.userId,
-        subscriptionId: client.subscriptionId,
-        programTemplateId: programId,
-        startDate,
-      });
+      // Canonical standalone template → the plan-id path; else the legacy program_templates path.
+      const result = canonicalPlanId
+        ? await assignPlanToClientCanonical({
+            coachUserId,
+            clientUserId: client.userId,
+            subscriptionId: client.subscriptionId,
+            planId: canonicalPlanId,
+            startDate,
+          })
+        : await assignProgramToClient({
+            coachUserId,
+            clientUserId: client.userId,
+            subscriptionId: client.subscriptionId,
+            programTemplateId: programId,
+            startDate,
+          });
 
       if (!result.success) {
         throw new Error(result.error || "Assignment failed");
