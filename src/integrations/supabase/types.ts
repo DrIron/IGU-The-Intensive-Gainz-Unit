@@ -5312,6 +5312,56 @@ export type Database = {
           },
         ]
       }
+      movement_groups: {
+        Row: {
+          created_at: string
+          id: string
+          is_active: boolean
+          label: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          is_active?: boolean
+          label: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          label?: string
+          sort_order?: number
+        }
+        Relationships: []
+      }
+      movement_pattern_groups: {
+        Row: {
+          created_at: string
+          movement_group_id: string
+          movement_pattern: string
+        }
+        Insert: {
+          created_at?: string
+          movement_group_id: string
+          movement_pattern: string
+        }
+        Update: {
+          created_at?: string
+          movement_group_id?: string
+          movement_pattern?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movement_pattern_groups_movement_group_id_fkey"
+            columns: ["movement_group_id"]
+            isOneToOne: false
+            referencedRelation: "movement_groups"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       movement_patterns: {
         Row: {
           created_at: string
@@ -9686,6 +9736,7 @@ export type Database = {
         Args: { p_thread_id: string }
         Returns: string
       }
+      get_movement_group_config: { Args: never; Returns: Json }
       get_my_assignable_clients: {
         Args: never
         Returns: {
