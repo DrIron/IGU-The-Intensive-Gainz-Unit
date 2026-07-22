@@ -20,6 +20,8 @@ interface WeeklyCalendarProps {
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
   onAddExerciseToSession: (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => void;
   onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
+  /** Canonical authoring (Phase 2): flat auto-named sessions, no type picker, content-derived colour. */
+  flatSessions?: boolean;
   onRenameSession: (sessionId: string, name: string) => void;
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
   onRemoveSession: (sessionId: string) => void;
@@ -75,6 +77,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onAddActivityToSession,
   onAddExerciseToSession,
   onAddSession,
+  flatSessions = false,
   onRenameSession,
   onSetSessionType,
   onRemoveSession,
@@ -135,6 +138,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           onAddActivityToSession={onAddActivityToSession}
           onAddExerciseToSession={onAddExerciseToSession}
           onAddSession={onAddSession}
+          flatSessions={flatSessions}
           onRenameSession={onRenameSession}
           onSetSessionType={onSetSessionType}
           onRemoveSession={onRemoveSession}
@@ -185,6 +189,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onAddActivityToSession={onAddActivityToSession}
             onAddExerciseToSession={onAddExerciseToSession}
             onAddSession={onAddSession}
+            flatSessions={flatSessions}
             onRenameSession={onRenameSession}
             onSetSessionType={onSetSessionType}
             onRemoveSession={onRemoveSession}

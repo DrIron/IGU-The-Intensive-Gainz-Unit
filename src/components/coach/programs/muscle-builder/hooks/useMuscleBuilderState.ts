@@ -1534,7 +1534,9 @@ export function useMuscleBuilderState(
   // existingTemplateId is then a `plan` id (loaded via get_plan_builder_state, saved via save_template_plan).
   const canonicalTemplate = !!opts?.canonicalTemplate && !assignmentId && !teamId;
   const [{ current: state, past, future }, dispatch] = useReducer(undoableReducer, {
-    current: initialState,
+    // F3: a NEW canonical template starts as "Untitled Plan" (not "Untitled Muscle Plan").
+    // An existing one (existingTemplateId set) has its name overwritten by LOAD_TEMPLATE.
+    current: canonicalTemplate && !existingTemplateId ? { ...initialState, name: 'Untitled Plan' } : initialState,
     past: [],
     future: [],
   });

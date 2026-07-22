@@ -238,6 +238,26 @@ export function defaultSessionName(type: ActivityType): string {
 }
 
 /**
+ * Canonical authoring (Phase 2): sessions are flat + auto-named "Session A/B…" by their position
+ * among the day's sessions (0-indexed) — no type in the name. Beyond 26, falls back to a number.
+ */
+export function flatSessionLabel(position: number): string {
+  return position < 26 ? `Session ${String.fromCharCode(65 + position)}` : `Session ${position + 1}`;
+}
+
+/**
+ * Canonical authoring (Phase 2): a session's rail colour derives from its CONTENTS, not a chosen
+ * type. A slot's effective type is `activityType ?? 'strength'`. One distinct type → that colour;
+ * empty or mixed → null (neutral).
+ */
+export function deriveSessionColorHex(slots: { activityType?: ActivityType }[]): string | null {
+  const types = new Set(slots.map((s) => s.activityType ?? 'strength'));
+  if (types.size !== 1) return null;
+  const only = [...types][0];
+  return ACTIVITY_TYPE_COLORS[only]?.colorHex ?? null;
+}
+
+/**
  * Migrate a legacy week's slots (no sessionId) into the session-aware shape.
  * Groups slots by (dayIndex, activityType||'strength') and creates one
  * SessionData per group. Slots that already carry a sessionId matching a

@@ -26,6 +26,13 @@ interface SessionTypeBarProps {
    * the type colour is suppressed.
    */
   isOverridden?: boolean;
+  /**
+   * Canonical authoring (Phase 2): colour the rail from the session's CONTENTS instead of
+   * `activityType`. When set, `contentColorHex` (a hex, or null = neutral) drives the rail. Legacy
+   * callers omit this and keep the type-driven colour, byte-identical.
+   */
+  useContentColor?: boolean;
+  contentColorHex?: string | null;
   className?: string;
   children: ReactNode;
 }
@@ -33,15 +40,28 @@ interface SessionTypeBarProps {
 export function SessionTypeBar({
   activityType,
   isOverridden = false,
+  useContentColor = false,
+  contentColorHex = null,
   className,
   children,
 }: SessionTypeBarProps) {
   const colors = ACTIVITY_TYPE_COLORS[activityType];
+  // Content-color mode: hex when derivable, else neutral (no inline colour → border-border).
+  const borderColor = isOverridden
+    ? undefined
+    : useContentColor
+      ? contentColorHex ?? undefined
+      : colors.colorHex;
 
   return (
     <div
-      className={cn("border-l-2 pl-2", isOverridden && "border-l-amber-500", className)}
-      style={{ borderLeftColor: isOverridden ? undefined : colors.colorHex }}
+      className={cn(
+        "border-l-2 pl-2",
+        isOverridden && "border-l-amber-500",
+        useContentColor && contentColorHex == null && "border-l-border",
+        className,
+      )}
+      style={{ borderLeftColor: borderColor }}
     >
       {children}
     </div>

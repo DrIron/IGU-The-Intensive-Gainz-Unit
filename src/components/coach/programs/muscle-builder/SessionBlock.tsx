@@ -26,6 +26,8 @@ import {
   ACTIVITY_TYPE_LABELS,
   ACTIVITY_TYPE_COLORS,
   defaultSessionName,
+  flatSessionLabel,
+  deriveSessionColorHex,
   resolveParentMuscleId,
   type ActivityType,
   type MuscleSlotData,
@@ -81,6 +83,9 @@ interface SessionBlockProps {
   onReorderSession: (dayIndex: number, fromIndex: number, toIndex: number) => void;
   placementCounts?: Map<string, number>;
   recentMuscleIds?: string[];
+  /** Canonical authoring (Phase 2): flat auto-named session (Session A/B…), no type picker, rail
+   *  colour derived from contents. */
+  flatSessions?: boolean;
 }
 
 /**
@@ -134,6 +139,7 @@ export const SessionBlock = memo(function SessionBlock({
   onReorderSession,
   placementCounts,
   recentMuscleIds,
+  flatSessions = false,
 }: SessionBlockProps) {
   const [isEditingName, setIsEditingName] = useState(false);
   const [nameDraft, setNameDraft] = useState(session.name ?? '');
@@ -149,7 +155,11 @@ export const SessionBlock = memo(function SessionBlock({
 
   // Session-type colour now lives in the shared <SessionTypeBar>; ACTIVITY_TYPE_COLORS
   // is still used below for the type-picker dots in the kebab menu.
-  const displayName = session.name?.trim() || defaultSessionName(session.type);
+  // Canonical authoring: flat auto-name (Session A/B…) + no type in the fallback name.
+  const fallbackName = flatSessions ? flatSessionLabel(sessionPosition) : defaultSessionName(session.type);
+  const displayName = session.name?.trim() || fallbackName;
+  // Canonical: rail colour from contents (null = neutral); legacy: from session.type.
+  const contentColorHex = useMemo(() => (flatSessions ? deriveSessionColorHex(slots) : null), [flatSessions, slots]);
 
   const sessionSlots = useMemo(
     () => slots.slice().sort((a, b) => a.sortOrder - b.sortOrder),
@@ -191,6 +201,8 @@ export const SessionBlock = memo(function SessionBlock({
     <SessionTypeBar
       activityType={session.type}
       isOverridden={isOverridden}
+      useContentColor={flatSessions}
+      contentColorHex={contentColorHex}
       className="group/session space-y-1"
     >
       {/* Header: name + inline + + kebab. Colored dot dropped — left bar
@@ -218,7 +230,7 @@ export const SessionBlock = memo(function SessionBlock({
             }}
             onClick={e => e.stopPropagation()}
             className="h-5 text-[11px] px-1 py-0 flex-1 min-w-0"
-            placeholder={defaultSessionName(session.type)}
+            placeholder={fallbackName}
           />
         ) : (
           <button
@@ -301,21 +313,24 @@ export const SessionBlock = memo(function SessionBlock({
             >
               Rename
             </DropdownMenuItem>
-            <DropdownMenuSub>
-              <DropdownMenuSubTrigger>Change type</DropdownMenuSubTrigger>
-              <DropdownMenuSubContent>
-                {ALL_ACTIVITY_TYPES.map(t => (
-                  <DropdownMenuItem
-                    key={t}
-                    disabled={t === session.type}
-                    onClick={e => { e.stopPropagation(); onSetSessionType(session.id, t); }}
-                  >
-                    <div className={cn("w-1.5 h-1.5 rounded-full mr-2", ACTIVITY_TYPE_COLORS[t].colorClass)} />
-                    {ACTIVITY_TYPE_LABELS[t]}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuSubContent>
-            </DropdownMenuSub>
+            {/* Canonical authoring: a session is a flat list — no type, so no "Change type". */}
+            {!flatSessions && (
+              <DropdownMenuSub>
+                <DropdownMenuSubTrigger>Change type</DropdownMenuSubTrigger>
+                <DropdownMenuSubContent>
+                  {ALL_ACTIVITY_TYPES.map(t => (
+                    <DropdownMenuItem
+                      key={t}
+                      disabled={t === session.type}
+                      onClick={e => { e.stopPropagation(); onSetSessionType(session.id, t); }}
+                    >
+                      <div className={cn("w-1.5 h-1.5 rounded-full mr-2", ACTIVITY_TYPE_COLORS[t].colorClass)} />
+                      {ACTIVITY_TYPE_LABELS[t]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuSubContent>
+              </DropdownMenuSub>
+            )}
             <DropdownMenuSub>
               <DropdownMenuSubTrigger>
                 <Copy className="h-3 w-3 mr-2" /> Duplicate to day
