@@ -9811,6 +9811,7 @@ export type Database = {
         }[]
       }
       get_phi_encryption_key: { Args: never; Returns: string }
+      get_plan_builder_state: { Args: { p_plan_id: string }; Returns: Json }
       get_playlist_videos_with_access: {
         Args: { p_playlist_id: string }
         Returns: {
@@ -10031,6 +10032,7 @@ export type Database = {
         Returns: Json
       }
       list_active_teams_for_client: { Args: never; Returns: Json }
+      list_coach_template_plans: { Args: never; Returns: Json }
       list_public_teams_for_browser: { Args: never; Returns: Json }
       log_addon_session_atomic: {
         Args: {
@@ -10168,6 +10170,10 @@ export type Database = {
       }
       save_plan_from_builder: {
         Args: { p_payload: Json; p_template_id: string }
+        Returns: Json
+      }
+      save_template_plan: {
+        Args: { p_payload: Json; p_plan_id: string }
         Returns: Json
       }
       scan_phi_plaintext_violations: {
