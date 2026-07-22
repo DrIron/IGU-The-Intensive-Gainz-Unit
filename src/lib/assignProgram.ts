@@ -64,6 +64,46 @@ export async function assignProgramToClient(
   }
 }
 
+export interface AssignPlanToClientParams {
+  coachUserId: string;
+  clientUserId: string;
+  subscriptionId: string;
+  /** A STANDALONE canonical `plan` (kind='template') id — from the canonical template library. */
+  planId: string;
+  startDate: Date;
+  teamId?: string;
+}
+
+/**
+ * Assign a STANDALONE canonical template (kind='template', authored on the board) to a client.
+ * Clones the plan + creates a client_plan_assignment via assign_plan_to_client_canonical (Phase 1b).
+ *
+ * Distinct from `assignProgramToClient`, which resolves a `program_templates` id through its mirror
+ * plan (`assign_template_to_client_canonical`) — that path can't reach a standalone canonical plan.
+ */
+export async function assignPlanToClientCanonical(
+  params: AssignPlanToClientParams,
+): Promise<AssignProgramResult> {
+  const { coachUserId, clientUserId, subscriptionId, planId, startDate, teamId } = params;
+  try {
+    const { data, error } = await supabase.rpc("assign_plan_to_client_canonical", {
+      p_coach_id: coachUserId,
+      p_client_id: clientUserId,
+      p_subscription_id: subscriptionId,
+      p_plan_id: planId,
+      p_start_date: format(startDate, "yyyy-MM-dd"),
+      p_team_id: teamId || null,
+      p_timezone: LEGACY_PROGRAM_TIMEZONE,
+    });
+    if (error) throw error;
+    const res = data as { skipped?: boolean; assignment_id?: string };
+    if (res?.skipped) throw new Error("This template isn't ready for assignment yet.");
+    return { success: true, assignmentId: res?.assignment_id };
+  } catch (error: unknown) {
+    return { success: false, error: error instanceof Error ? error.message : "Unknown error" };
+  }
+}
+
 export interface TeamProgramMemberResult {
   user_id: string;
   subscription_id: string;
