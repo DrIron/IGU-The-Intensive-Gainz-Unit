@@ -1,9 +1,11 @@
 import { useCallback, useMemo, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { ProgramLibrary } from "./ProgramLibrary";
+import { CanonicalTemplateLibrary } from "./CanonicalTemplateLibrary";
 import { ProgramDetailView } from "./ProgramDetailView";
 import { ProgramCalendarBuilder } from "./ProgramCalendarBuilder";
 import { MuscleBuilderPage } from "./muscle-builder/MuscleBuilderPage";
+import { isCanonicalTemplateAuthoringEnabled } from "@/lib/featureFlags";
 import { MusclePlanLibrary } from "./muscle-builder/MusclePlanLibrary";
 import { MacrocycleLibrary } from "./macrocycles/MacrocycleLibrary";
 import { MacrocycleEditor } from "./macrocycles/MacrocycleEditor";
@@ -25,7 +27,8 @@ type Detail =
   | { kind: "none" }
   | { kind: "macrocycle"; id: string | null }           // null = create new
   | { kind: "program-calendar"; programId: string }
-  | { kind: "muscle-builder"; templateId: string | null }; // null = create new
+  // canonical=true (Phase 1b): templateId is a canonical `plan` id; the board authors it directly.
+  | { kind: "muscle-builder"; templateId: string | null; canonical?: boolean }; // null = create new
 
 /**
  * Coach Programs hub.
@@ -82,6 +85,13 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
     (templateId: string) => setDetail({ kind: "muscle-builder", templateId }),
     [],
   );
+  // Phase 1b canonical authoring: create/edit a standalone canonical `plan` template on the board.
+  const canonicalAuthoring = isCanonicalTemplateAuthoringEnabled();
+  const newCanonicalTemplate = useCallback(() => setDetail({ kind: "muscle-builder", templateId: null, canonical: true }), []);
+  const editCanonicalTemplate = useCallback(
+    (planId: string) => setDetail({ kind: "muscle-builder", templateId: planId, canonical: true }),
+    [],
+  );
 
   // Permission gate
   if (!permissionsLoading && !canBuildPrograms) {
@@ -133,6 +143,7 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
       <MuscleBuilderPage
         coachUserId={coachUserId}
         existingTemplateId={detail.templateId ?? undefined}
+        canonical={detail.canonical}
         onBack={closeDetail}
         onOpenProgram={programId => setDetail({ kind: "program-calendar", programId })}
       />
@@ -143,8 +154,11 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
   const primary = ((): { label: string; onClick: () => void } => {
     if (activeTab === "macrocycles") return { label: "New Macrocycle", onClick: newMacrocycle };
     if (activeTab === "drafts") return { label: "New Plan", onClick: newMusclePlan };
-    // Mesocycles tab: creating a mesocycle still goes through Planning Board.
-    return { label: "Create Mesocycle", onClick: newMusclePlan };
+    // Mesocycles tab: creating a mesocycle goes through Planning Board — canonical when flag ON.
+    return {
+      label: "Create Mesocycle",
+      onClick: canonicalAuthoring ? newCanonicalTemplate : newMusclePlan,
+    };
   })();
 
   return (
@@ -196,13 +210,22 @@ export function CoachProgramsPage({ coachUserId }: CoachProgramsPageProps) {
         </TabsContent>
 
         <TabsContent value="mesocycles" className="mt-4">
-          <ProgramLibrary
-            coachUserId={coachUserId}
-            onCreateProgram={newMusclePlan}
-            onEditProgram={openProgram}
-            onEditInPlanningBoard={editMusclePlan}
-            onOpenProgram={(id) => navigate(`/coach/programs/${id}`)}
-          />
+          {canonicalAuthoring ? (
+            // Phase 1b: canonical templates only (list_coach_template_plans). Edit + card open → board.
+            <CanonicalTemplateLibrary
+              coachUserId={coachUserId}
+              onCreate={newCanonicalTemplate}
+              onEditPlan={editCanonicalTemplate}
+            />
+          ) : (
+            <ProgramLibrary
+              coachUserId={coachUserId}
+              onCreateProgram={newMusclePlan}
+              onEditProgram={openProgram}
+              onEditInPlanningBoard={editMusclePlan}
+              onOpenProgram={(id) => navigate(`/coach/programs/${id}`)}
+            />
+          )}
         </TabsContent>
 
         <TabsContent value="drafts" className="mt-4">

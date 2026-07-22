@@ -39,6 +39,15 @@ const FLAGS = {
     storageKey: "igu_ff_roster_logged_adherence",
     env: import.meta.env.VITE_FF_ROSTER_LOGGED_ADHERENCE as string | undefined,
   },
+  // Canonical template authoring (Phase 1b): coach program TEMPLATE create AND edit happen on the
+  // Planning Board, authoring a standalone canonical `plan` (kind='template') via save_template_plan /
+  // get_plan_builder_state / list_coach_template_plans — instead of muscle_program_templates +
+  // convert → ProgramCalendarBuilder. Separate from board_v2 (which is ON in prod) so OFF stays
+  // byte-identical to today's legacy routing.
+  canonical_template_authoring: {
+    storageKey: "igu_ff_canonical_template_authoring",
+    env: import.meta.env.VITE_FF_CANONICAL_TEMPLATE_AUTHORING as string | undefined,
+  },
 } as const;
 
 export type FeatureFlag = keyof typeof FLAGS;
@@ -70,4 +79,9 @@ export function isClientProgramEditorEnabled(): boolean {
 /** Planning Board v2: Calendar/Weeks toggle, inline session expansion, context skins. */
 export function isBoardV2Enabled(): boolean {
   return isFeatureEnabled("board_v2");
+}
+
+/** Phase 1b: canonical template authoring on the Planning Board (standalone `plan` templates). */
+export function isCanonicalTemplateAuthoringEnabled(): boolean {
+  return isFeatureEnabled("canonical_template_authoring");
 }
