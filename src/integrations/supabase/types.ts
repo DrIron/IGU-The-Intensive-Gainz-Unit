@@ -9268,6 +9268,19 @@ export type Database = {
         }
         Returns: Json
       }
+      assign_plan_to_client_canonical: {
+        Args: {
+          p_client_id: string
+          p_coach_id: string
+          p_macrocycle_id?: string
+          p_plan_id: string
+          p_start_date?: string
+          p_subscription_id: string
+          p_team_id?: string
+          p_timezone?: string
+        }
+        Returns: Json
+      }
       assign_program_to_client: {
         Args: {
           p_client_id: string
@@ -9417,6 +9430,7 @@ export type Database = {
         }
         Returns: string
       }
+      delete_template_plan: { Args: { p_plan_id: string }; Returns: Json }
       discharge_care_team_member: {
         Args: {
           p_assignment_id: string
