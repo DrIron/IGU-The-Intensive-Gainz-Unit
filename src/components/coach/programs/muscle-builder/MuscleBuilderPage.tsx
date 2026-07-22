@@ -1114,6 +1114,7 @@ export function MuscleBuilderPage({
               onAddActivityToSession={handleAddActivityToSession}
               onAddExerciseToSession={handleAddExerciseToSession}
               onAddSession={handleAddSession}
+              flatSessions={canonicalTemplate}
               onRenameSession={handleRenameSession}
               onSetSessionType={handleSetSessionType}
               onRemoveSession={handleRemoveSession}
@@ -1153,13 +1154,16 @@ export function MuscleBuilderPage({
             {/* #4 — First-time onboarding guide */}
             {isEmpty && (
               <div className="rounded-lg border-2 border-dashed border-border/60 bg-muted/10 p-6">
-                <h3 className="text-sm font-semibold mb-4">How to build a muscle plan</h3>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                <h3 className="text-sm font-semibold mb-4">
+                  {canonicalTemplate ? 'How to build a plan' : 'How to build a muscle plan'}
+                </h3>
+                <div className={`grid grid-cols-2 gap-4 ${canonicalTemplate ? "sm:grid-cols-3" : "sm:grid-cols-4"}`}>
                   {[
                     { step: 1, title: 'Pick a preset', desc: 'Start from a template above, or add a session and place muscles' },
                     { step: 2, title: 'Adjust sets', desc: 'Use the number input on each muscle card' },
                     { step: 3, title: 'Check volume', desc: 'Review analytics below to stay in productive range' },
-                    { step: 4, title: 'Convert', desc: 'Turn your plan into a program with exercises' },
+                    // Canonical authoring: no Convert step — the board IS the template.
+                    ...(canonicalTemplate ? [] : [{ step: 4, title: 'Convert', desc: 'Turn your plan into a program with exercises' }]),
                   ].map(s => (
                     <div key={s.step} className="space-y-1.5">
                       <div className="flex items-center gap-2">
@@ -1238,8 +1242,9 @@ export function MuscleBuilderPage({
 
             {/* Recommended content (PR L-fix). Linked content lives on the
                 converted program_template, so the section appears only after
-                conversion. Pre-conversion: inline hint that doubles as a nudge. */}
-            {state.templateId &&
+                conversion. Pre-conversion: inline hint that doubles as a nudge.
+                Canonical authoring has no convert step + no program_template target — hidden here. */}
+            {!canonicalTemplate && state.templateId &&
               (convertedProgramId ? (
                 <LinkedContentList
                   target={{

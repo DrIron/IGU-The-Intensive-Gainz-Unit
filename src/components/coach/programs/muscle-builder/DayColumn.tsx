@@ -40,6 +40,8 @@ interface DayColumnProps {
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
   onAddExerciseToSession: (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => void;
   onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
+  /** Canonical authoring (Phase 2): "+" creates a flat auto-named session (no type picker). */
+  flatSessions?: boolean;
   onRenameSession: (sessionId: string, name: string) => void;
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
   onRemoveSession: (sessionId: string) => void;
@@ -96,6 +98,7 @@ export const DayColumn = memo(function DayColumn({
   onAddActivityToSession,
   onAddExerciseToSession,
   onAddSession,
+  flatSessions = false,
   onRenameSession,
   onSetSessionType,
   onRemoveSession,
@@ -238,37 +241,50 @@ export const DayColumn = memo(function DayColumn({
             {dayDateLabel ?? dayOptions.find(o => o.dayIndex === dayIndex)?.label ?? DAYS_OF_WEEK[dayIndex - 1]}
           </span>
           <div className="flex items-center gap-1 shrink-0">
-            {/* + Session — opens a quick type picker */}
-            <Popover open={addSessionOpen} onOpenChange={setAddSessionOpen}>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                  onClick={e => e.stopPropagation()}
-                  title="Add session"
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent
-                className="w-44 p-1"
-                onClick={e => e.stopPropagation()}
-                align="end"
+            {/* + Session. Canonical authoring: one click → a flat auto-named session (no type
+                picker). Legacy: a quick type picker. */}
+            {flatSessions ? (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                onClick={e => { e.stopPropagation(); handleAddSession('strength'); }}
+                title="Add session"
               >
-                <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 py-1">Session type</p>
-                {ADDABLE_SESSION_TYPES.map(t => (
-                  <button
-                    key={t}
-                    className="flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted w-full text-left"
-                    onClick={() => handleAddSession(t)}
+                <Plus className="h-3 w-3" />
+              </Button>
+            ) : (
+              <Popover open={addSessionOpen} onOpenChange={setAddSessionOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={e => e.stopPropagation()}
+                    title="Add session"
                   >
-                    <div className={cn("w-1.5 h-1.5 rounded-full", ACTIVITY_TYPE_COLORS[t].colorClass)} />
-                    <span>{ACTIVITY_TYPE_LABELS[t]}</span>
-                  </button>
-                ))}
-              </PopoverContent>
-            </Popover>
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent
+                  className="w-44 p-1"
+                  onClick={e => e.stopPropagation()}
+                  align="end"
+                >
+                  <p className="text-[10px] uppercase tracking-wider text-muted-foreground px-2 py-1">Session type</p>
+                  {ADDABLE_SESSION_TYPES.map(t => (
+                    <button
+                      key={t}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded text-xs hover:bg-muted w-full text-left"
+                      onClick={() => handleAddSession(t)}
+                    >
+                      <div className={cn("w-1.5 h-1.5 rounded-full", ACTIVITY_TYPE_COLORS[t].colorClass)} />
+                      <span>{ACTIVITY_TYPE_LABELS[t]}</span>
+                    </button>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            )}
             {/* Copy day */}
             {hasAnyContent && onCopyDay && (
               <Button
@@ -315,7 +331,7 @@ export const DayColumn = memo(function DayColumn({
             </span>
             <button
               className="text-[10px] text-muted-foreground hover:text-foreground underline underline-offset-2"
-              onClick={e => { e.stopPropagation(); setAddSessionOpen(true); }}
+              onClick={e => { e.stopPropagation(); if (flatSessions) handleAddSession('strength'); else setAddSessionOpen(true); }}
             >
               Add session
             </button>
@@ -331,6 +347,7 @@ export const DayColumn = memo(function DayColumn({
                   slots={sessionSlots}
                   sessionPosition={i}
                   daySessionsCount={daySessions.length}
+                  flatSessions={flatSessions}
                   highlightedMuscleId={highlightedMuscleId}
                   globalClientInputs={globalClientInputs}
                   weekCount={weekCount}

@@ -38,6 +38,8 @@ import {
   getShortMuscleLabel,
   resolveParentMuscleId,
   defaultSessionName,
+  flatSessionLabel,
+  deriveSessionColorHex,
   SUBDIVISION_MAP,
   type ActivityType,
   type MuscleSlotData,
@@ -57,6 +59,8 @@ interface MobileDayDetailProps {
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
   onAddExerciseToSession: (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => void;
   onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
+  /** Canonical authoring (Phase 2): flat auto-named sessions, no type picker, content-derived colour. */
+  flatSessions?: boolean;
   onRenameSession: (sessionId: string, name: string) => void;
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
   onRemoveSession: (sessionId: string) => void;
@@ -110,6 +114,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onAddMuscleToSession,
   onAddExerciseToSession,
   onAddSession,
+  flatSessions = false,
   onRenameSession,
   onSetSessionType,
   onRemoveSession,
@@ -294,11 +299,12 @@ export const MobileDayDetail = memo(function MobileDayDetail({
               </div>
             ) : (
               <div className="space-y-3">
-                {daySessions.map(session => {
+                {daySessions.map((session, sessionIdx) => {
                   const sessionSlots = (slotsBySessionId.get(session.id) || [])
                     .slice()
                     .sort((a, b) => a.sortOrder - b.sortOrder);
                   const typeColors = ACTIVITY_TYPE_COLORS[session.type];
+                  const fallbackName = flatSessions ? flatSessionLabel(sessionIdx) : defaultSessionName(session.type);
                   return (
                     // Same shared rail as desktop (SessionBlock) so phone + desktop
                     // can't drift (§11.5). Mobile keeps its own space-y-1.5 — it had
@@ -307,11 +313,15 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                     <SessionTypeBar
                       key={session.id}
                       activityType={session.type}
+                      useContentColor={flatSessions}
+                      contentColorHex={flatSessions ? deriveSessionColorHex(sessionSlots) : null}
                       className="space-y-1.5"
                     >
                       <MobileSessionHeader
                         session={session}
                         typeColorClass={typeColors.colorClass}
+                        flatSessions={flatSessions}
+                        fallbackName={fallbackName}
                         onRenameSession={onRenameSession}
                         onSetSessionType={onSetSessionType}
                         onRemoveSession={onRemoveSession}
@@ -402,26 +412,38 @@ export const MobileDayDetail = memo(function MobileDayDetail({
               </div>
             )}
 
-            {/* + Session at day level */}
-            <DropdownMenu open={addSessionOpen} onOpenChange={setAddSessionOpen}>
-              <DropdownMenuTrigger asChild>
-                <Button variant="outline" size="sm" className="w-full h-9 text-xs">
-                  <Plus className="h-3.5 w-3.5 mr-1.5" />
-                  Add session
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent className="w-44" align="center">
-                {SESSION_TYPES.map(t => (
-                  <DropdownMenuItem
-                    key={t}
-                    onClick={() => { onAddSession(selectedDayIndex, t); setAddSessionOpen(false); }}
-                  >
-                    <div className={cn("w-1.5 h-1.5 rounded-full mr-2", ACTIVITY_TYPE_COLORS[t].colorClass)} />
-                    {ACTIVITY_TYPE_LABELS[t]}
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+            {/* + Session at day level. Canonical: one tap → flat auto-named session (no type). */}
+            {flatSessions ? (
+              <Button
+                variant="outline"
+                size="sm"
+                className="w-full h-9 text-xs"
+                onClick={() => onAddSession(selectedDayIndex, 'strength')}
+              >
+                <Plus className="h-3.5 w-3.5 mr-1.5" />
+                Add session
+              </Button>
+            ) : (
+              <DropdownMenu open={addSessionOpen} onOpenChange={setAddSessionOpen}>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="outline" size="sm" className="w-full h-9 text-xs">
+                    <Plus className="h-3.5 w-3.5 mr-1.5" />
+                    Add session
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent className="w-44" align="center">
+                  {SESSION_TYPES.map(t => (
+                    <DropdownMenuItem
+                      key={t}
+                      onClick={() => { onAddSession(selectedDayIndex, t); setAddSessionOpen(false); }}
+                    >
+                      <div className={cn("w-1.5 h-1.5 rounded-full mr-2", ACTIVITY_TYPE_COLORS[t].colorClass)} />
+                      {ACTIVITY_TYPE_LABELS[t]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </>
         )}
       </CardContent>
@@ -434,6 +456,9 @@ export const MobileDayDetail = memo(function MobileDayDetail({
 interface MobileSessionHeaderProps {
   session: SessionData;
   typeColorClass: string;
+  /** Canonical authoring (Phase 2): flat name (Session A/B…) + no "Change type". */
+  flatSessions?: boolean;
+  fallbackName: string;
   onRenameSession: (sessionId: string, name: string) => void;
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
   onRemoveSession: (sessionId: string) => void;
@@ -445,6 +470,8 @@ interface MobileSessionHeaderProps {
 const MobileSessionHeader = memo(function MobileSessionHeader({
   session,
   typeColorClass,
+  flatSessions = false,
+  fallbackName,
   onRenameSession,
   onSetSessionType,
   onRemoveSession,
@@ -474,7 +501,7 @@ const MobileSessionHeader = memo(function MobileSessionHeader({
             if (e.key === 'Escape') { setDraft(session.name ?? ''); setEditing(false); }
           }}
           className="h-7 text-sm px-1.5 py-0 flex-1 min-w-0"
-          placeholder={defaultSessionName(session.type)}
+          placeholder={fallbackName}
         />
       ) : (
         <button
@@ -482,7 +509,7 @@ const MobileSessionHeader = memo(function MobileSessionHeader({
           className="text-xs font-semibold uppercase tracking-wider text-foreground/80 truncate flex-1 min-w-0 text-left"
           onClick={() => { setDraft(session.name ?? ''); setEditing(true); }}
         >
-          {session.name?.trim() || defaultSessionName(session.type)}
+          {session.name?.trim() || fallbackName}
         </button>
       )}
       <DropdownMenu>
@@ -495,17 +522,20 @@ const MobileSessionHeader = memo(function MobileSessionHeader({
           <DropdownMenuItem onClick={() => { setDraft(session.name ?? ''); setEditing(true); }}>
             Rename
           </DropdownMenuItem>
-          <DropdownMenuSub>
-            <DropdownMenuSubTrigger>Change type</DropdownMenuSubTrigger>
-            <DropdownMenuSubContent>
-              {SESSION_TYPES.map(t => (
-                <DropdownMenuItem key={t} disabled={t === session.type} onClick={() => onSetSessionType(session.id, t)}>
-                  <div className={cn("w-1.5 h-1.5 rounded-full mr-2", ACTIVITY_TYPE_COLORS[t].colorClass)} />
-                  {ACTIVITY_TYPE_LABELS[t]}
-                </DropdownMenuItem>
-              ))}
-            </DropdownMenuSubContent>
-          </DropdownMenuSub>
+          {/* Canonical authoring: a session is a flat list — no type, so no "Change type". */}
+          {!flatSessions && (
+            <DropdownMenuSub>
+              <DropdownMenuSubTrigger>Change type</DropdownMenuSubTrigger>
+              <DropdownMenuSubContent>
+                {SESSION_TYPES.map(t => (
+                  <DropdownMenuItem key={t} disabled={t === session.type} onClick={() => onSetSessionType(session.id, t)}>
+                    <div className={cn("w-1.5 h-1.5 rounded-full mr-2", ACTIVITY_TYPE_COLORS[t].colorClass)} />
+                    {ACTIVITY_TYPE_LABELS[t]}
+                  </DropdownMenuItem>
+                ))}
+              </DropdownMenuSubContent>
+            </DropdownMenuSub>
+          )}
           <DropdownMenuSub>
             <DropdownMenuSubTrigger>
               <Copy className="h-3 w-3 mr-2" /> Duplicate to day
