@@ -5370,24 +5370,40 @@ export type Database = {
       }
       movement_pattern_groups: {
         Row: {
+          affinity: string | null
           created_at: string
-          movement_group_id: string
+          is_isolation: boolean
+          movement_group_id: string | null
+          movement_leaf_id: string | null
           movement_pattern: string
         }
         Insert: {
+          affinity?: string | null
           created_at?: string
-          movement_group_id: string
+          is_isolation?: boolean
+          movement_group_id?: string | null
+          movement_leaf_id?: string | null
           movement_pattern: string
         }
         Update: {
+          affinity?: string | null
           created_at?: string
-          movement_group_id?: string
+          is_isolation?: boolean
+          movement_group_id?: string | null
+          movement_leaf_id?: string | null
           movement_pattern?: string
         }
         Relationships: [
           {
             foreignKeyName: "movement_pattern_groups_movement_group_id_fkey"
             columns: ["movement_group_id"]
+            isOneToOne: false
+            referencedRelation: "movement_groups"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "movement_pattern_groups_movement_leaf_id_fkey"
+            columns: ["movement_leaf_id"]
             isOneToOne: false
             referencedRelation: "movement_groups"
             referencedColumns: ["id"]
@@ -9074,7 +9090,9 @@ export type Database = {
       }
       exercise_movement_map: {
         Row: {
+          affinity: string | null
           exercise_id: string | null
+          is_isolation: boolean | null
           movement_group_id: string | null
           movement_leaf_id: string | null
         }
