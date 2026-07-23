@@ -39,6 +39,9 @@ import { Settings2 } from "lucide-react";
 
 import { useMuscleBuilderState, getCurrentSlots, getCurrentSessions, hasAnyDeltaRules } from "./hooks/useMuscleBuilderState";
 import { useMusclePlanVolume } from "./hooks/useMusclePlanVolume";
+import { useMovementGroupConfig } from "@/hooks/useMovementGroupConfig";
+import { useExerciseMovementMap } from "@/hooks/useExerciseMovementMap";
+import { computeMovementLens, computeCardioLens } from "./multiLensVolume";
 import { WeeklyCalendar } from "./WeeklyCalendar";
 import { WeekTabStrip } from "./WeekTabStrip";
 import { VolumeOverview } from "./VolumeOverview";
@@ -157,6 +160,25 @@ export function MuscleBuilderPage({
   const currentWeekSessions = getCurrentSessions(state);
   const { volumeEntries, summary, frequencyMatrix, placementCounts, consecutiveDayWarnings } =
     useMusclePlanVolume(currentWeekSlots);
+
+  // Phase 3 (3a): multi-lens volume — movement (Squat/Press/Hinge) + cardio (minutes). Canonical
+  // authoring only; the config/map hooks are gated so flag-OFF makes no extra fetch (byte-identical).
+  const { data: movementConfig } = useMovementGroupConfig(canonicalTemplate);
+  const { data: exerciseMovementMap } = useExerciseMovementMap(canonicalTemplate);
+  const movementLens = useMemo(
+    () => (canonicalTemplate && movementConfig && exerciseMovementMap
+      ? computeMovementLens(currentWeekSlots, exerciseMovementMap, movementConfig)
+      : null),
+    [canonicalTemplate, currentWeekSlots, movementConfig, exerciseMovementMap],
+  );
+  const cardioLens = useMemo(
+    () => (canonicalTemplate
+      // v1 modality = the cardio activity/exercise name (no cardio_movement taxonomy resolution yet).
+      ? computeCardioLens(currentWeekSlots, (slot) => slot.activityName || slot.exercise?.name || "Cardio")
+      : null),
+    [canonicalTemplate, currentWeekSlots],
+  );
+
   const { toast } = useToast();
 
   // S4: manual "Push to assignees" entry point — resolve the canonical template
@@ -1199,6 +1221,8 @@ export function MuscleBuilderPage({
                     entries={volumeEntries}
                     summary={summary}
                     onMuscleClick={handleMuscleClick}
+                    movementLens={movementLens}
+                    cardioLens={cardioLens}
                   />
                 </TabsContent>
                 <TabsContent value="frequency" className="mt-3">
