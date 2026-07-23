@@ -30,9 +30,10 @@ import {
 } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
 import { Enums } from "@/integrations/supabase/types";
-import { resolveParentMuscleId } from "@/types/muscle-builder";
+import { resolveParentMuscleId, isMovementGroupId } from "@/types/muscle-builder";
 import { useExerciseLibraryData, type ExerciseRow } from "@/hooks/useExerciseLibrary";
 import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
+import { useExerciseMovementMap } from "@/hooks/useExerciseMovementMap";
 import { useSubstituteExercises } from "@/hooks/useSubstituteExercises";
 import { getExerciseDisplayName } from "@/lib/exerciseDisplay";
 import { tierOf, type SubstituteExercise } from "@/lib/substituteMatch";
@@ -123,6 +124,18 @@ export function ExercisePickerDialog({
     () => allRows.filter((r) => r.is_global || r.created_by_coach_id === coachUserId),
     [allRows, coachUserId]
   );
+
+  // 3b fill-later: when the slot being filled is a movement-group slot (sourceMuscleId is a group id
+  // like squat/press/hinge, not a muscle), scope the browse to that group's variations via the
+  // exercise → movement-group map. Hook is `enabled`-gated to group picks only, so muscle picks and
+  // flag-OFF authoring make no extra fetch.
+  const groupFilterId =
+    sourceMuscleId && isMovementGroupId(sourceMuscleId) ? sourceMuscleId : undefined;
+  const { data: movementMap } = useExerciseMovementMap(open && !!groupFilterId);
+  const browseRows = useMemo(() => {
+    if (!groupFilterId || !movementMap) return scopedRows;
+    return scopedRows.filter((r) => movementMap.get(r.id)?.groupId === groupFilterId);
+  }, [scopedRows, groupFilterId, movementMap]);
 
   // Translate the muscle-builder `sourceMuscleId` → a taxonomy `muscles.id` for the browse deep-link.
   // The taxonomy muscle's `volume_key` is the muscle-builder id; a subdivision resolves to its parent.
@@ -262,11 +275,11 @@ export function ExercisePickerDialog({
       <ExerciseBrowse
         mode="picker"
         audience="coach"
-        rows={scopedRows}
+        rows={browseRows}
         search={searchQuery}
         loading={rowsLoading}
         error={rowsError}
-        sourceMuscleId={sourceTaxonomyMuscleId}
+        sourceMuscleId={groupFilterId ? undefined : sourceTaxonomyMuscleId}
         onSelect={(ex) => onSelectExercise(ex.id, selectedSection, ex.name)}
         multiSelect={multiSelect}
         selectedIds={checkedIds}

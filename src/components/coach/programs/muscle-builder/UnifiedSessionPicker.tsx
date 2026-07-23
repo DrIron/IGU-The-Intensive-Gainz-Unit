@@ -7,6 +7,7 @@ import { StrengthTaxonomyBrowse } from "./StrengthTaxonomyBrowse";
 import { exerciseCategoryToActivityType, type ActivityType } from "@/types/muscle-builder";
 import { useExerciseLibraryData } from "@/hooks/useExerciseLibrary";
 import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
+import { useMovementGroupConfig } from "@/hooks/useMovementGroupConfig";
 import { EXERCISE_CATEGORIES } from "@/lib/exerciseCategories";
 import { ExerciseBrowse } from "@/components/exercise/ExerciseBrowse";
 
@@ -41,6 +42,14 @@ interface UnifiedSessionPickerProps {
   autoFocusSearch?: boolean;
   /** Tab to open on first render. Defaults to "strength". */
   initialCategory?: string;
+  /**
+   * 3b (volume-first group-pick) — when true (canonical template authoring), the Powerlifting tab
+   * leads with movement-group chips (Squat/Press/Hinge). Picking a group drops an UNFILLED lift-group
+   * slot that counts in the movement lens immediately; the exact variation is chosen later on the
+   * slot. Reuses `onAddMuscle` (the group id rides the same grouping-key field as a muscle id).
+   * Off/absent → the Powerlifting tab is the plain exercise browse, byte-identical to before.
+   */
+  enableGroupPick?: boolean;
 }
 
 export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
@@ -51,10 +60,16 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
   variant,
   autoFocusSearch = false,
   initialCategory = "strength",
+  enableGroupPick = false,
 }: UnifiedSessionPickerProps) {
   const [category, setCategory] = useState<string>(initialCategory);
   const [search, setSearch] = useState("");
   const isRoomy = variant === "roomy";
+
+  // 3b: movement-group chips for the Powerlifting tab. Cached (staleTime Infinity) + `enabled`-gated,
+  // so flag-OFF makes no fetch and the tab is unchanged.
+  const { data: movementConfig } = useMovementGroupConfig(enableGroupPick);
+  const showGroupPick = enableGroupPick && category === "powerlifting" && !!movementConfig?.groups.length;
 
   // Strength tab renders the DB taxonomy (7 regions / muscles / subdivisions) so
   // it matches the Workout Library breakdown. Fall back to the legacy hardcoded
@@ -119,6 +134,32 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
         // line + UNI chip). The old bespoke facet dropdowns are intentionally gone — search + the
         // shared rich rows replace them, matching every other surface.
         <div className={cn("space-y-2", isRoomy && "space-y-3")}>
+          {showGroupPick && (
+            // Volume-first (3b): pick a lift group → an unfilled slot that counts in the movement lens
+            // now; choose the exact variation on the slot later. The plain browse stays below for
+            // coaches who prefer to add a specific lift directly.
+            <div className="space-y-1.5 rounded-md border border-border/50 bg-card/40 p-2">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Add a lift group — fill the variation later
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {movementConfig!.groups.map((g) => (
+                  <button
+                    key={g.id}
+                    type="button"
+                    onClick={() => onAddMuscle(g.id)}
+                    className={cn(
+                      "whitespace-nowrap rounded-md border border-border/60 bg-background px-2 py-1 text-[11px]",
+                      "transition-colors hover:bg-primary hover:text-primary-foreground hover:border-primary",
+                    )}
+                  >
+                    {g.label}
+                    <span className="ml-1 text-muted-foreground">· {g.variationCount}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="relative">
             <Search
               className={cn(

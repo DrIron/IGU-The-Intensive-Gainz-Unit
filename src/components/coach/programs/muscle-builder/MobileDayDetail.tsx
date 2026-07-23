@@ -282,6 +282,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
               onAddExercise={handleAddExercise}
               variant="roomy"
               autoFocusSearch
+              enableGroupPick={flatSessions}
             />
           </div>
         ) : (

@@ -38,6 +38,20 @@ vi.mock("@/hooks/useExerciseLibrary", async (importOriginal) => ({
   useExerciseLibraryData: () => ({ data: ROWS, isLoading: false }),
 }));
 vi.mock("@/hooks/useExerciseTaxonomy", () => ({ useExerciseTaxonomy: () => ({ data: TAXONOMY }) }));
+// 3b: movement-group config for the Powerlifting group-pick chips (always returns data; the
+// component gates rendering on the enableGroupPick prop, so flag-OFF shows no chips regardless).
+vi.mock("@/hooks/useMovementGroupConfig", () => ({
+  useMovementGroupConfig: () => ({
+    data: {
+      patternMap: {},
+      groups: [
+        { id: "squat", label: "Squat", sortOrder: 1, variationCount: 41, subGroups: [] },
+        { id: "press", label: "Press", sortOrder: 2, variationCount: 70, subGroups: [] },
+        { id: "hinge", label: "Hinge", sortOrder: 3, variationCount: 48, subGroups: [] },
+      ],
+    },
+  }),
+}));
 // The strength tab's inner browsers aren't under test here.
 vi.mock("./StrengthTaxonomyBrowse", () => ({ StrengthTaxonomyBrowse: () => null }));
 vi.mock("./SessionAddPicker", () => ({ SessionAddPicker: () => null }));
@@ -112,5 +126,38 @@ describe("UnifiedSessionPicker — category tabs from the shared source", () => 
     });
     expect(container.querySelector('[aria-label="Select Competition Deadlift"]')).toBeTruthy();
     expect(container.querySelector('[aria-label="Select Competition Back Squat"]')).toBeNull();
+  });
+
+  // 3b — volume-first group-pick. Flag lives on the enableGroupPick prop (= canonical template
+  // authoring). OFF is the shipped add-flow; ON leads the Powerlifting tab with lift-group chips.
+  it("flag-OFF (default): Powerlifting tab shows NO group-pick chips — add-flow byte-identical", async () => {
+    await mount(); // enableGroupPick defaults to false
+    expect(container.textContent).not.toContain("Add a lift group");
+    expect(container.textContent).not.toContain("Squat ·");
+    // The plain exercise browse is unchanged.
+    expect(container.querySelector('[aria-label="Select Competition Back Squat"]')).toBeTruthy();
+  });
+
+  it("flag-ON: Powerlifting tab leads with Squat/Press/Hinge chips; picking one calls onAddMuscle(groupId)", async () => {
+    const onAddMuscle = vi.fn();
+    await act(async () => {
+      root.render(
+        <UnifiedSessionPicker
+          onAddMuscle={onAddMuscle}
+          onAddExercise={vi.fn()}
+          variant="roomy"
+          initialCategory="powerlifting"
+          enableGroupPick
+        />,
+      );
+    });
+    expect(container.textContent).toContain("Add a lift group");
+    const squatChip = [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").includes("Squat"));
+    expect(squatChip).toBeTruthy();
+    // The plain exercise browse remains below for direct lift add (fill-later is optional, not forced).
+    expect(container.querySelector('[aria-label="Select Competition Back Squat"]')).toBeTruthy();
+
+    await act(async () => squatChip!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(onAddMuscle).toHaveBeenCalledWith("squat");
   });
 });

@@ -50,6 +50,9 @@ const TAXONOMY = {
 let libState: { data: Row[]; isLoading: boolean; isError: boolean; error: unknown };
 vi.mock("@/hooks/useExerciseLibrary", () => ({ useExerciseLibraryData: () => libState }));
 vi.mock("@/hooks/useExerciseTaxonomy", () => ({ useExerciseTaxonomy: () => ({ data: TAXONOMY }) }));
+// 3b: the dialog now reads the movement map to group-filter fills for lift-group slots. These tests
+// use muscle sources (no group filter), so undefined data is fine — mocked to avoid a bare useQuery.
+vi.mock("@/hooks/useExerciseMovementMap", () => ({ useExerciseMovementMap: () => ({ data: undefined }) }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 const { ExercisePickerDialog } = await import("./ExercisePickerDialog");

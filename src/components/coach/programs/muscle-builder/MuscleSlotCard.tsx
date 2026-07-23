@@ -10,7 +10,9 @@ import { X, AlertTriangle, Dumbbell, Plus, RefreshCw, Settings2, FileText, Rotat
 import { cn } from "@/lib/utils";
 import {
   getMuscleDisplay,
+  getSlotDisplay,
   getShortMuscleLabel,
+  MOVEMENT_GROUP_DISPLAY,
   MUSCLE_MAP,
   SUBDIVISION_MAP,
   type SlotExercise,
@@ -81,7 +83,7 @@ function formatSlotLabel(muscleId: string): string {
     const shortLabel = sub.label.replace(/\s*\(.*?\)\s*/, '');
     return `${parent?.label ?? sub.parentId} \u203A ${shortLabel}`;
   }
-  const display = getMuscleDisplay(muscleId);
+  const display = getSlotDisplay(muscleId);
   return display?.label ?? muscleId;
 }
 
@@ -145,11 +147,13 @@ export const MuscleSlotCard = memo(function MuscleSlotCard({
     onOpenExercisePicker?.(slotId, muscleId, mode);
   }, [slotId, muscleId, onOpenExercisePicker]);
 
-  const muscle = getMuscleDisplay(muscleId);
+  // 3b: an unfilled powerlifting lift-group slot stores its group id (squat/press/hinge) here, which
+  // isn't a muscle — getSlotDisplay resolves it via the movement-group mirror so the card renders.
+  const muscle = getSlotDisplay(muscleId);
   if (!muscle) return null;
 
   const fullLabel = formatSlotLabel(muscleId);
-  const shortLabel = getShortMuscleLabel(muscleId);
+  const shortLabel = MOVEMENT_GROUP_DISPLAY[muscleId]?.label ?? getShortMuscleLabel(muscleId);
   const hasExercise = !!exercise;
   const hasInstructions = !!exercise?.instructions?.trim();
   const hasReplacements = !!replacements && replacements.length > 0;

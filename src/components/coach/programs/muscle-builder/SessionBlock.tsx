@@ -279,9 +279,13 @@ export const SessionBlock = memo(function SessionBlock({
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className="w-80 p-2 max-h-96 overflow-y-auto"
+            // Cap to the collision-aware available height (not a fixed 24rem) so a "+" anchored high
+            // in the viewport can't push the popover — and its category-tab row — off the top edge;
+            // the content scrolls internally instead. collisionPadding keeps an 8px gutter.
+            className="w-80 p-2 overflow-y-auto max-h-[min(24rem,var(--radix-popover-content-available-height))]"
             onClick={e => e.stopPropagation()}
             align="end"
+            collisionPadding={8}
           >
             <UnifiedSessionPicker
               placementCounts={placementCounts}
@@ -289,6 +293,7 @@ export const SessionBlock = memo(function SessionBlock({
               onAddMuscle={handleAddMuscle}
               onAddExercise={handleAddExercise}
               variant="compact"
+              enableGroupPick={flatSessions}
             />
           </PopoverContent>
         </Popover>
