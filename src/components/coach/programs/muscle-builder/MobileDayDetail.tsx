@@ -651,7 +651,7 @@ const MobileActivityRow = memo(function MobileActivityRow({
               ? "flex flex-col items-start gap-0.5 flex-1 min-w-0 text-left"
               : "flex items-center gap-1.5 flex-1 min-w-0 text-left"}
           >
-            <span className={cn("font-medium text-foreground", isPending ? "line-clamp-2 w-full" : "truncate")}>{label}</span>
+            <span className={cn("font-medium text-foreground", isPending ? "line-clamp-2 w-full break-words" : "truncate")}>{label}</span>
             {isPending ? (
               // Reads as interactive — tapping the row opens the duration editor (pencil + dotted underline).
               <span className="flex items-center gap-0.5 font-mono text-[10px] italic text-muted-foreground">

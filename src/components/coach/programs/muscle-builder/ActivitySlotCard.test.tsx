@@ -54,10 +54,12 @@ describe("ActivitySlotCard — unfilled group slot shows its label", () => {
     expect(txt()).toContain("set duration");  // secondary pending line
   });
 
-  it("pending label wraps (line-clamp-2, not truncate) and 'set duration' reads interactive", async () => {
+  it("pending label wraps (line-clamp-2 + break-words, not truncate) and 'set duration' reads interactive", async () => {
     await renderCard(slot({ activityType: "yoga_mobility", muscleId: "tr-add", activityName: "Adductors", duration: 0 }));
     const labelEl = [...container.querySelectorAll("span")].find(s => s.textContent === "Adductors");
+    expect(labelEl?.textContent).toBe("Adductors");      // full single-word label, not clipped
     expect(labelEl?.className).toContain("line-clamp-2");
+    expect(labelEl?.className).toContain("break-words");  // single long words break across the 2 lines
     expect(labelEl?.className).not.toContain("truncate");
     // affordance: dotted underline on the "set duration" text + a pencil glyph.
     const underline = container.querySelector("span.decoration-dotted");

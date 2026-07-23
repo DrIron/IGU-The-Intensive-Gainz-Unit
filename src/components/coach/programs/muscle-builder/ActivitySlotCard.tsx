@@ -101,7 +101,7 @@ export const ActivitySlotCard = memo(function ActivitySlotCard({
                   : "flex items-center gap-1.5 flex-1 min-w-0 text-left"}
                 onClick={e => e.stopPropagation()}
               >
-                <span className={cn("font-medium text-foreground", isPending ? "line-clamp-2 w-full" : "truncate")}>{label}</span>
+                <span className={cn("font-medium text-foreground", isPending ? "line-clamp-2 w-full break-words" : "truncate")}>{label}</span>
                 {isPending ? (
                   // Secondary pending line — no wide pill competing with the title for width. Reads as
                   // interactive (the whole button opens the duration popover): pencil + dotted underline.
