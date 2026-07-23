@@ -89,6 +89,7 @@ type Action =
   | { type: 'SET_GLOBAL_CLIENT_INPUTS'; columns: string[] }
   | { type: 'SET_SLOT_CLIENT_INPUTS'; slotId: string; columns: string[] | undefined }
   | { type: 'ADD_ACTIVITY'; dayIndex: number; activityId: string; activityType: ActivityType; sessionId?: string }
+  | { type: 'ADD_ACTIVITY_GROUP'; dayIndex: number; groupId: string; groupLabel: string; activityType: ActivityType; sessionId?: string }
   | { type: 'ADD_EXERCISE_TO_SESSION'; dayIndex: number; sessionId: string; exercise: SlotExercise; activityType: ActivityType }
   | { type: 'SET_ACTIVITY_DETAILS'; slotId: string; details: Partial<Pick<MuscleSlotData, 'duration' | 'distance' | 'targetHrZone' | 'pace' | 'rounds' | 'workSeconds' | 'restSeconds' | 'difficulty' | 'activityNotes'>> }
   | { type: 'UNDO' }
@@ -1306,6 +1307,37 @@ function reducer(state: MusclePlanState, action: Action): MusclePlanState {
           activityId: action.activityId,
           activityName: activity?.label || action.activityId,
           duration: 30,
+        };
+        return { slots: [...s, newSlot], sessions: nextSessions };
+      });
+    }
+
+    case 'ADD_ACTIVITY_GROUP': {
+      // 3c volume-first: an UNFILLED non-strength group slot (e.g. a cardio modality). Mirrors the
+      // powerlifting group-pick (ADD_MUSCLE) but for activityType≠strength: the group id rides
+      // `muscleId` (the grouping key — round-trips), the label rides `activityName` for the card, and
+      // duration starts at 0 so it surfaces in the minutes lens as a PENDING bucket until a duration
+      // is set. No exercise/activityId yet — the coach fills the variation + duration later.
+      return withUpdatedCurrentWeekFull(state, (s, sessions) => {
+        let sessionId = action.sessionId;
+        let nextSessions = sessions;
+        if (!sessionId || !sessions.some(x => x.id === sessionId)) {
+          const ensured = ensureSessionForDay(sessions, action.dayIndex, action.activityType);
+          sessionId = ensured.sessionId;
+          nextSessions = ensured.sessions;
+        }
+        const newSlot: MuscleSlotData = {
+          id: crypto.randomUUID(),
+          dayIndex: action.dayIndex,
+          muscleId: action.groupId,
+          sets: 1,
+          repMin: 0,
+          repMax: 0,
+          sortOrder: getMaxSortOrder(s, action.dayIndex) + 1,
+          sessionId,
+          activityType: action.activityType,
+          activityName: action.groupLabel,
+          duration: 0,
         };
         return { slots: [...s, newSlot], sessions: nextSessions };
       });

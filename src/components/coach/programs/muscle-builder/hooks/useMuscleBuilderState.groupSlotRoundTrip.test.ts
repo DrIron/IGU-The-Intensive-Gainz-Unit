@@ -23,6 +23,8 @@ const BUILDER_STATE_WEEKS = [
     slots: [
       { id: 'slot-unfilled', sessionId: 'sess-1', muscleId: 'squat', activityType: 'strength', sets: 3, repMin: 3, repMax: 5, sortOrder: 0 },
       { id: 'slot-filled', sessionId: 'sess-1', muscleId: 'squat', activityType: 'strength', sets: 1, sortOrder: 1, exercise: { exerciseId: 'ex-bb-squat', name: 'Barbell Back Squat' } },
+      // 3c: an unfilled CARDIO group slot — modality id on muscleId, activityType='cardio', duration 0.
+      { id: 'slot-cardio', sessionId: 'sess-1', muscleId: 'cm-run-uuid', activityType: 'cardio', activityName: 'Run', duration: 0, sets: 1, sortOrder: 2 },
     ],
   },
 ];
@@ -44,5 +46,17 @@ describe('hydrateCanonicalWeeks — group-slot round-trip (3b)', () => {
 
     expect(filled.muscleId).toBe('squat'); // group id retained after fill
     expect(filled.exercise?.exerciseId).toBe('ex-bb-squat');
+  });
+
+  // 3c: an unfilled cardio group slot's modality id (muscleId), activityType, label + 0 duration survive.
+  it('preserves an unfilled cardio group slot: modality id + pending 0 duration round-trip', () => {
+    const [week] = hydrateCanonicalWeeks(BUILDER_STATE_WEEKS);
+    const cardio = week.slots.find((s) => s.id === 'slot-cardio')!;
+
+    expect(cardio.muscleId).toBe('cm-run-uuid'); // cardio_movement id survives — buckets in the minutes lens
+    expect(cardio.activityType).toBe('cardio');
+    expect(cardio.activityName).toBe('Run');
+    expect(cardio.duration).toBe(0); // still pending
+    expect(cardio.exercise).toBeUndefined();
   });
 });

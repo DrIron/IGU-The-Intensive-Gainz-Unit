@@ -27,6 +27,8 @@ interface ActivitySlotCardProps {
 /** Format the key metric for the card face */
 function formatMetric(slot: MuscleSlotData): string {
   const type = slot.activityType || 'strength';
+  // 3c: an unfilled group slot (duration 0) is "pending" — a modality picked but no duration set yet.
+  if (slot.duration === 0) return 'set duration';
   if (type === 'hiit' && slot.rounds) {
     return `${slot.rounds}×${slot.workSeconds || 30}s/${slot.restSeconds || 15}s`;
   }

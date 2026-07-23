@@ -57,6 +57,7 @@ interface MobileDayDetailProps {
   onRemove: (slotId: string) => void;
   onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
+  onAddActivityGroupToSession: (sessionId: string, groupId: string, groupLabel: string, activityType: ActivityType) => void;
   onAddExerciseToSession: (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => void;
   onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
   /** Canonical authoring (Phase 2): flat auto-named sessions, no type picker, content-derived colour. */
@@ -112,6 +113,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
   onSetSlotDetails,
   onRemove,
   onAddMuscleToSession,
+  onAddActivityGroupToSession,
   onAddExerciseToSession,
   onAddSession,
   flatSessions = false,
@@ -220,6 +222,14 @@ export const MobileDayDetail = memo(function MobileDayDetail({
     [onAddExerciseToSession, pickerSessionId],
   );
 
+  const handleAddActivityGroup = useCallback(
+    (groupId: string, groupLabel: string, activityType: ActivityType) => {
+      if (!pickerSessionId) return;
+      onAddActivityGroupToSession(pickerSessionId, groupId, groupLabel, activityType);
+    },
+    [onAddActivityGroupToSession, pickerSessionId],
+  );
+
   return (
     <Card className="border-border/50">
       <CardHeader className="p-3 pb-2">
@@ -280,6 +290,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
               recentMuscleIds={recentMuscleIds}
               onAddMuscle={handleAddMuscle}
               onAddExercise={handleAddExercise}
+              onAddActivityGroup={handleAddActivityGroup}
               variant="roomy"
               autoFocusSearch
               enableGroupPick={flatSessions}

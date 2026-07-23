@@ -24,12 +24,17 @@ const ROWS: Row[] = [
   mk({ id: "p3", name: "Competition Deadlift", category: "powerlifting", equipment: "BB" }),
   mk({ id: "sys1", name: "Sled Push", category: "systemic", equipment: "Sled" }),
   mk({ id: "s1", name: "Barbell Back Squat", category: "strength", equipment: "BB", muscle_id: "m-quad" }),
+  mk({ id: "cr1", name: "Treadmill Run", category: "cardio", cardio_movement_id: "cm-run" }),
 ];
 
 const TAXONOMY = {
   regions: [], muscles: [{ id: "m-quad", volume_key: "quads" }], subdivisions: [],
   musclesByRegion: new Map(), subdivisionsByMuscle: new Map(),
-  cardioMovements: [], techniques: [], targetRegions: [], physioPurposes: [],
+  cardioMovements: [
+    { id: "cm-run", display_name: "Run", sort_order: 1 },
+    { id: "cm-walk", display_name: "Walk", sort_order: 2 },
+  ],
+  techniques: [], targetRegions: [], physioPurposes: [],
 };
 
 // Keep the real filterExercises; stub only the data hook.
@@ -159,5 +164,39 @@ describe("UnifiedSessionPicker — category tabs from the shared source", () => 
 
     await act(async () => squatChip!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(onAddMuscle).toHaveBeenCalledWith("squat");
+  });
+
+  // 3c — cardio modality group-pick.
+  it("flag-OFF: Cardio tab shows NO modality chips — add-flow byte-identical", async () => {
+    await act(async () => {
+      root.render(
+        <UnifiedSessionPicker onAddMuscle={vi.fn()} onAddExercise={vi.fn()} variant="roomy" initialCategory="cardio" />,
+      );
+    });
+    expect(container.textContent).not.toContain("Add a cardio modality");
+    expect(container.querySelector('[aria-label="Select Treadmill Run"]')).toBeTruthy(); // plain browse unchanged
+  });
+
+  it("flag-ON: Cardio tab leads with modality chips; picking one calls onAddActivityGroup(id,label,'cardio')", async () => {
+    const onAddActivityGroup = vi.fn();
+    await act(async () => {
+      root.render(
+        <UnifiedSessionPicker
+          onAddMuscle={vi.fn()}
+          onAddExercise={vi.fn()}
+          onAddActivityGroup={onAddActivityGroup}
+          variant="roomy"
+          initialCategory="cardio"
+          enableGroupPick
+        />,
+      );
+    });
+    expect(container.textContent).toContain("Add a cardio modality");
+    const runChip = [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").trim().startsWith("Run"));
+    expect(runChip).toBeTruthy();
+    expect(runChip!.textContent).toContain("· 1"); // Run has one library exercise (count shown)
+
+    await act(async () => runChip!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(onAddActivityGroup).toHaveBeenCalledWith("cm-run", "Run", "cardio");
   });
 });

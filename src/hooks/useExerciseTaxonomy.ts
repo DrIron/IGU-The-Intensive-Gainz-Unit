@@ -67,9 +67,10 @@ export interface ExerciseTaxonomy {
   subdivisionsByMuscle: Map<string, Subdivision[]>;
 }
 
-export function useExerciseTaxonomy() {
+export function useExerciseTaxonomy(enabled = true) {
   return useQuery<ExerciseTaxonomy>({
     queryKey: ["exercise-taxonomy"],
+    enabled,
     // Lookups change rarely (admin edits only) — keep them warm.
     staleTime: 1000 * 60 * 60,
     gcTime: 1000 * 60 * 120,
