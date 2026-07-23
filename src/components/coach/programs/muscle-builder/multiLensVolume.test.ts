@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMovementLens, computeCardioLens, computeAffinityLens } from "./multiLensVolume";
+import { computeMovementLens, computeCardioLens, computeAffinityLens, computeMobilityLens } from "./multiLensVolume";
 import type { MovementGroupConfig } from "@/hooks/useMovementGroupConfig";
 import type { ExerciseMovement } from "@/hooks/useExerciseMovementMap";
 import type { MuscleSlotData } from "@/types/muscle-builder";
@@ -205,5 +205,59 @@ describe("computeCardioLens", () => {
       cardioModalityOf,
     );
     expect(lens.modalities).toEqual([{ label: "Run", minutes: 20, pending: false }]); // one bucket, 0 + 20 = 20
+  });
+});
+
+// 3e mobility/warm-up region resolver: unfilled group slot via muscleId=region id, filled via the
+// exercise's target_region — both bucket by region. yoga_mobility only.
+const REGIONS = new Map([["shoulders", "Shoulders"], ["hips", "Hips"]]);
+const EX2REGION = new Map([["ex-sh", "shoulders"]]);
+const regionOf = (s: MuscleSlotData): { key: string; label: string } | null => {
+  if (s.activityType !== "yoga_mobility") return null;
+  if (!s.exercise && s.muscleId && REGIONS.has(s.muscleId)) return { key: s.muscleId, label: REGIONS.get(s.muscleId)! };
+  const rid = s.exercise ? EX2REGION.get(s.exercise.exerciseId) : undefined;
+  if (rid && REGIONS.has(rid)) return { key: rid, label: REGIONS.get(rid)! };
+  const name = s.activityName || "Mobility";
+  return { key: `name:${name}`, label: name };
+};
+
+describe("computeMobilityLens (region + count-fallback)", () => {
+  it("an unfilled region group slot appears as pending/count — never blank (0 min → a drill count)", () => {
+    const lens = computeMobilityLens([slot({ activityType: "yoga_mobility", muscleId: "shoulders", duration: 0 })], regionOf);
+    expect(lens.rows).toEqual([
+      { label: "Shoulders", minutes: 0, timedCount: 0, untimedCount: 1, countMode: true },
+    ]);
+    expect(lens.totalMinutes).toBe(0);
+  });
+
+  it("a TIMED entry shows minutes; a rep-based (untimed) entry falls back to a count — same group, not mixed into a wrong number", () => {
+    const lens = computeMobilityLens(
+      [
+        slot({ id: "t", activityType: "yoga_mobility", muscleId: "shoulders", duration: 10 }),                                  // timed
+        slot({ id: "u", activityType: "yoga_mobility", exercise: { exerciseId: "ex-sh", name: "CARs" } }),                       // rep-based (no duration) → untimed
+      ],
+      regionOf,
+    );
+    // One Shoulders bucket: 10 timed minutes + 1 untimed drill counted separately (minutes not inflated).
+    expect(lens.rows).toEqual([
+      { label: "Shoulders", minutes: 10, timedCount: 1, untimedCount: 1, countMode: false },
+    ]);
+    expect(lens.totalMinutes).toBe(10);
+  });
+
+  it("filling a pending group slot with a duration keeps the same region bucket (stable, no double-count)", () => {
+    const pending = computeMobilityLens([slot({ activityType: "yoga_mobility", muscleId: "shoulders", duration: 0 })], regionOf);
+    expect(pending.rows[0]).toMatchObject({ label: "Shoulders", minutes: 0, countMode: true });
+
+    const filled = computeMobilityLens([slot({ activityType: "yoga_mobility", muscleId: "shoulders", duration: 12 })], regionOf);
+    expect(filled.rows).toEqual([
+      { label: "Shoulders", minutes: 12, timedCount: 1, untimedCount: 0, countMode: false },
+    ]);
+    expect(filled.totalMinutes).toBe(12);
+  });
+
+  it("ignores non-mobility slots", () => {
+    const lens = computeMobilityLens([slot({ muscleId: "pecs", sets: 3 }), slot({ activityType: "cardio", duration: 20 })], regionOf);
+    expect(lens.rows).toEqual([]);
   });
 });

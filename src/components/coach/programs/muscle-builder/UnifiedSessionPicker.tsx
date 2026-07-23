@@ -107,6 +107,21 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
   const showCardioGroupPick =
     enableGroupPick && category === "cardio" && cardioModalities.length > 0 && !!onAddActivityGroup;
 
+  // 3e: mobility + warm-up region chips (target_region taxonomy). Both categories drop a
+  // yoga_mobility group slot bucketed by region. Counts from mobility/warm-up rows.
+  const regionGroups = taxonomy?.targetRegions ?? [];
+  const regionCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rows) {
+      if (r.target_region_id && (r.category === "mobility" || r.category === "warmup")) {
+        m.set(r.target_region_id, (m.get(r.target_region_id) ?? 0) + 1);
+      }
+    }
+    return m;
+  }, [rows]);
+  const showRegionGroupPick =
+    enableGroupPick && (category === "mobility" || category === "warmup") && regionGroups.length > 0 && !!onAddActivityGroup;
+
   return (
     <div className={cn("space-y-2", isRoomy && "space-y-3")}>
       {/* Category tabs */}
@@ -206,6 +221,34 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
                       )}
                     >
                       {cm.display_name}
+                      {n > 0 && <span className="ml-1 text-muted-foreground">· {n}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {showRegionGroupPick && (
+            // Volume-first (3e): pick a body region → an unfilled mobility slot that shows in the
+            // lens (pending/untimed) now; set a duration or fill a drill later.
+            <div className="space-y-1.5 rounded-md border border-border/50 bg-card/40 p-2">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Add a region — set the duration or drill later
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {regionGroups.map((r) => {
+                  const n = regionCounts.get(r.id) ?? 0;
+                  return (
+                    <button
+                      key={r.id}
+                      type="button"
+                      onClick={() => onAddActivityGroup!(r.id, r.display_name, "yoga_mobility")}
+                      className={cn(
+                        "whitespace-nowrap rounded-md border border-border/60 bg-background px-2 py-1 text-[11px]",
+                        "transition-colors hover:bg-primary hover:text-primary-foreground hover:border-primary",
+                      )}
+                    >
+                      {r.display_name}
                       {n > 0 && <span className="ml-1 text-muted-foreground">· {n}</span>}
                     </button>
                   );

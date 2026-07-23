@@ -43,7 +43,7 @@ import { useMovementGroupConfig } from "@/hooks/useMovementGroupConfig";
 import { useExerciseMovementMap } from "@/hooks/useExerciseMovementMap";
 import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
 import { useExerciseLibraryData } from "@/hooks/useExerciseLibrary";
-import { computeMovementLens, computeCardioLens, computeAffinityLens } from "./multiLensVolume";
+import { computeMovementLens, computeCardioLens, computeAffinityLens, computeMobilityLens } from "./multiLensVolume";
 import { WeeklyCalendar } from "./WeeklyCalendar";
 import { WeekTabStrip } from "./WeekTabStrip";
 import { VolumeOverview } from "./VolumeOverview";
@@ -205,6 +205,27 @@ export function MuscleBuilderPage({
   const cardioLens = useMemo(
     () => (canonicalTemplate ? computeCardioLens(currentWeekSlots, cardioModalityOf) : null),
     [canonicalTemplate, currentWeekSlots, cardioModalityOf],
+  );
+
+  // 3e: mobility/warm-up (both activityType='yoga_mobility') bucket by target_region. Unfilled group
+  // slot → muscleId=region id; filled → the exercise's target_region. Reuses the cardio taxonomy/rows.
+  const mobilityRegionOf = useMemo(() => {
+    const label = new Map((cardioTaxonomy?.targetRegions ?? []).map((r) => [r.id, r.display_name]));
+    const exToRegion = new Map((cardioLibraryRows ?? []).map((r) => [r.id, r.target_region_id]));
+    return (slot: MuscleSlotData): { key: string; label: string } | null => {
+      if (slot.activityType !== "yoga_mobility") return null;
+      if (!slot.exercise && slot.muscleId && label.has(slot.muscleId)) {
+        return { key: slot.muscleId, label: label.get(slot.muscleId)! };
+      }
+      const rid = slot.exercise ? exToRegion.get(slot.exercise.exerciseId) : undefined;
+      if (rid && label.has(rid)) return { key: rid, label: label.get(rid)! };
+      const name = slot.activityName || slot.exercise?.name || "Mobility";
+      return { key: `name:${name}`, label: name };
+    };
+  }, [cardioTaxonomy, cardioLibraryRows]);
+  const mobilityLens = useMemo(
+    () => (canonicalTemplate ? computeMobilityLens(currentWeekSlots, mobilityRegionOf) : null),
+    [canonicalTemplate, currentWeekSlots, mobilityRegionOf],
   );
 
   const { toast } = useToast();
@@ -1264,6 +1285,7 @@ export function MuscleBuilderPage({
                     movementLens={movementLens}
                     affinityLens={affinityLens}
                     cardioLens={cardioLens}
+                    mobilityLens={mobilityLens}
                   />
                 </TabsContent>
                 <TabsContent value="frequency" className="mt-3">

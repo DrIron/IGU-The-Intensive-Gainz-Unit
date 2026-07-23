@@ -25,6 +25,7 @@ const ROWS: Row[] = [
   mk({ id: "sys1", name: "Sled Push", category: "systemic", equipment: "Sled" }),
   mk({ id: "s1", name: "Barbell Back Squat", category: "strength", equipment: "BB", muscle_id: "m-quad" }),
   mk({ id: "cr1", name: "Treadmill Run", category: "cardio", cardio_movement_id: "cm-run" }),
+  mk({ id: "mo1", name: "Shoulder CARs", category: "mobility", target_region_id: "tr-sh" }),
 ];
 
 const TAXONOMY = {
@@ -34,7 +35,12 @@ const TAXONOMY = {
     { id: "cm-run", display_name: "Run", sort_order: 1 },
     { id: "cm-walk", display_name: "Walk", sort_order: 2 },
   ],
-  techniques: [], targetRegions: [], physioPurposes: [],
+  techniques: [],
+  targetRegions: [
+    { id: "tr-sh", display_name: "Shoulders", sort_order: 1 },
+    { id: "tr-hip", display_name: "Hips", sort_order: 2 },
+  ],
+  physioPurposes: [],
 };
 
 // Keep the real filterExercises; stub only the data hook.
@@ -210,5 +216,59 @@ describe("UnifiedSessionPicker — category tabs from the shared source", () => 
 
     await act(async () => runChip!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
     expect(onAddActivityGroup).toHaveBeenCalledWith("cm-run", "Run", "cardio");
+  });
+
+  // 3e — mobility/warm-up region group-pick.
+  it("flag-OFF: Mobility tab shows NO region chips (byte-identical)", async () => {
+    await act(async () => {
+      root.render(
+        <UnifiedSessionPicker onAddMuscle={vi.fn()} onAddExercise={vi.fn()} variant="roomy" initialCategory="mobility" />,
+      );
+    });
+    expect(container.textContent).not.toContain("Add a region");
+    expect(container.querySelector('[aria-label="Select Shoulder CARs"]')).toBeTruthy(); // plain browse unchanged
+  });
+
+  it("flag-ON: Mobility tab leads with region chips; picking one drops a yoga_mobility group slot", async () => {
+    const onAddActivityGroup = vi.fn();
+    await act(async () => {
+      root.render(
+        <UnifiedSessionPicker
+          onAddMuscle={vi.fn()}
+          onAddExercise={vi.fn()}
+          onAddActivityGroup={onAddActivityGroup}
+          variant="roomy"
+          initialCategory="mobility"
+          enableGroupPick
+        />,
+      );
+    });
+    expect(container.textContent).toContain("Add a region");
+    const shoulderChip = [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").trim().startsWith("Shoulders"));
+    expect(shoulderChip).toBeTruthy();
+    expect(shoulderChip!.textContent).toContain("· 1"); // one mobility exercise in Shoulders
+
+    await act(async () => shoulderChip!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(onAddActivityGroup).toHaveBeenCalledWith("tr-sh", "Shoulders", "yoga_mobility");
+  });
+
+  it("flag-ON: Warm-up tab also leads with region chips (unified on region)", async () => {
+    const onAddActivityGroup = vi.fn();
+    await act(async () => {
+      root.render(
+        <UnifiedSessionPicker
+          onAddMuscle={vi.fn()}
+          onAddExercise={vi.fn()}
+          onAddActivityGroup={onAddActivityGroup}
+          variant="roomy"
+          initialCategory="warmup"
+          enableGroupPick
+        />,
+      );
+    });
+    expect(container.textContent).toContain("Add a region");
+    const hipsChip = [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").trim().startsWith("Hips"));
+    await act(async () => hipsChip!.dispatchEvent(new MouseEvent("click", { bubbles: true })));
+    expect(onAddActivityGroup).toHaveBeenCalledWith("tr-hip", "Hips", "yoga_mobility");
   });
 });

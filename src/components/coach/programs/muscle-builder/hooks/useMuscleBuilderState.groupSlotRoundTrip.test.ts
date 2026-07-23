@@ -25,6 +25,8 @@ const BUILDER_STATE_WEEKS = [
       { id: 'slot-filled', sessionId: 'sess-1', muscleId: 'squat', activityType: 'strength', sets: 1, sortOrder: 1, exercise: { exerciseId: 'ex-bb-squat', name: 'Barbell Back Squat' } },
       // 3c: an unfilled CARDIO group slot — modality id on muscleId, activityType='cardio', duration 0.
       { id: 'slot-cardio', sessionId: 'sess-1', muscleId: 'cm-run-uuid', activityType: 'cardio', activityName: 'Run', duration: 0, sets: 1, sortOrder: 2 },
+      // 3e: an unfilled MOBILITY group slot — region id on muscleId, activityType='yoga_mobility', duration 0.
+      { id: 'slot-mobility', sessionId: 'sess-1', muscleId: 'tr-shoulders-uuid', activityType: 'yoga_mobility', activityName: 'Shoulders', duration: 0, sets: 1, sortOrder: 3 },
     ],
   },
 ];
@@ -58,5 +60,17 @@ describe('hydrateCanonicalWeeks — group-slot round-trip (3b)', () => {
     expect(cardio.activityName).toBe('Run');
     expect(cardio.duration).toBe(0); // still pending
     expect(cardio.exercise).toBeUndefined();
+  });
+
+  // 3e: an unfilled mobility group slot's region id (muscleId) + activityType + 0 duration survive.
+  it('preserves an unfilled mobility group slot: region id + pending 0 duration round-trip', () => {
+    const [week] = hydrateCanonicalWeeks(BUILDER_STATE_WEEKS);
+    const mob = week.slots.find((s) => s.id === 'slot-mobility')!;
+
+    expect(mob.muscleId).toBe('tr-shoulders-uuid'); // target_region id survives — buckets in the mobility lens
+    expect(mob.activityType).toBe('yoga_mobility');
+    expect(mob.activityName).toBe('Shoulders');
+    expect(mob.duration).toBe(0); // pending / untimed
+    expect(mob.exercise).toBeUndefined();
   });
 });
