@@ -59,6 +59,11 @@ export interface ExerciseBrowseProps {
   /** When set, forces the browse to this category and hides the internal category strip.
    *  The parent surface (e.g. the planning "+" picker) owns category selection. */
   lockedCategory?: string;
+  /** Force a single FLAT list of `rows` (already scoped by the caller) instead of the region→muscle
+   *  tree — regardless of category/search. Used for the 3b group fill-later, where `rows` is exactly
+   *  the picked movement group's variations and the muscle tree would scatter them. Skips the internal
+   *  category filter too (the caller owns scope). */
+  forceFlat?: boolean;
 }
 
 // Single source of truth (lib/exerciseCategories) + an "All" lead — no local copy to drift.
@@ -131,6 +136,7 @@ export function ExerciseBrowse({
   onInfo,
   renderRowBadge,
   lockedCategory,
+  forceFlat = false,
 }: ExerciseBrowseProps) {
   const { data: taxonomy } = useExerciseTaxonomy();
 
@@ -218,11 +224,13 @@ export function ExerciseBrowse({
 
   const flatList = useMemo(() => {
     let out = rows;
-    if (effectiveCategory !== "all") out = out.filter((r) => r.category === effectiveCategory);
+    // forceFlat: `rows` is already scoped by the caller (e.g. a movement group's variations) — don't
+    // re-filter by the internal category, which would drop cross-category variations.
+    if (!forceFlat && effectiveCategory !== "all") out = out.filter((r) => r.category === effectiveCategory);
     if (terms.length) out = out.filter((r) => matchesAllTerms(searchIndex.get(r.id) ?? "", terms));
     return out.slice().sort(byDisplay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, effectiveCategory, terms, searchIndex, audience]);
+  }, [rows, effectiveCategory, terms, searchIndex, audience, forceFlat]);
 
   const rowsForMuscle = useMemo(
     () => strengthRows.filter((r) => r.muscle_id === muscleId),
@@ -244,7 +252,7 @@ export function ExerciseBrowse({
 
   const region = taxonomy?.regions.find((r) => r.id === regionId);
   const muscle = taxonomy?.muscles.find((m) => m.id === muscleId);
-  const showFlat = !!q || effectiveCategory !== "strength";
+  const showFlat = forceFlat || !!q || effectiveCategory !== "strength";
 
   const renderRow = (r: ExerciseRow) => (
     <BrowseRow
@@ -269,8 +277,9 @@ export function ExerciseBrowse({
 
   return (
     <div className="space-y-4">
-      {/* Category strip — hidden when the parent locks the category (e.g. the planning "+" picker). */}
-      {!lockedCategory && (
+      {/* Category strip — hidden when the parent locks the category (planning "+" picker) or forces a
+          flat scoped list (3b group fill: the strip would be inert against the caller's fixed scope). */}
+      {!lockedCategory && !forceFlat && (
         <div className="flex gap-2 overflow-x-auto pb-1" role="tablist" aria-label="Exercise categories">
           {CATEGORY_STRIP.map((c) => (
             <Button

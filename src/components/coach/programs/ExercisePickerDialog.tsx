@@ -61,6 +61,15 @@ interface ExercisePickerDialogProps {
   onSelectMany?: (
     picks: { exerciseId: string; section: Enums<"exercise_section">; exerciseName: string }[]
   ) => void;
+  /**
+   * Canonical template authoring context (3b). When true:
+   *  - the "Add to Section" selector is hidden — a canonical session is a flat ordered list (sections
+   *    were removed from canonical authoring in Phase 2), so there is nothing to pick.
+   *  - filling a lift-group slot (sourceMuscleId ∈ movement group ids) scopes the browse to that
+   *    group's variations as a flat list.
+   * Default false → legacy day-module callers keep the section selector + muscle-tree browse (byte-identical).
+   */
+  canonicalContext?: boolean;
 }
 
 /** Program section the picked exercise is added to (warmup/main/accessory/cooldown). */
@@ -80,6 +89,7 @@ export function ExercisePickerDialog({
   sourceExerciseId,
   multiSelect = false,
   onSelectMany,
+  canonicalContext = false,
 }: ExercisePickerDialogProps) {
   const isMobile = useIsMobile();
   const { toast } = useToast();
@@ -130,7 +140,7 @@ export function ExercisePickerDialog({
   // exercise → movement-group map. Hook is `enabled`-gated to group picks only, so muscle picks and
   // flag-OFF authoring make no extra fetch.
   const groupFilterId =
-    sourceMuscleId && isMovementGroupId(sourceMuscleId) ? sourceMuscleId : undefined;
+    canonicalContext && sourceMuscleId && isMovementGroupId(sourceMuscleId) ? sourceMuscleId : undefined;
   const { data: movementMap } = useExerciseMovementMap(open && !!groupFilterId);
   const browseRows = useMemo(() => {
     if (!groupFilterId || !movementMap) return scopedRows;
@@ -240,22 +250,25 @@ export function ExercisePickerDialog({
 
   const body = (
     <div className="space-y-4">
-      {/* Section selector */}
-      <div className="space-y-2">
-        <Label>Add to Section</Label>
-        <Select value={selectedSection} onValueChange={(v) => setSelectedSection(v as Enums<"exercise_section">)}>
-          <SelectTrigger className={isMobile ? "h-11 text-base" : undefined}>
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {SECTIONS.map((section) => (
-              <SelectItem key={section.value} value={section.value}>
-                {section.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {/* Section selector — hidden under canonical authoring (a canonical session is a flat ordered
+          list; sections were removed in Phase 2). Legacy day-module callers keep it. */}
+      {!canonicalContext && (
+        <div className="space-y-2">
+          <Label>Add to Section</Label>
+          <Select value={selectedSection} onValueChange={(v) => setSelectedSection(v as Enums<"exercise_section">)}>
+            <SelectTrigger className={isMobile ? "h-11 text-base" : undefined}>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {SECTIONS.map((section) => (
+                <SelectItem key={section.value} value={section.value}>
+                  {section.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {/* Search */}
       <div className="relative">
@@ -279,6 +292,7 @@ export function ExercisePickerDialog({
         search={searchQuery}
         loading={rowsLoading}
         error={rowsError}
+        forceFlat={!!groupFilterId}
         sourceMuscleId={groupFilterId ? undefined : sourceTaxonomyMuscleId}
         onSelect={(ex) => onSelectExercise(ex.id, selectedSection, ex.name)}
         multiSelect={multiSelect}
