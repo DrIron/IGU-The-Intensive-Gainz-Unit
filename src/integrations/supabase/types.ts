@@ -1132,6 +1132,13 @@ export type Database = {
             referencedRelation: "exercise_library"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "client_module_exercises_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercise_movement_map"
+            referencedColumns: ["exercise_id"]
+          },
         ]
       }
       client_plan_assignment: {
@@ -3114,6 +3121,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "exercise_library"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "direct_session_exercises_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercise_movement_map"
+            referencedColumns: ["exercise_id"]
           },
         ]
       }
@@ -5166,6 +5180,13 @@ export type Database = {
             referencedRelation: "exercise_library"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "module_exercises_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercise_movement_map"
+            referencedColumns: ["exercise_id"]
+          },
         ]
       }
       module_thread_messages: {
@@ -5318,6 +5339,7 @@ export type Database = {
           id: string
           is_active: boolean
           label: string
+          parent_id: string | null
           sort_order: number
         }
         Insert: {
@@ -5325,6 +5347,7 @@ export type Database = {
           id: string
           is_active?: boolean
           label: string
+          parent_id?: string | null
           sort_order?: number
         }
         Update: {
@@ -5332,9 +5355,18 @@ export type Database = {
           id?: string
           is_active?: boolean
           label?: string
+          parent_id?: string | null
           sort_order?: number
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "movement_groups_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "movement_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       movement_pattern_groups: {
         Row: {
@@ -6597,6 +6629,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "plan_slots_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "exercise_movement_map"
+            referencedColumns: ["exercise_id"]
+          },
+          {
             foreignKeyName: "plan_slots_plan_id_fkey"
             columns: ["plan_id"]
             isOneToOne: false
@@ -7162,6 +7201,13 @@ export type Database = {
             isOneToOne: false
             referencedRelation: "exercise_library"
             referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "progression_suggestions_exercise_library_id_fkey"
+            columns: ["exercise_library_id"]
+            isOneToOne: false
+            referencedRelation: "exercise_movement_map"
+            referencedColumns: ["exercise_id"]
           },
         ]
       }
@@ -9025,6 +9071,22 @@ export type Database = {
           youtube_url: string | null
         }
         Relationships: []
+      }
+      exercise_movement_map: {
+        Row: {
+          exercise_id: string | null
+          movement_group_id: string | null
+          movement_leaf_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "movement_pattern_groups_movement_group_id_fkey"
+            columns: ["movement_group_id"]
+            isOneToOne: false
+            referencedRelation: "movement_groups"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       foods_search: {
         Row: {
