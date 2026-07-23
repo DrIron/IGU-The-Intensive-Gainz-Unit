@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { MuscleVolumeEntry, VolumeSummary } from "./hooks/useMusclePlanVolume";
-import type { MovementLens, CardioLens, AffinityLens } from "./multiLensVolume";
+import type { MovementLens, CardioLens, AffinityLens, MobilityLens } from "./multiLensVolume";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -52,6 +52,13 @@ const AFFINITY: AffinityLens = {
   ],
 };
 const CARDIO: CardioLens = { totalMinutes: 30, modalities: [{ label: "Running", minutes: 30, pending: false }], hrZones: [{ zone: 2, minutes: 30 }] };
+const MOBILITY: MobilityLens = {
+  totalMinutes: 8,
+  rows: [
+    { label: "Hips", minutes: 8, timedCount: 1, untimedCount: 2, countMode: false },   // timed + untimed
+    { label: "Shoulders", minutes: 0, timedCount: 0, untimedCount: 3, countMode: true }, // count fallback
+  ],
+};
 
 let container: HTMLDivElement;
 let root: Root;
@@ -126,5 +133,21 @@ describe("VolumeOverview — multi-lens", () => {
     ));
     expect(txt()).toContain("Squat");
     expect(txt()).not.toContain("Push·Pull·Legs");
+  });
+
+  it("flag-ON: mobility lens shows minutes for timed regions and a drill-count fallback for untimed (never blank)", async () => {
+    await act(async () => root.render(
+      <VolumeOverview entries={[ENTRY]} summary={SUMMARY} mobilityLens={MOBILITY} />,
+    ));
+    expect(txt()).toContain("Mobility");
+    expect(txt()).toContain("Hips");
+    expect(txt()).toContain("8m");          // timed region shows minutes
+    expect(txt()).toContain("Shoulders");
+    expect(txt()).toContain("3 drills");    // untimed region falls back to a count, not "0 min"
+  });
+
+  it("flag-OFF: no Mobility section (byte-identical)", async () => {
+    await act(async () => root.render(<VolumeOverview entries={[ENTRY]} summary={SUMMARY} />));
+    expect(txt()).not.toContain("Mobility");
   });
 });

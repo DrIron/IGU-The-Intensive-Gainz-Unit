@@ -39,7 +39,9 @@ export const ACTIVITY_GROUPING_CONFIG: Record<string, LensDef[]> = {
     { id: "region", label: "Region", source: "target_region", volumeMetric: "minutes", fallbackMetric: "sets_count" },
   ],
   warmup: [
-    { id: "region", label: "Region", source: "technique", volumeMetric: "minutes", fallbackMetric: "sets_count" },
+    // 3e: unified with mobility on target_region (both categories' rows are 100% region-populated and
+    // region is the intuitive axis). Both drop yoga_mobility slots bucketed by region in one lens.
+    { id: "region", label: "Region", source: "target_region", volumeMetric: "minutes", fallbackMetric: "sets_count" },
   ],
   // Deferred stubs — uniform shape, no lenses yet.
   cooldown: [],

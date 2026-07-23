@@ -200,3 +200,54 @@ export function computeCardioLens(
 
   return { modalities, hrZones, totalMinutes: modalities.reduce((a, m) => a + m.minutes, 0) };
 }
+
+// ── Mobility / warm-up lens (Phase 3, 3e) ───────────────────────────────────────────────────────
+// Minutes per body region (target_region) with the D4 COUNT-FALLBACK: mobility/warm-up entries mix
+// timed (has a duration) and untimed (rep-based, or an unfilled group slot awaiting a duration). Per
+// region we sum minutes from timed entries AND count the untimed ones — so a region with only
+// untimed work reads "Shoulders · 3 drills" (never "0 min"/blank), and an all-untimed region renders
+// muted/pending (like the cardio 0-min bucket, generalized to count mode). Both mobility and warm-up
+// slots are activityType='yoga_mobility' and bucket by region here.
+
+export interface MobilityRegionRow {
+  label: string;
+  minutes: number;
+  timedCount: number;
+  untimedCount: number;
+  /** No timed minutes → render as a count ("N drills"), muted. */
+  countMode: boolean;
+}
+export interface MobilityLens {
+  rows: MobilityRegionRow[];
+  totalMinutes: number;
+}
+
+/** Region buckets from mobility/warm-up slots. `regionOf` resolves a slot → { key, label } (unfilled
+ *  group slot via muscleId=region id; filled via the exercise's target_region) or null to exclude —
+ *  injected so this stays pure. Timed entries add minutes; untimed entries add to the count fallback. */
+export function computeMobilityLens(
+  slots: MuscleSlotData[],
+  regionOf: (slot: MuscleSlotData) => { key: string; label: string } | null,
+): MobilityLens {
+  const byKey = new Map<string, { label: string; minutes: number; timed: number; untimed: number }>();
+
+  for (const slot of slots) {
+    const r = regionOf(slot);
+    if (!r) continue;
+    const minutes = slot.duration ?? 0;
+    const cur = byKey.get(r.key) ?? { label: r.label, minutes: 0, timed: 0, untimed: 0 };
+    if (minutes > 0) { cur.minutes += minutes; cur.timed += 1; } else { cur.untimed += 1; }
+    byKey.set(r.key, cur);
+  }
+
+  const rows: MobilityRegionRow[] = [...byKey.values()]
+    .map((v) => ({
+      label: v.label, minutes: v.minutes, timedCount: v.timed, untimedCount: v.untimed,
+      countMode: v.minutes === 0,
+    }))
+    .sort((a, b) =>
+      b.minutes - a.minutes
+      || (b.timedCount + b.untimedCount) - (a.timedCount + a.untimedCount)
+      || a.label.localeCompare(b.label));
+  return { rows, totalMinutes: rows.reduce((s, r) => s + r.minutes, 0) };
+}

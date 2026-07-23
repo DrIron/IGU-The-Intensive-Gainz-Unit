@@ -13,7 +13,7 @@ import { LandmarkZoneChip } from "../shared/LandmarkZoneChip";
 import { VolumeTiles } from "../shared/VolumeTiles";
 import { formatTustRange } from "../shared/volumeFormat";
 import type { MuscleVolumeEntry, VolumeSummary } from "../muscle-builder/hooks/useMusclePlanVolume";
-import type { MovementLens, CardioLens, AffinityLens } from "./multiLensVolume";
+import type { MovementLens, CardioLens, AffinityLens, MobilityLens } from "./multiLensVolume";
 
 interface VolumeOverviewProps {
   entries: MuscleVolumeEntry[];
@@ -25,6 +25,7 @@ interface VolumeOverviewProps {
   /** PPL affinity rollup — the alternate reading of the movement lens (toggled inside it). */
   affinityLens?: AffinityLens | null;
   cardioLens?: CardioLens | null;
+  mobilityLens?: MobilityLens | null;
 }
 
 export const VolumeOverview = memo(function VolumeOverview({
@@ -34,6 +35,7 @@ export const VolumeOverview = memo(function VolumeOverview({
   movementLens,
   affinityLens,
   cardioLens,
+  mobilityLens,
 }: VolumeOverviewProps) {
   const [viewMode, setViewMode] = useState<'sets' | 'detailed'>('sets');
   const [bannerDismissed, setBannerDismissed] = useState(false);
@@ -41,8 +43,9 @@ export const VolumeOverview = memo(function VolumeOverview({
   const isDetailed = viewMode === 'detailed';
   const hasMovement = (movementLens?.rows.length ?? 0) > 0 || (affinityLens?.rows.length ?? 0) > 0;
   const hasCardio = (cardioLens?.modalities.length ?? 0) > 0;
+  const hasMobility = (mobilityLens?.rows.length ?? 0) > 0;
 
-  if (entries.length === 0 && !hasMovement && !hasCardio) {
+  if (entries.length === 0 && !hasMovement && !hasCardio && !hasMobility) {
     return (
       <div className="text-center py-8 text-sm text-muted-foreground">
         Add muscles to see volume analysis
@@ -65,6 +68,7 @@ export const VolumeOverview = memo(function VolumeOverview({
       )}
       {hasMovement && movementLens && <MovementLensSection lens={movementLens} affinityLens={affinityLens ?? null} />}
       {hasCardio && cardioLens && <CardioLensSection lens={cardioLens} />}
+      {hasMobility && mobilityLens && <MobilityLensSection lens={mobilityLens} />}
     </div>
   );
 });
@@ -391,6 +395,43 @@ function CardioLensSection({ lens }: { lens: CardioLens }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+/** MOBILITY / warm-up lens — minutes per region with the D4 count-fallback. A region with timed work
+ *  shows "X min" (+ a faint "· N untimed" when some entries are pending/rep-based); a region with no
+ *  timed minutes falls back to "N drills" in the muted pending style — never blank. */
+function MobilityLensSection({ lens }: { lens: MobilityLens }) {
+  const maxMin = Math.max(1, ...lens.rows.map(r => r.minutes));
+  return (
+    <div className="space-y-1.5 pt-3 border-t border-border/30">
+      <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
+        Mobility
+        <span className="font-mono font-normal text-[10px] normal-case">{lens.totalMinutes} min</span>
+      </div>
+      <div className="space-y-1">
+        {lens.rows.map(row => (
+          <div key={row.label} className={cn("flex items-center gap-2", row.countMode && "opacity-60")}>
+            <span className="text-xs font-medium truncate w-28 shrink-0">{row.label}</span>
+            {row.countMode ? (
+              // Count fallback: no timed minutes → a plain drill count (never "0 min"), muted/pending.
+              <span className="font-mono text-[10px] w-16 text-right shrink-0 text-muted-foreground italic">
+                {row.untimedCount} drill{row.untimedCount === 1 ? "" : "s"}
+              </span>
+            ) : (
+              <span className="font-mono text-xs w-16 text-right shrink-0">
+                {row.minutes}m{row.untimedCount > 0 && <span className="text-muted-foreground"> ·{row.untimedCount}</span>}
+              </span>
+            )}
+            <div className="flex-1 h-4 bg-muted/50 rounded overflow-hidden">
+              {!row.countMode && (
+                <div className="h-full bg-purple-500/50 rounded" style={{ width: `${(row.minutes / maxMin) * 100}%` }} />
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
