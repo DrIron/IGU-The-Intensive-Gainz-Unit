@@ -7,8 +7,9 @@ import type { ExerciseMovement } from "@/hooks/useExerciseMovementMap";
  * Multi-lens volume (Phase 3, 3a) — the MOVEMENT + CARDIO lenses that render alongside the existing
  * muscle (landmark) lens. Pure functions over the current-week slots.
  *
- * MOVEMENT: PLAIN weekly sets per movement group (Squat/Press/Hinge) and per Press subGroup
- * (Horizontal/Anterior). No MEV/MRV landmarks. Two ways a slot contributes (3b — volume-first):
+ * MOVEMENT: PLAIN weekly sets per compound movement group (Squat/Hinge/Press/Pull/Core/Carry —
+ * fully data-driven off get_movement_group_config().groups) and per subGroup leaf (Press, Pull, Carry
+ * each split two ways). No MEV/MRV landmarks. Two ways a slot contributes (3b — volume-first):
  *   - FILLED: it has an exercise whose id resolves in `movementMap` (any category — a filled bench
  *     press counts in Press AND its muscle lens), contributing to the group AND its leaf. Unresolved
  *     exercises don't contribute.
@@ -51,11 +52,12 @@ export function computeMovementLens(
     const sets = slot.sets ?? 0;
     const exId = slot.exercise?.exerciseId;
     if (exId) {
-      // Filled: resolve group + leaf from the exercise.
+      // Filled: resolve group + leaf from the exercise. An ISOLATION exercise resolves to no compound
+      // group (groupId null) → contributes nothing here, so accessories don't distort compound-balance.
       const mv = movementMap.get(exId);
-      if (!mv) continue;
+      if (!mv || !mv.groupId) continue;
       groupSets.set(mv.groupId, (groupSets.get(mv.groupId) ?? 0) + sets);
-      leafSets.set(mv.leafId, (leafSets.get(mv.leafId) ?? 0) + sets);
+      if (mv.leafId) leafSets.set(mv.leafId, (leafSets.get(mv.leafId) ?? 0) + sets);
     } else if (MOVEMENT_GROUP_IDS.has(slot.muscleId)) {
       // Unfilled group slot: count sets to the group only (variation/leaf not chosen yet).
       groupSets.set(slot.muscleId, (groupSets.get(slot.muscleId) ?? 0) + sets);
@@ -78,6 +80,71 @@ export function computeMovementLens(
 
   const totalSets = [...groupSets.values()].reduce((a, b) => a + b, 0);
   return { rows, totalSets };
+}
+
+// ── PPL affinity lens (Phase 3) ───────────────────────────────────────────────────────────────────
+// A SECOND reading of the movement lens: weekly plan sets rolled up by push/pull/legs/core/full_body/
+// neck. Unlike the compound view, this INCLUDES isolation/accessory work (curls, raises, flys) — every
+// resolved exercise carries an affinity — so it reflects true push-vs-pull-vs-legs balance.
+
+export interface AffinityRow {
+  affinity: string;
+  label: string;
+  sets: number;
+  compoundSets: number;
+  isolationSets: number;
+}
+export interface AffinityLens {
+  rows: AffinityRow[];
+  totalSets: number;
+}
+
+const AFFINITY_ORDER = ["push", "pull", "legs", "core", "full_body", "neck"] as const;
+const AFFINITY_LABEL: Record<string, string> = {
+  push: "Push", pull: "Pull", legs: "Legs", core: "Core", full_body: "Full Body", neck: "Neck",
+};
+// Compound-group id → affinity, for an UNFILLED group slot (no exercise to resolve). Mirrors the
+// taxonomy so an unfilled Squat slot lands in Legs exactly as a filled squat would (stable on fill).
+const GROUP_AFFINITY: Record<string, string> = {
+  squat: "legs", hinge: "legs", press: "push", pull: "pull", core: "core", carry: "full_body",
+};
+
+/** Weekly plan sets per PPL affinity (compound + isolation), from filled slots (via the movement map's
+ *  per-exercise affinity) plus unfilled compound-group slots (via GROUP_AFFINITY). Ordered
+ *  push/pull/legs, then core/full_body/neck; empty affinities dropped. */
+export function computeAffinityLens(
+  slots: MuscleSlotData[],
+  movementMap: Map<string, ExerciseMovement>,
+): AffinityLens {
+  const agg = new Map<string, { sets: number; compound: number; iso: number }>();
+  const add = (affinity: string, sets: number, isIso: boolean) => {
+    const cur = agg.get(affinity) ?? { sets: 0, compound: 0, iso: 0 };
+    cur.sets += sets;
+    if (isIso) cur.iso += sets; else cur.compound += sets;
+    agg.set(affinity, cur);
+  };
+
+  for (const slot of slots) {
+    const sets = slot.sets ?? 0;
+    const exId = slot.exercise?.exerciseId;
+    if (exId) {
+      const mv = movementMap.get(exId);
+      if (!mv || !mv.affinity) continue; // unresolved exercise → no guess
+      add(mv.affinity, sets, mv.isolation);
+    } else if (MOVEMENT_GROUP_IDS.has(slot.muscleId)) {
+      const affinity = GROUP_AFFINITY[slot.muscleId];
+      if (affinity) add(affinity, sets, false); // unfilled compound group slot
+    }
+  }
+
+  const rows: AffinityRow[] = AFFINITY_ORDER
+    .filter((a) => agg.has(a))
+    .map((a) => {
+      const v = agg.get(a)!;
+      return { affinity: a, label: AFFINITY_LABEL[a] ?? a, sets: v.sets, compoundSets: v.compound, isolationSets: v.iso };
+    })
+    .filter((r) => r.sets > 0);
+  return { rows, totalSets: rows.reduce((s, r) => s + r.sets, 0) };
 }
 
 export interface CardioModalityRow {

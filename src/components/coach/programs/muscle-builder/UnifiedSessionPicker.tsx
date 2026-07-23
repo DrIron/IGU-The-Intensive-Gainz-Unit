@@ -4,7 +4,7 @@ import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SessionAddPicker } from "./SessionAddPicker";
 import { StrengthTaxonomyBrowse } from "./StrengthTaxonomyBrowse";
-import { exerciseCategoryToActivityType, type ActivityType } from "@/types/muscle-builder";
+import { exerciseCategoryToActivityType, MOVEMENT_GROUP_IDS, type ActivityType } from "@/types/muscle-builder";
 import { useExerciseLibraryData } from "@/hooks/useExerciseLibrary";
 import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
 import { useMovementGroupConfig } from "@/hooks/useMovementGroupConfig";
@@ -77,7 +77,14 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
   // 3b: movement-group chips for the Powerlifting tab. Cached (staleTime Infinity) + `enabled`-gated,
   // so flag-OFF makes no fetch and the tab is unchanged.
   const { data: movementConfig } = useMovementGroupConfig(enableGroupPick);
-  const showGroupPick = enableGroupPick && category === "powerlifting" && !!movementConfig?.groups.length;
+  // The movement taxonomy now has six compound groups, but only the three barbell lifts are
+  // powerlifting — scope the Powerlifting-tab chips to Squat/Press/Hinge (Pull/Core/Carry are not
+  // powerlifting lifts). The movement LENS still shows all six; this is only the authoring chips.
+  const powerliftingGroups = useMemo(
+    () => (movementConfig?.groups ?? []).filter((g) => MOVEMENT_GROUP_IDS.has(g.id)),
+    [movementConfig],
+  );
+  const showGroupPick = enableGroupPick && category === "powerlifting" && powerliftingGroups.length > 0;
 
   // Strength tab renders the DB taxonomy (7 regions / muscles / subdivisions) so
   // it matches the Workout Library breakdown. Fall back to the legacy hardcoded
@@ -161,7 +168,7 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
                 Add a lift group — fill the variation later
               </p>
               <div className="flex flex-wrap gap-1">
-                {movementConfig!.groups.map((g) => (
+                {powerliftingGroups.map((g) => (
                   <button
                     key={g.id}
                     type="button"

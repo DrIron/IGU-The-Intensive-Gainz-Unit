@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeMovementLens, computeCardioLens } from "./multiLensVolume";
+import { computeMovementLens, computeCardioLens, computeAffinityLens } from "./multiLensVolume";
 import type { MovementGroupConfig } from "@/hooks/useMovementGroupConfig";
 import type { ExerciseMovement } from "@/hooks/useExerciseMovementMap";
 import type { MuscleSlotData } from "@/types/muscle-builder";
@@ -19,12 +19,23 @@ const CONFIG: MovementGroupConfig = {
       ],
     },
     { id: "hinge", label: "Hinge", sortOrder: 3, variationCount: 48, subGroups: [] },
+    {
+      id: "pull", label: "Pull", sortOrder: 4, variationCount: 81, subGroups: [
+        { id: "pull_horizontal", label: "Horizontal Pull", sortOrder: 1, variationCount: 70 },
+        { id: "pull_vertical", label: "Vertical Pull", sortOrder: 2, variationCount: 11 },
+      ],
+    },
+    { id: "core", label: "Core", sortOrder: 5, variationCount: 37, subGroups: [] },
   ],
 };
 const MAP = new Map<string, ExerciseMovement>([
-  ["bench", { groupId: "press", leafId: "press_horizontal" }],
-  ["ohp", { groupId: "press", leafId: "press_anterior" }],
-  ["squat", { groupId: "squat", leafId: "squat" }],
+  ["bench", { groupId: "press", leafId: "press_horizontal", isolation: false, affinity: "push" }],
+  ["ohp", { groupId: "press", leafId: "press_anterior", isolation: false, affinity: "push" }],
+  ["squat", { groupId: "squat", leafId: "squat", isolation: false, affinity: "legs" }],
+  ["row", { groupId: "pull", leafId: "pull_horizontal", isolation: false, affinity: "pull" }],
+  // Isolation/accessory: no compound group, but carries an affinity (counts only in the PPL view).
+  ["curl", { groupId: null, leafId: null, isolation: true, affinity: "pull" }],
+  ["latraise", { groupId: null, leafId: null, isolation: true, affinity: "push" }],
 ]);
 
 describe("computeMovementLens", () => {
@@ -33,7 +44,7 @@ describe("computeMovementLens", () => {
       slot({ id: "a", exercise: { exerciseId: "bench", name: "Bench" }, sets: 1 }),
       slot({ id: "b", exercise: { exerciseId: "ohp", name: "OHP" }, sets: 1 }),
       slot({ id: "c", exercise: { exerciseId: "squat", name: "Squat" }, sets: 1 }),
-      slot({ id: "d", exercise: { exerciseId: "curl", name: "Curl" }, sets: 3 }), // NOT in MAP → excluded, no guess
+      slot({ id: "d", exercise: { exerciseId: "curl", name: "Curl" }, sets: 3 }), // isolation (null group) → excluded from compound
       slot({ id: "e", muscleId: "pecs", sets: 4 }),                               // unfilled muscle slot → no exercise
     ];
     const lens = computeMovementLens(slots, MAP, CONFIG);
@@ -92,6 +103,45 @@ describe("computeMovementLens", () => {
     );
     expect(lens.rows.find((r) => r.id === "squat")!.sets).toBe(3); // 2 unfilled + 1 filled, counted once each
     expect(lens.totalSets).toBe(3);
+  });
+
+  it("is data-driven off config: renders Pull with its H/V drill (not hardcoded to Press)", () => {
+    const lens = computeMovementLens(
+      [slot({ exercise: { exerciseId: "row", name: "Row" }, sets: 4 })], // resolves to pull / pull_horizontal
+      MAP,
+      CONFIG,
+    );
+    const pull = lens.rows.find((r) => r.id === "pull")!;
+    expect(pull.sets).toBe(4);
+    expect(pull.subGroups).toEqual([{ id: "pull_horizontal", label: "Horizontal Pull", sets: 4 }]); // leaf drills
+    expect(lens.totalSets).toBe(4);
+  });
+});
+
+describe("computeAffinityLens (PPL)", () => {
+  it("rolls up weekly sets per affinity — INCLUDING isolation — ordered push/pull/legs…", () => {
+    const slots = [
+      slot({ id: "b", exercise: { exerciseId: "bench", name: "Bench" }, sets: 3 }),   // push compound
+      slot({ id: "l", exercise: { exerciseId: "latraise", name: "Lat Raise" }, sets: 2 }), // push isolation
+      slot({ id: "r", exercise: { exerciseId: "row", name: "Row" }, sets: 4 }),       // pull compound
+      slot({ id: "c", exercise: { exerciseId: "curl", name: "Curl" }, sets: 2 }),     // pull isolation (accessory)
+      slot({ id: "sq", muscleId: "squat", sets: 5 }),                                  // unfilled Squat group → legs
+    ];
+    const lens = computeAffinityLens(slots, MAP);
+    expect(lens.rows.map((r) => [r.affinity, r.sets, r.compoundSets, r.isolationSets])).toEqual([
+      ["push", 5, 3, 2], // bench 3 compound + lat raise 2 iso
+      ["pull", 6, 4, 2], // row 4 compound + curl 2 iso — the accessory shows up here
+      ["legs", 5, 5, 0], // unfilled squat group slot
+    ]);
+    expect(lens.totalSets).toBe(16);
+  });
+
+  it("an isolation exercise contributes to NO compound group but DOES appear in its PPL affinity", () => {
+    const slots = [slot({ exercise: { exerciseId: "curl", name: "Curl" }, sets: 4 })];
+    expect(computeMovementLens(slots, MAP, CONFIG).rows).toEqual([]); // compound: nothing
+    expect(computeAffinityLens(slots, MAP).rows).toEqual([
+      { affinity: "pull", label: "Pull", sets: 4, compoundSets: 0, isolationSets: 4 },
+    ]);
   });
 });
 

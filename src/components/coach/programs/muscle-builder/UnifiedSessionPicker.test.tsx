@@ -51,8 +51,12 @@ vi.mock("@/hooks/useMovementGroupConfig", () => ({
       patternMap: {},
       groups: [
         { id: "squat", label: "Squat", sortOrder: 1, variationCount: 41, subGroups: [] },
-        { id: "press", label: "Press", sortOrder: 2, variationCount: 70, subGroups: [] },
-        { id: "hinge", label: "Hinge", sortOrder: 3, variationCount: 48, subGroups: [] },
+        { id: "hinge", label: "Hinge", sortOrder: 2, variationCount: 32, subGroups: [] },
+        { id: "press", label: "Press", sortOrder: 3, variationCount: 70, subGroups: [] },
+        // Non-powerlifting compound groups — must NOT appear as Powerlifting-tab chips (Part 1).
+        { id: "pull", label: "Pull", sortOrder: 4, variationCount: 81, subGroups: [] },
+        { id: "core", label: "Core", sortOrder: 5, variationCount: 37, subGroups: [] },
+        { id: "carry", label: "Carry / Full-Body", sortOrder: 6, variationCount: 22, subGroups: [] },
       ],
     },
   }),
@@ -159,6 +163,14 @@ describe("UnifiedSessionPicker — category tabs from the shared source", () => 
     expect(container.textContent).toContain("Add a lift group");
     const squatChip = [...container.querySelectorAll("button")].find((b) => (b.textContent ?? "").includes("Squat"));
     expect(squatChip).toBeTruthy();
+    // Part 1: only the three barbell lifts are powerlifting — Pull/Core/Carry are NOT chips here.
+    const chipTexts = [...container.querySelectorAll("button")].map((b) => (b.textContent ?? "").trim());
+    expect(chipTexts.some((t) => t.startsWith("Squat"))).toBe(true);
+    expect(chipTexts.some((t) => t.startsWith("Press"))).toBe(true);
+    expect(chipTexts.some((t) => t.startsWith("Hinge"))).toBe(true);
+    expect(chipTexts.some((t) => t.startsWith("Pull"))).toBe(false);
+    expect(chipTexts.some((t) => t.startsWith("Core"))).toBe(false);
+    expect(chipTexts.some((t) => t.startsWith("Carry"))).toBe(false);
     // The plain exercise browse remains below for direct lift add (fill-later is optional, not forced).
     expect(container.querySelector('[aria-label="Select Competition Back Squat"]')).toBeTruthy();
 
