@@ -54,6 +54,25 @@ describe("ActivitySlotCard — unfilled group slot shows its label", () => {
     expect(txt()).toContain("set duration");  // secondary pending line
   });
 
+  it("pending label wraps (line-clamp-2, not truncate) and 'set duration' reads interactive", async () => {
+    await renderCard(slot({ activityType: "yoga_mobility", muscleId: "tr-add", activityName: "Adductors", duration: 0 }));
+    const labelEl = [...container.querySelectorAll("span")].find(s => s.textContent === "Adductors");
+    expect(labelEl?.className).toContain("line-clamp-2");
+    expect(labelEl?.className).not.toContain("truncate");
+    // affordance: dotted underline on the "set duration" text + a pencil glyph.
+    const underline = container.querySelector("span.decoration-dotted");
+    expect(underline?.textContent).toBe("set duration");
+    expect(container.querySelector("svg.lucide-pencil")).toBeTruthy();
+  });
+
+  it("a filled slot label stays truncate (byte-identical), no pencil", async () => {
+    await renderCard(slot({ activityType: "cardio", activityName: "Treadmill", duration: 20 }));
+    const labelEl = [...container.querySelectorAll("span")].find(s => s.textContent === "Treadmill");
+    expect(labelEl?.className).toContain("truncate");
+    expect(labelEl?.className).not.toContain("line-clamp-2");
+    expect(container.querySelector("svg.lucide-pencil")).toBeNull();
+  });
+
   it("pending cardio group slot shows the modality label AND 'set duration'", async () => {
     await renderCard(slot({ activityType: "cardio", muscleId: "cm-run", activityName: "Run", duration: 0 }));
     expect(txt()).toContain("Run");

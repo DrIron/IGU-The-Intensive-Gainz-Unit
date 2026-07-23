@@ -18,7 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Copy, ClipboardPaste, Plus, X, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal, Clock, MoreVertical, Trash2, CalendarArrowUp } from "lucide-react";
+import { Copy, ClipboardPaste, Plus, X, AlertTriangle, Dumbbell, RefreshCw, ArrowUp, ArrowDown, SlidersHorizontal, Clock, MoreVertical, Trash2, CalendarArrowUp, Pencil } from "lucide-react";
 import { MobileSetCarousel } from "./MobileSetCarousel";
 import { UnifiedSessionPicker } from "./UnifiedSessionPicker";
 import { ActivityFieldsEditor } from "./ActivitySlotCard";
@@ -651,9 +651,13 @@ const MobileActivityRow = memo(function MobileActivityRow({
               ? "flex flex-col items-start gap-0.5 flex-1 min-w-0 text-left"
               : "flex items-center gap-1.5 flex-1 min-w-0 text-left"}
           >
-            <span className={cn("font-medium truncate text-foreground", isPending && "w-full")}>{label}</span>
+            <span className={cn("font-medium text-foreground", isPending ? "line-clamp-2 w-full" : "truncate")}>{label}</span>
             {isPending ? (
-              <span className="font-mono text-[10px] italic text-muted-foreground">{metric}</span>
+              // Reads as interactive — tapping the row opens the duration editor (pencil + dotted underline).
+              <span className="flex items-center gap-0.5 font-mono text-[10px] italic text-muted-foreground">
+                <Pencil className="h-2.5 w-2.5 shrink-0" />
+                <span className="underline decoration-dotted underline-offset-2">{metric}</span>
+              </span>
             ) : (
               <span
                 className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"

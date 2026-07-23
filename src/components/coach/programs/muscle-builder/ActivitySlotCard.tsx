@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Timer, Zap, Heart } from "lucide-react";
+import { X, Timer, Zap, Heart, Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getActivityDisplay,
@@ -101,10 +101,14 @@ export const ActivitySlotCard = memo(function ActivitySlotCard({
                   : "flex items-center gap-1.5 flex-1 min-w-0 text-left"}
                 onClick={e => e.stopPropagation()}
               >
-                <span className={cn("font-medium truncate text-foreground", isPending && "w-full")}>{label}</span>
+                <span className={cn("font-medium text-foreground", isPending ? "line-clamp-2 w-full" : "truncate")}>{label}</span>
                 {isPending ? (
-                  // Secondary pending line — no wide pill competing with the title for width.
-                  <span className="font-mono text-[10px] italic text-muted-foreground">{metric}</span>
+                  // Secondary pending line — no wide pill competing with the title for width. Reads as
+                  // interactive (the whole button opens the duration popover): pencil + dotted underline.
+                  <span className="flex items-center gap-0.5 font-mono text-[10px] italic text-muted-foreground group-hover:text-foreground transition-colors">
+                    <Pencil className="h-2.5 w-2.5 shrink-0" />
+                    <span className="underline decoration-dotted underline-offset-2">{metric}</span>
+                  </span>
                 ) : (
                   <span
                     className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"
