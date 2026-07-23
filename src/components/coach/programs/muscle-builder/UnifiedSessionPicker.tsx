@@ -122,29 +122,39 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
   const showRegionGroupPick =
     enableGroupPick && (category === "mobility" || category === "warmup") && regionGroups.length > 0 && !!onAddActivityGroup;
 
+  const tabRow = (
+    <div className="flex gap-1 overflow-x-auto pb-1 -mx-0.5 px-0.5">
+      {PICKER_CATEGORY_TABS.map((t) => (
+        <button
+          key={t.value}
+          type="button"
+          onClick={() => {
+            setCategory(t.value);
+            setSearch(""); // fresh search per category
+          }}
+          className={cn(
+            "whitespace-nowrap rounded-md border px-2 py-1 text-[11px] transition-colors",
+            category === t.value
+              ? "bg-primary text-primary-foreground border-primary"
+              : "bg-card/50 text-muted-foreground border-border/50 hover:bg-card",
+          )}
+        >
+          {t.label}
+        </button>
+      ))}
+    </div>
+  );
+
   return (
     <div className={cn("space-y-2", isRoomy && "space-y-3")}>
-      {/* Category tabs */}
-      <div className="flex gap-1 overflow-x-auto pb-1 -mx-0.5 px-0.5">
-        {PICKER_CATEGORY_TABS.map((t) => (
-          <button
-            key={t.value}
-            type="button"
-            onClick={() => {
-              setCategory(t.value);
-              setSearch(""); // fresh search per category
-            }}
-            className={cn(
-              "whitespace-nowrap rounded-md border px-2 py-1 text-[11px] transition-colors",
-              category === t.value
-                ? "bg-primary text-primary-foreground border-primary"
-                : "bg-card/50 text-muted-foreground border-border/50 hover:bg-card",
-            )}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {/* Category tabs. Canonical: 9 tabs overflow ~5 visible, so a right-edge fade signals there's
+          more to scroll to (Powerlifting/Systemic/…). Gated to enableGroupPick → flag-OFF unchanged. */}
+      {enableGroupPick ? (
+        <div className="relative">
+          {tabRow}
+          <div className="pointer-events-none absolute right-0 top-0 bottom-1 w-8 bg-gradient-to-l from-background to-transparent" aria-hidden />
+        </div>
+      ) : tabRow}
 
       {category === "strength" ? (
         strengthUsesDbTaxonomy ? (

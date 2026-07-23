@@ -411,7 +411,7 @@ export const SessionBlock = memo(function SessionBlock({
         >
           {sessionSlots.length === 0
             ? "Empty session"
-            : `${sessionSlots.length} exercise${sessionSlots.length === 1 ? "" : "s"} — tap to expand`}
+            : `${sessionSlots.length} item${sessionSlots.length === 1 ? "" : "s"} — tap to expand`}
         </button>
       )}
 

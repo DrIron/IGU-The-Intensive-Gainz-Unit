@@ -365,7 +365,7 @@ function CardioLensSection({ lens }: { lens: CardioLens }) {
     <div className="space-y-1.5 pt-3 border-t border-border/30">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
         Cardio
-        <span className="font-mono font-normal text-[10px] normal-case">{lens.totalMinutes} min</span>
+        <span className="font-mono font-normal text-[10px] normal-case">{lens.totalMinutes > 0 ? `${lens.totalMinutes} min` : "pending"}</span>
       </div>
       <div className="space-y-1">
         {lens.modalities.map(m => (
@@ -408,7 +408,7 @@ function MobilityLensSection({ lens }: { lens: MobilityLens }) {
     <div className="space-y-1.5 pt-3 border-t border-border/30">
       <div className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide">
         Mobility
-        <span className="font-mono font-normal text-[10px] normal-case">{lens.totalMinutes} min</span>
+        <span className="font-mono font-normal text-[10px] normal-case">{lens.totalMinutes > 0 ? `${lens.totalMinutes} min` : "pending"}</span>
       </div>
       <div className="space-y-1">
         {lens.rows.map(row => (

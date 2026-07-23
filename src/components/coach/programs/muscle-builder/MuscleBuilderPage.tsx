@@ -27,6 +27,7 @@ import {
   Redo2,
   Plus,
   AlertCircle,
+  Pencil,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { MUSCLE_GROUPS, DAYS_OF_WEEK, getMuscleDisplay, resolveParentMuscleId } from "@/types/muscle-builder";
@@ -993,12 +994,26 @@ export function MuscleBuilderPage({
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="space-y-0.5">
-              <Input
-                value={state.name}
-                onChange={e => dispatch({ type: 'SET_NAME', name: e.target.value })}
-                className="text-xl font-bold font-display border-none bg-transparent p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
-                placeholder="Muscle Plan Name"
-              />
+              {canonicalTemplate ? (
+                // Canonical: the name reads as static — add a clear editable affordance (hover highlight
+                // + a pencil on hover) so click-to-rename is discoverable. Same input + SET_NAME behavior.
+                <div className="group/name flex items-center gap-1.5">
+                  <Input
+                    value={state.name}
+                    onChange={e => dispatch({ type: 'SET_NAME', name: e.target.value })}
+                    className="text-xl font-bold font-display border-none bg-transparent p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0 rounded px-1.5 -mx-1.5 transition-colors hover:bg-muted/50 focus-visible:bg-muted/50"
+                    placeholder="Muscle Plan Name"
+                  />
+                  <Pencil className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 group-hover/name:opacity-100 transition-opacity" aria-hidden />
+                </div>
+              ) : (
+                <Input
+                  value={state.name}
+                  onChange={e => dispatch({ type: 'SET_NAME', name: e.target.value })}
+                  className="text-xl font-bold font-display border-none bg-transparent p-0 h-auto focus-visible:ring-0 focus-visible:ring-offset-0"
+                  placeholder="Muscle Plan Name"
+                />
+              )}
               <Input
                 value={state.description}
                 onChange={e => dispatch({ type: 'SET_DESCRIPTION', description: e.target.value })}

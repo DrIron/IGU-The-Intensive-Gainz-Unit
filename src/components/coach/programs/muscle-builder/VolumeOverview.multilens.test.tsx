@@ -150,4 +150,15 @@ describe("VolumeOverview — multi-lens", () => {
     await act(async () => root.render(<VolumeOverview entries={[ENTRY]} summary={SUMMARY} />));
     expect(txt()).not.toContain("Mobility");
   });
+
+  it("all-pending lens header reads 'pending', not '0 min'", async () => {
+    const allPending: MobilityLens = {
+      totalMinutes: 0,
+      rows: [{ label: "Shoulders", minutes: 0, timedCount: 0, untimedCount: 1, countMode: true }],
+    };
+    await act(async () => root.render(<VolumeOverview entries={[ENTRY]} summary={SUMMARY} mobilityLens={allPending} />));
+    expect(txt()).toContain("Mobility");
+    expect(txt()).toContain("pending");
+    expect(txt()).not.toContain("0 min");
+  });
 });
