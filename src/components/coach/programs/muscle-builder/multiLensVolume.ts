@@ -1,4 +1,5 @@
 import type { MuscleSlotData } from "@/types/muscle-builder";
+import { MOVEMENT_GROUP_IDS } from "@/types/muscle-builder";
 import type { MovementGroupConfig } from "@/hooks/useMovementGroupConfig";
 import type { ExerciseMovement } from "@/hooks/useExerciseMovementMap";
 
@@ -7,9 +8,14 @@ import type { ExerciseMovement } from "@/hooks/useExerciseMovementMap";
  * muscle (landmark) lens. Pure functions over the current-week slots.
  *
  * MOVEMENT: PLAIN weekly sets per movement group (Squat/Press/Hinge) and per Press subGroup
- * (Horizontal/Anterior). No MEV/MRV landmarks. A slot contributes iff it has a FILLED exercise whose
- * id resolves in `movementMap` (any category — a filled bench press counts in Press AND its muscle
- * lens). Unresolved exercises don't contribute.
+ * (Horizontal/Anterior). No MEV/MRV landmarks. Two ways a slot contributes (3b — volume-first):
+ *   - FILLED: it has an exercise whose id resolves in `movementMap` (any category — a filled bench
+ *     press counts in Press AND its muscle lens), contributing to the group AND its leaf. Unresolved
+ *     exercises don't contribute.
+ *   - UNFILLED group slot: no exercise, `muscleId` is a movement-group id (squat/press/hinge). It
+ *     contributes its sets to the GROUP total only (the variation — hence the leaf — isn't chosen
+ *     yet). Filling it later swaps it onto the filled path (exercise present → the else-branch is
+ *     skipped), so the group total is unchanged and the leaf resolves. No double-count.
  *
  * CARDIO: minutes per modality from cardio slots' `duration`, plus an HR-zone distribution.
  */
@@ -42,13 +48,18 @@ export function computeMovementLens(
   const leafSets = new Map<string, number>();
 
   for (const slot of slots) {
-    const exId = slot.exercise?.exerciseId;
-    if (!exId) continue;
-    const mv = movementMap.get(exId);
-    if (!mv) continue;
     const sets = slot.sets ?? 0;
-    groupSets.set(mv.groupId, (groupSets.get(mv.groupId) ?? 0) + sets);
-    leafSets.set(mv.leafId, (leafSets.get(mv.leafId) ?? 0) + sets);
+    const exId = slot.exercise?.exerciseId;
+    if (exId) {
+      // Filled: resolve group + leaf from the exercise.
+      const mv = movementMap.get(exId);
+      if (!mv) continue;
+      groupSets.set(mv.groupId, (groupSets.get(mv.groupId) ?? 0) + sets);
+      leafSets.set(mv.leafId, (leafSets.get(mv.leafId) ?? 0) + sets);
+    } else if (MOVEMENT_GROUP_IDS.has(slot.muscleId)) {
+      // Unfilled group slot: count sets to the group only (variation/leaf not chosen yet).
+      groupSets.set(slot.muscleId, (groupSets.get(slot.muscleId) ?? 0) + sets);
+    }
   }
 
   const rows: MovementGroupRow[] = config.groups

@@ -511,6 +511,33 @@ export function getMuscleDisplay(muscleId: string): { label: string; colorClass:
   return { label: sub.label, colorClass: parentDef.colorClass, colorHex: parentDef.colorHex };
 }
 
+/**
+ * Movement-group slot rendering (Phase 3, 3b — volume-first group-pick). An unfilled powerlifting
+ * lift-group slot stores its GROUP id (squat/press/hinge) in `muscleId` — the same grouping-key
+ * field a muscle slot uses, and it round-trips through save_template_plan / get_plan_builder_state
+ * exactly like a muscle id (verified). Movement groups are NOT muscles, so getMuscleDisplay returns
+ * null for them; this static mirror of get_movement_group_config's group ids gives the slot card a
+ * synchronous label + neutral color without threading the (async) RPC config through the board tree.
+ * The RPC config stays the source of truth for the movement LENS + picker chips — if a group is ever
+ * added there, extend this map to match (an unmapped id falls back to the raw id, never crashes).
+ */
+export const MOVEMENT_GROUP_DISPLAY: Record<string, { label: string; colorClass: string; colorHex: string }> = {
+  squat: { label: 'Squat', colorClass: 'bg-indigo-500', colorHex: '#6366f1' },
+  press: { label: 'Press', colorClass: 'bg-cyan-500', colorHex: '#06b6d4' },
+  hinge: { label: 'Hinge', colorClass: 'bg-amber-500', colorHex: '#f59e0b' },
+};
+export const MOVEMENT_GROUP_IDS: ReadonlySet<string> = new Set(Object.keys(MOVEMENT_GROUP_DISPLAY));
+
+/** True when a slot's grouping key is a movement group (an unfilled lift-group slot), not a muscle. */
+export function isMovementGroupId(muscleId: string): boolean {
+  return MOVEMENT_GROUP_IDS.has(muscleId);
+}
+
+/** Display for a slot's grouping key — muscle/subdivision first, then movement group (3b). */
+export function getSlotDisplay(muscleId: string): { label: string; colorClass: string; colorHex: string } | null {
+  return getMuscleDisplay(muscleId) ?? MOVEMENT_GROUP_DISPLAY[muscleId] ?? null;
+}
+
 // ============================================================
 // Short labels — compact names for narrow slot cards.
 // Full label is always available via getMuscleDisplay; use these for

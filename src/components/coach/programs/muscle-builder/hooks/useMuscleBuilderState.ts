@@ -1459,8 +1459,9 @@ async function saveTemplatePlanCanonical(planId: string | null, state: MusclePla
 
 /** get_plan_builder_state → LOAD_TEMPLATE weeks. Slots carry sessionId but not dayIndex/muscleId
  *  fallbacks — fill them from the parent session (and '' for activity slots) so MuscleSlotData is
- *  complete for the reducer + volume math. */
-function hydrateCanonicalWeeks(rawWeeks: unknown): WeekData[] {
+ *  complete for the reducer + volume math. Exported for round-trip tests (3b: an unfilled lift-group
+ *  slot's group id rides `muscleId` and must survive reload). */
+export function hydrateCanonicalWeeks(rawWeeks: unknown): WeekData[] {
   const weeks = Array.isArray(rawWeeks) ? (rawWeeks as Record<string, unknown>[]) : [];
   return weeks.map((w) => {
     const sessions = (Array.isArray(w.sessions) ? w.sessions : []) as SessionData[];

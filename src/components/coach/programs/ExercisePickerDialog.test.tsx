@@ -48,8 +48,12 @@ const TAXONOMY = {
 };
 
 let libState: { data: Row[]; isLoading: boolean; isError: boolean; error: unknown };
+// 3b: the dialog reads the movement map to group-filter fills for lift-group slots. Mutable so a test
+// can supply a group map (muscle-source tests leave it undefined → no group filter, avoids bare useQuery).
+let movementMapState: { data: Map<string, { groupId: string; leafId: string }> | undefined };
 vi.mock("@/hooks/useExerciseLibrary", () => ({ useExerciseLibraryData: () => libState }));
 vi.mock("@/hooks/useExerciseTaxonomy", () => ({ useExerciseTaxonomy: () => ({ data: TAXONOMY }) }));
+vi.mock("@/hooks/useExerciseMovementMap", () => ({ useExerciseMovementMap: () => movementMapState }));
 vi.mock("@/hooks/use-toast", () => ({ useToast: () => ({ toast: vi.fn() }) }));
 
 const { ExercisePickerDialog } = await import("./ExercisePickerDialog");
@@ -81,6 +85,7 @@ describe("ExercisePickerDialog — backed by ExerciseBrowse", () => {
     document.body.appendChild(container);
     root = createRoot(container);
     libState = { data: ROWS, isLoading: false, isError: false, error: null };
+    movementMapState = { data: undefined };
   });
   afterEach(async () => {
     await act(async () => root.unmount());
@@ -121,5 +126,45 @@ describe("ExercisePickerDialog — backed by ExerciseBrowse", () => {
     expect(picks.every((p) => p.section === "main")).toBe(true);
     // Dense names captured (not client_name).
     expect(picks.find((p) => p.exerciseId === "t2")?.exerciseName).toBe("Triceps Lat+Med C-FT Rope Pushdown (S)");
+  });
+
+  // ── 3b fill-later fixes (PR #265 follow-up) ────────────────────────────────────────
+  // A canonical fill of a lift-group slot must show ONLY that group's variations, as a flat list, and
+  // must NOT render the "Add to Section" selector (canonical sessions are flat).
+  it("Fix 1 — canonical fill of a lift-group slot: flat list of ONLY that group's variations", async () => {
+    // t1 + tc are Squat variations; t2 is Press. (tf is a foreign coach's row → out of scope anyway.)
+    movementMapState = {
+      data: new Map([
+        ["t1", { groupId: "squat", leafId: "squat" }],
+        ["tc", { groupId: "squat", leafId: "squat" }],
+        ["t2", { groupId: "press", leafId: "press_horizontal" }],
+      ]),
+    };
+    await mount({ onSelectExercise: vi.fn(), sourceMuscleId: "squat", canonicalContext: true });
+
+    // Only Squat-group rows in scope (t1 + own custom tc); the Press row (t2) and foreign (tf) are gone.
+    expect(doc().textContent).toContain("Triceps Long M Overhead Extension (L)"); // t1 (squat)
+    expect(doc().textContent).toContain("Coach-1 Custom Triceps Move"); // tc (squat, own)
+    expect(doc().textContent).not.toContain("Triceps Lat+Med C-FT Rope Pushdown (S)"); // t2 (press) excluded
+    expect(doc().textContent).not.toContain("Foreign Coach Triceps Move"); // out of scope
+
+    // Flat list (count line), NOT the region→muscle tree (no "Regions" breadcrumb / region strip).
+    expect(doc().textContent).toContain("2 exercises");
+    expect(doc().textContent).not.toContain("Regions");
+  });
+
+  it("Fix 2 — 'Add to Section' selector is hidden under canonical, shown for legacy callers", async () => {
+    // Canonical: no section selector.
+    await mount({ onSelectExercise: vi.fn(), sourceMuscleId: "triceps", canonicalContext: true });
+    expect(doc().textContent).not.toContain("Add to Section");
+
+    // Reset + legacy (default canonicalContext=false): selector present (byte-identical to before).
+    await act(async () => root.unmount());
+    document.body.innerHTML = "";
+    container = document.createElement("div");
+    document.body.appendChild(container);
+    root = createRoot(container);
+    await mount({ onSelectExercise: vi.fn(), sourceMuscleId: "triceps" });
+    expect(doc().textContent).toContain("Add to Section");
   });
 });

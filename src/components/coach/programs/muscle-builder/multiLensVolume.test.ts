@@ -52,6 +52,47 @@ describe("computeMovementLens", () => {
     expect(lens.rows).toEqual([]);
     expect(lens.totalSets).toBe(0);
   });
+
+  // 3b — volume-first: an UNFILLED lift-group slot (muscleId is a movement-group id, no exercise)
+  // counts its sets in the movement lens immediately, contributing to the GROUP total only.
+  it("counts an unfilled lift-group slot in its group (no exercise → no leaf)", () => {
+    const lens = computeMovementLens([slot({ muscleId: "squat", sets: 3 })], MAP, CONFIG);
+    expect(lens.totalSets).toBe(3);
+    expect(lens.rows.map((r) => [r.id, r.sets])).toEqual([["squat", 3]]);
+    expect(lens.rows[0].subGroups).toEqual([]); // variation unknown → no Horizontal/Anterior split yet
+  });
+
+  it("filling an unfilled group slot keeps the group total stable and resolves the Press leaf", () => {
+    const unfilled = computeMovementLens([slot({ muscleId: "press", sets: 1 })], MAP, CONFIG);
+    expect(unfilled.rows.find((r) => r.id === "press")!.sets).toBe(1);
+    expect(unfilled.rows.find((r) => r.id === "press")!.subGroups).toEqual([]);
+
+    // Same slot, now filled with a horizontal-press exercise (muscleId is retained but the exercise
+    // takes over resolution). Group total unchanged; the leaf now populates. No double-count.
+    const filled = computeMovementLens(
+      [slot({ muscleId: "press", exercise: { exerciseId: "bench", name: "Bench" }, sets: 1 })],
+      MAP,
+      CONFIG,
+    );
+    expect(filled.totalSets).toBe(1); // stable across fill
+    expect(filled.rows.find((r) => r.id === "press")!.sets).toBe(1);
+    expect(filled.rows.find((r) => r.id === "press")!.subGroups).toEqual([
+      { id: "press_horizontal", label: "Horizontal Press", sets: 1 },
+    ]);
+  });
+
+  it("sums filled + unfilled slots in the same group without double-counting", () => {
+    const lens = computeMovementLens(
+      [
+        slot({ id: "u", muscleId: "squat", sets: 2 }),                                     // unfilled group slot
+        slot({ id: "f", muscleId: "squat", exercise: { exerciseId: "squat", name: "Squat" }, sets: 1 }), // filled
+      ],
+      MAP,
+      CONFIG,
+    );
+    expect(lens.rows.find((r) => r.id === "squat")!.sets).toBe(3); // 2 unfilled + 1 filled, counted once each
+    expect(lens.totalSets).toBe(3);
+  });
 });
 
 describe("computeCardioLens", () => {

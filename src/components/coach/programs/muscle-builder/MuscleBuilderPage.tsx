@@ -1315,6 +1315,7 @@ export function MuscleBuilderPage({
         coachUserId={coachUserId}
         sourceMuscleId={pickerMuscleId}
         sourceExerciseId={pickerSourceExerciseId}
+        canonicalContext={canonicalTemplate}
       />
 
       {/* ── Clear Confirmation Dialog ─────────────────────────── */}
