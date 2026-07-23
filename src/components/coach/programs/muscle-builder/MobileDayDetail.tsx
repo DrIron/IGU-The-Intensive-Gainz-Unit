@@ -603,6 +603,8 @@ interface MobileActivityRowProps {
 
 function formatActivityMetric(slot: MuscleSlotData): string {
   const type = slot.activityType || 'cardio';
+  // 3e: an unfilled group slot (duration 0) is pending — mirror the desktop card, don't say "30min".
+  if (slot.duration === 0) return 'set duration';
   if (type === 'hiit' && slot.rounds) {
     return `${slot.rounds}×${slot.workSeconds || 30}s/${slot.restSeconds || 15}s`;
   }
@@ -630,6 +632,7 @@ const MobileActivityRow = memo(function MobileActivityRow({
   const colorHex = activity?.colorHex || typeColors.colorHex;
   const label = slot.exercise?.name || slot.activityName || activity?.label || 'Activity';
   const metric = formatActivityMetric(slot);
+  const isPending = slot.duration === 0 && !slot.exercise; // unfilled group slot → title + secondary line
   const update = useCallback(
     (details: Record<string, unknown>) => onSetActivityDetails?.(slot.id, details),
     [slot.id, onSetActivityDetails],
@@ -643,14 +646,22 @@ const MobileActivityRow = memo(function MobileActivityRow({
       <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${colorClass}`} />
       <Drawer open={open} onOpenChange={setOpen} dismissible={false} repositionInputs={false} shouldScaleBackground={false}>
         <DrawerTrigger asChild>
-          <button className="flex items-center gap-1.5 flex-1 min-w-0 text-left">
-            <span className="font-medium truncate text-foreground">{label}</span>
-            <span
-              className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"
-              style={{ backgroundColor: `${colorHex}20`, color: colorHex }}
-            >
-              {metric}
-            </span>
+          <button
+            className={isPending
+              ? "flex flex-col items-start gap-0.5 flex-1 min-w-0 text-left"
+              : "flex items-center gap-1.5 flex-1 min-w-0 text-left"}
+          >
+            <span className={cn("font-medium truncate text-foreground", isPending && "w-full")}>{label}</span>
+            {isPending ? (
+              <span className="font-mono text-[10px] italic text-muted-foreground">{metric}</span>
+            ) : (
+              <span
+                className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"
+                style={{ backgroundColor: `${colorHex}20`, color: colorHex }}
+              >
+                {metric}
+              </span>
+            )}
           </button>
         </DrawerTrigger>
         <DrawerContent className="max-h-[85vh]">

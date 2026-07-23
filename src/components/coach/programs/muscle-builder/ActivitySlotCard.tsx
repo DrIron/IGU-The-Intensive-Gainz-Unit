@@ -60,6 +60,10 @@ export const ActivitySlotCard = memo(function ActivitySlotCard({
   const colorClass = activity?.colorClass || typeColors.colorClass;
   const label = slot.activityName || activity?.label || slot.activityId || 'Activity';
   const metric = formatMetric(slot);
+  // 3e fix: an unfilled group slot (duration 0, canonical only) is "pending". Its metric is the wide
+  // "set duration" text — inline, it (shrink-0) squeezes the truncatable label to nothing in a narrow
+  // day column. Stack it: label as the title, "set duration" as a secondary muted line beneath.
+  const isPending = slot.duration === 0 && !slot.exercise;
 
   const update = useCallback((details: Record<string, unknown>) => {
     onSetActivityDetails?.(slot.id, details);
@@ -92,17 +96,24 @@ export const ActivitySlotCard = memo(function ActivitySlotCard({
           <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
             <PopoverTrigger asChild>
               <button
-                className="flex items-center gap-1.5 flex-1 min-w-0 text-left"
+                className={isPending
+                  ? "flex flex-col items-start gap-0.5 flex-1 min-w-0 text-left"
+                  : "flex items-center gap-1.5 flex-1 min-w-0 text-left"}
                 onClick={e => e.stopPropagation()}
               >
-                <span className="font-medium truncate text-foreground">{label}</span>
-                <span
-                  className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"
-                  style={{ backgroundColor: `${colorHex}20`, color: colorHex }}
-                >
-                  {metric}
-                </span>
-                {slot.targetHrZone && (
+                <span className={cn("font-medium truncate text-foreground", isPending && "w-full")}>{label}</span>
+                {isPending ? (
+                  // Secondary pending line — no wide pill competing with the title for width.
+                  <span className="font-mono text-[10px] italic text-muted-foreground">{metric}</span>
+                ) : (
+                  <span
+                    className="text-[10px] font-mono px-1.5 py-0.5 rounded-full shrink-0"
+                    style={{ backgroundColor: `${colorHex}20`, color: colorHex }}
+                  >
+                    {metric}
+                  </span>
+                )}
+                {slot.targetHrZone && !isPending && (
                   <Heart className="h-3 w-3 text-red-400 shrink-0" />
                 )}
               </button>
