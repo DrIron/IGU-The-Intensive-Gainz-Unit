@@ -41,6 +41,8 @@ import { useMuscleBuilderState, getCurrentSlots, getCurrentSessions, hasAnyDelta
 import { useMusclePlanVolume } from "./hooks/useMusclePlanVolume";
 import { useMovementGroupConfig } from "@/hooks/useMovementGroupConfig";
 import { useExerciseMovementMap } from "@/hooks/useExerciseMovementMap";
+import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
+import { useExerciseLibraryData } from "@/hooks/useExerciseLibrary";
 import { computeMovementLens, computeCardioLens } from "./multiLensVolume";
 import { WeeklyCalendar } from "./WeeklyCalendar";
 import { WeekTabStrip } from "./WeekTabStrip";
@@ -171,12 +173,31 @@ export function MuscleBuilderPage({
       : null),
     [canonicalTemplate, currentWeekSlots, movementConfig, exerciseMovementMap],
   );
+  // 3c: modality resolver keys BOTH unfilled cardio group slots (muscleId = cardio_movement id) AND
+  // filled slots (exercise's cardio_movement) to the same cardio_movement key/label, so the movement
+  // lens groups by modality (not raw exercise name) and filling a group slot keeps its bucket stable.
+  const { data: cardioTaxonomy } = useExerciseTaxonomy(canonicalTemplate);
+  const { data: cardioLibraryRows } = useExerciseLibraryData(canonicalTemplate);
+  const cardioModalityOf = useMemo(() => {
+    const label = new Map((cardioTaxonomy?.cardioMovements ?? []).map((cm) => [cm.id, cm.display_name]));
+    const exToCm = new Map((cardioLibraryRows ?? []).map((r) => [r.id, r.cardio_movement_id]));
+    return (slot: MuscleSlotData): { key: string; label: string } | null => {
+      if (slot.activityType !== "cardio") return null;
+      // Unfilled group slot: muscleId is a cardio_movement id.
+      if (!slot.exercise && slot.muscleId && label.has(slot.muscleId)) {
+        return { key: slot.muscleId, label: label.get(slot.muscleId)! };
+      }
+      // Filled slot: resolve modality from the exercise's cardio_movement.
+      const cmId = slot.exercise ? exToCm.get(slot.exercise.exerciseId) : undefined;
+      if (cmId && label.has(cmId)) return { key: cmId, label: label.get(cmId)! };
+      // Legacy activity slot (no cardio_movement): fall back to its name.
+      const name = slot.activityName || slot.exercise?.name || "Cardio";
+      return { key: `name:${name}`, label: name };
+    };
+  }, [cardioTaxonomy, cardioLibraryRows]);
   const cardioLens = useMemo(
-    () => (canonicalTemplate
-      // v1 modality = the cardio activity/exercise name (no cardio_movement taxonomy resolution yet).
-      ? computeCardioLens(currentWeekSlots, (slot) => slot.activityName || slot.exercise?.name || "Cardio")
-      : null),
-    [canonicalTemplate, currentWeekSlots],
+    () => (canonicalTemplate ? computeCardioLens(currentWeekSlots, cardioModalityOf) : null),
+    [canonicalTemplate, currentWeekSlots, cardioModalityOf],
   );
 
   const { toast } = useToast();
@@ -406,6 +427,17 @@ export function MuscleBuilderPage({
       const session = currentWeekSessions.find(s => s.id === sessionId);
       if (!session) return;
       dispatch({ type: 'ADD_ACTIVITY', dayIndex: session.dayIndex, activityId, activityType, sessionId });
+    },
+    [currentWeekSessions, dispatch]
+  );
+
+  // 3c volume-first: pick a non-strength group (a cardio modality) → an UNFILLED group slot that
+  // counts in the minutes lens as a 0-min pending bucket. The exact exercise + duration are filled later.
+  const handleAddActivityGroupToSession = useCallback(
+    (sessionId: string, groupId: string, groupLabel: string, activityType: ActivityType) => {
+      const session = currentWeekSessions.find(s => s.id === sessionId);
+      if (!session) return;
+      dispatch({ type: 'ADD_ACTIVITY_GROUP', dayIndex: session.dayIndex, groupId, groupLabel, activityType, sessionId });
     },
     [currentWeekSessions, dispatch]
   );
@@ -1134,6 +1166,7 @@ export function MuscleBuilderPage({
               onRemove={handleRemoveMuscle}
               onAddMuscleToSession={handleAddMuscleToSession}
               onAddActivityToSession={handleAddActivityToSession}
+              onAddActivityGroupToSession={handleAddActivityGroupToSession}
               onAddExerciseToSession={handleAddExerciseToSession}
               onAddSession={handleAddSession}
               flatSessions={canonicalTemplate}

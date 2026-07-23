@@ -18,6 +18,7 @@ interface WeeklyCalendarProps {
   onRemove: (slotId: string) => void;
   onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
+  onAddActivityGroupToSession: (sessionId: string, groupId: string, groupLabel: string, activityType: ActivityType) => void;
   onAddExerciseToSession: (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => void;
   onAddSession: (dayIndex: number, sessionType: ActivityType) => void;
   /** Canonical authoring (Phase 2): flat auto-named sessions, no type picker, content-derived colour. */
@@ -75,6 +76,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
   onRemove,
   onAddMuscleToSession,
   onAddActivityToSession,
+  onAddActivityGroupToSession,
   onAddExerciseToSession,
   onAddSession,
   flatSessions = false,
@@ -136,6 +138,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
           onRemove={onRemove}
           onAddMuscleToSession={onAddMuscleToSession}
           onAddActivityToSession={onAddActivityToSession}
+          onAddActivityGroupToSession={onAddActivityGroupToSession}
           onAddExerciseToSession={onAddExerciseToSession}
           onAddSession={onAddSession}
           flatSessions={flatSessions}
@@ -187,6 +190,7 @@ export const WeeklyCalendar = memo(function WeeklyCalendar({
             onRemove={onRemove}
             onAddMuscleToSession={onAddMuscleToSession}
             onAddActivityToSession={onAddActivityToSession}
+            onAddActivityGroupToSession={onAddActivityGroupToSession}
             onAddExerciseToSession={onAddExerciseToSession}
             onAddSession={onAddSession}
             flatSessions={flatSessions}

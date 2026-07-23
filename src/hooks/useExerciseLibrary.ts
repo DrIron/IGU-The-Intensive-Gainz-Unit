@@ -38,9 +38,10 @@ export interface ExerciseFilters {
 }
 
 /** Fetch all active exercises once (RLS scopes to global + own-coach). Cached. */
-export function useExerciseLibraryData() {
+export function useExerciseLibraryData(enabled = true) {
   return useQuery<ExerciseRow[]>({
     queryKey: ["exercise-library", "all-active"],
+    enabled,
     staleTime: 1000 * 60 * 10,
     queryFn: async () => {
       const { data, error } = await supabase

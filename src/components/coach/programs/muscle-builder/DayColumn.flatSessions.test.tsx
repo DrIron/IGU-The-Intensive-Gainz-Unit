@@ -29,6 +29,7 @@ const baseProps = () => ({
   onRemove: noop,
   onAddMuscleToSession: noop,
   onAddActivityToSession: noop,
+  onAddActivityGroupToSession: noop,
   onAddExerciseToSession: noop,
   onRenameSession: noop,
   onSetSessionType: noop,

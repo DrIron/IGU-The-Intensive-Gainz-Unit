@@ -7,6 +7,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { BarChart3, List, X, Info, ChevronDown, ChevronRight } from "lucide-react";
+import { cn } from "@/lib/utils";
 import { getLandmarkBgColor } from "@/types/muscle-builder";
 import { LandmarkZoneChip } from "../shared/LandmarkZoneChip";
 import { VolumeTiles } from "../shared/VolumeTiles";
@@ -315,11 +316,19 @@ function CardioLensSection({ lens }: { lens: CardioLens }) {
       </div>
       <div className="space-y-1">
         {lens.modalities.map(m => (
-          <div key={m.label} className="flex items-center gap-2">
+          // 3c: a PENDING modality (0 min — an unfilled group slot awaiting a duration) renders muted
+          // with no bar and a "set duration" hint, so it reads as programmed-but-incomplete.
+          <div key={m.label} className={cn("flex items-center gap-2", m.pending && "opacity-60")}>
             <span className="text-xs font-medium truncate w-28 shrink-0">{m.label}</span>
-            <span className="font-mono text-xs w-12 text-right shrink-0">{m.minutes}m</span>
+            {m.pending ? (
+              <span className="font-mono text-[10px] w-12 text-right shrink-0 text-muted-foreground italic">set…</span>
+            ) : (
+              <span className="font-mono text-xs w-12 text-right shrink-0">{m.minutes}m</span>
+            )}
             <div className="flex-1 h-4 bg-muted/50 rounded overflow-hidden">
-              <div className="h-full bg-green-500/50 rounded" style={{ width: `${(m.minutes / maxMin) * 100}%` }} />
+              {!m.pending && (
+                <div className="h-full bg-green-500/50 rounded" style={{ width: `${(m.minutes / maxMin) * 100}%` }} />
+              )}
             </div>
           </div>
         ))}

@@ -44,7 +44,7 @@ const MOVEMENT: MovementLens = {
     ] },
   ],
 };
-const CARDIO: CardioLens = { totalMinutes: 30, modalities: [{ label: "Running", minutes: 30 }], hrZones: [{ zone: 2, minutes: 30 }] };
+const CARDIO: CardioLens = { totalMinutes: 30, modalities: [{ label: "Running", minutes: 30, pending: false }], hrZones: [{ zone: 2, minutes: 30 }] };
 
 let container: HTMLDivElement;
 let root: Root;

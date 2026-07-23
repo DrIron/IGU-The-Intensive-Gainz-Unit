@@ -188,6 +188,8 @@ describe("PR1 — shared-primitives extraction is a visual no-op", () => {
           onRemove={noop}
           onAddMuscleToSession={noop}
           onAddActivityToSession={noop}
+
+          onAddActivityGroupToSession={noop}
           onAddExerciseToSession={noop}
           onAddSession={noop}
           onRenameSession={noop}
@@ -218,6 +220,8 @@ describe("PR1 — shared-primitives extraction is a visual no-op", () => {
         onRemove={noop}
         onAddMuscleToSession={noop}
         onAddActivityToSession={noop}
+
+        onAddActivityGroupToSession={noop}
         onAddExerciseToSession={noop}
         onAddSession={noop}
         onRenameSession={noop}
@@ -245,6 +249,8 @@ describe("PR1 — shared-primitives extraction is a visual no-op", () => {
           onRemove={noop}
           onAddMuscleToSession={noop}
           onAddActivityToSession={noop}
+
+          onAddActivityGroupToSession={noop}
           onAddExerciseToSession={noop}
           onAddSession={noop}
           onRenameSession={noop}

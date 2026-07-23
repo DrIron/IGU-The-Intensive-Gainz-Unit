@@ -1,4 +1,4 @@
-import { memo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Search } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -50,6 +50,13 @@ interface UnifiedSessionPickerProps {
    * Off/absent → the Powerlifting tab is the plain exercise browse, byte-identical to before.
    */
   enableGroupPick?: boolean;
+  /**
+   * 3c — cardio group-pick. When `enableGroupPick`, the Cardio tab leads with modality chips
+   * (Run/Walk/Row/…). Picking one drops an UNFILLED cardio group slot (duration 0) via
+   * `onAddActivityGroup` → the modality shows in the minutes lens as a pending bucket; the exact
+   * exercise + duration are filled later. Absent → the Cardio tab is the plain browse.
+   */
+  onAddActivityGroup?: (groupId: string, groupLabel: string, activityType: ActivityType) => void;
 }
 
 export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
@@ -61,6 +68,7 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
   autoFocusSearch = false,
   initialCategory = "strength",
   enableGroupPick = false,
+  onAddActivityGroup,
 }: UnifiedSessionPickerProps) {
   const [category, setCategory] = useState<string>(initialCategory);
   const [search, setSearch] = useState("");
@@ -81,6 +89,16 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
 
   // Non-strength tabs share ExerciseBrowse. RLS scopes rows to global + own-coach.
   const { data: rows = [], isLoading, isError } = useExerciseLibraryData();
+
+  // 3c: cardio modality chips (cardio_movement taxonomy). Counts come from the already-loaded rows.
+  const cardioModalities = taxonomy?.cardioMovements ?? [];
+  const cardioCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const r of rows) if (r.cardio_movement_id) m.set(r.cardio_movement_id, (m.get(r.cardio_movement_id) ?? 0) + 1);
+    return m;
+  }, [rows]);
+  const showCardioGroupPick =
+    enableGroupPick && category === "cardio" && cardioModalities.length > 0 && !!onAddActivityGroup;
 
   return (
     <div className={cn("space-y-2", isRoomy && "space-y-3")}>
@@ -157,6 +175,34 @@ export const UnifiedSessionPicker = memo(function UnifiedSessionPicker({
                     <span className="ml-1 text-muted-foreground">· {g.variationCount}</span>
                   </button>
                 ))}
+              </div>
+            </div>
+          )}
+          {showCardioGroupPick && (
+            // Volume-first (3c): pick a cardio modality → an unfilled slot that shows in the minutes
+            // lens (pending, 0 min) now; set the duration (and optionally the exact exercise) later.
+            <div className="space-y-1.5 rounded-md border border-border/50 bg-card/40 p-2">
+              <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                Add a cardio modality — set the duration later
+              </p>
+              <div className="flex flex-wrap gap-1">
+                {cardioModalities.map((cm) => {
+                  const n = cardioCounts.get(cm.id) ?? 0;
+                  return (
+                    <button
+                      key={cm.id}
+                      type="button"
+                      onClick={() => onAddActivityGroup!(cm.id, cm.display_name, "cardio")}
+                      className={cn(
+                        "whitespace-nowrap rounded-md border border-border/60 bg-background px-2 py-1 text-[11px]",
+                        "transition-colors hover:bg-primary hover:text-primary-foreground hover:border-primary",
+                      )}
+                    >
+                      {cm.display_name}
+                      {n > 0 && <span className="ml-1 text-muted-foreground">· {n}</span>}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}

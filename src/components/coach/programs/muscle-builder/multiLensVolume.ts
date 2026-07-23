@@ -83,6 +83,9 @@ export function computeMovementLens(
 export interface CardioModalityRow {
   label: string;
   minutes: number;
+  /** True when the modality bucket has 0 minutes — an unfilled group slot "programmed, awaiting
+   *  duration" (3c). Rendered muted (no bar); flips to a normal row once a duration is set. */
+  pending: boolean;
 }
 export interface CardioHrZoneRow {
   zone: number;
@@ -95,29 +98,35 @@ export interface CardioLens {
 }
 
 /**
- * Minutes per cardio modality (+ HR-zone distribution) from cardio slots. `modalityLabel` resolves a
- * slot's modality (cardio_movement label via the library/taxonomy, falling back to the activity/
- * exercise name) — injected so this stays pure/testable. Slots without a duration are skipped.
+ * Minutes per cardio modality (+ HR-zone distribution). `modalityOf` resolves a slot's modality to a
+ * stable { key, label } (or null to exclude) — injected so this stays pure/testable. The caller keys
+ * BOTH unfilled group slots (muscleId = cardio_movement id) AND filled slots (exercise's
+ * cardio_movement) to the SAME modality key, so filling a group slot keeps its minutes in the same
+ * bucket (stable total, no double-count) — 3c volume-first.
+ *
+ * Unlike 3a, 0-minute slots are NOT dropped: an unfilled group slot surfaces its modality at 0 min as
+ * a PENDING bucket the moment it's picked, then fills to real minutes when a duration is set.
  */
 export function computeCardioLens(
   slots: MuscleSlotData[],
-  modalityLabel: (slot: MuscleSlotData) => string,
+  modalityOf: (slot: MuscleSlotData) => { key: string; label: string } | null,
 ): CardioLens {
-  const byModality = new Map<string, number>();
+  const byKey = new Map<string, { label: string; minutes: number }>();
   const byZone = new Map<number, number>();
 
   for (const slot of slots) {
-    if (slot.activityType !== "cardio") continue;
+    const m = modalityOf(slot);
+    if (!m) continue;
     const minutes = slot.duration ?? 0;
-    if (minutes <= 0) continue;
-    const label = modalityLabel(slot) || "Cardio";
-    byModality.set(label, (byModality.get(label) ?? 0) + minutes);
-    if (slot.targetHrZone) byZone.set(slot.targetHrZone, (byZone.get(slot.targetHrZone) ?? 0) + minutes);
+    const cur = byKey.get(m.key) ?? { label: m.label, minutes: 0 };
+    cur.minutes += minutes;
+    byKey.set(m.key, cur);
+    if (minutes > 0 && slot.targetHrZone) byZone.set(slot.targetHrZone, (byZone.get(slot.targetHrZone) ?? 0) + minutes);
   }
 
-  const modalities = [...byModality.entries()]
-    .map(([label, minutes]) => ({ label, minutes }))
-    .sort((a, b) => b.minutes - a.minutes);
+  const modalities = [...byKey.values()]
+    .map(({ label, minutes }) => ({ label, minutes, pending: minutes === 0 }))
+    .sort((a, b) => b.minutes - a.minutes || a.label.localeCompare(b.label));
   const hrZones = [...byZone.entries()]
     .map(([zone, minutes]) => ({ zone, minutes }))
     .sort((a, b) => a.zone - b.zone);

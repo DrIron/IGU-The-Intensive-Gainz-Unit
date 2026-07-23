@@ -95,18 +95,65 @@ describe("computeMovementLens", () => {
   });
 });
 
+// 3c modality resolver mirroring MuscleBuilderPage: unfilled group slot keyed by muscleId (cardio_movement
+// id), filled slot keyed by its exercise's cardio_movement — BOTH resolve to the same modality key.
+const CM = new Map([["run", "Run"], ["cycle", "Cycle"]]);       // cardio_movement id → label
+const EX2CM = new Map([["ex-run", "run"], ["ex-cyc", "cycle"]]); // exercise id → cardio_movement id
+const cardioModalityOf = (s: MuscleSlotData): { key: string; label: string } | null => {
+  if (s.activityType !== "cardio") return null;
+  if (!s.exercise && s.muscleId && CM.has(s.muscleId)) return { key: s.muscleId, label: CM.get(s.muscleId)! };
+  const cm = s.exercise ? EX2CM.get(s.exercise.exerciseId) : undefined;
+  if (cm && CM.has(cm)) return { key: cm, label: CM.get(cm)! };
+  const name = s.activityName || "Cardio";
+  return { key: `name:${name}`, label: name };
+};
+
 describe("computeCardioLens", () => {
-  it("sums minutes per modality (+ HR zones); skips non-cardio and zero-duration slots", () => {
+  it("sums minutes per modality by key (+ HR zones); ignores non-cardio", () => {
     const slots = [
-      slot({ id: "r1", activityType: "cardio", duration: 20, activityName: "Running", targetHrZone: 2 }),
-      slot({ id: "r2", activityType: "cardio", duration: 10, activityName: "Running", targetHrZone: 3 }),
-      slot({ id: "c1", activityType: "cardio", duration: 15, activityName: "Cycling" }),
-      slot({ id: "z0", activityType: "cardio", duration: 0, activityName: "Rowing" }), // no minutes → skipped
-      slot({ id: "st", muscleId: "pecs", sets: 3 }),                                   // non-cardio → ignored
+      slot({ id: "r1", activityType: "cardio", muscleId: "run", duration: 20, exercise: { exerciseId: "ex-run", name: "Treadmill" }, targetHrZone: 2 }),
+      slot({ id: "r2", activityType: "cardio", muscleId: "run", duration: 10, exercise: { exerciseId: "ex-run", name: "Treadmill" }, targetHrZone: 3 }),
+      slot({ id: "c1", activityType: "cardio", muscleId: "cycle", duration: 15, exercise: { exerciseId: "ex-cyc", name: "Bike" } }),
+      slot({ id: "st", muscleId: "pecs", sets: 3 }), // non-cardio → ignored
     ];
-    const lens = computeCardioLens(slots, (s) => s.activityName || "Cardio");
+    const lens = computeCardioLens(slots, cardioModalityOf);
     expect(lens.totalMinutes).toBe(45);
-    expect(lens.modalities).toEqual([{ label: "Running", minutes: 30 }, { label: "Cycling", minutes: 15 }]); // desc
+    expect(lens.modalities).toEqual([
+      { label: "Run", minutes: 30, pending: false },
+      { label: "Cycle", minutes: 15, pending: false },
+    ]); // desc
     expect(lens.hrZones).toEqual([{ zone: 2, minutes: 20 }, { zone: 3, minutes: 10 }]);
+  });
+
+  // 3c volume-first: an unfilled cardio group slot (modality on muscleId, duration 0, no exercise)
+  // surfaces its modality at 0 min as a PENDING bucket the moment it's picked.
+  it("surfaces an unfilled cardio group slot as a 0-min pending bucket", () => {
+    const lens = computeCardioLens([slot({ activityType: "cardio", muscleId: "run", duration: 0 })], cardioModalityOf);
+    expect(lens.modalities).toEqual([{ label: "Run", minutes: 0, pending: true }]);
+    expect(lens.totalMinutes).toBe(0);
+  });
+
+  it("filling / setting a duration keeps the same modality bucket (stable, not pending)", () => {
+    // Unfilled Run (pending) → same slot now filled with a Run exercise + 25 min.
+    const pending = computeCardioLens([slot({ activityType: "cardio", muscleId: "run", duration: 0 })], cardioModalityOf);
+    expect(pending.modalities[0]).toEqual({ label: "Run", minutes: 0, pending: true });
+
+    const filled = computeCardioLens(
+      [slot({ activityType: "cardio", muscleId: "run", duration: 25, exercise: { exerciseId: "ex-run", name: "Treadmill" } })],
+      cardioModalityOf,
+    );
+    expect(filled.modalities).toEqual([{ label: "Run", minutes: 25, pending: false }]); // same "Run" bucket, real minutes
+    expect(filled.totalMinutes).toBe(25);
+  });
+
+  it("sums an unfilled + a filled slot in the same modality without double-counting", () => {
+    const lens = computeCardioLens(
+      [
+        slot({ id: "u", activityType: "cardio", muscleId: "run", duration: 0 }),                                              // unfilled Run
+        slot({ id: "f", activityType: "cardio", muscleId: "run", duration: 20, exercise: { exerciseId: "ex-run", name: "T" } }), // filled Run
+      ],
+      cardioModalityOf,
+    );
+    expect(lens.modalities).toEqual([{ label: "Run", minutes: 20, pending: false }]); // one bucket, 0 + 20 = 20
   });
 });

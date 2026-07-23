@@ -72,6 +72,7 @@ interface SessionBlockProps {
   // Session callbacks
   onAddMuscleToSession: (sessionId: string, muscleId: string) => void;
   onAddActivityToSession: (sessionId: string, activityId: string, activityType: ActivityType) => void;
+  onAddActivityGroupToSession: (sessionId: string, groupId: string, groupLabel: string, activityType: ActivityType) => void;
   onAddExerciseToSession: (sessionId: string, exercise: { exerciseId: string; name: string }, activityType: ActivityType) => void;
   onRenameSession: (sessionId: string, name: string) => void;
   onSetSessionType: (sessionId: string, type: ActivityType) => void;
@@ -129,6 +130,7 @@ export const SessionBlock = memo(function SessionBlock({
   w1RuleTargetsBySlotId,
   onClearSlotOverride,
   onAddMuscleToSession,
+  onAddActivityGroupToSession,
   onAddExerciseToSession,
   onRenameSession,
   onSetSessionType,
@@ -186,6 +188,14 @@ export const SessionBlock = memo(function SessionBlock({
       setAddOpen(false);
     },
     [onAddExerciseToSession, session.id],
+  );
+
+  const handleAddActivityGroup = useCallback(
+    (groupId: string, groupLabel: string, activityType: ActivityType) => {
+      onAddActivityGroupToSession(session.id, groupId, groupLabel, activityType);
+      setAddOpen(false);
+    },
+    [onAddActivityGroupToSession, session.id],
   );
 
   return (
@@ -292,6 +302,7 @@ export const SessionBlock = memo(function SessionBlock({
               recentMuscleIds={recentMuscleIds}
               onAddMuscle={handleAddMuscle}
               onAddExercise={handleAddExercise}
+              onAddActivityGroup={handleAddActivityGroup}
               variant="compact"
               enableGroupPick={flatSessions}
             />
