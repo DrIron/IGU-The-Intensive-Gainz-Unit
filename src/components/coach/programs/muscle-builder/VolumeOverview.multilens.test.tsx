@@ -3,7 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import type { MuscleVolumeEntry, VolumeSummary } from "./hooks/useMusclePlanVolume";
-import type { MovementLens, CardioLens } from "./multiLensVolume";
+import type { MovementLens, CardioLens, AffinityLens } from "./multiLensVolume";
 
 (globalThis as unknown as { IS_REACT_ACT_ENVIRONMENT: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -42,6 +42,13 @@ const MOVEMENT: MovementLens = {
       { id: "press_horizontal", label: "Horizontal Press", sets: 1 },
       { id: "press_anterior", label: "Anterior Press", sets: 1 },
     ] },
+  ],
+};
+const AFFINITY: AffinityLens = {
+  totalSets: 5,
+  rows: [
+    { affinity: "push", label: "Push", sets: 3, compoundSets: 2, isolationSets: 1 },
+    { affinity: "pull", label: "Pull", sets: 2, compoundSets: 0, isolationSets: 2 },
   ],
 };
 const CARDIO: CardioLens = { totalMinutes: 30, modalities: [{ label: "Running", minutes: 30, pending: false }], hrZones: [{ zone: 2, minutes: 30 }] };
@@ -94,5 +101,30 @@ describe("VolumeOverview — multi-lens", () => {
     expect(txt()).toContain("Cardio");
     expect(txt()).toContain("Running");
     expect(txt()).toContain("30m");
+  });
+
+  it("flag-ON: Patterns/PPL toggle switches the movement lens to the affinity rollup", async () => {
+    await act(async () => root.render(
+      <VolumeOverview entries={[ENTRY]} summary={SUMMARY} movementLens={MOVEMENT} affinityLens={AFFINITY} cardioLens={CARDIO} />,
+    ));
+    // Default = Patterns: compound groups shown; the toggle is present.
+    expect(txt()).toContain("Squat");
+    expect(txt()).toContain("Patterns");
+
+    await clickWithText("Push·Pull·Legs"); // switch to the PPL reading
+    expect(txt()).toContain("Push");
+    expect(txt()).toContain("Pull");
+    expect(txt()).not.toContain("Squat"); // compound rows hidden in the PPL view
+
+    await clickWithText("Patterns"); // back to compound
+    expect(txt()).toContain("Squat");
+  });
+
+  it("flag-ON without affinity data: no Patterns/PPL toggle (movement lens unchanged)", async () => {
+    await act(async () => root.render(
+      <VolumeOverview entries={[ENTRY]} summary={SUMMARY} movementLens={MOVEMENT} cardioLens={CARDIO} />,
+    ));
+    expect(txt()).toContain("Squat");
+    expect(txt()).not.toContain("Push·Pull·Legs");
   });
 });

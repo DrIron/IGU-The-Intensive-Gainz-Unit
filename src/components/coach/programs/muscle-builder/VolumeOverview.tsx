@@ -13,7 +13,7 @@ import { LandmarkZoneChip } from "../shared/LandmarkZoneChip";
 import { VolumeTiles } from "../shared/VolumeTiles";
 import { formatTustRange } from "../shared/volumeFormat";
 import type { MuscleVolumeEntry, VolumeSummary } from "../muscle-builder/hooks/useMusclePlanVolume";
-import type { MovementLens, CardioLens } from "./multiLensVolume";
+import type { MovementLens, CardioLens, AffinityLens } from "./multiLensVolume";
 
 interface VolumeOverviewProps {
   entries: MuscleVolumeEntry[];
@@ -22,6 +22,8 @@ interface VolumeOverviewProps {
   /** Phase 3 (canonical authoring only): extra lenses rendered as sibling sections below the muscle
    *  lens. Omitted everywhere else → byte-identical. Empty lenses render nothing. */
   movementLens?: MovementLens | null;
+  /** PPL affinity rollup — the alternate reading of the movement lens (toggled inside it). */
+  affinityLens?: AffinityLens | null;
   cardioLens?: CardioLens | null;
 }
 
@@ -30,13 +32,14 @@ export const VolumeOverview = memo(function VolumeOverview({
   summary,
   onMuscleClick,
   movementLens,
+  affinityLens,
   cardioLens,
 }: VolumeOverviewProps) {
   const [viewMode, setViewMode] = useState<'sets' | 'detailed'>('sets');
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   const isDetailed = viewMode === 'detailed';
-  const hasMovement = (movementLens?.rows.length ?? 0) > 0;
+  const hasMovement = (movementLens?.rows.length ?? 0) > 0 || (affinityLens?.rows.length ?? 0) > 0;
   const hasCardio = (cardioLens?.modalities.length ?? 0) > 0;
 
   if (entries.length === 0 && !hasMovement && !hasCardio) {
@@ -60,7 +63,7 @@ export const VolumeOverview = memo(function VolumeOverview({
           setBannerDismissed={setBannerDismissed}
         />
       )}
-      {hasMovement && movementLens && <MovementLensSection lens={movementLens} />}
+      {hasMovement && movementLens && <MovementLensSection lens={movementLens} affinityLens={affinityLens ?? null} />}
       {hasCardio && cardioLens && <CardioLensSection lens={cardioLens} />}
     </div>
   );
@@ -238,12 +241,16 @@ function MuscleLens({
   );
 }
 
-/** MOVEMENT lens — plain weekly sets per Squat/Press/Hinge (no landmarks). Collapsible (expanded by
- *  default); Press drills into Horizontal/Anterior subGroups (collapsed by default). */
-function MovementLensSection({ lens }: { lens: MovementLens }) {
+/** MOVEMENT lens — plain weekly sets per compound movement group (data-driven off the six groups; no
+ *  landmarks). Collapsible; any group with subGroups (Press/Pull/Carry) drills into its leaves. A
+ *  Patterns / Push·Pull·Legs toggle switches to the PPL affinity rollup (the same lens, read two ways). */
+function MovementLensSection({ lens, affinityLens }: { lens: MovementLens; affinityLens: AffinityLens | null }) {
   const [open, setOpen] = useState(true);
+  const [view, setView] = useState<'patterns' | 'ppl'>('patterns');
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const maxSets = Math.max(1, ...lens.rows.map(r => r.sets));
+  const hasPpl = (affinityLens?.rows.length ?? 0) > 0;
+  const showPpl = view === 'ppl' && hasPpl;
 
   const toggle = useCallback((id: string) => {
     setExpanded(prev => {
@@ -255,16 +262,58 @@ function MovementLensSection({ lens }: { lens: MovementLens }) {
 
   return (
     <div className="space-y-1.5 pt-3 border-t border-border/30">
-      <button
-        type="button"
-        className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide"
-        onClick={() => setOpen(o => !o)}
-      >
-        {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
-        Movement
-        <span className="font-mono font-normal text-[10px] normal-case">{lens.totalSets} sets</span>
-      </button>
-      {open && (
+      <div className="flex items-center justify-between gap-2">
+        <button
+          type="button"
+          className="flex items-center gap-1.5 text-xs font-semibold text-muted-foreground uppercase tracking-wide"
+          onClick={() => setOpen(o => !o)}
+        >
+          {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
+          Movement
+          <span className="font-mono font-normal text-[10px] normal-case">
+            {showPpl ? `${affinityLens!.totalSets} sets` : `${lens.totalSets} sets`}
+          </span>
+        </button>
+        {open && hasPpl && (
+          <div className="flex rounded-md border border-border/50 text-[10px] overflow-hidden shrink-0">
+            {(['patterns', 'ppl'] as const).map(v => (
+              <button
+                key={v}
+                type="button"
+                onClick={() => setView(v)}
+                className={cn(
+                  "px-1.5 py-0.5 transition-colors",
+                  view === v ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted/50",
+                )}
+              >
+                {v === 'patterns' ? 'Patterns' : 'Push·Pull·Legs'}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      {open && showPpl && (
+        <div className="space-y-1">
+          {affinityLens!.rows.map(row => (
+            <div key={row.affinity} className="flex items-center gap-2">
+              <span className="text-xs font-medium truncate w-28 shrink-0">{row.label}</span>
+              <span className="font-mono text-xs w-10 text-right shrink-0">{row.sets}</span>
+              <div className="flex-1 h-4 bg-muted/50 rounded overflow-hidden">
+                <div
+                  className="h-full bg-primary/50 rounded"
+                  style={{ width: `${(row.sets / Math.max(1, ...affinityLens!.rows.map(r => r.sets))) * 100}%` }}
+                />
+              </div>
+              {row.isolationSets > 0 && (
+                <span className="font-mono text-[10px] text-muted-foreground shrink-0 w-20 text-right">
+                  {row.compoundSets}c / {row.isolationSets}i
+                </span>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {open && !showPpl && (
         <div className="space-y-1">
           {lens.rows.map(row => {
             const canDrill = row.subGroups.length > 0;

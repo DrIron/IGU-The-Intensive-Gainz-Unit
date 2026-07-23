@@ -43,7 +43,7 @@ import { useMovementGroupConfig } from "@/hooks/useMovementGroupConfig";
 import { useExerciseMovementMap } from "@/hooks/useExerciseMovementMap";
 import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
 import { useExerciseLibraryData } from "@/hooks/useExerciseLibrary";
-import { computeMovementLens, computeCardioLens } from "./multiLensVolume";
+import { computeMovementLens, computeCardioLens, computeAffinityLens } from "./multiLensVolume";
 import { WeeklyCalendar } from "./WeeklyCalendar";
 import { WeekTabStrip } from "./WeekTabStrip";
 import { VolumeOverview } from "./VolumeOverview";
@@ -172,6 +172,13 @@ export function MuscleBuilderPage({
       ? computeMovementLens(currentWeekSlots, exerciseMovementMap, movementConfig)
       : null),
     [canonicalTemplate, currentWeekSlots, movementConfig, exerciseMovementMap],
+  );
+  // PPL affinity rollup — the second reading of the movement lens (includes isolation/accessory work).
+  const affinityLens = useMemo(
+    () => (canonicalTemplate && exerciseMovementMap
+      ? computeAffinityLens(currentWeekSlots, exerciseMovementMap)
+      : null),
+    [canonicalTemplate, currentWeekSlots, exerciseMovementMap],
   );
   // 3c: modality resolver keys BOTH unfilled cardio group slots (muscleId = cardio_movement id) AND
   // filled slots (exercise's cardio_movement) to the same cardio_movement key/label, so the movement
@@ -1255,6 +1262,7 @@ export function MuscleBuilderPage({
                     summary={summary}
                     onMuscleClick={handleMuscleClick}
                     movementLens={movementLens}
+                    affinityLens={affinityLens}
                     cardioLens={cardioLens}
                   />
                 </TabsContent>
