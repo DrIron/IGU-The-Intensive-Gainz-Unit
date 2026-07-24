@@ -69,6 +69,8 @@ import { ProgressionSuggestionBanner } from "@/components/workout/ProgressionSug
 import { getYouTubeId, getYouTubeThumbnail } from "@/lib/youtube";
 import { getExerciseDisplayName } from "@/lib/exerciseDisplay";
 import { computeInitialFocus } from "./workoutFocus";
+import { muscleGroupLabel } from "@/lib/muscleGroup";
+import { useExerciseTaxonomy } from "@/hooks/useExerciseTaxonomy";
 import { ExerciseDemoCard } from "@/components/exercise/ExerciseDemoCard";
 import type { ProgressionConfig, ColumnConfig, ClientInputColumnType } from "@/types/workout-builder";
 import {
@@ -881,6 +883,7 @@ export function ExerciseCard({
   activeSuggestionForSet,
   onDismissSuggestion,
   unit,
+  muscleLabel,
 }: {
   exercise: Exercise;
   exerciseIndex: number;
@@ -896,6 +899,8 @@ export function ExerciseCard({
   activeSuggestionForSet: Map<number, { id: string; type: string; text: string }>;
   onDismissSuggestion: (suggestionId: string) => void;
   unit: WeightUnit;
+  /** Slice 3: pre-resolved client muscle-GROUP label; falls back to primary_muscle when absent. */
+  muscleLabel?: string;
 }) {
   const [guideOpen, setGuideOpen] = useState(false);
 
@@ -998,7 +1003,7 @@ export function ExerciseCard({
               <div className="flex-1 min-w-0">
                 <CardTitle className="text-base truncate">{getExerciseDisplayName(exercise.exercise, "client")}</CardTitle>
                 <CardDescription className="text-sm">
-                  {exercise.exercise.primary_muscle}
+                  {muscleLabel ?? exercise.exercise.primary_muscle}
                 </CardDescription>
                 <button
                   type="button"
@@ -1370,17 +1375,20 @@ function SwapExercisePicker({
   onClose: () => void;
 }) {
   const [exercises, setExercises] = useState<
-    { id: string; name: string; client_name: string | null; primary_muscle: string; equipment: string | null }[]
+    { id: string; name: string; client_name: string | null; primary_muscle: string; muscle_id: string | null; equipment: string | null }[]
   >([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const isMobile = useIsMobile();
+  const { data: swapTaxonomy } = useExerciseTaxonomy(); // Slice 3: rolled-up muscle-group chip
+
+
 
   useEffect(() => {
     const load = async () => {
       const { data } = await supabase
         .from("exercise_library")
-        .select("id, name, client_name, primary_muscle, equipment")
+        .select("id, name, client_name, primary_muscle, muscle_id, equipment")
         .eq("is_active", true)
         .eq("is_global", true)
         .order("name");
@@ -1446,7 +1454,7 @@ function SwapExercisePicker({
               >
                 <p className="font-medium text-sm">{getExerciseDisplayName(ex, "client")}</p>
                 <p className="text-xs text-muted-foreground">
-                  {ex.primary_muscle}
+                  {muscleGroupLabel(ex.muscle_id, ex.primary_muscle, swapTaxonomy)}
                   {ex.equipment && ` \u2022 ${ex.equipment}`}
                 </p>
               </button>
@@ -1537,6 +1545,8 @@ function WorkoutSessionV2Content() {
   // WK7 §3 — overview (whole-session list) ↔ focus (one exercise at a time).
   const [mode, setMode] = useState<"overview" | "focus">("overview");
   const [focusIndex, setFocusIndex] = useState(0);
+  // Slice 3: taxonomy → rolled-up client muscle-GROUP chip (muscle_id → group level). Cached hook.
+  const { data: muscleTaxonomy } = useExerciseTaxonomy();
   // `token` increments each time a fresh timer starts so <RestTimer> remounts
   // via its `key` prop and the internal countdown resets. Without it, a second
   // completeSet while the previous timer is still running keeps the stale
@@ -2742,7 +2752,7 @@ function WorkoutSessionV2Content() {
                       <div className="flex-1 min-w-0">
                         <p className="font-medium truncate">{getExerciseDisplayName(exercise.exercise, "client")}</p>
                         <p className="text-xs text-muted-foreground truncate">
-                          {exercise.exercise.primary_muscle}
+                          {muscleGroupLabel(exercise.exercise.muscle_id, exercise.exercise.primary_muscle, muscleTaxonomy)}
                           {total > 0 ? ` · ${total} ${unitNoun}` : ""}
                         </p>
                       </div>
@@ -2762,7 +2772,7 @@ function WorkoutSessionV2Content() {
               <div className="flex items-center justify-between gap-2">
                 <div className="min-w-0">
                   <p className="text-xs text-muted-foreground truncate">
-                    {focusExercise.exercise.primary_muscle}
+                    {muscleGroupLabel(focusExercise.exercise.muscle_id, focusExercise.exercise.primary_muscle, muscleTaxonomy)}
                   </p>
                   <p className="text-sm font-medium">
                     Exercise {focusIndex + 1} of {module.exercises.length}
@@ -2820,6 +2830,7 @@ function WorkoutSessionV2Content() {
                     key={focusExercise.id}
                     exercise={focusExercise}
                     exerciseIndex={focusIndex}
+                    muscleLabel={muscleGroupLabel(focusExercise.exercise.muscle_id, focusExercise.exercise.primary_muscle, muscleTaxonomy)}
                     logs={setLogs[focusExercise.id] || []}
                     onUpdateLog={(setIndex, field, value) =>
                       updateSetLog(focusExercise.id, setIndex, field, value)
