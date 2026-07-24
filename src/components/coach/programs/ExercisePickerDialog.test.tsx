@@ -38,6 +38,8 @@ const ROWS: Row[] = [
   mk({ id: "t2", muscle_id: "m-tri", name: "Triceps Lat+Med C-FT Rope Pushdown (S)", client_name: "Triceps Rope Pushdown", equipment: "C-FT" }),
   mk({ id: "tc", muscle_id: "m-tri", name: "Coach-1 Custom Triceps Move", client_name: null, equipment: "DB", is_global: false, created_by_coach_id: "coach-1" }),
   mk({ id: "tf", muscle_id: "m-tri", name: "Foreign Coach Triceps Move", client_name: null, equipment: "DB", is_global: false, created_by_coach_id: "coach-2" }),
+  mk({ id: "cr1", category: "cardio", name: "Treadmill Run", cardio_movement_id: "cm-run" }),
+  mk({ id: "mo1", category: "mobility", name: "Shoulder CARs", target_region_id: "tr-sh" }),
 ];
 
 const TAXONOMY = {
@@ -45,6 +47,8 @@ const TAXONOMY = {
   muscles: [{ id: "m-tri", slug: "triceps", display_name: "Triceps", primary_region_id: "r-arms", sort_order: 2, volume_key: "triceps" }],
   musclesByRegion: new Map([["r-arms", [{ id: "m-tri", display_name: "Triceps", primary_region_id: "r-arms", sort_order: 2 }]]]),
   subdivisionsByMuscle: new Map(),
+  cardioMovements: [{ id: "cm-run", display_name: "Run", sort_order: 1 }],
+  targetRegions: [{ id: "tr-sh", display_name: "Shoulders", sort_order: 1 }],
 };
 
 let libState: { data: Row[]; isLoading: boolean; isError: boolean; error: unknown };
@@ -151,6 +155,29 @@ describe("ExercisePickerDialog — backed by ExerciseBrowse", () => {
     // Flat list (count line), NOT the region→muscle tree (no "Regions" breadcrumb / region strip).
     expect(doc().textContent).toContain("2 exercises");
     expect(doc().textContent).not.toContain("Regions");
+  });
+
+  it("canonical fill of a CARDIO modality slot: flat list scoped by cardio_movement", async () => {
+    await mount({ onSelectExercise: vi.fn(), sourceMuscleId: "cm-run", canonicalContext: true });
+    expect(doc().textContent).toContain("Treadmill Run");        // the Run-modality exercise
+    expect(doc().textContent).not.toContain("Shoulder CARs");    // a mobility row, different group
+    expect(doc().textContent).not.toContain("Triceps");          // strength rows out of scope
+    expect(doc().textContent).toContain("1 exercise");
+    expect(doc().textContent).not.toContain("Regions");
+  });
+
+  it("canonical fill of a MOBILITY region slot: flat list scoped by target_region", async () => {
+    await mount({ onSelectExercise: vi.fn(), sourceMuscleId: "tr-sh", canonicalContext: true });
+    expect(doc().textContent).toContain("Shoulder CARs");        // the Shoulders-region exercise
+    expect(doc().textContent).not.toContain("Treadmill Run");    // a cardio row, different group
+    expect(doc().textContent).not.toContain("Triceps");
+    expect(doc().textContent).toContain("1 exercise");
+  });
+
+  it("legacy (canonicalContext=false): a cardio_movement id is NOT treated as a group filter", async () => {
+    await mount({ onSelectExercise: vi.fn(), sourceMuscleId: "cm-run" }); // no canonicalContext
+    // No scoped flat list — the full browse renders (cardio row present, and NOT collapsed to 1).
+    expect(doc().textContent).not.toContain("1 exercise");
   });
 
   it("Fix 2 — 'Add to Section' selector is hidden under canonical, shown for legacy callers", async () => {

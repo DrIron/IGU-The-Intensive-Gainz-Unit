@@ -135,17 +135,27 @@ export function ExercisePickerDialog({
     [allRows, coachUserId]
   );
 
-  // 3b fill-later: when the slot being filled is a movement-group slot (sourceMuscleId is a group id
-  // like squat/press/hinge, not a muscle), scope the browse to that group's variations via the
-  // exercise → movement-group map. Hook is `enabled`-gated to group picks only, so muscle picks and
-  // flag-OFF authoring make no extra fetch.
-  const groupFilterId =
+  // Fill-later scoping (canonical authoring): when the slot being filled is a GROUP slot, scope the
+  // browse to that group's exercises as a flat list. Three group kinds by the id on `sourceMuscleId`:
+  //  - movement group (squat/press/hinge) → via the exercise → movement-group map (3b),
+  //  - cardio modality (a cardio_movements id) → exercises with that cardio_movement_id (3c),
+  //  - mobility region (a target_regions id) → exercises with that target_region_id (3e).
+  const movementGroupId =
     canonicalContext && sourceMuscleId && isMovementGroupId(sourceMuscleId) ? sourceMuscleId : undefined;
-  const { data: movementMap } = useExerciseMovementMap(open && !!groupFilterId);
+  const cardioModalityId =
+    canonicalContext && sourceMuscleId && taxonomy?.cardioMovements.some((cm) => cm.id === sourceMuscleId)
+      ? sourceMuscleId : undefined;
+  const targetRegionId =
+    canonicalContext && sourceMuscleId && taxonomy?.targetRegions.some((tr) => tr.id === sourceMuscleId)
+      ? sourceMuscleId : undefined;
+  const scopedFill = !!(movementGroupId || cardioModalityId || targetRegionId);
+  const { data: movementMap } = useExerciseMovementMap(open && !!movementGroupId);
   const browseRows = useMemo(() => {
-    if (!groupFilterId || !movementMap) return scopedRows;
-    return scopedRows.filter((r) => movementMap.get(r.id)?.groupId === groupFilterId);
-  }, [scopedRows, groupFilterId, movementMap]);
+    if (movementGroupId) return movementMap ? scopedRows.filter((r) => movementMap.get(r.id)?.groupId === movementGroupId) : scopedRows;
+    if (cardioModalityId) return scopedRows.filter((r) => r.cardio_movement_id === cardioModalityId);
+    if (targetRegionId) return scopedRows.filter((r) => r.target_region_id === targetRegionId);
+    return scopedRows;
+  }, [scopedRows, movementGroupId, movementMap, cardioModalityId, targetRegionId]);
 
   // Translate the muscle-builder `sourceMuscleId` → a taxonomy `muscles.id` for the browse deep-link.
   // The taxonomy muscle's `volume_key` is the muscle-builder id; a subdivision resolves to its parent.
@@ -292,8 +302,8 @@ export function ExercisePickerDialog({
         search={searchQuery}
         loading={rowsLoading}
         error={rowsError}
-        forceFlat={!!groupFilterId}
-        sourceMuscleId={groupFilterId ? undefined : sourceTaxonomyMuscleId}
+        forceFlat={scopedFill}
+        sourceMuscleId={scopedFill ? undefined : sourceTaxonomyMuscleId}
         onSelect={(ex) => onSelectExercise(ex.id, selectedSection, ex.name)}
         multiSelect={multiSelect}
         selectedIds={checkedIds}
