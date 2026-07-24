@@ -68,6 +68,7 @@ import { useProgressionSuggestions } from "@/hooks/useProgressionSuggestions";
 import { ProgressionSuggestionBanner } from "@/components/workout/ProgressionSuggestionBanner";
 import { getYouTubeId, getYouTubeThumbnail } from "@/lib/youtube";
 import { getExerciseDisplayName } from "@/lib/exerciseDisplay";
+import { computeInitialFocus } from "./workoutFocus";
 import { ExerciseDemoCard } from "@/components/exercise/ExerciseDemoCard";
 import type { ProgressionConfig, ColumnConfig, ClientInputColumnType } from "@/types/workout-builder";
 import {
@@ -1827,11 +1828,13 @@ function WorkoutSessionV2Content() {
         exercises: formattedExercises,
       });
 
-      const firstIncomplete = formattedExercises.findIndex((ex) => {
-        const logs = initialLogs[ex.id];
-        return !ex.skipped && logs && logs.some((l) => !l.completed && !l.skipped);
-      });
-      if (firstIncomplete >= 0) setFocusIndex(firstIncomplete);
+      // Slice 2: open straight into the workout. Focus the first incomplete exercise (resume) or
+      // exercise 1 (fresh); a fully-complete/empty session stays on the overview so Finish stays
+      // reachable. One-time (loadCanonicalSession is hasFetched-guarded) → later manual navigation
+      // (the Overview toggle, segment row) is preserved.
+      const initialView = computeInitialFocus(formattedExercises, initialLogs);
+      setFocusIndex(initialView.focusIndex);
+      setMode(initialView.mode);
     } catch (error: any) {
       console.error("Error loading canonical session:", error);
       setLoadError(true);
