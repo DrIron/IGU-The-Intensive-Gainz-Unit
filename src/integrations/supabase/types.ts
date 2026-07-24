@@ -3573,6 +3573,7 @@ export type Database = {
           anatomical_name: string | null
           cardio_movement_id: string | null
           category: Database["public"]["Enums"]["exercise_category"]
+          client_movement: string | null
           client_name: string | null
           created_at: string
           created_by_coach_id: string | null
@@ -3608,6 +3609,7 @@ export type Database = {
           anatomical_name?: string | null
           cardio_movement_id?: string | null
           category?: Database["public"]["Enums"]["exercise_category"]
+          client_movement?: string | null
           client_name?: string | null
           created_at?: string
           created_by_coach_id?: string | null
@@ -3643,6 +3645,7 @@ export type Database = {
           anatomical_name?: string | null
           cardio_movement_id?: string | null
           category?: Database["public"]["Enums"]["exercise_category"]
+          client_movement?: string | null
           client_name?: string | null
           created_at?: string
           created_by_coach_id?: string | null
@@ -5506,6 +5509,7 @@ export type Database = {
       }
       muscle_subdivisions: {
         Row: {
+          client_display_name: string | null
           created_at: string
           display_name: string
           id: string
@@ -5517,6 +5521,7 @@ export type Database = {
           volume_key: string | null
         }
         Insert: {
+          client_display_name?: string | null
           created_at?: string
           display_name: string
           id?: string
@@ -5528,6 +5533,7 @@ export type Database = {
           volume_key?: string | null
         }
         Update: {
+          client_display_name?: string | null
           created_at?: string
           display_name?: string
           id?: string
@@ -5550,6 +5556,7 @@ export type Database = {
       }
       muscles: {
         Row: {
+          client_display_name: string | null
           created_at: string
           display_name: string
           id: string
@@ -5561,6 +5568,7 @@ export type Database = {
           volume_key: string | null
         }
         Insert: {
+          client_display_name?: string | null
           created_at?: string
           display_name: string
           id?: string
@@ -5572,6 +5580,7 @@ export type Database = {
           volume_key?: string | null
         }
         Update: {
+          client_display_name?: string | null
           created_at?: string
           display_name?: string
           id?: string
@@ -9085,6 +9094,16 @@ export type Database = {
           tiktok_url: string | null
           user_id: string | null
           youtube_url: string | null
+        }
+        Relationships: []
+      }
+      exercise_client_display: {
+        Row: {
+          client_focus: string | null
+          client_movement: string | null
+          client_muscle: string | null
+          client_title: string | null
+          exercise_id: string | null
         }
         Relationships: []
       }
