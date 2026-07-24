@@ -93,9 +93,13 @@ export function interpretPhaseStatus(args: {
   latestActualChangePercent: number | null;
   weeklyRatePercentage: number;
   goalType: "fat_loss" | "muscle_gain" | "maintenance";
+  /** Whose phase this describes. 'self' (default) = the client reading their own copy ("your");
+   *  'coach' = a coach viewing a client ("their", + a neutral empty state). */
+  subject?: "self" | "coach";
 }): Interpretation {
-  const { status, latestActualChangePercent, weeklyRatePercentage, goalType } = args;
+  const { status, latestActualChangePercent, weeklyRatePercentage, goalType, subject = "self" } = args;
   const tone = PHASE_TONE[status];
+  const poss = subject === "coach" ? "their" : "your"; // possessive, viewer-aware
   const lc = latestActualChangePercent;
   const mag = lc != null ? f1(Math.abs(lc)) : null;
   const target = trimNum(weeklyRatePercentage);
@@ -107,7 +111,14 @@ export function interpretPhaseStatus(args: {
     case "completed":
       return { tone, label: "Completed", sentence: "This phase is complete." };
     case "no_data":
-      return { tone, label: "No data yet", sentence: "Log a couple more weigh-ins to see your trend." };
+      return {
+        tone,
+        label: "No data yet",
+        sentence:
+          subject === "coach"
+            ? "Not enough weigh-ins yet to show a trend."
+            : "Log a couple more weigh-ins to see your trend.",
+      };
     case "on_track":
       return {
         tone,
@@ -115,13 +126,13 @@ export function interpretPhaseStatus(args: {
         sentence:
           goalType === "maintenance"
             ? "Holding steady, right where it should be."
-            : `Weight ${moved} — right in your ${target}% target band.`,
+            : `Weight ${moved} — right in ${poss} ${target}% target band.`,
       };
     case "ahead":
       return {
         tone,
         label: "Ahead",
-        sentence: `Weight ${moved} — faster than your ${target}% target; keep an eye on recovery.`,
+        sentence: `Weight ${moved} — faster than ${poss} ${target}% target; keep an eye on recovery.`,
       };
     case "behind":
       return {
@@ -130,7 +141,7 @@ export function interpretPhaseStatus(args: {
         sentence:
           goalType === "maintenance"
             ? `Weight ${moved} — drifting from maintenance.`
-            : `Weight ${moved} — short of your ${target}% target.`,
+            : `Weight ${moved} — short of ${poss} ${target}% target.`,
       };
   }
 }

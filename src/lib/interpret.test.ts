@@ -56,6 +56,33 @@ describe("interpretPhaseStatus tone mapping", () => {
   });
 });
 
+describe("interpretPhaseStatus subject (viewer-aware copy)", () => {
+  const base = { latestActualChangePercent: -0.6, weeklyRatePercentage: 0.6, goalType: "fat_loss" as const };
+
+  it("default (self) keeps second-person 'your' copy", () => {
+    expect(interpretPhaseStatus({ ...base, status: "on_track" }).sentence).toContain("your 0.6% target band");
+    expect(interpretPhaseStatus({ ...base, status: "ahead" }).sentence).toContain("faster than your");
+    expect(interpretPhaseStatus({ ...base, status: "behind" }).sentence).toContain("short of your");
+    expect(interpretPhaseStatus({ ...base, status: "no_data" }).sentence).toBe("Log a couple more weigh-ins to see your trend.");
+  });
+
+  it("coach → 'their' + neutral empty state, never 'your'", () => {
+    const onTrack = interpretPhaseStatus({ ...base, status: "on_track", subject: "coach" });
+    expect(onTrack.sentence).toContain("their 0.6% target band");
+    expect(onTrack.sentence).not.toContain("your");
+    expect(interpretPhaseStatus({ ...base, status: "ahead", subject: "coach" }).sentence).toContain("faster than their");
+    expect(interpretPhaseStatus({ ...base, status: "behind", subject: "coach" }).sentence).toContain("short of their");
+    expect(interpretPhaseStatus({ ...base, status: "no_data", subject: "coach" }).sentence).toBe("Not enough weigh-ins yet to show a trend.");
+  });
+
+  it("subject does not change tone/label, only copy", () => {
+    const self = interpretPhaseStatus({ ...base, status: "behind" });
+    const coach = interpretPhaseStatus({ ...base, status: "behind", subject: "coach" });
+    expect(coach.tone).toBe(self.tone);
+    expect(coach.label).toBe(self.label);
+  });
+});
+
 describe("interpretPhaseStatus direction follows the ACTUAL sign, not the goal", () => {
   it("fat-loss client who GAINED reads 'up', never 'Losing'", () => {
     const r = interpretPhaseStatus({

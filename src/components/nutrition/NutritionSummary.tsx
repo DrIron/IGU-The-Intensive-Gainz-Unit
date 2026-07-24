@@ -67,9 +67,9 @@ const SIZES = {
 } as const;
 
 const MACRO_ROWS = [
-  { key: "protein", label: "Protein", token: "var(--macro-protein)" },
-  { key: "fat", label: "Fat", token: "var(--macro-fat)" },
-  { key: "carbs", label: "Carbs", token: "var(--macro-carb)" },
+  { key: "protein", label: "Protein", short: "P", token: "var(--macro-protein)" },
+  { key: "fat", label: "Fat", short: "F", token: "var(--macro-fat)" },
+  { key: "carbs", label: "Carbs", short: "C", token: "var(--macro-carb)" },
 ] as const;
 
 const fmt = (n: number) => Math.round(n).toLocaleString("en-US");
@@ -147,7 +147,12 @@ export function NutritionSummary({
                   style={{ backgroundColor: `hsl(${m.token})` }}
                   aria-hidden
                 />
-                <span className="min-w-0 flex-1 truncate font-medium">{m.label}</span>
+                {/* Mobile: single-letter P/F/C so the label never clips against the grams/% columns.
+                    ≥sm: the full word (desktop unchanged). */}
+                <span className="min-w-0 flex-1 truncate font-medium">
+                  <span className="sm:hidden">{m.short}</span>
+                  <span className="hidden sm:inline">{m.label}</span>
+                </span>
                 <span className="shrink-0 font-mono tabular-nums" data-macro-grams={m.key}>
                   {fmt(grams)}
                   {hasTarget && (
