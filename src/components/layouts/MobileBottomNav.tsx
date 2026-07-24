@@ -61,8 +61,9 @@ export function MobileBottomNav({
       className={cn(
         "fixed bottom-0 left-0 right-0 z-50 md:hidden",
         "bg-background border-t",
-        "safe-area-inset-bottom", // iOS safe area
-        "pb-1.5", // small breathing room so the tabs aren't flush against the very bottom edge
+        // Real iOS home-indicator inset + a subtle ~6px so the tab row floats just above it.
+        // (The old `safe-area-inset-bottom` class was undefined/dead — this replaces it.)
+        "pb-[calc(env(safe-area-inset-bottom,0px)+0.375rem)]",
         className
       )}
     >

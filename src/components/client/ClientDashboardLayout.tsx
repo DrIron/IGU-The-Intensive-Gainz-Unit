@@ -260,7 +260,7 @@ export function ClientDashboardLayout({
         <div className="flex min-h-screen w-full bg-background pt-[var(--app-top-offset)]">
           <ClientSidebar activeSection={activeSection} onSectionChange={setActiveSection} profile={profile} subscription={subscription} />
           <main className="flex-1 min-w-0">
-            <div className="p-4 md:p-6 pb-24 md:pb-8 safe-area-bottom">
+            <div className="p-4 md:p-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
               <div className="max-w-7xl mx-auto">
                 <PaymentStatusDashboard userId={user.id} />
               </div>
@@ -560,7 +560,7 @@ export function ClientDashboardLayout({
                 </div>
               </div>
             </div>
-            <div className="p-4 md:p-6 pb-24 md:pb-8 safe-area-bottom">
+            <div className="p-4 md:p-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
               <div className="max-w-7xl mx-auto">
                 {/* Grace Period Banner - shows during soft lock */}
                 {isInGracePeriod && (

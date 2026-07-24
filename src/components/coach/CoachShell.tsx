@@ -22,7 +22,7 @@ export function CoachShell({ children }: { children: ReactNode }) {
       <SidebarProvider defaultOpen={false}>
         <div className="flex min-h-screen w-full bg-background pt-[var(--app-top-offset)]">
           <CoachSidebar activeSection="" onSectionChange={() => {}} />
-          <main className="flex-1 min-w-0 p-4 md:p-6 pb-24 md:pb-8 safe-area-bottom">
+          <main className="flex-1 min-w-0 p-4 md:p-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
             <div className="max-w-7xl mx-auto">{children}</div>
           </main>
         </div>
