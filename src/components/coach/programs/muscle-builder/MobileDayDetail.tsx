@@ -372,6 +372,7 @@ export const MobileDayDetail = memo(function MobileDayDetail({
                                   canMoveDown={canMoveDown}
                                   onMoveUp={onMoveUp}
                                   onMoveDown={onMoveDown}
+                                  onOpenExercisePicker={onOpenExercisePicker}
                                 />
                               );
                             }
@@ -599,6 +600,7 @@ interface MobileActivityRowProps {
   canMoveDown?: boolean;
   onMoveUp?: () => void;
   onMoveDown?: () => void;
+  onOpenExercisePicker?: (slotId: string, groupId: string, mode: 'primary' | 'replacement') => void;
 }
 
 function formatActivityMetric(slot: MuscleSlotData): string {
@@ -624,7 +626,11 @@ const MobileActivityRow = memo(function MobileActivityRow({
   canMoveDown,
   onMoveUp,
   onMoveDown,
+  onOpenExercisePicker,
 }: MobileActivityRowProps) {
+  const isGroupSlot =
+    !!onOpenExercisePicker && !!slot.muscleId &&
+    (slot.activityType === 'cardio' || slot.activityType === 'yoga_mobility');
   const [open, setOpen] = useState(false);
   const typeColors = ACTIVITY_TYPE_COLORS[slot.activityType || 'cardio'];
   const activity = slot.activityId ? getActivityDisplay(slot.activityId) : null;
@@ -681,6 +687,18 @@ const MobileActivityRow = memo(function MobileActivityRow({
                   Done
                 </Button>
               </div>
+              {isGroupSlot && (
+                // Parity with the muscle/lift fill — scoped exercise picker for this cardio/mobility group.
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full justify-start gap-2 h-10"
+                  onClick={() => { setOpen(false); onOpenExercisePicker?.(slot.id, slot.muscleId, 'primary'); }}
+                >
+                  <Dumbbell className="h-4 w-4" />
+                  {slot.exercise ? 'Change exercise' : 'Choose exercise'}
+                </Button>
+              )}
               {onSetActivityDetails && <ActivityFieldsEditor slot={slot} onUpdate={update} />}
               <div className="space-y-1">
                 <Label className="text-xs text-muted-foreground">Notes</Label>

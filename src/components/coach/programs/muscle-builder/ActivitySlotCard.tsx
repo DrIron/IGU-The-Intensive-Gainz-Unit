@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { X, Timer, Zap, Heart, Pencil } from "lucide-react";
+import { X, Timer, Zap, Heart, Pencil, Dumbbell } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getActivityDisplay,
@@ -22,6 +22,9 @@ interface ActivitySlotCardProps {
   onRemove: (slotId: string) => void;
   onSetActivityDetails?: (slotId: string, details: Record<string, unknown>) => void;
   isHighlighted?: boolean;
+  /** Canonical authoring: open the scoped exercise picker for a cardio/mobility GROUP slot (groupId =
+   *  the slot's cardio_movement / target_region id on muscleId). Parity with the muscle/lift fill. */
+  onOpenExercisePicker?: (slotId: string, groupId: string, mode: 'primary' | 'replacement') => void;
 }
 
 /** Format the key metric for the card face */
@@ -46,6 +49,7 @@ export const ActivitySlotCard = memo(function ActivitySlotCard({
   onRemove,
   onSetActivityDetails,
   isHighlighted,
+  onOpenExercisePicker,
 }: ActivitySlotCardProps) {
   const [popoverOpen, setPopoverOpen] = useState(false);
 
@@ -54,11 +58,24 @@ export const ActivitySlotCard = memo(function ActivitySlotCard({
     onRemove(slot.id);
   }, [slot.id, onRemove]);
 
+  // A cardio/mobility GROUP slot carries its group id (cardio_movement / target_region) on muscleId →
+  // its exercises can be scoped-picked. Filling sets slot.exercise; muscleId stays so the lens holds.
+  const isGroupSlot =
+    !!onOpenExercisePicker && !!slot.muscleId &&
+    (slot.activityType === 'cardio' || slot.activityType === 'yoga_mobility');
+  const handleChooseExercise = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setPopoverOpen(false);
+    onOpenExercisePicker?.(slot.id, slot.muscleId, 'primary');
+  }, [slot.id, slot.muscleId, onOpenExercisePicker]);
+
   const activity = slot.activityId ? getActivityDisplay(slot.activityId) : null;
   const typeColors = ACTIVITY_TYPE_COLORS[slot.activityType || 'cardio'];
   const colorHex = activity?.colorHex || typeColors.colorHex;
   const colorClass = activity?.colorClass || typeColors.colorClass;
-  const label = slot.activityName || activity?.label || slot.activityId || 'Activity';
+  // Filled group slot → show the chosen exercise; otherwise the modality/region (activityName). (Legacy
+  // filled activity slots set activityName = the exercise name, so this stays identical for them.)
+  const label = slot.exercise?.name || slot.activityName || activity?.label || slot.activityId || 'Activity';
   const metric = formatMetric(slot);
   // 3e fix: an unfilled group slot (duration 0, canonical only) is "pending". Its metric is the wide
   // "set duration" text — inline, it (shrink-0) squeezes the truncatable label to nothing in a narrow
@@ -136,6 +153,15 @@ export const ActivitySlotCard = memo(function ActivitySlotCard({
                     <div className={`w-2 h-2 rounded-full ${colorClass}`} />
                     <p className="text-sm font-medium">{label}</p>
                   </div>
+
+                  {/* Scoped exercise fill (cardio modality / mobility region group slots) — parity with
+                      the muscle/lift "Choose Exercise". Opens the picker filtered to this group. */}
+                  {isGroupSlot && (
+                    <Button variant="outline" size="sm" className="w-full justify-start gap-2 h-8" onClick={handleChooseExercise}>
+                      <Dumbbell className="h-3.5 w-3.5" />
+                      {slot.exercise ? 'Change exercise' : 'Choose exercise'}
+                    </Button>
+                  )}
 
                   {/* Type-specific fields */}
                   <ActivityFieldsEditor slot={slot} onUpdate={update} />

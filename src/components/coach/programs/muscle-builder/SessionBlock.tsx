@@ -497,6 +497,7 @@ export const SessionBlock = memo(function SessionBlock({
                   draggableIndex={i}
                   onRemove={onRemove}
                   onSetActivityDetails={onSetActivityDetails}
+                  onOpenExercisePicker={onOpenExercisePicker}
                 />
               );
             })}
