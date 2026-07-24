@@ -226,7 +226,7 @@ export function CoachDashboardLayout({
             </div>
           )}
 
-          <div className="p-4 md:p-6 pb-24 md:pb-8 safe-area-bottom">
+          <div className="p-4 md:p-6 pb-[calc(6rem+env(safe-area-inset-bottom,0px))] md:pb-8">
             <div className="max-w-7xl mx-auto">
               <SectionErrorBoundary name="Dashboard">
                 {renderContent()}
