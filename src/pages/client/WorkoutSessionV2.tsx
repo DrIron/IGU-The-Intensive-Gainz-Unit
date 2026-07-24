@@ -2220,7 +2220,8 @@ function WorkoutSessionV2Content() {
 
       toast({
         title: "Exercise swapped",
-        description: `Switched to ${newExLib.name}`,
+        // Client-facing: headline the friendly `client_name ?? name`, not the dense coach shorthand.
+        description: `Switched to ${getExerciseDisplayName(newExLib, "client")}`,
       });
     } catch (error: any) {
       toast({

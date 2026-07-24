@@ -28,4 +28,14 @@ describe("getExerciseDisplayName", () => {
   it("coach never falls back — `name` is always present and authoritative", () => {
     expect(getExerciseDisplayName({ name: "X", client_name: null }, "coach")).toBe("X");
   });
+
+  // Client workout player (WorkoutSessionV2) — every exercise headline (overview list, focus card,
+  // swap dialog + candidate rows, completion/summary, and the "Switched to …" toast) routes through
+  // this helper with "client", so a client sees the friendly label, never the coach shorthand.
+  it("client player headlines the friendly name, and the swap-toast path falls back when null", () => {
+    const rhomboidRow = { name: "Rhomboids M Close Grip Chest-Supported Row (S)", client_name: "Chest-Supported Row" };
+    expect(getExerciseDisplayName(rhomboidRow, "client")).toBe("Chest-Supported Row");
+    // A swapped-to row with no client_name (older cardio/mobility) still reads a real name in the toast.
+    expect(getExerciseDisplayName({ name: "Cardio Rower (M)", client_name: null }, "client")).toBe("Cardio Rower (M)");
+  });
 });
