@@ -52,6 +52,8 @@ interface NutritionPhaseCardProps {
   onEditPhase?: () => void;
   onScrollToAdjustments?: () => void;
   className?: string;
+  /** 'self' (default) = client's own view ("your"); 'coach' = a coach viewing this client ("their"). */
+  subject?: "self" | "coach";
 }
 
 const GOAL_LABELS: Record<string, string> = {
@@ -68,6 +70,7 @@ export function NutritionPhaseCard({
   onEditPhase,
   onScrollToAdjustments,
   className,
+  subject = "self",
 }: NutritionPhaseCardProps) {
   const weeks = useMemo(() => {
     if (weeksElapsed != null) return weeksElapsed;
@@ -107,8 +110,9 @@ export function NutritionPhaseCard({
         latestActualChangePercent: latestActualChangePercent ?? null,
         weeklyRatePercentage: phase.weekly_rate_percentage,
         goalType: normalizedGoal,
+        subject,
       }),
-    [status, latestActualChangePercent, normalizedGoal, phase.weekly_rate_percentage],
+    [status, latestActualChangePercent, normalizedGoal, phase.weekly_rate_percentage, subject],
   );
 
   const goalLabel = GOAL_LABELS[goalType] || goalType;

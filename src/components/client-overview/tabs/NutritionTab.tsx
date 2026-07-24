@@ -195,6 +195,7 @@ export function NutritionTab({ context }: ClientOverviewTabProps) {
           weeksElapsed={phaseStats?.currentWeek}
           latestAverageWeight={phaseStats?.currentWeight}
           onEditPhase={() => setInnerTab("edit")}
+          subject="coach"
         />
       )}
 

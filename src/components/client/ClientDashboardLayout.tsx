@@ -550,7 +550,7 @@ export function ClientDashboardLayout({
                 subscription={subscription}
               />
             )}
-            <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 md:p-6">
+            <div className="bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 border-b p-4 pt-2 md:p-6">
               <div className="flex items-center gap-4">
                 <div className="flex-1 min-w-0">
                   <h1 className="text-2xl md:text-3xl font-bold truncate">Welcome, {profile?.first_name || profile?.full_name}!</h1>
